@@ -723,8 +723,8 @@ setStats({
 const formatInterval = (minutes) => {
 const hours = Math.floor(minutes / 60);
 const mins = Math.round(minutes % 60);
-if (hours === 0) return ${mins}m;
-return ${hours}h ${mins}m;
+if (hours === 0) return `${mins}m`;
+return `${hours}h ${mins}m`;
 };
 if (loading) {
 return React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
