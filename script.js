@@ -815,19 +815,19 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
       ),
 
       stats.chartData.length > 0 ?
-        React.createElement('div', { className: "space-y-2" },
-          stats.chartData.map(item => 
-            React.createElement('div', { key: item.date, className: "grid grid-cols-[80px_1fr_80px] items-center gap-3" },
-              React.createElement('div', { className: "text-sm text-gray-600 text-right" }, item.date),
-              React.createElement('div', { className: "bg-gray-200 rounded-full h-10 overflow-hidden relative" },
+        React.createElement('div', { className: "space-y-3" },
+          stats.chartData.map(item =>
+            React.createElement('div', { key: item.date, className: "flex items-center gap-3 text-sm" },
+              React.createElement('div', { className: "w-16 text-gray-600" }, item.date),
+              React.createElement('div', { className: "flex-1 bg-gray-200 rounded-full h-8 overflow-hidden" },
                 React.createElement('div', {
                   className: "bg-indigo-600 h-full transition-all duration-500 flex items-center justify-end pr-3",
                   style: { width: `${Math.min((item.volume / Math.max(...stats.chartData.map(d => d.volume))) * 100, 100)}%` }
                 },
-                  React.createElement('span', { className: "text-white text-sm font-semibold" }, `${item.volume} oz`)
+                  React.createElement('span', { className: "text-white text-xs font-semibold" }, `${item.volume} oz`)
                 )
               ),
-              React.createElement('div', { className: "text-xs text-gray-500 text-left" }, `${item.count} feeds`)
+              React.createElement('div', { className: "w-16 text-right text-xs text-gray-500" }, `${item.count} feeds`)
             )
           )
         )
