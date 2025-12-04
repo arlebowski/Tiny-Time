@@ -662,7 +662,6 @@ const BabyFeedingTracker = () => {
       activeTab === 'analytics' && React.createElement(AnalyticsTab, { 
         loadAllFeedings: loadAllFeedings 
       })
-    )
   );
 };
 
