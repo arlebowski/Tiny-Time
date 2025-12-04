@@ -840,7 +840,6 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
         )
       :
         React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No data to display')
-    )
   );
 };
 
