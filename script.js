@@ -813,32 +813,4 @@ const Plus = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
 );
 
 ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById('root'));
-
-**And here's the updated index.html:**
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <meta name="mobile-web-app-capable" content="yes">
-  <title>Tiny Time</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-</head>
-<body>
-  <div id="root"></div>
-  <script type="text/babel" src="script.js"></script>
-</body>
-</html>
-```
-
 Paste the JavaScript into `script.js` and the HTML into `index.html` in your GitHub repository. Save both files and Netlify will auto-deploy!
