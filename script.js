@@ -91,7 +91,7 @@ const BabyFeedingTracker = () => {
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [showCustomTime, setShowCustomTime] = useState(false);
-  const [activeTab, setActiveTab] = useState('tracker'); // 'tracker' or 'analytics'
+  const [activeTab, setActiveTab] = useState('tracker');
 
   useEffect(() => {
     loadData();
@@ -351,7 +351,6 @@ const BabyFeedingTracker = () => {
     );
   }
 
-  // Setup screen - only show if no weight exists
   if (!babyWeight) {
     return React.createElement('div', { 
       className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" 
@@ -362,7 +361,7 @@ const BabyFeedingTracker = () => {
             React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
           )
         ),
-        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Tracker!'),
+        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Time!'),
         React.createElement('p', { className: "text-gray-600 text-center mb-6" }, "Let's start by entering your baby's current weight"),
         React.createElement('input', {
           type: "number",
@@ -385,7 +384,6 @@ const BabyFeedingTracker = () => {
     className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pb-8" 
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Tab Navigation
       React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-2 mb-4 flex gap-2" },
         React.createElement('button', {
           onClick: () => setActiveTab('tracker'),
@@ -405,17 +403,14 @@ const BabyFeedingTracker = () => {
         }, 'Analytics')
       ),
 
-      // Tracker Tab
       activeTab === 'tracker' && React.createElement(React.Fragment, null,
-        // Header card with all the main content
         React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
-          // Header row
           React.createElement('div', { className: "flex items-center justify-between mb-4" },
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
                 React.createElement(Baby, { className: "w-6 h-6 text-indigo-600" })
               ),
-              React.createElement('h1', { className: "text-2xl font-bold text-gray-800" }, 'Tiny Tracker')
+              React.createElement('h1', { className: "text-2xl font-bold text-gray-800" }, 'Tiny Time')
             ),
             React.createElement('button', {
               onClick: () => setShowSettings(!showSettings),
@@ -423,7 +418,6 @@ const BabyFeedingTracker = () => {
             }, React.createElement(Settings, { className: "w-6 h-6" }))
           ),
           
-          // Settings panel
           showSettings && React.createElement('div', { className: "mb-4 p-4 bg-gray-50 rounded-xl space-y-3" },
             React.createElement('div', { className: "flex items-center justify-between" },
               React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Baby's Weight"),
@@ -492,7 +486,6 @@ const BabyFeedingTracker = () => {
             )
           ),
           
-          // Date navigation
           React.createElement('div', { className: "flex items-center justify-between mb-4" },
             React.createElement('button', {
               onClick: goToPreviousDay,
@@ -506,7 +499,6 @@ const BabyFeedingTracker = () => {
             }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
           ),
           
-          // Progress summary
           React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-4" },
             React.createElement('div', { className: "text-center" },
               React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, totalConsumed.toFixed(1)),
@@ -524,7 +516,6 @@ const BabyFeedingTracker = () => {
             )
           ),
           
-          // Progress bar
           React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-3 overflow-hidden" },
             React.createElement('div', {
               className: `h-full transition-all duration-500 ${percentComplete >= 100 ? 'bg-green-500' : 'bg-indigo-600'}`,
@@ -534,7 +525,6 @@ const BabyFeedingTracker = () => {
           React.createElement('div', { className: "text-right text-xs text-gray-500 mt-1" }, `${percentComplete.toFixed(0)}%`)
         ),
         
-        // Add feeding form
         React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
           React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Log Feeding'),
           React.createElement('div', { className: "space-y-3" },
@@ -571,7 +561,6 @@ const BabyFeedingTracker = () => {
           )
         ),
         
-        // Feedings list
         React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
           React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
           feedings.length === 0 ?
@@ -643,7 +632,6 @@ const BabyFeedingTracker = () => {
         )
       ),
 
-      // Analytics Tab
       activeTab === 'analytics' && React.createElement(AnalyticsTab, { 
         loadAllFeedings: loadAllFeedings 
       })
@@ -651,7 +639,6 @@ const BabyFeedingTracker = () => {
   );
 };
 
-// Analytics Tab Component
 const AnalyticsTab = ({ loadAllFeedings }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -682,142 +669,152 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
     const now = Date.now();
     const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000);
     const last3DaysFeedings = feedings.filter(f => f.timestamp >= threeDaysAgo);
-// Calculate average volume in last 3 days
-const totalVolume = last3DaysFeedings.reduce((sum, f) => sum + f.ounces, 0);
-const avgVolume = last3DaysFeedings.length > 0 ? totalVolume / last3DaysFeedings.length : 0;
 
-// Calculate average interval between feeds
-let totalIntervalMinutes = 0;
-for (let i = 1; i < last3DaysFeedings.length; i++) {
-  const interval = last3DaysFeedings[i].timestamp - last3DaysFeedings[i - 1].timestamp;
-  totalIntervalMinutes += interval / (1000 * 60); // Convert to minutes
-}
-const avgIntervalMinutes = last3DaysFeedings.length > 1 
-  ? totalIntervalMinutes / (last3DaysFeedings.length - 1) 
-  : 0;
+    const totalVolume = last3DaysFeedings.reduce((sum, f) => sum + f.ounces, 0);
+    const avgVolume = last3DaysFeedings.length > 0 ? totalVolume / last3DaysFeedings.length : 0;
 
-// Prepare chart data - group by day
-const feedingsByDay = {};
-feedings.forEach(f => {
-  const date = new Date(f.timestamp);
-  const dayKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  if (!feedingsByDay[dayKey]) {
-    feedingsByDay[dayKey] = { date: dayKey, volume: 0, count: 0 };
+    let totalIntervalMinutes = 0;
+    for (let i = 1; i < last3DaysFeedings.length; i++) {
+      const interval = last3DaysFeedings[i].timestamp - last3DaysFeedings[i - 1].timestamp;
+      totalIntervalMinutes += interval / (1000 * 60);
+    }
+    const avgIntervalMinutes = last3DaysFeedings.length > 1 
+      ? totalIntervalMinutes / (last3DaysFeedings.length - 1) 
+      : 0;
+
+    const feedingsByDay = {};
+    feedings.forEach(f => {
+      const date = new Date(f.timestamp);
+      const dayKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      if (!feedingsByDay[dayKey]) {
+        feedingsByDay[dayKey] = { date: dayKey, volume: 0, count: 0 };
+      }
+      feedingsByDay[dayKey].volume += f.ounces;
+      feedingsByDay[dayKey].count += 1;
+    });
+
+    const chartData = Object.values(feedingsByDay).map(day => ({
+      date: day.date,
+      volume: parseFloat(day.volume.toFixed(1)),
+      count: day.count
+    }));
+
+    setStats({
+      avgVolume3Days: avgVolume,
+      avgInterval3Days: avgIntervalMinutes,
+      chartData: chartData
+    });
+  };
+
+  const formatInterval = (minutes) => {
+    const hours = Math.floor(minutes / 60);
+    const mins = Math.round(minutes % 60);
+    if (hours === 0) return `${mins}m`;
+    return `${hours}h ${mins}m`;
+  };
+
+  if (loading) {
+    return React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('div', { className: "text-center text-gray-600" }, 'Loading analytics...')
+    );
   }
-  feedingsByDay[dayKey].volume += f.ounces;
-  feedingsByDay[dayKey].count += 1;
-});
 
-const chartData = Object.values(feedingsByDay).map(day => ({
-  date: day.date,
-  volume: parseFloat(day.volume.toFixed(1)),
-  count: day.count
-}));
+  if (allFeedings.length === 0) {
+    return React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No feeding data yet. Start logging feedings to see analytics!')
+    );
+  }
 
-setStats({
-  avgVolume3Days: avgVolume,
-  avgInterval3Days: avgIntervalMinutes,
-  chartData: chartData
-});
-};
-const formatInterval = (minutes) => {
-const hours = Math.floor(minutes / 60);
-const mins = Math.round(minutes % 60);
-if (hours === 0) return `${mins}m`;
-return `${hours}h ${mins}m`;
-};
-if (loading) {
-return React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-React.createElement('div', { className: "text-center text-gray-600" }, 'Loading analytics...')
-);
-}
-if (allFeedings.length === 0) {
-return React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No feeding data yet. Start logging feedings to see analytics!')
-);
-}
-return React.createElement('div', { className: "space-y-4" },
-// Stats Cards
-React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, '3-Day Avg Volume'),
-React.createElement('div', { className: "text-3xl font-bold text-indigo-600" }, ${stats.avgVolume3Days.toFixed(1)} oz),
-React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Per feeding')
-),
-React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, '3-Day Avg Interval'),
-React.createElement('div', { className: "text-3xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval3Days)),
-React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Between feeds')
-)
-),
-// Chart
-React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-  React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Daily Volume'),
-  stats.chartData.length > 0 ?
-    React.createElement('div', { className: "space-y-2" },
-      stats.chartData.map(day => 
-        React.createElement('div', { key: day.date, className: "flex items-center gap-3" },
-          React.createElement('div', { className: "text-sm text-gray-600 w-20" }, day.date),
-          React.createElement('div', { className: "flex-1 bg-gray-200 rounded-full h-8 overflow-hidden relative" },
-            React.createElement('div', {
-              className: "bg-indigo-600 h-full transition-all duration-500 flex items-center justify-end pr-3",
-              style: { width: `${Math.min((day.volume / Math.max(...stats.chartData.map(d => d.volume))) * 100, 100)}%` }
-            },
-              React.createElement('span', { className: "text-white text-sm font-semibold" }, `${day.volume} oz`)
-            )
-          ),
-          React.createElement('div', { className: "text-xs text-gray-500 w-16 text-right" }, `${day.count} feeds`)
-        )
+  return React.createElement('div', { className: "space-y-4" },
+    React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+        React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, '3-Day Avg Volume'),
+        React.createElement('div', { className: "text-3xl font-bold text-indigo-600" }, `${stats.avgVolume3Days.toFixed(1)} oz`),
+        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Per feeding')
+      ),
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+        React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, '3-Day Avg Interval'),
+        React.createElement('div', { className: "text-3xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval3Days)),
+        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Between feeds')
       )
+    ),
+
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Daily Volume'),
+      stats.chartData.length > 0 ?
+        React.createElement('div', { className: "space-y-2" },
+          stats.chartData.map(day => 
+            React.createElement('div', { key: day.date, className: "flex items-center gap-3" },
+              React.createElement('div', { className: "text-sm text-gray-600 w-20" }, day.date),
+              React.createElement('div', { className: "flex-1 bg-gray-200 rounded-full h-8 overflow-hidden relative" },
+                React.createElement('div', {
+                  className: "bg-indigo-600 h-full transition-all duration-500 flex items-center justify-end pr-3",
+                  style: { width: `${Math.min((day.volume / Math.max(...stats.chartData.map(d => d.volume))) * 100, 100)}%` }
+                },
+                  React.createElement('span', { className: "text-white text-sm font-semibold" }, `${day.volume} oz`)
+                )
+              ),
+              React.createElement('div', { className: "text-xs text-gray-500 w-16 text-right" }, `${day.count} feeds`)
+            )
+          )
+        )
+      :
+        React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No data to display')
     )
-  :
-    React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No data to display')
-)
-);
+  );
 };
-// Lucide icons as React components
-const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "M9 12h.01" }),
-React.createElement('path', { d: "M15 12h.01" }),
-React.createElement('path', { d: "M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" }),
-React.createElement('path', { d: "M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1" })
+
+const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, 
+  React.createElement('path', { d: "M9 12h.01" }), 
+  React.createElement('path', { d: "M15 12h.01" }), 
+  React.createElement('path', { d: "M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" }), 
+  React.createElement('path', { d: "M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1" })
 );
+
 const TrendingUp = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('polyline', { points: "22 7 13.5 15.5 8.5 10.5 2 17" }),
-React.createElement('polyline', { points: "16 7 22 7 22 13" })
+  React.createElement('polyline', { points: "22 7 13.5 15.5 8.5 10.5 2 17" }),
+  React.createElement('polyline', { points: "16 7 22 7 22 13" })
 );
+
 const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
+  React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
 );
+
 const Check = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "M20 6 9 17l-5-5" })
+  React.createElement('path', { d: "M20 6 9 17l-5-5" })
 );
+
 const X = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "M18 6 6 18" }),
-React.createElement('path', { d: "m6 6 12 12" })
+  React.createElement('path', { d: "M18 6 6 18" }),
+  React.createElement('path', { d: "m6 6 12 12" })
 );
+
 const ChevronLeft = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "m15 18-6-6 6-6" })
+  React.createElement('path', { d: "m15 18-6-6 6-6" })
 );
+
 const ChevronRight = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "m9 18 6-6-6-6" })
+  React.createElement('path', { d: "m9 18 6-6-6-6" })
 );
+
 const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" }),
-React.createElement('circle', { cx: "12", cy: "12", r: "3" })
+  React.createElement('path', { d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" }),
+  React.createElement('circle', { cx: "12", cy: "12", r: "3" })
 );
+
 const Clock = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
-React.createElement('polyline', { points: "12 6 12 12 16 14" })
+  React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
+  React.createElement('polyline', { points: "12 6 12 12 16 14" })
 );
+
 const Plus = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-React.createElement('path', { d: "M5 12h14" }),
-React.createElement('path', { d: "M12 5v14" })
+  React.createElement('path', { d: "M5 12h14" }),
+  React.createElement('path', { d: "M12 5v14" })
 );
-// Render the app
+
 ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById('root'));
 
-**Also update `index.html`** to change the title:
+**And here's the updated index.html:**
 ```html
 <!DOCTYPE html>
 <html lang="en">
@@ -827,7 +824,7 @@ ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>Tiny Tracker</title>
+  <title>Tiny Time</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -844,12 +841,4 @@ ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById
 </html>
 ```
 
-**What changed:**
-1. ✅ Weight is now persistent - only asks once on first load
-2. ✅ App name changed to "Tiny Tracker" 
-3. ✅ New Analytics tab with:
-   - 3-day average feed volume
-   - 3-day average interval between feeds
-   - Daily volume chart showing all historical data
-
-**After you paste and save both files, Netlify will auto-deploy in ~30 seconds!**
+Paste the JavaScript into `script.js` and the HTML into `index.html` in your GitHub repository. Save both files and Netlify will auto-deploy!
