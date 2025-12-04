@@ -813,4 +813,3 @@ const Plus = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
 );
 
 ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById('root'));
-Paste the JavaScript into `script.js` and the HTML into `index.html` in your GitHub repository. Save both files and Netlify will auto-deploy!
