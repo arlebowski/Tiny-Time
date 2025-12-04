@@ -779,46 +779,47 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   return React.createElement('div', { className: "space-y-4" },
     // Stats Cards 
     React.createElement('div', { className: "grid grid-cols-2 gap-4 auto-rows-fr" },
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
-        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, '3-Day Avg Volume'),
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
+        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, '3-Day Avg Volume'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, `${stats.avgVolume3Days.toFixed(1)}`),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'oz/feed')
       ),
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
-        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, '3-Day Avg Interval'),
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
+        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, '3-Day Avg Interval'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval3Days)),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Between feeds')
       ),
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4 col-span-2" },
-        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, 'Longest Interval'),
-        React.createElement('div', { className: "text-2xl font-bold text-orange-600" }, formatInterval(stats.longestInterval3Days)),
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center col-span-2" },
+        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Longest Interval'),
+        React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.longestInterval3Days)),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Last 3 days')
       )
     ),
 
     // Chart with toggle
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Volume History'),
-        React.createElement('div', { className: "flex gap-1 bg-gray-100 rounded-lg p-1" },
+      React.createElement('h2', { className: "text-base font-semibold text-gray-700 mb-4" }, 'Volume History'),,
+        React.createElement('div', { className: "flex justify-center gap-2 mb-6" },
+          React.createElement('div', { className: "inline-flex gap-1 bg-gray-100 rounded-lg p-1" },
           React.createElement('button', {
             onClick: () => setTimeRange('day'),
-            className: `px-3 py-1 rounded text-sm font-medium transition ${timeRange === 'day' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+            className: `px-3 py-1.5 rounded text-xs font-medium transition ${timeRange === 'day' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
           }, 'Day'),
           React.createElement('button', {
             onClick: () => setTimeRange('week'),
-            className: `px-3 py-1 rounded text-sm font-medium transition ${timeRange === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+            className: `px-3 py-1.5 rounded text-xs font-medium transition ${timeRange === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
           }, 'Week'),
           React.createElement('button', {
             onClick: () => setTimeRange('month'),
-            className: `px-3 py-1 rounded text-sm font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+            className: `px-3 py-1.5 rounded text-xs font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
           }, 'Month')
         ),
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "space-y-2" },
           stats.chartData.map(item => 
-            React.createElement('div', { key: item.date, className: "flex items-center gap-3" },
-              React.createElement('div', { className: "text-sm text-gray-600 w-20" }, item.date),
-              React.createElement('div', { className: "flex-1 bg-gray-200 rounded-full h-8 overflow-hidden relative" },
+            React.createElement('div', { key: item.date, className: "grid grid-cols-[80px_1fr_80px] items-center gap-3" },
+              React.createElement('div', { className: "text-sm text-gray-600 text-right" }, item.date),
+              React.createElement('div', { className: "bg-gray-200 rounded-full h-10 overflow-hidden relative" },
                 React.createElement('div', {
                   className: "bg-indigo-600 h-full transition-all duration-500 flex items-center justify-end pr-3",
                   style: { width: `${Math.min((item.volume / Math.max(...stats.chartData.map(d => d.volume))) * 100, 100)}%` }
@@ -826,7 +827,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
                   React.createElement('span', { className: "text-white text-sm font-semibold" }, `${item.volume} oz`)
                 )
               ),
-              React.createElement('div', { className: "text-xs text-gray-500 w-16 text-right" }, `${item.count} feeds`)
+              React.createElement('div', { className: "text-xs text-gray-500 text-left" }, `${item.count} feeds`)
             )
           )
         )
