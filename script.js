@@ -94,6 +94,10 @@ const BabyFeedingTracker = () => {
   const [activeTab, setActiveTab] = useState('tracker');
 
   useEffect(() => {
+    document.title = '🍼 Tiny Tracker';
+  }, []);
+
+  useEffect(() => {
     loadData();
   }, []);
 
