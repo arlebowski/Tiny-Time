@@ -143,17 +143,6 @@ const BabyFeedingTracker = () => {
         }
       }
     };
-      if (feedingsResult) {
-        const loadedFeedings = JSON.parse(feedingsResult.value);
-        loadedFeedings.sort((a, b) => b.timestamp - a.timestamp);
-        setFeedings(loadedFeedings);
-      } else {
-        setFeedings([]);
-      }
-    } catch (error) {
-      setFeedings([]);
-    }
-  };
 
   const loadAllFeedings = async () => {
     try {
