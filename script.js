@@ -362,7 +362,7 @@ const BabyFeedingTracker = () => {
             React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
           )
         ),
-        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Time!'),
+        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Tracker!'),
         React.createElement('p', { className: "text-gray-600 text-center mb-6" }, "Let's start by entering your baby's current weight"),
         React.createElement('input', {
           type: "number",
@@ -415,7 +415,7 @@ const BabyFeedingTracker = () => {
               React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
                 React.createElement(Baby, { className: "w-6 h-6 text-indigo-600" })
               ),
-              React.createElement('h1', { className: "text-2xl font-bold text-gray-800" }, 'Tiny Time')
+              React.createElement('h1', { className: "text-2xl font-bold text-gray-800" }, 'Tiny Tracker')
             ),
             React.createElement('button', {
               onClick: () => setShowSettings(!showSettings),
@@ -827,7 +827,7 @@ ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="mobile-web-app-capable" content="yes">
-  <title>Tiny Time</title>
+  <title>Tiny Tracker</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -846,7 +846,7 @@ ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById
 
 **What changed:**
 1. ✅ Weight is now persistent - only asks once on first load
-2. ✅ App name changed to "Tiny Time" 
+2. ✅ App name changed to "Tiny Tracker" 
 3. ✅ New Analytics tab with:
    - 3-day average feed volume
    - 3-day average interval between feeds
