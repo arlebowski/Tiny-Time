@@ -361,7 +361,7 @@ const BabyFeedingTracker = () => {
             React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
           )
         ),
-        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Time!'),
+        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Tracker!'),
         React.createElement('p', { className: "text-gray-600 text-center mb-6" }, "Let's start by entering your baby's current weight"),
         React.createElement('input', {
           type: "number",
@@ -410,7 +410,7 @@ const BabyFeedingTracker = () => {
               React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
                 React.createElement(Baby, { className: "w-6 h-6 text-indigo-600" })
               ),
-              React.createElement('h1', { className: "text-2xl font-bold text-gray-800" }, 'Tiny Time')
+              React.createElement('h1', { className: "text-2xl font-bold text-gray-800" }, 'Tiny Tracker')
             ),
             React.createElement('button', {
               onClick: () => setShowSettings(!showSettings),
@@ -642,15 +642,17 @@ const BabyFeedingTracker = () => {
 const AnalyticsTab = ({ loadAllFeedings }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('day'); // 'day', 'week', 'month'
   const [stats, setStats] = useState({
     avgVolume3Days: 0,
     avgInterval3Days: 0,
+    longestInterval3Days: 0,
     chartData: []
   });
 
   useEffect(() => {
     loadAnalytics();
-  }, []);
+  }, [timeRange]);
 
   const loadAnalytics = async () => {
     setLoading(true);
@@ -662,7 +664,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
 
   const calculateStats = (feedings) => {
     if (feedings.length === 0) {
-      setStats({ avgVolume3Days: 0, avgInterval3Days: 0, chartData: [] });
+      setStats({ avgVolume3Days: 0, avgInterval3Days: 0, longestInterval3Days: 0, chartData: [] });
       return;
     }
 
@@ -670,40 +672,65 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
     const threeDaysAgo = now - (3 * 24 * 60 * 60 * 1000);
     const last3DaysFeedings = feedings.filter(f => f.timestamp >= threeDaysAgo);
 
+    // Average volume
     const totalVolume = last3DaysFeedings.reduce((sum, f) => sum + f.ounces, 0);
     const avgVolume = last3DaysFeedings.length > 0 ? totalVolume / last3DaysFeedings.length : 0;
 
+    // Average and longest interval
     let totalIntervalMinutes = 0;
+    let longestIntervalMinutes = 0;
     for (let i = 1; i < last3DaysFeedings.length; i++) {
       const interval = last3DaysFeedings[i].timestamp - last3DaysFeedings[i - 1].timestamp;
-      totalIntervalMinutes += interval / (1000 * 60);
+      const intervalMinutes = interval / (1000 * 60);
+      totalIntervalMinutes += intervalMinutes;
+      if (intervalMinutes > longestIntervalMinutes) {
+        longestIntervalMinutes = intervalMinutes;
+      }
     }
     const avgIntervalMinutes = last3DaysFeedings.length > 1 
       ? totalIntervalMinutes / (last3DaysFeedings.length - 1) 
       : 0;
 
-    const feedingsByDay = {};
-    feedings.forEach(f => {
-      const date = new Date(f.timestamp);
-      const dayKey = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      if (!feedingsByDay[dayKey]) {
-        feedingsByDay[dayKey] = { date: dayKey, volume: 0, count: 0 };
-      }
-      feedingsByDay[dayKey].volume += f.ounces;
-      feedingsByDay[dayKey].count += 1;
-    });
-
-    const chartData = Object.values(feedingsByDay).map(day => ({
-      date: day.date,
-      volume: parseFloat(day.volume.toFixed(1)),
-      count: day.count
-    }));
+    // Chart data based on time range
+    const chartData = generateChartData(feedings, timeRange);
 
     setStats({
       avgVolume3Days: avgVolume,
       avgInterval3Days: avgIntervalMinutes,
+      longestInterval3Days: longestIntervalMinutes,
       chartData: chartData
     });
+  };
+
+  const generateChartData = (feedings, range) => {
+    const grouped = {};
+    
+    feedings.forEach(f => {
+      const date = new Date(f.timestamp);
+      let key;
+      
+      if (range === 'day') {
+        key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else if (range === 'week') {
+        const weekStart = new Date(date);
+        weekStart.setDate(date.getDate() - date.getDay());
+        key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      } else { // month
+        key = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      }
+      
+      if (!grouped[key]) {
+        grouped[key] = { date: key, volume: 0, count: 0 };
+      }
+      grouped[key].volume += f.ounces;
+      grouped[key].count += 1;
+    });
+
+    return Object.values(grouped).map(item => ({
+      date: item.date,
+      volume: parseFloat(item.volume.toFixed(1)),
+      count: item.count
+    }));
   };
 
   const formatInterval = (minutes) => {
@@ -726,35 +753,58 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   }
 
   return React.createElement('div', { className: "space-y-4" },
-    React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-        React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, '3-Day Avg Volume'),
-        React.createElement('div', { className: "text-3xl font-bold text-indigo-600" }, `${stats.avgVolume3Days.toFixed(1)} oz`),
-        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Per feeding')
+    // Stats Cards (3 cards now)
+    React.createElement('div', { className: "grid grid-cols-3 gap-3" },
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
+        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, '3-Day Avg Volume'),
+        React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, `${stats.avgVolume3Days.toFixed(1)}`),
+        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'oz/feed')
       ),
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-        React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, '3-Day Avg Interval'),
-        React.createElement('div', { className: "text-3xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval3Days)),
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
+        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, '3-Day Avg Interval'),
+        React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval3Days)),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Between feeds')
+      ),
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
+        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, 'Longest Interval'),
+        React.createElement('div', { className: "text-2xl font-bold text-orange-600" }, formatInterval(stats.longestInterval3Days)),
+        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, 'Last 3 days')
       )
     ),
 
+    // Chart with toggle
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Daily Volume'),
+      React.createElement('div', { className: "flex items-center justify-between mb-4" },
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Volume History'),
+        React.createElement('div', { className: "flex gap-1 bg-gray-100 rounded-lg p-1" },
+          React.createElement('button', {
+            onClick: () => setTimeRange('day'),
+            className: `px-3 py-1 rounded text-sm font-medium transition ${timeRange === 'day' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+          }, 'Day'),
+          React.createElement('button', {
+            onClick: () => setTimeRange('week'),
+            className: `px-3 py-1 rounded text-sm font-medium transition ${timeRange === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+          }, 'Week'),
+          React.createElement('button', {
+            onClick: () => setTimeRange('month'),
+            className: `px-3 py-1 rounded text-sm font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+          }, 'Month')
+        )
+      ),
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "space-y-2" },
-          stats.chartData.map(day => 
-            React.createElement('div', { key: day.date, className: "flex items-center gap-3" },
-              React.createElement('div', { className: "text-sm text-gray-600 w-20" }, day.date),
+          stats.chartData.map(item => 
+            React.createElement('div', { key: item.date, className: "flex items-center gap-3" },
+              React.createElement('div', { className: "text-sm text-gray-600 w-20" }, item.date),
               React.createElement('div', { className: "flex-1 bg-gray-200 rounded-full h-8 overflow-hidden relative" },
                 React.createElement('div', {
                   className: "bg-indigo-600 h-full transition-all duration-500 flex items-center justify-end pr-3",
-                  style: { width: `${Math.min((day.volume / Math.max(...stats.chartData.map(d => d.volume))) * 100, 100)}%` }
+                  style: { width: `${Math.min((item.volume / Math.max(...stats.chartData.map(d => d.volume))) * 100, 100)}%` }
                 },
-                  React.createElement('span', { className: "text-white text-sm font-semibold" }, `${day.volume} oz`)
+                  React.createElement('span', { className: "text-white text-sm font-semibold" }, `${item.volume} oz`)
                 )
               ),
-              React.createElement('div', { className: "text-xs text-gray-500 w-16 text-right" }, `${day.count} feeds`)
+              React.createElement('div', { className: "text-xs text-gray-500 w-16 text-right" }, `${item.count} feeds`)
             )
           )
         )
