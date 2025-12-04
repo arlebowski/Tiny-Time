@@ -94,7 +94,7 @@ const BabyFeedingTracker = () => {
   const [activeTab, setActiveTab] = useState('tracker');
 
   useEffect(() => {
-    document.title = '🍼 Tiny Tracker';
+    document.title = 'Tiny Tracker';
   }, []);
 
   useEffect(() => {
@@ -798,22 +798,22 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
 
     // Chart with toggle
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-base font-semibold text-gray-700 mb-4" }, 'Volume History'),,
-        React.createElement('div', { className: "flex justify-center gap-2 mb-6" },
-          React.createElement('div', { className: "inline-flex gap-1 bg-gray-100 rounded-lg p-1" },
-          React.createElement('button', {
-            onClick: () => setTimeRange('day'),
-            className: `px-3 py-1.5 rounded text-xs font-medium transition ${timeRange === 'day' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
-          }, 'Day'),
-          React.createElement('button', {
-            onClick: () => setTimeRange('week'),
-            className: `px-3 py-1.5 rounded text-xs font-medium transition ${timeRange === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
-          }, 'Week'),
-          React.createElement('button', {
-            onClick: () => setTimeRange('month'),
-            className: `px-3 py-1.5 rounded text-xs font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
-          }, 'Month')
-        ),
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'Volume History'),
+      React.createElement('div', { className: "inline-flex items-center gap-1 bg-gray-100 rounded-full p-1 mb-4 text-xs" },
+        React.createElement('button', {
+          onClick: () => setTimeRange('day'),
+          className: `px-3 py-1 rounded-full font-medium transition-colors ${timeRange === 'day' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+        }, 'Day'),
+        React.createElement('button', {
+          onClick: () => setTimeRange('week'),
+          className: `px-3 py-1 rounded-full font-medium transition-colors ${timeRange === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+        }, 'Week'),
+        React.createElement('button', {
+          onClick: () => setTimeRange('month'),
+          className: `px-3 py-1 rounded-full font-medium transition-colors ${timeRange === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
+        }, 'Month')
+      ),
+
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "space-y-2" },
           stats.chartData.map(item => 
