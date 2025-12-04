@@ -123,10 +123,26 @@ const BabyFeedingTracker = () => {
     }
   };
 
-  const loadFeedingsForDate = async (date) => {
-    try {
-      const dateString = date.toDateString();
-      const feedingsResult = await storage.get(`feedings_${dateString}`);
+  const loadFeedingsForDate = async (date, retries = 3) => {
+      try {
+        const dateString = date.toDateString();
+        const feedingsResult = await storage.get(`feedings_${dateString}`);
+        if (feedingsResult) {
+          const loadedFeedings = JSON.parse(feedingsResult.value);
+          loadedFeedings.sort((a, b) => b.timestamp - a.timestamp);
+          setFeedings(loadedFeedings);
+        } else {
+          setFeedings([]);
+        }
+      } catch (error) {
+        if (retries > 0) {
+          // Retry after 500ms
+          setTimeout(() => loadFeedingsForDate(date, retries - 1), 500);
+        } else {
+          setFeedings([]);
+        }
+      }
+    };
       if (feedingsResult) {
         const loadedFeedings = JSON.parse(feedingsResult.value);
         loadedFeedings.sort((a, b) => b.timestamp - a.timestamp);
@@ -418,8 +434,7 @@ const BabyFeedingTracker = () => {
         
         // Today section with gear icon
         React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
-          React.createElement('div', { className: "flex items-center justify-between mb-4" },
-            React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Today'),
+          React.createElement('div', { className: "flex items-center justify-end mb-4" },
             React.createElement('button', {
               onClick: () => setShowSettings(!showSettings),
               className: "text-gray-400 hover:text-indigo-600 transition"
@@ -625,7 +640,7 @@ const BabyFeedingTracker = () => {
                     React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
                       React.createElement('div', { className: "flex items-center gap-3" },
                         React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
-                          React.createElement(TrendingUp, { className: "w-4 h-4 text-indigo-600" })
+                          React.createElement('span', { className: "text-xl" }, '🍼')
                         ),
                         React.createElement('div', {},
                           React.createElement('div', { className: "font-semibold text-gray-800" }, `${feeding.ounces} oz`),
@@ -805,7 +820,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
             onClick: () => setTimeRange('month'),
             className: `px-3 py-1 rounded text-sm font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
           }, 'Month')
-        )
+        ),
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "space-y-2" },
           stats.chartData.map(item => 
