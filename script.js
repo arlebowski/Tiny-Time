@@ -156,7 +156,6 @@ const BabyFeedingTracker = () => {
           allFeedings.push(...dayFeedings);
         }
       }
-      
       return allFeedings.sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
       console.error('Error loading all feedings:', error);
