@@ -830,7 +830,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText || '3-day avg')
       ),
       React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
-        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Avg Between Feeds'),
+        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Time Between Feeds'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval)),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText || '3-day avg')
       )
