@@ -570,92 +570,98 @@ const BabySetupScreen = ({ user, onComplete }) => {
 
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
-  
+
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
-  
+
   return React.createElement(
     'div',
     {
       className: "min-h-screen pb-24",
-      style: { backgroundColor: '#E0E7FF' }
+      style: { backgroundColor: "#E0E7FF" }
     },
+
     React.createElement(
       'div',
       { className: "max-w-2xl mx-auto" },
 
-      // Header (no gradient)
+      /* ---------------- HEADER ---------------- */
       React.createElement(
         'div',
         {
           className: "sticky top-0 z-10",
-          style: { backgroundColor: '#E0E7FF' }
+          style: { backgroundColor: "#E0E7FF" }
         },
+
+        // Header content
         React.createElement(
           'div',
           {
-            className: "pt-4 pb-6",
-            style: { backgroundColor: '#E0E7FF' }
+            className: "pt-4 pb-6 flex items-center justify-center",
+            style: { backgroundColor: "#E0E7FF" }
           },
           React.createElement(
             'div',
-            { className: "flex items-center justify-center" },
+            { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-3xl" }, "🍼"),
             React.createElement(
-              'div',
-              { className: "flex items-center gap-2" },
-              React.createElement('span', { className: "text-3xl" }, '🍼'),
-              React.createElement(
-                'h1',
-                {
-                  className: "text-2xl font-bold text-gray-800 handwriting"
-                },
-                'Tiny Tracker'
-              )
+              'h1',
+              {
+                className: "text-2xl font-bold text-gray-800 handwriting"
+              },
+              "Tiny Tracker"
             )
           )
         ),
-        // Solid strip instead of gradient fade
+
+        // SHADOW under header
         React.createElement('div', {
-          className: "h-4",
-          style: { backgroundColor: '#E0E7FF' }
+          className: "h-3",
+          style: {
+            backgroundColor: "#E0E7FF",
+            boxShadow: "0 4px 6px rgba(0,0,0,0.10)"
+          }
         })
       ),
 
-      // Content (unchanged)
+      /* ---------------- CONTENT ---------------- */
       React.createElement(
         'div',
         { className: "px-4" },
-        activeTab === 'tracker' &&
+        activeTab === "tracker" &&
           React.createElement(TrackerTab, { user, kidId }),
-        activeTab === 'analytics' &&
+        activeTab === "analytics" &&
           React.createElement(AnalyticsTab, { kidId }),
-        activeTab === 'family' &&
+        activeTab === "family" &&
           React.createElement(FamilyTab, { user, kidId }),
-        activeTab === 'settings' &&
+        activeTab === "settings" &&
           React.createElement(SettingsTab, { user, kidId })
       )
     ),
 
-    // Bottom Navigation (no gradients)
+    /* ---------------- BOTTOM NAV ---------------- */
     React.createElement(
       'div',
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
-        style: { backgroundColor: '#E0E7FF' }
+        style: { backgroundColor: "#E0E7FF" }
       },
 
-      // Solid strip at top of nav
+      // SHADOW above nav
       React.createElement('div', {
-        className: "h-4",
-        style: { backgroundColor: '#E0E7FF' }
+        className: "h-3",
+        style: {
+          backgroundColor: "#E0E7FF",
+          boxShadow: "0 -4px 6px rgba(0,0,0,0.10)"
+        }
       }),
 
       React.createElement(
         'div',
         {
           className: "pb-4 pt-2",
-          style: { backgroundColor: '#E0E7FF' }
+          style: { backgroundColor: "#E0E7FF" }
         },
         React.createElement(
           'div',
@@ -663,12 +669,14 @@ const MainApp = ({ user, kidId }) => {
             className:
               "max-w-2xl mx-auto flex items-center justify-around px-4"
           },
+
+          // your EXACT nav tab list
           [
-            { id: 'tracker', icon: BarChart, label: 'Tracker' },
-            { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
-            { id: 'family', icon: Users, label: 'Family' },
-            { id: 'settings', icon: Settings, label: 'Settings' }
-          ].map(tab =>
+            { id: "tracker", icon: BarChart, label: "Tracker" },
+            { id: "analytics", icon: TrendingUp, label: "Analytics" },
+            { id: "family", icon: Users, label: "Family" },
+            { id: "settings", icon: Settings, label: "Settings" }
+          ].map((tab) =>
             React.createElement(
               'button',
               {
@@ -676,8 +684,8 @@ const MainApp = ({ user, kidId }) => {
                 onClick: () => setActiveTab(tab.id),
                 className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
                   activeTab === tab.id
-                    ? 'text-indigo-600'
-                    : 'text-gray-400'
+                    ? "text-indigo-600"
+                    : "text-gray-400"
                 }`
               },
               React.createElement(tab.icon, { className: "w-6 h-6" }),
@@ -693,6 +701,7 @@ const MainApp = ({ user, kidId }) => {
     )
   );
 };
+
 
 
 // ========================================
