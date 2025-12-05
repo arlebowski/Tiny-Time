@@ -292,8 +292,8 @@ const firestoreStorage = {
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 2 (FIXED)
-// App Wrapper, Login Screen, Baby Setup Screen
+// TINY TRACKER V3 - PART 2
+// App Wrapper, Login Screen, Baby Setup Screen (with migration fix)
 // ========================================
 
 const { useState, useEffect } = React;
@@ -313,28 +313,31 @@ const App = () => {
         
         try {
           let userKidId;
-
           if (inviteCode) {
-            // Accept invite + attach kid to this user
             userKidId = await acceptInvite(inviteCode, user.uid);
-            if (userKidId) {
-              await saveUserKidId(user.uid, userKidId);
-            }
-            // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
-            // Normal path – fetch kidId for this user
             userKidId = await getUserKidId(user.uid);
+            
+            if (!userKidId) {
+              // New user, needs setup
+              setNeedsSetup(true);
+              setLoading(false);
+              return;
+            }
+            
+            // Check if we need to migrate data (only once per browser)
+            const migrationFlag = localStorage.getItem('migration_complete');
+            if (!migrationFlag) {
+              const hasLocalData = localStorage.getItem('baby_weight') || 
+                                   await rtdb.ref().once('value').then(s => s.exists());
+              if (hasLocalData) {
+                await migrateLocalStorageData(userKidId);
+                localStorage.setItem('migration_complete', 'true');
+              }
+            }
           }
           
-          // If no kid yet, show setup
-          if (!userKidId) {
-            setNeedsSetup(true);
-            setLoading(false);
-            return;
-          }
-
-          // ✅ No more migration here
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
         } catch (error) {
@@ -347,7 +350,6 @@ const App = () => {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
   
@@ -356,7 +358,7 @@ const App = () => {
       className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" 
     },
       React.createElement('div', { className: "text-center" },
-        React.createElement('div', { className: "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4" }),
+        React.createElement('div', { className: "text-4xl mb-3" }, '🍼'),
         React.createElement('div', { className: "text-gray-600" }, 'Loading...')
       )
     );
@@ -376,10 +378,9 @@ const App = () => {
       }
     });
   }
-
+  
   return React.createElement(MainApp, { user, kidId });
 };
-
 
 // ========================================
 // LOGIN SCREEN
@@ -565,8 +566,8 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 3
-// Main App with Bottom Navigation
+// TINY TRACKER V3 - PART 3
+// Main App with Bottom Navigation (Instagram-style with gradient)
 // ========================================
 
 const MainApp = ({ user, kidId }) => {
@@ -577,21 +578,30 @@ const MainApp = ({ user, kidId }) => {
   }, []);
   
   return React.createElement('div', { 
-    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-20" 
+    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-24" 
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header
-      React.createElement('div', { className: "bg-white shadow-sm sticky top-0 z-10" },
-        React.createElement('div', { className: "flex items-center justify-center py-4" },
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('span', { className: "text-3xl" }, '🍼'),
-            React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
+      // Header with gradient fade
+      React.createElement('div', { className: "sticky top-0 z-10" },
+        React.createElement('div', { className: "bg-gradient-to-br from-blue-50 to-indigo-100 pt-4 pb-6" },
+          React.createElement('div', { className: "flex items-center justify-center" },
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('span', { className: "text-3xl" }, '🍼'),
+              React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
+            )
           )
-        )
+        ),
+        // Gradient fade at bottom of header
+        React.createElement('div', { 
+          className: "h-4",
+          style: { 
+            background: 'linear-gradient(to bottom, rgb(224, 231, 255), transparent)'
+          }
+        })
       ),
       
       // Content
-      React.createElement('div', { className: "p-4" },
+      React.createElement('div', { className: "px-4" },
         activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId }),
         activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
         activeTab === 'family' && React.createElement(FamilyTab, { user, kidId }),
@@ -599,28 +609,39 @@ const MainApp = ({ user, kidId }) => {
       )
     ),
     
-    // Bottom Navigation (sticky)
+    // Bottom Navigation (Instagram-style with gradient)
     React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50" 
+      className: "fixed bottom-0 left-0 right-0 z-50" 
     },
-      React.createElement('div', { className: "max-w-2xl mx-auto flex items-center justify-around" },
-        [
-          { id: 'tracker', icon: '📊', label: 'Tracker' },
-          { id: 'analytics', icon: '📈', label: 'Analytics' },
-          { id: 'family', icon: '👥', label: 'Family' },
-          { id: 'settings', icon: '⚙️', label: 'Settings' }
-        ].map(tab =>
-          React.createElement('button', {
-            key: tab.id,
-            onClick: () => setActiveTab(tab.id),
-            className: `flex-1 py-3 flex flex-col items-center gap-1 transition ${
-              activeTab === tab.id 
-                ? 'text-indigo-600' 
-                : 'text-gray-400 hover:text-gray-600'
-            }`
-          },
-            React.createElement('span', { className: "text-2xl" }, tab.icon),
-            React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+      // Gradient fade at top of nav
+      React.createElement('div', { 
+        className: "h-4",
+        style: { 
+          background: 'linear-gradient(to top, rgb(224, 231, 255), transparent)'
+        }
+      }),
+      React.createElement('div', { 
+        className: "bg-gradient-to-br from-blue-50 to-indigo-100 pb-4"
+      },
+        React.createElement('div', { className: "max-w-2xl mx-auto flex items-center justify-around px-4" },
+          [
+            { id: 'tracker', icon: BarChart, label: 'Tracker' },
+            { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
+            { id: 'family', icon: Users, label: 'Family' },
+            { id: 'settings', icon: Settings, label: 'Settings' }
+          ].map(tab =>
+            React.createElement('button', {
+              key: tab.id,
+              onClick: () => setActiveTab(tab.id),
+              className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+                activeTab === tab.id 
+                  ? 'text-indigo-600' 
+                  : 'text-gray-400'
+              }`
+            },
+              React.createElement(tab.icon, { className: "w-6 h-6" }),
+              React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+            )
           )
         )
       )
@@ -1126,19 +1147,32 @@ const AnalyticsTab = ({ kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 6
-// Family Tab - Profiles, Members, Baby Info, Invites
+// TINY TRACKER V3 - PART 6
+// Family Tab - Baby Info (Editable), Target Settings, Members, Invites
 // ========================================
 
 const FamilyTab = ({ user, kidId }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
+  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
+  
+  // Edit states
   const [editingName, setEditingName] = useState(false);
-  const [tempName, setTempName] = useState('');
+  const [editingBirthDate, setEditingBirthDate] = useState(false);
+  const [editingWeight, setEditingWeight] = useState(false);
+  const [editingMultiplier, setEditingMultiplier] = useState(false);
+  const [editingUserName, setEditingUserName] = useState(false);
+  
+  // Temp values
+  const [tempBabyName, setTempBabyName] = useState('');
+  const [tempBirthDate, setTempBirthDate] = useState('');
+  const [tempWeight, setTempWeight] = useState('');
+  const [tempMultiplier, setTempMultiplier] = useState('');
+  const [tempUserName, setTempUserName] = useState('');
 
   useEffect(() => {
     loadData();
@@ -1153,6 +1187,11 @@ const FamilyTab = ({ user, kidId }) => {
       
       const memberList = await firestoreStorage.getMembers();
       setMembers(memberList);
+      
+      const settingsData = await firestoreStorage.getSettings();
+      if (settingsData) {
+        setSettings(settingsData);
+      }
     } catch (error) {
       console.error('Error loading family data:', error);
     }
@@ -1192,11 +1231,52 @@ const FamilyTab = ({ user, kidId }) => {
     }
   };
 
-  const handleUpdateName = async () => {
-    if (!tempName.trim()) return;
+  const handleUpdateBabyName = async () => {
+    if (!tempBabyName.trim()) return;
     try {
-      await updateUserProfile(user.uid, { displayName: tempName.trim() });
+      await firestoreStorage.updateKid({ name: tempBabyName.trim() });
       setEditingName(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating name:', error);
+    }
+  };
+
+  const handleUpdateBirthDate = async () => {
+    if (!tempBirthDate) return;
+    try {
+      const birthTimestamp = new Date(tempBirthDate).getTime();
+      await firestoreStorage.updateKid({ birthDate: birthTimestamp });
+      setEditingBirthDate(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating birth date:', error);
+    }
+  };
+
+  const handleUpdateWeight = async () => {
+    const weight = parseFloat(tempWeight);
+    if (weight > 0) {
+      await firestoreStorage.setSettings({ babyWeight: weight });
+      setSettings({ ...settings, babyWeight: weight });
+      setEditingWeight(false);
+    }
+  };
+
+  const handleUpdateMultiplier = async () => {
+    const mult = parseFloat(tempMultiplier);
+    if (mult > 0) {
+      await firestoreStorage.setSettings({ multiplier: mult });
+      setSettings({ ...settings, multiplier: mult });
+      setEditingMultiplier(false);
+    }
+  };
+
+  const handleUpdateUserName = async () => {
+    if (!tempUserName.trim()) return;
+    try {
+      await updateUserProfile(user.uid, { displayName: tempUserName.trim() });
+      setEditingUserName(false);
       await loadData();
     } catch (error) {
       console.error('Error updating name:', error);
@@ -1207,6 +1287,12 @@ const FamilyTab = ({ user, kidId }) => {
     if (!timestamp) return 'Unknown';
     const date = new Date(timestamp);
     return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const formatDateForInput = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toISOString().split('T')[0];
   };
 
   const getAge = (timestamp) => {
@@ -1236,18 +1322,152 @@ const FamilyTab = ({ user, kidId }) => {
     // Baby Info Card
     kidData && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
-      React.createElement('div', { className: "space-y-3" },
-        React.createElement('div', { className: "flex items-center gap-3" },
-          React.createElement('div', { className: "bg-indigo-100 rounded-full p-3" },
-            React.createElement('span', { className: "text-3xl" }, '👶')
+      React.createElement('div', { className: "space-y-4" },
+        // Baby photo and name
+        React.createElement('div', { className: "flex items-center gap-4" },
+          React.createElement('div', { className: "relative" },
+            React.createElement('div', { className: "bg-indigo-100 rounded-full p-4 w-20 h-20 flex items-center justify-center" },
+              React.createElement('span', { className: "text-4xl" }, '👶')
+            ),
+            React.createElement('button', {
+              className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition",
+              title: "Change photo (coming soon)"
+            }, React.createElement(Camera, { className: "w-3 h-3" }))
           ),
-          React.createElement('div', null,
-            React.createElement('div', { className: "font-semibold text-gray-800 text-xl" }, kidData.name || 'Baby'),
+          React.createElement('div', { className: "flex-1" },
+            !editingName ?
+              React.createElement('div', { className: "flex items-center gap-2" },
+                React.createElement('span', { className: "text-2xl font-bold text-gray-800" }, kidData.name || 'Baby'),
+                React.createElement('button', {
+                  onClick: () => {
+                    setTempBabyName(kidData.name || '');
+                    setEditingName(true);
+                  },
+                  className: "text-indigo-600 hover:text-indigo-700"
+                }, React.createElement(Edit2, { className: "w-4 h-4" }))
+              )
+            :
+              React.createElement('div', { className: "flex items-center gap-2" },
+                React.createElement('input', {
+                  type: "text",
+                  value: tempBabyName,
+                  onChange: (e) => setTempBabyName(e.target.value),
+                  className: "flex-1 px-3 py-1 text-lg border-2 border-indigo-300 rounded-lg"
+                }),
+                React.createElement('button', {
+                  onClick: handleUpdateBabyName,
+                  className: "text-green-600 hover:text-green-700"
+                }, React.createElement(Check, { className: "w-5 h-5" })),
+                React.createElement('button', {
+                  onClick: () => setEditingName(false),
+                  className: "text-gray-400 hover:text-gray-600"
+                }, React.createElement(X, { className: "w-5 h-5" }))
+              ),
             React.createElement('div', { className: "text-sm text-gray-500" }, getAge(kidData.birthDate))
           )
         ),
-        React.createElement('div', { className: "text-sm text-gray-600" },
-          React.createElement('strong', null, 'Born:'), ' ', formatBirthDate(kidData.birthDate)
+        
+        // Birth date
+        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
+          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, 'Birth Date'),
+          !editingBirthDate ?
+            React.createElement('button', {
+              onClick: () => {
+                setTempBirthDate(formatDateForInput(kidData.birthDate));
+                setEditingBirthDate(true);
+              },
+              className: "flex items-center gap-2 text-sm text-gray-600"
+            },
+              formatBirthDate(kidData.birthDate),
+              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
+            )
+          :
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('input', {
+                type: "date",
+                value: tempBirthDate,
+                onChange: (e) => setTempBirthDate(e.target.value),
+                className: "px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
+              }),
+              React.createElement('button', {
+                onClick: handleUpdateBirthDate,
+                className: "text-green-600 hover:text-green-700"
+              }, React.createElement(Check, { className: "w-4 h-4" })),
+              React.createElement('button', {
+                onClick: () => setEditingBirthDate(false),
+                className: "text-gray-400 hover:text-gray-600"
+              }, React.createElement(X, { className: "w-4 h-4" }))
+            )
+        ),
+        
+        // Baby weight
+        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
+          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Current Weight"),
+          !editingWeight ?
+            React.createElement('button', {
+              onClick: () => {
+                setTempWeight(settings.babyWeight?.toString() || '');
+                setEditingWeight(true);
+              },
+              className: "flex items-center gap-2 text-sm text-gray-600"
+            },
+              settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set',
+              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
+            )
+          :
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('input', {
+                type: "number",
+                step: "0.1",
+                value: tempWeight,
+                onChange: (e) => setTempWeight(e.target.value),
+                placeholder: "Weight",
+                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
+              }),
+              React.createElement('span', { className: "text-sm text-gray-600" }, 'lbs'),
+              React.createElement('button', {
+                onClick: handleUpdateWeight,
+                className: "text-green-600 hover:text-green-700"
+              }, React.createElement(Check, { className: "w-4 h-4" })),
+              React.createElement('button', {
+                onClick: () => setEditingWeight(false),
+                className: "text-gray-400 hover:text-gray-600"
+              }, React.createElement(X, { className: "w-4 h-4" }))
+            )
+        ),
+        
+        // Target multiplier
+        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
+          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
+          !editingMultiplier ?
+            React.createElement('button', {
+              onClick: () => {
+                setTempMultiplier(settings.multiplier?.toString() || '2.5');
+                setEditingMultiplier(true);
+              },
+              className: "flex items-center gap-2 text-sm text-gray-600"
+            },
+              `${settings.multiplier}x`,
+              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
+            )
+          :
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('input', {
+                type: "number",
+                step: "0.1",
+                value: tempMultiplier,
+                onChange: (e) => setTempMultiplier(e.target.value),
+                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
+              }),
+              React.createElement('button', {
+                onClick: handleUpdateMultiplier,
+                className: "text-green-600 hover:text-green-700"
+              }, React.createElement(Check, { className: "w-4 h-4" })),
+              React.createElement('button', {
+                onClick: () => setEditingMultiplier(false),
+                className: "text-gray-400 hover:text-gray-600"
+              }, React.createElement(X, { className: "w-4 h-4" }))
+            )
         )
       )
     ),
@@ -1274,21 +1494,21 @@ const FamilyTab = ({ user, kidId }) => {
                 )
             ),
             React.createElement('div', { className: "flex-1" },
-              member.uid === user.uid && editingName ?
+              member.uid === user.uid && editingUserName ?
                 React.createElement('div', { className: "flex gap-2" },
                   React.createElement('input', {
                     type: "text",
-                    value: tempName,
-                    onChange: (e) => setTempName(e.target.value),
+                    value: tempUserName,
+                    onChange: (e) => setTempUserName(e.target.value),
                     placeholder: "Your name",
                     className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
                   }),
                   React.createElement('button', {
-                    onClick: handleUpdateName,
+                    onClick: handleUpdateUserName,
                     className: "text-green-600 hover:text-green-700"
                   }, React.createElement(Check, { className: "w-4 h-4" })),
                   React.createElement('button', {
-                    onClick: () => setEditingName(false),
+                    onClick: () => setEditingUserName(false),
                     className: "text-gray-400 hover:text-gray-600"
                   }, React.createElement(X, { className: "w-4 h-4" }))
                 )
@@ -1303,8 +1523,8 @@ const FamilyTab = ({ user, kidId }) => {
                     member.uid === user.uid &&
                       React.createElement('button', {
                         onClick: () => {
-                          setTempName(member.displayName || '');
-                          setEditingName(true);
+                          setTempUserName(member.displayName || '');
+                          setEditingUserName(true);
                         },
                         className: "text-indigo-600 hover:text-indigo-700"
                       }, React.createElement(Edit2, { className: "w-3 h-3" }))
@@ -1351,55 +1571,11 @@ const FamilyTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 7
-// Settings Tab - Weight, Multiplier, Share App, Sign Out
+// TINY TRACKER V3 - PART 7
+// Settings Tab - Share App, Sign Out (Target Settings moved to Family tab)
 // ========================================
 
 const SettingsTab = ({ user, kidId }) => {
-  const [babyWeight, setBabyWeight] = useState(null);
-  const [multiplier, setMultiplier] = useState(2.5);
-  const [isEditingWeight, setIsEditingWeight] = useState(false);
-  const [isEditingMultiplier, setIsEditingMultiplier] = useState(false);
-  const [tempWeight, setTempWeight] = useState('');
-  const [tempMultiplier, setTempMultiplier] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadSettings();
-  }, [kidId]);
-
-  const loadSettings = async () => {
-    if (!kidId) return;
-    try {
-      const settings = await firestoreStorage.getSettings();
-      if (settings) {
-        if (settings.babyWeight) setBabyWeight(settings.babyWeight);
-        if (settings.multiplier) setMultiplier(settings.multiplier);
-      }
-    } catch (error) {
-      console.error('Error loading settings:', error);
-    }
-    setLoading(false);
-  };
-
-  const handleWeightSave = async () => {
-    const weight = parseFloat(tempWeight);
-    if (weight > 0) {
-      setBabyWeight(weight);
-      await firestoreStorage.setSettings({ babyWeight: weight });
-      setIsEditingWeight(false);
-    }
-  };
-
-  const handleMultiplierSave = async () => {
-    const mult = parseFloat(tempMultiplier);
-    if (mult > 0) {
-      setMultiplier(mult);
-      await firestoreStorage.setSettings({ multiplier: mult });
-      setIsEditingMultiplier(false);
-    }
-  };
-
   const handleShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
     const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
@@ -1440,87 +1616,8 @@ const SettingsTab = ({ user, kidId }) => {
     }
   };
 
-  if (loading) {
-    return React.createElement('div', { className: "flex items-center justify-center py-12" },
-      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
-    );
-  }
-
   return React.createElement('div', { className: "space-y-4" },
-    // Target Settings Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Target Settings'),
-      React.createElement('div', { className: "space-y-4" },
-        React.createElement('div', { className: "flex items-center justify-between" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Baby's Weight"),
-          !isEditingWeight ? 
-            React.createElement('button', {
-              onClick: () => {
-                setTempWeight(babyWeight?.toString() || '');
-                setIsEditingWeight(true);
-              },
-              className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
-            },
-              babyWeight ? `${babyWeight} lbs` : 'Not set',
-              React.createElement(Edit2, { className: "w-4 h-4" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempWeight,
-                onChange: (e) => setTempWeight(e.target.value),
-                placeholder: "Weight",
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('button', { 
-                onClick: handleWeightSave, 
-                className: "text-green-600 hover:text-green-700" 
-              }, React.createElement(Check, { className: "w-5 h-5" })),
-              React.createElement('button', { 
-                onClick: () => setIsEditingWeight(false), 
-                className: "text-gray-400 hover:text-gray-600" 
-              }, React.createElement(X, { className: "w-5 h-5" }))
-            )
-        ),
-        
-        React.createElement('div', { className: "flex items-center justify-between" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
-          !isEditingMultiplier ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempMultiplier(multiplier?.toString() || '2.5');
-                setIsEditingMultiplier(true);
-              },
-              className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
-            },
-              `${multiplier}x`,
-              React.createElement(Edit2, { className: "w-4 h-4" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempMultiplier,
-                onChange: (e) => setTempMultiplier(e.target.value),
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('button', { 
-                onClick: handleMultiplierSave, 
-                className: "text-green-600 hover:text-green-700" 
-              }, React.createElement(Check, { className: "w-5 h-5" })),
-              React.createElement('button', { 
-                onClick: () => setIsEditingMultiplier(false), 
-                className: "text-gray-400 hover:text-gray-600" 
-              }, React.createElement(X, { className: "w-5 h-5" }))
-            )
-        )
-      )
-    ),
-
-    // App Settings Card
+    // Share & Support Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Share & Support'),
       React.createElement('button', {
@@ -1556,44 +1653,95 @@ const SettingsTab = ({ user, kidId }) => {
           className: "w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold hover:bg-red-100 transition"
         }, 'Sign Out')
       )
+    ),
+    
+    // Info Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'About'),
+      React.createElement('div', { className: "space-y-2 text-sm text-gray-600" },
+        React.createElement('p', null, 'Tiny Tracker helps you track your baby\'s feeding journey with ease.'),
+        React.createElement('p', null, '💡 Tip: Baby settings like weight and target are in the Family tab!')
+      )
     )
   );
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 8
-// SVG Icons & Render
+// TINY TRACKER V3 - PART 8
+// SVG Icons & Render (Updated with proper nav icons)
 // ========================================
 
+// Edit icon
 const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
 );
 
+// Check icon
 const Check = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M20 6 9 17l-5-5" })
 );
 
+// X (close) icon
 const X = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M18 6 6 18" }),
   React.createElement('path', { d: "m6 6 12 12" })
 );
 
+// Chevron left
 const ChevronLeft = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "m15 18-6-6 6-6" })
 );
 
+// Chevron right
 const ChevronRight = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "m9 18 6-6-6-6" })
 );
 
+// Clock icon
 const Clock = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
   React.createElement('polyline', { points: "12 6 12 12 16 14" })
 );
 
+// Plus icon
 const Plus = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M5 12h14" }),
   React.createElement('path', { d: "M12 5v14" })
+);
+
+// Camera icon (for baby photo)
+const Camera = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }),
+  React.createElement('circle', { cx: "12", cy: "13", r: "4" })
+);
+
+// Navigation Icons
+
+// BarChart (Tracker tab)
+const BarChart = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('line', { x1: "12", y1: "20", x2: "12", y2: "10" }),
+  React.createElement('line', { x1: "18", y1: "20", x2: "18", y2: "4" }),
+  React.createElement('line', { x1: "6", y1: "20", x2: "6", y2: "16" })
+);
+
+// TrendingUp (Analytics tab)
+const TrendingUp = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('polyline', { points: "23 6 13.5 15.5 8.5 10.5 1 18" }),
+  React.createElement('polyline', { points: "17 6 23 6 23 12" })
+);
+
+// Users (Family tab)
+const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
+  React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
+  React.createElement('path', { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
+  React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
+);
+
+// Settings (Settings tab)
+const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('circle', { cx: "12", cy: "12", r: "3" }),
+  React.createElement('path', { d: "M12 1v6m0 6v6m9-9h-6m-6 0H3" })
 );
 
 // ========================================
