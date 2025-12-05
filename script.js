@@ -1157,6 +1157,7 @@ const FamilyTab = ({ user, kidId }) => {
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
+  const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
   
   // Edit states
   const [editingName, setEditingName] = useState(false);
@@ -1172,6 +1173,9 @@ const FamilyTab = ({ user, kidId }) => {
   const [tempMultiplier, setTempMultiplier] = useState('');
   const [tempUserName, setTempUserName] = useState('');
 
+  // File input ref
+  const fileInputRef = React.useRef(null);
+
   useEffect(() => {
     loadData();
   }, [kidId]);
@@ -1182,6 +1186,9 @@ const FamilyTab = ({ user, kidId }) => {
     try {
       const kid = await firestoreStorage.getKidData();
       setKidData(kid);
+      if (kid.photoURL) {
+        setBabyPhotoUrl(kid.photoURL);
+      }
       
       const memberList = await firestoreStorage.getMembers();
       setMembers(memberList);
@@ -1194,6 +1201,43 @@ const FamilyTab = ({ user, kidId }) => {
       console.error('Error loading family data:', error);
     }
     setLoading(false);
+  };
+
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handlePhotoChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Check file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Photo must be less than 5MB');
+      return;
+    }
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
+      return;
+    }
+
+    try {
+      // Convert to base64
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        const base64 = e.target.result;
+        
+        // Save to Firestore
+        await firestoreStorage.updateKid({ photoURL: base64 });
+        setBabyPhotoUrl(base64);
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo');
+    }
   };
 
   const handleCreateInvite = async () => {
@@ -1303,7 +1347,7 @@ const FamilyTab = ({ user, kidId }) => {
     if (days < 7) return `${days} days old`;
     if (days < 30) return `${Math.floor(days / 7)} weeks old`;
     const months = Math.floor(days / 30);
-    if (months < 12) return `${months} months old`;
+    if (months < 12) return `${months} month${months !== 1 ? 's' : ''} old`;
     const years = Math.floor(months / 12);
     return `${years} year${years > 1 ? 's' : ''} old`;
   };
@@ -1324,13 +1368,31 @@ const FamilyTab = ({ user, kidId }) => {
         // Baby photo and name
         React.createElement('div', { className: "flex items-center gap-4" },
           React.createElement('div', { className: "relative" },
-            React.createElement('div', { className: "bg-indigo-100 rounded-full p-4 w-20 h-20 flex items-center justify-center" },
-              React.createElement('span', { className: "text-4xl" }, '👶')
+            React.createElement('div', { 
+              className: "bg-indigo-100 rounded-full w-20 h-20 flex items-center justify-center overflow-hidden cursor-pointer",
+              onClick: handlePhotoClick
+            },
+              babyPhotoUrl ?
+                React.createElement('img', {
+                  src: babyPhotoUrl,
+                  alt: kidData.name || 'Baby',
+                  className: "w-full h-full object-cover"
+                })
+              :
+                React.createElement('span', { className: "text-4xl" }, '👶')
             ),
             React.createElement('button', {
-              className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition",
-              title: "Change photo (coming soon)"
-            }, React.createElement(Camera, { className: "w-3 h-3" }))
+              onClick: handlePhotoClick,
+              className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition shadow-lg",
+              title: "Change photo"
+            }, React.createElement(Camera, { className: "w-3 h-3" })),
+            React.createElement('input', {
+              ref: fileInputRef,
+              type: "file",
+              accept: "image/*",
+              onChange: handlePhotoChange,
+              style: { display: 'none' }
+            })
           ),
           React.createElement('div', { className: "flex-1" },
             !editingName ?
@@ -1736,14 +1798,33 @@ const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://w
   React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
 );
 
-// Settings (Settings tab)
+// Settings (Settings tab) - PROPER GEAR ICON
 const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('circle', { cx: "12", cy: "12", r: "3" }),
-  React.createElement('path', { d: "M12 1v6m0 6v6m9-9h-6m-6 0H3" })
+  React.createElement('path', { d: "M12 1v6m0 6v6" }),
+  React.createElement('path', { d: "m5.64 5.64 4.24 4.24m4.24 4.24 4.24 4.24" }),
+  React.createElement('path', { d: "M1 12h6m6 0h6" }),
+  React.createElement('path', { d: "m5.64 18.36 4.24-4.24m4.24-4.24 4.24-4.24" })
 );
+
+// ========================================
+// SET THEME COLOR FOR MOBILE BROWSER
+// ========================================
+
+// Add meta theme-color tag to match background
+const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+if (metaThemeColor) {
+  metaThemeColor.setAttribute('content', '#dbeafe'); // blue-50
+} else {
+  const meta = document.createElement('meta');
+  meta.name = 'theme-color';
+  meta.content = '#dbeafe'; // blue-50
+  document.head.appendChild(meta);
+}
 
 // ========================================
 // RENDER APP
 // ========================================
 
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
+
