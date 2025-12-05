@@ -1622,7 +1622,7 @@ const AIChatTab = ({ user, kidId }) => {
 // ========================================
 
 
-const GEMINI_API_KEY = AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U
+const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U";
 const getAIResponse = async (question, kidId) => {
   try {
     // Build context from baby's data
