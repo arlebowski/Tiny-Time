@@ -632,26 +632,30 @@ const MainApp = ({ user, kidId }) => {
     ),
 
     /* ---------- BOTTOM NAV (raised icons, sleek IG style) ---------- */
+    // Bottom nav (lifted above home indicator)
     React.createElement(
       'div',
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
           backgroundColor: "#E0E7FF",
-          boxShadow: "0 -2px 4px rgba(0,0,0,0.04)"  // subtle shadow
+          boxShadow: "0 -2px 4px rgba(0,0,0,0.04)"
         }
       },
       React.createElement(
         'div',
         {
           className: "pb-1 pt-1",
-          style: { backgroundColor: "#E0E7FF" }
+          style: {
+            backgroundColor: "#E0E7FF",
+            // push content up off the iOS home indicator
+            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 4px)"
+          }
         },
         React.createElement(
           'div',
           {
-            className:
-              "max-w-2xl mx-auto flex items-center justify-around px-2"
+            className: "max-w-2xl mx-auto flex items-center justify-around px-2"
           },
           [
             { id: "tracker", icon: BarChart, label: "Tracker" },
@@ -665,9 +669,7 @@ const MainApp = ({ user, kidId }) => {
                 key: tab.id,
                 onClick: () => setActiveTab(tab.id),
                 className: `flex-1 pt-2 pb-0.5 flex flex-col items-center gap-0.5 transition ${
-                  activeTab === tab.id
-                    ? "text-indigo-600"
-                    : "text-gray-400"
+                  activeTab === tab.id ? "text-indigo-600" : "text-gray-400"
                 }`
               },
               React.createElement(tab.icon, { className: "w-6 h-6 translate-y-[-2px]" }),
