@@ -787,19 +787,19 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   const maxVolume = Math.max(...stats.chartData.map(d => d.volume));
 
   return React.createElement('div', { className: "space-y-4" },
-    React.createElement('div', { className: "flex justify-center mb-2" },
-      React.createElement('div', { className: "inline-flex gap-1 bg-white rounded-xl p-1.5 shadow-lg" },
+    React.createElement('div', { className: "flex justify-center mb-1" },
+      React.createElement('div', { className: "inline-flex gap-0.5 bg-gray-100/50 rounded-lg p-0.5" },
         React.createElement('button', {
           onClick: () => setTimeRange('day'),
-          className: `px-6 py-2 rounded-lg text-sm font-medium transition ${timeRange === 'day' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`
+          className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === 'day' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
         }, 'Day'),
         React.createElement('button', {
           onClick: () => setTimeRange('week'),
-          className: `px-6 py-2 rounded-lg text-sm font-medium transition ${timeRange === 'week' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`
+          className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === 'week' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
         }, 'Week'),
         React.createElement('button', {
           onClick: () => setTimeRange('month'),
-          className: `px-6 py-2 rounded-lg text-sm font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`
+          className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === 'month' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
         }, 'Month')
       )
     ),
