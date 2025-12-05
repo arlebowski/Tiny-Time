@@ -1,6 +1,6 @@
 // ========================================
-// TINY TRACKER V2 - PART 1
-// Config, Auth, Data Migration, Invites, Firestore Layer
+// TINY TRACKER V4 - PART 1
+// Config, Auth, Data Migration, Invites, Firestore Layer + AI Functions
 // ========================================
 
 const firebaseConfig = {
@@ -39,7 +39,7 @@ const getUserKidId = async (userId) => {
     return kidId;
   }
   
-  return null; // No kid yet, will create during setup
+  return null;
 };
 
 const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
@@ -253,6 +253,16 @@ const firestoreStorage = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
+  async getFeedingsLastNDays(days) {
+    if (!this.kidId) return [];
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
+      .where('timestamp', '>=', cutoff)
+      .orderBy('timestamp', 'asc')
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+  
   async addFeeding(feeding) {
     if (!this.kidId) return null;
     const docRef = await db.collection('kids').doc(this.kidId).collection('feedings').add({
@@ -288,6 +298,40 @@ const firestoreStorage = {
         const feedings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         callback(feedings);
       });
+  },
+  
+  // ========================================
+  // AI CONVERSATION METHODS
+  // ========================================
+  
+  async getConversation() {
+    if (!this.kidId) return null;
+    const doc = await db.collection('kids').doc(this.kidId).collection('conversations').doc('default').get();
+    return doc.exists ? doc.data() : null;
+  },
+  
+  async saveMessage(message) {
+    if (!this.kidId) return;
+    const conversationRef = db.collection('kids').doc(this.kidId).collection('conversations').doc('default');
+    
+    const conversation = await conversationRef.get();
+    if (!conversation.exists) {
+      await conversationRef.set({
+        messages: [message],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      await conversationRef.update({
+        messages: firebase.firestore.FieldValue.arrayUnion(message),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+  },
+  
+  async clearConversation() {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('conversations').doc('default').delete();
   }
 };
 
@@ -379,6 +423,7 @@ const App = () => {
 
   return React.createElement(MainApp, { user, kidId });
 };
+
 
 // ========================================
 // LOGIN SCREEN
@@ -564,120 +609,83 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V3 - PART 3
-// Main App with Bottom Navigation (Instagram-style with gradient)
+// TINY TRACKER V4 - PART 3
+// Main App with Bottom Navigation (Added AI Chat tab)
 // ========================================
 
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
-
+  
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
-
-  return React.createElement(
-    'div',
-    {
-      className: "min-h-screen pb-24",
-      style: { backgroundColor: "#E0E7FF" }
-    },
-
-    // MAIN COLUMN
-    React.createElement(
-      'div',
-      { className: "max-w-2xl mx-auto" },
-
-      /* ---------- HEADER (no line, lighter padding) ---------- */
-      React.createElement(
-        'div',
-        {
-          className: "sticky top-0 z-10",
-          style: { backgroundColor: "#E0E7FF" }
-        },
-        React.createElement(
-          'div',
-          {
-            className:
-              "pt-2 pb-3 flex items-center justify-center",
-            style: { backgroundColor: "#E0E7FF" }
-          },
-          React.createElement(
-            'div',
-            { className: "flex items-center gap-2" },
-            React.createElement('span', { className: "text-3xl" }, "🍼"),
-            React.createElement(
-              'h1',
-              {
-                className: "text-2xl font-bold text-gray-800 handwriting"
-              },
-              "Tiny Tracker"
+  
+  return React.createElement('div', { 
+    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-24" 
+  },
+    React.createElement('div', { className: "max-w-2xl mx-auto" },
+      // Header with gradient fade
+      React.createElement('div', { className: "sticky top-0 z-10" },
+        React.createElement('div', { className: "bg-gradient-to-br from-blue-50 to-indigo-100 pt-4 pb-6" },
+          React.createElement('div', { className: "flex items-center justify-center" },
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('span', { className: "text-3xl" }, '🍼'),
+              React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
             )
           )
-        )
+        ),
+        // Gradient fade at bottom of header
+        React.createElement('div', { 
+          className: "h-4",
+          style: { 
+            background: 'linear-gradient(to bottom, rgb(224, 231, 255), transparent)'
+          }
+        })
       ),
-
-      /* ---------- CONTENT (breathing room below header) ---------- */
-      React.createElement(
-        'div',
-        { className: "px-4 mt-4" },
-        activeTab === "tracker" &&
-          React.createElement(TrackerTab, { user, kidId }),
-        activeTab === "analytics" &&
-          React.createElement(AnalyticsTab, { kidId }),
-        activeTab === "family" &&
-          React.createElement(FamilyTab, { user, kidId }),
-        activeTab === "settings" &&
-          React.createElement(SettingsTab, { user, kidId })
+      
+      // Content
+      React.createElement('div', { className: "px-4" },
+        activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId }),
+        activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
+        activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId }),
+        activeTab === 'family' && React.createElement(FamilyTab, { user, kidId }),
+        activeTab === 'settings' && React.createElement(SettingsTab, { user, kidId })
       )
     ),
-
-    /* ---------- BOTTOM NAV (raised icons, sleek IG style) ---------- */
-    // Bottom nav (lifted above home indicator)
-    React.createElement(
-      'div',
-      {
-        className: "fixed bottom-0 left-0 right-0 z-50",
-        style: {
-          backgroundColor: "#E0E7FF",
-          boxShadow: "0 -2px 4px rgba(0,0,0,0.04)"
+    
+    // Bottom Navigation (Instagram-style with gradient) - NOW WITH 5 TABS
+    React.createElement('div', { 
+      className: "fixed bottom-0 left-0 right-0 z-50" 
+    },
+      // Gradient fade at top of nav
+      React.createElement('div', { 
+        className: "h-4",
+        style: { 
+          background: 'linear-gradient(to top, rgb(224, 231, 255), transparent)'
         }
+      }),
+      React.createElement('div', { 
+        className: "bg-gradient-to-br from-blue-50 to-indigo-100 pb-4"
       },
-      React.createElement(
-        'div',
-        {
-          className: "pb-1 pt-1",
-          style: {
-            backgroundColor: "#E0E7FF",
-            // push content up off the iOS home indicator
-            paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 4px)"
-          }
-        },
-        React.createElement(
-          'div',
-          {
-            className: "max-w-2xl mx-auto flex items-center justify-around px-2"
-          },
+        React.createElement('div', { className: "max-w-2xl mx-auto flex items-center justify-around px-4" },
           [
-            { id: "tracker", icon: BarChart, label: "Tracker" },
-            { id: "analytics", icon: TrendingUp, label: "Analytics" },
-            { id: "family", icon: Users, label: "Family" },
-            { id: "settings", icon: Settings, label: "Settings" }
-          ].map((tab) =>
-            React.createElement(
-              'button',
-              {
-                key: tab.id,
-                onClick: () => setActiveTab(tab.id),
-                className: `flex-1 pt-2 pb-0.5 flex flex-col items-center gap-0.5 transition ${
-                  activeTab === tab.id ? "text-indigo-600" : "text-gray-400"
-                }`
-              },
-              React.createElement(tab.icon, { className: "w-6 h-6 translate-y-[-2px]" }),
-              React.createElement(
-                'span',
-                { className: "text-xs font-medium" },
-                tab.label
-              )
+            { id: 'tracker', icon: BarChart, label: 'Tracker' },
+            { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
+            { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
+            { id: 'family', icon: Users, label: 'Family' },
+            { id: 'settings', icon: Settings, label: 'Settings' }
+          ].map(tab =>
+            React.createElement('button', {
+              key: tab.id,
+              onClick: () => setActiveTab(tab.id),
+              className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+                activeTab === tab.id 
+                  ? 'text-indigo-600' 
+                  : 'text-gray-400'
+              }`
+            },
+              React.createElement(tab.icon, { className: "w-6 h-6" }),
+              React.createElement('span', { className: "text-xs font-medium" }, tab.label)
             )
           )
         )
@@ -685,7 +693,6 @@ const MainApp = ({ user, kidId }) => {
     )
   );
 };
-
 
 // ========================================
 // TINY TRACKER V2 - PART 4  
@@ -1185,492 +1192,6 @@ const AnalyticsTab = ({ kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V3 - PART 6
-// Family Tab - Baby Info (Editable), Target Settings, Members, Invites
-// ========================================
-
-const FamilyTab = ({ user, kidId }) => {
-  const [kidData, setKidData] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
-  const [loading, setLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteLink, setInviteLink] = useState('');
-  const [copying, setCopying] = useState(false);
-  const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
-  
-  // Edit states
-  const [editingName, setEditingName] = useState(false);
-  const [editingBirthDate, setEditingBirthDate] = useState(false);
-  const [editingWeight, setEditingWeight] = useState(false);
-  const [editingMultiplier, setEditingMultiplier] = useState(false);
-  const [editingUserName, setEditingUserName] = useState(false);
-  
-  // Temp values
-  const [tempBabyName, setTempBabyName] = useState('');
-  const [tempBirthDate, setTempBirthDate] = useState('');
-  const [tempWeight, setTempWeight] = useState('');
-  const [tempMultiplier, setTempMultiplier] = useState('');
-  const [tempUserName, setTempUserName] = useState('');
-
-  // File input ref
-  const fileInputRef = React.useRef(null);
-
-  useEffect(() => {
-    loadData();
-  }, [kidId]);
-
-  const loadData = async () => {
-    if (!kidId) return;
-    setLoading(true);
-    try {
-      const kid = await firestoreStorage.getKidData();
-      setKidData(kid);
-      if (kid.photoURL) {
-        setBabyPhotoUrl(kid.photoURL);
-      }
-      
-      const memberList = await firestoreStorage.getMembers();
-      setMembers(memberList);
-      
-      const settingsData = await firestoreStorage.getSettings();
-      if (settingsData) {
-        setSettings(settingsData);
-      }
-    } catch (error) {
-      console.error('Error loading family data:', error);
-    }
-    setLoading(false);
-  };
-
-  const handlePhotoClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handlePhotoChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Photo must be less than 5MB');
-      return;
-    }
-
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    try {
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result;
-        
-        // Save to Firestore
-        await firestoreStorage.updateKid({ photoURL: base64 });
-        setBabyPhotoUrl(base64);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      alert('Failed to upload photo');
-    }
-  };
-
-  const handleCreateInvite = async () => {
-    try {
-      const code = await createInvite(kidId);
-      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-      setInviteLink(link);
-      setShowInvite(true);
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      alert('Failed to create invite');
-    }
-  };
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopying(true);
-      setTimeout(() => setCopying(false), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
-    }
-  };
-
-  const handleRemoveMember = async (memberId) => {
-    if (!confirm('Remove this person\'s access?')) return;
-    try {
-      await removeMember(kidId, memberId);
-      await loadData();
-    } catch (error) {
-      console.error('Error removing member:', error);
-      alert('Failed to remove member');
-    }
-  };
-
-  const handleUpdateBabyName = async () => {
-    if (!tempBabyName.trim()) return;
-    try {
-      await firestoreStorage.updateKid({ name: tempBabyName.trim() });
-      setEditingName(false);
-      await loadData();
-    } catch (error) {
-      console.error('Error updating name:', error);
-    }
-  };
-
-  const handleUpdateBirthDate = async () => {
-    if (!tempBirthDate) return;
-    try {
-      const birthTimestamp = new Date(tempBirthDate).getTime();
-      await firestoreStorage.updateKid({ birthDate: birthTimestamp });
-      setEditingBirthDate(false);
-      await loadData();
-    } catch (error) {
-      console.error('Error updating birth date:', error);
-    }
-  };
-
-  const handleUpdateWeight = async () => {
-    const weight = parseFloat(tempWeight);
-    if (weight > 0) {
-      await firestoreStorage.setSettings({ babyWeight: weight });
-      setSettings({ ...settings, babyWeight: weight });
-      setEditingWeight(false);
-    }
-  };
-
-  const handleUpdateMultiplier = async () => {
-    const mult = parseFloat(tempMultiplier);
-    if (mult > 0) {
-      await firestoreStorage.setSettings({ multiplier: mult });
-      setSettings({ ...settings, multiplier: mult });
-      setEditingMultiplier(false);
-    }
-  };
-
-  const handleUpdateUserName = async () => {
-    if (!tempUserName.trim()) return;
-    try {
-      await updateUserProfile(user.uid, { displayName: tempUserName.trim() });
-      setEditingUserName(false);
-      await loadData();
-    } catch (error) {
-      console.error('Error updating name:', error);
-    }
-  };
-
-  const formatBirthDate = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
-
-  const formatDateForInput = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return date.toISOString().split('T')[0];
-  };
-
-  const getAge = (timestamp) => {
-    if (!timestamp) return '';
-    const birth = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - birth;
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (days < 7) return `${days} days old`;
-    if (days < 30) return `${Math.floor(days / 7)} weeks old`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months} month${months !== 1 ? 's' : ''} old`;
-    const years = Math.floor(months / 12);
-    return `${years} year${years > 1 ? 's' : ''} old`;
-  };
-
-  const isOwner = kidData && kidData.ownerId === user.uid;
-
-  if (loading) {
-    return React.createElement('div', { className: "flex items-center justify-center py-12" },
-      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
-    );
-  }
-
-  return React.createElement('div', { className: "space-y-4" },
-    // Baby Info Card
-    kidData && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
-      React.createElement('div', { className: "space-y-4" },
-        // Baby photo and name
-        React.createElement('div', { className: "flex items-center gap-4" },
-          React.createElement('div', { className: "relative" },
-            React.createElement('div', { 
-              className: "bg-indigo-100 rounded-full w-20 h-20 flex items-center justify-center overflow-hidden cursor-pointer",
-              onClick: handlePhotoClick
-            },
-              babyPhotoUrl ?
-                React.createElement('img', {
-                  src: babyPhotoUrl,
-                  alt: kidData.name || 'Baby',
-                  className: "w-full h-full object-cover"
-                })
-              :
-                React.createElement('span', { className: "text-4xl" }, '👶')
-            ),
-            React.createElement('button', {
-              onClick: handlePhotoClick,
-              className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition shadow-lg",
-              title: "Change photo"
-            }, React.createElement(Camera, { className: "w-3 h-3" })),
-            React.createElement('input', {
-              ref: fileInputRef,
-              type: "file",
-              accept: "image/*",
-              onChange: handlePhotoChange,
-              style: { display: 'none' }
-            })
-          ),
-          React.createElement('div', { className: "flex-1" },
-            !editingName ?
-              React.createElement('div', { className: "flex items-center gap-2" },
-                React.createElement('span', { className: "text-2xl font-bold text-gray-800" }, kidData.name || 'Baby'),
-                React.createElement('button', {
-                  onClick: () => {
-                    setTempBabyName(kidData.name || '');
-                    setEditingName(true);
-                  },
-                  className: "text-indigo-600 hover:text-indigo-700"
-                }, React.createElement(Edit2, { className: "w-4 h-4" }))
-              )
-            :
-              React.createElement('div', { className: "flex items-center gap-2" },
-                React.createElement('input', {
-                  type: "text",
-                  value: tempBabyName,
-                  onChange: (e) => setTempBabyName(e.target.value),
-                  className: "flex-1 px-3 py-1 text-lg border-2 border-indigo-300 rounded-lg"
-                }),
-                React.createElement('button', {
-                  onClick: handleUpdateBabyName,
-                  className: "text-green-600 hover:text-green-700"
-                }, React.createElement(Check, { className: "w-5 h-5" })),
-                React.createElement('button', {
-                  onClick: () => setEditingName(false),
-                  className: "text-gray-400 hover:text-gray-600"
-                }, React.createElement(X, { className: "w-5 h-5" }))
-              ),
-            React.createElement('div', { className: "text-sm text-gray-500" }, getAge(kidData.birthDate))
-          )
-        ),
-        
-        // Birth date
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, 'Birth Date'),
-          !editingBirthDate ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempBirthDate(formatDateForInput(kidData.birthDate));
-                setEditingBirthDate(true);
-              },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              formatBirthDate(kidData.birthDate),
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "date",
-                value: tempBirthDate,
-                onChange: (e) => setTempBirthDate(e.target.value),
-                className: "px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('button', {
-                onClick: handleUpdateBirthDate,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingBirthDate(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        ),
-        
-        // Baby weight
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Current Weight"),
-          !editingWeight ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempWeight(settings.babyWeight?.toString() || '');
-                setEditingWeight(true);
-              },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set',
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempWeight,
-                onChange: (e) => setTempWeight(e.target.value),
-                placeholder: "Weight",
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('span', { className: "text-sm text-gray-600" }, 'lbs'),
-              React.createElement('button', {
-                onClick: handleUpdateWeight,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingWeight(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        ),
-        
-        // Target multiplier
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
-          !editingMultiplier ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempMultiplier(settings.multiplier?.toString() || '2.5');
-                setEditingMultiplier(true);
-              },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              `${settings.multiplier}x`,
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempMultiplier,
-                onChange: (e) => setTempMultiplier(e.target.value),
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('button', {
-                onClick: handleUpdateMultiplier,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingMultiplier(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        )
-      )
-    ),
-
-    // Family Members Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Family Members'),
-      React.createElement('div', { className: "space-y-3 mb-4" },
-        members.map(member => 
-          React.createElement('div', { 
-            key: member.uid,
-            className: "flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
-          },
-            React.createElement('div', { className: "flex-shrink-0" },
-              member.photoURL ?
-                React.createElement('img', {
-                  src: member.photoURL,
-                  alt: member.displayName || member.email,
-                  className: "w-12 h-12 rounded-full"
-                })
-              :
-                React.createElement('div', { className: "w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center" },
-                  React.createElement('span', { className: "text-xl" }, '👤')
-                )
-            ),
-            React.createElement('div', { className: "flex-1" },
-              member.uid === user.uid && editingUserName ?
-                React.createElement('div', { className: "flex gap-2" },
-                  React.createElement('input', {
-                    type: "text",
-                    value: tempUserName,
-                    onChange: (e) => setTempUserName(e.target.value),
-                    placeholder: "Your name",
-                    className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-                  }),
-                  React.createElement('button', {
-                    onClick: handleUpdateUserName,
-                    className: "text-green-600 hover:text-green-700"
-                  }, React.createElement(Check, { className: "w-4 h-4" })),
-                  React.createElement('button', {
-                    onClick: () => setEditingUserName(false),
-                    className: "text-gray-400 hover:text-gray-600"
-                  }, React.createElement(X, { className: "w-4 h-4" }))
-                )
-              :
-                React.createElement('div', null,
-                  React.createElement('div', { className: "flex items-center gap-2" },
-                    React.createElement('span', { className: "font-medium text-gray-800" }, 
-                      member.displayName || member.email.split('@')[0]
-                    ),
-                    member.uid === kidData?.ownerId && 
-                      React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded" }, 'Owner'),
-                    member.uid === user.uid &&
-                      React.createElement('button', {
-                        onClick: () => {
-                          setTempUserName(member.displayName || '');
-                          setEditingUserName(true);
-                        },
-                        className: "text-indigo-600 hover:text-indigo-700"
-                      }, React.createElement(Edit2, { className: "w-3 h-3" }))
-                  ),
-                  React.createElement('div', { className: "text-sm text-gray-500" }, member.email)
-                )
-            ),
-            isOwner && member.uid !== user.uid &&
-              React.createElement('button', {
-                onClick: () => handleRemoveMember(member.uid),
-                className: "text-red-400 hover:text-red-600 text-sm font-medium"
-              }, 'Remove')
-          )
-        )
-      ),
-
-      !showInvite ?
-        React.createElement('button', {
-          onClick: handleCreateInvite,
-          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-        }, '+ Invite Partner')
-      :
-        React.createElement('div', { className: "space-y-2" },
-          React.createElement('div', { className: "text-xs text-gray-600 mb-2" }, 'Share this link with your partner:'),
-          React.createElement('div', { className: "flex gap-2" },
-            React.createElement('input', {
-              type: "text",
-              value: inviteLink,
-              readOnly: true,
-              className: "flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg"
-            }),
-            React.createElement('button', {
-              onClick: handleCopyLink,
-              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
-            }, copying ? '✓ Copied!' : 'Copy')
-          ),
-          React.createElement('button', {
-            onClick: () => setShowInvite(false),
-            className: "text-sm text-gray-600 hover:text-gray-700"
-          }, 'Close')
-        )
-    )
-  );
-};
-
-// ========================================
 // TINY TRACKER V3 - PART 7
 // Settings Tab - Share App, Sign Out (Target Settings moved to Family tab)
 // ========================================
@@ -1767,8 +1288,8 @@ const SettingsTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V3 - PART 8
-// SVG Icons & Render (Updated with proper nav icons)
+// TINY TRACKER V4 - PART 8
+// SVG Icons & Render (with MessageCircle and Send icons)
 // ========================================
 
 // Edit icon
@@ -1815,6 +1336,12 @@ const Camera = (props) => React.createElement('svg', { ...props, xmlns: "http://
   React.createElement('circle', { cx: "12", cy: "13", r: "4" })
 );
 
+// Send icon (for chat)
+const Send = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "m22 2-7 20-4-9-9-4Z" }),
+  React.createElement('path', { d: "M22 2 11 13" })
+);
+
 // Navigation Icons
 
 // BarChart (Tracker tab)
@@ -1830,6 +1357,11 @@ const TrendingUp = (props) => React.createElement('svg', { ...props, xmlns: "htt
   React.createElement('polyline', { points: "17 6 23 6 23 12" })
 );
 
+// MessageCircle (AI Chat tab)
+const MessageCircle = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" })
+);
+
 // Users (Family tab)
 const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
@@ -1838,12 +1370,11 @@ const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://w
   React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
 );
 
-// Settings (Settings tab) - PROPER GEAR ICON
+// Settings (Settings tab) - GEAR ICON
 const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('circle', { cx: "12", cy: "12", r: "3" }),
-  React.createElement('path', { d: "M12 1v6m0 6v6" }),
+  React.createElement('path', { d: "M12 1v6m0 6v6m9-9h-6m-6 0H3" }),
   React.createElement('path', { d: "m5.64 5.64 4.24 4.24m4.24 4.24 4.24 4.24" }),
-  React.createElement('path', { d: "M1 12h6m6 0h6" }),
   React.createElement('path', { d: "m5.64 18.36 4.24-4.24m4.24-4.24 4.24-4.24" })
 );
 
@@ -1868,3 +1399,392 @@ if (metaThemeColor) {
 
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
 
+// ========================================
+// TINY TRACKER V4 - PART 9
+// AI Chat Tab - Conversation Interface
+// ========================================
+
+const AIChatTab = ({ user, kidId }) => {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const messagesEndRef = React.useRef(null);
+  
+  useEffect(() => {
+    loadConversation();
+  }, [kidId]);
+  
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+  
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
+  const loadConversation = async () => {
+    if (!kidId) return;
+    setInitializing(true);
+    try {
+      const conversation = await firestoreStorage.getConversation();
+      if (conversation && conversation.messages) {
+        setMessages(conversation.messages);
+      }
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+    }
+    setInitializing(false);
+  };
+  
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    
+    const userMessage = {
+      role: 'user',
+      content: input.trim(),
+      timestamp: Date.now()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+    
+    try {
+      // Save user message
+      await firestoreStorage.saveMessage(userMessage);
+      
+      // Get AI response
+      const aiResponse = await getAIResponse(input.trim(), kidId);
+      
+      const assistantMessage = {
+        role: 'assistant',
+        content: aiResponse,
+        timestamp: Date.now()
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
+      
+      // Save assistant message
+      await firestoreStorage.saveMessage(assistantMessage);
+      
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorMessage = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: Date.now(),
+        error: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+    
+    setLoading(false);
+  };
+  
+  const handleClearConversation = async () => {
+    if (!confirm('Clear all conversation history?')) return;
+    try {
+      await firestoreStorage.clearConversation();
+      setMessages([]);
+    } catch (error) {
+      console.error('Error clearing conversation:', error);
+    }
+  };
+  
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 0) {
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } else if (diffDays === 1) {
+      return 'Yesterday';
+    } else if (diffDays < 7) {
+      return date.toLocaleDateString('en-US', { weekday: 'short' });
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+  
+  if (initializing) {
+    return React.createElement('div', { className: "flex items-center justify-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Loading conversation...')
+    );
+  }
+  
+  return React.createElement('div', { className: "flex flex-col h-[calc(100vh-12rem)]" },
+    // Header
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4 mb-4 flex items-center justify-between" },
+      React.createElement('div', null,
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'AI Chat'),
+        React.createElement('p', { className: "text-xs text-gray-500" }, 'Ask me anything about your baby\'s feeding patterns')
+      ),
+      messages.length > 0 && React.createElement('button', {
+        onClick: handleClearConversation,
+        className: "text-sm text-gray-400 hover:text-red-600 transition"
+      }, 'Clear')
+    ),
+    
+    // Messages Container
+    React.createElement('div', { className: "flex-1 bg-white rounded-2xl shadow-lg overflow-y-auto p-4 space-y-4 mb-4" },
+      messages.length === 0 ?
+        React.createElement('div', { className: "flex flex-col items-center justify-center h-full text-center px-4" },
+          React.createElement('div', { className: "text-6xl mb-4" }, '🤖'),
+          React.createElement('h3', { className: "text-xl font-semibold text-gray-800 mb-2" }, 'Hi! I\'m your AI assistant'),
+          React.createElement('p', { className: "text-gray-600 mb-6" }, 'I can help you understand your baby\'s feeding patterns and answer questions.'),
+          React.createElement('div', { className: "space-y-2 w-full max-w-sm" },
+            React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Try asking:'),
+            [
+              'How much should my baby be eating?',
+              'Is cluster feeding normal?',
+              'Why is my baby eating less today?',
+              'What\'s a normal feeding schedule?'
+            ].map((suggestion, i) =>
+              React.createElement('button', {
+                key: i,
+                onClick: () => setInput(suggestion),
+                className: "w-full text-left px-4 py-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl text-sm text-indigo-700 transition"
+              }, suggestion)
+            )
+          )
+        )
+      :
+        React.createElement(React.Fragment, null,
+          messages.map((message, index) =>
+            React.createElement('div', {
+              key: index,
+              className: `flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`
+            },
+              React.createElement('div', {
+                className: `max-w-[80%] ${
+                  message.role === 'user'
+                    ? 'bg-indigo-600 text-white'
+                    : message.error
+                    ? 'bg-red-50 text-red-900'
+                    : 'bg-gray-100 text-gray-900'
+                } rounded-2xl px-4 py-3`
+              },
+                React.createElement('div', { className: "whitespace-pre-wrap" }, message.content),
+                React.createElement('div', {
+                  className: `text-xs mt-1 ${
+                    message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
+                  }`
+                }, formatTimestamp(message.timestamp))
+              )
+            )
+          ),
+          React.createElement('div', { ref: messagesEndRef })
+        )
+    ),
+    
+    // Input Area
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
+      React.createElement('div', { className: "flex gap-2" },
+        React.createElement('input', {
+          type: "text",
+          value: input,
+          onChange: (e) => setInput(e.target.value),
+          onKeyPress: (e) => e.key === 'Enter' && !e.shiftKey && handleSend(),
+          placeholder: "Ask a question...",
+          disabled: loading,
+          className: "flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 disabled:bg-gray-50"
+        }),
+        React.createElement('button', {
+          onClick: handleSend,
+          disabled: loading || !input.trim(),
+          className: "px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+        },
+          loading ?
+            React.createElement('div', { className: "w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" })
+          :
+            React.createElement(Send, { className: "w-5 h-5" }),
+          loading ? 'Thinking...' : 'Send'
+        )
+      )
+    )
+  );
+};
+
+// ========================================
+// TINY TRACKER V4 - PART 10 (GEMINI VERSION)
+// AI Integration - Google Gemini API (FREE!)
+// ========================================
+
+
+const GEMINI_API_KEY = AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U
+const getAIResponse = async (question, kidId) => {
+  try {
+    // Build context from baby's data
+    const context = await buildAIContext(kidId, question);
+    
+    // Call Gemini API (FREE!)
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: context.fullPrompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1500
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('AI request failed');
+    }
+    
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+    
+  } catch (error) {
+    console.error('AI Error:', error);
+    throw error;
+  }
+};
+
+const buildAIContext = async (kidId, question) => {
+  // Get baby's data
+  const babyData = await firestoreStorage.getKidData();
+  const settings = await firestoreStorage.getSettings();
+  const recentFeedings = await firestoreStorage.getFeedingsLastNDays(7);
+  const conversation = await firestoreStorage.getConversation();
+  
+  // Calculate age
+  const ageInMonths = calculateAgeInMonths(babyData.birthDate);
+  const ageInDays = Math.floor((Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24));
+  
+  // Analyze recent feedings
+  const feedingAnalysis = analyzeFeedingPatterns(recentFeedings);
+  
+  // Build conversation history
+  let conversationHistory = '';
+  if (conversation && conversation.messages) {
+    const recentMessages = conversation.messages.slice(-10);
+    conversationHistory = '\n\nPREVIOUS CONVERSATION:\n';
+    recentMessages.forEach(msg => {
+      conversationHistory += `${msg.role === 'user' ? 'Parent' : 'AI'}: ${msg.content}\n\n`;
+    });
+  }
+  
+  // Build full prompt (Gemini doesn't have separate system prompt)
+  const fullPrompt = `You are an AI assistant for parents tracking their baby's feeding patterns. You have access to detailed data about their baby and should provide helpful, personalized insights.
+
+BABY'S INFORMATION:
+- Name: ${babyData.name || 'Baby'}
+- Age: ${ageInMonths} month${ageInMonths !== 1 ? 's' : ''} old (${ageInDays} days)
+- Current weight: ${settings?.babyWeight || 'not set'} lbs
+- Target daily intake: ${settings?.babyWeight && settings?.multiplier ? (settings.babyWeight * settings.multiplier).toFixed(1) : 'not set'} oz/day
+
+RECENT FEEDING PATTERNS (Last 7 days):
+- Total feedings: ${feedingAnalysis.totalFeedings}
+- Average per day: ${feedingAnalysis.avgPerDay.toFixed(1)} feedings
+- Average intake per feeding: ${feedingAnalysis.avgPerFeeding.toFixed(1)} oz
+- Total daily average: ${feedingAnalysis.avgDailyIntake.toFixed(1)} oz
+- Average time between feedings: ${feedingAnalysis.avgInterval.toFixed(1)} hours
+- Night feedings (10pm-6am): ${feedingAnalysis.nightFeedings} (${feedingAnalysis.nightIntakePercent.toFixed(0)}% of daily intake)
+
+TODAY'S INTAKE:
+- Total so far: ${feedingAnalysis.todayTotal.toFixed(1)} oz
+- Feedings so far: ${feedingAnalysis.todayCount}
+- Compared to 7-day average: ${feedingAnalysis.todayVsAvg > 0 ? '+' : ''}${feedingAnalysis.todayVsAvg.toFixed(1)} oz
+
+IMPORTANT GUIDELINES:
+1. Always reference specific data points from ${babyData.name}'s actual feeding patterns
+2. Be conversational and supportive, not clinical
+3. If you notice concerning patterns, suggest consulting a pediatrician
+4. Remember context from previous messages in this conversation
+5. Use phrases like "Looking at ${babyData.name}'s patterns..." or "Based on ${babyData.name}'s data..."
+6. Never diagnose medical conditions - only provide informational insights
+7. Keep responses concise but thorough (2-4 paragraphs)
+8. If asked about aggregated data from other babies, acknowledge that feature is coming soon
+
+You are speaking to ${babyData.name}'s parent. Be helpful, empathetic, and data-driven.
+${conversationHistory}
+Parent's Question: ${question}
+
+Your Response:`;
+
+  return {
+    fullPrompt,
+    messages: [] // Not used for Gemini
+  };
+};
+
+const calculateAgeInMonths = (birthDate) => {
+  if (!birthDate) return 0;
+  const birth = new Date(birthDate);
+  const now = new Date();
+  const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  return months;
+};
+
+const analyzeFeedingPatterns = (feedings) => {
+  if (!feedings || feedings.length === 0) {
+    return {
+      totalFeedings: 0,
+      avgPerDay: 0,
+      avgPerFeeding: 0,
+      avgDailyIntake: 0,
+      avgInterval: 0,
+      nightFeedings: 0,
+      nightIntakePercent: 0,
+      todayTotal: 0,
+      todayCount: 0,
+      todayVsAvg: 0
+    };
+  }
+  
+  const totalFeedings = feedings.length;
+  const totalOunces = feedings.reduce((sum, f) => sum + f.ounces, 0);
+  
+  // Calculate days span
+  const timestamps = feedings.map(f => f.timestamp);
+  const firstDay = Math.min(...timestamps);
+  const lastDay = Math.max(...timestamps);
+  const daysSpan = Math.max(1, Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1);
+  
+  // Today's feedings
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayFeedings = feedings.filter(f => f.timestamp >= todayStart.getTime());
+  const todayTotal = todayFeedings.reduce((sum, f) => sum + f.ounces, 0);
+  const todayCount = todayFeedings.length;
+  
+  // Night feedings (10pm - 6am)
+  const nightFeedings = feedings.filter(f => {
+    const hour = new Date(f.timestamp).getHours();
+    return hour >= 22 || hour < 6;
+  });
+  const nightIntake = nightFeedings.reduce((sum, f) => sum + f.ounces, 0);
+  
+  // Calculate intervals
+  let totalIntervalHours = 0;
+  for (let i = 1; i < feedings.length; i++) {
+    const intervalHours = (feedings[i].timestamp - feedings[i-1].timestamp) / (1000 * 60 * 60);
+    totalIntervalHours += intervalHours;
+  }
+  
+  const avgDailyIntake = totalOunces / daysSpan;
+  
+  return {
+    totalFeedings,
+    avgPerDay: totalFeedings / daysSpan,
+    avgPerFeeding: totalOunces / totalFeedings,
+    avgDailyIntake,
+    avgInterval: totalIntervalHours / (totalFeedings - 1),
+    nightFeedings: nightFeedings.length,
+    nightIntakePercent: (nightIntake / totalOunces) * 100,
+    todayTotal,
+    todayCount,
+    todayVsAvg: todayTotal - avgDailyIntake
+  };
+};
