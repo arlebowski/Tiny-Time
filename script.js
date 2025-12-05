@@ -392,12 +392,21 @@ const BabyFeedingTracker = () => {
     className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pb-8" 
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
+      // Header with Tiny Tracker logo - Always at top
+      React.createElement('div', { className: "flex items-center justify-center gap-3 mb-4" },
+        React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
+          React.createElement(Baby, { className: "w-6 h-6 text-indigo-600" })
+        ),
+        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
+      ),
+
+      // Tab toggles - Always under logo
       React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-2 mb-4 flex gap-2" },
         React.createElement('button', {
           onClick: () => setActiveTab('tracker'),
           className: `flex-1 py-3 px-4 rounded-xl font-semibold transition ${
             activeTab === 'tracker' 
-              ? 'bg-indigo-600 text-white' 
+              ? 'bg-indigo-600 text-white border-2 border-yellow-400' 
               : 'text-gray-600 hover:bg-gray-100'
           }`
         }, 'Tracker'),
@@ -405,29 +414,15 @@ const BabyFeedingTracker = () => {
           onClick: () => setActiveTab('analytics'),
           className: `flex-1 py-3 px-4 rounded-xl font-semibold transition ${
             activeTab === 'analytics' 
-              ? 'bg-indigo-600 text-white' 
+              ? 'bg-indigo-600 text-white border-2 border-yellow-400' 
               : 'text-gray-600 hover:bg-gray-100'
           }`
         }, 'Analytics')
       ),
 
-      // Header with Tiny Tracker logo
-      React.createElement('div', { className: "bg-gradient-to-br from-blue-50 to-indigo-100 px-4 py-3 mb-4 -mx-4 -mt-4" },
-        React.createElement('div', { className: "flex items-center justify-between max-w-2xl mx-auto" },
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
-              React.createElement(Baby, { className: "w-5 h-5 text-indigo-600" })
-            ),
-            React.createElement('h1', { className: "text-xl text-gray-800 handwriting" }, 'Tiny Tracker')
-          ),
-          React.createElement('button', {
-            onClick: () => setShowSettings(!showSettings),
-            className: "text-gray-400 hover:text-indigo-600 transition"
-          }, React.createElement(Settings, { className: "w-6 h-6" }))
-        )
-      ),
-        
-        // Today section with gear icon
+      // Tab content based on active tab
+      activeTab === 'tracker' && React.createElement(React.Fragment, null,
+        // Today section with gear icon  
         React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
           React.createElement('div', { className: "flex items-center justify-end mb-4" },
             React.createElement('button', {
@@ -662,6 +657,7 @@ const BabyFeedingTracker = () => {
       activeTab === 'analytics' && React.createElement(AnalyticsTab, { 
         loadAllFeedings: loadAllFeedings 
       })
+    )
   );
 };
 
@@ -792,13 +788,6 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   const maxVolume = Math.max(...stats.chartData.map(d => d.volume));
 
   return React.createElement('div', { className: "space-y-4" },
-    React.createElement('div', { className: "flex items-center justify-center gap-3 mb-2" },
-      React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
-        React.createElement(Baby, { className: "w-6 h-6 text-indigo-600" })
-      ),
-      React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
-    ),
-
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
       React.createElement('div', { className: "flex justify-center" },
         React.createElement('div', { className: "inline-flex gap-1 bg-gray-100 rounded-md p-1" },
