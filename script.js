@@ -609,8 +609,8 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V4 - PART 3
-// Main App with Bottom Navigation (Added AI Chat tab)
+// TINY TRACKER V4.1 - PART 3
+// Main App with Bottom Navigation (Clean colors, simpler shadows)
 // ========================================
 
 const MainApp = ({ user, kidId }) => {
@@ -621,26 +621,23 @@ const MainApp = ({ user, kidId }) => {
   }, []);
   
   return React.createElement('div', { 
-    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-24" 
+    className: "min-h-screen pb-20",
+    style: { backgroundColor: '#E0E7FF' } // Single consistent background color
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header with gradient fade
-      React.createElement('div', { className: "sticky top-0 z-10" },
-        React.createElement('div', { className: "bg-gradient-to-br from-blue-50 to-indigo-100 pt-4 pb-6" },
+      // Header - no drop shadow, just flat
+      React.createElement('div', { 
+        className: "sticky top-0 z-10",
+        style: { backgroundColor: '#E0E7FF' }
+      },
+        React.createElement('div', { className: "pt-4 pb-6" },
           React.createElement('div', { className: "flex items-center justify-center" },
             React.createElement('div', { className: "flex items-center gap-2" },
               React.createElement('span', { className: "text-3xl" }, '🍼'),
               React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
             )
           )
-        ),
-        // Gradient fade at bottom of header
-        React.createElement('div', { 
-          className: "h-4",
-          style: { 
-            background: 'linear-gradient(to bottom, rgb(224, 231, 255), transparent)'
-          }
-        })
+        )
       ),
       
       // Content
@@ -653,40 +650,35 @@ const MainApp = ({ user, kidId }) => {
       )
     ),
     
-    // Bottom Navigation (Instagram-style with gradient) - NOW WITH 5 TABS
+    // Bottom Navigation - simpler shadow like Instagram
     React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 z-50" 
+      className: "fixed bottom-0 left-0 right-0 z-50",
+      style: { 
+        backgroundColor: '#E0E7FF',
+        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)' // Subtle top shadow only
+      }
     },
-      // Gradient fade at top of nav
       React.createElement('div', { 
-        className: "h-4",
-        style: { 
-          background: 'linear-gradient(to top, rgb(224, 231, 255), transparent)'
-        }
-      }),
-      React.createElement('div', { 
-        className: "bg-gradient-to-br from-blue-50 to-indigo-100 pb-4"
+        className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-2"
       },
-        React.createElement('div', { className: "max-w-2xl mx-auto flex items-center justify-around px-4" },
-          [
-            { id: 'tracker', icon: BarChart, label: 'Tracker' },
-            { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
-            { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
-            { id: 'family', icon: Users, label: 'Family' },
-            { id: 'settings', icon: Settings, label: 'Settings' }
-          ].map(tab =>
-            React.createElement('button', {
-              key: tab.id,
-              onClick: () => setActiveTab(tab.id),
-              className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
-                activeTab === tab.id 
-                  ? 'text-indigo-600' 
-                  : 'text-gray-400'
-              }`
-            },
-              React.createElement(tab.icon, { className: "w-6 h-6" }),
-              React.createElement('span', { className: "text-xs font-medium" }, tab.label)
-            )
+        [
+          { id: 'tracker', icon: BarChart, label: 'Tracker' },
+          { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
+          { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
+          { id: 'family', icon: Users, label: 'Family' },
+          { id: 'settings', icon: Menu, label: 'Settings' }
+        ].map(tab =>
+          React.createElement('button', {
+            key: tab.id,
+            onClick: () => setActiveTab(tab.id),
+            className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+              activeTab === tab.id 
+                ? 'text-indigo-600' 
+                : 'text-gray-400'
+            }`
+          },
+            React.createElement(tab.icon, { className: "w-6 h-6" }),
+            React.createElement('span', { className: "text-xs font-medium" }, tab.label)
           )
         )
       )
@@ -1288,8 +1280,8 @@ const SettingsTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4 - PART 8
-// SVG Icons & Render (with MessageCircle and Send icons)
+// TINY TRACKER V4.1 - PART 8
+// SVG Icons & Render (with Menu/Hamburger icon for settings)
 // ========================================
 
 // Edit icon
@@ -1370,26 +1362,24 @@ const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://w
   React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
 );
 
-// Settings (Settings tab) - GEAR ICON
-const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('circle', { cx: "12", cy: "12", r: "3" }),
-  React.createElement('path', { d: "M12 1v6m0 6v6m9-9h-6m-6 0H3" }),
-  React.createElement('path', { d: "m5.64 5.64 4.24 4.24m4.24 4.24 4.24 4.24" }),
-  React.createElement('path', { d: "m5.64 18.36 4.24-4.24m4.24-4.24 4.24-4.24" })
+// Menu/Hamburger (Settings tab)
+const Menu = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('line', { x1: "4", y1: "12", x2: "20", y2: "12" }),
+  React.createElement('line', { x1: "4", y1: "6", x2: "20", y2: "6" }),
+  React.createElement('line', { x1: "4", y1: "18", x2: "20", y2: "18" })
 );
 
 // ========================================
 // SET THEME COLOR FOR MOBILE BROWSER
 // ========================================
 
-// Add meta theme-color tag to match background
 const metaThemeColor = document.querySelector('meta[name="theme-color"]');
 if (metaThemeColor) {
-  metaThemeColor.setAttribute('content', '#e0e7ff'); // indigo-100, matches gradient
+  metaThemeColor.setAttribute('content', '#E0E7FF');
 } else {
   const meta = document.createElement('meta');
   meta.name = 'theme-color';
-  meta.content = '#e0e7ff'; // indigo-100, matches gradient
+  meta.content = '#E0E7FF';
   document.head.appendChild(meta);
 }
 
@@ -1400,8 +1390,8 @@ if (metaThemeColor) {
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
 
 // ========================================
-// TINY TRACKER V4 - PART 9
-// AI Chat Tab - Conversation Interface
+// TINY TRACKER V4.1 - PART 9
+// AI Chat Tab - iMessage Style
 // ========================================
 
 const AIChatTab = ({ user, kidId }) => {
@@ -1451,10 +1441,7 @@ const AIChatTab = ({ user, kidId }) => {
     setLoading(true);
     
     try {
-      // Save user message
       await firestoreStorage.saveMessage(userMessage);
-      
-      // Get AI response
       const aiResponse = await getAIResponse(input.trim(), kidId);
       
       const assistantMessage = {
@@ -1464,8 +1451,6 @@ const AIChatTab = ({ user, kidId }) => {
       };
       
       setMessages(prev => [...prev, assistantMessage]);
-      
-      // Save assistant message
       await firestoreStorage.saveMessage(assistantMessage);
       
     } catch (error) {
@@ -1494,19 +1479,15 @@ const AIChatTab = ({ user, kidId }) => {
   
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
-    const now = new Date();
-    const diffDays = Math.floor((now - date) / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    } else if (diffDays === 1) {
-      return 'Yesterday';
-    } else if (diffDays < 7) {
-      return date.toLocaleDateString('en-US', { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   };
+  
+  const suggestedQuestions = [
+    'How much should my baby be eating?',
+    'Is cluster feeding normal?',
+    'Why is my baby eating less today?',
+    'What\'s a normal feeding schedule?'
+  ];
   
   if (initializing) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
@@ -1514,93 +1495,121 @@ const AIChatTab = ({ user, kidId }) => {
     );
   }
   
-  return React.createElement('div', { className: "flex flex-col h-[calc(100vh-12rem)]" },
-    // Header
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4 mb-4 flex items-center justify-between" },
-      React.createElement('div', null,
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'AI Chat'),
-        React.createElement('p', { className: "text-xs text-gray-500" }, 'Ask me anything about your baby\'s feeding patterns')
-      ),
-      messages.length > 0 && React.createElement('button', {
-        onClick: handleClearConversation,
-        className: "text-sm text-gray-400 hover:text-red-600 transition"
-      }, 'Clear')
-    ),
-    
-    // Messages Container
-    React.createElement('div', { className: "flex-1 bg-white rounded-2xl shadow-lg overflow-y-auto p-4 space-y-4 mb-4" },
-      messages.length === 0 ?
-        React.createElement('div', { className: "flex flex-col items-center justify-center h-full text-center px-4" },
-          React.createElement('div', { className: "text-6xl mb-4" }, '🤖'),
-          React.createElement('h3', { className: "text-xl font-semibold text-gray-800 mb-2" }, 'Hi! I\'m your AI assistant'),
-          React.createElement('p', { className: "text-gray-600 mb-6" }, 'I can help you understand your baby\'s feeding patterns and answer questions.'),
-          React.createElement('div', { className: "space-y-2 w-full max-w-sm" },
-            React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Try asking:'),
-            [
-              'How much should my baby be eating?',
-              'Is cluster feeding normal?',
-              'Why is my baby eating less today?',
-              'What\'s a normal feeding schedule?'
-            ].map((suggestion, i) =>
+  return React.createElement('div', { 
+    className: "flex flex-col",
+    style: { height: 'calc(100vh - 10rem)' }
+  },
+    // Messages Area - looks like iMessage
+    React.createElement('div', { 
+      className: "flex-1 overflow-y-auto px-4 py-4 space-y-3"
+    },
+      // First message if empty
+      messages.length === 0 && React.createElement(React.Fragment, null,
+        // Initial AI message
+        React.createElement('div', { className: "flex justify-start" },
+          React.createElement('div', { 
+            className: "max-w-[75%] bg-gray-200 rounded-2xl px-4 py-3"
+          },
+            React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
+            React.createElement('div', { className: "text-gray-900" }, 
+              'Hi! I can help you understand your baby\'s feeding patterns. Ask me anything!'
+            )
+          )
+        ),
+        
+        // Suggested questions
+        React.createElement('div', { className: "flex justify-start mt-2" },
+          React.createElement('div', { className: "max-w-[75%] space-y-2" },
+            React.createElement('div', { className: "text-xs text-gray-500 px-2 mb-1" }, 'Try asking:'),
+            suggestedQuestions.map((q, i) =>
               React.createElement('button', {
                 key: i,
-                onClick: () => setInput(suggestion),
-                className: "w-full text-left px-4 py-3 bg-indigo-50 hover:bg-indigo-100 rounded-xl text-sm text-indigo-700 transition"
-              }, suggestion)
+                onClick: () => setInput(q),
+                className: "block w-full text-left px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50 transition"
+              }, q)
             )
           )
         )
-      :
-        React.createElement(React.Fragment, null,
-          messages.map((message, index) =>
+      ),
+      
+      // Conversation messages
+      messages.map((message, index) =>
+        React.createElement('div', {
+          key: index,
+          className: `flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`
+        },
+          React.createElement('div', {
+            className: `max-w-[75%] rounded-2xl px-4 py-3 ${
+              message.role === 'user'
+                ? 'bg-indigo-600 text-white'
+                : message.error
+                ? 'bg-red-100 text-red-900'
+                : 'bg-gray-200 text-gray-900'
+            }`
+          },
+            message.role === 'assistant' && !message.error &&
+              React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
+            React.createElement('div', { className: "whitespace-pre-wrap text-[15px]" }, message.content),
             React.createElement('div', {
-              key: index,
-              className: `flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`
-            },
-              React.createElement('div', {
-                className: `max-w-[80%] ${
-                  message.role === 'user'
-                    ? 'bg-indigo-600 text-white'
-                    : message.error
-                    ? 'bg-red-50 text-red-900'
-                    : 'bg-gray-100 text-gray-900'
-                } rounded-2xl px-4 py-3`
-              },
-                React.createElement('div', { className: "whitespace-pre-wrap" }, message.content),
-                React.createElement('div', {
-                  className: `text-xs mt-1 ${
-                    message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
-                  }`
-                }, formatTimestamp(message.timestamp))
-              )
-            )
-          ),
-          React.createElement('div', { ref: messagesEndRef })
+              className: `text-[11px] mt-1 ${
+                message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
+              }`
+            }, formatTimestamp(message.timestamp))
+          )
         )
+      ),
+      
+      // Loading indicator
+      loading && React.createElement('div', { className: "flex justify-start" },
+        React.createElement('div', { className: "bg-gray-200 rounded-2xl px-4 py-3" },
+          React.createElement('div', { className: "flex gap-1" },
+            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '0ms' } }),
+            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '150ms' } }),
+            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '300ms' } })
+          )
+        )
+      ),
+      
+      React.createElement('div', { ref: messagesEndRef })
     ),
     
-    // Input Area
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
-      React.createElement('div', { className: "flex gap-2" },
-        React.createElement('input', {
-          type: "text",
+    // Input Area - iMessage style
+    React.createElement('div', { 
+      className: "px-4 pb-4 pt-2",
+      style: { backgroundColor: '#E0E7FF' }
+    },
+      React.createElement('div', { 
+        className: "flex items-end gap-2 bg-white rounded-full px-3 py-1.5 border border-gray-200"
+      },
+        React.createElement('textarea', {
           value: input,
           onChange: (e) => setInput(e.target.value),
-          onKeyPress: (e) => e.key === 'Enter' && !e.shiftKey && handleSend(),
-          placeholder: "Ask a question...",
+          onKeyPress: (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          },
+          placeholder: "Message",
           disabled: loading,
-          className: "flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 disabled:bg-gray-50"
+          rows: 1,
+          className: "flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px] disabled:opacity-50",
+          style: { maxHeight: '100px' }
         }),
         React.createElement('button', {
           onClick: handleSend,
           disabled: loading || !input.trim(),
-          className: "px-6 py-3 bg-indigo-600 text-white rounded-xl font-semibold hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className: "flex-shrink-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center disabled:opacity-30 transition hover:bg-indigo-700"
         },
-          loading ?
-            React.createElement('div', { className: "w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" })
-          :
-            React.createElement(Send, { className: "w-5 h-5" }),
-          loading ? 'Thinking...' : 'Send'
+          React.createElement('svg', {
+            className: "w-4 h-4 text-white",
+            fill: "currentColor",
+            viewBox: "0 0 24 24"
+          },
+            React.createElement('path', {
+              d: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
+            })
+          )
         )
       )
     )
@@ -1613,7 +1622,7 @@ const AIChatTab = ({ user, kidId }) => {
 // ========================================
 
 
-const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U";
+const GEMINI_API_KEY = AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U
 const getAIResponse = async (question, kidId) => {
   try {
     // Build context from baby's data
