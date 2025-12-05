@@ -587,7 +587,7 @@ const MainApp = ({ user, kidId }) => {
       'div',
       { className: "max-w-2xl mx-auto" },
 
-      /* ---------- HEADER (lighter, no shadow) ---------- */
+      /* ---------- HEADER (no line, lighter padding) ---------- */
       React.createElement(
         'div',
         {
@@ -598,7 +598,7 @@ const MainApp = ({ user, kidId }) => {
           'div',
           {
             className:
-              "pt-2 pb-3 border-b border-white/60 flex items-center justify-center",
+              "pt-2 pb-3 flex items-center justify-center",
             style: { backgroundColor: "#E0E7FF" }
           },
           React.createElement(
@@ -616,7 +616,7 @@ const MainApp = ({ user, kidId }) => {
         )
       ),
 
-      /* ---------- CONTENT (give breathing room below header) ---------- */
+      /* ---------- CONTENT (breathing room below header) ---------- */
       React.createElement(
         'div',
         { className: "px-4 mt-4" },
@@ -631,20 +631,20 @@ const MainApp = ({ user, kidId }) => {
       )
     ),
 
-    /* ---------- BOTTOM NAV (sleeker, IG-style) ---------- */
+    /* ---------- BOTTOM NAV (raised icons, sleek IG style) ---------- */
     React.createElement(
       'div',
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
           backgroundColor: "#E0E7FF",
-          boxShadow: "0 -2px 4px rgba(0,0,0,0.04)" // toned-down shadow
+          boxShadow: "0 -2px 4px rgba(0,0,0,0.04)"  // subtle shadow
         }
       },
       React.createElement(
         'div',
         {
-          className: "pt-1 pb-1 border-t border-white/60",
+          className: "pb-1 pt-1",
           style: { backgroundColor: "#E0E7FF" }
         },
         React.createElement(
@@ -664,13 +664,14 @@ const MainApp = ({ user, kidId }) => {
               {
                 key: tab.id,
                 onClick: () => setActiveTab(tab.id),
-                className: `flex-1 py-1 flex flex-col items-center gap-0.5 transition ${
+                className: `flex-1 pt-1 pb-0.5 flex flex-col items-center gap-0.5 transition ${
                   activeTab === tab.id
                     ? "text-indigo-600"
                     : "text-gray-400"
                 }`
               },
-              React.createElement(tab.icon, { className: "w-6 h-6" }),
+              // raised icon
+              React.createElement(tab.icon, { className: "w-6 h-6 translate-y-[-2px]" }),
               React.createElement(
                 'span',
                 { className: "text-xs font-medium" },
