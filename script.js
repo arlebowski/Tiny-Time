@@ -313,31 +313,28 @@ const App = () => {
         
         try {
           let userKidId;
+
           if (inviteCode) {
+            // Accept invite + attach kid to this user
             userKidId = await acceptInvite(inviteCode, user.uid);
+            if (userKidId) {
+              await saveUserKidId(user.uid, userKidId);
+            }
+            // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
+            // Normal path – fetch kidId for this user
             userKidId = await getUserKidId(user.uid);
-            
-            if (!userKidId) {
-              // New user, needs setup
-              setNeedsSetup(true);
-              setLoading(false);
-              return;
-            }
-            
-            // Check if we need to migrate data (only once per browser)
-            const migrationFlag = localStorage.getItem('migration_complete');
-            if (!migrationFlag) {
-              const hasLocalData = localStorage.getItem('baby_weight') || 
-                                   await rtdb.ref().once('value').then(s => s.exists());
-              if (hasLocalData) {
-                await migrateLocalStorageData(userKidId);
-                localStorage.setItem('migration_complete', 'true');
-              }
-            }
           }
           
+          // If no kid yet, show setup
+          if (!userKidId) {
+            setNeedsSetup(true);
+            setLoading(false);
+            return;
+          }
+
+          // ✅ No more migration here
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
         } catch (error) {
@@ -350,6 +347,7 @@ const App = () => {
       }
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
   
@@ -358,7 +356,7 @@ const App = () => {
       className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" 
     },
       React.createElement('div', { className: "text-center" },
-        React.createElement('div', { className: "text-4xl mb-3" }, '🍼'),
+        React.createElement('div', { className: "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4" }),
         React.createElement('div', { className: "text-gray-600" }, 'Loading...')
       )
     );
@@ -378,7 +376,7 @@ const App = () => {
       }
     });
   }
-  
+
   return React.createElement(MainApp, { user, kidId });
 };
 
