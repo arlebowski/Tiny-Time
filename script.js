@@ -325,18 +325,6 @@ const App = () => {
               setLoading(false);
               return;
             }
-            
-            // Check if we need to migrate data (only once per browser)
-            const migrationFlag = localStorage.getItem('migration_complete');
-            if (!migrationFlag) {
-              const hasLocalData = localStorage.getItem('baby_weight') || 
-                                   await rtdb.ref().once('value').then(s => s.exists());
-              if (hasLocalData) {
-                await migrateLocalStorageData(userKidId);
-                localStorage.setItem('migration_complete', 'true');
-              }
-            }
-          }
           
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
