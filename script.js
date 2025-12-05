@@ -664,13 +664,12 @@ const MainApp = ({ user, kidId }) => {
               {
                 key: tab.id,
                 onClick: () => setActiveTab(tab.id),
-                className: `flex-1 pt-1 pb-0.5 flex flex-col items-center gap-0.5 transition ${
+                className: `flex-1 pt-2 pb-0.5 flex flex-col items-center gap-0.5 transition ${
                   activeTab === tab.id
                     ? "text-indigo-600"
                     : "text-gray-400"
                 }`
               },
-              // raised icon
               React.createElement(tab.icon, { className: "w-6 h-6 translate-y-[-2px]" }),
               React.createElement(
                 'span',
