@@ -422,15 +422,8 @@ const BabyFeedingTracker = () => {
 
       // Tab content based on active tab
       activeTab === 'tracker' && React.createElement(React.Fragment, null,
-        // Today section with gear icon  
+        // Today section with gear icon inline  
         React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
-          React.createElement('div', { className: "flex items-center justify-end mb-4" },
-            React.createElement('button', {
-              onClick: () => setShowSettings(!showSettings),
-              className: "text-gray-400 hover:text-indigo-600 transition"
-            }, React.createElement(Settings, { className: "w-6 h-6" }))
-          ),
-          
           showSettings && React.createElement('div', { className: "mb-4 p-4 bg-gray-50 rounded-xl space-y-3" },
             React.createElement('div', { className: "flex items-center justify-between" },
               React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Baby's Weight"),
@@ -505,11 +498,17 @@ const BabyFeedingTracker = () => {
               className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
             }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
             React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
-            React.createElement('button', {
-              onClick: goToNextDay,
-              disabled: isToday(),
-              className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
-            }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('button', {
+                onClick: goToNextDay,
+                disabled: isToday(),
+                className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
+              }, React.createElement(ChevronRight, { className: "w-5 h-5" })),
+              React.createElement('button', {
+                onClick: () => setShowSettings(!showSettings),
+                className: "p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+              }, React.createElement(Settings, { className: "w-5 h-5" }))
+            )
           ),
           
           React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-4" },
@@ -699,11 +698,11 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
       timeframeMs = 3 * 24 * 60 * 60 * 1000;
       labelText = '3-day avg';
     } else if (timeRange === 'week') {
-      timeframeMs = 3 * 7 * 24 * 60 * 60 * 1000;
-      labelText = '3-week avg';
+      timeframeMs = 7 * 24 * 60 * 60 * 1000;
+      labelText = '7-day avg';
     } else {
-      timeframeMs = 3 * 30 * 24 * 60 * 60 * 1000;
-      labelText = '3-month avg';
+      timeframeMs = 30 * 24 * 60 * 60 * 1000;
+      labelText = '30-day avg';
     }
 
     const timeframeAgo = now - timeframeMs;
@@ -788,22 +787,20 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   const maxVolume = Math.max(...stats.chartData.map(d => d.volume));
 
   return React.createElement('div', { className: "space-y-4" },
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
-      React.createElement('div', { className: "flex justify-center" },
-        React.createElement('div', { className: "inline-flex gap-1 bg-gray-100 rounded-md p-1" },
-          React.createElement('button', {
-            onClick: () => setTimeRange('day'),
-            className: `px-4 py-1.5 rounded text-xs font-medium transition ${timeRange === 'day' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
-          }, 'Day'),
-          React.createElement('button', {
-            onClick: () => setTimeRange('week'),
-            className: `px-4 py-1.5 rounded text-xs font-medium transition ${timeRange === 'week' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
-          }, 'Week'),
-          React.createElement('button', {
-            onClick: () => setTimeRange('month'),
-            className: `px-4 py-1.5 rounded text-xs font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white' : 'text-gray-600'}`
-          }, 'Month')
-        )
+    React.createElement('div', { className: "flex justify-center mb-2" },
+      React.createElement('div', { className: "inline-flex gap-1 bg-white rounded-xl p-1.5 shadow-lg" },
+        React.createElement('button', {
+          onClick: () => setTimeRange('day'),
+          className: `px-6 py-2 rounded-lg text-sm font-medium transition ${timeRange === 'day' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`
+        }, 'Day'),
+        React.createElement('button', {
+          onClick: () => setTimeRange('week'),
+          className: `px-6 py-2 rounded-lg text-sm font-medium transition ${timeRange === 'week' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`
+        }, 'Week'),
+        React.createElement('button', {
+          onClick: () => setTimeRange('month'),
+          className: `px-6 py-2 rounded-lg text-sm font-medium transition ${timeRange === 'month' ? 'bg-indigo-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`
+        }, 'Month')
       )
     ),
 
@@ -842,20 +839,29 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-4 text-center" }, 'Volume History'),
       stats.chartData.length > 0 ?
-        React.createElement('div', { className: "overflow-x-auto -mx-6 px-6" },
-          React.createElement('div', { className: "flex gap-6 pb-2", style: { minWidth: `${stats.chartData.length * 80}px` } },
-            stats.chartData.map(item => 
-              React.createElement('div', { key: item.date, className: "flex flex-col items-center gap-2" },
-                React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
-                  React.createElement('div', { className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500", style: { height: `${(item.volume / maxVolume) * 160}px`, minHeight: '30px' } },
-                    React.createElement('span', { className: "text-white text-xs font-semibold" }, `${item.volume}`)
-                  )
-                ),
-                React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, item.date),
-                React.createElement('div', { className: "text-xs text-gray-400" }, `${item.count} feeds`)
+        React.createElement('div', { className: "relative" },
+          React.createElement('div', { 
+            className: "overflow-x-auto overflow-y-hidden -mx-6 px-6 scrollbar-thin scrollbar-thumb-indigo-300 scrollbar-track-gray-100",
+            style: { scrollBehavior: 'smooth' }
+          },
+            React.createElement('div', { 
+              className: "flex gap-6 pb-2", 
+              style: { minWidth: stats.chartData.length > 4 ? `${stats.chartData.length * 80}px` : '100%' } 
+            },
+              stats.chartData.map(item => 
+                React.createElement('div', { key: item.date, className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                  React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                    React.createElement('div', { className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500", style: { height: `${(item.volume / maxVolume) * 160}px`, minHeight: '30px' } },
+                      React.createElement('span', { className: "text-white text-xs font-semibold" }, `${item.volume}`)
+                    )
+                  ),
+                  React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, item.date),
+                  React.createElement('div', { className: "text-xs text-gray-400" }, `${item.count} feeds`)
+                )
               )
             )
-          )
+          ),
+          stats.chartData.length > 4 && React.createElement('div', { className: "absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white pointer-events-none" })
         )
       :
         React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No data to display')
