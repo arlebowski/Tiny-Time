@@ -1814,11 +1814,11 @@ const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http:
 // Add meta theme-color tag to match background
 const metaThemeColor = document.querySelector('meta[name="theme-color"]');
 if (metaThemeColor) {
-  metaThemeColor.setAttribute('content', '#dbeafe'); // blue-50
+  metaThemeColor.setAttribute('content', '#e0e7ff'); // indigo-100, matches gradient
 } else {
   const meta = document.createElement('meta');
   meta.name = 'theme-color';
-  meta.content = '#dbeafe'; // blue-50
+  meta.content = '#e0e7ff'; // indigo-100, matches gradient
   document.head.appendChild(meta);
 }
 
