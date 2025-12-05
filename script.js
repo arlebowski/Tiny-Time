@@ -582,23 +582,23 @@ const MainApp = ({ user, kidId }) => {
       style: { backgroundColor: "#E0E7FF" }
     },
 
+    // MAIN COLUMN
     React.createElement(
       'div',
       { className: "max-w-2xl mx-auto" },
 
-      /* ---------------- HEADER ---------------- */
+      /* ---------- HEADER (lighter, no shadow) ---------- */
       React.createElement(
         'div',
         {
           className: "sticky top-0 z-10",
           style: { backgroundColor: "#E0E7FF" }
         },
-
-        // Header content
         React.createElement(
           'div',
           {
-            className: "pt-4 pb-6 flex items-center justify-center",
+            className:
+              "pt-2 pb-3 border-b border-white/60 flex items-center justify-center",
             style: { backgroundColor: "#E0E7FF" }
           },
           React.createElement(
@@ -613,22 +613,13 @@ const MainApp = ({ user, kidId }) => {
               "Tiny Tracker"
             )
           )
-        ),
-
-        // SHADOW under header
-        React.createElement('div', {
-          className: "h-3",
-          style: {
-            backgroundColor: "#E0E7FF",
-            boxShadow: "0 4px 6px rgba(0,0,0,0.10)"
-          }
-        })
+        )
       ),
 
-      /* ---------------- CONTENT ---------------- */
+      /* ---------- CONTENT (give breathing room below header) ---------- */
       React.createElement(
         'div',
-        { className: "px-4" },
+        { className: "px-4 mt-4" },
         activeTab === "tracker" &&
           React.createElement(TrackerTab, { user, kidId }),
         activeTab === "analytics" &&
@@ -640,37 +631,28 @@ const MainApp = ({ user, kidId }) => {
       )
     ),
 
-    /* ---------------- BOTTOM NAV ---------------- */
+    /* ---------- BOTTOM NAV (sleeker, IG-style) ---------- */
     React.createElement(
       'div',
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
-        style: { backgroundColor: "#E0E7FF" }
-      },
-
-      // SHADOW above nav
-      React.createElement('div', {
-        className: "h-3",
         style: {
           backgroundColor: "#E0E7FF",
-          boxShadow: "0 -4px 6px rgba(0,0,0,0.10)"
+          boxShadow: "0 -2px 4px rgba(0,0,0,0.04)" // toned-down shadow
         }
-      }),
-
+      },
       React.createElement(
         'div',
         {
-          className: "pb-4 pt-2",
+          className: "pt-1 pb-1 border-t border-white/60",
           style: { backgroundColor: "#E0E7FF" }
         },
         React.createElement(
           'div',
           {
             className:
-              "max-w-2xl mx-auto flex items-center justify-around px-4"
+              "max-w-2xl mx-auto flex items-center justify-around px-2"
           },
-
-          // your EXACT nav tab list
           [
             { id: "tracker", icon: BarChart, label: "Tracker" },
             { id: "analytics", icon: TrendingUp, label: "Analytics" },
@@ -682,7 +664,7 @@ const MainApp = ({ user, kidId }) => {
               {
                 key: tab.id,
                 onClick: () => setActiveTab(tab.id),
-                className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+                className: `flex-1 py-1 flex flex-col items-center gap-0.5 transition ${
                   activeTab === tab.id
                     ? "text-indigo-600"
                     : "text-gray-400"
@@ -701,7 +683,6 @@ const MainApp = ({ user, kidId }) => {
     )
   );
 };
-
 
 
 // ========================================
