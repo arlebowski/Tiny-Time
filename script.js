@@ -575,70 +575,117 @@ const MainApp = ({ user, kidId }) => {
     document.title = 'Tiny Tracker';
   }, []);
   
-  return React.createElement('div', { 
-    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-24" 
-  },
-    React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header with gradient fade
-      React.createElement('div', { className: "sticky top-0 z-10" },
-        React.createElement('div', { className: "bg-gradient-to-br from-blue-50 to-indigo-100 pt-4 pb-6" },
-          React.createElement('div', { className: "flex items-center justify-center" },
-            React.createElement('div', { className: "flex items-center gap-2" },
+  return React.createElement(
+    'div',
+    {
+      className: "min-h-screen pb-24",
+      style: { backgroundColor: '#E0E7FF' }
+    },
+    React.createElement(
+      'div',
+      { className: "max-w-2xl mx-auto" },
+
+      // Header (no gradient)
+      React.createElement(
+        'div',
+        {
+          className: "sticky top-0 z-10",
+          style: { backgroundColor: '#E0E7FF' }
+        },
+        React.createElement(
+          'div',
+          {
+            className: "pt-4 pb-6",
+            style: { backgroundColor: '#E0E7FF' }
+          },
+          React.createElement(
+            'div',
+            { className: "flex items-center justify-center" },
+            React.createElement(
+              'div',
+              { className: "flex items-center gap-2" },
               React.createElement('span', { className: "text-3xl" }, '🍼'),
-              React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
+              React.createElement(
+                'h1',
+                {
+                  className: "text-2xl font-bold text-gray-800 handwriting"
+                },
+                'Tiny Tracker'
+              )
             )
           )
         ),
-        // Gradient fade at bottom of header
-        React.createElement('div', { 
+        // Solid strip instead of gradient fade
+        React.createElement('div', {
           className: "h-4",
-          style: { 
-            background: 'linear-gradient(to bottom, rgb(224, 231, 255), transparent)'
-          }
+          style: { backgroundColor: '#E0E7FF' }
         })
       ),
-      
-      // Content
-      React.createElement('div', { className: "px-4" },
-        activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId }),
-        activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
-        activeTab === 'family' && React.createElement(FamilyTab, { user, kidId }),
-        activeTab === 'settings' && React.createElement(SettingsTab, { user, kidId })
+
+      // Content (unchanged)
+      React.createElement(
+        'div',
+        { className: "px-4" },
+        activeTab === 'tracker' &&
+          React.createElement(TrackerTab, { user, kidId }),
+        activeTab === 'analytics' &&
+          React.createElement(AnalyticsTab, { kidId }),
+        activeTab === 'family' &&
+          React.createElement(FamilyTab, { user, kidId }),
+        activeTab === 'settings' &&
+          React.createElement(SettingsTab, { user, kidId })
       )
     ),
-    
-    // Bottom Navigation (Instagram-style with gradient)
-    React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 z-50" 
-    },
-      // Gradient fade at top of nav
-      React.createElement('div', { 
-        className: "h-4",
-        style: { 
-          background: 'linear-gradient(to top, rgb(224, 231, 255), transparent)'
-        }
-      }),
-      React.createElement('div', { 
-        className: "bg-gradient-to-br from-blue-50 to-indigo-100 pb-4"
+
+    // Bottom Navigation (no gradients)
+    React.createElement(
+      'div',
+      {
+        className: "fixed bottom-0 left-0 right-0 z-50",
+        style: { backgroundColor: '#E0E7FF' }
       },
-        React.createElement('div', { className: "max-w-2xl mx-auto flex items-center justify-around px-4" },
+
+      // Solid strip at top of nav
+      React.createElement('div', {
+        className: "h-4",
+        style: { backgroundColor: '#E0E7FF' }
+      }),
+
+      React.createElement(
+        'div',
+        {
+          className: "pb-4 pt-2",
+          style: { backgroundColor: '#E0E7FF' }
+        },
+        React.createElement(
+          'div',
+          {
+            className:
+              "max-w-2xl mx-auto flex items-center justify-around px-4"
+          },
           [
             { id: 'tracker', icon: BarChart, label: 'Tracker' },
             { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
             { id: 'family', icon: Users, label: 'Family' },
             { id: 'settings', icon: Settings, label: 'Settings' }
           ].map(tab =>
-            React.createElement('button', {
-              key: tab.id,
-              onClick: () => setActiveTab(tab.id),
-              className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
-                activeTab === tab.id 
-                  ? 'text-indigo-600' 
-                  : 'text-gray-400'
-              }`
-            },
+            React.createElement(
+              'button',
+              {
+                key: tab.id,
+                onClick: () => setActiveTab(tab.id),
+                className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+                  activeTab === tab.id
+                    ? 'text-indigo-600'
+                    : 'text-gray-400'
+                }`
+              },
               React.createElement(tab.icon, { className: "w-6 h-6" }),
-              React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+              React.createElement(
+                'span',
+                { className: "text-xs font-medium" },
+                tab.label
+              )
             )
           )
         )
@@ -646,6 +693,7 @@ const MainApp = ({ user, kidId }) => {
     )
   );
 };
+
 
 // ========================================
 // TINY TRACKER V2 - PART 4  
