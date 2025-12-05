@@ -1,7 +1,7 @@
 // ========================================
-// PART 1: FIREBASE CONFIG AND AUTH
+// TINY TRACKER V2 - PART 1
+// Config, Auth, Data Migration, Invites, Firestore Layer
 // ========================================
-// This file contains: Firebase initialization, auth functions, data migration, and invite system
 
 const firebaseConfig = {
   apiKey: "AIzaSyBUscvx-JB3lNWKVu9bPnYTBHVPvrndc_w",
@@ -39,16 +39,28 @@ const getUserKidId = async (userId) => {
     return kidId;
   }
   
+  return null; // No kid yet, will create during setup
+};
+
+const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
   const kidRef = await db.collection('kids').add({
+    name: babyName,
+    birthDate: birthDate,
     ownerId: userId,
     members: [userId],
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   
+  await db.collection('kids').doc(kidRef.id).collection('settings').doc('default').set({
+    babyWeight: babyWeight,
+    multiplier: 2.5
+  });
+  
   await db.collection('users').doc(userId).set({
     kidId: kidRef.id,
-    email: auth.currentUser.email,
     displayName: auth.currentUser.displayName,
+    email: auth.currentUser.email,
+    photoURL: auth.currentUser.photoURL,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
   
@@ -64,8 +76,12 @@ const signOut = async () => {
   await auth.signOut();
 };
 
+const updateUserProfile = async (userId, updates) => {
+  await db.collection('users').doc(userId).update(updates);
+};
+
 // ========================================
-// DATA MIGRATION FROM LOCALSTORAGE
+// DATA MIGRATION
 // ========================================
 
 const migrateLocalStorageData = async (kidId) => {
@@ -138,8 +154,10 @@ const acceptInvite = async (inviteCode, userId) => {
   
   await db.collection('users').doc(userId).set({
     kidId: invite.kidId,
+    displayName: auth.currentUser.displayName,
     email: auth.currentUser.email,
-    displayName: auth.currentUser.displayName
+    photoURL: auth.currentUser.photoURL,
+    joinedAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
   
   await db.collection('invites').doc(inviteCode).update({
@@ -171,6 +189,12 @@ const firestoreStorage = {
     this.kidId = kidId;
   },
   
+  async getKidData() {
+    if (!this.kidId) return null;
+    const doc = await db.collection('kids').doc(this.kidId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+  },
+  
   async getSettings() {
     if (!this.kidId) return null;
     const doc = await db.collection('kids').doc(this.kidId).collection('settings').doc('default').get();
@@ -180,6 +204,29 @@ const firestoreStorage = {
   async setSettings(settings) {
     if (!this.kidId) return;
     await db.collection('kids').doc(this.kidId).collection('settings').doc('default').set(settings, { merge: true });
+  },
+  
+  async updateKid(updates) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).update(updates);
+  },
+  
+  async getMembers() {
+    if (!this.kidId) return [];
+    const kidDoc = await db.collection('kids').doc(this.kidId).get();
+    if (!kidDoc.exists) return [];
+    
+    const memberIds = kidDoc.data().members || [];
+    const members = await Promise.all(
+      memberIds.map(async (memberId) => {
+        const userDoc = await db.collection('users').doc(memberId).get();
+        return {
+          uid: memberId,
+          ...(userDoc.exists ? userDoc.data() : { email: 'Unknown' })
+        };
+      })
+    );
+    return members;
   },
   
   async getFeedingsForDate(date) {
@@ -245,9 +292,9 @@ const firestoreStorage = {
 };
 
 // ========================================
-// PART 2: REACT COMPONENTS
+// TINY TRACKER V2 - PART 2 (FIXED)
+// App Wrapper, Login Screen, Baby Setup Screen
 // ========================================
-// This file contains: App wrapper, Login Screen, Main Tracker Component
 
 const { useState, useEffect } = React;
 
@@ -255,6 +302,7 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [kidId, setKidId] = useState(null);
+  const [needsSetup, setNeedsSetup] = useState(false);
   
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
@@ -270,12 +318,26 @@ const App = () => {
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
             userKidId = await getUserKidId(user.uid);
-            const hasLocalData = localStorage.getItem('baby_weight') || 
-                                 await rtdb.ref().once('value').then(s => s.exists());
-            if (hasLocalData) {
-              await migrateLocalStorageData(userKidId);
+            
+            if (!userKidId) {
+              // New user, needs setup
+              setNeedsSetup(true);
+              setLoading(false);
+              return;
+            }
+            
+            // Check if we need to migrate data (only once per browser)
+            const migrationFlag = localStorage.getItem('migration_complete');
+            if (!migrationFlag) {
+              const hasLocalData = localStorage.getItem('baby_weight') || 
+                                   await rtdb.ref().once('value').then(s => s.exists());
+              if (hasLocalData) {
+                await migrateLocalStorageData(userKidId);
+                localStorage.setItem('migration_complete', 'true');
+              }
             }
           }
+          
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
         } catch (error) {
@@ -284,6 +346,7 @@ const App = () => {
       } else {
         setUser(null);
         setKidId(null);
+        setNeedsSetup(false);
       }
       setLoading(false);
     });
@@ -295,7 +358,7 @@ const App = () => {
       className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" 
     },
       React.createElement('div', { className: "text-center" },
-        React.createElement('div', { className: "text-2xl font-bold text-gray-800 mb-2" }, '🍼'),
+        React.createElement('div', { className: "text-4xl mb-3" }, '🍼'),
         React.createElement('div', { className: "text-gray-600" }, 'Loading...')
       )
     );
@@ -305,7 +368,18 @@ const App = () => {
     return React.createElement(LoginScreen);
   }
   
-  return React.createElement(BabyFeedingTracker, { user, kidId });
+  if (needsSetup) {
+    return React.createElement(BabySetupScreen, { 
+      user,
+      onComplete: async (kidId) => {
+        setKidId(kidId);
+        setNeedsSetup(false);
+        await firestoreStorage.initialize(kidId);
+      }
+    });
+  }
+  
+  return React.createElement(MainApp, { user, kidId });
 };
 
 // ========================================
@@ -334,9 +408,9 @@ const LoginScreen = () => {
       className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full"
     },
       React.createElement('div', { className: "text-center mb-8" },
-        React.createElement('div', { className: "flex items-center justify-center gap-3 mb-4" },
-          React.createElement('div', { className: "bg-indigo-100 rounded-full p-3" },
-            React.createElement('span', { className: "text-4xl" }, '🍼')
+        React.createElement('div', { className: "flex items-center justify-center mb-4" },
+          React.createElement('div', { className: "bg-indigo-100 rounded-full p-4" },
+            React.createElement('span', { className: "text-5xl" }, '🍼')
           )
         ),
         React.createElement('h1', { 
@@ -387,32 +461,191 @@ const LoginScreen = () => {
 };
 
 // ========================================
-// PART 3: MAIN TRACKER COMPONENT
+// BABY SETUP SCREEN
 // ========================================
-// This file contains: BabyFeedingTracker component with all feeding logic
 
-const BabyFeedingTracker = ({ user, kidId }) => {
+const BabySetupScreen = ({ user, onComplete }) => {
+  const [babyName, setBabyName] = useState('');
+  const [babyWeight, setBabyWeight] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const handleSubmit = async () => {
+    if (!babyName.trim()) {
+      setError('Please enter your baby\'s name');
+      return;
+    }
+    
+    const weight = parseFloat(babyWeight);
+    if (!weight || weight <= 0) {
+      setError('Please enter a valid weight');
+      return;
+    }
+    
+    if (!birthDate) {
+      setError('Please enter birth date');
+      return;
+    }
+    
+    setSaving(true);
+    setError(null);
+    
+    try {
+      const birthTimestamp = new Date(birthDate).getTime();
+      const kidId = await createKidForUser(user.uid, babyName.trim(), weight, birthTimestamp);
+      onComplete(kidId);
+    } catch (err) {
+      setError('Failed to save. Please try again.');
+      setSaving(false);
+    }
+  };
+  
+  return React.createElement('div', {
+    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4"
+  },
+    React.createElement('div', {
+      className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full"
+    },
+      React.createElement('div', { className: "text-center mb-6" },
+        React.createElement('div', { className: "flex items-center justify-center mb-4" },
+          React.createElement('div', { className: "bg-indigo-100 rounded-full p-3" },
+            React.createElement('span', { className: "text-4xl" }, '🍼')
+          )
+        ),
+        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 mb-2" }, 'Welcome to Tiny Tracker!'),
+        React.createElement('p', { className: "text-gray-600" }, "Let's set up your baby's profile")
+      ),
+      
+      React.createElement('div', { className: "space-y-4" },
+        React.createElement('div', null,
+          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Baby's Name"),
+          React.createElement('input', {
+            type: "text",
+            value: babyName,
+            onChange: (e) => setBabyName(e.target.value),
+            placeholder: "Emma",
+            className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+          })
+        ),
+        
+        React.createElement('div', null,
+          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Current Weight (lbs)"),
+          React.createElement('input', {
+            type: "number",
+            step: "0.1",
+            value: babyWeight,
+            onChange: (e) => setBabyWeight(e.target.value),
+            placeholder: "8.5",
+            className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+          })
+        ),
+        
+        React.createElement('div', null,
+          React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, "Birth Date"),
+          React.createElement('input', {
+            type: "date",
+            value: birthDate,
+            onChange: (e) => setBirthDate(e.target.value),
+            className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+          })
+        ),
+        
+        error && React.createElement('div', {
+          className: "p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"
+        }, error),
+        
+        React.createElement('button', {
+          onClick: handleSubmit,
+          disabled: saving,
+          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
+        }, saving ? 'Saving...' : 'Get Started')
+      )
+    )
+  );
+};
+
+// ========================================
+// TINY TRACKER V2 - PART 3
+// Main App with Bottom Navigation
+// ========================================
+
+const MainApp = ({ user, kidId }) => {
+  const [activeTab, setActiveTab] = useState('tracker');
+  
+  useEffect(() => {
+    document.title = 'Tiny Tracker';
+  }, []);
+  
+  return React.createElement('div', { 
+    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-20" 
+  },
+    React.createElement('div', { className: "max-w-2xl mx-auto" },
+      // Header
+      React.createElement('div', { className: "bg-white shadow-sm sticky top-0 z-10" },
+        React.createElement('div', { className: "flex items-center justify-center py-4" },
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-3xl" }, '🍼'),
+            React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
+          )
+        )
+      ),
+      
+      // Content
+      React.createElement('div', { className: "p-4" },
+        activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId }),
+        activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
+        activeTab === 'family' && React.createElement(FamilyTab, { user, kidId }),
+        activeTab === 'settings' && React.createElement(SettingsTab, { user, kidId })
+      )
+    ),
+    
+    // Bottom Navigation (sticky)
+    React.createElement('div', { 
+      className: "fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50" 
+    },
+      React.createElement('div', { className: "max-w-2xl mx-auto flex items-center justify-around" },
+        [
+          { id: 'tracker', icon: '📊', label: 'Tracker' },
+          { id: 'analytics', icon: '📈', label: 'Analytics' },
+          { id: 'family', icon: '👥', label: 'Family' },
+          { id: 'settings', icon: '⚙️', label: 'Settings' }
+        ].map(tab =>
+          React.createElement('button', {
+            key: tab.id,
+            onClick: () => setActiveTab(tab.id),
+            className: `flex-1 py-3 flex flex-col items-center gap-1 transition ${
+              activeTab === tab.id 
+                ? 'text-indigo-600' 
+                : 'text-gray-400 hover:text-gray-600'
+            }`
+          },
+            React.createElement('span', { className: "text-2xl" }, tab.icon),
+            React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+          )
+        )
+      )
+    )
+  );
+};
+
+// ========================================
+// TINY TRACKER V2 - PART 4  
+// Tracker Tab - Main Feeding Interface
+// ========================================
+
+const TrackerTab = ({ user, kidId }) => {
   const [babyWeight, setBabyWeight] = useState(null);
   const [multiplier, setMultiplier] = useState(2.5);
   const [ounces, setOunces] = useState('');
   const [customTime, setCustomTime] = useState('');
   const [feedings, setFeedings] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [isEditingWeight, setIsEditingWeight] = useState(false);
-  const [isEditingMultiplier, setIsEditingMultiplier] = useState(false);
   const [editingFeedingId, setEditingFeedingId] = useState(null);
   const [editOunces, setEditOunces] = useState('');
   const [editTime, setEditTime] = useState('');
-  const [tempWeight, setTempWeight] = useState('');
-  const [tempMultiplier, setTempMultiplier] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showSettings, setShowSettings] = useState(false);
   const [showCustomTime, setShowCustomTime] = useState(false);
-  const [activeTab, setActiveTab] = useState('tracker');
-
-  useEffect(() => {
-    document.title = 'Tiny Tracker';
-  }, []);
 
   useEffect(() => {
     loadData();
@@ -439,32 +672,6 @@ const BabyFeedingTracker = ({ user, kidId }) => {
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const saveSettings = async (newSettings) => {
-    try {
-      await firestoreStorage.setSettings(newSettings);
-    } catch (error) {
-      console.error('Error saving settings:', error);
-    }
-  };
-
-  const handleWeightSave = async () => {
-    const weight = parseFloat(tempWeight);
-    if (weight > 0) {
-      setBabyWeight(weight);
-      await saveSettings({ babyWeight: weight });
-      setIsEditingWeight(false);
-    }
-  };
-
-  const handleMultiplierSave = async () => {
-    const mult = parseFloat(tempMultiplier);
-    if (mult > 0) {
-      setMultiplier(mult);
-      await saveSettings({ multiplier: mult });
-      setIsEditingMultiplier(false);
     }
   };
 
@@ -556,482 +763,184 @@ const BabyFeedingTracker = ({ user, kidId }) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const loadAllFeedings = async () => {
-    return await firestoreStorage.getAllFeedings();
-  };
-
   const totalConsumed = feedings.reduce((sum, f) => sum + f.ounces, 0);
   const targetOunces = babyWeight ? babyWeight * multiplier : 0;
   const remaining = Math.max(0, targetOunces - totalConsumed);
   const percentComplete = targetOunces > 0 ? Math.min((totalConsumed / targetOunces) * 100, 100) : 0;
 
-  if (!babyWeight) {
-    return React.createElement('div', {
-      className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4"
-    },
-      React.createElement('div', {
-        className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full"
-      },
-        React.createElement('div', { className: "text-center mb-6" },
-          React.createElement('div', { className: "flex items-center justify-center mb-4" },
-            React.createElement('div', { className: "bg-indigo-100 rounded-full p-3" },
-              React.createElement('span', { className: "text-4xl" }, '🍼')
-            )
-          ),
-          React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Tracker!'),
-          React.createElement('p', { className: "text-gray-600 text-center mb-6" }, "Let's start by entering your baby's current weight")
-        ),
-        React.createElement('input', {
-          type: "number",
-          step: "0.1",
-          placeholder: "Weight in pounds",
-          value: tempWeight,
-          onChange: (e) => setTempWeight(e.target.value),
-          onKeyPress: (e) => e.key === 'Enter' && handleWeightSave(),
-          className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 mb-4"
-        }),
-        React.createElement('button', {
-          onClick: handleWeightSave,
-          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-        }, 'Get Started')
-      )
+  if (loading) {
+    return React.createElement('div', { className: "flex items-center justify-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
     );
   }
 
-  return React.createElement('div', { 
-    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pb-8" 
-  },
-    React.createElement('div', { className: "max-w-2xl mx-auto" },
-      React.createElement('div', { className: "flex items-center justify-center gap-3 mb-4" },
-        React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
-          React.createElement('span', { className: "text-2xl" }, '🍼')
-        ),
-        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
-      ),
-
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-2 mb-4 flex gap-2" },
+  return React.createElement('div', { className: "space-y-4" },
+    // Today Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('div', { className: "flex items-center justify-between mb-4" },
         React.createElement('button', {
-          onClick: () => setActiveTab('tracker'),
-          className: `flex-1 py-3 px-4 rounded-xl font-semibold transition ${
-            activeTab === 'tracker' 
-              ? 'bg-indigo-600 text-white border-2 border-yellow-400' 
-              : 'text-gray-600 hover:bg-gray-100'
-          }`
-        }, 'Tracker'),
+          onClick: goToPreviousDay,
+          className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+        }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
         React.createElement('button', {
-          onClick: () => setActiveTab('analytics'),
-          className: `flex-1 py-3 px-4 rounded-xl font-semibold transition ${
-            activeTab === 'analytics' 
-              ? 'bg-indigo-600 text-white border-2 border-yellow-400' 
-              : 'text-gray-600 hover:bg-gray-100'
-          }`
-        }, 'Analytics')
+          onClick: goToNextDay,
+          disabled: isToday(),
+          className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
+        }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
       ),
-
-      activeTab === 'tracker' && React.createElement(React.Fragment, null,
-        React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
-          showSettings && React.createElement(SettingsPanel, {
-            user,
-            kidId,
-            babyWeight,
-            multiplier,
-            isEditingWeight,
-            isEditingMultiplier,
-            tempWeight,
-            tempMultiplier,
-            setTempWeight,
-            setTempMultiplier,
-            setIsEditingWeight,
-            setIsEditingMultiplier,
-            handleWeightSave,
-            handleMultiplierSave
-          }),
-          
-          React.createElement('div', { className: "flex items-center justify-between mb-4" },
-            React.createElement('button', {
-              onClick: goToPreviousDay,
-              className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-            }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
-            React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('button', {
-                onClick: goToNextDay,
-                disabled: isToday(),
-                className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
-              }, React.createElement(ChevronRight, { className: "w-5 h-5" })),
-              React.createElement('button', {
-                onClick: () => setShowSettings(!showSettings),
-                className: "p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-              }, React.createElement(Settings, { className: "w-5 h-5" }))
-            )
+      
+      React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-4" },
+        React.createElement('div', { className: "text-center" },
+          React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
+            totalConsumed.toFixed(1),
+            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
           ),
-          
-          React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-4" },
-            React.createElement('div', { className: "text-center" },
-              React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
-                totalConsumed.toFixed(1),
-                React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-              ),
-              React.createElement('div', { className: "text-xs text-gray-500" }, 'Consumed')
-            ),
-            React.createElement('div', { className: "text-center" },
-              React.createElement('div', { className: "text-2xl font-bold text-gray-800" }, 
-                targetOunces.toFixed(1),
-                React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-              ),
-              React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
-            ),
-            React.createElement('div', { className: "text-center" },
-              React.createElement('div', { 
-                className: `text-2xl font-bold ${remaining > 0 ? 'text-orange-600' : 'text-green-600'}` 
-              }, 
-                Math.abs(remaining).toFixed(1),
-                React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-              ),
-              React.createElement('div', { className: "text-xs text-gray-500" }, remaining > 0 ? 'Remaining' : 'Over')
-            )
-          ),
-          
-          React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-3 overflow-hidden" },
-            React.createElement('div', {
-              className: `h-full transition-all duration-500 ${percentComplete >= 100 ? 'bg-green-500' : 'bg-indigo-600'}`,
-              style: { width: `${Math.min(percentComplete, 100)}%` }
-            })
-          ),
-          React.createElement('div', { className: "text-right text-xs text-gray-500 mt-1" }, `${percentComplete.toFixed(0)}%`)
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Consumed')
         ),
-        
-        React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
-          React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Log Feeding'),
-          React.createElement('div', { className: "space-y-3" },
-            React.createElement('div', { className: "flex gap-3" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.25",
-                placeholder: "Ounces",
-                value: ounces,
-                onChange: (e) => setOunces(e.target.value),
-                onKeyPress: (e) => e.key === 'Enter' && !showCustomTime && handleAddFeeding(),
-                className: "flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
-              }),
-              React.createElement('button', {
-                onClick: () => setShowCustomTime(!showCustomTime),
-                className: `px-4 py-3 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
-              }, React.createElement(Clock, { className: "w-5 h-5" }))
-            ),
-            
-            showCustomTime && React.createElement('input', {
-              type: "time",
-              value: customTime,
-              onChange: (e) => setCustomTime(e.target.value),
-              className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
-            }),
-            
-            React.createElement('button', {
-              onClick: handleAddFeeding,
-              className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-            },
-              React.createElement(Plus, { className: "w-5 h-5" }),
-              'Add Feeding'
-            )
-          )
+        React.createElement('div', { className: "text-center" },
+          React.createElement('div', { className: "text-2xl font-bold text-gray-800" }, 
+            targetOunces.toFixed(1),
+            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+          ),
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
         ),
-        
-        React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-          React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
-          feedings.length === 0 ?
-            React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
-          :
-            React.createElement('div', { className: "space-y-3" },
-              feedings.map((feeding) =>
-                React.createElement('div', { key: feeding.id },
-                  editingFeedingId === feeding.id ?
-                    React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl space-y-3" },
-                      React.createElement('div', { className: "flex gap-2" },
-                        React.createElement('input', {
-                          type: "number",
-                          step: "0.25",
-                          value: editOunces,
-                          onChange: (e) => setEditOunces(e.target.value),
-                          placeholder: "Ounces",
-                          className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                        }),
-                        React.createElement('input', {
-                          type: "time",
-                          value: editTime,
-                          onChange: (e) => setEditTime(e.target.value),
-                          className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                        })
-                      ),
-                      React.createElement('div', { className: "flex gap-2" },
-                        React.createElement('button', {
-                          onClick: handleSaveEdit,
-                          className: "flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
-                        },
-                          React.createElement(Check, { className: "w-4 h-4" }),
-                          'Save'
-                        ),
-                        React.createElement('button', {
-                          onClick: handleCancelEdit,
-                          className: "flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
-                        },
-                          React.createElement(X, { className: "w-4 h-4" }),
-                          'Cancel'
-                        )
-                      )
-                    )
-                  :
-                    React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
-                      React.createElement('div', { className: "flex items-center gap-3" },
-                        React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
-                          React.createElement('span', { className: "text-xl" }, '🍼')
-                        ),
-                        React.createElement('div', {},
-                          React.createElement('div', { className: "font-semibold text-gray-800" }, `${feeding.ounces} oz`),
-                          React.createElement('div', { className: "text-sm text-gray-500" }, feeding.time)
-                        )
-                      ),
-                      React.createElement('div', { className: "flex gap-2" },
-                        React.createElement('button', {
-                          onClick: () => handleStartEdit(feeding),
-                          className: "text-indigo-600 hover:text-indigo-700 transition"
-                        }, React.createElement(Edit2, { className: "w-5 h-5" })),
-                        React.createElement('button', {
-                          onClick: () => handleDeleteFeeding(feeding.id),
-                          className: "text-red-400 hover:text-red-600 transition"
-                        }, React.createElement(X, { className: "w-5 h-5" }))
-                      )
-                    )
-                )
-              )
-            )
-        )
-      ),
-
-      activeTab === 'analytics' && React.createElement(AnalyticsTab, { 
-        loadAllFeedings: loadAllFeedings 
-      })
-    )
-  );
-};
-
-// ========================================
-// PART 4: SETTINGS PANEL WITH SHARING & ANALYTICS
-// ========================================
-
-const SettingsPanel = ({ 
-  user, kidId, babyWeight, multiplier, 
-  isEditingWeight, isEditingMultiplier, 
-  tempWeight, tempMultiplier,
-  setTempWeight, setTempMultiplier,
-  setIsEditingWeight, setIsEditingMultiplier,
-  handleWeightSave, handleMultiplierSave
-}) => {
-  const [kidData, setKidData] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteLink, setInviteLink] = useState('');
-  const [copying, setCopying] = useState(false);
-
-  useEffect(() => {
-    loadKidData();
-  }, [kidId]);
-
-  const loadKidData = async () => {
-    if (!kidId) return;
-    const kidDoc = await db.collection('kids').doc(kidId).get();
-    if (kidDoc.exists) {
-      const data = kidDoc.data();
-      setKidData(data);
-      const memberDetails = await Promise.all(
-        data.members.map(async (memberId) => {
-          const userDoc = await db.collection('users').doc(memberId).get();
-          return {
-            uid: memberId,
-            ...(userDoc.exists ? userDoc.data() : { email: 'Unknown' })
-          };
-        })
-      );
-      setMembers(memberDetails);
-    }
-  };
-
-  const handleCreateInvite = async () => {
-    try {
-      const code = await createInvite(kidId);
-      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-      setInviteLink(link);
-      setShowInvite(true);
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      alert('Failed to create invite');
-    }
-  };
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopying(true);
-      setTimeout(() => setCopying(false), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
-    }
-  };
-
-  const handleRemoveMember = async (memberId) => {
-    if (!confirm('Remove this person\'s access?')) return;
-    try {
-      await removeMember(kidId, memberId);
-      await loadKidData();
-    } catch (error) {
-      console.error('Error removing member:', error);
-      alert('Failed to remove member');
-    }
-  };
-
-  const handleSignOut = async () => {
-    if (confirm('Sign out of Tiny Tracker?')) {
-      await signOut();
-    }
-  };
-
-  const isOwner = kidData && kidData.ownerId === user.uid;
-
-  return React.createElement('div', { className: "mb-4 p-4 bg-gray-50 rounded-xl space-y-4" },
-    React.createElement('div', { className: "pb-4 border-b border-gray-200" },
-      React.createElement('h3', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Account'),
-      React.createElement('div', { className: "flex items-center justify-between mb-2" },
-        React.createElement('span', { className: "text-sm text-gray-600" }, user.email),
-        React.createElement('button', {
-          onClick: handleSignOut,
-          className: "text-sm text-red-600 hover:text-red-700 font-medium"
-        }, 'Sign Out')
-      )
-    ),
-
-    React.createElement('div', { className: "pb-4 border-b border-gray-200 space-y-3" },
-      React.createElement('h3', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Baby Settings'),
-      React.createElement('div', { className: "flex items-center justify-between" },
-        React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Baby's Weight"),
-        !isEditingWeight ? 
-          React.createElement('button', {
-            onClick: () => {
-              setIsEditingWeight(true);
-              setTempWeight(babyWeight.toString());
-            },
-            className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
-          },
-            `${babyWeight} lbs`,
-            React.createElement(Edit2, { className: "w-4 h-4" })
-          )
-        :
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('input', {
-              type: "number",
-              step: "0.1",
-              value: tempWeight,
-              onChange: (e) => setTempWeight(e.target.value),
-              className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-            }),
-            React.createElement('button', { 
-              onClick: handleWeightSave, 
-              className: "text-green-600 hover:text-green-700" 
-            }, React.createElement(Check, { className: "w-5 h-5" })),
-            React.createElement('button', { 
-              onClick: () => setIsEditingWeight(false), 
-              className: "text-gray-400 hover:text-gray-600" 
-            }, React.createElement(X, { className: "w-5 h-5" }))
-          )
-      ),
-      React.createElement('div', { className: "flex items-center justify-between" },
-        React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
-        !isEditingMultiplier ?
-          React.createElement('button', {
-            onClick: () => {
-              setIsEditingMultiplier(true);
-              setTempMultiplier(multiplier.toString());
-            },
-            className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
-          },
-            `${multiplier}x`,
-            React.createElement(Edit2, { className: "w-4 h-4" })
-          )
-        :
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('input', {
-              type: "number",
-              step: "0.1",
-              value: tempMultiplier,
-              onChange: (e) => setTempMultiplier(e.target.value),
-              className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-            }),
-            React.createElement('button', { 
-              onClick: handleMultiplierSave, 
-              className: "text-green-600 hover:text-green-700" 
-            }, React.createElement(Check, { className: "w-5 h-5" })),
-            React.createElement('button', { 
-              onClick: () => setIsEditingMultiplier(false), 
-              className: "text-gray-400 hover:text-gray-600" 
-            }, React.createElement(X, { className: "w-5 h-5" }))
-          )
-      )
-    ),
-
-    React.createElement('div', null,
-      React.createElement('h3', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Who Has Access'),
-      React.createElement('div', { className: "space-y-2 mb-3" },
-        members.map(member => 
+        React.createElement('div', { className: "text-center" },
           React.createElement('div', { 
-            key: member.uid,
-            className: "flex items-center justify-between py-2"
-          },
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('span', { className: "text-sm text-gray-700" }, member.email),
-              member.uid === kidData?.ownerId && 
-                React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded" }, 'Owner')
-            ),
-            isOwner && member.uid !== user.uid &&
-              React.createElement('button', {
-                onClick: () => handleRemoveMember(member.uid),
-                className: "text-red-400 hover:text-red-600 text-sm"
-              }, 'Remove')
-          )
+            className: `text-2xl font-bold ${remaining > 0 ? 'text-orange-600' : 'text-green-600'}` 
+          }, 
+            Math.abs(remaining).toFixed(1),
+            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+          ),
+          React.createElement('div', { className: "text-xs text-gray-500" }, remaining > 0 ? 'Remaining' : 'Over')
         )
       ),
-      !showInvite ?
-        React.createElement('button', {
-          onClick: handleCreateInvite,
-          className: "w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition text-sm"
-        }, '+ Invite Partner')
-      :
-        React.createElement('div', { className: "space-y-2" },
-          React.createElement('div', { className: "text-xs text-gray-600 mb-2" }, 'Share this link:'),
-          React.createElement('div', { className: "flex gap-2" },
-            React.createElement('input', {
-              type: "text",
-              value: inviteLink,
-              readOnly: true,
-              className: "flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg"
-            }),
-            React.createElement('button', {
-              onClick: handleCopyLink,
-              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm whitespace-nowrap"
-            }, copying ? '✓ Copied!' : 'Copy')
-          ),
+      
+      React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-3 overflow-hidden" },
+        React.createElement('div', {
+          className: `h-full transition-all duration-500 ${percentComplete >= 100 ? 'bg-green-500' : 'bg-indigo-600'}`,
+          style: { width: `${Math.min(percentComplete, 100)}%` }
+        })
+      ),
+      React.createElement('div', { className: "text-right text-xs text-gray-500 mt-1" }, `${percentComplete.toFixed(0)}%`)
+    ),
+    
+    // Log Feeding Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Log Feeding'),
+      React.createElement('div', { className: "space-y-3" },
+        React.createElement('div', { className: "flex gap-3" },
+          React.createElement('input', {
+            type: "number",
+            step: "0.25",
+            placeholder: "Ounces",
+            value: ounces,
+            onChange: (e) => setOunces(e.target.value),
+            onKeyPress: (e) => e.key === 'Enter' && !showCustomTime && handleAddFeeding(),
+            className: "flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+          }),
           React.createElement('button', {
-            onClick: () => setShowInvite(false),
-            className: "text-sm text-gray-600 hover:text-gray-700"
-          }, 'Close')
+            onClick: () => setShowCustomTime(!showCustomTime),
+            className: `px-4 py-3 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
+          }, React.createElement(Clock, { className: "w-5 h-5" }))
+        ),
+        
+        showCustomTime && React.createElement('input', {
+          type: "time",
+          value: customTime,
+          onChange: (e) => setCustomTime(e.target.value),
+          className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+        }),
+        
+        React.createElement('button', {
+          onClick: handleAddFeeding,
+          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+        },
+          React.createElement(Plus, { className: "w-5 h-5" }),
+          'Add Feeding'
+        )
+      )
+    ),
+    
+    // Feedings List
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
+      feedings.length === 0 ?
+        React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
+      :
+        React.createElement('div', { className: "space-y-3" },
+          feedings.map((feeding) =>
+            React.createElement('div', { key: feeding.id },
+              editingFeedingId === feeding.id ?
+                React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl space-y-3" },
+                  React.createElement('div', { className: "flex gap-2" },
+                    React.createElement('input', {
+                      type: "number",
+                      step: "0.25",
+                      value: editOunces,
+                      onChange: (e) => setEditOunces(e.target.value),
+                      placeholder: "Ounces",
+                      className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                    }),
+                    React.createElement('input', {
+                      type: "time",
+                      value: editTime,
+                      onChange: (e) => setEditTime(e.target.value),
+                      className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                    })
+                  ),
+                  React.createElement('div', { className: "flex gap-2" },
+                    React.createElement('button', {
+                      onClick: handleSaveEdit,
+                      className: "flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
+                    },
+                      React.createElement(Check, { className: "w-4 h-4" }),
+                      'Save'
+                    ),
+                    React.createElement('button', {
+                      onClick: handleCancelEdit,
+                      className: "flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
+                    },
+                      React.createElement(X, { className: "w-4 h-4" }),
+                      'Cancel'
+                    )
+                  )
+                )
+              :
+                React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
+                  React.createElement('div', { className: "flex items-center gap-3" },
+                    React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
+                      React.createElement('span', { className: "text-xl" }, '🍼')
+                    ),
+                    React.createElement('div', {},
+                      React.createElement('div', { className: "font-semibold text-gray-800" }, `${feeding.ounces} oz`),
+                      React.createElement('div', { className: "text-sm text-gray-500" }, feeding.time)
+                    )
+                  ),
+                  React.createElement('div', { className: "flex gap-2" },
+                    React.createElement('button', {
+                      onClick: () => handleStartEdit(feeding),
+                      className: "text-indigo-600 hover:text-indigo-700 transition"
+                    }, React.createElement(Edit2, { className: "w-5 h-5" })),
+                    React.createElement('button', {
+                      onClick: () => handleDeleteFeeding(feeding.id),
+                      className: "text-red-400 hover:text-red-600 transition"
+                    }, React.createElement(X, { className: "w-5 h-5" }))
+                  )
+                )
+            )
+          )
         )
     )
   );
 };
 
 // ========================================
-// ANALYTICS TAB
+// TINY TRACKER V2 - PART 5
+// Analytics Tab
 // ========================================
 
-const AnalyticsTab = ({ loadAllFeedings }) => {
+const AnalyticsTab = ({ kidId }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('day');
@@ -1045,11 +954,11 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [timeRange]);
+  }, [timeRange, kidId]);
 
   const loadAnalytics = async () => {
     setLoading(true);
-    const feedings = await loadAllFeedings();
+    const feedings = await firestoreStorage.getAllFeedings();
     setAllFeedings(feedings);
     calculateStats(feedings);
     setLoading(false);
@@ -1126,8 +1035,8 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   };
 
   if (loading) {
-    return React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "text-center text-gray-600" }, 'Loading analytics...')
+    return React.createElement('div', { className: "flex items-center justify-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Loading analytics...')
     );
   }
 
@@ -1140,7 +1049,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   const maxVolume = Math.max(...stats.chartData.map(d => d.volume));
 
   return React.createElement('div', { className: "space-y-4" },
-    React.createElement('div', { className: "flex justify-center mb-1" },
+    React.createElement('div', { className: "flex justify-center" },
       React.createElement('div', { className: "inline-flex gap-0.5 bg-gray-100/50 rounded-lg p-0.5" },
         ['day', 'week', 'month'].map(range =>
           React.createElement('button', {
@@ -1218,7 +1127,443 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
 };
 
 // ========================================
-// PART 5: SVG ICONS & RENDER
+// TINY TRACKER V2 - PART 6
+// Family Tab - Profiles, Members, Baby Info, Invites
+// ========================================
+
+const FamilyTab = ({ user, kidId }) => {
+  const [kidData, setKidData] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteLink, setInviteLink] = useState('');
+  const [copying, setCopying] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [tempName, setTempName] = useState('');
+
+  useEffect(() => {
+    loadData();
+  }, [kidId]);
+
+  const loadData = async () => {
+    if (!kidId) return;
+    setLoading(true);
+    try {
+      const kid = await firestoreStorage.getKidData();
+      setKidData(kid);
+      
+      const memberList = await firestoreStorage.getMembers();
+      setMembers(memberList);
+    } catch (error) {
+      console.error('Error loading family data:', error);
+    }
+    setLoading(false);
+  };
+
+  const handleCreateInvite = async () => {
+    try {
+      const code = await createInvite(kidId);
+      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+      setInviteLink(link);
+      setShowInvite(true);
+    } catch (error) {
+      console.error('Error creating invite:', error);
+      alert('Failed to create invite');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  };
+
+  const handleRemoveMember = async (memberId) => {
+    if (!confirm('Remove this person\'s access?')) return;
+    try {
+      await removeMember(kidId, memberId);
+      await loadData();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Failed to remove member');
+    }
+  };
+
+  const handleUpdateName = async () => {
+    if (!tempName.trim()) return;
+    try {
+      await updateUserProfile(user.uid, { displayName: tempName.trim() });
+      setEditingName(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating name:', error);
+    }
+  };
+
+  const formatBirthDate = (timestamp) => {
+    if (!timestamp) return 'Unknown';
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  };
+
+  const getAge = (timestamp) => {
+    if (!timestamp) return '';
+    const birth = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now - birth;
+    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    
+    if (days < 7) return `${days} days old`;
+    if (days < 30) return `${Math.floor(days / 7)} weeks old`;
+    const months = Math.floor(days / 30);
+    if (months < 12) return `${months} months old`;
+    const years = Math.floor(months / 12);
+    return `${years} year${years > 1 ? 's' : ''} old`;
+  };
+
+  const isOwner = kidData && kidData.ownerId === user.uid;
+
+  if (loading) {
+    return React.createElement('div', { className: "flex items-center justify-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
+    );
+  }
+
+  return React.createElement('div', { className: "space-y-4" },
+    // Baby Info Card
+    kidData && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
+      React.createElement('div', { className: "space-y-3" },
+        React.createElement('div', { className: "flex items-center gap-3" },
+          React.createElement('div', { className: "bg-indigo-100 rounded-full p-3" },
+            React.createElement('span', { className: "text-3xl" }, '👶')
+          ),
+          React.createElement('div', null,
+            React.createElement('div', { className: "font-semibold text-gray-800 text-xl" }, kidData.name || 'Baby'),
+            React.createElement('div', { className: "text-sm text-gray-500" }, getAge(kidData.birthDate))
+          )
+        ),
+        React.createElement('div', { className: "text-sm text-gray-600" },
+          React.createElement('strong', null, 'Born:'), ' ', formatBirthDate(kidData.birthDate)
+        )
+      )
+    ),
+
+    // Family Members Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Family Members'),
+      React.createElement('div', { className: "space-y-3 mb-4" },
+        members.map(member => 
+          React.createElement('div', { 
+            key: member.uid,
+            className: "flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
+          },
+            React.createElement('div', { className: "flex-shrink-0" },
+              member.photoURL ?
+                React.createElement('img', {
+                  src: member.photoURL,
+                  alt: member.displayName || member.email,
+                  className: "w-12 h-12 rounded-full"
+                })
+              :
+                React.createElement('div', { className: "w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center" },
+                  React.createElement('span', { className: "text-xl" }, '👤')
+                )
+            ),
+            React.createElement('div', { className: "flex-1" },
+              member.uid === user.uid && editingName ?
+                React.createElement('div', { className: "flex gap-2" },
+                  React.createElement('input', {
+                    type: "text",
+                    value: tempName,
+                    onChange: (e) => setTempName(e.target.value),
+                    placeholder: "Your name",
+                    className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
+                  }),
+                  React.createElement('button', {
+                    onClick: handleUpdateName,
+                    className: "text-green-600 hover:text-green-700"
+                  }, React.createElement(Check, { className: "w-4 h-4" })),
+                  React.createElement('button', {
+                    onClick: () => setEditingName(false),
+                    className: "text-gray-400 hover:text-gray-600"
+                  }, React.createElement(X, { className: "w-4 h-4" }))
+                )
+              :
+                React.createElement('div', null,
+                  React.createElement('div', { className: "flex items-center gap-2" },
+                    React.createElement('span', { className: "font-medium text-gray-800" }, 
+                      member.displayName || member.email.split('@')[0]
+                    ),
+                    member.uid === kidData?.ownerId && 
+                      React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded" }, 'Owner'),
+                    member.uid === user.uid &&
+                      React.createElement('button', {
+                        onClick: () => {
+                          setTempName(member.displayName || '');
+                          setEditingName(true);
+                        },
+                        className: "text-indigo-600 hover:text-indigo-700"
+                      }, React.createElement(Edit2, { className: "w-3 h-3" }))
+                  ),
+                  React.createElement('div', { className: "text-sm text-gray-500" }, member.email)
+                )
+            ),
+            isOwner && member.uid !== user.uid &&
+              React.createElement('button', {
+                onClick: () => handleRemoveMember(member.uid),
+                className: "text-red-400 hover:text-red-600 text-sm font-medium"
+              }, 'Remove')
+          )
+        )
+      ),
+
+      !showInvite ?
+        React.createElement('button', {
+          onClick: handleCreateInvite,
+          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
+        }, '+ Invite Partner')
+      :
+        React.createElement('div', { className: "space-y-2" },
+          React.createElement('div', { className: "text-xs text-gray-600 mb-2" }, 'Share this link with your partner:'),
+          React.createElement('div', { className: "flex gap-2" },
+            React.createElement('input', {
+              type: "text",
+              value: inviteLink,
+              readOnly: true,
+              className: "flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg"
+            }),
+            React.createElement('button', {
+              onClick: handleCopyLink,
+              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
+            }, copying ? '✓ Copied!' : 'Copy')
+          ),
+          React.createElement('button', {
+            onClick: () => setShowInvite(false),
+            className: "text-sm text-gray-600 hover:text-gray-700"
+          }, 'Close')
+        )
+    )
+  );
+};
+
+// ========================================
+// TINY TRACKER V2 - PART 7
+// Settings Tab - Weight, Multiplier, Share App, Sign Out
+// ========================================
+
+const SettingsTab = ({ user, kidId }) => {
+  const [babyWeight, setBabyWeight] = useState(null);
+  const [multiplier, setMultiplier] = useState(2.5);
+  const [isEditingWeight, setIsEditingWeight] = useState(false);
+  const [isEditingMultiplier, setIsEditingMultiplier] = useState(false);
+  const [tempWeight, setTempWeight] = useState('');
+  const [tempMultiplier, setTempMultiplier] = useState('');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadSettings();
+  }, [kidId]);
+
+  const loadSettings = async () => {
+    if (!kidId) return;
+    try {
+      const settings = await firestoreStorage.getSettings();
+      if (settings) {
+        if (settings.babyWeight) setBabyWeight(settings.babyWeight);
+        if (settings.multiplier) setMultiplier(settings.multiplier);
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error);
+    }
+    setLoading(false);
+  };
+
+  const handleWeightSave = async () => {
+    const weight = parseFloat(tempWeight);
+    if (weight > 0) {
+      setBabyWeight(weight);
+      await firestoreStorage.setSettings({ babyWeight: weight });
+      setIsEditingWeight(false);
+    }
+  };
+
+  const handleMultiplierSave = async () => {
+    const mult = parseFloat(tempMultiplier);
+    if (mult > 0) {
+      setMultiplier(mult);
+      await firestoreStorage.setSettings({ multiplier: mult });
+      setIsEditingMultiplier(false);
+    }
+  };
+
+  const handleShareApp = async () => {
+    const url = window.location.origin + window.location.pathname;
+    const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
+    
+    // Try native share first (works on mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Tiny Tracker',
+          text: 'Check out Tiny Tracker - track your baby\'s feedings and get insights!',
+          url: url
+        });
+        return;
+      } catch (error) {
+        // User cancelled or share failed, fall through to Messenger
+      }
+    }
+    
+    // Try Messenger deep link (mobile)
+    const messengerUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}&app_id=`;
+    window.location.href = messengerUrl;
+    
+    // Fallback: Copy to clipboard after short delay
+    setTimeout(async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Link copied to clipboard! You can paste it in Messenger or any app.');
+      } catch (error) {
+        // Final fallback: show the link
+        prompt('Copy this link to share:', url);
+      }
+    }, 1000);
+  };
+
+  const handleSignOut = async () => {
+    if (confirm('Sign out of Tiny Tracker?')) {
+      await signOut();
+    }
+  };
+
+  if (loading) {
+    return React.createElement('div', { className: "flex items-center justify-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
+    );
+  }
+
+  return React.createElement('div', { className: "space-y-4" },
+    // Target Settings Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Target Settings'),
+      React.createElement('div', { className: "space-y-4" },
+        React.createElement('div', { className: "flex items-center justify-between" },
+          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Baby's Weight"),
+          !isEditingWeight ? 
+            React.createElement('button', {
+              onClick: () => {
+                setTempWeight(babyWeight?.toString() || '');
+                setIsEditingWeight(true);
+              },
+              className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
+            },
+              babyWeight ? `${babyWeight} lbs` : 'Not set',
+              React.createElement(Edit2, { className: "w-4 h-4" })
+            )
+          :
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('input', {
+                type: "number",
+                step: "0.1",
+                value: tempWeight,
+                onChange: (e) => setTempWeight(e.target.value),
+                placeholder: "Weight",
+                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
+              }),
+              React.createElement('button', { 
+                onClick: handleWeightSave, 
+                className: "text-green-600 hover:text-green-700" 
+              }, React.createElement(Check, { className: "w-5 h-5" })),
+              React.createElement('button', { 
+                onClick: () => setIsEditingWeight(false), 
+                className: "text-gray-400 hover:text-gray-600" 
+              }, React.createElement(X, { className: "w-5 h-5" }))
+            )
+        ),
+        
+        React.createElement('div', { className: "flex items-center justify-between" },
+          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
+          !isEditingMultiplier ?
+            React.createElement('button', {
+              onClick: () => {
+                setTempMultiplier(multiplier?.toString() || '2.5');
+                setIsEditingMultiplier(true);
+              },
+              className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
+            },
+              `${multiplier}x`,
+              React.createElement(Edit2, { className: "w-4 h-4" })
+            )
+          :
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('input', {
+                type: "number",
+                step: "0.1",
+                value: tempMultiplier,
+                onChange: (e) => setTempMultiplier(e.target.value),
+                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
+              }),
+              React.createElement('button', { 
+                onClick: handleMultiplierSave, 
+                className: "text-green-600 hover:text-green-700" 
+              }, React.createElement(Check, { className: "w-5 h-5" })),
+              React.createElement('button', { 
+                onClick: () => setIsEditingMultiplier(false), 
+                className: "text-gray-400 hover:text-gray-600" 
+              }, React.createElement(X, { className: "w-5 h-5" }))
+            )
+        )
+      )
+    ),
+
+    // App Settings Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Share & Support'),
+      React.createElement('button', {
+        onClick: handleShareApp,
+        className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-xl font-semibold hover:bg-indigo-100 transition flex items-center justify-center gap-2"
+      },
+        React.createElement('span', { className: "text-xl" }, '📱'),
+        'Share Tiny Tracker'
+      ),
+      React.createElement('p', { className: "text-xs text-gray-500 mt-2 text-center" }, 
+        'Tell other parents about Tiny Tracker!'
+      )
+    ),
+
+    // Account Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Account'),
+      React.createElement('div', { className: "space-y-3" },
+        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg" },
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-medium text-gray-800" }, user.displayName || 'User'),
+            React.createElement('div', { className: "text-xs text-gray-500" }, user.email)
+          ),
+          user.photoURL &&
+            React.createElement('img', {
+              src: user.photoURL,
+              alt: user.displayName,
+              className: "w-10 h-10 rounded-full"
+            })
+        ),
+        React.createElement('button', {
+          onClick: handleSignOut,
+          className: "w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold hover:bg-red-100 transition"
+        }, 'Sign Out')
+      )
+    )
+  );
+};
+
+// ========================================
+// TINY TRACKER V2 - PART 8
+// SVG Icons & Render
 // ========================================
 
 const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
@@ -1240,11 +1585,6 @@ const ChevronLeft = (props) => React.createElement('svg', { ...props, xmlns: "ht
 
 const ChevronRight = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "m9 18 6-6-6-6" })
-);
-
-const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" }),
-  React.createElement('circle', { cx: "12", cy: "12", r: "3" })
 );
 
 const Clock = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
