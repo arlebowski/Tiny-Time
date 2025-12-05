@@ -1,6 +1,8 @@
 // ========================================
-// FIREBASE CONFIG
+// PART 1: FIREBASE CONFIG AND AUTH
 // ========================================
+// This file contains: Firebase initialization, auth functions, data migration, and invite system
+
 const firebaseConfig = {
   apiKey: "AIzaSyBUscvx-JB3lNWKVu9bPnYTBHVPvrndc_w",
   authDomain: "baby-feeding-tracker-978e6.firebaseapp.com",
@@ -11,70 +13,385 @@ const firebaseConfig = {
   appId: "1:775043948126:web:28d8aefeea99cc7d25decf"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+const auth = firebase.auth();
+const db = firebase.firestore();
+const rtdb = firebase.database();
 
-// Storage wrapper to use Firebase
-const storage = {
-  get: async (key) => {
-    try {
-      const snapshot = await database.ref(key).once('value');
-      if (snapshot.exists()) {
-        return { value: snapshot.val() };
+// ========================================
+// AUTH & USER MANAGEMENT
+// ========================================
+
+const getUserKidId = async (userId) => {
+  const userDoc = await db.collection('users').doc(userId).get();
+  if (userDoc.exists && userDoc.data().kidId) {
+    return userDoc.data().kidId;
+  }
+  
+  const kidsSnapshot = await db.collection('kids')
+    .where('members', 'array-contains', userId)
+    .limit(1)
+    .get();
+  
+  if (!kidsSnapshot.empty) {
+    const kidId = kidsSnapshot.docs[0].id;
+    await db.collection('users').doc(userId).set({ kidId }, { merge: true });
+    return kidId;
+  }
+  
+  const kidRef = await db.collection('kids').add({
+    ownerId: userId,
+    members: [userId],
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  
+  await db.collection('users').doc(userId).set({
+    kidId: kidRef.id,
+    email: auth.currentUser.email,
+    displayName: auth.currentUser.displayName,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  
+  return kidRef.id;
+};
+
+const signInWithGoogle = async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  return await auth.signInWithPopup(provider);
+};
+
+const signOut = async () => {
+  await auth.signOut();
+};
+
+// ========================================
+// DATA MIGRATION FROM LOCALSTORAGE
+// ========================================
+
+const migrateLocalStorageData = async (kidId) => {
+  let migratedCount = 0;
+  
+  const weight = localStorage.getItem('baby_weight');
+  const multiplier = localStorage.getItem('oz_multiplier');
+  
+  if (weight || multiplier) {
+    await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
+      babyWeight: weight ? parseFloat(weight) : null,
+      multiplier: multiplier ? parseFloat(multiplier) : 2.5
+    }, { merge: true });
+  }
+  
+  const snapshot = await rtdb.ref().once('value');
+  const data = snapshot.val();
+  
+  if (data) {
+    const feedingKeys = Object.keys(data).filter(key => key.startsWith('feedings_'));
+    
+    for (const key of feedingKeys) {
+      const dayFeedings = JSON.parse(data[key]);
+      for (const feeding of dayFeedings) {
+        await db.collection('kids').doc(kidId).collection('feedings').add({
+          ounces: feeding.ounces,
+          timestamp: feeding.timestamp,
+          time: feeding.time,
+          addedBy: auth.currentUser.uid
+        });
+        migratedCount++;
       }
-      throw new Error('Key not found');
-    } catch (error) {
-      throw error;
     }
+  }
+  
+  localStorage.clear();
+  return migratedCount;
+};
+
+// ========================================
+// INVITE SYSTEM
+// ========================================
+
+const generateInviteCode = () => {
+  return Math.random().toString(36).substring(2, 15) + 
+         Math.random().toString(36).substring(2, 15);
+};
+
+const createInvite = async (kidId) => {
+  const inviteCode = generateInviteCode();
+  await db.collection('invites').doc(inviteCode).set({
+    kidId,
+    createdBy: auth.currentUser.uid,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    used: false
+  });
+  return inviteCode;
+};
+
+const acceptInvite = async (inviteCode, userId) => {
+  const inviteDoc = await db.collection('invites').doc(inviteCode).get();
+  if (!inviteDoc.exists) throw new Error('Invalid invite code');
+  
+  const invite = inviteDoc.data();
+  if (invite.used) throw new Error('Invite already used');
+  
+  await db.collection('kids').doc(invite.kidId).update({
+    members: firebase.firestore.FieldValue.arrayUnion(userId)
+  });
+  
+  await db.collection('users').doc(userId).set({
+    kidId: invite.kidId,
+    email: auth.currentUser.email,
+    displayName: auth.currentUser.displayName
+  }, { merge: true });
+  
+  await db.collection('invites').doc(inviteCode).update({
+    used: true,
+    usedBy: userId,
+    usedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  
+  return invite.kidId;
+};
+
+const removeMember = async (kidId, userId) => {
+  await db.collection('kids').doc(kidId).update({
+    members: firebase.firestore.FieldValue.arrayRemove(userId)
+  });
+  await db.collection('users').doc(userId).update({
+    kidId: firebase.firestore.FieldValue.delete()
+  });
+};
+
+// ========================================
+// FIRESTORE DATA LAYER
+// ========================================
+
+const firestoreStorage = {
+  kidId: null,
+  
+  async initialize(kidId) {
+    this.kidId = kidId;
   },
   
-  set: async (key, value) => {
-    try {
-      await database.ref(key).set(value);
-      return { key, value };
-    } catch (error) {
-      console.error('Error saving to Firebase:', error);
-      return null;
-    }
+  async getSettings() {
+    if (!this.kidId) return null;
+    const doc = await db.collection('kids').doc(this.kidId).collection('settings').doc('default').get();
+    return doc.exists ? doc.data() : null;
   },
   
-  delete: async (key) => {
-    try {
-      await database.ref(key).remove();
-      return { deleted: true };
-    } catch (error) {
-      console.error('Error deleting from Firebase:', error);
-      return null;
-    }
+  async setSettings(settings) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('settings').doc('default').set(settings, { merge: true });
   },
   
-  list: async (prefix) => {
-    try {
-      const snapshot = await database.ref().once('value');
-      const data = snapshot.val();
-      if (!data) return { keys: [] };
-      
-      const keys = Object.keys(data).filter(key => 
-        prefix ? key.startsWith(prefix) : true
-      );
-      return { keys };
-    } catch (error) {
-      console.error('Error listing keys:', error);
-      return { keys: [] };
-    }
+  async getFeedingsForDate(date) {
+    if (!this.kidId) return [];
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
+      .where('timestamp', '>=', startOfDay.getTime())
+      .where('timestamp', '<=', endOfDay.getTime())
+      .orderBy('timestamp', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+  
+  async getAllFeedings() {
+    if (!this.kidId) return [];
+    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
+      .orderBy('timestamp', 'asc')
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+  
+  async addFeeding(feeding) {
+    if (!this.kidId) return null;
+    const docRef = await db.collection('kids').doc(this.kidId).collection('feedings').add({
+      ...feeding,
+      addedBy: auth.currentUser.uid,
+      addedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return docRef.id;
+  },
+  
+  async updateFeeding(feedingId, updates) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).update(updates);
+  },
+  
+  async deleteFeeding(feedingId) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).delete();
+  },
+  
+  subscribeToFeedings(date, callback) {
+    if (!this.kidId) return () => {};
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    return db.collection('kids').doc(this.kidId).collection('feedings')
+      .where('timestamp', '>=', startOfDay.getTime())
+      .where('timestamp', '<=', endOfDay.getTime())
+      .orderBy('timestamp', 'desc')
+      .onSnapshot(snapshot => {
+        const feedings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(feedings);
+      });
   }
 };
 
-// Make storage available globally
-window.storage = storage;
+// ========================================
+// PART 2: REACT COMPONENTS
+// ========================================
+// This file contains: App wrapper, Login Screen, Main Tracker Component
 
-// ========================================
-// REACT APP
-// ========================================
 const { useState, useEffect } = React;
 
-const BabyFeedingTracker = () => {
+const App = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [kidId, setKidId] = useState(null);
+  
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        setUser(user);
+        const urlParams = new URLSearchParams(window.location.search);
+        const inviteCode = urlParams.get('invite');
+        
+        try {
+          let userKidId;
+          if (inviteCode) {
+            userKidId = await acceptInvite(inviteCode, user.uid);
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else {
+            userKidId = await getUserKidId(user.uid);
+            const hasLocalData = localStorage.getItem('baby_weight') || 
+                                 await rtdb.ref().once('value').then(s => s.exists());
+            if (hasLocalData) {
+              await migrateLocalStorageData(userKidId);
+            }
+          }
+          setKidId(userKidId);
+          await firestoreStorage.initialize(userKidId);
+        } catch (error) {
+          console.error('Setup error:', error);
+        }
+      } else {
+        setUser(null);
+        setKidId(null);
+      }
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+  
+  if (loading) {
+    return React.createElement('div', { 
+      className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" 
+    },
+      React.createElement('div', { className: "text-center" },
+        React.createElement('div', { className: "text-2xl font-bold text-gray-800 mb-2" }, '🍼'),
+        React.createElement('div', { className: "text-gray-600" }, 'Loading...')
+      )
+    );
+  }
+  
+  if (!user) {
+    return React.createElement(LoginScreen);
+  }
+  
+  return React.createElement(BabyFeedingTracker, { user, kidId });
+};
+
+// ========================================
+// LOGIN SCREEN
+// ========================================
+
+const LoginScreen = () => {
+  const [signingIn, setSigningIn] = useState(false);
+  const [error, setError] = useState(null);
+  
+  const handleSignIn = async () => {
+    setSigningIn(true);
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setError(error.message);
+      setSigningIn(false);
+    }
+  };
+  
+  return React.createElement('div', {
+    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4"
+  },
+    React.createElement('div', {
+      className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full"
+    },
+      React.createElement('div', { className: "text-center mb-8" },
+        React.createElement('div', { className: "flex items-center justify-center gap-3 mb-4" },
+          React.createElement('div', { className: "bg-indigo-100 rounded-full p-3" },
+            React.createElement('span', { className: "text-4xl" }, '🍼')
+          )
+        ),
+        React.createElement('h1', { 
+          className: "text-3xl font-bold text-gray-800 handwriting mb-2" 
+        }, 'Tiny Tracker'),
+        React.createElement('p', { 
+          className: "text-gray-600" 
+        }, 'Track your baby\'s feeding journey')
+      ),
+      
+      React.createElement('button', {
+        onClick: handleSignIn,
+        disabled: signingIn,
+        className: "w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-3 disabled:opacity-50"
+      },
+        React.createElement('svg', { 
+          width: "20", height: "20", viewBox: "0 0 24 24" 
+        },
+          React.createElement('path', {
+            fill: "#4285F4",
+            d: "M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+          }),
+          React.createElement('path', {
+            fill: "#34A853",
+            d: "M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+          }),
+          React.createElement('path', {
+            fill: "#FBBC05",
+            d: "M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+          }),
+          React.createElement('path', {
+            fill: "#EA4335",
+            d: "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+          })
+        ),
+        signingIn ? 'Signing in...' : 'Sign in with Google'
+      ),
+      
+      error && React.createElement('div', {
+        className: "mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm"
+      }, error),
+      
+      React.createElement('p', {
+        className: "text-center text-xs text-gray-500 mt-6"
+      }, 'Track feedings, invite your partner, and analyze patterns')
+    )
+  );
+};
+
+// ========================================
+// PART 3: MAIN TRACKER COMPONENT
+// ========================================
+// This file contains: BabyFeedingTracker component with all feeding logic
+
+const BabyFeedingTracker = ({ user, kidId }) => {
   const [babyWeight, setBabyWeight] = useState(null);
   const [multiplier, setMultiplier] = useState(2.5);
   const [ounces, setOunces] = useState('');
@@ -99,163 +416,82 @@ const BabyFeedingTracker = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [kidId]);
 
   useEffect(() => {
-    if (!loading) {
-      loadFeedingsForDate(currentDate);
+    if (!loading && kidId) {
+      const unsubscribe = firestoreStorage.subscribeToFeedings(currentDate, (feedingsData) => {
+        setFeedings(feedingsData);
+      });
+      return () => unsubscribe();
     }
-  }, [currentDate, loading]);
+  }, [currentDate, loading, kidId]);
 
   const loadData = async () => {
+    if (!kidId) return;
     try {
-      const weightResult = await storage.get('baby_weight');
-      if (weightResult) {
-        setBabyWeight(parseFloat(weightResult.value));
+      const settings = await firestoreStorage.getSettings();
+      if (settings) {
+        if (settings.babyWeight) setBabyWeight(settings.babyWeight);
+        if (settings.multiplier) setMultiplier(settings.multiplier);
       }
-
-      const multiplierResult = await storage.get('oz_multiplier');
-      if (multiplierResult) {
-        setMultiplier(parseFloat(multiplierResult.value));
-      }
-
-      // Load today's feedings immediately
-      await loadFeedingsForDate(currentDate);
     } catch (error) {
-      console.log('No existing data found, starting fresh');
+      console.error('Error loading data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadFeedingsForDate = async (date, retries = 3) => {
-      try {
-        const dateString = date.toDateString();
-        const feedingsResult = await storage.get(`feedings_${dateString}`);
-        if (feedingsResult) {
-          const loadedFeedings = JSON.parse(feedingsResult.value);
-          loadedFeedings.sort((a, b) => b.timestamp - a.timestamp);
-          setFeedings(loadedFeedings);
-        } else {
-          setFeedings([]);
-        }
-      } catch (error) {
-        if (retries > 0) {
-          // Retry after 500ms
-          setTimeout(() => loadFeedingsForDate(date, retries - 1), 500);
-        } else {
-          setFeedings([]);
-        }
-      }
-    };
-
-  const loadAllFeedings = async () => {
+  const saveSettings = async (newSettings) => {
     try {
-      const result = await storage.list('feedings_');
-      const allFeedings = [];
-      
-      for (const key of result.keys) {
-        const feedingsResult = await storage.get(key);
-        if (feedingsResult) {
-          const dayFeedings = JSON.parse(feedingsResult.value);
-          allFeedings.push(...dayFeedings);
-        }
-      }
-      return allFeedings.sort((a, b) => a.timestamp - b.timestamp);
+      await firestoreStorage.setSettings(newSettings);
     } catch (error) {
-      console.error('Error loading all feedings:', error);
-      return [];
+      console.error('Error saving settings:', error);
     }
   };
 
-  const saveWeight = async (weight) => {
-    try {
-      await storage.set('baby_weight', weight.toString());
-    } catch (error) {
-      console.error('Error saving weight:', error);
-    }
-  };
-
-  const saveMultiplier = async (mult) => {
-    try {
-      await storage.set('oz_multiplier', mult.toString());
-    } catch (error) {
-      console.error('Error saving multiplier:', error);
-    }
-  };
-
-  const saveFeedings = async (feedingsList, date) => {
-    try {
-      const dateString = date.toDateString();
-      await storage.set(`feedings_${dateString}`, JSON.stringify(feedingsList));
-    } catch (error) {
-      console.error('Error saving feedings:', error);
-    }
-  };
-
-  const handleWeightSave = () => {
+  const handleWeightSave = async () => {
     const weight = parseFloat(tempWeight);
-    if (weight && weight > 0) {
+    if (weight > 0) {
       setBabyWeight(weight);
-      saveWeight(weight);
+      await saveSettings({ babyWeight: weight });
       setIsEditingWeight(false);
-      setTempWeight('');
     }
   };
 
-  const handleMultiplierSave = () => {
+  const handleMultiplierSave = async () => {
     const mult = parseFloat(tempMultiplier);
-    if (mult && mult > 0) {
+    if (mult > 0) {
       setMultiplier(mult);
-      saveMultiplier(mult);
+      await saveSettings({ multiplier: mult });
       setIsEditingMultiplier(false);
-      setTempMultiplier('');
     }
   };
 
-  const timeStringToDate = (timeString, baseDate) => {
-    const date = new Date(baseDate);
-    
-    if (timeString.includes(':')) {
-      const [hours, minutes] = timeString.split(':').map(s => parseInt(s.trim()));
-      if (!isNaN(hours) && !isNaN(minutes)) {
-        date.setHours(hours, minutes, 0, 0);
-        return date;
-      }
-    }
-    
-    return null;
-  };
+  const handleAddFeeding = async () => {
+    const amount = parseFloat(ounces);
+    if (!amount || amount <= 0) return;
 
-  const handleAddFeeding = () => {
-    const oz = parseFloat(ounces);
-    if (oz && oz > 0) {
-      let feedingDate;
-      
-      if (customTime && showCustomTime) {
-        feedingDate = timeStringToDate(customTime, currentDate);
-        if (!feedingDate) {
-          alert('Please enter time in format HH:MM (e.g., 14:30 or 2:30)');
-          return;
-        }
-      } else {
-        feedingDate = new Date();
-      }
-      
-      const newFeeding = {
-        id: Date.now(),
-        ounces: oz,
-        time: feedingDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-        timestamp: feedingDate.getTime()
-      };
-      
-      const updatedFeedings = [newFeeding, ...feedings];
-      updatedFeedings.sort((a, b) => b.timestamp - a.timestamp);
-      setFeedings(updatedFeedings);
-      saveFeedings(updatedFeedings, currentDate);
+    let feedingTime;
+    if (customTime) {
+      const [hours, minutes] = customTime.split(':');
+      feedingTime = new Date(currentDate);
+      feedingTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+    } else {
+      feedingTime = new Date();
+    }
+
+    try {
+      await firestoreStorage.addFeeding({
+        ounces: amount,
+        timestamp: feedingTime.getTime(),
+        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      });
       setOunces('');
       setCustomTime('');
       setShowCustomTime(false);
+    } catch (error) {
+      console.error('Error adding feeding:', error);
     }
   };
 
@@ -263,50 +499,40 @@ const BabyFeedingTracker = () => {
     setEditingFeedingId(feeding.id);
     setEditOunces(feeding.ounces.toString());
     const date = new Date(feeding.timestamp);
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    setEditTime(`${hours}:${minutes}`);
+    setEditTime(date.toTimeString().slice(0, 5));
   };
 
-  const handleSaveEdit = () => {
-    const oz = parseFloat(editOunces);
-    if (!oz || oz <= 0) return;
+  const handleSaveEdit = async () => {
+    const amount = parseFloat(editOunces);
+    if (!amount || amount <= 0) return;
 
-    const feedingDate = timeStringToDate(editTime, currentDate);
-    if (!feedingDate) {
-      alert('Please enter time in format HH:MM (e.g., 14:30 or 2:30)');
-      return;
+    const [hours, minutes] = editTime.split(':');
+    const feedingTime = new Date(currentDate);
+    feedingTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+
+    try {
+      await firestoreStorage.updateFeeding(editingFeedingId, {
+        ounces: amount,
+        timestamp: feedingTime.getTime(),
+        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      });
+      setEditingFeedingId(null);
+    } catch (error) {
+      console.error('Error updating feeding:', error);
     }
-
-    const updatedFeedings = feedings.map(f => 
-      f.id === editingFeedingId 
-        ? {
-            ...f,
-            ounces: oz,
-            time: feedingDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
-            timestamp: feedingDate.getTime()
-          }
-        : f
-    );
-    
-    updatedFeedings.sort((a, b) => b.timestamp - a.timestamp);
-    setFeedings(updatedFeedings);
-    saveFeedings(updatedFeedings, currentDate);
-    setEditingFeedingId(null);
-    setEditOunces('');
-    setEditTime('');
   };
 
   const handleCancelEdit = () => {
     setEditingFeedingId(null);
-    setEditOunces('');
-    setEditTime('');
   };
 
-  const handleDeleteFeeding = (id) => {
-    const updatedFeedings = feedings.filter(f => f.id !== id);
-    setFeedings(updatedFeedings);
-    saveFeedings(updatedFeedings, currentDate);
+  const handleDeleteFeeding = async (feedingId) => {
+    if (!confirm('Delete this feeding?')) return;
+    try {
+      await firestoreStorage.deleteFeeding(feedingId);
+    } catch (error) {
+      console.error('Error deleting feeding:', error);
+    }
   };
 
   const goToPreviousDay = () => {
@@ -316,62 +542,45 @@ const BabyFeedingTracker = () => {
   };
 
   const goToNextDay = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const current = new Date(currentDate);
-    current.setHours(0, 0, 0, 0);
-    
-    if (current < today) {
-      const newDate = new Date(currentDate);
-      newDate.setDate(newDate.getDate() + 1);
-      setCurrentDate(newDate);
-    }
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + 1);
+    setCurrentDate(newDate);
   };
 
   const isToday = () => {
-    const today = new Date();
-    return currentDate.toDateString() === today.toDateString();
+    return currentDate.toDateString() === new Date().toDateString();
   };
 
   const formatDate = (date) => {
-    const today = new Date();
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    if (isToday()) return 'Today';
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
-    if (date.toDateString() === today.toDateString()) {
-      return 'Today';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Yesterday';
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    }
+  const loadAllFeedings = async () => {
+    return await firestoreStorage.getAllFeedings();
   };
 
   const totalConsumed = feedings.reduce((sum, f) => sum + f.ounces, 0);
   const targetOunces = babyWeight ? babyWeight * multiplier : 0;
-  const remaining = targetOunces - totalConsumed;
-  const percentComplete = targetOunces > 0 ? (totalConsumed / targetOunces) * 100 : 0;
-
-  if (loading) {
-    return React.createElement('div', { 
-      className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" 
-    }, 
-      React.createElement('div', { className: "text-indigo-600" }, 'Loading...')
-    );
-  }
+  const remaining = Math.max(0, targetOunces - totalConsumed);
+  const percentComplete = targetOunces > 0 ? Math.min((totalConsumed / targetOunces) * 100, 100) : 0;
 
   if (!babyWeight) {
-    return React.createElement('div', { 
-      className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4" 
-    }, 
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-xl p-8 max-w-md w-full" },
-        React.createElement('div', { className: "flex justify-center mb-6" },
-          React.createElement('div', { className: "bg-indigo-100 rounded-full p-4" },
-            React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
-          )
+    return React.createElement('div', {
+      className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4"
+    },
+      React.createElement('div', {
+        className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full"
+      },
+        React.createElement('div', { className: "text-center mb-6" },
+          React.createElement('div', { className: "flex items-center justify-center mb-4" },
+            React.createElement('div', { className: "bg-indigo-100 rounded-full p-3" },
+              React.createElement('span', { className: "text-4xl" }, '🍼')
+            )
+          ),
+          React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Tracker!'),
+          React.createElement('p', { className: "text-gray-600 text-center mb-6" }, "Let's start by entering your baby's current weight")
         ),
-        React.createElement('h1', { className: "text-2xl font-bold text-gray-800 text-center mb-2" }, 'Welcome to Tiny Tracker!'),
-        React.createElement('p', { className: "text-gray-600 text-center mb-6" }, "Let's start by entering your baby's current weight"),
         React.createElement('input', {
           type: "number",
           step: "0.1",
@@ -393,15 +602,13 @@ const BabyFeedingTracker = () => {
     className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 pb-8" 
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header with Tiny Tracker logo - Always at top
       React.createElement('div', { className: "flex items-center justify-center gap-3 mb-4" },
         React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
-          React.createElement(Baby, { className: "w-6 h-6 text-indigo-600" })
+          React.createElement('span', { className: "text-2xl" }, '🍼')
         ),
         React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
       ),
 
-      // Tab toggles - Always under logo
       React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-2 mb-4 flex gap-2" },
         React.createElement('button', {
           onClick: () => setActiveTab('tracker'),
@@ -421,77 +628,24 @@ const BabyFeedingTracker = () => {
         }, 'Analytics')
       ),
 
-      // Tab content based on active tab
       activeTab === 'tracker' && React.createElement(React.Fragment, null,
-        // Today section with gear icon inline  
         React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 mb-4" },
-          showSettings && React.createElement('div', { className: "mb-4 p-4 bg-gray-50 rounded-xl space-y-3" },
-            React.createElement('div', { className: "flex items-center justify-between" },
-              React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Baby's Weight"),
-              !isEditingWeight ? 
-                React.createElement('button', {
-                  onClick: () => {
-                    setIsEditingWeight(true);
-                    setTempWeight(babyWeight.toString());
-                  },
-                  className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
-                },
-                  `${babyWeight} lbs`,
-                  React.createElement(Edit2, { className: "w-4 h-4" })
-                )
-              :
-                React.createElement('div', { className: "flex items-center gap-2" },
-                  React.createElement('input', {
-                    type: "number",
-                    step: "0.1",
-                    value: tempWeight,
-                    onChange: (e) => setTempWeight(e.target.value),
-                    className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                  }),
-                  React.createElement('button', { 
-                    onClick: handleWeightSave, 
-                    className: "text-green-600 hover:text-green-700" 
-                  }, React.createElement(Check, { className: "w-5 h-5" })),
-                  React.createElement('button', { 
-                    onClick: () => setIsEditingWeight(false), 
-                    className: "text-gray-400 hover:text-gray-600" 
-                  }, React.createElement(X, { className: "w-5 h-5" }))
-                )
-            ),
-            
-            React.createElement('div', { className: "flex items-center justify-between" },
-              React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
-              !isEditingMultiplier ?
-                React.createElement('button', {
-                  onClick: () => {
-                    setIsEditingMultiplier(true);
-                    setTempMultiplier(multiplier.toString());
-                  },
-                  className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
-                },
-                  `${multiplier}x`,
-                  React.createElement(Edit2, { className: "w-4 h-4" })
-                )
-              :
-                React.createElement('div', { className: "flex items-center gap-2" },
-                  React.createElement('input', {
-                    type: "number",
-                    step: "0.1",
-                    value: tempMultiplier,
-                    onChange: (e) => setTempMultiplier(e.target.value),
-                    className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                  }),
-                  React.createElement('button', { 
-                    onClick: handleMultiplierSave, 
-                    className: "text-green-600 hover:text-green-700" 
-                  }, React.createElement(Check, { className: "w-5 h-5" })),
-                  React.createElement('button', { 
-                    onClick: () => setIsEditingMultiplier(false), 
-                    className: "text-gray-400 hover:text-gray-600" 
-                  }, React.createElement(X, { className: "w-5 h-5" }))
-                )
-            )
-          ),
+          showSettings && React.createElement(SettingsPanel, {
+            user,
+            kidId,
+            babyWeight,
+            multiplier,
+            isEditingWeight,
+            isEditingMultiplier,
+            tempWeight,
+            tempMultiplier,
+            setTempWeight,
+            setTempMultiplier,
+            setIsEditingWeight,
+            setIsEditingMultiplier,
+            handleWeightSave,
+            handleMultiplierSave
+          }),
           
           React.createElement('div', { className: "flex items-center justify-between mb-4" },
             React.createElement('button', {
@@ -661,6 +815,222 @@ const BabyFeedingTracker = () => {
   );
 };
 
+// ========================================
+// PART 4: SETTINGS PANEL WITH SHARING & ANALYTICS
+// ========================================
+
+const SettingsPanel = ({ 
+  user, kidId, babyWeight, multiplier, 
+  isEditingWeight, isEditingMultiplier, 
+  tempWeight, tempMultiplier,
+  setTempWeight, setTempMultiplier,
+  setIsEditingWeight, setIsEditingMultiplier,
+  handleWeightSave, handleMultiplierSave
+}) => {
+  const [kidData, setKidData] = useState(null);
+  const [members, setMembers] = useState([]);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteLink, setInviteLink] = useState('');
+  const [copying, setCopying] = useState(false);
+
+  useEffect(() => {
+    loadKidData();
+  }, [kidId]);
+
+  const loadKidData = async () => {
+    if (!kidId) return;
+    const kidDoc = await db.collection('kids').doc(kidId).get();
+    if (kidDoc.exists) {
+      const data = kidDoc.data();
+      setKidData(data);
+      const memberDetails = await Promise.all(
+        data.members.map(async (memberId) => {
+          const userDoc = await db.collection('users').doc(memberId).get();
+          return {
+            uid: memberId,
+            ...(userDoc.exists ? userDoc.data() : { email: 'Unknown' })
+          };
+        })
+      );
+      setMembers(memberDetails);
+    }
+  };
+
+  const handleCreateInvite = async () => {
+    try {
+      const code = await createInvite(kidId);
+      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+      setInviteLink(link);
+      setShowInvite(true);
+    } catch (error) {
+      console.error('Error creating invite:', error);
+      alert('Failed to create invite');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  };
+
+  const handleRemoveMember = async (memberId) => {
+    if (!confirm('Remove this person\'s access?')) return;
+    try {
+      await removeMember(kidId, memberId);
+      await loadKidData();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Failed to remove member');
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (confirm('Sign out of Tiny Tracker?')) {
+      await signOut();
+    }
+  };
+
+  const isOwner = kidData && kidData.ownerId === user.uid;
+
+  return React.createElement('div', { className: "mb-4 p-4 bg-gray-50 rounded-xl space-y-4" },
+    React.createElement('div', { className: "pb-4 border-b border-gray-200" },
+      React.createElement('h3', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Account'),
+      React.createElement('div', { className: "flex items-center justify-between mb-2" },
+        React.createElement('span', { className: "text-sm text-gray-600" }, user.email),
+        React.createElement('button', {
+          onClick: handleSignOut,
+          className: "text-sm text-red-600 hover:text-red-700 font-medium"
+        }, 'Sign Out')
+      )
+    ),
+
+    React.createElement('div', { className: "pb-4 border-b border-gray-200 space-y-3" },
+      React.createElement('h3', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Baby Settings'),
+      React.createElement('div', { className: "flex items-center justify-between" },
+        React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Baby's Weight"),
+        !isEditingWeight ? 
+          React.createElement('button', {
+            onClick: () => {
+              setIsEditingWeight(true);
+              setTempWeight(babyWeight.toString());
+            },
+            className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
+          },
+            `${babyWeight} lbs`,
+            React.createElement(Edit2, { className: "w-4 h-4" })
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "number",
+              step: "0.1",
+              value: tempWeight,
+              onChange: (e) => setTempWeight(e.target.value),
+              className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+            }),
+            React.createElement('button', { 
+              onClick: handleWeightSave, 
+              className: "text-green-600 hover:text-green-700" 
+            }, React.createElement(Check, { className: "w-5 h-5" })),
+            React.createElement('button', { 
+              onClick: () => setIsEditingWeight(false), 
+              className: "text-gray-400 hover:text-gray-600" 
+            }, React.createElement(X, { className: "w-5 h-5" }))
+          )
+      ),
+      React.createElement('div', { className: "flex items-center justify-between" },
+        React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
+        !isEditingMultiplier ?
+          React.createElement('button', {
+            onClick: () => {
+              setIsEditingMultiplier(true);
+              setTempMultiplier(multiplier.toString());
+            },
+            className: "flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-700"
+          },
+            `${multiplier}x`,
+            React.createElement(Edit2, { className: "w-4 h-4" })
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "number",
+              step: "0.1",
+              value: tempMultiplier,
+              onChange: (e) => setTempMultiplier(e.target.value),
+              className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+            }),
+            React.createElement('button', { 
+              onClick: handleMultiplierSave, 
+              className: "text-green-600 hover:text-green-700" 
+            }, React.createElement(Check, { className: "w-5 h-5" })),
+            React.createElement('button', { 
+              onClick: () => setIsEditingMultiplier(false), 
+              className: "text-gray-400 hover:text-gray-600" 
+            }, React.createElement(X, { className: "w-5 h-5" }))
+          )
+      )
+    ),
+
+    React.createElement('div', null,
+      React.createElement('h3', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Who Has Access'),
+      React.createElement('div', { className: "space-y-2 mb-3" },
+        members.map(member => 
+          React.createElement('div', { 
+            key: member.uid,
+            className: "flex items-center justify-between py-2"
+          },
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('span', { className: "text-sm text-gray-700" }, member.email),
+              member.uid === kidData?.ownerId && 
+                React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded" }, 'Owner')
+            ),
+            isOwner && member.uid !== user.uid &&
+              React.createElement('button', {
+                onClick: () => handleRemoveMember(member.uid),
+                className: "text-red-400 hover:text-red-600 text-sm"
+              }, 'Remove')
+          )
+        )
+      ),
+      !showInvite ?
+        React.createElement('button', {
+          onClick: handleCreateInvite,
+          className: "w-full bg-indigo-600 text-white py-2 rounded-lg font-medium hover:bg-indigo-700 transition text-sm"
+        }, '+ Invite Partner')
+      :
+        React.createElement('div', { className: "space-y-2" },
+          React.createElement('div', { className: "text-xs text-gray-600 mb-2" }, 'Share this link:'),
+          React.createElement('div', { className: "flex gap-2" },
+            React.createElement('input', {
+              type: "text",
+              value: inviteLink,
+              readOnly: true,
+              className: "flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg"
+            }),
+            React.createElement('button', {
+              onClick: handleCopyLink,
+              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm whitespace-nowrap"
+            }, copying ? '✓ Copied!' : 'Copy')
+          ),
+          React.createElement('button', {
+            onClick: () => setShowInvite(false),
+            className: "text-sm text-gray-600 hover:text-gray-700"
+          }, 'Close')
+        )
+    )
+  );
+};
+
+// ========================================
+// ANALYTICS TAB
+// ========================================
+
 const AnalyticsTab = ({ loadAllFeedings }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -692,8 +1062,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
     }
 
     const now = Date.now();
-    let timeframeMs;
-    let labelText;
+    let timeframeMs, labelText;
     
     if (timeRange === 'day') {
       timeframeMs = 3 * 24 * 60 * 60 * 1000;
@@ -708,40 +1077,28 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
 
     const timeframeAgo = now - timeframeMs;
     const recentFeedings = feedings.filter(f => f.timestamp >= timeframeAgo);
-
     const totalVolume = recentFeedings.reduce((sum, f) => sum + f.ounces, 0);
     const avgVolumePerFeed = recentFeedings.length > 0 ? totalVolume / recentFeedings.length : 0;
-
     const uniqueDays = new Set(recentFeedings.map(f => new Date(f.timestamp).toDateString())).size;
     const avgVolumePerDay = uniqueDays > 0 ? totalVolume / uniqueDays : 0;
     const avgFeedingsPerDay = uniqueDays > 0 ? recentFeedings.length / uniqueDays : 0;
 
     let totalIntervalMinutes = 0;
     for (let i = 1; i < recentFeedings.length; i++) {
-      const interval = recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp;
-      totalIntervalMinutes += interval / (1000 * 60);
+      totalIntervalMinutes += (recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp) / (1000 * 60);
     }
     const avgInterval = recentFeedings.length > 1 ? totalIntervalMinutes / (recentFeedings.length - 1) : 0;
 
     const chartData = generateChartData(feedings, timeRange);
 
-    setStats({
-      avgVolumePerFeed,
-      avgVolumePerDay,
-      avgFeedingsPerDay,
-      avgInterval,
-      labelText,
-      chartData
-    });
+    setStats({ avgVolumePerFeed, avgVolumePerDay, avgFeedingsPerDay, avgInterval, labelText, chartData });
   };
 
   const generateChartData = (feedings, range) => {
     const grouped = {};
-    
     feedings.forEach(f => {
       const date = new Date(f.timestamp);
       let key;
-      
       if (range === 'day') {
         key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       } else if (range === 'week') {
@@ -749,16 +1106,12 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
         weekStart.setDate(date.getDate() - date.getDay());
         key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
       } else {
-        key = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+        key = date.toLocaleDateString('en-US', { month: 'short' });
       }
-      
-      if (!grouped[key]) {
-        grouped[key] = { date: key, volume: 0, count: 0 };
-      }
+      if (!grouped[key]) grouped[key] = { date: key, volume: 0, count: 0 };
       grouped[key].volume += f.ounces;
       grouped[key].count += 1;
     });
-
     return Object.values(grouped).map(item => ({
       date: item.date,
       volume: parseFloat(item.volume.toFixed(1)),
@@ -769,8 +1122,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   const formatInterval = (minutes) => {
     const hours = Math.floor(minutes / 60);
     const mins = Math.round(minutes % 60);
-    if (hours === 0) return `${mins}m`;
-    return `${hours}h ${mins}m`;
+    return hours === 0 ? `${mins}m` : `${hours}h ${mins}m`;
   };
 
   if (loading) {
@@ -790,37 +1142,29 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
   return React.createElement('div', { className: "space-y-4" },
     React.createElement('div', { className: "flex justify-center mb-1" },
       React.createElement('div', { className: "inline-flex gap-0.5 bg-gray-100/50 rounded-lg p-0.5" },
-        React.createElement('button', {
-          onClick: () => setTimeRange('day'),
-          className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === 'day' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
-        }, 'Day'),
-        React.createElement('button', {
-          onClick: () => setTimeRange('week'),
-          className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === 'week' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
-        }, 'Week'),
-        React.createElement('button', {
-          onClick: () => setTimeRange('month'),
-          className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === 'month' ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
-        }, 'Month')
+        ['day', 'week', 'month'].map(range =>
+          React.createElement('button', {
+            key: range,
+            onClick: () => setTimeRange(range),
+            className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === range ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
+          }, range.charAt(0).toUpperCase() + range.slice(1))
+        )
       )
     ),
 
     React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
-        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Oz / Feed'),
-        React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
-          `${stats.avgVolumePerFeed.toFixed(1)}`,
-          React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-        ),
-        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText || '3-day avg')
-      ),
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
-        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Oz / Day'),
-        React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
-          `${stats.avgVolumePerDay.toFixed(1)}`,
-          React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-        ),
-        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText || '3-day avg')
+      [
+        { label: 'Oz / Feed', value: stats.avgVolumePerFeed.toFixed(1) },
+        { label: 'Oz / Day', value: stats.avgVolumePerDay.toFixed(1) }
+      ].map(stat =>
+        React.createElement('div', { key: stat.label, className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
+          React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, stat.label),
+          React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
+            stat.value,
+            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+          ),
+          React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
+        )
       )
     ),
 
@@ -828,12 +1172,12 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
       React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
         React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Feedings / Day'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, stats.avgFeedingsPerDay.toFixed(1)),
-        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText || '3-day avg')
+        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
       ),
       React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
         React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Avg Between Feeds'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval)),
-        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText || '3-day avg')
+        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
       )
     ),
 
@@ -842,7 +1186,7 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "relative" },
           React.createElement('div', { 
-            className: "overflow-x-auto overflow-y-hidden -mx-6 px-6 scrollbar-thin scrollbar-thumb-indigo-300 scrollbar-track-gray-100",
+            className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
             style: { scrollBehavior: 'smooth' }
           },
             React.createElement('div', { 
@@ -852,8 +1196,11 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
               stats.chartData.map(item => 
                 React.createElement('div', { key: item.date, className: "flex flex-col items-center gap-2 flex-shrink-0" },
                   React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
-                    React.createElement('div', { className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500", style: { height: `${(item.volume / maxVolume) * 160}px`, minHeight: '30px' } },
-                      React.createElement('span', { className: "text-white text-xs font-semibold" }, `${item.volume}`)
+                    React.createElement('div', { 
+                      className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500", 
+                      style: { height: `${(item.volume / maxVolume) * 160}px`, minHeight: '30px' } 
+                    },
+                      React.createElement('span', { className: "text-white text-xs font-semibold" }, item.volume)
                     )
                   ),
                   React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, item.date),
@@ -867,20 +1214,12 @@ const AnalyticsTab = ({ loadAllFeedings }) => {
       :
         React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No data to display')
     )
-  )
+  );
 };
 
-const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" }, 
-  React.createElement('path', { d: "M9 12h.01" }), 
-  React.createElement('path', { d: "M15 12h.01" }), 
-  React.createElement('path', { d: "M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" }), 
-  React.createElement('path', { d: "M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1" })
-);
-
-const TrendingUp = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('polyline', { points: "22 7 13.5 15.5 8.5 10.5 2 17" }),
-  React.createElement('polyline', { points: "16 7 22 7 22 13" })
-);
+// ========================================
+// PART 5: SVG ICONS & RENDER
+// ========================================
 
 const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
@@ -918,4 +1257,8 @@ const Plus = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
   React.createElement('path', { d: "M12 5v14" })
 );
 
-ReactDOM.render(React.createElement(BabyFeedingTracker), document.getElementById('root'));
+// ========================================
+// RENDER APP
+// ========================================
+
+ReactDOM.render(React.createElement(App), document.getElementById('root'));
