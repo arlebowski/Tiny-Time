@@ -240,6 +240,11 @@ const firestoreStorage = {
     if (!this.currentKidId) throw new Error('No kid selected');
     await db.collection('kids').doc(this.currentKidId)
       .collection('conversations').doc('default').delete();
+  },
+  
+  getMembers: async function() {
+    if (!this.currentKidId) return [];
+    return await getFamilyMembers(this.currentKidId);
   }
 };
 
