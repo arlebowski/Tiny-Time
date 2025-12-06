@@ -1022,8 +1022,8 @@ const TrackerTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.2 - PART 5
-// Analytics Tab (Updated: exclude today from averages, add target line)
+// TINY TRACKER V4.3 - PART 5
+// Analytics Tab - FIXED: Chart data, target line, green bars
 // ========================================
 
 const AnalyticsTab = ({ kidId }) => {
@@ -1065,7 +1065,7 @@ const AnalyticsTab = ({ kidId }) => {
     // Get feedings for the selected time range (excluding today)
     let relevantFeedings;
     if (timeRange === 'day') {
-      // Last 3 complete days (yesterday, day before, day before that)
+      // Last 3 complete days
       const threeDaysAgo = new Date(todayStart);
       threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
       relevantFeedings = feedingsExcludingToday.filter(f => f.timestamp >= threeDaysAgo.getTime());
@@ -1113,6 +1113,7 @@ const AnalyticsTab = ({ kidId }) => {
   const getChartData = () => {
     if (feedings.length === 0) return [];
     
+    // Group ALL feedings by day (including today)
     const groupedByDay = {};
     feedings.forEach(f => {
       const date = new Date(f.timestamp);
@@ -1126,27 +1127,19 @@ const AnalyticsTab = ({ kidId }) => {
     
     const sorted = Object.values(groupedByDay).sort((a, b) => a.timestamp - b.timestamp);
     
+    // Return data based on view
     if (timeRange === 'day') {
-      return sorted.slice(-7);
+      return sorted.slice(-7); // Last 7 days including today
     } else if (timeRange === 'week') {
-      return sorted.slice(-30);
+      return sorted.slice(-30); // Last 30 days including today
     } else {
-      return sorted.slice(-90);
+      return sorted.slice(-90); // Last 90 days including today
     }
   };
   
   const getTargetVolume = () => {
     if (!settings || !settings.babyWeight || !settings.multiplier) return null;
-    
-    const dailyTarget = settings.babyWeight * settings.multiplier;
-    
-    if (timeRange === 'day') {
-      return dailyTarget; // Daily target
-    } else if (timeRange === 'week') {
-      return dailyTarget; // Still show daily target on weekly view
-    } else {
-      return dailyTarget; // Still show daily target on monthly view
-    }
+    return settings.babyWeight * settings.multiplier; // Daily target
   };
   
   const stats = getStats();
@@ -1159,13 +1152,17 @@ const AnalyticsTab = ({ kidId }) => {
     );
   }
   
-  if (!stats) {
+  if (!stats || chartData.length === 0) {
     return React.createElement('div', { className: "text-center py-12" },
       React.createElement('div', { className: "text-gray-600" }, 'Not enough data yet. Start tracking feedings!')
     );
   }
   
-  const maxVolume = Math.max(...chartData.map(d => d.total), targetVolume || 0);
+  // Calculate max for chart scaling
+  const maxVolume = Math.max(
+    ...chartData.map(d => d.total),
+    targetVolume ? targetVolume * 1.2 : 0 // Add 20% padding above target
+  );
   
   return React.createElement('div', { className: "space-y-4" },
     // Time range selector
@@ -1213,37 +1210,37 @@ const AnalyticsTab = ({ kidId }) => {
           className: "relative",
           style: { minWidth: `${chartData.length * 50}px`, height: '200px' }
         },
-          // Target line (red dashed)
+          // Target line (red dashed) - only if target is set
           targetVolume && React.createElement('div', {
-            className: "absolute left-0 right-0 border-t-2 border-red-500 border-dashed",
+            className: "absolute left-0 right-0 border-t-2 border-red-500 border-dashed pointer-events-none",
             style: {
-              top: `${((maxVolume - targetVolume) / maxVolume) * 200}px`,
+              top: `${200 - (targetVolume / maxVolume) * 200}px`,
               zIndex: 1
             }
           },
             React.createElement('span', {
-              className: "absolute right-2 -top-2 text-xs text-red-500 bg-white px-1"
+              className: "absolute right-2 -top-5 text-xs text-red-500 bg-white px-1 rounded"
             }, `Target: ${targetVolume.toFixed(1)}oz`)
           ),
           
           // Bars
           React.createElement('div', { 
-            className: "flex items-end gap-2 h-full relative",
+            className: "flex items-end justify-around h-full relative gap-1",
             style: { zIndex: 2 }
           },
             chartData.map((day, i) => {
-              const height = (day.total / maxVolume) * 100;
-              const isTarget = targetVolume && Math.abs(day.total - targetVolume) < 2;
+              const heightPercent = (day.total / maxVolume) * 100;
+              const isNearTarget = targetVolume && Math.abs(day.total - targetVolume) < (targetVolume * 0.1); // Within 10%
               
               return React.createElement('div', {
                 key: i,
-                className: "flex-1 flex flex-col items-center gap-1"
+                className: "flex-1 flex flex-col items-center gap-1 min-w-[40px]"
               },
                 React.createElement('div', { 
                   className: `w-full rounded-t-lg transition-all ${
-                    isTarget ? 'bg-green-500' : 'bg-indigo-600'
+                    isNearTarget ? 'bg-green-500' : 'bg-indigo-600'
                   }`,
-                  style: { height: `${height}%`, minHeight: '4px' }
+                  style: { height: `${heightPercent}%`, minHeight: '4px' }
                 }),
                 React.createElement('span', { 
                   className: "text-xs text-gray-600 whitespace-nowrap"
@@ -1258,8 +1255,8 @@ const AnalyticsTab = ({ kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.2 - PART 6
-// Family Tab - Fixed photo upload + SMS invite
+// TINY TRACKER V4.3 - PART 6  
+// Family Tab - Fixed photo upload with camera roll choice
 // ========================================
 
 const FamilyTab = ({ user, kidId }) => {
@@ -1271,6 +1268,7 @@ const FamilyTab = ({ user, kidId }) => {
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
   // Edit states
   const [editingName, setEditingName] = useState(false);
@@ -1327,45 +1325,82 @@ const FamilyTab = ({ user, kidId }) => {
     if (!files || files.length === 0) return;
     
     const file = files[0];
+    setUploadingPhoto(true);
 
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Photo must be less than 5MB');
-      event.target.value = ''; // Reset input
+    // Check file size (max 2MB for better performance)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('Photo must be less than 2MB');
+      event.target.value = '';
+      setUploadingPhoto(false);
       return;
     }
 
     // Check file type
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
-      event.target.value = ''; // Reset input
+      event.target.value = '';
+      setUploadingPhoto(false);
       return;
     }
 
     try {
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result;
-        
-        // Save to Firestore
-        await firestoreStorage.updateKid({ photoURL: base64 });
-        setBabyPhotoUrl(base64);
-        
-        // Reload data to confirm
-        await loadData();
-      };
-      reader.onerror = () => {
-        alert('Failed to read file');
-      };
-      reader.readAsDataURL(file);
+      // Resize and convert to base64
+      const resizedBase64 = await resizeImage(file, 400, 400); // Max 400x400px
+      
+      // Save to Firestore (base64 stored in kid document)
+      await firestoreStorage.updateKid({ photoURL: resizedBase64 });
+      setBabyPhotoUrl(resizedBase64);
+      
     } catch (error) {
       console.error('Error uploading photo:', error);
-      alert('Failed to upload photo');
+      alert('Failed to upload photo. Please try again.');
     }
     
     // Reset input
     event.target.value = '';
+    setUploadingPhoto(false);
+  };
+
+  // Resize image to reduce file size
+  const resizeImage = (file, maxWidth, maxHeight) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Calculate new dimensions while maintaining aspect ratio
+          if (width > height) {
+            if (width > maxWidth) {
+              height *= maxWidth / width;
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width *= maxHeight / height;
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Convert to base64 (JPEG for smaller size)
+          const base64 = canvas.toDataURL('image/jpeg', 0.85);
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleCreateInvite = async () => {
@@ -1504,8 +1539,8 @@ const FamilyTab = ({ user, kidId }) => {
         React.createElement('div', { className: "flex items-center gap-4" },
           React.createElement('div', { className: "relative" },
             React.createElement('div', { 
-              className: "bg-indigo-100 rounded-full w-20 h-20 flex items-center justify-center overflow-hidden cursor-pointer",
-              onClick: handlePhotoClick
+              className: `bg-indigo-100 rounded-full w-20 h-20 flex items-center justify-center overflow-hidden cursor-pointer ${uploadingPhoto ? 'opacity-50' : ''}`,
+              onClick: uploadingPhoto ? null : handlePhotoClick
             },
               babyPhotoUrl ?
                 React.createElement('img', {
@@ -1516,17 +1551,24 @@ const FamilyTab = ({ user, kidId }) => {
               :
                 React.createElement('span', { className: "text-4xl" }, '👶')
             ),
-            React.createElement('button', {
-              onClick: handlePhotoClick,
-              type: "button",
-              className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition shadow-lg",
-              title: "Change photo"
-            }, React.createElement(Camera, { className: "w-3 h-3" })),
+            uploadingPhoto ?
+              React.createElement('div', {
+                className: "absolute inset-0 flex items-center justify-center"
+              },
+                React.createElement('div', { className: "animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600" })
+              )
+            :
+              React.createElement('button', {
+                onClick: handlePhotoClick,
+                type: "button",
+                className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition shadow-lg",
+                title: "Change photo"
+              }, React.createElement(Camera, { className: "w-3 h-3" })),
+            // File input - REMOVED capture attribute to allow camera roll
             React.createElement('input', {
               ref: fileInputRef,
               type: "file",
               accept: "image/*",
-              capture: "environment",
               onChange: handlePhotoChange,
               style: { display: 'none' }
             })
@@ -1738,13 +1780,13 @@ const FamilyTab = ({ user, kidId }) => {
         )
       ),
 
-      // Invite button - opens SMS
+      // Invite button
       React.createElement('button', {
         onClick: handleCreateInvite,
         className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
       }, '+ Invite Partner'),
       
-      // Show link after creating (in case SMS doesn't work)
+      // Show link after creating
       showInvite && React.createElement('div', { className: "mt-3 space-y-2" },
         React.createElement('div', { className: "text-xs text-gray-600" }, 'Or copy and share this link:'),
         React.createElement('div', { className: "flex gap-2" },
