@@ -2055,9 +2055,13 @@ const AIChatTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4 - PART 10 (GEMINI VERSION)
+// TINY TRACKER V4.1 - PART 10 (GEMINI VERSION)
 // AI Integration - Google Gemini API (FREE!)
 // ========================================
+
+// ⚠️ ADD YOUR GEMINI API KEY HERE ⚠️
+// Get it free at: https://aistudio.google.com/apikey
+const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U";
 
 const getAIResponse = async (question, kidId) => {
   try {
@@ -2065,7 +2069,7 @@ const getAIResponse = async (question, kidId) => {
     const context = await buildAIContext(kidId, question);
     
     // Call Gemini API (FREE!)
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -2084,7 +2088,9 @@ const getAIResponse = async (question, kidId) => {
     });
     
     if (!response.ok) {
-      throw new Error('AI request failed');
+      const errorData = await response.json().catch(() => ({}));
+      console.error('Gemini API Error:', errorData);
+      throw new Error(`AI request failed: ${response.status}`);
     }
     
     const data = await response.json();
