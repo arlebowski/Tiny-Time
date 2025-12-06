@@ -719,6 +719,11 @@ const MainApp = ({ user, kidId }) => {
 // Tracker Tab - Main Feeding Interface
 // ========================================
 
+// ========================================
+// TINY TRACKER V4.4 - PART 4  
+// Tracker Tab - Main Feeding Interface (Firestore polling)
+// ========================================
+
 const TrackerTab = ({ user, kidId }) => {
   const [babyWeight, setBabyWeight] = useState(null);
   const [multiplier, setMultiplier] = useState(2.5);
@@ -736,12 +741,12 @@ const TrackerTab = ({ user, kidId }) => {
     loadData();
   }, [kidId]);
 
+  // Poll for feeding updates every 5 seconds
   useEffect(() => {
     if (!loading && kidId) {
-      const unsubscribe = firestoreStorage.subscribeToFeedings(currentDate, (feedingsData) => {
-        setFeedings(feedingsData);
-      });
-      return () => unsubscribe();
+      loadFeedings();
+      const interval = setInterval(loadFeedings, 5000);
+      return () => clearInterval(interval);
     }
   }, [currentDate, loading, kidId]);
 
@@ -760,6 +765,27 @@ const TrackerTab = ({ user, kidId }) => {
     }
   };
 
+  const loadFeedings = async () => {
+    try {
+      const allFeedings = await firestoreStorage.getFeedingsLastNDays(7);
+      
+      // Filter to only show feedings from current date
+      const startOfDay = new Date(currentDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(currentDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      const dayFeedings = allFeedings.filter(f => 
+        f.timestamp >= startOfDay.getTime() && 
+        f.timestamp <= endOfDay.getTime()
+      );
+      
+      setFeedings(dayFeedings);
+    } catch (error) {
+      console.error('Error loading feedings:', error);
+    }
+  };
+
   const handleAddFeeding = async () => {
     const amount = parseFloat(ounces);
     if (!amount || amount <= 0) return;
@@ -774,14 +800,11 @@ const TrackerTab = ({ user, kidId }) => {
     }
 
     try {
-      await firestoreStorage.addFeeding({
-        ounces: amount,
-        timestamp: feedingTime.getTime(),
-        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      });
+      await firestoreStorage.addFeeding(amount, feedingTime.getTime());
       setOunces('');
       setCustomTime('');
       setShowCustomTime(false);
+      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error adding feeding:', error);
     }
@@ -803,12 +826,9 @@ const TrackerTab = ({ user, kidId }) => {
     feedingTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
     try {
-      await firestoreStorage.updateFeeding(editingFeedingId, {
-        ounces: amount,
-        timestamp: feedingTime.getTime(),
-        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      });
+      await firestoreStorage.updateFeeding(editingFeedingId, amount, feedingTime.getTime());
       setEditingFeedingId(null);
+      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error updating feeding:', error);
     }
@@ -816,42 +836,54 @@ const TrackerTab = ({ user, kidId }) => {
 
   const handleCancelEdit = () => {
     setEditingFeedingId(null);
+    setEditOunces('');
+    setEditTime('');
   };
 
-  const handleDeleteFeeding = async (feedingId) => {
+  const handleDelete = async (feedingId) => {
     if (!confirm('Delete this feeding?')) return;
     try {
       await firestoreStorage.deleteFeeding(feedingId);
+      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error deleting feeding:', error);
     }
   };
 
-  const goToPreviousDay = () => {
-    const newDate = new Date(currentDate);
-    newDate.setDate(newDate.getDate() - 1);
-    setCurrentDate(newDate);
-  };
-
-  const goToNextDay = () => {
-    const newDate = new Date(currentDate);
-    newDate.setDate(newDate.getDate() + 1);
-    setCurrentDate(newDate);
-  };
-
-  const isToday = () => {
-    return currentDate.toDateString() === new Date().toDateString();
+  const formatTime = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   };
 
   const formatDate = (date) => {
-    if (isToday()) return 'Today';
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return 'Yesterday';
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
   };
 
-  const totalConsumed = feedings.reduce((sum, f) => sum + f.ounces, 0);
+  const changeDate = (direction) => {
+    const newDate = new Date(currentDate);
+    newDate.setDate(newDate.getDate() + direction);
+    setCurrentDate(newDate);
+  };
+
+  const goToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const totalOunces = feedings.reduce((sum, f) => sum + f.ounces, 0);
   const targetOunces = babyWeight ? babyWeight * multiplier : 0;
-  const remaining = Math.max(0, targetOunces - totalConsumed);
-  const percentComplete = targetOunces > 0 ? Math.min((totalConsumed / targetOunces) * 100, 100) : 0;
+  const percentOfTarget = targetOunces > 0 ? (totalOunces / targetOunces) * 100 : 0;
+
+  const isToday = currentDate.toDateString() === new Date().toDateString();
 
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
@@ -859,163 +891,162 @@ const TrackerTab = ({ user, kidId }) => {
     );
   }
 
+  if (!babyWeight) {
+    return React.createElement('div', { className: "text-center py-12" },
+      React.createElement('div', { className: "text-gray-600 mb-4" }, 'Please set your baby\'s weight in Settings to get started'),
+      React.createElement('div', { className: "text-4xl" }, '⚙️')
+    );
+  }
+
   return React.createElement('div', { className: "space-y-4" },
-    // Today Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "flex items-center justify-between mb-4" },
+    // Date Navigation
+    React.createElement('div', { className: "bg-white rounded-2xl p-4 shadow-sm" },
+      React.createElement('div', { className: "flex items-center justify-between" },
         React.createElement('button', {
-          onClick: goToPreviousDay,
-          className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-        }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
+          onClick: () => changeDate(-1),
+          className: "p-2 hover:bg-gray-100 rounded-lg transition"
+        }, '←'),
+        React.createElement('div', { className: "text-center" },
+          React.createElement('div', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
+          !isToday && React.createElement('button', {
+            onClick: goToToday,
+            className: "text-sm text-indigo-600 hover:underline mt-1"
+          }, 'Go to Today')
+        ),
         React.createElement('button', {
-          onClick: goToNextDay,
-          disabled: isToday(),
-          className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
-        }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
-      ),
-      
-      React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-4" },
-        React.createElement('div', { className: "text-center" },
-          React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
-            totalConsumed.toFixed(1),
-            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-          ),
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Consumed')
-        ),
-        React.createElement('div', { className: "text-center" },
-          React.createElement('div', { className: "text-2xl font-bold text-gray-800" }, 
-            targetOunces.toFixed(1),
-            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-          ),
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
-        ),
-        React.createElement('div', { className: "text-center" },
-          React.createElement('div', { 
-            className: `text-2xl font-bold ${remaining > 0 ? 'text-orange-600' : 'text-green-600'}` 
-          }, 
-            Math.abs(remaining).toFixed(1),
-            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-          ),
-          React.createElement('div', { className: "text-xs text-gray-500" }, remaining > 0 ? 'Remaining' : 'Over')
-        )
-      ),
-      
-      React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-3 overflow-hidden" },
-        React.createElement('div', {
-          className: `h-full transition-all duration-500 ${percentComplete >= 100 ? 'bg-green-500' : 'bg-indigo-600'}`,
-          style: { width: `${Math.min(percentComplete, 100)}%` }
-        })
-      ),
-      React.createElement('div', { className: "text-right text-xs text-gray-500 mt-1" }, `${percentComplete.toFixed(0)}%`)
-    ),
-    
-    // Log Feeding Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Log Feeding'),
-      React.createElement('div', { className: "space-y-3" },
-        React.createElement('div', { className: "flex gap-3" },
-          React.createElement('input', {
-            type: "number",
-            step: "0.25",
-            placeholder: "Ounces",
-            value: ounces,
-            onChange: (e) => setOunces(e.target.value),
-            onKeyPress: (e) => e.key === 'Enter' && !showCustomTime && handleAddFeeding(),
-            className: "flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
-          }),
-          React.createElement('button', {
-            onClick: () => setShowCustomTime(!showCustomTime),
-            className: `px-4 py-3 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
-          }, React.createElement(Clock, { className: "w-5 h-5" }))
-        ),
-        
-        showCustomTime && React.createElement('input', {
-          type: "time",
-          value: customTime,
-          onChange: (e) => setCustomTime(e.target.value),
-          className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
-        }),
-        
-        React.createElement('button', {
-          onClick: handleAddFeeding,
-          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-        },
-          React.createElement(Plus, { className: "w-5 h-5" }),
-          'Add Feeding'
-        )
+          onClick: () => changeDate(1),
+          disabled: isToday,
+          className: "p-2 hover:bg-gray-100 rounded-lg transition disabled:opacity-30"
+        }, '→')
       )
     ),
-    
-    // Feedings List
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
-      feedings.length === 0 ?
-        React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
-      :
-        React.createElement('div', { className: "space-y-3" },
-          feedings.map((feeding) =>
-            React.createElement('div', { key: feeding.id },
-              editingFeedingId === feeding.id ?
-                React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl space-y-3" },
-                  React.createElement('div', { className: "flex gap-2" },
-                    React.createElement('input', {
-                      type: "number",
-                      step: "0.25",
-                      value: editOunces,
-                      onChange: (e) => setEditOunces(e.target.value),
-                      placeholder: "Ounces",
-                      className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                    }),
-                    React.createElement('input', {
-                      type: "time",
-                      value: editTime,
-                      onChange: (e) => setEditTime(e.target.value),
-                      className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                    })
-                  ),
-                  React.createElement('div', { className: "flex gap-2" },
-                    React.createElement('button', {
-                      onClick: handleSaveEdit,
-                      className: "flex-1 bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
-                    },
-                      React.createElement(Check, { className: "w-4 h-4" }),
-                      'Save'
-                    ),
-                    React.createElement('button', {
-                      onClick: handleCancelEdit,
-                      className: "flex-1 bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
-                    },
-                      React.createElement(X, { className: "w-4 h-4" }),
-                      'Cancel'
-                    )
-                  )
-                )
-              :
-                React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
-                  React.createElement('div', { className: "flex items-center gap-3" },
-                    React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
-                      React.createElement('span', { className: "text-xl" }, '🍼')
-                    ),
-                    React.createElement('div', {},
-                      React.createElement('div', { className: "font-semibold text-gray-800" }, `${feeding.ounces} oz`),
-                      React.createElement('div', { className: "text-sm text-gray-500" }, feeding.time)
-                    )
-                  ),
-                  React.createElement('div', { className: "flex gap-2" },
-                    React.createElement('button', {
-                      onClick: () => handleStartEdit(feeding),
-                      className: "text-indigo-600 hover:text-indigo-700 transition"
-                    }, React.createElement(Edit2, { className: "w-5 h-5" })),
-                    React.createElement('button', {
-                      onClick: () => handleDeleteFeeding(feeding.id),
-                      className: "text-red-400 hover:text-red-600 transition"
-                    }, React.createElement(X, { className: "w-5 h-5" }))
-                  )
-                )
-            )
+
+    // Progress Stats
+    React.createElement('div', { className: "bg-white rounded-2xl p-4 shadow-sm" },
+      React.createElement('div', { className: "flex items-center justify-between mb-2" },
+        React.createElement('div', null,
+          React.createElement('div', { className: "text-2xl font-bold text-gray-800" }, 
+            totalOunces.toFixed(1), ' oz'
+          ),
+          React.createElement('div', { className: "text-sm text-gray-500" }, 
+            'of ', targetOunces.toFixed(1), ' oz target'
+          )
+        ),
+        React.createElement('div', { className: "text-right" },
+          React.createElement('div', { 
+            className: `text-2xl font-bold ${percentOfTarget >= 90 ? 'text-green-600' : 'text-indigo-600'}`
+          }, 
+            Math.round(percentOfTarget), '%'
+          ),
+          React.createElement('div', { className: "text-sm text-gray-500" }, 
+            feedings.length, ' feeding', feedings.length !== 1 ? 's' : ''
           )
         )
+      ),
+      React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-3 overflow-hidden" },
+        React.createElement('div', {
+          className: `h-full rounded-full transition-all ${percentOfTarget >= 90 ? 'bg-green-500' : 'bg-indigo-600'}`,
+          style: { width: `${Math.min(percentOfTarget, 100)}%` }
+        })
+      )
+    ),
+
+    // Add Feeding
+    React.createElement('div', { className: "bg-white rounded-2xl p-4 shadow-sm" },
+      React.createElement('div', { className: "flex gap-2" },
+        React.createElement('input', {
+          type: "number",
+          step: "0.5",
+          value: ounces,
+          onChange: (e) => setOunces(e.target.value),
+          onKeyPress: (e) => e.key === 'Enter' && handleAddFeeding(),
+          placeholder: "Ounces",
+          className: "flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+        }),
+        React.createElement('button', {
+          onClick: handleAddFeeding,
+          disabled: !ounces || parseFloat(ounces) <= 0,
+          className: "bg-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-indigo-700 transition disabled:opacity-30"
+        }, 'Add')
+      ),
+      
+      // Custom Time Toggle
+      React.createElement('button', {
+        onClick: () => setShowCustomTime(!showCustomTime),
+        className: "text-sm text-indigo-600 hover:underline mt-2"
+      }, showCustomTime ? 'Use current time' : 'Set custom time'),
+      
+      showCustomTime && React.createElement('input', {
+        type: "time",
+        value: customTime,
+        onChange: (e) => setCustomTime(e.target.value),
+        className: "w-full mt-2 px-4 py-2 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+      })
+    ),
+
+    // Feedings List
+    React.createElement('div', { className: "space-y-2" },
+      feedings.length === 0 
+        ? React.createElement('div', { className: "text-center py-8 text-gray-500" },
+            'No feedings recorded for this day'
+          )
+        : feedings.map(feeding =>
+            React.createElement('div', {
+              key: feeding.id,
+              className: "bg-white rounded-2xl p-4 shadow-sm"
+            },
+              editingFeedingId === feeding.id
+                ? // Edit mode
+                  React.createElement('div', { className: "space-y-2" },
+                    React.createElement('div', { className: "flex gap-2" },
+                      React.createElement('input', {
+                        type: "number",
+                        step: "0.5",
+                        value: editOunces,
+                        onChange: (e) => setEditOunces(e.target.value),
+                        className: "flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
+                      }),
+                      React.createElement('input', {
+                        type: "time",
+                        value: editTime,
+                        onChange: (e) => setEditTime(e.target.value),
+                        className: "px-3 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
+                      })
+                    ),
+                    React.createElement('div', { className: "flex gap-2" },
+                      React.createElement('button', {
+                        onClick: handleSaveEdit,
+                        className: "flex-1 bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 transition"
+                      }, 'Save'),
+                      React.createElement('button', {
+                        onClick: handleCancelEdit,
+                        className: "flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition"
+                      }, 'Cancel')
+                    )
+                  )
+                : // View mode
+                  React.createElement('div', { className: "flex items-center justify-between" },
+                    React.createElement('div', null,
+                      React.createElement('div', { className: "text-xl font-bold text-gray-800" }, 
+                        feeding.ounces, ' oz'
+                      ),
+                      React.createElement('div', { className: "text-sm text-gray-500" }, 
+                        formatTime(feeding.timestamp)
+                      )
+                    ),
+                    React.createElement('div', { className: "flex gap-2" },
+                      React.createElement('button', {
+                        onClick: () => handleStartEdit(feeding),
+                        className: "text-indigo-600 hover:bg-indigo-50 px-3 py-1 rounded-lg transition"
+                      }, 'Edit'),
+                      React.createElement('button', {
+                        onClick: () => handleDelete(feeding.id),
+                        className: "text-red-600 hover:bg-red-50 px-3 py-1 rounded-lg transition"
+                      }, 'Delete')
+                    )
+                  )
+            )
+          )
     )
   );
 };
