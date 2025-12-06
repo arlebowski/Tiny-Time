@@ -1311,7 +1311,7 @@ const FamilyTab = ({ user, kidId }) => {
     const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
 
     const shareText =
-      "Come join me on Tiny Tracker so we can both track the baby's feedings together.";
+      'Come join me on Tiny Tracker so we can both track ${babyName}'s feedings together.`;
 
     // Try native share sheet first (iOS / Android / mobile browsers)
     if (navigator.share) {
