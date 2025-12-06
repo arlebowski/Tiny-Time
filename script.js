@@ -94,6 +94,15 @@ const createInviteCode = async (kidId, userId) => {
   return code;
 };
 
+// 🔧 Helper used by the UI – this is what handleCreateInvite expects
+const createInvite = async (kidId) => {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('Not signed in');
+  }
+  return await createInviteCode(kidId, user.uid);
+};
+
 const acceptInvite = async (code, userId) => {
   const inviteDoc = await db.collection('invites').doc(code).get();
   
@@ -121,22 +130,40 @@ const acceptInvite = async (code, userId) => {
   return kidId;
 };
 
+// 🔧 Fix: actually look up each member's profile in `users` so we can show names
 const getFamilyMembers = async (kidId) => {
   const kidDoc = await db.collection('kids').doc(kidId).get();
   if (!kidDoc.exists) return [];
   
   const members = kidDoc.data().members || [];
+
   const memberDetails = await Promise.all(
     members.map(async (uid) => {
-      const user = auth.currentUser?.uid === uid ? auth.currentUser : null;
+      const userDoc = await db.collection('users').doc(uid).get();
+      const data = userDoc.exists ? userDoc.data() : {};
+
+      const isCurrentUser = auth.currentUser && auth.currentUser.uid === uid;
+
+      const email =
+        data.email ||
+        (isCurrentUser ? auth.currentUser.email : null) ||
+        'Family Member';
+
       return {
         uid,
-        email: user?.email || 'Family Member',
-        photoURL: user?.photoURL || null
+        displayName:
+          data.displayName ||
+          (isCurrentUser ? auth.currentUser.displayName : null) ||
+          null,
+        email,
+        photoURL:
+          data.photoURL ||
+          (isCurrentUser ? auth.currentUser.photoURL : null) ||
+          null
       };
     })
   );
-  
+
   return memberDetails;
 };
 
