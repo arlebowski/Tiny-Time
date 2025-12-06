@@ -1846,6 +1846,14 @@ const Camera = (props) => React.createElement('svg', { ...props, xmlns: "http://
   React.createElement('circle', { cx: "12", cy: "13", r: "4" })
 );
 
+// UserPlus icon (for invite)
+const UserPlus = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }),
+  React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
+  React.createElement('line', { x1: "19", x2: "19", y1: "8", y2: "14" }),
+  React.createElement('line', { x1: "22", x2: "16", y1: "11", y2: "11" })
+);
+
 // Send icon (for chat)
 const Send = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "m22 2-7 20-4-9-9-4Z" }),
