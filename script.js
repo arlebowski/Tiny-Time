@@ -2061,7 +2061,7 @@ const AIChatTab = ({ user, kidId }) => {
 
 // ⚠️ ADD YOUR GEMINI API KEY HERE ⚠️
 // Get it free at: https://aistudio.google.com/apikey
-const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U";
+const GEMINI_API_KEY = "AIzaSyD-oo_KbD4pUMu3z5uh6GvWVUg7uwEsGWU";
 
 const getAIResponse = async (question, kidId) => {
   try {
