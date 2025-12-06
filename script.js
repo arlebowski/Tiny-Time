@@ -146,12 +146,11 @@ const removeMember = async (kidId, userId) => {
 const firestoreStorage = {
   currentKidId: null,
 
-  // -------- FEEDINGS --------
   async initialize(kidId) {
     this.currentKidId = kidId;
   },
 
-  // Add a feeding
+  // -------- FEEDINGS --------
   async addFeeding(ounces, timestamp) {
     if (!this.currentKidId) throw new Error('No kid selected');
 
@@ -173,7 +172,6 @@ const firestoreStorage = {
     return feedingId;
   },
 
-  // Update a feeding
   async updateFeeding(feedingId, ounces, timestamp) {
     if (!this.currentKidId) throw new Error('No kid selected');
 
@@ -184,14 +182,9 @@ const firestoreStorage = {
       'feedings',
       feedingId
     );
-
-    await firestoreUpdateDoc(feedingDocRef, {
-      ounces,
-      timestamp,
-    });
+    await firestoreUpdateDoc(feedingDocRef, { ounces, timestamp });
   },
 
-  // Delete a feeding
   async deleteFeeding(feedingId) {
     if (!this.currentKidId) throw new Error('No kid selected');
 
@@ -202,11 +195,9 @@ const firestoreStorage = {
       'feedings',
       feedingId
     );
-
     await firestoreDeleteDoc(feedingDocRef);
   },
 
-  // Last N days (for analytics)
   async getFeedingsLastNDays(days) {
     if (!this.currentKidId) throw new Error('No kid selected');
 
@@ -236,7 +227,6 @@ const firestoreStorage = {
     return feedings.sort((a, b) => a.timestamp - b.timestamp);
   },
 
-  // Feedings for a single calendar day (for the Today screen)
   async getFeedingsForDate(date) {
     if (!this.currentKidId) throw new Error('No kid selected');
 
@@ -274,13 +264,12 @@ const firestoreStorage = {
     return feedings.sort((a, b) => b.timestamp - a.timestamp);
   },
 
-  // Used by TrackerTab – for now just load once and return a fake unsubscribe
+  // used by TrackerTab – currently just load once + return no-op unsubscribe
   subscribeToFeedings(date, callback) {
     this.getFeedingsForDate(date)
       .then(callback)
       .catch((err) => console.error('Error loading feedings:', err));
 
-    // so useEffect cleanup `return () => unsubscribe()` still works
     return () => {};
   },
 
@@ -313,7 +302,6 @@ const firestoreStorage = {
       'settings',
       'default'
     );
-
     await firestoreSetDoc(settingsDocRef, settings, { merge: true });
   },
 
@@ -342,7 +330,10 @@ const firestoreStorage = {
     if (!this.currentKidId) throw new Error('No kid selected');
 
     const usersRef = firestoreCollection(db, 'users');
-    const q = firestoreQuery(usersRef, firestoreWhere('kidId', '==', this.currentKidId));
+    const q = firestoreQuery(
+      usersRef,
+      firestoreWhere('kidId', '==', this.currentKidId)
+    );
     const snapshot = await firestoreGetDocs(q);
 
     const members = [];
@@ -354,6 +345,65 @@ const firestoreStorage = {
     });
 
     return members;
+  },
+
+  // -------- AI Conversation methods --------
+  async getConversation() {
+    if (!this.currentKidId) throw new Error('No kid selected');
+
+    const conversationDocRef = firestoreDoc(
+      db,
+      'kids',
+      this.currentKidId,
+      'conversations',
+      'default'
+    );
+    const conversationDoc = await firestoreGetDoc(conversationDocRef);
+
+    if (conversationDoc.exists()) {
+      return conversationDoc.data();
+    }
+    return { messages: [] };
+  },
+
+  async saveMessage(message) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+
+    const conversation = await this.getConversation();
+    const messages = conversation.messages || [];
+    messages.push(message);
+
+    const conversationDocRef = firestoreDoc(
+      db,
+      'kids',
+      this.currentKidId,
+      'conversations',
+      'default'
+    );
+    await firestoreSetDoc(
+      conversationDocRef,
+      {
+        messages,
+        updatedAt: firestoreTimestamp.now(),
+      },
+      { merge: true }
+    );
+  },
+
+  async clearConversation() {
+    if (!this.currentKidId) throw new Error('No kid selected');
+
+    const conversationDocRef = firestoreDoc(
+      db,
+      'kids',
+      this.currentKidId,
+      'conversations',
+      'default'
+    );
+    await firestoreSetDoc(conversationDocRef, {
+      messages: [],
+      updatedAt: firestoreTimestamp.now(),
+    });
   },
 };
 
