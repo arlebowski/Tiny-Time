@@ -1,12 +1,11 @@
 // ========================================
-// TINY TRACKER V4 - PART 1
-// Config, Auth, Data Migration, Invites, Firestore Layer + AI Functions
+// TINY TRACKER V4.1 - PART 1
+// Config, Auth, Firestore Layer + AI Functions (No Migration)
 // ========================================
 
 const firebaseConfig = {
   apiKey: "AIzaSyBUscvx-JB3lNWKVu9bPnYTBHVPvrndc_w",
   authDomain: "baby-feeding-tracker-978e6.firebaseapp.com",
-  databaseURL: "https://baby-feeding-tracker-978e6-default-rtdb.firebaseio.com",
   projectId: "baby-feeding-tracker-978e6",
   storageBucket: "baby-feeding-tracker-978e6.firebasestorage.app",
   messagingSenderId: "775043948126",
@@ -16,7 +15,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-const rtdb = firebase.database();
 
 // ========================================
 // AUTH & USER MANAGEMENT
@@ -51,20 +49,25 @@ const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   
-  await db.collection('kids').doc(kidRef.id).collection('settings').doc('default').set({
-    babyWeight: babyWeight,
-    multiplier: 2.5
-  });
+  const kidId = kidRef.id;
   
   await db.collection('users').doc(userId).set({
-    kidId: kidRef.id,
-    displayName: auth.currentUser.displayName,
-    email: auth.currentUser.email,
-    photoURL: auth.currentUser.photoURL,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    kidId: kidId
   }, { merge: true });
   
-  return kidRef.id;
+  await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
+    babyWeight: babyWeight,
+    multiplier: 2.5,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  
+  return kidId;
+};
+
+const saveUserKidId = async (userId, kidId) => {
+  await db.collection('users').doc(userId).set({
+    kidId: kidId
+  }, { merge: true });
 };
 
 const signInWithGoogle = async () => {
@@ -73,265 +76,165 @@ const signInWithGoogle = async () => {
 };
 
 const signOut = async () => {
-  await auth.signOut();
-};
-
-const updateUserProfile = async (userId, updates) => {
-  await db.collection('users').doc(userId).update(updates);
-};
-
-// ========================================
-// DATA MIGRATION
-// ========================================
-
-const migrateLocalStorageData = async (kidId) => {
-  let migratedCount = 0;
-  
-  const weight = localStorage.getItem('baby_weight');
-  const multiplier = localStorage.getItem('oz_multiplier');
-  
-  if (weight || multiplier) {
-    await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
-      babyWeight: weight ? parseFloat(weight) : null,
-      multiplier: multiplier ? parseFloat(multiplier) : 2.5
-    }, { merge: true });
-  }
-  
-  const snapshot = await rtdb.ref().once('value');
-  const data = snapshot.val();
-  
-  if (data) {
-    const feedingKeys = Object.keys(data).filter(key => key.startsWith('feedings_'));
-    
-    for (const key of feedingKeys) {
-      const dayFeedings = JSON.parse(data[key]);
-      for (const feeding of dayFeedings) {
-        await db.collection('kids').doc(kidId).collection('feedings').add({
-          ounces: feeding.ounces,
-          timestamp: feeding.timestamp,
-          time: feeding.time,
-          addedBy: auth.currentUser.uid
-        });
-        migratedCount++;
-      }
-    }
-  }
-  
-  localStorage.clear();
-  return migratedCount;
+  return await auth.signOut();
 };
 
 // ========================================
 // INVITE SYSTEM
 // ========================================
 
-const generateInviteCode = () => {
-  return Math.random().toString(36).substring(2, 15) + 
-         Math.random().toString(36).substring(2, 15);
-};
-
-const createInvite = async (kidId) => {
-  const inviteCode = generateInviteCode();
-  await db.collection('invites').doc(inviteCode).set({
-    kidId,
-    createdBy: auth.currentUser.uid,
+const createInviteCode = async (kidId, userId) => {
+  const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+  await db.collection('invites').doc(code).set({
+    kidId: kidId,
+    createdBy: userId,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     used: false
   });
-  return inviteCode;
+  return code;
 };
 
-const acceptInvite = async (inviteCode, userId) => {
-  const inviteDoc = await db.collection('invites').doc(inviteCode).get();
-  if (!inviteDoc.exists) throw new Error('Invalid invite code');
+const acceptInvite = async (code, userId) => {
+  const inviteDoc = await db.collection('invites').doc(code).get();
+  
+  if (!inviteDoc.exists) {
+    throw new Error('Invalid invite code');
+  }
   
   const invite = inviteDoc.data();
-  if (invite.used) throw new Error('Invite already used');
+  if (invite.used) {
+    throw new Error('Invite already used');
+  }
   
-  await db.collection('kids').doc(invite.kidId).update({
+  const kidId = invite.kidId;
+  
+  await db.collection('kids').doc(kidId).update({
     members: firebase.firestore.FieldValue.arrayUnion(userId)
   });
   
-  await db.collection('users').doc(userId).set({
-    kidId: invite.kidId,
-    displayName: auth.currentUser.displayName,
-    email: auth.currentUser.email,
-    photoURL: auth.currentUser.photoURL,
-    joinedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
-  
-  await db.collection('invites').doc(inviteCode).update({
+  await db.collection('invites').doc(code).update({
     used: true,
     usedBy: userId,
     usedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   
-  return invite.kidId;
+  return kidId;
 };
 
-const removeMember = async (kidId, userId) => {
-  await db.collection('kids').doc(kidId).update({
-    members: firebase.firestore.FieldValue.arrayRemove(userId)
-  });
-  await db.collection('users').doc(userId).update({
-    kidId: firebase.firestore.FieldValue.delete()
-  });
+const getFamilyMembers = async (kidId) => {
+  const kidDoc = await db.collection('kids').doc(kidId).get();
+  if (!kidDoc.exists) return [];
+  
+  const members = kidDoc.data().members || [];
+  const memberDetails = await Promise.all(
+    members.map(async (uid) => {
+      const user = auth.currentUser?.uid === uid ? auth.currentUser : null;
+      return {
+        uid,
+        email: user?.email || 'Family Member',
+        photoURL: user?.photoURL || null
+      };
+    })
+  );
+  
+  return memberDetails;
 };
 
 // ========================================
-// FIRESTORE DATA LAYER
+// FIRESTORE STORAGE LAYER
 // ========================================
 
 const firestoreStorage = {
-  kidId: null,
+  currentKidId: null,
   
-  async initialize(kidId) {
-    this.kidId = kidId;
+  initialize: async function(kidId) {
+    this.currentKidId = kidId;
   },
   
-  async getKidData() {
-    if (!this.kidId) return null;
-    const doc = await db.collection('kids').doc(this.kidId).get();
+  saveFeeding: async function(feeding) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings').add(feeding);
+  },
+  
+  getFeedings: async function() {
+    if (!this.currentKidId) return [];
+    const snapshot = await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings')
+      .orderBy('timestamp', 'desc')
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+  
+  getFeedingsLastNDays: async function(days) {
+    if (!this.currentKidId) return [];
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const snapshot = await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings')
+      .where('timestamp', '>', cutoff)
+      .orderBy('timestamp', 'asc')
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+  
+  deleteFeeding: async function(feedingId) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings').doc(feedingId).delete();
+  },
+  
+  getSettings: async function() {
+    if (!this.currentKidId) return null;
+    const doc = await db.collection('kids').doc(this.currentKidId)
+      .collection('settings').doc('default').get();
+    return doc.exists ? doc.data() : null;
+  },
+  
+  saveSettings: async function(settings) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('settings').doc('default').set(settings, { merge: true });
+  },
+  
+  getKidData: async function() {
+    if (!this.currentKidId) return null;
+    const doc = await db.collection('kids').doc(this.currentKidId).get();
     return doc.exists ? { id: doc.id, ...doc.data() } : null;
   },
   
-  async getSettings() {
-    if (!this.kidId) return null;
-    const doc = await db.collection('kids').doc(this.kidId).collection('settings').doc('default').get();
+  updateKidData: async function(data) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId).set(data, { merge: true });
+  },
+  
+  // AI Conversation methods
+  getConversation: async function() {
+    if (!this.currentKidId) return null;
+    const doc = await db.collection('kids').doc(this.currentKidId)
+      .collection('conversations').doc('default').get();
     return doc.exists ? doc.data() : null;
   },
   
-  async setSettings(settings) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).collection('settings').doc('default').set(settings, { merge: true });
-  },
-  
-  async updateKid(updates) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).update(updates);
-  },
-  
-  async getMembers() {
-    if (!this.kidId) return [];
-    const kidDoc = await db.collection('kids').doc(this.kidId).get();
-    if (!kidDoc.exists) return [];
+  saveMessage: async function(message) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    const conversationRef = db.collection('kids').doc(this.currentKidId)
+      .collection('conversations').doc('default');
     
-    const memberIds = kidDoc.data().members || [];
-    const members = await Promise.all(
-      memberIds.map(async (memberId) => {
-        const userDoc = await db.collection('users').doc(memberId).get();
-        return {
-          uid: memberId,
-          ...(userDoc.exists ? userDoc.data() : { email: 'Unknown' })
-        };
-      })
-    );
-    return members;
-  },
-  
-  async getFeedingsForDate(date) {
-    if (!this.kidId) return [];
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const doc = await conversationRef.get();
+    const messages = doc.exists ? (doc.data().messages || []) : [];
     
-    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
-      .where('timestamp', '>=', startOfDay.getTime())
-      .where('timestamp', '<=', endOfDay.getTime())
-      .orderBy('timestamp', 'desc')
-      .get();
+    messages.push(message);
     
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    await conversationRef.set({
+      messages: messages,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
   },
   
-  async getAllFeedings() {
-    if (!this.kidId) return [];
-    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
-      .orderBy('timestamp', 'asc')
-      .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  },
-  
-  async getFeedingsLastNDays(days) {
-    if (!this.kidId) return [];
-    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
-      .where('timestamp', '>=', cutoff)
-      .orderBy('timestamp', 'asc')
-      .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  },
-  
-  async addFeeding(feeding) {
-    if (!this.kidId) return null;
-    const docRef = await db.collection('kids').doc(this.kidId).collection('feedings').add({
-      ...feeding,
-      addedBy: auth.currentUser.uid,
-      addedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    return docRef.id;
-  },
-  
-  async updateFeeding(feedingId, updates) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).update(updates);
-  },
-  
-  async deleteFeeding(feedingId) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).delete();
-  },
-  
-  subscribeToFeedings(date, callback) {
-    if (!this.kidId) return () => {};
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-    
-    return db.collection('kids').doc(this.kidId).collection('feedings')
-      .where('timestamp', '>=', startOfDay.getTime())
-      .where('timestamp', '<=', endOfDay.getTime())
-      .orderBy('timestamp', 'desc')
-      .onSnapshot(snapshot => {
-        const feedings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        callback(feedings);
-      });
-  },
-  
-  // ========================================
-  // AI CONVERSATION METHODS
-  // ========================================
-  
-  async getConversation() {
-    if (!this.kidId) return null;
-    const doc = await db.collection('kids').doc(this.kidId).collection('conversations').doc('default').get();
-    return doc.exists ? doc.data() : null;
-  },
-  
-  async saveMessage(message) {
-    if (!this.kidId) return;
-    const conversationRef = db.collection('kids').doc(this.kidId).collection('conversations').doc('default');
-    
-    const conversation = await conversationRef.get();
-    if (!conversation.exists) {
-      await conversationRef.set({
-        messages: [message],
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    } else {
-      await conversationRef.update({
-        messages: firebase.firestore.FieldValue.arrayUnion(message),
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      });
-    }
-  },
-  
-  async clearConversation() {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).collection('conversations').doc('default').delete();
+  clearConversation: async function() {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('conversations').doc('default').delete();
   }
 };
 
