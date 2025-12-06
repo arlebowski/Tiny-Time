@@ -253,6 +253,19 @@ const firestoreStorage = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
+  async getFeedingsLastNDays(days) {
+    if (!this.kidId) return [];
+    const now = Date.now();
+    const nDaysAgo = now - (days * 24 * 60 * 60 * 1000);
+    
+    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
+      .where('timestamp', '>=', nDaysAgo)
+      .orderBy('timestamp', 'desc')
+      .get();
+    
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  },
+  
   async addFeeding(feeding) {
     if (!this.kidId) return null;
     const docRef = await db.collection('kids').doc(this.kidId).collection('feedings').add({
