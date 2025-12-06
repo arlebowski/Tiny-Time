@@ -2146,7 +2146,7 @@ const GEMINI_API_KEY = "AIzaSyD-oo_KbD4pUMu3z5uh6GvWVUg7uwEsGWU";
 const getAIResponse = async (question, kidId) => {
   try {
     // Check if API key is set
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === "AIzaSyD-oo_KbD4pUMu3z5uh6GvWVUg7uwEsGWU") {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "PASTE_YOUR_KEY_HERE") {
       throw new Error("❌ GEMINI API KEY NOT SET! Edit script.js line 2072 and add your key.");
     }
     
