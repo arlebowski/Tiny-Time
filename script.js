@@ -1306,16 +1306,44 @@ const FamilyTab = ({ user, kidId }) => {
   };
 
   const handleCreateInvite = async () => {
-    try {
-      const code = await createInvite(kidId);
-      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-      setInviteLink(link);
-      setShowInvite(true);
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      alert('Failed to create invite');
+  try {
+    const code = await createInvite(kidId);
+    const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+
+    const shareText =
+      "Come join me on Tiny Tracker so we can both track the baby's feedings together.";
+
+    // Try native share sheet first (iOS / Android / mobile browsers)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Join me on Tiny Tracker',
+          text: `${shareText}\n\n${link}`,
+          url: link
+        });
+        return; // done – user shared or cancelled
+      } catch (err) {
+        console.log('Share failed or was cancelled, falling back to copy UI:', err);
+        // fall through to copy UI
+      }
     }
-  };
+
+    // Fallback: show the existing copy-link UI and auto-copy if possible
+    setInviteLink(link);
+    setShowInvite(true);
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 1500);
+    } catch (err) {
+      // ignore – user can still manually copy from the text field
+    }
+  } catch (error) {
+    console.error('Error creating invite:', error);
+    alert('Failed to create invite');
+  }
+};
 
   const handleCopyLink = async () => {
     try {
@@ -2291,6 +2319,8 @@ IMPORTANT GUIDELINES:
 6. Never diagnose medical conditions - only provide informational insights
 7. Keep responses concise but thorough (2-4 paragraphs)
 8. If asked about aggregated data from other babies, acknowledge that feature is coming soon
+9. Give creative insights that cuts a bit deeper than a normal person would do
+10. Cut to what is most insightful and actionable with your recommendations and observations
 
 You are speaking to ${babyData.name}'s parent. Be helpful, empathetic, and data-driven.
 ${conversationHistory}
