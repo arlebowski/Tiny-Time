@@ -1,11 +1,12 @@
 // ========================================
-// TINY TRACKER V4.1 - PART 1
-// Config, Auth, Firestore Layer + AI Functions (No Migration)
+// TINY TRACKER V4 - PART 1
+// Config, Auth, Data Migration, Invites, Firestore Layer + AI Functions
 // ========================================
 
 const firebaseConfig = {
   apiKey: "AIzaSyBUscvx-JB3lNWKVu9bPnYTBHVPvrndc_w",
   authDomain: "baby-feeding-tracker-978e6.firebaseapp.com",
+  databaseURL: "https://baby-feeding-tracker-978e6-default-rtdb.firebaseio.com",
   projectId: "baby-feeding-tracker-978e6",
   storageBucket: "baby-feeding-tracker-978e6.firebasestorage.app",
   messagingSenderId: "775043948126",
@@ -15,6 +16,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const rtdb = firebase.database();
 
 // ========================================
 // AUTH & USER MANAGEMENT
@@ -49,25 +51,20 @@ const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   
-  const kidId = kidRef.id;
-  
-  await db.collection('users').doc(userId).set({
-    kidId: kidId
-  }, { merge: true });
-  
-  await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
+  await db.collection('kids').doc(kidRef.id).collection('settings').doc('default').set({
     babyWeight: babyWeight,
-    multiplier: 2.5,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    multiplier: 2.5
   });
   
-  return kidId;
-};
-
-const saveUserKidId = async (userId, kidId) => {
   await db.collection('users').doc(userId).set({
-    kidId: kidId
+    kidId: kidRef.id,
+    displayName: auth.currentUser.displayName,
+    email: auth.currentUser.email,
+    photoURL: auth.currentUser.photoURL,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
   }, { merge: true });
+  
+  return kidRef.id;
 };
 
 const signInWithGoogle = async () => {
@@ -76,165 +73,265 @@ const signInWithGoogle = async () => {
 };
 
 const signOut = async () => {
-  return await auth.signOut();
+  await auth.signOut();
+};
+
+const updateUserProfile = async (userId, updates) => {
+  await db.collection('users').doc(userId).update(updates);
+};
+
+// ========================================
+// DATA MIGRATION
+// ========================================
+
+const migrateLocalStorageData = async (kidId) => {
+  let migratedCount = 0;
+  
+  const weight = localStorage.getItem('baby_weight');
+  const multiplier = localStorage.getItem('oz_multiplier');
+  
+  if (weight || multiplier) {
+    await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
+      babyWeight: weight ? parseFloat(weight) : null,
+      multiplier: multiplier ? parseFloat(multiplier) : 2.5
+    }, { merge: true });
+  }
+  
+  const snapshot = await rtdb.ref().once('value');
+  const data = snapshot.val();
+  
+  if (data) {
+    const feedingKeys = Object.keys(data).filter(key => key.startsWith('feedings_'));
+    
+    for (const key of feedingKeys) {
+      const dayFeedings = JSON.parse(data[key]);
+      for (const feeding of dayFeedings) {
+        await db.collection('kids').doc(kidId).collection('feedings').add({
+          ounces: feeding.ounces,
+          timestamp: feeding.timestamp,
+          time: feeding.time,
+          addedBy: auth.currentUser.uid
+        });
+        migratedCount++;
+      }
+    }
+  }
+  
+  localStorage.clear();
+  return migratedCount;
 };
 
 // ========================================
 // INVITE SYSTEM
 // ========================================
 
-const createInviteCode = async (kidId, userId) => {
-  const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-  await db.collection('invites').doc(code).set({
-    kidId: kidId,
-    createdBy: userId,
+const generateInviteCode = () => {
+  return Math.random().toString(36).substring(2, 15) + 
+         Math.random().toString(36).substring(2, 15);
+};
+
+const createInvite = async (kidId) => {
+  const inviteCode = generateInviteCode();
+  await db.collection('invites').doc(inviteCode).set({
+    kidId,
+    createdBy: auth.currentUser.uid,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     used: false
   });
-  return code;
+  return inviteCode;
 };
 
-const acceptInvite = async (code, userId) => {
-  const inviteDoc = await db.collection('invites').doc(code).get();
-  
-  if (!inviteDoc.exists) {
-    throw new Error('Invalid invite code');
-  }
+const acceptInvite = async (inviteCode, userId) => {
+  const inviteDoc = await db.collection('invites').doc(inviteCode).get();
+  if (!inviteDoc.exists) throw new Error('Invalid invite code');
   
   const invite = inviteDoc.data();
-  if (invite.used) {
-    throw new Error('Invite already used');
-  }
+  if (invite.used) throw new Error('Invite already used');
   
-  const kidId = invite.kidId;
-  
-  await db.collection('kids').doc(kidId).update({
+  await db.collection('kids').doc(invite.kidId).update({
     members: firebase.firestore.FieldValue.arrayUnion(userId)
   });
   
-  await db.collection('invites').doc(code).update({
+  await db.collection('users').doc(userId).set({
+    kidId: invite.kidId,
+    displayName: auth.currentUser.displayName,
+    email: auth.currentUser.email,
+    photoURL: auth.currentUser.photoURL,
+    joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+  }, { merge: true });
+  
+  await db.collection('invites').doc(inviteCode).update({
     used: true,
     usedBy: userId,
     usedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   
-  return kidId;
+  return invite.kidId;
 };
 
-const getFamilyMembers = async (kidId) => {
-  const kidDoc = await db.collection('kids').doc(kidId).get();
-  if (!kidDoc.exists) return [];
-  
-  const members = kidDoc.data().members || [];
-  const memberDetails = await Promise.all(
-    members.map(async (uid) => {
-      const user = auth.currentUser?.uid === uid ? auth.currentUser : null;
-      return {
-        uid,
-        email: user?.email || 'Family Member',
-        photoURL: user?.photoURL || null
-      };
-    })
-  );
-  
-  return memberDetails;
+const removeMember = async (kidId, userId) => {
+  await db.collection('kids').doc(kidId).update({
+    members: firebase.firestore.FieldValue.arrayRemove(userId)
+  });
+  await db.collection('users').doc(userId).update({
+    kidId: firebase.firestore.FieldValue.delete()
+  });
 };
 
 // ========================================
-// FIRESTORE STORAGE LAYER
+// FIRESTORE DATA LAYER
 // ========================================
 
 const firestoreStorage = {
-  currentKidId: null,
+  kidId: null,
   
-  initialize: async function(kidId) {
-    this.currentKidId = kidId;
+  async initialize(kidId) {
+    this.kidId = kidId;
   },
   
-  saveFeeding: async function(feeding) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings').add(feeding);
+  async getKidData() {
+    if (!this.kidId) return null;
+    const doc = await db.collection('kids').doc(this.kidId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
   },
   
-  getFeedings: async function() {
-    if (!this.currentKidId) return [];
-    const snapshot = await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings')
+  async getSettings() {
+    if (!this.kidId) return null;
+    const doc = await db.collection('kids').doc(this.kidId).collection('settings').doc('default').get();
+    return doc.exists ? doc.data() : null;
+  },
+  
+  async setSettings(settings) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('settings').doc('default').set(settings, { merge: true });
+  },
+  
+  async updateKid(updates) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).update(updates);
+  },
+  
+  async getMembers() {
+    if (!this.kidId) return [];
+    const kidDoc = await db.collection('kids').doc(this.kidId).get();
+    if (!kidDoc.exists) return [];
+    
+    const memberIds = kidDoc.data().members || [];
+    const members = await Promise.all(
+      memberIds.map(async (memberId) => {
+        const userDoc = await db.collection('users').doc(memberId).get();
+        return {
+          uid: memberId,
+          ...(userDoc.exists ? userDoc.data() : { email: 'Unknown' })
+        };
+      })
+    );
+    return members;
+  },
+  
+  async getFeedingsForDate(date) {
+    if (!this.kidId) return [];
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
+      .where('timestamp', '>=', startOfDay.getTime())
+      .where('timestamp', '<=', endOfDay.getTime())
       .orderBy('timestamp', 'desc')
       .get();
+    
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
-  getFeedingsLastNDays: async function(days) {
-    if (!this.currentKidId) return [];
-    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-    const snapshot = await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings')
-      .where('timestamp', '>', cutoff)
+  async getAllFeedings() {
+    if (!this.kidId) return [];
+    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
       .orderBy('timestamp', 'asc')
       .get();
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
-  deleteFeeding: async function(feedingId) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings').doc(feedingId).delete();
+  async getFeedingsLastNDays(days) {
+    if (!this.kidId) return [];
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
+      .where('timestamp', '>=', cutoff)
+      .orderBy('timestamp', 'asc')
+      .get();
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
-  getSettings: async function() {
-    if (!this.currentKidId) return null;
-    const doc = await db.collection('kids').doc(this.currentKidId)
-      .collection('settings').doc('default').get();
+  async addFeeding(feeding) {
+    if (!this.kidId) return null;
+    const docRef = await db.collection('kids').doc(this.kidId).collection('feedings').add({
+      ...feeding,
+      addedBy: auth.currentUser.uid,
+      addedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    return docRef.id;
+  },
+  
+  async updateFeeding(feedingId, updates) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).update(updates);
+  },
+  
+  async deleteFeeding(feedingId) {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).delete();
+  },
+  
+  subscribeToFeedings(date, callback) {
+    if (!this.kidId) return () => {};
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    return db.collection('kids').doc(this.kidId).collection('feedings')
+      .where('timestamp', '>=', startOfDay.getTime())
+      .where('timestamp', '<=', endOfDay.getTime())
+      .orderBy('timestamp', 'desc')
+      .onSnapshot(snapshot => {
+        const feedings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        callback(feedings);
+      });
+  },
+  
+  // ========================================
+  // AI CONVERSATION METHODS
+  // ========================================
+  
+  async getConversation() {
+    if (!this.kidId) return null;
+    const doc = await db.collection('kids').doc(this.kidId).collection('conversations').doc('default').get();
     return doc.exists ? doc.data() : null;
   },
   
-  saveSettings: async function(settings) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('settings').doc('default').set(settings, { merge: true });
-  },
-  
-  getKidData: async function() {
-    if (!this.currentKidId) return null;
-    const doc = await db.collection('kids').doc(this.currentKidId).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
-  },
-  
-  updateKidData: async function(data) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId).set(data, { merge: true });
-  },
-  
-  // AI Conversation methods
-  getConversation: async function() {
-    if (!this.currentKidId) return null;
-    const doc = await db.collection('kids').doc(this.currentKidId)
-      .collection('conversations').doc('default').get();
-    return doc.exists ? doc.data() : null;
-  },
-  
-  saveMessage: async function(message) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    const conversationRef = db.collection('kids').doc(this.currentKidId)
-      .collection('conversations').doc('default');
+  async saveMessage(message) {
+    if (!this.kidId) return;
+    const conversationRef = db.collection('kids').doc(this.kidId).collection('conversations').doc('default');
     
-    const doc = await conversationRef.get();
-    const messages = doc.exists ? (doc.data().messages || []) : [];
-    
-    messages.push(message);
-    
-    await conversationRef.set({
-      messages: messages,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
+    const conversation = await conversationRef.get();
+    if (!conversation.exists) {
+      await conversationRef.set({
+        messages: [message],
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } else {
+      await conversationRef.update({
+        messages: firebase.firestore.FieldValue.arrayUnion(message),
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
   },
   
-  clearConversation: async function() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('conversations').doc('default').delete();
+  async clearConversation() {
+    if (!this.kidId) return;
+    await db.collection('kids').doc(this.kidId).collection('conversations').doc('default').delete();
   }
 };
 
@@ -260,31 +357,28 @@ const App = () => {
         
         try {
           let userKidId;
+
           if (inviteCode) {
+            // Accept invite + attach kid to this user
             userKidId = await acceptInvite(inviteCode, user.uid);
+            if (userKidId) {
+              await saveUserKidId(user.uid, userKidId);
+            }
+            // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
+            // Normal path – fetch kidId for this user
             userKidId = await getUserKidId(user.uid);
-            
-            if (!userKidId) {
-              // New user, needs setup
-              setNeedsSetup(true);
-              setLoading(false);
-              return;
-            }
-            
-            // Check if we need to migrate data (only once per browser)
-            const migrationFlag = localStorage.getItem('migration_complete');
-            if (!migrationFlag) {
-              const hasLocalData = localStorage.getItem('baby_weight') || 
-                                   await rtdb.ref().once('value').then(s => s.exists());
-              if (hasLocalData) {
-                await migrateLocalStorageData(userKidId);
-                localStorage.setItem('migration_complete', 'true');
-              }
-            }
           }
           
+          // If no kid yet, show setup
+          if (!userKidId) {
+            setNeedsSetup(true);
+            setLoading(false);
+            return;
+          }
+
+          // ✅ No more migration here
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
         } catch (error) {
@@ -297,6 +391,7 @@ const App = () => {
       }
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
   
@@ -305,7 +400,7 @@ const App = () => {
       className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" 
     },
       React.createElement('div', { className: "text-center" },
-        React.createElement('div', { className: "text-4xl mb-3" }, '🍼'),
+        React.createElement('div', { className: "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4" }),
         React.createElement('div', { className: "text-gray-600" }, 'Loading...')
       )
     );
@@ -325,9 +420,10 @@ const App = () => {
       }
     });
   }
-  
+
   return React.createElement(MainApp, { user, kidId });
 };
+
 
 // ========================================
 // LOGIN SCREEN
@@ -519,39 +615,13 @@ const BabySetupScreen = ({ user, onComplete }) => {
 
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
-  const [hasUnreadAI, setHasUnreadAI] = useState(false);
   
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
   
-  // Check for unread AI messages when not on chat tab
-  useEffect(() => {
-    if (activeTab !== 'chat') {
-      // Simple check: if conversation exists and last message was from AI
-      checkUnreadMessages();
-    } else {
-      setHasUnreadAI(false);
-    }
-  }, [activeTab, kidId]);
-  
-  const checkUnreadMessages = async () => {
-    try {
-      const conversation = await firestoreStorage.getConversation();
-      if (conversation && conversation.messages && conversation.messages.length > 0) {
-        const lastMessage = conversation.messages[conversation.messages.length - 1];
-        // If last message was from AI and we're not on chat tab, show badge
-        if (lastMessage.role === 'assistant') {
-          setHasUnreadAI(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking messages:', error);
-    }
-  };
-  
   return React.createElement('div', { 
-    className: "min-h-screen pb-24",
+    className: "min-h-screen pb-20",
     style: { backgroundColor: '#E0E7FF' } // Single consistent background color
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
@@ -582,7 +652,7 @@ const MainApp = ({ user, kidId }) => {
     
     // Bottom Navigation - simpler shadow like Instagram
     React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 z-50 mb-2",
+      className: "fixed bottom-0 left-0 right-0 z-50",
       style: { 
         backgroundColor: '#E0E7FF',
         boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)' // Subtle top shadow only
@@ -640,30 +710,12 @@ const TrackerTab = ({ user, kidId }) => {
 
   useEffect(() => {
     if (!loading && kidId) {
-      loadFeedings();
-      const interval = setInterval(loadFeedings, 5000);
-      return () => clearInterval(interval);
+      const unsubscribe = firestoreStorage.subscribeToFeedings(currentDate, (feedingsData) => {
+        setFeedings(feedingsData);
+      });
+      return () => unsubscribe();
     }
   }, [currentDate, loading, kidId]);
-
-  const loadFeedings = async () => {
-    try {
-      const allFeedings = await firestoreStorage.getFeedingsLastNDays(7);
-      const startOfDay = new Date(currentDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(currentDate);
-      endOfDay.setHours(23, 59, 59, 999);
-      
-      const dayFeedings = allFeedings.filter(f => 
-        f.timestamp >= startOfDay.getTime() && 
-        f.timestamp <= endOfDay.getTime()
-      );
-      
-      setFeedings(dayFeedings);
-    } catch (error) {
-      console.error('Error loading feedings:', error);
-    }
-  };
 
   const loadData = async () => {
     if (!kidId) return;
@@ -694,11 +746,14 @@ const TrackerTab = ({ user, kidId }) => {
     }
 
     try {
-      await firestoreStorage.addFeeding(amount, feedingTime.getTime());
+      await firestoreStorage.addFeeding({
+        ounces: amount,
+        timestamp: feedingTime.getTime(),
+        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      });
       setOunces('');
       setCustomTime('');
       setShowCustomTime(false);
-      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error adding feeding:', error);
     }
@@ -720,9 +775,12 @@ const TrackerTab = ({ user, kidId }) => {
     feedingTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
     try {
-      await firestoreStorage.updateFeeding(editingFeedingId, amount, feedingTime.getTime());
+      await firestoreStorage.updateFeeding(editingFeedingId, {
+        ounces: amount,
+        timestamp: feedingTime.getTime(),
+        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+      });
       setEditingFeedingId(null);
-      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error updating feeding:', error);
     }
@@ -736,7 +794,6 @@ const TrackerTab = ({ user, kidId }) => {
     if (!confirm('Delete this feeding?')) return;
     try {
       await firestoreStorage.deleteFeeding(feedingId);
-      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error deleting feeding:', error);
     }
@@ -1122,492 +1179,6 @@ const AnalyticsTab = ({ kidId }) => {
         )
       :
         React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No data to display')
-    )
-  );
-};
-
-// ========================================
-// TINY TRACKER V3.1 - PART 6
-// Family Tab - with functional baby photo upload
-// ========================================
-
-const FamilyTab = ({ user, kidId }) => {
-  const [kidData, setKidData] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
-  const [loading, setLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteLink, setInviteLink] = useState('');
-  const [copying, setCopying] = useState(false);
-  const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
-  
-  // Edit states
-  const [editingName, setEditingName] = useState(false);
-  const [editingBirthDate, setEditingBirthDate] = useState(false);
-  const [editingWeight, setEditingWeight] = useState(false);
-  const [editingMultiplier, setEditingMultiplier] = useState(false);
-  const [editingUserName, setEditingUserName] = useState(false);
-  
-  // Temp values
-  const [tempBabyName, setTempBabyName] = useState('');
-  const [tempBirthDate, setTempBirthDate] = useState('');
-  const [tempWeight, setTempWeight] = useState('');
-  const [tempMultiplier, setTempMultiplier] = useState('');
-  const [tempUserName, setTempUserName] = useState('');
-
-  // File input ref
-  const fileInputRef = React.useRef(null);
-
-  useEffect(() => {
-    loadData();
-  }, [kidId]);
-
-  const loadData = async () => {
-    if (!kidId) return;
-    setLoading(true);
-    try {
-      const kid = await firestoreStorage.getKidData();
-      setKidData(kid);
-      if (kid.photoURL) {
-        setBabyPhotoUrl(kid.photoURL);
-      }
-      
-      const memberList = await firestoreStorage.getMembers();
-      setMembers(memberList);
-      
-      const settingsData = await firestoreStorage.getSettings();
-      if (settingsData) {
-        setSettings(settingsData);
-      }
-    } catch (error) {
-      console.error('Error loading family data:', error);
-    }
-    setLoading(false);
-  };
-
-  const handlePhotoClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  const handlePhotoChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Photo must be less than 5MB');
-      return;
-    }
-
-    // Check file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    try {
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result;
-        
-        // Save to Firestore
-        await firestoreStorage.updateKid({ photoURL: base64 });
-        setBabyPhotoUrl(base64);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      alert('Failed to upload photo');
-    }
-  };
-
-  const handleCreateInvite = async () => {
-    try {
-      const code = await createInvite(kidId);
-      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-      setInviteLink(link);
-      setShowInvite(true);
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      alert('Failed to create invite');
-    }
-  };
-
-  const handleCopyLink = async () => {
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopying(true);
-      setTimeout(() => setCopying(false), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
-    }
-  };
-
-  const handleRemoveMember = async (memberId) => {
-    if (!confirm('Remove this person\'s access?')) return;
-    try {
-      await removeMember(kidId, memberId);
-      await loadData();
-    } catch (error) {
-      console.error('Error removing member:', error);
-      alert('Failed to remove member');
-    }
-  };
-
-  const handleUpdateBabyName = async () => {
-    if (!tempBabyName.trim()) return;
-    try {
-      await firestoreStorage.updateKid({ name: tempBabyName.trim() });
-      setEditingName(false);
-      await loadData();
-    } catch (error) {
-      console.error('Error updating name:', error);
-    }
-  };
-
-  const handleUpdateBirthDate = async () => {
-    if (!tempBirthDate) return;
-    try {
-      const birthTimestamp = new Date(tempBirthDate).getTime();
-      await firestoreStorage.updateKid({ birthDate: birthTimestamp });
-      setEditingBirthDate(false);
-      await loadData();
-    } catch (error) {
-      console.error('Error updating birth date:', error);
-    }
-  };
-
-  const handleUpdateWeight = async () => {
-    const weight = parseFloat(tempWeight);
-    if (weight > 0) {
-      await firestoreStorage.setSettings({ babyWeight: weight });
-      setSettings({ ...settings, babyWeight: weight });
-      setEditingWeight(false);
-    }
-  };
-
-  const handleUpdateMultiplier = async () => {
-    const mult = parseFloat(tempMultiplier);
-    if (mult > 0) {
-      await firestoreStorage.setSettings({ multiplier: mult });
-      setSettings({ ...settings, multiplier: mult });
-      setEditingMultiplier(false);
-    }
-  };
-
-  const handleUpdateUserName = async () => {
-    if (!tempUserName.trim()) return;
-    try {
-      await updateUserProfile(user.uid, { displayName: tempUserName.trim() });
-      setEditingUserName(false);
-      await loadData();
-    } catch (error) {
-      console.error('Error updating name:', error);
-    }
-  };
-
-  const formatBirthDate = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
-  };
-
-  const formatDateForInput = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return date.toISOString().split('T')[0];
-  };
-
-  const getAge = (timestamp) => {
-    if (!timestamp) return '';
-    const birth = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - birth;
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (days < 7) return `${days} days old`;
-    if (days < 30) return `${Math.floor(days / 7)} weeks old`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months} month${months !== 1 ? 's' : ''} old`;
-    const years = Math.floor(months / 12);
-    return `${years} year${years > 1 ? 's' : ''} old`;
-  };
-
-  const isOwner = kidData && kidData.ownerId === user.uid;
-
-  if (loading) {
-    return React.createElement('div', { className: "flex items-center justify-center py-12" },
-      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
-    );
-  }
-
-  return React.createElement('div', { className: "space-y-4" },
-    // Baby Info Card
-    kidData && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
-      React.createElement('div', { className: "space-y-4" },
-        // Baby photo and name
-        React.createElement('div', { className: "flex items-center gap-4" },
-          React.createElement('div', { className: "relative" },
-            React.createElement('div', { 
-              className: "bg-indigo-100 rounded-full w-20 h-20 flex items-center justify-center overflow-hidden cursor-pointer",
-              onClick: handlePhotoClick
-            },
-              babyPhotoUrl ?
-                React.createElement('img', {
-                  src: babyPhotoUrl,
-                  alt: kidData.name || 'Baby',
-                  className: "w-full h-full object-cover"
-                })
-              :
-                React.createElement('span', { className: "text-4xl" }, '👶')
-            ),
-            React.createElement('button', {
-              onClick: handlePhotoClick,
-              className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition shadow-lg",
-              title: "Change photo"
-            }, React.createElement(Camera, { className: "w-3 h-3" })),
-            React.createElement('input', {
-              ref: fileInputRef,
-              type: "file",
-              accept: "image/*",
-              onChange: handlePhotoChange,
-              style: { display: 'none' }
-            })
-          ),
-          React.createElement('div', { className: "flex-1" },
-            !editingName ?
-              React.createElement('div', { className: "flex items-center gap-2" },
-                React.createElement('span', { className: "text-2xl font-bold text-gray-800" }, kidData.name || 'Baby'),
-                React.createElement('button', {
-                  onClick: () => {
-                    setTempBabyName(kidData.name || '');
-                    setEditingName(true);
-                  },
-                  className: "text-indigo-600 hover:text-indigo-700"
-                }, React.createElement(Edit2, { className: "w-4 h-4" }))
-              )
-            :
-              React.createElement('div', { className: "flex items-center gap-2" },
-                React.createElement('input', {
-                  type: "text",
-                  value: tempBabyName,
-                  onChange: (e) => setTempBabyName(e.target.value),
-                  className: "flex-1 px-3 py-1 text-lg border-2 border-indigo-300 rounded-lg"
-                }),
-                React.createElement('button', {
-                  onClick: handleUpdateBabyName,
-                  className: "text-green-600 hover:text-green-700"
-                }, React.createElement(Check, { className: "w-5 h-5" })),
-                React.createElement('button', {
-                  onClick: () => setEditingName(false),
-                  className: "text-gray-400 hover:text-gray-600"
-                }, React.createElement(X, { className: "w-5 h-5" }))
-              ),
-            React.createElement('div', { className: "text-sm text-gray-500" }, getAge(kidData.birthDate))
-          )
-        ),
-        
-        // Birth date
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, 'Birth Date'),
-          !editingBirthDate ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempBirthDate(formatDateForInput(kidData.birthDate));
-                setEditingBirthDate(true);
-              },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              formatBirthDate(kidData.birthDate),
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "date",
-                value: tempBirthDate,
-                onChange: (e) => setTempBirthDate(e.target.value),
-                className: "px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('button', {
-                onClick: handleUpdateBirthDate,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingBirthDate(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        ),
-        
-        // Baby weight
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Current Weight"),
-          !editingWeight ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempWeight(settings.babyWeight?.toString() || '');
-                setEditingWeight(true);
-              },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set',
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempWeight,
-                onChange: (e) => setTempWeight(e.target.value),
-                placeholder: "Weight",
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('span', { className: "text-sm text-gray-600" }, 'lbs'),
-              React.createElement('button', {
-                onClick: handleUpdateWeight,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingWeight(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        ),
-        
-        // Target multiplier
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
-          !editingMultiplier ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempMultiplier(settings.multiplier?.toString() || '2.5');
-                setEditingMultiplier(true);
-              },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              `${settings.multiplier}x`,
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempMultiplier,
-                onChange: (e) => setTempMultiplier(e.target.value),
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('button', {
-                onClick: handleUpdateMultiplier,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingMultiplier(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        )
-      )
-    ),
-
-    // Family Members Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Family Members'),
-      React.createElement('div', { className: "space-y-3 mb-4" },
-        members.map(member => 
-          React.createElement('div', { 
-            key: member.uid,
-            className: "flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
-          },
-            React.createElement('div', { className: "flex-shrink-0" },
-              member.photoURL ?
-                React.createElement('img', {
-                  src: member.photoURL,
-                  alt: member.displayName || member.email,
-                  className: "w-12 h-12 rounded-full"
-                })
-              :
-                React.createElement('div', { className: "w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center" },
-                  React.createElement('span', { className: "text-xl" }, '👤')
-                )
-            ),
-            React.createElement('div', { className: "flex-1" },
-              member.uid === user.uid && editingUserName ?
-                React.createElement('div', { className: "flex gap-2" },
-                  React.createElement('input', {
-                    type: "text",
-                    value: tempUserName,
-                    onChange: (e) => setTempUserName(e.target.value),
-                    placeholder: "Your name",
-                    className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-                  }),
-                  React.createElement('button', {
-                    onClick: handleUpdateUserName,
-                    className: "text-green-600 hover:text-green-700"
-                  }, React.createElement(Check, { className: "w-4 h-4" })),
-                  React.createElement('button', {
-                    onClick: () => setEditingUserName(false),
-                    className: "text-gray-400 hover:text-gray-600"
-                  }, React.createElement(X, { className: "w-4 h-4" }))
-                )
-              :
-                React.createElement('div', null,
-                  React.createElement('div', { className: "flex items-center gap-2" },
-                    React.createElement('span', { className: "font-medium text-gray-800" }, 
-                      member.displayName || member.email.split('@')[0]
-                    ),
-                    member.uid === kidData?.ownerId && 
-                      React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded" }, 'Owner'),
-                    member.uid === user.uid &&
-                      React.createElement('button', {
-                        onClick: () => {
-                          setTempUserName(member.displayName || '');
-                          setEditingUserName(true);
-                        },
-                        className: "text-indigo-600 hover:text-indigo-700"
-                      }, React.createElement(Edit2, { className: "w-3 h-3" }))
-                  ),
-                  React.createElement('div', { className: "text-sm text-gray-500" }, member.email)
-                )
-            ),
-            isOwner && member.uid !== user.uid &&
-              React.createElement('button', {
-                onClick: () => handleRemoveMember(member.uid),
-                className: "text-red-400 hover:text-red-600 text-sm font-medium"
-              }, 'Remove')
-          )
-        )
-      ),
-
-      !showInvite ?
-        React.createElement('button', {
-          onClick: handleCreateInvite,
-          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-        }, '+ Invite Partner')
-      :
-        React.createElement('div', { className: "space-y-2" },
-          React.createElement('div', { className: "text-xs text-gray-600 mb-2" }, 'Share this link with your partner:'),
-          React.createElement('div', { className: "flex gap-2" },
-            React.createElement('input', {
-              type: "text",
-              value: inviteLink,
-              readOnly: true,
-              className: "flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg"
-            }),
-            React.createElement('button', {
-              onClick: handleCopyLink,
-              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
-            }, copying ? '✓ Copied!' : 'Copy')
-          ),
-          React.createElement('button', {
-            onClick: () => setShowInvite(false),
-            className: "text-sm text-gray-600 hover:text-gray-700"
-          }, 'Close')
-        )
     )
   );
 };
@@ -2050,15 +1621,15 @@ const AIChatTab = ({ user, kidId }) => {
 // AI Integration - Google Gemini API (FREE!)
 // ========================================
 
-const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U"; // Replace with your key
 
+const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U";
 const getAIResponse = async (question, kidId) => {
   try {
     // Build context from baby's data
     const context = await buildAIContext(kidId, question);
     
     // Call Gemini API (FREE!)
-    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", {
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
