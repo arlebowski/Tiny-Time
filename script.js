@@ -1052,29 +1052,35 @@ const TrackerTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.3 - PART 5
-// Analytics Tab - FIXED: Chart data, target line, green bars
+// TINY TRACKER V4.4 - PART 5
+// Analytics Tab (Debug mode + fixed chart)
 // ========================================
 
 const AnalyticsTab = ({ kidId }) => {
-  const [timeRange, setTimeRange] = useState('day');
   const [feedings, setFeedings] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('day');
   
   useEffect(() => {
-    loadAnalytics();
-  }, [kidId, timeRange]);
+    loadData();
+  }, [kidId]);
   
-  const loadAnalytics = async () => {
+  const loadData = async () => {
     if (!kidId) return;
     setLoading(true);
     try {
-      const days = timeRange === 'day' ? 7 : timeRange === 'week' ? 30 : 90;
-      const data = await firestoreStorage.getFeedingsLastNDays(days);
-      setFeedings(data);
+      const [feedingsData, settingsData] = await Promise.all([
+        firestoreStorage.getFeedingsLastNDays(90),
+        firestoreStorage.getSettings()
+      ]);
       
-      const settingsData = await firestoreStorage.getSettings();
+      console.log('Analytics loaded:', { 
+        feedingsCount: feedingsData.length,
+        settings: settingsData 
+      });
+      
+      setFeedings(feedingsData);
       setSettings(settingsData);
     } catch (error) {
       console.error('Error loading analytics:', error);
@@ -1085,65 +1091,66 @@ const AnalyticsTab = ({ kidId }) => {
   const getStats = () => {
     if (feedings.length === 0) return null;
     
-    // Get TODAY's start time
+    // EXCLUDE today from averages
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     
-    // Filter out TODAY's feedings for averages (exclude incomplete data)
-    const feedingsExcludingToday = feedings.filter(f => f.timestamp < todayStart.getTime());
-    
-    // Get feedings for the selected time range (excluding today)
-    let relevantFeedings;
-    if (timeRange === 'day') {
-      // Last 3 complete days
-      const threeDaysAgo = new Date(todayStart);
-      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
-      relevantFeedings = feedingsExcludingToday.filter(f => f.timestamp >= threeDaysAgo.getTime());
-    } else if (timeRange === 'week') {
-      // Last 7 complete days
-      const sevenDaysAgo = new Date(todayStart);
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      relevantFeedings = feedingsExcludingToday.filter(f => f.timestamp >= sevenDaysAgo.getTime());
-    } else {
-      // Last 30 complete days
-      const thirtyDaysAgo = new Date(todayStart);
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      relevantFeedings = feedingsExcludingToday.filter(f => f.timestamp >= thirtyDaysAgo.getTime());
-    }
+    const relevantFeedings = feedings.filter(f => f.timestamp < todayStart.getTime());
     
     if (relevantFeedings.length === 0) return null;
     
-    const totalOz = relevantFeedings.reduce((sum, f) => sum + f.ounces, 0);
-    const avgPerFeeding = totalOz / relevantFeedings.length;
+    // Calculate days based on time range
+    let days;
+    if (timeRange === 'day') days = 3;
+    else if (timeRange === 'week') days = 7;
+    else days = 30;
     
-    // Calculate days span (excluding today)
-    const timestamps = relevantFeedings.map(f => f.timestamp);
-    const firstDay = Math.min(...timestamps);
-    const lastDay = Math.max(...timestamps);
-    const daysSpan = Math.max(1, Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1);
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const periodFeedings = relevantFeedings.filter(f => f.timestamp >= cutoff);
     
-    const avgPerDay = totalOz / daysSpan;
+    if (periodFeedings.length === 0) return null;
     
-    // Calculate intervals
-    const sortedFeedings = [...relevantFeedings].sort((a, b) => a.timestamp - b.timestamp);
+    // Group by day
+    const groupedByDay = {};
+    periodFeedings.forEach(f => {
+      const date = new Date(f.timestamp);
+      const dateKey = date.toDateString();
+      
+      if (!groupedByDay[dateKey]) {
+        groupedByDay[dateKey] = { total: 0, count: 0 };
+      }
+      groupedByDay[dateKey].total += f.ounces;
+      groupedByDay[dateKey].count += 1;
+    });
+    
+    const dayTotals = Object.values(groupedByDay);
+    const avgPerDay = dayTotals.reduce((sum, day) => sum + day.total, 0) / dayTotals.length;
+    const totalVolume = periodFeedings.reduce((sum, f) => sum + f.ounces, 0);
+    const avgPerFeeding = totalVolume / periodFeedings.length;
+    
+    // Calculate average interval
+    const sortedFeedings = [...periodFeedings].sort((a, b) => a.timestamp - b.timestamp);
     let totalIntervalMs = 0;
     for (let i = 1; i < sortedFeedings.length; i++) {
-      totalIntervalMs += sortedFeedings[i].timestamp - sortedFeedings[i - 1].timestamp;
+      totalIntervalMs += sortedFeedings[i].timestamp - sortedFeedings[i-1].timestamp;
     }
     const avgIntervalHours = totalIntervalMs / (sortedFeedings.length - 1) / (1000 * 60 * 60);
     
     return {
       avgPerDay: avgPerDay.toFixed(1),
       avgPerFeeding: avgPerFeeding.toFixed(1),
-      totalFeedings: relevantFeedings.length,
+      totalFeedings: periodFeedings.length,
       avgInterval: avgIntervalHours.toFixed(1)
     };
   };
   
   const getChartData = () => {
-    if (feedings.length === 0) return [];
+    if (feedings.length === 0) {
+      console.log('No feedings for chart');
+      return [];
+    }
     
-    // Group ALL feedings by day (including today)
+    // Group ALL feedings by day (INCLUDING today)
     const groupedByDay = {};
     feedings.forEach(f => {
       const date = new Date(f.timestamp);
@@ -1157,24 +1164,38 @@ const AnalyticsTab = ({ kidId }) => {
     
     const sorted = Object.values(groupedByDay).sort((a, b) => a.timestamp - b.timestamp);
     
+    console.log('Chart data:', { 
+      totalDays: sorted.length,
+      timeRange,
+      sample: sorted.slice(-3)
+    });
+    
     // Return data based on view
     if (timeRange === 'day') {
-      return sorted.slice(-7); // Last 7 days including today
+      return sorted.slice(-7);
     } else if (timeRange === 'week') {
-      return sorted.slice(-30); // Last 30 days including today
+      return sorted.slice(-30);
     } else {
-      return sorted.slice(-90); // Last 90 days including today
+      return sorted.slice(-90);
     }
   };
   
   const getTargetVolume = () => {
     if (!settings || !settings.babyWeight || !settings.multiplier) return null;
-    return settings.babyWeight * settings.multiplier; // Daily target
+    return settings.babyWeight * settings.multiplier;
   };
   
   const stats = getStats();
   const chartData = getChartData();
   const targetVolume = getTargetVolume();
+  
+  console.log('Render state:', {
+    loading,
+    feedingsCount: feedings.length,
+    chartDataLength: chartData.length,
+    targetVolume,
+    hasStats: !!stats
+  });
   
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
@@ -1182,104 +1203,139 @@ const AnalyticsTab = ({ kidId }) => {
     );
   }
   
-  if (!stats || chartData.length === 0) {
-    return React.createElement('div', { className: "text-center py-12" },
-      React.createElement('div', { className: "text-gray-600" }, 'Not enough data yet. Start tracking feedings!')
+  if (feedings.length === 0) {
+    return React.createElement('div', { className: "text-center py-12 space-y-4" },
+      React.createElement('div', { className: "text-6xl" }, '📊'),
+      React.createElement('div', { className: "text-gray-600" }, 'Not enough data yet'),
+      React.createElement('div', { className: "text-sm text-gray-500" }, 'Start tracking feedings to see analytics!')
     );
   }
   
   // Calculate max for chart scaling
   const maxVolume = Math.max(
     ...chartData.map(d => d.total),
-    targetVolume ? targetVolume * 1.2 : 0 // Add 20% padding above target
+    targetVolume ? targetVolume * 1.2 : 0
   );
   
-  return React.createElement('div', { className: "space-y-4" },
+  return React.createElement('div', { className: "space-y-4 pb-4" },
     // Time range selector
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-2 flex gap-1" },
-      ['day', 'week', 'month'].map(range =>
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-2 flex gap-1" },
+      [
+        { key: 'day', label: 'Day' },
+        { key: 'week', label: 'Week' },
+        { key: 'month', label: 'Month' }
+      ].map(range =>
         React.createElement('button', {
-          key: range,
-          onClick: () => setTimeRange(range),
+          key: range.key,
+          onClick: () => setTimeRange(range.key),
           className: `flex-1 py-2 px-4 rounded-xl font-medium transition ${
-            timeRange === range
+            timeRange === range.key
               ? 'bg-indigo-600 text-white'
               : 'text-gray-600 hover:bg-gray-100'
           }`
-        }, range.charAt(0).toUpperCase() + range.slice(1))
+        }, range.label)
       )
     ),
     
-    // Stats cards
-    React.createElement('div', { className: "grid grid-cols-2 gap-3" },
+    // Stats chicklets
+    stats && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
       [
-        { label: 'Avg/Day', value: `${stats.avgPerDay} oz`, sublabel: `Last ${timeRange === 'day' ? '3' : timeRange === 'week' ? '7' : '30'} days` },
-        { label: 'Avg/Feeding', value: `${stats.avgPerFeeding} oz`, sublabel: 'Per session' },
-        { label: 'Total Feedings', value: stats.totalFeedings, sublabel: `Last ${timeRange === 'day' ? '3' : timeRange === 'week' ? '7' : '30'} days` },
-        { label: 'Avg Interval', value: `${stats.avgInterval} hrs`, sublabel: 'Between feeds' }
-      ].map((stat, i) =>
-        React.createElement('div', {
-          key: i,
-          className: "bg-white rounded-2xl shadow-lg p-4"
+        { 
+          label: 'Avg/Day', 
+          value: `${stats.avgPerDay} oz`, 
+          sublabel: timeRange === 'day' ? 'Last 3 days' : timeRange === 'week' ? 'Last 7 days' : 'Last 30 days'
         },
-          React.createElement('div', { className: "text-sm text-gray-600 mb-1" }, stat.label),
+        { 
+          label: 'Avg/Feeding', 
+          value: `${stats.avgPerFeeding} oz`, 
+          sublabel: 'Per session'
+        },
+        { 
+          label: 'Total Feedings', 
+          value: stats.totalFeedings, 
+          sublabel: timeRange === 'day' ? 'Last 3 days' : timeRange === 'week' ? 'Last 7 days' : 'Last 30 days'
+        },
+        { 
+          label: 'Avg Interval', 
+          value: `${stats.avgInterval} hrs`, 
+          sublabel: 'Between feeds'
+        }
+      ].map((stat, i) =>
+        React.createElement('div', { 
+          key: i,
+          className: "bg-white rounded-2xl shadow-sm p-4"
+        },
+          React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, stat.label),
           React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, stat.value),
-          React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, stat.sublabel)
+          React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stat.sublabel)
         )
       )
     ),
     
-    // Volume history chart with target line
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
+    // Volume History Chart
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-4" },
       React.createElement('h3', { className: "font-semibold text-gray-800 mb-4" }, 'Volume History'),
-      React.createElement('div', { 
-        className: "overflow-x-auto",
-        style: { WebkitOverflowScrolling: 'touch' }
-      },
-        React.createElement('div', { 
-          className: "relative",
-          style: { minWidth: `${chartData.length * 50}px`, height: '200px' }
-        },
-          // Target line (red dashed) - only if target is set
-          targetVolume && React.createElement('div', {
-            className: "absolute left-0 right-0 border-t-2 border-red-500 border-dashed pointer-events-none",
-            style: {
-              top: `${200 - (targetVolume / maxVolume) * 200}px`,
-              zIndex: 1
-            }
+      
+      chartData.length === 0 
+        ? React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'No data for selected range')
+        : React.createElement('div', { 
+            className: "overflow-x-auto pb-2",
+            style: { WebkitOverflowScrolling: 'touch' }
           },
-            React.createElement('span', {
-              className: "absolute right-2 -top-5 text-xs text-red-500 bg-white px-1 rounded"
-            }, `Target: ${targetVolume.toFixed(1)}oz`)
-          ),
-          
-          // Bars
-          React.createElement('div', { 
-            className: "flex items-end justify-around h-full relative gap-1",
-            style: { zIndex: 2 }
-          },
-            chartData.map((day, i) => {
-              const heightPercent = (day.total / maxVolume) * 100;
-              const isNearTarget = targetVolume && Math.abs(day.total - targetVolume) < (targetVolume * 0.1); // Within 10%
-              
-              return React.createElement('div', {
-                key: i,
-                className: "flex-1 flex flex-col items-center gap-1 min-w-[40px]"
+            React.createElement('div', { 
+              className: "relative",
+              style: { 
+                minWidth: `${Math.max(chartData.length * 50, 300)}px`, 
+                height: '200px'
+              }
+            },
+              // Target line
+              targetVolume && React.createElement('div', {
+                className: "absolute left-0 right-0 border-t-2 border-red-500 border-dashed pointer-events-none",
+                style: {
+                  top: `${200 - (targetVolume / maxVolume) * 200}px`,
+                  zIndex: 10
+                }
               },
-                React.createElement('div', { 
-                  className: `w-full rounded-t-lg transition-all ${
-                    isNearTarget ? 'bg-green-500' : 'bg-indigo-600'
-                  }`,
-                  style: { height: `${heightPercent}%`, minHeight: '4px' }
-                }),
-                React.createElement('span', { 
-                  className: "text-xs text-gray-600 whitespace-nowrap"
-                }, day.date)
-              );
-            })
+                React.createElement('span', {
+                  className: "absolute right-2 -top-5 text-xs text-red-500 bg-white px-1 rounded"
+                }, `Target: ${targetVolume.toFixed(1)}oz`)
+              ),
+              
+              // Chart bars
+              React.createElement('div', { 
+                className: "absolute inset-0 flex items-end justify-around gap-1 px-2"
+              },
+                chartData.map((day, i) => {
+                  const heightPx = (day.total / maxVolume) * 200;
+                  const isNearTarget = targetVolume && Math.abs(day.total - targetVolume) < (targetVolume * 0.1);
+                  
+                  return React.createElement('div', {
+                    key: i,
+                    className: "flex flex-col items-center gap-1 flex-1",
+                    style: { maxWidth: '60px' }
+                  },
+                    React.createElement('div', {
+                      className: "text-xs text-gray-500 mb-1",
+                      style: { minHeight: '16px' }
+                    }, `${day.total.toFixed(1)}`),
+                    React.createElement('div', { 
+                      className: `w-full rounded-t-lg transition-all ${
+                        isNearTarget ? 'bg-green-500' : 'bg-indigo-600'
+                      }`,
+                      style: { 
+                        height: `${heightPx}px`,
+                        minHeight: '4px'
+                      }
+                    }),
+                    React.createElement('span', { 
+                      className: "text-xs text-gray-600 whitespace-nowrap mt-1"
+                    }, day.date)
+                  );
+                })
+              )
+            )
           )
-        )
-      )
     )
   );
 };
