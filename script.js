@@ -146,88 +146,85 @@ const removeMember = async (kidId, userId) => {
 const firestoreStorage = {
   currentKidId: null,
 
-  // Set which kid we're operating on
-  initialize: async function (kidId) {
+  // -------- FEEDINGS --------
+  async initialize(kidId) {
     this.currentKidId = kidId;
   },
 
-  // -------- FEEDINGS --------
-
-  // Add a feeding: ounces (number), timestamp (ms)
-  addFeeding: async function (ounces, timestamp) {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  // Add a feeding
+  async addFeeding(ounces, timestamp) {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
     const feedingId = `feeding_${Date.now()}`;
     const feedingDocRef = firestoreDoc(
       db,
-      "kids",
+      'kids',
       this.currentKidId,
-      "feedings",
+      'feedings',
       feedingId
     );
 
     await firestoreSetDoc(feedingDocRef, {
-      ounces: ounces,
-      timestamp: timestamp,
+      ounces,
+      timestamp,
       createdAt: firestoreTimestamp.now(),
     });
 
     return feedingId;
   },
 
-  // Update an existing feeding
-  updateFeeding: async function (feedingId, ounces, timestamp) {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  // Update a feeding
+  async updateFeeding(feedingId, ounces, timestamp) {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
     const feedingDocRef = firestoreDoc(
       db,
-      "kids",
+      'kids',
       this.currentKidId,
-      "feedings",
+      'feedings',
       feedingId
     );
 
     await firestoreUpdateDoc(feedingDocRef, {
-      ounces: ounces,
-      timestamp: timestamp,
+      ounces,
+      timestamp,
     });
   },
 
   // Delete a feeding
-  deleteFeeding: async function (feedingId) {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  async deleteFeeding(feedingId) {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
     const feedingDocRef = firestoreDoc(
       db,
-      "kids",
+      'kids',
       this.currentKidId,
-      "feedings",
+      'feedings',
       feedingId
     );
 
     await firestoreDeleteDoc(feedingDocRef);
   },
 
-  // Get all feedings in the last N days (used for analytics)
-  getFeedingsLastNDays: async function (days) {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  // Last N days (for analytics)
+  async getFeedingsLastNDays(days) {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
-    const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
-
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
     const feedingsRef = firestoreCollection(
       db,
-      "kids",
+      'kids',
       this.currentKidId,
-      "feedings"
+      'feedings'
     );
-    const q = firestoreQuery(feedingsRef, firestoreOrderBy("timestamp", "desc"));
+    const q = firestoreQuery(feedingsRef, firestoreOrderBy('timestamp', 'desc'));
 
     const snapshot = await firestoreGetDocs(q);
     const feedings = [];
 
     snapshot.forEach((docSnap) => {
       const data = docSnap.data();
-      if (data.timestamp >= cutoffMs) {
+      if (data.timestamp >= cutoff) {
         feedings.push({
           id: docSnap.id,
           ounces: data.ounces,
@@ -236,13 +233,12 @@ const firestoreStorage = {
       }
     });
 
-    // oldest → newest
     return feedings.sort((a, b) => a.timestamp - b.timestamp);
   },
 
-  // Get all feedings for a specific calendar day (used by TrackerTab)
-  getFeedingsForDate: async function (date) {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  // Feedings for a single calendar day (for the Today screen)
+  async getFeedingsForDate(date) {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
@@ -254,11 +250,11 @@ const firestoreStorage = {
 
     const feedingsRef = firestoreCollection(
       db,
-      "kids",
+      'kids',
       this.currentKidId,
-      "feedings"
+      'feedings'
     );
-    const q = firestoreQuery(feedingsRef, firestoreOrderBy("timestamp", "desc"));
+    const q = firestoreQuery(feedingsRef, firestoreOrderBy('timestamp', 'desc'));
 
     const snapshot = await firestoreGetDocs(q);
     const feedings = [];
@@ -275,33 +271,29 @@ const firestoreStorage = {
       }
     });
 
-    // newest first for the list
     return feedings.sort((a, b) => b.timestamp - a.timestamp);
   },
 
-  // "Subscribe" to feedings for a date.
-  // For now this just loads once and returns a no-op unsubscribe,
-  // so your existing useEffect code keeps working.
-  subscribeToFeedings: function (date, callback) {
+  // Used by TrackerTab – for now just load once and return a fake unsubscribe
+  subscribeToFeedings(date, callback) {
     this.getFeedingsForDate(date)
-      .then((feedings) => callback(feedings))
-      .catch((err) => console.error("Error loading feedings:", err));
+      .then(callback)
+      .catch((err) => console.error('Error loading feedings:', err));
 
-    // return fake unsubscribe so useEffect cleanup doesn't break
+    // so useEffect cleanup `return () => unsubscribe()` still works
     return () => {};
   },
 
   // -------- SETTINGS --------
-
-  getSettings: async function () {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  async getSettings() {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
     const settingsDocRef = firestoreDoc(
       db,
-      "kids",
+      'kids',
       this.currentKidId,
-      "settings",
-      "default"
+      'settings',
+      'default'
     );
     const settingsDoc = await firestoreGetDoc(settingsDocRef);
 
@@ -311,26 +303,25 @@ const firestoreStorage = {
     return { babyWeight: null, multiplier: 2.5 };
   },
 
-  setSettings: async function (settings) {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  async setSettings(settings) {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
     const settingsDocRef = firestoreDoc(
       db,
-      "kids",
+      'kids',
       this.currentKidId,
-      "settings",
-      "default"
+      'settings',
+      'default'
     );
 
     await firestoreSetDoc(settingsDocRef, settings, { merge: true });
   },
 
   // -------- KID DATA --------
+  async getKidData() {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
-  getKidData: async function () {
-    if (!this.currentKidId) throw new Error("No kid selected");
-
-    const kidDocRef = firestoreDoc(db, "kids", this.currentKidId);
+    const kidDocRef = firestoreDoc(db, 'kids', this.currentKidId);
     const kidDoc = await firestoreGetDoc(kidDocRef);
 
     if (kidDoc.exists()) {
@@ -339,27 +330,22 @@ const firestoreStorage = {
     return null;
   },
 
-  updateKid: async function (data) {
-    if (!this.currentKidId) throw new Error("No kid selected");
+  async updateKid(data) {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
-    const kidDocRef = firestoreDoc(db, "kids", this.currentKidId);
+    const kidDocRef = firestoreDoc(db, 'kids', this.currentKidId);
     await firestoreSetDoc(kidDocRef, data, { merge: true });
   },
 
-  // -------- MEMBERS (linked users) --------
+  // -------- MEMBERS --------
+  async getMembers() {
+    if (!this.currentKidId) throw new Error('No kid selected');
 
-  getMembers: async function () {
-    if (!this.currentKidId) throw new Error("No kid selected");
-
-    const usersRef = firestoreCollection(db, "users");
-    const q = firestoreQuery(
-      usersRef,
-      firestoreWhere("kidId", "==", this.currentKidId)
-    );
-
+    const usersRef = firestoreCollection(db, 'users');
+    const q = firestoreQuery(usersRef, firestoreWhere('kidId', '==', this.currentKidId));
     const snapshot = await firestoreGetDocs(q);
-    const members = [];
 
+    const members = [];
     snapshot.forEach((docSnap) => {
       members.push({
         uid: docSnap.id,
