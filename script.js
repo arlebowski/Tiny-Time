@@ -157,6 +157,14 @@ const firestoreStorage = {
       .collection('feedings').add(feeding);
   },
   
+  addFeeding: async function(ounces, timestamp) {
+    // Alias for saveFeeding with direct parameters
+    return await this.saveFeeding({
+      ounces: ounces,
+      timestamp: timestamp
+    });
+  },
+  
   getFeedings: async function() {
     if (!this.currentKidId) return [];
     const snapshot = await db.collection('kids').doc(this.currentKidId)
@@ -186,6 +194,15 @@ const firestoreStorage = {
     if (!this.currentKidId) throw new Error('No kid selected');
     await db.collection('kids').doc(this.currentKidId)
       .collection('feedings').doc(feedingId).delete();
+  },
+  
+  updateFeeding: async function(feedingId, ounces, timestamp) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings').doc(feedingId).update({
+        ounces: ounces,
+        timestamp: timestamp
+      });
   },
   
   getSettings: async function() {
