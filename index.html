@@ -4,55 +4,79 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#E0E7FF">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🍼</text></svg>">
   <title>Tiny Tracker</title>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- React -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  
   <style>
+    /* Font */
     @import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;700&display=swap');
     
     .handwriting {
       font-family: 'Caveat', cursive;
     }
     
-    /* Prevent pull-to-refresh and overscroll */
-    body {
-      overscroll-behavior: none;
-      position: fixed;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
+    /* Mobile optimizations */
+    * {
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     
-    #root {
-      width: 100%;
-      height: 100%;
-      overflow-y: auto;
+    body {
+      margin: 0;
+      padding: 0;
       overflow-x: hidden;
+      overscroll-behavior-y: none;
       -webkit-overflow-scrolling: touch;
     }
     
-    /* Prevent zoom on input focus */
+    /* Prevent input zoom on iOS */
     input, textarea, select {
       font-size: 16px !important;
     }
     
-    /* Disable double-tap zoom */
-    * {
-      touch-action: manipulation;
+    /* Smooth scrolling */
+    html {
+      scroll-behavior: smooth;
     }
   </style>
   
-  <!-- Load Firebase modules BEFORE app script -->
+  <!-- Load Firebase BEFORE app script -->
   <script type="module">
     import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
     import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
     import { getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, deleteDoc, orderBy, limit, Timestamp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
     
-    window.firebaseModules = { initializeApp, getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut, getFirestore, doc, getDoc, setDoc, updateDoc, collection, query, where, getDocs, deleteDoc, orderBy, limit, Timestamp };
+    window.firebaseModules = { 
+      initializeApp, 
+      getAuth, 
+      GoogleAuthProvider, 
+      signInWithPopup, 
+      onAuthStateChanged, 
+      signOut, 
+      getFirestore, 
+      doc, 
+      getDoc, 
+      setDoc, 
+      updateDoc, 
+      collection, 
+      query, 
+      where, 
+      getDocs, 
+      deleteDoc, 
+      orderBy, 
+      limit, 
+      Timestamp 
+    };
     
-    // Signal that Firebase is loaded
     window.firebaseLoaded = true;
     window.dispatchEvent(new Event('firebaseready'));
   </script>
