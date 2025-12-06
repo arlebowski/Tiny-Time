@@ -661,7 +661,14 @@ const TrackerTab = ({ user, kidId }) => {
       const dayFeedings = allFeedings.filter(f => 
         f.timestamp >= startOfDay.getTime() && 
         f.timestamp <= endOfDay.getTime()
-      );
+      ).map(f => ({
+        ...f,
+        time: new Date(f.timestamp).toLocaleTimeString('en-US', { 
+          hour: 'numeric', 
+          minute: '2-digit',
+          hour12: true 
+        })
+      })).sort((a, b) => b.timestamp - a.timestamp); // Sort newest first
       
       setFeedings(dayFeedings);
     } catch (error) {
@@ -1074,7 +1081,7 @@ const AnalyticsTab = ({ kidId }) => {
         { label: 'Oz / Feed', value: stats.avgVolumePerFeed.toFixed(1) },
         { label: 'Oz / Day', value: stats.avgVolumePerDay.toFixed(1) }
       ].map(stat =>
-        React.createElement('div', { key: stat.label, className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
+        React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
           React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, stat.label),
           React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
             stat.value,
@@ -1086,12 +1093,12 @@ const AnalyticsTab = ({ kidId }) => {
     ),
 
     React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
         React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Feedings / Day'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, stats.avgFeedingsPerDay.toFixed(1)),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
       ),
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
         React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Time Between Feeds'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval)),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
@@ -1099,7 +1106,7 @@ const AnalyticsTab = ({ kidId }) => {
     ),
 
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-4 text-center" }, 'Volume History'),
+      React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2.5 text-center" }, 'Volume History'),
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "relative" },
           React.createElement('div', { 
