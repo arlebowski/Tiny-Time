@@ -1,12 +1,11 @@
 // ========================================
-// TINY TRACKER V2 - PART 1
-// Config, Auth, Data Migration, Invites, Firestore Layer
+// TINY TRACKER V4.1 - PART 1
+// Config, Auth, Firestore Layer + AI Functions (No Migration)
 // ========================================
 
 const firebaseConfig = {
   apiKey: "AIzaSyBUscvx-JB3lNWKVu9bPnYTBHVPvrndc_w",
   authDomain: "baby-feeding-tracker-978e6.firebaseapp.com",
-  databaseURL: "https://baby-feeding-tracker-978e6-default-rtdb.firebaseio.com",
   projectId: "baby-feeding-tracker-978e6",
   storageBucket: "baby-feeding-tracker-978e6.firebasestorage.app",
   messagingSenderId: "775043948126",
@@ -16,7 +15,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-const rtdb = firebase.database();
 
 // ========================================
 // AUTH & USER MANAGEMENT
@@ -39,7 +37,7 @@ const getUserKidId = async (userId) => {
     return kidId;
   }
   
-  return null; // No kid yet, will create during setup
+  return null;
 };
 
 const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
@@ -51,20 +49,25 @@ const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   
-  await db.collection('kids').doc(kidRef.id).collection('settings').doc('default').set({
-    babyWeight: babyWeight,
-    multiplier: 2.5
-  });
+  const kidId = kidRef.id;
   
   await db.collection('users').doc(userId).set({
-    kidId: kidRef.id,
-    displayName: auth.currentUser.displayName,
-    email: auth.currentUser.email,
-    photoURL: auth.currentUser.photoURL,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    kidId: kidId
   }, { merge: true });
   
-  return kidRef.id;
+  await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
+    babyWeight: babyWeight,
+    multiplier: 2.5,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  
+  return kidId;
+};
+
+const saveUserKidId = async (userId, kidId) => {
+  await db.collection('users').doc(userId).set({
+    kidId: kidId
+  }, { merge: true });
 };
 
 const signInWithGoogle = async () => {
@@ -73,234 +76,165 @@ const signInWithGoogle = async () => {
 };
 
 const signOut = async () => {
-  await auth.signOut();
-};
-
-const updateUserProfile = async (userId, updates) => {
-  await db.collection('users').doc(userId).update(updates);
-};
-
-// ========================================
-// DATA MIGRATION
-// ========================================
-
-const migrateLocalStorageData = async (kidId) => {
-  let migratedCount = 0;
-  
-  const weight = localStorage.getItem('baby_weight');
-  const multiplier = localStorage.getItem('oz_multiplier');
-  
-  if (weight || multiplier) {
-    await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
-      babyWeight: weight ? parseFloat(weight) : null,
-      multiplier: multiplier ? parseFloat(multiplier) : 2.5
-    }, { merge: true });
-  }
-  
-  const snapshot = await rtdb.ref().once('value');
-  const data = snapshot.val();
-  
-  if (data) {
-    const feedingKeys = Object.keys(data).filter(key => key.startsWith('feedings_'));
-    
-    for (const key of feedingKeys) {
-      const dayFeedings = JSON.parse(data[key]);
-      for (const feeding of dayFeedings) {
-        await db.collection('kids').doc(kidId).collection('feedings').add({
-          ounces: feeding.ounces,
-          timestamp: feeding.timestamp,
-          time: feeding.time,
-          addedBy: auth.currentUser.uid
-        });
-        migratedCount++;
-      }
-    }
-  }
-  
-  localStorage.clear();
-  return migratedCount;
+  return await auth.signOut();
 };
 
 // ========================================
 // INVITE SYSTEM
 // ========================================
 
-const generateInviteCode = () => {
-  return Math.random().toString(36).substring(2, 15) + 
-         Math.random().toString(36).substring(2, 15);
-};
-
-const createInvite = async (kidId) => {
-  const inviteCode = generateInviteCode();
-  await db.collection('invites').doc(inviteCode).set({
-    kidId,
-    createdBy: auth.currentUser.uid,
+const createInviteCode = async (kidId, userId) => {
+  const code = Math.random().toString(36).substring(2, 10).toUpperCase();
+  await db.collection('invites').doc(code).set({
+    kidId: kidId,
+    createdBy: userId,
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     used: false
   });
-  return inviteCode;
+  return code;
 };
 
-const acceptInvite = async (inviteCode, userId) => {
-  const inviteDoc = await db.collection('invites').doc(inviteCode).get();
-  if (!inviteDoc.exists) throw new Error('Invalid invite code');
+const acceptInvite = async (code, userId) => {
+  const inviteDoc = await db.collection('invites').doc(code).get();
+  
+  if (!inviteDoc.exists) {
+    throw new Error('Invalid invite code');
+  }
   
   const invite = inviteDoc.data();
-  if (invite.used) throw new Error('Invite already used');
+  if (invite.used) {
+    throw new Error('Invite already used');
+  }
   
-  await db.collection('kids').doc(invite.kidId).update({
+  const kidId = invite.kidId;
+  
+  await db.collection('kids').doc(kidId).update({
     members: firebase.firestore.FieldValue.arrayUnion(userId)
   });
   
-  await db.collection('users').doc(userId).set({
-    kidId: invite.kidId,
-    displayName: auth.currentUser.displayName,
-    email: auth.currentUser.email,
-    photoURL: auth.currentUser.photoURL,
-    joinedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
-  
-  await db.collection('invites').doc(inviteCode).update({
+  await db.collection('invites').doc(code).update({
     used: true,
     usedBy: userId,
     usedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
   
-  return invite.kidId;
+  return kidId;
 };
 
-const removeMember = async (kidId, userId) => {
-  await db.collection('kids').doc(kidId).update({
-    members: firebase.firestore.FieldValue.arrayRemove(userId)
-  });
-  await db.collection('users').doc(userId).update({
-    kidId: firebase.firestore.FieldValue.delete()
-  });
+const getFamilyMembers = async (kidId) => {
+  const kidDoc = await db.collection('kids').doc(kidId).get();
+  if (!kidDoc.exists) return [];
+  
+  const members = kidDoc.data().members || [];
+  const memberDetails = await Promise.all(
+    members.map(async (uid) => {
+      const user = auth.currentUser?.uid === uid ? auth.currentUser : null;
+      return {
+        uid,
+        email: user?.email || 'Family Member',
+        photoURL: user?.photoURL || null
+      };
+    })
+  );
+  
+  return memberDetails;
 };
 
 // ========================================
-// FIRESTORE DATA LAYER
+// FIRESTORE STORAGE LAYER
 // ========================================
 
 const firestoreStorage = {
-  kidId: null,
+  currentKidId: null,
   
-  async initialize(kidId) {
-    this.kidId = kidId;
+  initialize: async function(kidId) {
+    this.currentKidId = kidId;
   },
   
-  async getKidData() {
-    if (!this.kidId) return null;
-    const doc = await db.collection('kids').doc(this.kidId).get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+  saveFeeding: async function(feeding) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings').add(feeding);
   },
   
-  async getSettings() {
-    if (!this.kidId) return null;
-    const doc = await db.collection('kids').doc(this.kidId).collection('settings').doc('default').get();
-    return doc.exists ? doc.data() : null;
-  },
-  
-  async setSettings(settings) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).collection('settings').doc('default').set(settings, { merge: true });
-  },
-  
-  async updateKid(updates) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).update(updates);
-  },
-  
-  async getMembers() {
-    if (!this.kidId) return [];
-    const kidDoc = await db.collection('kids').doc(this.kidId).get();
-    if (!kidDoc.exists) return [];
-    
-    const memberIds = kidDoc.data().members || [];
-    const members = await Promise.all(
-      memberIds.map(async (memberId) => {
-        const userDoc = await db.collection('users').doc(memberId).get();
-        return {
-          uid: memberId,
-          ...(userDoc.exists ? userDoc.data() : { email: 'Unknown' })
-        };
-      })
-    );
-    return members;
-  },
-  
-  async getFeedingsForDate(date) {
-    if (!this.kidId) return [];
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-    
-    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
-      .where('timestamp', '>=', startOfDay.getTime())
-      .where('timestamp', '<=', endOfDay.getTime())
+  getFeedings: async function() {
+    if (!this.currentKidId) return [];
+    const snapshot = await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings')
       .orderBy('timestamp', 'desc')
       .get();
-    
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
-  async getAllFeedings() {
-    if (!this.kidId) return [];
-    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
+  getFeedingsLastNDays: async function(days) {
+    if (!this.currentKidId) return [];
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const snapshot = await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings')
+      .where('timestamp', '>', cutoff)
       .orderBy('timestamp', 'asc')
       .get();
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
-  async getFeedingsLastNDays(days) {
-    if (!this.kidId) return [];
-    const now = Date.now();
-    const nDaysAgo = now - (days * 24 * 60 * 60 * 1000);
+  deleteFeeding: async function(feedingId) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('feedings').doc(feedingId).delete();
+  },
+  
+  getSettings: async function() {
+    if (!this.currentKidId) return null;
+    const doc = await db.collection('kids').doc(this.currentKidId)
+      .collection('settings').doc('default').get();
+    return doc.exists ? doc.data() : null;
+  },
+  
+  saveSettings: async function(settings) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('settings').doc('default').set(settings, { merge: true });
+  },
+  
+  getKidData: async function() {
+    if (!this.currentKidId) return null;
+    const doc = await db.collection('kids').doc(this.currentKidId).get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+  },
+  
+  updateKidData: async function(data) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId).set(data, { merge: true });
+  },
+  
+  // AI Conversation methods
+  getConversation: async function() {
+    if (!this.currentKidId) return null;
+    const doc = await db.collection('kids').doc(this.currentKidId)
+      .collection('conversations').doc('default').get();
+    return doc.exists ? doc.data() : null;
+  },
+  
+  saveMessage: async function(message) {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    const conversationRef = db.collection('kids').doc(this.currentKidId)
+      .collection('conversations').doc('default');
     
-    const snapshot = await db.collection('kids').doc(this.kidId).collection('feedings')
-      .where('timestamp', '>=', nDaysAgo)
-      .orderBy('timestamp', 'desc')
-      .get();
+    const doc = await conversationRef.get();
+    const messages = doc.exists ? (doc.data().messages || []) : [];
     
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  },
-  
-  async addFeeding(feeding) {
-    if (!this.kidId) return null;
-    const docRef = await db.collection('kids').doc(this.kidId).collection('feedings').add({
-      ...feeding,
-      addedBy: auth.currentUser.uid,
-      addedAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    return docRef.id;
-  },
-  
-  async updateFeeding(feedingId, updates) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).update(updates);
-  },
-  
-  async deleteFeeding(feedingId) {
-    if (!this.kidId) return;
-    await db.collection('kids').doc(this.kidId).collection('feedings').doc(feedingId).delete();
-  },
-  
-  subscribeToFeedings(date, callback) {
-    if (!this.kidId) return () => {};
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    messages.push(message);
     
-    return db.collection('kids').doc(this.kidId).collection('feedings')
-      .where('timestamp', '>=', startOfDay.getTime())
-      .where('timestamp', '<=', endOfDay.getTime())
-      .orderBy('timestamp', 'desc')
-      .onSnapshot(snapshot => {
-        const feedings = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        callback(feedings);
-      });
+    await conversationRef.set({
+      messages: messages,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  },
+  
+  clearConversation: async function() {
+    if (!this.currentKidId) throw new Error('No kid selected');
+    await db.collection('kids').doc(this.currentKidId)
+      .collection('conversations').doc('default').delete();
   }
 };
 
@@ -326,31 +260,28 @@ const App = () => {
         
         try {
           let userKidId;
+
           if (inviteCode) {
+            // Accept invite + attach kid to this user
             userKidId = await acceptInvite(inviteCode, user.uid);
+            if (userKidId) {
+              await saveUserKidId(user.uid, userKidId);
+            }
+            // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
+            // Normal path – fetch kidId for this user
             userKidId = await getUserKidId(user.uid);
-            
-            if (!userKidId) {
-              // New user, needs setup
-              setNeedsSetup(true);
-              setLoading(false);
-              return;
-            }
-            
-            // Check if we need to migrate data (only once per browser)
-            const migrationFlag = localStorage.getItem('migration_complete');
-            if (!migrationFlag) {
-              const hasLocalData = localStorage.getItem('baby_weight') || 
-                                   await rtdb.ref().once('value').then(s => s.exists());
-              if (hasLocalData) {
-                await migrateLocalStorageData(userKidId);
-                localStorage.setItem('migration_complete', 'true');
-              }
-            }
           }
           
+          // If no kid yet, show setup
+          if (!userKidId) {
+            setNeedsSetup(true);
+            setLoading(false);
+            return;
+          }
+
+          // ✅ No more migration here
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
         } catch (error) {
@@ -363,6 +294,7 @@ const App = () => {
       }
       setLoading(false);
     });
+
     return () => unsubscribe();
   }, []);
   
@@ -371,7 +303,7 @@ const App = () => {
       className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" 
     },
       React.createElement('div', { className: "text-center" },
-        React.createElement('div', { className: "text-4xl mb-3" }, '🍼'),
+        React.createElement('div', { className: "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4" }),
         React.createElement('div', { className: "text-gray-600" }, 'Loading...')
       )
     );
@@ -391,9 +323,10 @@ const App = () => {
       }
     });
   }
-  
+
   return React.createElement(MainApp, { user, kidId });
 };
+
 
 // ========================================
 // LOGIN SCREEN
@@ -579,82 +512,102 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V3 - PART 3
-// Main App with Bottom Navigation (Instagram-style with gradient)
+// TINY TRACKER V4.1 - PART 3
+// Main App with Bottom Navigation (Clean colors, simpler shadows)
 // ========================================
 
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
+  const [hasUnreadAI, setHasUnreadAI] = useState(false);
   
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
   
+  // Check for unread AI messages when not on chat tab
+  useEffect(() => {
+    if (activeTab !== 'chat') {
+      // Simple check: if conversation exists and last message was from AI
+      checkUnreadMessages();
+    } else {
+      setHasUnreadAI(false);
+    }
+  }, [activeTab, kidId]);
+  
+  const checkUnreadMessages = async () => {
+    try {
+      const conversation = await firestoreStorage.getConversation();
+      if (conversation && conversation.messages && conversation.messages.length > 0) {
+        const lastMessage = conversation.messages[conversation.messages.length - 1];
+        // If last message was from AI and we're not on chat tab, show badge
+        if (lastMessage.role === 'assistant') {
+          setHasUnreadAI(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking messages:', error);
+    }
+  };
+  
   return React.createElement('div', { 
-    className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 pb-24" 
+    className: "min-h-screen pb-24",
+    style: { backgroundColor: '#E0E7FF' } // Single consistent background color
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header with gradient fade
-      React.createElement('div', { className: "sticky top-0 z-10" },
-        React.createElement('div', { className: "bg-gradient-to-br from-blue-50 to-indigo-100 pt-4 pb-6" },
+      // Header - no drop shadow, just flat
+      React.createElement('div', { 
+        className: "sticky top-0 z-10",
+        style: { backgroundColor: '#E0E7FF' }
+      },
+        React.createElement('div', { className: "pt-4 pb-6" },
           React.createElement('div', { className: "flex items-center justify-center" },
             React.createElement('div', { className: "flex items-center gap-2" },
               React.createElement('span', { className: "text-3xl" }, '🍼'),
               React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
             )
           )
-        ),
-        // Gradient fade at bottom of header
-        React.createElement('div', { 
-          className: "h-4",
-          style: { 
-            background: 'linear-gradient(to bottom, rgb(224, 231, 255), transparent)'
-          }
-        })
+        )
       ),
       
       // Content
       React.createElement('div', { className: "px-4" },
         activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId }),
         activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
+        activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId }),
         activeTab === 'family' && React.createElement(FamilyTab, { user, kidId }),
         activeTab === 'settings' && React.createElement(SettingsTab, { user, kidId })
       )
     ),
     
-    // Bottom Navigation (Instagram-style with gradient)
+    // Bottom Navigation - simpler shadow like Instagram
     React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 z-50" 
+      className: "fixed bottom-0 left-0 right-0 z-50 mb-2",
+      style: { 
+        backgroundColor: '#E0E7FF',
+        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)' // Subtle top shadow only
+      }
     },
-      // Gradient fade at top of nav
       React.createElement('div', { 
-        className: "h-4",
-        style: { 
-          background: 'linear-gradient(to top, rgb(224, 231, 255), transparent)'
-        }
-      }),
-      React.createElement('div', { 
-        className: "bg-gradient-to-br from-blue-50 to-indigo-100 pb-4"
+        className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-2"
       },
-        React.createElement('div', { className: "max-w-2xl mx-auto flex items-center justify-around px-4" },
-          [
-            { id: 'tracker', icon: BarChart, label: 'Tracker' },
-            { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
-            { id: 'family', icon: Users, label: 'Family' },
-            { id: 'settings', icon: Settings, label: 'Settings' }
-          ].map(tab =>
-            React.createElement('button', {
-              key: tab.id,
-              onClick: () => setActiveTab(tab.id),
-              className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
-                activeTab === tab.id 
-                  ? 'text-indigo-600' 
-                  : 'text-gray-400'
-              }`
-            },
-              React.createElement(tab.icon, { className: "w-6 h-6" }),
-              React.createElement('span', { className: "text-xs font-medium" }, tab.label)
-            )
+        [
+          { id: 'tracker', icon: BarChart, label: 'Tracker' },
+          { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
+          { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
+          { id: 'family', icon: Users, label: 'Family' },
+          { id: 'settings', icon: Menu, label: 'Settings' }
+        ].map(tab =>
+          React.createElement('button', {
+            key: tab.id,
+            onClick: () => setActiveTab(tab.id),
+            className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+              activeTab === tab.id 
+                ? 'text-indigo-600' 
+                : 'text-gray-400'
+            }`
+          },
+            React.createElement(tab.icon, { className: "w-6 h-6" }),
+            React.createElement('span', { className: "text-xs font-medium" }, tab.label)
           )
         )
       )
@@ -1755,8 +1708,8 @@ const SettingsTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V3.1 - PART 8
-// SVG Icons & Render (with gear icon for settings)
+// TINY TRACKER V4.1 - PART 8
+// SVG Icons & Render (with Menu/Hamburger icon for settings)
 // ========================================
 
 // Edit icon
@@ -1803,6 +1756,12 @@ const Camera = (props) => React.createElement('svg', { ...props, xmlns: "http://
   React.createElement('circle', { cx: "12", cy: "13", r: "4" })
 );
 
+// Send icon (for chat)
+const Send = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "m22 2-7 20-4-9-9-4Z" }),
+  React.createElement('path', { d: "M22 2 11 13" })
+);
+
 // Navigation Icons
 
 // BarChart (Tracker tab)
@@ -1818,6 +1777,11 @@ const TrendingUp = (props) => React.createElement('svg', { ...props, xmlns: "htt
   React.createElement('polyline', { points: "17 6 23 6 23 12" })
 );
 
+// MessageCircle (AI Chat tab)
+const MessageCircle = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" })
+);
+
 // Users (Family tab)
 const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
@@ -1826,27 +1790,24 @@ const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://w
   React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
 );
 
-// Settings (Settings tab) - PROPER GEAR ICON
-const Settings = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('circle', { cx: "12", cy: "12", r: "3" }),
-  React.createElement('path', { d: "M12 1v6m0 6v6" }),
-  React.createElement('path', { d: "m5.64 5.64 4.24 4.24m4.24 4.24 4.24 4.24" }),
-  React.createElement('path', { d: "M1 12h6m6 0h6" }),
-  React.createElement('path', { d: "m5.64 18.36 4.24-4.24m4.24-4.24 4.24-4.24" })
+// Menu/Hamburger (Settings tab)
+const Menu = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('line', { x1: "4", y1: "12", x2: "20", y2: "12" }),
+  React.createElement('line', { x1: "4", y1: "6", x2: "20", y2: "6" }),
+  React.createElement('line', { x1: "4", y1: "18", x2: "20", y2: "18" })
 );
 
 // ========================================
 // SET THEME COLOR FOR MOBILE BROWSER
 // ========================================
 
-// Add meta theme-color tag to match background
 const metaThemeColor = document.querySelector('meta[name="theme-color"]');
 if (metaThemeColor) {
-  metaThemeColor.setAttribute('content', '#e0e7ff'); // indigo-100, matches gradient
+  metaThemeColor.setAttribute('content', '#E0E7FF');
 } else {
   const meta = document.createElement('meta');
   meta.name = 'theme-color';
-  meta.content = '#e0e7ff'; // indigo-100, matches gradient
+  meta.content = '#E0E7FF';
   document.head.appendChild(meta);
 }
 
@@ -1855,3 +1816,410 @@ if (metaThemeColor) {
 // ========================================
 
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
+
+// ========================================
+// TINY TRACKER V4.1 - PART 9
+// AI Chat Tab - iMessage Style
+// ========================================
+
+const AIChatTab = ({ user, kidId }) => {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
+  const messagesEndRef = React.useRef(null);
+  
+  useEffect(() => {
+    loadConversation();
+  }, [kidId]);
+  
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+  
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
+  const loadConversation = async () => {
+    if (!kidId) return;
+    setInitializing(true);
+    try {
+      const conversation = await firestoreStorage.getConversation();
+      if (conversation && conversation.messages) {
+        setMessages(conversation.messages);
+      }
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+    }
+    setInitializing(false);
+  };
+  
+  const handleSend = async () => {
+    if (!input.trim() || loading) return;
+    
+    const userMessage = {
+      role: 'user',
+      content: input.trim(),
+      timestamp: Date.now()
+    };
+    
+    setMessages(prev => [...prev, userMessage]);
+    setInput('');
+    setLoading(true);
+    
+    try {
+      await firestoreStorage.saveMessage(userMessage);
+      const aiResponse = await getAIResponse(input.trim(), kidId);
+      
+      const assistantMessage = {
+        role: 'assistant',
+        content: aiResponse,
+        timestamp: Date.now()
+      };
+      
+      setMessages(prev => [...prev, assistantMessage]);
+      await firestoreStorage.saveMessage(assistantMessage);
+      
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      const errorMessage = {
+        role: 'assistant',
+        content: 'Sorry, I encountered an error. Please try again.',
+        timestamp: Date.now(),
+        error: true
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    }
+    
+    setLoading(false);
+  };
+  
+  const handleClearConversation = async () => {
+    if (!confirm('Clear all conversation history?')) return;
+    try {
+      await firestoreStorage.clearConversation();
+      setMessages([]);
+    } catch (error) {
+      console.error('Error clearing conversation:', error);
+    }
+  };
+  
+  const formatTimestamp = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  };
+  
+  const suggestedQuestions = [
+    'How much should my baby be eating?',
+    'Is cluster feeding normal?',
+    'Why is my baby eating less today?',
+    'What\'s a normal feeding schedule?'
+  ];
+  
+  if (initializing) {
+    return React.createElement('div', { className: "flex items-center justify-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Loading conversation...')
+    );
+  }
+  
+  return React.createElement('div', { 
+    className: "flex flex-col",
+    style: { height: 'calc(100vh - 10rem)' }
+  },
+    // Messages Area - looks like iMessage
+    React.createElement('div', { 
+      className: "flex-1 overflow-y-auto px-4 py-4 space-y-3"
+    },
+      // First message if empty
+      messages.length === 0 && React.createElement(React.Fragment, null,
+        // Initial AI message
+        React.createElement('div', { className: "flex justify-start" },
+          React.createElement('div', { 
+            className: "max-w-[75%] bg-gray-200 rounded-2xl px-4 py-3"
+          },
+            React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
+            React.createElement('div', { className: "text-gray-900" }, 
+              'Hi! I can help you understand your baby\'s feeding patterns. Ask me anything!'
+            )
+          )
+        ),
+        
+        // Suggested questions
+        React.createElement('div', { className: "flex justify-start mt-2" },
+          React.createElement('div', { className: "max-w-[75%] space-y-2" },
+            React.createElement('div', { className: "text-xs text-gray-500 px-2 mb-1" }, 'Try asking:'),
+            suggestedQuestions.map((q, i) =>
+              React.createElement('button', {
+                key: i,
+                onClick: () => setInput(q),
+                className: "block w-full text-left px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50 transition"
+              }, q)
+            )
+          )
+        )
+      ),
+      
+      // Conversation messages
+      messages.map((message, index) =>
+        React.createElement('div', {
+          key: index,
+          className: `flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`
+        },
+          React.createElement('div', {
+            className: `max-w-[75%] rounded-2xl px-4 py-3 ${
+              message.role === 'user'
+                ? 'bg-indigo-600 text-white'
+                : message.error
+                ? 'bg-red-100 text-red-900'
+                : 'bg-gray-200 text-gray-900'
+            }`
+          },
+            message.role === 'assistant' && !message.error &&
+              React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
+            React.createElement('div', { className: "whitespace-pre-wrap text-[15px]" }, message.content),
+            React.createElement('div', {
+              className: `text-[11px] mt-1 ${
+                message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
+              }`
+            }, formatTimestamp(message.timestamp))
+          )
+        )
+      ),
+      
+      // Loading indicator
+      loading && React.createElement('div', { className: "flex justify-start" },
+        React.createElement('div', { className: "bg-gray-200 rounded-2xl px-4 py-3" },
+          React.createElement('div', { className: "flex gap-1" },
+            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '0ms' } }),
+            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '150ms' } }),
+            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '300ms' } })
+          )
+        )
+      ),
+      
+      React.createElement('div', { ref: messagesEndRef })
+    ),
+    
+    // Input Area - iMessage style
+    React.createElement('div', { 
+      className: "px-4 pb-4 pt-2",
+      style: { backgroundColor: '#E0E7FF' }
+    },
+      React.createElement('div', { 
+        className: "flex items-end gap-2 bg-white rounded-full px-3 py-1.5 border border-gray-200"
+      },
+        React.createElement('textarea', {
+          value: input,
+          onChange: (e) => setInput(e.target.value),
+          onKeyPress: (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleSend();
+            }
+          },
+          placeholder: "Message",
+          disabled: loading,
+          rows: 1,
+          className: "flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px] disabled:opacity-50",
+          style: { maxHeight: '100px' }
+        }),
+        React.createElement('button', {
+          onClick: handleSend,
+          disabled: loading || !input.trim(),
+          className: "flex-shrink-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center disabled:opacity-30 transition hover:bg-indigo-700"
+        },
+          React.createElement('svg', {
+            className: "w-4 h-4 text-white",
+            fill: "currentColor",
+            viewBox: "0 0 24 24"
+          },
+            React.createElement('path', {
+              d: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
+            })
+          )
+        )
+      )
+    )
+  );
+};
+
+// ========================================
+// TINY TRACKER V4 - PART 10 (GEMINI VERSION)
+// AI Integration - Google Gemini API (FREE!)
+// ========================================
+
+const getAIResponse = async (question, kidId) => {
+  try {
+    // Build context from baby's data
+    const context = await buildAIContext(kidId, question);
+    
+    // Call Gemini API (FREE!)
+    const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: context.fullPrompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1500
+        }
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error('AI request failed');
+    }
+    
+    const data = await response.json();
+    return data.candidates[0].content.parts[0].text;
+    
+  } catch (error) {
+    console.error('AI Error:', error);
+    throw error;
+  }
+};
+
+const buildAIContext = async (kidId, question) => {
+  // Get baby's data
+  const babyData = await firestoreStorage.getKidData();
+  const settings = await firestoreStorage.getSettings();
+  const recentFeedings = await firestoreStorage.getFeedingsLastNDays(7);
+  const conversation = await firestoreStorage.getConversation();
+  
+  // Calculate age
+  const ageInMonths = calculateAgeInMonths(babyData.birthDate);
+  const ageInDays = Math.floor((Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24));
+  
+  // Analyze recent feedings
+  const feedingAnalysis = analyzeFeedingPatterns(recentFeedings);
+  
+  // Build conversation history
+  let conversationHistory = '';
+  if (conversation && conversation.messages) {
+    const recentMessages = conversation.messages.slice(-10);
+    conversationHistory = '\n\nPREVIOUS CONVERSATION:\n';
+    recentMessages.forEach(msg => {
+      conversationHistory += `${msg.role === 'user' ? 'Parent' : 'AI'}: ${msg.content}\n\n`;
+    });
+  }
+  
+  // Build full prompt (Gemini doesn't have separate system prompt)
+  const fullPrompt = `You are an AI assistant for parents tracking their baby's feeding patterns. You have access to detailed data about their baby and should provide helpful, personalized insights.
+
+BABY'S INFORMATION:
+- Name: ${babyData.name || 'Baby'}
+- Age: ${ageInMonths} month${ageInMonths !== 1 ? 's' : ''} old (${ageInDays} days)
+- Current weight: ${settings?.babyWeight || 'not set'} lbs
+- Target daily intake: ${settings?.babyWeight && settings?.multiplier ? (settings.babyWeight * settings.multiplier).toFixed(1) : 'not set'} oz/day
+
+RECENT FEEDING PATTERNS (Last 7 days):
+- Total feedings: ${feedingAnalysis.totalFeedings}
+- Average per day: ${feedingAnalysis.avgPerDay.toFixed(1)} feedings
+- Average intake per feeding: ${feedingAnalysis.avgPerFeeding.toFixed(1)} oz
+- Total daily average: ${feedingAnalysis.avgDailyIntake.toFixed(1)} oz
+- Average time between feedings: ${feedingAnalysis.avgInterval.toFixed(1)} hours
+- Night feedings (10pm-6am): ${feedingAnalysis.nightFeedings} (${feedingAnalysis.nightIntakePercent.toFixed(0)}% of daily intake)
+
+TODAY'S INTAKE:
+- Total so far: ${feedingAnalysis.todayTotal.toFixed(1)} oz
+- Feedings so far: ${feedingAnalysis.todayCount}
+- Compared to 7-day average: ${feedingAnalysis.todayVsAvg > 0 ? '+' : ''}${feedingAnalysis.todayVsAvg.toFixed(1)} oz
+
+IMPORTANT GUIDELINES:
+1. Always reference specific data points from ${babyData.name}'s actual feeding patterns
+2. Be conversational and supportive, not clinical
+3. If you notice concerning patterns, suggest consulting a pediatrician
+4. Remember context from previous messages in this conversation
+5. Use phrases like "Looking at ${babyData.name}'s patterns..." or "Based on ${babyData.name}'s data..."
+6. Never diagnose medical conditions - only provide informational insights
+7. Keep responses concise but thorough (2-4 paragraphs)
+8. If asked about aggregated data from other babies, acknowledge that feature is coming soon
+
+You are speaking to ${babyData.name}'s parent. Be helpful, empathetic, and data-driven.
+${conversationHistory}
+Parent's Question: ${question}
+
+Your Response:`;
+
+  return {
+    fullPrompt,
+    messages: [] // Not used for Gemini
+  };
+};
+
+const calculateAgeInMonths = (birthDate) => {
+  if (!birthDate) return 0;
+  const birth = new Date(birthDate);
+  const now = new Date();
+  const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  return months;
+};
+
+const analyzeFeedingPatterns = (feedings) => {
+  if (!feedings || feedings.length === 0) {
+    return {
+      totalFeedings: 0,
+      avgPerDay: 0,
+      avgPerFeeding: 0,
+      avgDailyIntake: 0,
+      avgInterval: 0,
+      nightFeedings: 0,
+      nightIntakePercent: 0,
+      todayTotal: 0,
+      todayCount: 0,
+      todayVsAvg: 0
+    };
+  }
+  
+  const totalFeedings = feedings.length;
+  const totalOunces = feedings.reduce((sum, f) => sum + f.ounces, 0);
+  
+  // Calculate days span
+  const timestamps = feedings.map(f => f.timestamp);
+  const firstDay = Math.min(...timestamps);
+  const lastDay = Math.max(...timestamps);
+  const daysSpan = Math.max(1, Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1);
+  
+  // Today's feedings
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const todayFeedings = feedings.filter(f => f.timestamp >= todayStart.getTime());
+  const todayTotal = todayFeedings.reduce((sum, f) => sum + f.ounces, 0);
+  const todayCount = todayFeedings.length;
+  
+  // Night feedings (10pm - 6am)
+  const nightFeedings = feedings.filter(f => {
+    const hour = new Date(f.timestamp).getHours();
+    return hour >= 22 || hour < 6;
+  });
+  const nightIntake = nightFeedings.reduce((sum, f) => sum + f.ounces, 0);
+  
+  // Calculate intervals
+  let totalIntervalHours = 0;
+  for (let i = 1; i < feedings.length; i++) {
+    const intervalHours = (feedings[i].timestamp - feedings[i-1].timestamp) / (1000 * 60 * 60);
+    totalIntervalHours += intervalHours;
+  }
+  
+  const avgDailyIntake = totalOunces / daysSpan;
+  
+  return {
+    totalFeedings,
+    avgPerDay: totalFeedings / daysSpan,
+    avgPerFeeding: totalOunces / totalFeedings,
+    avgDailyIntake,
+    avgInterval: totalIntervalHours / (totalFeedings - 1),
+    nightFeedings: nightFeedings.length,
+    nightIntakePercent: (nightIntake / totalOunces) * 100,
+    todayTotal,
+    todayCount,
+    todayVsAvg: todayTotal - avgDailyIntake
+  };
+};
