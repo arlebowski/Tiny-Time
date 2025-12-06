@@ -522,46 +522,23 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.1 - PART 3
-// Main App with Bottom Navigation (Clean colors, simpler shadows)
+// TINY TRACKER V4.2 - PART 3
+// Main App with Bottom Navigation (FIXED - nav extends to bottom)
 // ========================================
 
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
-  const [hasUnreadAI, setHasUnreadAI] = useState(false);
   
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
   
-  // Check for unread AI messages when not on chat tab
-  useEffect(() => {
-    if (activeTab !== 'chat') {
-      // Simple check: if conversation exists and last message was from AI
-      checkUnreadMessages();
-    } else {
-      setHasUnreadAI(false);
-    }
-  }, [activeTab, kidId]);
-  
-  const checkUnreadMessages = async () => {
-    try {
-      const conversation = await firestoreStorage.getConversation();
-      if (conversation && conversation.messages && conversation.messages.length > 0) {
-        const lastMessage = conversation.messages[conversation.messages.length - 1];
-        // If last message was from AI and we're not on chat tab, show badge
-        if (lastMessage.role === 'assistant') {
-          setHasUnreadAI(true);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking messages:', error);
-    }
-  };
-  
   return React.createElement('div', { 
-    className: "min-h-screen pb-24",
-    style: { backgroundColor: '#E0E7FF' } // Single consistent background color
+    className: "min-h-screen",
+    style: { 
+      backgroundColor: '#E0E7FF',
+      paddingBottom: '80px' // Space for fixed nav
+    }
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
       // Header - no drop shadow, just flat
@@ -589,16 +566,17 @@ const MainApp = ({ user, kidId }) => {
       )
     ),
     
-    // Bottom Navigation - simpler shadow like Instagram
+    // Bottom Navigation - extends to bottom, no scroll behind
     React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 z-50 mb-2",
+      className: "fixed bottom-0 left-0 right-0 z-50",
       style: { 
         backgroundColor: '#E0E7FF',
-        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)' // Subtle top shadow only
+        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)',
+        paddingBottom: 'env(safe-area-inset-bottom)' // iOS safe area
       }
     },
       React.createElement('div', { 
-        className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-2"
+        className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3"
       },
         [
           { id: 'tracker', icon: BarChart, label: 'Tracker' },
@@ -918,7 +896,10 @@ const TrackerTab = ({ user, kidId }) => {
               :
                 React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
                   React.createElement('div', { className: "flex items-center gap-3" },
-                    React.createElement('div', { className: "bg-indigo-100 rounded-full p-2" },
+                    React.createElement('div', { 
+                      className: "bg-indigo-100 rounded-full flex items-center justify-center",
+                      style: { width: '48px', height: '48px' }
+                    },
                       React.createElement('span', { className: "text-xl" }, '🍼')
                     ),
                     React.createElement('div', {},
@@ -1030,16 +1011,17 @@ const AnalyticsTab = ({ kidId }) => {
       grouped[key].volume += f.ounces;
       grouped[key].count += 1;
     });
+    // FIXED: Reverse array so oldest is on left, newest on right
     return Object.values(grouped).map(item => ({
       date: item.date,
       volume: parseFloat(item.volume.toFixed(1)),
       count: item.count
-    }));
+    })).reverse();
   };
 
   const formatInterval = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
+    const hours = Math.floor(Math.abs(minutes) / 60);
+    const mins = Math.round(Math.abs(minutes) % 60);
     return hours === 0 ? `${mins}m` : `${hours}h ${mins}m`;
   };
 
@@ -1093,7 +1075,7 @@ const AnalyticsTab = ({ kidId }) => {
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
       ),
       React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
-        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Avg Between Feeds'),
+        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Time Between Feeds'),
         React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval)),
         React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
       )
@@ -1118,7 +1100,10 @@ const AnalyticsTab = ({ kidId }) => {
                       className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500", 
                       style: { height: `${(item.volume / maxVolume) * 160}px`, minHeight: '30px' } 
                     },
-                      React.createElement('span', { className: "text-white text-xs font-semibold" }, item.volume)
+                      React.createElement('div', { className: "text-white font-semibold" },
+                        React.createElement('span', { className: "text-xs" }, item.volume),
+                        React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                      )
                     )
                   ),
                   React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, item.date),
@@ -2069,7 +2054,7 @@ const getAIResponse = async (question, kidId) => {
     const context = await buildAIContext(kidId, question);
     
     // Call Gemini API (FREE!)
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
