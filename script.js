@@ -2068,45 +2068,55 @@ const AIChatTab = ({ user, kidId }) => {
 // AI Integration - Google Gemini API (FREE!)
 // ========================================
 
-// ⚠️ ADD YOUR GEMINI API KEY HERE ⚠️
-// Get it free at: https://aistudio.google.com/apikey
-const GEMINI_API_KEY = "AIzaSyD-oo_KbD4pUMu3z5uh6GvWVUg7uwEsGWU";
+// ⚠️ REPLACE WITH YOUR REAL KEY FROM aistudio.google.com/apikey
+const GEMINI_API_KEY = "YOUR_REAL_API_KEY_HERE";
+
+// Use a current model id
+const GEMINI_MODEL = "gemini-2.5-flash"; // or "gemini-2.5-pro"
 
 const getAIResponse = async (question, kidId) => {
   try {
-    // Build context from baby's data
     const context = await buildAIContext(kidId, question);
-    
-    // Call Gemini API (FREE!)
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: context.fullPrompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1500
-        }
-      })
-    });
-    
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: context,
+                },
+              ],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.4,
+            topK: 32,
+            topP: 0.95,
+            maxOutputTokens: 1500,
+          },
+        }),
+      }
+    );
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('Gemini API Error:', errorData);
-      throw new Error(`AI request failed: ${response.status}`);
+      console.error("Gemini API Error:", errorData);
+      throw new Error(
+        `AI request failed: ${response.status} - Check model id + API key`
+      );
     }
-    
+
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
-    
+    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "(No response)";
   } catch (error) {
-    console.error('AI Error:', error);
+    console.error("AI Error:", error);
     throw error;
   }
 };
