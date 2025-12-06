@@ -146,266 +146,121 @@ const removeMember = async (kidId, userId) => {
 const firestoreStorage = {
   currentKidId: null,
 
-  async initialize(kidId) {
+  initialize: async function(kidId) {
     this.currentKidId = kidId;
   },
 
-  // -------- FEEDINGS --------
-  async addFeeding(ounces, timestamp) {
+  addFeeding: async function(ounces, timestamp) {
     if (!this.currentKidId) throw new Error('No kid selected');
-
+    
     const feedingId = `feeding_${Date.now()}`;
-    const feedingDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'feedings',
-      feedingId
-    );
-
+    const feedingDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'feedings', feedingId);
+    
     await firestoreSetDoc(feedingDocRef, {
-      ounces,
-      timestamp,
-      createdAt: firestoreTimestamp.now(),
+      ounces: ounces,
+      timestamp: timestamp,
+      createdAt: firestoreTimestamp.now()
     });
-
+    
     return feedingId;
   },
 
-  async updateFeeding(feedingId, ounces, timestamp) {
+  updateFeeding: async function(feedingId, ounces, timestamp) {
     if (!this.currentKidId) throw new Error('No kid selected');
-
-    const feedingDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'feedings',
-      feedingId
-    );
-    await firestoreUpdateDoc(feedingDocRef, { ounces, timestamp });
+    
+    const feedingDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'feedings', feedingId);
+    await firestoreUpdateDoc(feedingDocRef, {
+      ounces: ounces,
+      timestamp: timestamp
+    });
   },
 
-  async deleteFeeding(feedingId) {
+  deleteFeeding: async function(feedingId) {
     if (!this.currentKidId) throw new Error('No kid selected');
-
-    const feedingDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'feedings',
-      feedingId
-    );
+    
+    const feedingDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'feedings', feedingId);
     await firestoreDeleteDoc(feedingDocRef);
   },
 
-  async getFeedingsLastNDays(days) {
+  getFeedingsLastNDays: async function(days) {
     if (!this.currentKidId) throw new Error('No kid selected');
-
-    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    const feedingsRef = firestoreCollection(
-      db,
-      'kids',
-      this.currentKidId,
-      'feedings'
-    );
+    
+    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
+    const feedingsRef = firestoreCollection(db, 'kids', this.currentKidId, 'feedings');
     const q = firestoreQuery(feedingsRef, firestoreOrderBy('timestamp', 'desc'));
-
+    
     const snapshot = await firestoreGetDocs(q);
     const feedings = [];
-
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
+    
+    snapshot.forEach(doc => {
+      const data = doc.data();
       if (data.timestamp >= cutoff) {
         feedings.push({
-          id: docSnap.id,
+          id: doc.id,
           ounces: data.ounces,
-          timestamp: data.timestamp,
+          timestamp: data.timestamp
         });
       }
     });
-
+    
     return feedings.sort((a, b) => a.timestamp - b.timestamp);
   },
 
-  async getFeedingsForDate(date) {
+  getSettings: async function() {
     if (!this.currentKidId) throw new Error('No kid selected');
-
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-
-    const startMs = startOfDay.getTime();
-    const endMs = endOfDay.getTime();
-
-    const feedingsRef = firestoreCollection(
-      db,
-      'kids',
-      this.currentKidId,
-      'feedings'
-    );
-    const q = firestoreQuery(feedingsRef, firestoreOrderBy('timestamp', 'desc'));
-
-    const snapshot = await firestoreGetDocs(q);
-    const feedings = [];
-
-    snapshot.forEach((docSnap) => {
-      const data = docSnap.data();
-      const ts = data.timestamp;
-      if (ts >= startMs && ts <= endMs) {
-        feedings.push({
-          id: docSnap.id,
-          ounces: data.ounces,
-          timestamp: ts,
-        });
-      }
-    });
-
-    return feedings.sort((a, b) => b.timestamp - a.timestamp);
-  },
-
-  // used by TrackerTab – currently just load once + return no-op unsubscribe
-  subscribeToFeedings(date, callback) {
-    this.getFeedingsForDate(date)
-      .then(callback)
-      .catch((err) => console.error('Error loading feedings:', err));
-
-    return () => {};
-  },
-
-  // -------- SETTINGS --------
-  async getSettings() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-
-    const settingsDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'settings',
-      'default'
-    );
+    
+    const settingsDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'settings', 'default');
     const settingsDoc = await firestoreGetDoc(settingsDocRef);
-
+    
     if (settingsDoc.exists()) {
       return settingsDoc.data();
     }
     return { babyWeight: null, multiplier: 2.5 };
   },
 
-  async setSettings(settings) {
+  setSettings: async function(settings) {
     if (!this.currentKidId) throw new Error('No kid selected');
-
-    const settingsDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'settings',
-      'default'
-    );
+    
+    const settingsDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'settings', 'default');
     await firestoreSetDoc(settingsDocRef, settings, { merge: true });
   },
 
-  // -------- KID DATA --------
-  async getKidData() {
+  getKidData: async function() {
     if (!this.currentKidId) throw new Error('No kid selected');
-
+    
     const kidDocRef = firestoreDoc(db, 'kids', this.currentKidId);
     const kidDoc = await firestoreGetDoc(kidDocRef);
-
+    
     if (kidDoc.exists()) {
       return { id: kidDoc.id, ...kidDoc.data() };
     }
     return null;
   },
 
-  async updateKid(data) {
+  updateKid: async function(data) {
     if (!this.currentKidId) throw new Error('No kid selected');
-
+    
     const kidDocRef = firestoreDoc(db, 'kids', this.currentKidId);
     await firestoreSetDoc(kidDocRef, data, { merge: true });
   },
 
-  // -------- MEMBERS --------
-  async getMembers() {
+  getMembers: async function() {
     if (!this.currentKidId) throw new Error('No kid selected');
-
+    
     const usersRef = firestoreCollection(db, 'users');
-    const q = firestoreQuery(
-      usersRef,
-      firestoreWhere('kidId', '==', this.currentKidId)
-    );
+    const q = firestoreQuery(usersRef, firestoreWhere('kidId', '==', this.currentKidId));
     const snapshot = await firestoreGetDocs(q);
-
+    
     const members = [];
-    snapshot.forEach((docSnap) => {
+    snapshot.forEach(doc => {
       members.push({
-        uid: docSnap.id,
-        ...docSnap.data(),
+        uid: doc.id,
+        ...doc.data()
       });
     });
-
+    
     return members;
   },
-
-  // -------- AI Conversation methods --------
-  async getConversation() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-
-    const conversationDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'conversations',
-      'default'
-    );
-    const conversationDoc = await firestoreGetDoc(conversationDocRef);
-
-    if (conversationDoc.exists()) {
-      return conversationDoc.data();
-    }
-    return { messages: [] };
-  },
-
-  async saveMessage(message) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-
-    const conversation = await this.getConversation();
-    const messages = conversation.messages || [];
-    messages.push(message);
-
-    const conversationDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'conversations',
-      'default'
-    );
-    await firestoreSetDoc(
-      conversationDocRef,
-      {
-        messages,
-        updatedAt: firestoreTimestamp.now(),
-      },
-      { merge: true }
-    );
-  },
-
-  async clearConversation() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-
-    const conversationDocRef = firestoreDoc(
-      db,
-      'kids',
-      this.currentKidId,
-      'conversations',
-      'default'
-    );
-    await firestoreSetDoc(conversationDocRef, {
-      messages: [],
-      updatedAt: firestoreTimestamp.now(),
-    });
-  },
-};
 
   // AI Conversation methods
   getConversation: async function() {
@@ -878,12 +733,30 @@ const TrackerTab = ({ user, kidId }) => {
 
   useEffect(() => {
     if (!loading && kidId) {
-      const unsubscribe = firestoreStorage.subscribeToFeedings(currentDate, (feedingsData) => {
-        setFeedings(feedingsData);
-      });
-      return () => unsubscribe();
+      loadFeedings();
+      const interval = setInterval(loadFeedings, 5000);
+      return () => clearInterval(interval);
     }
   }, [currentDate, loading, kidId]);
+
+  const loadFeedings = async () => {
+    try {
+      const allFeedings = await firestoreStorage.getFeedingsLastNDays(7);
+      const startOfDay = new Date(currentDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(currentDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      
+      const dayFeedings = allFeedings.filter(f => 
+        f.timestamp >= startOfDay.getTime() && 
+        f.timestamp <= endOfDay.getTime()
+      );
+      
+      setFeedings(dayFeedings);
+    } catch (error) {
+      console.error('Error loading feedings:', error);
+    }
+  };
 
   const loadData = async () => {
     if (!kidId) return;
@@ -914,14 +787,11 @@ const TrackerTab = ({ user, kidId }) => {
     }
 
     try {
-      await firestoreStorage.addFeeding({
-        ounces: amount,
-        timestamp: feedingTime.getTime(),
-        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      });
+      await firestoreStorage.addFeeding(amount, feedingTime.getTime());
       setOunces('');
       setCustomTime('');
       setShowCustomTime(false);
+      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error adding feeding:', error);
     }
@@ -943,12 +813,9 @@ const TrackerTab = ({ user, kidId }) => {
     feedingTime.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 
     try {
-      await firestoreStorage.updateFeeding(editingFeedingId, {
-        ounces: amount,
-        timestamp: feedingTime.getTime(),
-        time: feedingTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
-      });
+      await firestoreStorage.updateFeeding(editingFeedingId, amount, feedingTime.getTime());
       setEditingFeedingId(null);
+      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error updating feeding:', error);
     }
@@ -962,6 +829,7 @@ const TrackerTab = ({ user, kidId }) => {
     if (!confirm('Delete this feeding?')) return;
     try {
       await firestoreStorage.deleteFeeding(feedingId);
+      await loadFeedings(); // Refresh immediately
     } catch (error) {
       console.error('Error deleting feeding:', error);
     }
