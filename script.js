@@ -1145,8 +1145,8 @@ const AnalyticsTab = ({ kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V3.1 - PART 6
-// Family Tab - with functional baby photo upload
+// TINY TRACKER V4.3 - PART 6
+// Family Tab - FIXED: name field width, bigger buttons, show member names, image compression
 // ========================================
 
 const FamilyTab = ({ user, kidId }) => {
@@ -1207,15 +1207,57 @@ const FamilyTab = ({ user, kidId }) => {
     fileInputRef.current?.click();
   };
 
+  // FIXED: Auto-compress images to meet size requirements
+  const compressImage = (file, maxSizeKB = 500) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          
+          // Resize if too large
+          const maxDimension = 1200;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = (height / width) * maxDimension;
+              width = maxDimension;
+            } else {
+              width = (width / height) * maxDimension;
+              height = maxDimension;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Try different quality levels to hit target size
+          let quality = 0.9;
+          let base64 = canvas.toDataURL('image/jpeg', quality);
+          
+          // Keep reducing quality until under max size
+          while (base64.length > maxSizeKB * 1024 * 1.37 && quality > 0.1) {
+            quality -= 0.1;
+            base64 = canvas.toDataURL('image/jpeg', quality);
+          }
+          
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
   const handlePhotoChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
-    // Check file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Photo must be less than 5MB');
-      return;
-    }
 
     // Check file type
     if (!file.type.startsWith('image/')) {
@@ -1224,16 +1266,12 @@ const FamilyTab = ({ user, kidId }) => {
     }
 
     try {
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onload = async (e) => {
-        const base64 = e.target.result;
-        
-        // Save to Firestore
-        await firestoreStorage.updateKid({ photoURL: base64 });
-        setBabyPhotoUrl(base64);
-      };
-      reader.readAsDataURL(file);
+      // Compress image to ~500KB
+      const compressedBase64 = await compressImage(file, 500);
+      
+      // Save to Firestore
+      await firestoreStorage.updateKid({ photoURL: compressedBase64 });
+      setBabyPhotoUrl(compressedBase64);
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo');
@@ -1298,19 +1336,25 @@ const FamilyTab = ({ user, kidId }) => {
 
   const handleUpdateWeight = async () => {
     const weight = parseFloat(tempWeight);
-    if (weight > 0) {
-      await firestoreStorage.setSettings({ babyWeight: weight });
-      setSettings({ ...settings, babyWeight: weight });
+    if (!weight || weight <= 0) return;
+    try {
+      await firestoreStorage.saveSettings({ ...settings, babyWeight: weight });
       setEditingWeight(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating weight:', error);
     }
   };
 
   const handleUpdateMultiplier = async () => {
     const mult = parseFloat(tempMultiplier);
-    if (mult > 0) {
-      await firestoreStorage.setSettings({ multiplier: mult });
-      setSettings({ ...settings, multiplier: mult });
+    if (!mult || mult <= 0) return;
+    try {
+      await firestoreStorage.saveSettings({ ...settings, multiplier: mult });
       setEditingMultiplier(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating multiplier:', error);
     }
   };
 
@@ -1321,14 +1365,29 @@ const FamilyTab = ({ user, kidId }) => {
       setEditingUserName(false);
       await loadData();
     } catch (error) {
-      console.error('Error updating name:', error);
+      console.error('Error updating user name:', error);
     }
   };
 
-  const formatBirthDate = (timestamp) => {
-    if (!timestamp) return 'Unknown';
-    const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const calculateAge = (birthDate) => {
+    if (!birthDate) return 'Not set';
+    const birth = new Date(birthDate);
+    const now = new Date();
+    const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+    if (months === 0) {
+      const days = Math.floor((now - birth) / (1000 * 60 * 60 * 24));
+      return `${days} day${days !== 1 ? 's' : ''} old`;
+    }
+    return `${months} month${months !== 1 ? 's' : ''} old`;
+  };
+
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '';
+    return new Date(timestamp).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
   };
 
   const formatDateForInput = (timestamp) => {
@@ -1337,198 +1396,202 @@ const FamilyTab = ({ user, kidId }) => {
     return date.toISOString().split('T')[0];
   };
 
-  const getAge = (timestamp) => {
-    if (!timestamp) return '';
-    const birth = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now - birth;
-    const days = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    
-    if (days < 7) return `${days} days old`;
-    if (days < 30) return `${Math.floor(days / 7)} weeks old`;
-    const months = Math.floor(days / 30);
-    if (months < 12) return `${months} month${months !== 1 ? 's' : ''} old`;
-    const years = Math.floor(months / 12);
-    return `${years} year${years > 1 ? 's' : ''} old`;
-  };
-
-  const isOwner = kidData && kidData.ownerId === user.uid;
-
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
       React.createElement('div', { className: "text-gray-600" }, 'Loading...')
     );
   }
 
+  const isOwner = kidData?.ownerId === user.uid;
+
   return React.createElement('div', { className: "space-y-4" },
+    // Hidden file input
+    React.createElement('input', {
+      ref: fileInputRef,
+      type: "file",
+      accept: "image/*",
+      onChange: handlePhotoChange,
+      style: { display: 'none' }
+    }),
+
     // Baby Info Card
-    kidData && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
-      React.createElement('div', { className: "space-y-4" },
-        // Baby photo and name
-        React.createElement('div', { className: "flex items-center gap-4" },
-          React.createElement('div', { className: "relative" },
-            React.createElement('div', { 
-              className: "bg-indigo-100 rounded-full w-20 h-20 flex items-center justify-center overflow-hidden cursor-pointer",
-              onClick: handlePhotoClick
-            },
-              babyPhotoUrl ?
-                React.createElement('img', {
-                  src: babyPhotoUrl,
-                  alt: kidData.name || 'Baby',
-                  className: "w-full h-full object-cover"
-                })
-              :
-                React.createElement('span', { className: "text-4xl" }, '👶')
-            ),
-            React.createElement('button', {
-              onClick: handlePhotoClick,
-              className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition shadow-lg",
-              title: "Change photo"
-            }, React.createElement(Camera, { className: "w-3 h-3" })),
-            React.createElement('input', {
-              ref: fileInputRef,
-              type: "file",
-              accept: "image/*",
-              onChange: handlePhotoChange,
-              style: { display: 'none' }
-            })
-          ),
-          React.createElement('div', { className: "flex-1" },
-            !editingName ?
-              React.createElement('div', { className: "flex items-center gap-2" },
-                React.createElement('span', { className: "text-2xl font-bold text-gray-800" }, kidData.name || 'Baby'),
-                React.createElement('button', {
-                  onClick: () => {
-                    setTempBabyName(kidData.name || '');
-                    setEditingName(true);
-                  },
-                  className: "text-indigo-600 hover:text-indigo-700"
-                }, React.createElement(Edit2, { className: "w-4 h-4" }))
-              )
+      
+      React.createElement('div', { className: "flex items-start gap-4 mb-6" },
+        React.createElement('div', { className: "relative flex-shrink-0" },
+          React.createElement('div', {
+            onClick: handlePhotoClick,
+            className: "w-24 h-24 rounded-full overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition relative"
+          },
+            babyPhotoUrl ?
+              React.createElement('img', {
+                src: babyPhotoUrl,
+                alt: kidData?.name || 'Baby',
+                className: "w-full h-full object-cover"
+              })
             :
-              React.createElement('div', { className: "flex items-center gap-2" },
-                React.createElement('input', {
-                  type: "text",
-                  value: tempBabyName,
-                  onChange: (e) => setTempBabyName(e.target.value),
-                  className: "flex-1 px-3 py-1 text-lg border-2 border-indigo-300 rounded-lg"
-                }),
-                React.createElement('button', {
-                  onClick: handleUpdateBabyName,
-                  className: "text-green-600 hover:text-green-700"
-                }, React.createElement(Check, { className: "w-5 h-5" })),
-                React.createElement('button', {
-                  onClick: () => setEditingName(false),
-                  className: "text-gray-400 hover:text-gray-600"
-                }, React.createElement(X, { className: "w-5 h-5" }))
-              ),
-            React.createElement('div', { className: "text-sm text-gray-500" }, getAge(kidData.birthDate))
+              React.createElement('div', { className: "w-full h-full flex items-center justify-center text-4xl" }, '👶')
+          ),
+          React.createElement('div', { 
+            className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer hover:bg-indigo-700 transition",
+            onClick: handlePhotoClick
+          },
+            React.createElement(Camera, { className: "w-4 h-4 text-white" })
           )
         ),
         
-        // Birth date
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, 'Birth Date'),
-          !editingBirthDate ?
-            React.createElement('button', {
-              onClick: () => {
-                setTempBirthDate(formatDateForInput(kidData.birthDate));
-                setEditingBirthDate(true);
-              },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              formatBirthDate(kidData.birthDate),
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
+        // FIXED: Name field with proper width constraint
+        React.createElement('div', { className: "flex-1 min-w-0" },
+          editingName ?
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('input', {
+                type: "text",
+                value: tempBabyName,
+                onChange: (e) => setTempBabyName(e.target.value),
+                placeholder: "Baby's name",
+                maxLength: 20,
+                className: "flex-1 px-3 py-2 text-lg font-medium border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500",
+                style: { minWidth: 0 }
+              }),
+              // FIXED: Bigger buttons (w-6 h-6 instead of w-4 h-4)
+              React.createElement('button', {
+                onClick: handleUpdateBabyName,
+                className: "text-green-600 hover:text-green-700 flex-shrink-0"
+              }, React.createElement(Check, { className: "w-6 h-6" })),
+              React.createElement('button', {
+                onClick: () => setEditingName(false),
+                className: "text-gray-400 hover:text-gray-600 flex-shrink-0"
+              }, React.createElement(X, { className: "w-6 h-6" }))
             )
           :
             React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "date",
-                value: tempBirthDate,
-                onChange: (e) => setTempBirthDate(e.target.value),
-                className: "px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
+              React.createElement('h3', { className: "text-lg font-semibold text-gray-800 truncate" }, 
+                kidData?.name || 'Baby'
+              ),
               React.createElement('button', {
-                onClick: handleUpdateBirthDate,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingBirthDate(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        ),
-        
-        // Baby weight
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Current Weight"),
-          !editingWeight ?
+                onClick: () => {
+                  setTempBabyName(kidData?.name || '');
+                  setEditingName(true);
+                },
+                className: "text-indigo-600 hover:text-indigo-700 flex-shrink-0"
+              }, React.createElement(Edit2, { className: "w-4 h-4" }))
+            ),
+          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, 
+            calculateAge(kidData?.birthDate)
+          )
+        )
+      ),
+      
+      // Birth Date
+      React.createElement('div', { className: "flex items-center justify-between py-3" },
+        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Birth Date'),
+        editingBirthDate ?
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "date",
+              value: tempBirthDate,
+              onChange: (e) => setTempBirthDate(e.target.value),
+              className: "px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm"
+            }),
+            React.createElement('button', {
+              onClick: handleUpdateBirthDate,
+              className: "text-green-600 hover:text-green-700"
+            }, React.createElement(Check, { className: "w-6 h-6" })),
+            React.createElement('button', {
+              onClick: () => setEditingBirthDate(false),
+              className: "text-gray-400 hover:text-gray-600"
+            }, React.createElement(X, { className: "w-6 h-6" }))
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-gray-800 font-medium" }, 
+              formatDate(kidData?.birthDate) || 'Not set'
+            ),
+            React.createElement('button', {
+              onClick: () => {
+                setTempBirthDate(formatDateForInput(kidData?.birthDate) || '');
+                setEditingBirthDate(true);
+              },
+              className: "text-indigo-600 hover:text-indigo-700"
+            }, React.createElement(Edit2, { className: "w-4 h-4" }))
+          )
+      ),
+      
+      // Current Weight
+      React.createElement('div', { className: "flex items-center justify-between py-3" },
+        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Current Weight'),
+        editingWeight ?
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "number",
+              step: "0.1",
+              value: tempWeight,
+              onChange: (e) => setTempWeight(e.target.value),
+              placeholder: "8.5",
+              className: "w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right"
+            }),
+            React.createElement('span', { className: "text-gray-600" }, 'lbs'),
+            React.createElement('button', {
+              onClick: handleUpdateWeight,
+              className: "text-green-600 hover:text-green-700"
+            }, React.createElement(Check, { className: "w-6 h-6" })),
+            React.createElement('button', {
+              onClick: () => setEditingWeight(false),
+              className: "text-gray-400 hover:text-gray-600"
+            }, React.createElement(X, { className: "w-6 h-6" }))
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-gray-800 font-medium" }, 
+              settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set'
+            ),
             React.createElement('button', {
               onClick: () => {
                 setTempWeight(settings.babyWeight?.toString() || '');
                 setEditingWeight(true);
               },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set',
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempWeight,
-                onChange: (e) => setTempWeight(e.target.value),
-                placeholder: "Weight",
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('span', { className: "text-sm text-gray-600" }, 'lbs'),
-              React.createElement('button', {
-                onClick: handleUpdateWeight,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingWeight(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        ),
-        
-        // Target multiplier
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-xl" },
-          React.createElement('span', { className: "text-sm font-medium text-gray-700" }, "Target Multiplier (oz/lb)"),
-          !editingMultiplier ?
+              className: "text-indigo-600 hover:text-indigo-700"
+            }, React.createElement(Edit2, { className: "w-4 h-4" }))
+          )
+      ),
+      
+      // Target Multiplier
+      React.createElement('div', { className: "flex items-center justify-between py-3" },
+        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Target Multiplier (oz/lb)'),
+        editingMultiplier ?
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "number",
+              step: "0.1",
+              value: tempMultiplier,
+              onChange: (e) => setTempMultiplier(e.target.value),
+              placeholder: "2.5",
+              className: "w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right"
+            }),
+            React.createElement('span', { className: "text-gray-600" }, 'x'),
+            React.createElement('button', {
+              onClick: handleUpdateMultiplier,
+              className: "text-green-600 hover:text-green-700"
+            }, React.createElement(Check, { className: "w-6 h-6" })),
+            React.createElement('button', {
+              onClick: () => setEditingMultiplier(false),
+              className: "text-gray-400 hover:text-gray-600"
+            }, React.createElement(X, { className: "w-6 h-6" }))
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-gray-800 font-medium" }, 
+              `${settings.multiplier}x`
+            ),
             React.createElement('button', {
               onClick: () => {
                 setTempMultiplier(settings.multiplier?.toString() || '2.5');
                 setEditingMultiplier(true);
               },
-              className: "flex items-center gap-2 text-sm text-gray-600"
-            },
-              `${settings.multiplier}x`,
-              React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "number",
-                step: "0.1",
-                value: tempMultiplier,
-                onChange: (e) => setTempMultiplier(e.target.value),
-                className: "w-20 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
-              }),
-              React.createElement('button', {
-                onClick: handleUpdateMultiplier,
-                className: "text-green-600 hover:text-green-700"
-              }, React.createElement(Check, { className: "w-4 h-4" })),
-              React.createElement('button', {
-                onClick: () => setEditingMultiplier(false),
-                className: "text-gray-400 hover:text-gray-600"
-              }, React.createElement(X, { className: "w-4 h-4" }))
-            )
-        )
+              className: "text-indigo-600 hover:text-indigo-700"
+            }, React.createElement(Edit2, { className: "w-4 h-4" }))
+          )
       )
     ),
 
@@ -1549,53 +1612,58 @@ const FamilyTab = ({ user, kidId }) => {
                   className: "w-12 h-12 rounded-full"
                 })
               :
-                React.createElement('div', { className: "w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center" },
-                  React.createElement('span', { className: "text-xl" }, '👤')
+                React.createElement('div', { 
+                  className: "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg",
+                  style: { backgroundColor: '#818cf8' }
+                },
+                  React.createElement('span', {}, (member.displayName || member.email).charAt(0).toUpperCase())
                 )
             ),
-            React.createElement('div', { className: "flex-1" },
+            React.createElement('div', { className: "flex-1 min-w-0" },
               member.uid === user.uid && editingUserName ?
-                React.createElement('div', { className: "flex gap-2" },
+                React.createElement('div', { className: "flex items-center gap-2" },
                   React.createElement('input', {
                     type: "text",
                     value: tempUserName,
                     onChange: (e) => setTempUserName(e.target.value),
                     placeholder: "Your name",
-                    className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg"
+                    className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg",
+                    style: { minWidth: 0 }
                   }),
                   React.createElement('button', {
                     onClick: handleUpdateUserName,
-                    className: "text-green-600 hover:text-green-700"
-                  }, React.createElement(Check, { className: "w-4 h-4" })),
+                    className: "text-green-600 hover:text-green-700 flex-shrink-0"
+                  }, React.createElement(Check, { className: "w-6 h-6" })),
                   React.createElement('button', {
                     onClick: () => setEditingUserName(false),
-                    className: "text-gray-400 hover:text-gray-600"
-                  }, React.createElement(X, { className: "w-4 h-4" }))
+                    className: "text-gray-400 hover:text-gray-600 flex-shrink-0"
+                  }, React.createElement(X, { className: "w-6 h-6" }))
                 )
               :
                 React.createElement('div', null,
                   React.createElement('div', { className: "flex items-center gap-2" },
-                    React.createElement('span', { className: "font-medium text-gray-800" }, 
+                    // FIXED: Show displayName or email properly
+                    React.createElement('span', { className: "font-medium text-gray-800 truncate" }, 
                       member.displayName || member.email.split('@')[0]
                     ),
                     member.uid === kidData?.ownerId && 
-                      React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded" }, 'Owner'),
+                      React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded flex-shrink-0" }, 'Owner'),
                     member.uid === user.uid &&
                       React.createElement('button', {
                         onClick: () => {
                           setTempUserName(member.displayName || '');
                           setEditingUserName(true);
                         },
-                        className: "text-indigo-600 hover:text-indigo-700"
+                        className: "text-indigo-600 hover:text-indigo-700 flex-shrink-0"
                       }, React.createElement(Edit2, { className: "w-3 h-3" }))
                   ),
-                  React.createElement('div', { className: "text-sm text-gray-500" }, member.email)
+                  React.createElement('div', { className: "text-sm text-gray-500 truncate" }, member.email)
                 )
             ),
             isOwner && member.uid !== user.uid &&
               React.createElement('button', {
                 onClick: () => handleRemoveMember(member.uid),
-                className: "text-red-400 hover:text-red-600 text-sm font-medium"
+                className: "text-red-400 hover:text-red-600 text-sm font-medium flex-shrink-0"
               }, 'Remove')
           )
         )
@@ -1604,26 +1672,29 @@ const FamilyTab = ({ user, kidId }) => {
       !showInvite ?
         React.createElement('button', {
           onClick: handleCreateInvite,
-          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-        }, '+ Invite Partner')
+          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+        },
+          React.createElement(UserPlus, { className: "w-5 h-5" }),
+          '+ Invite Partner'
+        )
       :
-        React.createElement('div', { className: "space-y-2" },
-          React.createElement('div', { className: "text-xs text-gray-600 mb-2" }, 'Share this link with your partner:'),
+        React.createElement('div', { className: "bg-indigo-50 rounded-xl p-4" },
+          React.createElement('div', { className: "text-sm text-gray-600 mb-2" }, 'Share this link with your partner:'),
           React.createElement('div', { className: "flex gap-2" },
             React.createElement('input', {
               type: "text",
               value: inviteLink,
               readOnly: true,
-              className: "flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg"
+              className: "flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
             }),
             React.createElement('button', {
               onClick: handleCopyLink,
-              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
-            }, copying ? '✓ Copied!' : 'Copy')
+              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
+            }, copying ? 'Copied!' : 'Copy')
           ),
           React.createElement('button', {
             onClick: () => setShowInvite(false),
-            className: "text-sm text-gray-600 hover:text-gray-700"
+            className: "mt-2 text-sm text-gray-600 hover:text-gray-800"
           }, 'Close')
         )
     )
@@ -2064,59 +2135,58 @@ const AIChatTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.1 - PART 10 (GEMINI VERSION)
-// AI Integration - Google Gemini API (FREE!)
+// TINY TRACKER V4.3 - PART 10 (GEMINI VERSION)
+// AI Integration - Google Gemini API (FREE!) - FIXED MODEL NAME
 // ========================================
 
-// ⚠️ REPLACE WITH YOUR REAL KEY FROM aistudio.google.com/apikey
-const GEMINI_API_KEY = "YOUR_REAL_API_KEY_HERE";
-
-// Use a current model id
-const GEMINI_MODEL = "gemini-2.5-flash"; // or "gemini-2.5-pro"
+// ⚠️ ADD YOUR GEMINI API KEY HERE ⚠️
+// Get it free at: https://aistudio.google.com/apikey
+const GEMINI_API_KEY = "AIzaSyD-oo_KbD4pUMu3z5uh6GvWVUg7uwEsGWU";
 
 const getAIResponse = async (question, kidId) => {
   try {
+    // Check if API key is set
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "AIzaSyD-oo_KbD4pUMu3z5uh6GvWVUg7uwEsGWU") {
+      throw new Error("❌ GEMINI API KEY NOT SET! Edit script.js line 2072 and add your key.");
+    }
+    
+    // Build context from baby's data
     const context = await buildAIContext(kidId, question);
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: context,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.4,
-            topK: 32,
-            topP: 0.95,
-            maxOutputTokens: 1500,
-          },
-        }),
-      }
-    );
-
+    
+    console.log('🔑 Using API key:', GEMINI_API_KEY.substring(0, 10) + '...');
+    
+    // Call Gemini API (FREE!) - Using gemini-pro (most reliable)
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: context.fullPrompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 1500
+        }
+      })
+    });
+    
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error("Gemini API Error:", errorData);
-      throw new Error(
-        `AI request failed: ${response.status} - Check model id + API key`
-      );
+      console.error('❌ Gemini API Error:', errorData);
+      console.error('❌ Status:', response.status);
+      console.error('❌ API Key starts with:', GEMINI_API_KEY.substring(0, 10));
+      throw new Error(`AI request failed: ${response.status} - ${errorData.error?.message || 'Check your API key'}`);
     }
-
+    
     const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text ?? "(No response)";
+    return data.candidates[0].content.parts[0].text;
+    
   } catch (error) {
-    console.error("AI Error:", error);
+    console.error('🔴 AI Error:', error);
     throw error;
   }
 };
