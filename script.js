@@ -609,23 +609,47 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.1 - PART 3
-// Main App with Bottom Navigation (Clean colors, simpler shadows)
+// TINY TRACKER V4.2 - PART 3
+// Main App with Bottom Navigation (with unread badge)
 // ========================================
 
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
+  const [hasUnreadAI, setHasUnreadAI] = useState(false);
   
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
   
+  // Check for unread AI messages when not on chat tab
+  useEffect(() => {
+    if (activeTab !== 'chat') {
+      checkUnreadMessages();
+    } else {
+      setHasUnreadAI(false);
+    }
+  }, [activeTab, kidId]);
+  
+  const checkUnreadMessages = async () => {
+    try {
+      const conversation = await firestoreStorage.getConversation();
+      if (conversation && conversation.messages && conversation.messages.length > 0) {
+        const lastMessage = conversation.messages[conversation.messages.length - 1];
+        if (lastMessage.role === 'assistant') {
+          setHasUnreadAI(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking messages:', error);
+    }
+  };
+  
   return React.createElement('div', { 
-    className: "min-h-screen pb-20",
-    style: { backgroundColor: '#E0E7FF' } // Single consistent background color
+    className: "min-h-screen pb-24",
+    style: { backgroundColor: '#E0E7FF' }
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header - no drop shadow, just flat
+      // Header
       React.createElement('div', { 
         className: "sticky top-0 z-10",
         style: { backgroundColor: '#E0E7FF' }
@@ -650,12 +674,12 @@ const MainApp = ({ user, kidId }) => {
       )
     ),
     
-    // Bottom Navigation - simpler shadow like Instagram
+    // Bottom Navigation
     React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 z-50",
+      className: "fixed bottom-0 left-0 right-0 z-50 mb-2",
       style: { 
         backgroundColor: '#E0E7FF',
-        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)' // Subtle top shadow only
+        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)'
       }
     },
       React.createElement('div', { 
@@ -671,13 +695,18 @@ const MainApp = ({ user, kidId }) => {
           React.createElement('button', {
             key: tab.id,
             onClick: () => setActiveTab(tab.id),
-            className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+            className: `flex-1 py-2 flex flex-col items-center gap-1 transition relative ${
               activeTab === tab.id 
                 ? 'text-indigo-600' 
                 : 'text-gray-400'
             }`
           },
             React.createElement(tab.icon, { className: "w-6 h-6" }),
+            // Unread badge for chat
+            tab.id === 'chat' && hasUnreadAI && activeTab !== 'chat' &&
+              React.createElement('div', {
+                className: "absolute top-1 right-1/4 w-2 h-2 bg-red-500 rounded-full"
+              }),
             React.createElement('span', { className: "text-xs font-medium" }, tab.label)
           )
         )
@@ -993,199 +1022,244 @@ const TrackerTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 5
-// Analytics Tab
+// TINY TRACKER V4.2 - PART 5
+// Analytics Tab (Updated: exclude today from averages, add target line)
 // ========================================
 
 const AnalyticsTab = ({ kidId }) => {
-  const [allFeedings, setAllFeedings] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('day');
-  const [stats, setStats] = useState({
-    avgVolumePerFeed: 0,
-    avgVolumePerDay: 0,
-    avgFeedingsPerDay: 0,
-    avgInterval: 0,
-    chartData: []
-  });
-
+  const [feedings, setFeedings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState(null);
+  
   useEffect(() => {
     loadAnalytics();
-  }, [timeRange, kidId]);
-
+  }, [kidId, timeRange]);
+  
   const loadAnalytics = async () => {
+    if (!kidId) return;
     setLoading(true);
-    const feedings = await firestoreStorage.getAllFeedings();
-    setAllFeedings(feedings);
-    calculateStats(feedings);
+    try {
+      const days = timeRange === 'day' ? 7 : timeRange === 'week' ? 30 : 90;
+      const data = await firestoreStorage.getFeedingsLastNDays(days);
+      setFeedings(data);
+      
+      const settingsData = await firestoreStorage.getSettings();
+      setSettings(settingsData);
+    } catch (error) {
+      console.error('Error loading analytics:', error);
+    }
     setLoading(false);
   };
-
-  const calculateStats = (feedings) => {
-    if (feedings.length === 0) {
-      setStats({ avgVolumePerFeed: 0, avgVolumePerDay: 0, avgFeedingsPerDay: 0, avgInterval: 0, chartData: [] });
-      return;
-    }
-
-    const now = Date.now();
-    let timeframeMs, labelText;
+  
+  const getStats = () => {
+    if (feedings.length === 0) return null;
     
+    // Get TODAY's start time
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    
+    // Filter out TODAY's feedings for averages (exclude incomplete data)
+    const feedingsExcludingToday = feedings.filter(f => f.timestamp < todayStart.getTime());
+    
+    // Get feedings for the selected time range (excluding today)
+    let relevantFeedings;
     if (timeRange === 'day') {
-      timeframeMs = 3 * 24 * 60 * 60 * 1000;
-      labelText = '3-day avg';
+      // Last 3 complete days (yesterday, day before, day before that)
+      const threeDaysAgo = new Date(todayStart);
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      relevantFeedings = feedingsExcludingToday.filter(f => f.timestamp >= threeDaysAgo.getTime());
     } else if (timeRange === 'week') {
-      timeframeMs = 7 * 24 * 60 * 60 * 1000;
-      labelText = '7-day avg';
+      // Last 7 complete days
+      const sevenDaysAgo = new Date(todayStart);
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      relevantFeedings = feedingsExcludingToday.filter(f => f.timestamp >= sevenDaysAgo.getTime());
     } else {
-      timeframeMs = 30 * 24 * 60 * 60 * 1000;
-      labelText = '30-day avg';
+      // Last 30 complete days
+      const thirtyDaysAgo = new Date(todayStart);
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      relevantFeedings = feedingsExcludingToday.filter(f => f.timestamp >= thirtyDaysAgo.getTime());
     }
-
-    const timeframeAgo = now - timeframeMs;
-    const recentFeedings = feedings.filter(f => f.timestamp >= timeframeAgo);
-    const totalVolume = recentFeedings.reduce((sum, f) => sum + f.ounces, 0);
-    const avgVolumePerFeed = recentFeedings.length > 0 ? totalVolume / recentFeedings.length : 0;
-    const uniqueDays = new Set(recentFeedings.map(f => new Date(f.timestamp).toDateString())).size;
-    const avgVolumePerDay = uniqueDays > 0 ? totalVolume / uniqueDays : 0;
-    const avgFeedingsPerDay = uniqueDays > 0 ? recentFeedings.length / uniqueDays : 0;
-
-    let totalIntervalMinutes = 0;
-    for (let i = 1; i < recentFeedings.length; i++) {
-      totalIntervalMinutes += (recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp) / (1000 * 60);
+    
+    if (relevantFeedings.length === 0) return null;
+    
+    const totalOz = relevantFeedings.reduce((sum, f) => sum + f.ounces, 0);
+    const avgPerFeeding = totalOz / relevantFeedings.length;
+    
+    // Calculate days span (excluding today)
+    const timestamps = relevantFeedings.map(f => f.timestamp);
+    const firstDay = Math.min(...timestamps);
+    const lastDay = Math.max(...timestamps);
+    const daysSpan = Math.max(1, Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1);
+    
+    const avgPerDay = totalOz / daysSpan;
+    
+    // Calculate intervals
+    const sortedFeedings = [...relevantFeedings].sort((a, b) => a.timestamp - b.timestamp);
+    let totalIntervalMs = 0;
+    for (let i = 1; i < sortedFeedings.length; i++) {
+      totalIntervalMs += sortedFeedings[i].timestamp - sortedFeedings[i - 1].timestamp;
     }
-    const avgInterval = recentFeedings.length > 1 ? totalIntervalMinutes / (recentFeedings.length - 1) : 0;
-
-    const chartData = generateChartData(feedings, timeRange);
-
-    setStats({ avgVolumePerFeed, avgVolumePerDay, avgFeedingsPerDay, avgInterval, labelText, chartData });
+    const avgIntervalHours = totalIntervalMs / (sortedFeedings.length - 1) / (1000 * 60 * 60);
+    
+    return {
+      avgPerDay: avgPerDay.toFixed(1),
+      avgPerFeeding: avgPerFeeding.toFixed(1),
+      totalFeedings: relevantFeedings.length,
+      avgInterval: avgIntervalHours.toFixed(1)
+    };
   };
-
-  const generateChartData = (feedings, range) => {
-    const grouped = {};
+  
+  const getChartData = () => {
+    if (feedings.length === 0) return [];
+    
+    const groupedByDay = {};
     feedings.forEach(f => {
       const date = new Date(f.timestamp);
-      let key;
-      if (range === 'day') {
-        key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } else if (range === 'week') {
-        const weekStart = new Date(date);
-        weekStart.setDate(date.getDate() - date.getDay());
-        key = weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      } else {
-        key = date.toLocaleDateString('en-US', { month: 'short' });
+      const dateKey = `${date.getMonth() + 1}/${date.getDate()}`;
+      
+      if (!groupedByDay[dateKey]) {
+        groupedByDay[dateKey] = { date: dateKey, total: 0, timestamp: f.timestamp };
       }
-      if (!grouped[key]) grouped[key] = { date: key, volume: 0, count: 0 };
-      grouped[key].volume += f.ounces;
-      grouped[key].count += 1;
+      groupedByDay[dateKey].total += f.ounces;
     });
-    return Object.values(grouped).map(item => ({
-      date: item.date,
-      volume: parseFloat(item.volume.toFixed(1)),
-      count: item.count
-    }));
+    
+    const sorted = Object.values(groupedByDay).sort((a, b) => a.timestamp - b.timestamp);
+    
+    if (timeRange === 'day') {
+      return sorted.slice(-7);
+    } else if (timeRange === 'week') {
+      return sorted.slice(-30);
+    } else {
+      return sorted.slice(-90);
+    }
   };
-
-  const formatInterval = (minutes) => {
-    const hours = Math.floor(minutes / 60);
-    const mins = Math.round(minutes % 60);
-    return hours === 0 ? `${mins}m` : `${hours}h ${mins}m`;
+  
+  const getTargetVolume = () => {
+    if (!settings || !settings.babyWeight || !settings.multiplier) return null;
+    
+    const dailyTarget = settings.babyWeight * settings.multiplier;
+    
+    if (timeRange === 'day') {
+      return dailyTarget; // Daily target
+    } else if (timeRange === 'week') {
+      return dailyTarget; // Still show daily target on weekly view
+    } else {
+      return dailyTarget; // Still show daily target on monthly view
+    }
   };
-
+  
+  const stats = getStats();
+  const chartData = getChartData();
+  const targetVolume = getTargetVolume();
+  
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
       React.createElement('div', { className: "text-gray-600" }, 'Loading analytics...')
     );
   }
-
-  if (allFeedings.length === 0) {
-    return React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No feeding data yet. Start logging feedings to see analytics!')
+  
+  if (!stats) {
+    return React.createElement('div', { className: "text-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Not enough data yet. Start tracking feedings!')
     );
   }
-
-  const maxVolume = Math.max(...stats.chartData.map(d => d.volume));
-
+  
+  const maxVolume = Math.max(...chartData.map(d => d.total), targetVolume || 0);
+  
   return React.createElement('div', { className: "space-y-4" },
-    React.createElement('div', { className: "flex justify-center" },
-      React.createElement('div', { className: "inline-flex gap-0.5 bg-gray-100/50 rounded-lg p-0.5" },
-        ['day', 'week', 'month'].map(range =>
-          React.createElement('button', {
-            key: range,
-            onClick: () => setTimeRange(range),
-            className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === range ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
-          }, range.charAt(0).toUpperCase() + range.slice(1))
-        )
+    // Time range selector
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-2 flex gap-1" },
+      ['day', 'week', 'month'].map(range =>
+        React.createElement('button', {
+          key: range,
+          onClick: () => setTimeRange(range),
+          className: `flex-1 py-2 px-4 rounded-xl font-medium transition ${
+            timeRange === range
+              ? 'bg-indigo-600 text-white'
+              : 'text-gray-600 hover:bg-gray-100'
+          }`
+        }, range.charAt(0).toUpperCase() + range.slice(1))
       )
     ),
-
-    React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+    
+    // Stats cards
+    React.createElement('div', { className: "grid grid-cols-2 gap-3" },
       [
-        { label: 'Oz / Feed', value: stats.avgVolumePerFeed.toFixed(1) },
-        { label: 'Oz / Day', value: stats.avgVolumePerDay.toFixed(1) }
-      ].map(stat =>
-        React.createElement('div', { key: stat.label, className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
-          React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, stat.label),
-          React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
-            stat.value,
-            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-          ),
-          React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
+        { label: 'Avg/Day', value: `${stats.avgPerDay} oz`, sublabel: `Last ${timeRange === 'day' ? '3' : timeRange === 'week' ? '7' : '30'} days` },
+        { label: 'Avg/Feeding', value: `${stats.avgPerFeeding} oz`, sublabel: 'Per session' },
+        { label: 'Total Feedings', value: stats.totalFeedings, sublabel: `Last ${timeRange === 'day' ? '3' : timeRange === 'week' ? '7' : '30'} days` },
+        { label: 'Avg Interval', value: `${stats.avgInterval} hrs`, sublabel: 'Between feeds' }
+      ].map((stat, i) =>
+        React.createElement('div', {
+          key: i,
+          className: "bg-white rounded-2xl shadow-lg p-4"
+        },
+          React.createElement('div', { className: "text-sm text-gray-600 mb-1" }, stat.label),
+          React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, stat.value),
+          React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, stat.sublabel)
         )
       )
     ),
-
-    React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
-        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Feedings / Day'),
-        React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, stats.avgFeedingsPerDay.toFixed(1)),
-        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
-      ),
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6 text-center" },
-        React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Avg Between Feeds'),
-        React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, formatInterval(stats.avgInterval)),
-        React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, stats.labelText)
-      )
-    ),
-
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-4 text-center" }, 'Volume History'),
-      stats.chartData.length > 0 ?
-        React.createElement('div', { className: "relative" },
-          React.createElement('div', { 
-            className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
-            style: { scrollBehavior: 'smooth' }
+    
+    // Volume history chart with target line
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-4" },
+      React.createElement('h3', { className: "font-semibold text-gray-800 mb-4" }, 'Volume History'),
+      React.createElement('div', { 
+        className: "overflow-x-auto",
+        style: { WebkitOverflowScrolling: 'touch' }
+      },
+        React.createElement('div', { 
+          className: "relative",
+          style: { minWidth: `${chartData.length * 50}px`, height: '200px' }
+        },
+          // Target line (red dashed)
+          targetVolume && React.createElement('div', {
+            className: "absolute left-0 right-0 border-t-2 border-red-500 border-dashed",
+            style: {
+              top: `${((maxVolume - targetVolume) / maxVolume) * 200}px`,
+              zIndex: 1
+            }
           },
-            React.createElement('div', { 
-              className: "flex gap-6 pb-2", 
-              style: { minWidth: stats.chartData.length > 4 ? `${stats.chartData.length * 80}px` : '100%' } 
-            },
-              stats.chartData.map(item => 
-                React.createElement('div', { key: item.date, className: "flex flex-col items-center gap-2 flex-shrink-0" },
-                  React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
-                    React.createElement('div', { 
-                      className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500", 
-                      style: { height: `${(item.volume / maxVolume) * 160}px`, minHeight: '30px' } 
-                    },
-                      React.createElement('span', { className: "text-white text-xs font-semibold" }, item.volume)
-                    )
-                  ),
-                  React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, item.date),
-                  React.createElement('div', { className: "text-xs text-gray-400" }, `${item.count} feeds`)
-                )
-              )
-            )
+            React.createElement('span', {
+              className: "absolute right-2 -top-2 text-xs text-red-500 bg-white px-1"
+            }, `Target: ${targetVolume.toFixed(1)}oz`)
           ),
-          stats.chartData.length > 4 && React.createElement('div', { className: "absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-white pointer-events-none" })
+          
+          // Bars
+          React.createElement('div', { 
+            className: "flex items-end gap-2 h-full relative",
+            style: { zIndex: 2 }
+          },
+            chartData.map((day, i) => {
+              const height = (day.total / maxVolume) * 100;
+              const isTarget = targetVolume && Math.abs(day.total - targetVolume) < 2;
+              
+              return React.createElement('div', {
+                key: i,
+                className: "flex-1 flex flex-col items-center gap-1"
+              },
+                React.createElement('div', { 
+                  className: `w-full rounded-t-lg transition-all ${
+                    isTarget ? 'bg-green-500' : 'bg-indigo-600'
+                  }`,
+                  style: { height: `${height}%`, minHeight: '4px' }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs text-gray-600 whitespace-nowrap"
+                }, day.date)
+              );
+            })
+          )
         )
-      :
-        React.createElement('div', { className: "text-center text-gray-400 py-8" }, 'No data to display')
+      )
     )
   );
 };
 
 // ========================================
-// TINY TRACKER V3.1 - PART 6
-// Family Tab - with functional baby photo upload
+// TINY TRACKER V4.2 - PART 6
+// Family Tab - Fixed photo upload + SMS invite
 // ========================================
 
 const FamilyTab = ({ user, kidId }) => {
@@ -1225,7 +1299,7 @@ const FamilyTab = ({ user, kidId }) => {
     try {
       const kid = await firestoreStorage.getKidData();
       setKidData(kid);
-      if (kid.photoURL) {
+      if (kid && kid.photoURL) {
         setBabyPhotoUrl(kid.photoURL);
       }
       
@@ -1243,22 +1317,28 @@ const FamilyTab = ({ user, kidId }) => {
   };
 
   const handlePhotoClick = () => {
-    fileInputRef.current?.click();
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
   };
 
   const handlePhotoChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+    
+    const file = files[0];
 
     // Check file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       alert('Photo must be less than 5MB');
+      event.target.value = ''; // Reset input
       return;
     }
 
     // Check file type
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
+      event.target.value = ''; // Reset input
       return;
     }
 
@@ -1271,12 +1351,21 @@ const FamilyTab = ({ user, kidId }) => {
         // Save to Firestore
         await firestoreStorage.updateKid({ photoURL: base64 });
         setBabyPhotoUrl(base64);
+        
+        // Reload data to confirm
+        await loadData();
+      };
+      reader.onerror = () => {
+        alert('Failed to read file');
       };
       reader.readAsDataURL(file);
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo');
     }
+    
+    // Reset input
+    event.target.value = '';
   };
 
   const handleCreateInvite = async () => {
@@ -1284,6 +1373,13 @@ const FamilyTab = ({ user, kidId }) => {
       const code = await createInvite(kidId);
       const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
       setInviteLink(link);
+      
+      // Open SMS with invite link
+      const message = `Join me on Tiny Tracker to track ${kidData?.name || 'our baby'}'s feedings together! ${link}`;
+      const smsLink = `sms:?&body=${encodeURIComponent(message)}`;
+      window.location.href = smsLink;
+      
+      // Also show UI for copying
       setShowInvite(true);
     } catch (error) {
       console.error('Error creating invite:', error);
@@ -1422,6 +1518,7 @@ const FamilyTab = ({ user, kidId }) => {
             ),
             React.createElement('button', {
               onClick: handlePhotoClick,
+              type: "button",
               className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-1.5 text-white hover:bg-indigo-700 transition shadow-lg",
               title: "Change photo"
             }, React.createElement(Camera, { className: "w-3 h-3" })),
@@ -1429,6 +1526,7 @@ const FamilyTab = ({ user, kidId }) => {
               ref: fileInputRef,
               type: "file",
               accept: "image/*",
+              capture: "environment",
               onChange: handlePhotoChange,
               style: { display: 'none' }
             })
@@ -1640,35 +1738,31 @@ const FamilyTab = ({ user, kidId }) => {
         )
       ),
 
-      !showInvite ?
-        React.createElement('button', {
-          onClick: handleCreateInvite,
-          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-        }, '+ Invite Partner')
-      :
-        React.createElement('div', { className: "space-y-2" },
-          React.createElement('div', { className: "text-xs text-gray-600 mb-2" }, 'Share this link with your partner:'),
-          React.createElement('div', { className: "flex gap-2" },
-            React.createElement('input', {
-              type: "text",
-              value: inviteLink,
-              readOnly: true,
-              className: "flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg"
-            }),
-            React.createElement('button', {
-              onClick: handleCopyLink,
-              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
-            }, copying ? '✓ Copied!' : 'Copy')
-          ),
+      // Invite button - opens SMS
+      React.createElement('button', {
+        onClick: handleCreateInvite,
+        className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
+      }, '+ Invite Partner'),
+      
+      // Show link after creating (in case SMS doesn't work)
+      showInvite && React.createElement('div', { className: "mt-3 space-y-2" },
+        React.createElement('div', { className: "text-xs text-gray-600" }, 'Or copy and share this link:'),
+        React.createElement('div', { className: "flex gap-2" },
+          React.createElement('input', {
+            type: "text",
+            value: inviteLink,
+            readOnly: true,
+            className: "flex-1 px-3 py-2 text-sm bg-gray-50 border border-gray-300 rounded-lg"
+          }),
           React.createElement('button', {
-            onClick: () => setShowInvite(false),
-            className: "text-sm text-gray-600 hover:text-gray-700"
-          }, 'Close')
+            onClick: handleCopyLink,
+            className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm"
+          }, copying ? '✓' : 'Copy')
         )
+      )
     )
   );
 };
-
 
 // ========================================
 // TINY TRACKER V3 - PART 7
@@ -1877,8 +1971,8 @@ if (metaThemeColor) {
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
 
 // ========================================
-// TINY TRACKER V4.1 - PART 9
-// AI Chat Tab - iMessage Style
+// TINY TRACKER V4.2 - PART 9
+// AI Chat Tab - Clear button, better input, scroll to bottom, unread badge
 // ========================================
 
 const AIChatTab = ({ user, kidId }) => {
@@ -1887,6 +1981,7 @@ const AIChatTab = ({ user, kidId }) => {
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const messagesEndRef = React.useRef(null);
+  const inputRef = React.useRef(null);
   
   useEffect(() => {
     loadConversation();
@@ -1897,7 +1992,9 @@ const AIChatTab = ({ user, kidId }) => {
   }, [messages]);
   
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }, 100);
   };
   
   const loadConversation = async () => {
@@ -1986,13 +2083,22 @@ const AIChatTab = ({ user, kidId }) => {
     className: "flex flex-col",
     style: { height: 'calc(100vh - 10rem)' }
   },
-    // Messages Area - looks like iMessage
+    // Header with Clear button
+    messages.length > 0 && React.createElement('div', {
+      className: "px-4 pb-2 flex justify-end"
+    },
+      React.createElement('button', {
+        onClick: handleClearConversation,
+        className: "text-sm text-gray-500 hover:text-red-600 transition"
+      }, 'Clear Chat')
+    ),
+    
+    // Messages Area
     React.createElement('div', { 
       className: "flex-1 overflow-y-auto px-4 py-4 space-y-3"
     },
       // First message if empty
       messages.length === 0 && React.createElement(React.Fragment, null,
-        // Initial AI message
         React.createElement('div', { className: "flex justify-start" },
           React.createElement('div', { 
             className: "max-w-[75%] bg-gray-200 rounded-2xl px-4 py-3"
@@ -2004,7 +2110,6 @@ const AIChatTab = ({ user, kidId }) => {
           )
         ),
         
-        // Suggested questions
         React.createElement('div', { className: "flex justify-start mt-2" },
           React.createElement('div', { className: "max-w-[75%] space-y-2" },
             React.createElement('div', { className: "text-xs text-gray-500 px-2 mb-1" }, 'Try asking:'),
@@ -2036,7 +2141,7 @@ const AIChatTab = ({ user, kidId }) => {
           },
             message.role === 'assistant' && !message.error &&
               React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
-            React.createElement('div', { className: "whitespace-pre-wrap text-[15px]" }, message.content),
+            React.createElement('div', { className: "whitespace-pre-wrap text-[15px] leading-relaxed" }, message.content),
             React.createElement('div', {
               className: `text-[11px] mt-1 ${
                 message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
@@ -2060,15 +2165,16 @@ const AIChatTab = ({ user, kidId }) => {
       React.createElement('div', { ref: messagesEndRef })
     ),
     
-    // Input Area - iMessage style
+    // Input Area - less rounded, fixed zoom, centered send button
     React.createElement('div', { 
       className: "px-4 pb-4 pt-2",
       style: { backgroundColor: '#E0E7FF' }
     },
       React.createElement('div', { 
-        className: "flex items-end gap-2 bg-white rounded-full px-3 py-1.5 border border-gray-200"
+        className: "flex items-center gap-2 bg-white rounded-2xl px-3 py-2 border border-gray-200"
       },
         React.createElement('textarea', {
+          ref: inputRef,
           value: input,
           onChange: (e) => setInput(e.target.value),
           onKeyPress: (e) => {
@@ -2080,8 +2186,11 @@ const AIChatTab = ({ user, kidId }) => {
           placeholder: "Message",
           disabled: loading,
           rows: 1,
-          className: "flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px] disabled:opacity-50",
-          style: { maxHeight: '100px' }
+          className: "flex-1 px-2 py-1 bg-transparent resize-none focus:outline-none text-[16px] disabled:opacity-50",
+          style: { 
+            maxHeight: '100px',
+            fontSize: '16px' // Prevents zoom on iOS
+          }
         }),
         React.createElement('button', {
           onClick: handleSend,
@@ -2091,7 +2200,8 @@ const AIChatTab = ({ user, kidId }) => {
           React.createElement('svg', {
             className: "w-4 h-4 text-white",
             fill: "currentColor",
-            viewBox: "0 0 24 24"
+            viewBox: "0 0 24 24",
+            style: { marginLeft: '2px' } // Center the arrow
           },
             React.createElement('path', {
               d: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
@@ -2104,44 +2214,34 @@ const AIChatTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4 - PART 10 (GEMINI VERSION)
-// AI Integration - Google Gemini API (FREE!)
+// TINY TRACKER V4.2 - PART 10 (GEMINI VERSION)
+// AI Integration - Improved prompts, Claude-style voice
 // ========================================
 
+const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U"; // Replace with your key
 
-const GEMINI_API_KEY = "AIzaSyBnIJEviabBAvmJXzowVNTDIARPYq6Hz1U";
 const getAIResponse = async (question, kidId) => {
   try {
-    // Build context from baby's data
     const context = await buildAIContext(kidId, question);
     
-    // Call Gemini API (FREE!)
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": GEMINI_API_KEY
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: context.fullPrompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1500
-          }
-        })
-      }
-    );
-
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: context.fullPrompt
+          }]
+        }],
+        generationConfig: {
+          temperature: 0.7,
+          maxOutputTokens: 800 // Shorter responses
+        }
+      })
+    });
+    
     if (!response.ok) {
       throw new Error('AI request failed');
     }
@@ -2156,7 +2256,6 @@ const getAIResponse = async (question, kidId) => {
 };
 
 const buildAIContext = async (kidId, question) => {
-  // Get baby's data
   const babyData = await firestoreStorage.getKidData();
   const settings = await firestoreStorage.getSettings();
   const recentFeedings = await firestoreStorage.getFeedingsLastNDays(7);
@@ -2165,62 +2264,84 @@ const buildAIContext = async (kidId, question) => {
   // Calculate age
   const ageInMonths = calculateAgeInMonths(babyData.birthDate);
   const ageInDays = Math.floor((Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24));
+  const ageInWeeks = Math.floor(ageInDays / 7);
   
-  // Analyze recent feedings
-  const feedingAnalysis = analyzeFeedingPatterns(recentFeedings);
+  // Analyze recent feedings (EXCLUDING today's incomplete data for averages)
+  const feedingAnalysis = analyzeFeedingPatterns(recentFeedings, babyData.birthDate);
   
   // Build conversation history
   let conversationHistory = '';
   if (conversation && conversation.messages) {
-    const recentMessages = conversation.messages.slice(-10);
-    conversationHistory = '\n\nPREVIOUS CONVERSATION:\n';
+    const recentMessages = conversation.messages.slice(-6); // Last 6 messages for context
+    conversationHistory = '\n\nCONVERSATION HISTORY:\n';
     recentMessages.forEach(msg => {
-      conversationHistory += `${msg.role === 'user' ? 'Parent' : 'AI'}: ${msg.content}\n\n`;
+      conversationHistory += `${msg.role === 'user' ? 'Parent' : 'You'}: ${msg.content}\n\n`;
     });
   }
   
-  // Build full prompt (Gemini doesn't have separate system prompt)
-  const fullPrompt = `You are an AI assistant for parents tracking their baby's feeding patterns. You have access to detailed data about their baby and should provide helpful, personalized insights.
+  const fullPrompt = `You are Tiny Tracker, an AI assistant for parents. You help parents understand their baby's feeding patterns with concise, actionable insights.
 
-BABY'S INFORMATION:
-- Name: ${babyData.name || 'Baby'}
-- Age: ${ageInMonths} month${ageInMonths !== 1 ? 's' : ''} old (${ageInDays} days)
-- Current weight: ${settings?.babyWeight || 'not set'} lbs
-- Target daily intake: ${settings?.babyWeight && settings?.multiplier ? (settings.babyWeight * settings.multiplier).toFixed(1) : 'not set'} oz/day
+CRITICAL INSTRUCTIONS:
+1. **Be concise**: 2-3 sentences maximum. Cut straight to the insight.
+2. **Be actionable**: Always suggest specific next steps when relevant.
+3. **Sound human**: Conversational, warm, and direct. Like a helpful friend, not a manual.
+4. **Ignore incomplete data**: Today's data is always partial - don't flag it as concerning.
+5. **Use "I noticed..." pattern**: Lead with what you observed in their data.
+6. **Consider age & weight**: Tailor advice to the baby's developmental stage.
 
-RECENT FEEDING PATTERNS (Last 7 days):
-- Total feedings: ${feedingAnalysis.totalFeedings}
-- Average per day: ${feedingAnalysis.avgPerDay.toFixed(1)} feedings
-- Average intake per feeding: ${feedingAnalysis.avgPerFeeding.toFixed(1)} oz
-- Total daily average: ${feedingAnalysis.avgDailyIntake.toFixed(1)} oz
-- Average time between feedings: ${feedingAnalysis.avgInterval.toFixed(1)} hours
-- Night feedings (10pm-6am): ${feedingAnalysis.nightFeedings} (${feedingAnalysis.nightIntakePercent.toFixed(0)}% of daily intake)
+BABY'S INFO:
+- Name: ${babyData.name}
+- Age: ${ageInMonths} month${ageInMonths !== 1 ? 's' : ''} (${ageInWeeks} weeks, ${ageInDays} days)
+- Weight: ${settings?.babyWeight || 'unknown'} lbs
+- Target daily: ${settings?.babyWeight && settings?.multiplier ? (settings.babyWeight * settings.multiplier).toFixed(1) : 'not set'} oz
 
-TODAY'S INTAKE:
-- Total so far: ${feedingAnalysis.todayTotal.toFixed(1)} oz
-- Feedings so far: ${feedingAnalysis.todayCount}
-- Compared to 7-day average: ${feedingAnalysis.todayVsAvg > 0 ? '+' : ''}${feedingAnalysis.todayVsAvg.toFixed(1)} oz
+FEEDING PATTERNS (Last 7 days, EXCLUDING today):
+- Daily average: ${feedingAnalysis.avgDailyIntake.toFixed(1)} oz
+- Feedings per day: ${feedingAnalysis.avgPerDay.toFixed(1)}
+- Average per feeding: ${feedingAnalysis.avgPerFeeding.toFixed(1)} oz
+- Time between feeds: ${feedingAnalysis.avgInterval.toFixed(1)} hours
+- Night feedings: ${feedingAnalysis.nightFeedings} (${feedingAnalysis.nightIntakePercent.toFixed(0)}% of daily)
 
-IMPORTANT GUIDELINES:
-1. Always reference specific data points from ${babyData.name}'s actual feeding patterns
-2. Be conversational and supportive, not clinical
-3. If you notice concerning patterns, suggest consulting a pediatrician
-4. Remember context from previous messages in this conversation
-5. Use phrases like "Looking at ${babyData.name}'s patterns..." or "Based on ${babyData.name}'s data..."
-6. Never diagnose medical conditions - only provide informational insights
-7. Keep responses concise but thorough (2-4 paragraphs)
-8. If asked about aggregated data from other babies, acknowledge that feature is coming soon
+TODAY (incomplete, don't worry about it):
+- So far: ${feedingAnalysis.todayTotal.toFixed(1)} oz in ${feedingAnalysis.todayCount} feedings
 
-You are speaking to ${babyData.name}'s parent. Be helpful, empathetic, and data-driven.
+DEVELOPMENTAL CONTEXT (${ageInMonths} months old):
+${getDevelopmentalContext(ageInMonths, settings?.babyWeight)}
 ${conversationHistory}
 Parent's Question: ${question}
 
-Your Response:`;
+Your Response (2-3 sentences, actionable):`;
 
-  return {
-    fullPrompt,
-    messages: [] // Not used for Gemini
-  };
+  return { fullPrompt };
+};
+
+const getDevelopmentalContext = (ageInMonths, weight) => {
+  if (ageInMonths < 1) {
+    return `- Newborns typically eat 8-12 times per day (every 2-3 hours)
+- Growth spurts common around 7-10 days and 3-6 weeks
+- Cluster feeding in evenings is normal
+- Sleep patterns irregular`;
+  } else if (ageInMonths === 1) {
+    return `- 1-month-olds typically eat 6-8 times per day
+- May start extending one nighttime sleep stretch (4-5 hours)
+- Cluster feeding still common in evenings
+- Developing more predictable patterns`;
+  } else if (ageInMonths === 2) {
+    return `- 2-month-olds typically eat 5-7 times per day
+- Longer stretches at night (5-6 hours possible)
+- More efficient feeders, takes less time
+- Growth spurt around 6-8 weeks common`;
+  } else if (ageInMonths <= 4) {
+    return `- 3-4 month-olds typically eat 5-6 times per day
+- May sleep 6-8 hour stretches at night
+- 4-month sleep regression is common
+- Starting to drop night feedings`;
+  } else {
+    return `- Older babies eat less frequently (4-5 times/day)
+- May be starting solids (consult pediatrician)
+- Most can sleep through night without feeding
+- Feedings more spaced out and predictable`;
+  }
 };
 
 const calculateAgeInMonths = (birthDate) => {
@@ -2231,7 +2352,7 @@ const calculateAgeInMonths = (birthDate) => {
   return months;
 };
 
-const analyzeFeedingPatterns = (feedings) => {
+const analyzeFeedingPatterns = (feedings, birthDate) => {
   if (!feedings || feedings.length === 0) {
     return {
       totalFeedings: 0,
@@ -2242,29 +2363,45 @@ const analyzeFeedingPatterns = (feedings) => {
       nightFeedings: 0,
       nightIntakePercent: 0,
       todayTotal: 0,
-      todayCount: 0,
-      todayVsAvg: 0
+      todayCount: 0
     };
   }
   
-  const totalFeedings = feedings.length;
-  const totalOunces = feedings.reduce((sum, f) => sum + f.ounces, 0);
-  
-  // Calculate days span
-  const timestamps = feedings.map(f => f.timestamp);
-  const firstDay = Math.min(...timestamps);
-  const lastDay = Math.max(...timestamps);
-  const daysSpan = Math.max(1, Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1);
-  
-  // Today's feedings
+  // TODAY's data (incomplete)
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
   const todayFeedings = feedings.filter(f => f.timestamp >= todayStart.getTime());
   const todayTotal = todayFeedings.reduce((sum, f) => sum + f.ounces, 0);
   const todayCount = todayFeedings.length;
   
-  // Night feedings (10pm - 6am)
-  const nightFeedings = feedings.filter(f => {
+  // EXCLUDING today for averages
+  const feedingsExcludingToday = feedings.filter(f => f.timestamp < todayStart.getTime());
+  
+  if (feedingsExcludingToday.length === 0) {
+    return {
+      totalFeedings: 0,
+      avgPerDay: 0,
+      avgPerFeeding: 0,
+      avgDailyIntake: 0,
+      avgInterval: 0,
+      nightFeedings: 0,
+      nightIntakePercent: 0,
+      todayTotal,
+      todayCount
+    };
+  }
+  
+  const totalFeedings = feedingsExcludingToday.length;
+  const totalOunces = feedingsExcludingToday.reduce((sum, f) => sum + f.ounces, 0);
+  
+  // Calculate days span
+  const timestamps = feedingsExcludingToday.map(f => f.timestamp);
+  const firstDay = Math.min(...timestamps);
+  const lastDay = Math.max(...timestamps);
+  const daysSpan = Math.max(1, Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1);
+  
+  // Night feedings
+  const nightFeedings = feedingsExcludingToday.filter(f => {
     const hour = new Date(f.timestamp).getHours();
     return hour >= 22 || hour < 6;
   });
@@ -2272,8 +2409,8 @@ const analyzeFeedingPatterns = (feedings) => {
   
   // Calculate intervals
   let totalIntervalHours = 0;
-  for (let i = 1; i < feedings.length; i++) {
-    const intervalHours = (feedings[i].timestamp - feedings[i-1].timestamp) / (1000 * 60 * 60);
+  for (let i = 1; i < feedingsExcludingToday.length; i++) {
+    const intervalHours = (feedingsExcludingToday[i].timestamp - feedingsExcludingToday[i-1].timestamp) / (1000 * 60 * 60);
     totalIntervalHours += intervalHours;
   }
   
@@ -2288,7 +2425,6 @@ const analyzeFeedingPatterns = (feedings) => {
     nightFeedings: nightFeedings.length,
     nightIntakePercent: (nightIntake / totalOunces) * 100,
     todayTotal,
-    todayCount,
-    todayVsAvg: todayTotal - avgDailyIntake
+    todayCount
   };
 };
