@@ -146,121 +146,230 @@ const removeMember = async (kidId, userId) => {
 const firestoreStorage = {
   currentKidId: null,
 
-  initialize: async function(kidId) {
+  // Set which kid we're operating on
+  initialize: async function (kidId) {
     this.currentKidId = kidId;
   },
 
-  addFeeding: async function(ounces, timestamp) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
+  // -------- FEEDINGS --------
+
+  // Add a feeding: ounces (number), timestamp (ms)
+  addFeeding: async function (ounces, timestamp) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
     const feedingId = `feeding_${Date.now()}`;
-    const feedingDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'feedings', feedingId);
-    
+    const feedingDocRef = firestoreDoc(
+      db,
+      "kids",
+      this.currentKidId,
+      "feedings",
+      feedingId
+    );
+
     await firestoreSetDoc(feedingDocRef, {
       ounces: ounces,
       timestamp: timestamp,
-      createdAt: firestoreTimestamp.now()
+      createdAt: firestoreTimestamp.now(),
     });
-    
+
     return feedingId;
   },
 
-  updateFeeding: async function(feedingId, ounces, timestamp) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const feedingDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'feedings', feedingId);
+  // Update an existing feeding
+  updateFeeding: async function (feedingId, ounces, timestamp) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const feedingDocRef = firestoreDoc(
+      db,
+      "kids",
+      this.currentKidId,
+      "feedings",
+      feedingId
+    );
+
     await firestoreUpdateDoc(feedingDocRef, {
       ounces: ounces,
-      timestamp: timestamp
+      timestamp: timestamp,
     });
   },
 
-  deleteFeeding: async function(feedingId) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const feedingDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'feedings', feedingId);
+  // Delete a feeding
+  deleteFeeding: async function (feedingId) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const feedingDocRef = firestoreDoc(
+      db,
+      "kids",
+      this.currentKidId,
+      "feedings",
+      feedingId
+    );
+
     await firestoreDeleteDoc(feedingDocRef);
   },
 
-  getFeedingsLastNDays: async function(days) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-    const feedingsRef = firestoreCollection(db, 'kids', this.currentKidId, 'feedings');
-    const q = firestoreQuery(feedingsRef, firestoreOrderBy('timestamp', 'desc'));
-    
+  // Get all feedings in the last N days (used for analytics)
+  getFeedingsLastNDays: async function (days) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const cutoffMs = Date.now() - days * 24 * 60 * 60 * 1000;
+
+    const feedingsRef = firestoreCollection(
+      db,
+      "kids",
+      this.currentKidId,
+      "feedings"
+    );
+    const q = firestoreQuery(feedingsRef, firestoreOrderBy("timestamp", "desc"));
+
     const snapshot = await firestoreGetDocs(q);
     const feedings = [];
-    
-    snapshot.forEach(doc => {
-      const data = doc.data();
-      if (data.timestamp >= cutoff) {
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      if (data.timestamp >= cutoffMs) {
         feedings.push({
-          id: doc.id,
+          id: docSnap.id,
           ounces: data.ounces,
-          timestamp: data.timestamp
+          timestamp: data.timestamp,
         });
       }
     });
-    
+
+    // oldest → newest
     return feedings.sort((a, b) => a.timestamp - b.timestamp);
   },
 
-  getSettings: async function() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const settingsDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'settings', 'default');
+  // Get all feedings for a specific calendar day (used by TrackerTab)
+  getFeedingsForDate: async function (date) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const startMs = startOfDay.getTime();
+    const endMs = endOfDay.getTime();
+
+    const feedingsRef = firestoreCollection(
+      db,
+      "kids",
+      this.currentKidId,
+      "feedings"
+    );
+    const q = firestoreQuery(feedingsRef, firestoreOrderBy("timestamp", "desc"));
+
+    const snapshot = await firestoreGetDocs(q);
+    const feedings = [];
+
+    snapshot.forEach((docSnap) => {
+      const data = docSnap.data();
+      const ts = data.timestamp;
+      if (ts >= startMs && ts <= endMs) {
+        feedings.push({
+          id: docSnap.id,
+          ounces: data.ounces,
+          timestamp: ts,
+        });
+      }
+    });
+
+    // newest first for the list
+    return feedings.sort((a, b) => b.timestamp - a.timestamp);
+  },
+
+  // "Subscribe" to feedings for a date.
+  // For now this just loads once and returns a no-op unsubscribe,
+  // so your existing useEffect code keeps working.
+  subscribeToFeedings: function (date, callback) {
+    this.getFeedingsForDate(date)
+      .then((feedings) => callback(feedings))
+      .catch((err) => console.error("Error loading feedings:", err));
+
+    // return fake unsubscribe so useEffect cleanup doesn't break
+    return () => {};
+  },
+
+  // -------- SETTINGS --------
+
+  getSettings: async function () {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const settingsDocRef = firestoreDoc(
+      db,
+      "kids",
+      this.currentKidId,
+      "settings",
+      "default"
+    );
     const settingsDoc = await firestoreGetDoc(settingsDocRef);
-    
+
     if (settingsDoc.exists()) {
       return settingsDoc.data();
     }
     return { babyWeight: null, multiplier: 2.5 };
   },
 
-  setSettings: async function(settings) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const settingsDocRef = firestoreDoc(db, 'kids', this.currentKidId, 'settings', 'default');
+  setSettings: async function (settings) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const settingsDocRef = firestoreDoc(
+      db,
+      "kids",
+      this.currentKidId,
+      "settings",
+      "default"
+    );
+
     await firestoreSetDoc(settingsDocRef, settings, { merge: true });
   },
 
-  getKidData: async function() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const kidDocRef = firestoreDoc(db, 'kids', this.currentKidId);
+  // -------- KID DATA --------
+
+  getKidData: async function () {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const kidDocRef = firestoreDoc(db, "kids", this.currentKidId);
     const kidDoc = await firestoreGetDoc(kidDocRef);
-    
+
     if (kidDoc.exists()) {
       return { id: kidDoc.id, ...kidDoc.data() };
     }
     return null;
   },
 
-  updateKid: async function(data) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const kidDocRef = firestoreDoc(db, 'kids', this.currentKidId);
+  updateKid: async function (data) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const kidDocRef = firestoreDoc(db, "kids", this.currentKidId);
     await firestoreSetDoc(kidDocRef, data, { merge: true });
   },
 
-  getMembers: async function() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    
-    const usersRef = firestoreCollection(db, 'users');
-    const q = firestoreQuery(usersRef, firestoreWhere('kidId', '==', this.currentKidId));
+  // -------- MEMBERS (linked users) --------
+
+  getMembers: async function () {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    const usersRef = firestoreCollection(db, "users");
+    const q = firestoreQuery(
+      usersRef,
+      firestoreWhere("kidId", "==", this.currentKidId)
+    );
+
     const snapshot = await firestoreGetDocs(q);
-    
     const members = [];
-    snapshot.forEach(doc => {
+
+    snapshot.forEach((docSnap) => {
       members.push({
-        uid: doc.id,
-        ...doc.data()
+        uid: docSnap.id,
+        ...docSnap.data(),
       });
     });
-    
+
     return members;
   },
+};
 
   // AI Conversation methods
   getConversation: async function() {
