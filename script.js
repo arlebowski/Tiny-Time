@@ -305,6 +305,11 @@ const firestoreStorage = {
 // App Wrapper, Login Screen, Baby Setup Screen (with migration fix)
 // ========================================
 
+// ========================================
+// TINY TRACKER V4.4 - PART 2
+// App Wrapper, Login Screen, Baby Setup Screen (waits for Firebase)
+// ========================================
+
 const { useState, useEffect } = React;
 
 const App = () => {
@@ -312,9 +317,24 @@ const App = () => {
   const [loading, setLoading] = useState(true);
   const [kidId, setKidId] = useState(null);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [firebaseReady, setFirebaseReady] = useState(false);
+  
+  // Wait for Firebase to initialize
+  useEffect(() => {
+    const checkFirebase = () => {
+      if (window.auth && window.db) {
+        setFirebaseReady(true);
+      } else {
+        setTimeout(checkFirebase, 100);
+      }
+    };
+    checkFirebase();
+  }, []);
   
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (!firebaseReady) return;
+    
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUser(user);
         const urlParams = new URLSearchParams(window.location.search);
@@ -324,26 +344,21 @@ const App = () => {
           let userKidId;
 
           if (inviteCode) {
-            // Accept invite + attach kid to this user
             userKidId = await acceptInvite(inviteCode, user.uid);
             if (userKidId) {
               await saveUserKidId(user.uid, userKidId);
             }
-            // Clean URL
             window.history.replaceState({}, document.title, window.location.pathname);
           } else {
-            // Normal path – fetch kidId for this user
             userKidId = await getUserKidId(user.uid);
           }
           
-          // If no kid yet, show setup
           if (!userKidId) {
             setNeedsSetup(true);
             setLoading(false);
             return;
           }
 
-          // ✅ No more migration here
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
         } catch (error) {
@@ -358,9 +373,9 @@ const App = () => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [firebaseReady]);
   
-  if (loading) {
+  if (loading || !firebaseReady) {
     return React.createElement('div', { 
       className: "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center" 
     },
