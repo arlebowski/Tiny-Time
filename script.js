@@ -166,6 +166,11 @@ const firestoreStorage = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
   },
   
+  getAllFeedings: async function() {
+    // Alias for getFeedings for compatibility
+    return await this.getFeedings();
+  },
+  
   getFeedingsLastNDays: async function(days) {
     if (!this.currentKidId) return [];
     const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
