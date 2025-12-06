@@ -2164,23 +2164,33 @@ const getAIResponse = async (question, kidId) => {
     console.log('🔑 Using API key:', GEMINI_API_KEY.substring(0, 10) + '...');
     
     // Call Gemini API (FREE!) - Using gemini-pro (most reliable)
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: context.fullPrompt
-          }]
-        }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1500
-        }
-      })
-    });
+    // Call Gemini API
+    const response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_API_KEY,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+          // You *can* also add this header, but it's optional if the key is in the URL:
+          // "x-goog-api-key": GEMINI_API_KEY,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: context.fullPrompt
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1500
+          }
+        })
+      }
+    );
     
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
