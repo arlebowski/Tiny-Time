@@ -1975,13 +1975,6 @@ ReactDOM.render(React.createElement(App), document.getElementById('root'));
 // ========================================
 
 const AIChatTab = ({ user, kidId }) => {
-  ...
-};
-and replace that whole function with this:
-
-js
-Copy code
-const AIChatTab = ({ user, kidId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
