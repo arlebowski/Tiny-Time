@@ -1991,6 +1991,12 @@ const AIChatTab = ({ user, kidId }) => {
     scrollToBottom();
   }, [messages]);
 
+  useEffect(() => {
+    if (!initializing) {
+      scrollToBottom();
+    }
+  }, [initializing]);
+
   const scrollToBottom = () => {
     const container = messagesContainerRef.current;
     if (container) {
