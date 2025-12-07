@@ -2198,15 +2198,15 @@ const AIChatTab = ({ user, kidId }) => {
 
 // ========================================
 // TINY TRACKER V4.3 - PART 10 (GEMINI VERSION)
-// AI Integration - Google Gemini API (FREE!) - FIXED MODEL NAME
+// AI Integration via Cloudflare Worker + Gemini
 // ========================================
 
 const getAIResponse = async (question, kidId) => {
   try {
-    // Build context from baby's data (same as before)
+    // Build context from baby's data
     const context = await buildAIContext(kidId, question);
 
-    // Call your Cloudflare Worker (this talks to Gemini using the secret key)
+    // Call your Cloudflare Worker (this talks to Gemini with the secret key)
     const response = await fetch("https://tiny-tracker-ai.adamlebowski.workers.dev/", {
       method: "POST",
       headers: {
@@ -2218,32 +2218,36 @@ const getAIResponse = async (question, kidId) => {
     });
 
     if (!response.ok) {
-      console.error("Worker error:", response.status, await response.text());
+      const text = await response.text();
+      console.error("Worker error:", response.status, text);
       throw new Error("AI backend error");
     }
 
     const data = await response.json();
 
-    // If backend says there was an error, log it and throw
-    if (data?.error) {
+    // If backend says there was an explicit error, log it and bail
+    if (data && data.error) {
       console.error("AI backend error payload:", data);
       throw new Error("AI backend error: " + data.error);
     }
 
-    // 🔍 Try several possible shapes for Gemini responses
-    const candidate = data?.candidates?.[0];
-    let answer = null;
+    // Try to pull text out of Gemini's first candidate
+    const candidate = data && Array.isArray(data.candidates) ? data.candidates[0] : null;
+    console.log("Gemini raw candidate:", candidate);
+
+    let answer = "";
 
     if (candidate) {
-      // Standard Generative Language API shape
-      if (candidate.content?.parts && Array.isArray(candidate.content.parts)) {
+      // Standard Generative Language API shape:
+      // candidate.content.parts is an array of { text: "..." }
+      if (candidate.content && Array.isArray(candidate.content.parts)) {
         answer = candidate.content.parts
           .map((p) => p.text || "")
           .join(" ")
           .trim();
       }
 
-      // Fallback: some responses use candidate.parts directly
+      // Fallback: some shapes use candidate.parts directly
       if (!answer && Array.isArray(candidate.parts)) {
         answer = candidate.parts
           .map((p) => p.text || "")
@@ -2251,19 +2255,23 @@ const getAIResponse = async (question, kidId) => {
           .trim();
       }
 
-      // Fallback: some shapes expose a simple output_text
+      // Fallback: some shapes expose output_text or text directly
       if (!answer && typeof candidate.output_text === "string") {
         answer = candidate.output_text.trim();
       }
+      if (!answer && typeof candidate.text === "string") {
+        answer = candidate.text.trim();
+      }
     }
 
+    // Absolute last resort: show the raw candidate (so you always see *something*)
     if (!answer) {
-      console.error("No text in Gemini response:", data);
-      return "Sorry, I couldn't generate a response.";
+      answer =
+        "Tiny Tracker got an unexpected response from Gemini:\n\n" +
+        JSON.stringify(candidate || data, null, 2);
     }
 
     return answer;
-
   } catch (error) {
     console.error("🔴 AI Error:", error);
     throw error;
@@ -2276,24 +2284,28 @@ const buildAIContext = async (kidId, question) => {
   const settings = await firestoreStorage.getSettings();
   const recentFeedings = await firestoreStorage.getFeedingsLastNDays(7);
   const conversation = await firestoreStorage.getConversation();
-  
+
   // Calculate age
   const ageInMonths = calculateAgeInMonths(babyData.birthDate);
-  const ageInDays = Math.floor((Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24));
-  
+  const ageInDays = Math.floor(
+    (Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24)
+  );
+
   // Analyze recent feedings
   const feedingAnalysis = analyzeFeedingPatterns(recentFeedings);
-  
+
   // Build conversation history
-  let conversationHistory = '';
+  let conversationHistory = "";
   if (conversation && conversation.messages) {
     const recentMessages = conversation.messages.slice(-10);
-    conversationHistory = '\n\nPREVIOUS CONVERSATION:\n';
-    recentMessages.forEach(msg => {
-      conversationHistory += `${msg.role === 'user' ? 'Parent' : 'AI'}: ${msg.content}\n\n`;
+    conversationHistory = "\n\nPREVIOUS CONVERSATION:\n";
+    recentMessages.forEach((msg) => {
+      conversationHistory += `${
+        msg.role === "user" ? "Parent" : "AI"
+      }: ${msg.content}\n\n`;
     });
   }
-  
+
   // Build full prompt (Gemini doesn't have separate system prompt)
   const fullPrompt = `You are talking to a tired but very loving parent about their baby’s feeding.
 You have access to detailed stats, but your job is to sound like a smart, kind human friend who is obsessed with their baby’s patterns.
@@ -2305,7 +2317,9 @@ You have access to detailed stats, but your job is to sound like a smart, kind h
 - You care about how the parent is doing emotionally, not just the ounces.
 
 ## How to answer
-1. Start with one clear “big picture” insight in plain English about how ${babyData.name || 'the baby'} is doing today.
+1. Start with one clear “big picture” insight in plain English about how ${
+    babyData.name || "the baby"
+  } is doing today.
    - It should feel like something a very observant friend would say after staring at the charts for a while.
 2. Then share 2–3 deeper, non-obvious observations that a normal person probably wouldn’t think of:
    - Things about timing (stretches between feeds, night vs day).
@@ -2319,7 +2333,9 @@ You have access to detailed stats, but your job is to sound like a smart, kind h
    - About the parent (energy, stress, what they’re trying to optimize).
 
 ## Hard rules
-- Always anchor your thoughts in specific numbers from ${babyData.name || 'the baby'}’s data (ounces, intervals, today vs average).
+- Always anchor your thoughts in specific numbers from ${
+    babyData.name || "the baby"
+  }’s data (ounces, intervals, today vs average).
 - Don’t repeat basic facts they can see in the app unless you’re using them to make a point.
 - Be honest and direct, but kind. If something might be worth a doctor’s input, say: “This might be worth checking with your pediatrician” and stop there.
 - Never diagnose or name conditions.
@@ -2328,10 +2344,16 @@ You have access to detailed stats, but your job is to sound like a smart, kind h
 ## Info you can use
 
 BABY SNAPSHOT:
-- Name: ${babyData.name || 'Baby'}
-- Age: ${ageInMonths} month${ageInMonths !== 1 ? 's' : ''} old (${ageInDays} days)
-- Current weight: ${settings?.babyWeight || 'not set'} lbs
-- Target daily intake: ${settings?.babyWeight && settings?.multiplier ? (settings.babyWeight * settings.multiplier).toFixed(1) : 'not set'} oz/day
+- Name: ${babyData.name || "Baby"}
+- Age: ${ageInMonths} month${
+    ageInMonths !== 1 ? "s" : ""
+  } old (${ageInDays} days)
+- Current weight: ${settings?.babyWeight || "not set"} lbs
+- Target daily intake: ${
+    settings?.babyWeight && settings?.multiplier
+      ? (settings.babyWeight * settings.multiplier).toFixed(1)
+      : "not set"
+  } oz/day
 
 RECENT PATTERNS (last 7 days):
 - Total feedings: ${feedingAnalysis.totalFeedings}
@@ -2339,15 +2361,19 @@ RECENT PATTERNS (last 7 days):
 - Avg per feeding: ${feedingAnalysis.avgPerFeeding.toFixed(1)} oz
 - Avg daily intake: ${feedingAnalysis.avgDailyIntake.toFixed(1)} oz
 - Avg interval between feeds: ${feedingAnalysis.avgInterval.toFixed(1)} hours
-- Night feeds (10pm–6am): ${feedingAnalysis.nightFeedings} (${feedingAnalysis.nightIntakePercent.toFixed(0)}% of intake at night)
+- Night feeds (10pm–6am): ${feedingAnalysis.nightFeedings} (${feedingAnalysis.nightIntakePercent.toFixed(
+    0
+  )}% of intake at night)
 
 TODAY SO FAR:
 - Total: ${feedingAnalysis.todayTotal.toFixed(1)} oz
 - Feedings: ${feedingAnalysis.todayCount}
-- Difference vs 7-day average: ${feedingAnalysis.todayVsAvg > 0 ? '+' : ''}${feedingAnalysis.todayVsAvg.toFixed(1)} oz
+- Difference vs 7-day average: ${
+    feedingAnalysis.todayVsAvg > 0 ? "+" : ""
+  }${feedingAnalysis.todayVsAvg.toFixed(1)} oz
 
 RECENT CONVERSATION (if any):
-${conversationHistory || 'No prior messages.'}
+${conversationHistory || "No prior messages."}
 
 Parent’s question:
 ${question}
@@ -2356,7 +2382,6 @@ Now, in a human, conversational voice, give:
 1) one big-picture takeaway,
 2) 2–3 specific, deeper insights with suggestions,
 3) and 1–2 questions back to the parent.`;
-
 
   return {
     fullPrompt,
@@ -2368,7 +2393,9 @@ const calculateAgeInMonths = (birthDate) => {
   if (!birthDate) return 0;
   const birth = new Date(birthDate);
   const now = new Date();
-  const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  const months =
+    (now.getFullYear() - birth.getFullYear()) * 12 +
+    (now.getMonth() - birth.getMonth());
   return months;
 };
 
@@ -2387,39 +2414,45 @@ const analyzeFeedingPatterns = (feedings) => {
       todayVsAvg: 0
     };
   }
-  
+
   const totalFeedings = feedings.length;
   const totalOunces = feedings.reduce((sum, f) => sum + f.ounces, 0);
-  
+
   // Calculate days span
-  const timestamps = feedings.map(f => f.timestamp);
+  const timestamps = feedings.map((f) => f.timestamp);
   const firstDay = Math.min(...timestamps);
   const lastDay = Math.max(...timestamps);
-  const daysSpan = Math.max(1, Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1);
-  
+  const daysSpan = Math.max(
+    1,
+    Math.ceil((lastDay - firstDay) / (1000 * 60 * 60 * 24)) + 1
+  );
+
   // Today's feedings
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);
-  const todayFeedings = feedings.filter(f => f.timestamp >= todayStart.getTime());
+  const todayFeedings = feedings.filter(
+    (f) => f.timestamp >= todayStart.getTime()
+  );
   const todayTotal = todayFeedings.reduce((sum, f) => sum + f.ounces, 0);
   const todayCount = todayFeedings.length;
-  
+
   // Night feedings (10pm - 6am)
-  const nightFeedings = feedings.filter(f => {
+  const nightFeedings = feedings.filter((f) => {
     const hour = new Date(f.timestamp).getHours();
     return hour >= 22 || hour < 6;
   });
   const nightIntake = nightFeedings.reduce((sum, f) => sum + f.ounces, 0);
-  
+
   // Calculate intervals
   let totalIntervalHours = 0;
   for (let i = 1; i < feedings.length; i++) {
-    const intervalHours = (feedings[i].timestamp - feedings[i-1].timestamp) / (1000 * 60 * 60);
+    const intervalHours =
+      (feedings[i].timestamp - feedings[i - 1].timestamp) / (1000 * 60 * 60);
     totalIntervalHours += intervalHours;
   }
-  
+
   const avgDailyIntake = totalOunces / daysSpan;
-  
+
   return {
     totalFeedings,
     avgPerDay: totalFeedings / daysSpan,
