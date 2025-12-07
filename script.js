@@ -2224,11 +2224,19 @@ const getAIResponse = async (question, kidId) => {
 
     const data = await response.json();
 
-    // Extract Gemini's text from the Worker response
-    const answer =
-      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
-      "Sorry, I couldn't generate a response.";
-
+    // If backend says there was an error, log it and throw
+    if (data?.error) {
+      console.error("AI backend error payload:", data);
+      throw new Error("AI backend error: " + data.error);
+    }
+    
+    const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    
+    if (!answer) {
+      console.error("No text in Gemini response:", data);
+      return "Sorry, I couldn't generate a response.";
+    }
+    
     return answer;
   } catch (error) {
     console.error("🔴 AI Error:", error);
