@@ -1981,6 +1981,7 @@ const AIChatTab = ({ user, kidId }) => {
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const messagesEndRef = React.useRef(null);
+  const messagesContainerRef = React.useRef(null);
 
   useEffect(() => {
     loadConversation();
@@ -1991,8 +1992,12 @@ const AIChatTab = ({ user, kidId }) => {
   }, [messages]);
 
   const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    const container = messagesContainerRef.current;
+    if (container) {
+      // wait for layout to settle then jump to bottom
+      setTimeout(() => {
+        container.scrollTop = container.scrollHeight;
+      }, 0);
     }
   };
 
@@ -2112,6 +2117,7 @@ const AIChatTab = ({ user, kidId }) => {
     React.createElement(
       'div',
       {
+        ref: messagesContainerRef,
         className: 'flex-1 overflow-y-auto px-4 py-3 space-y-3',
         style: { minHeight: 0 }
       },
@@ -2330,6 +2336,39 @@ const AIChatTab = ({ user, kidId }) => {
 // AI Integration via Cloudflare Worker + Gemini
 // ========================================
 
+// ========================================
+// TINY TRACKER V4.3 - PART 10 (GEMINI VERSION)
+// AI Integration - Google Gemini API (via Cloudflare Worker)
+// ========================================
+
+// Keep AI replies compact so they feel human, not like an essay
+const trimAIAnswer = (text) => {
+  if (!text || typeof text !== "string") return text;
+
+  // Limit to 3 paragraphs max (split on blank lines)
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  let trimmed = paragraphs.slice(0, 3).join("\n\n");
+
+  // Hard cap at 650 characters
+  const MAX_CHARS = 650;
+  if (trimmed.length > MAX_CHARS) {
+    trimmed = trimmed.slice(0, MAX_CHARS);
+
+    // Avoid cutting in the middle of a word
+    const lastSpace = trimmed.lastIndexOf(" ");
+    if (lastSpace > 0) {
+      trimmed = trimmed.slice(0, lastSpace);
+    }
+    trimmed += "…";
+  }
+
+  return trimmed;
+};
+
 const getAIResponse = async (question, kidId) => {
   try {
     // Build context from baby's data
@@ -2360,47 +2399,26 @@ const getAIResponse = async (question, kidId) => {
       throw new Error("AI backend error: " + data.error);
     }
 
-    // Try to pull text out of Gemini's first candidate
-    const candidate = data && Array.isArray(data.candidates) ? data.candidates[0] : null;
-    console.log("Gemini raw candidate:", candidate);
+    // Try to pull the answer text from the first candidate
+    const answer =
+      data &&
+      Array.isArray(data.candidates) &&
+      data.candidates[0] &&
+      data.candidates[0].content &&
+      Array.isArray(data.candidates[0].content.parts)
+        ? data.candidates[0].content.parts
+            .map((p) => p.text || "")
+            .join(" ")
+            .trim()
+        : null;
 
-    let answer = "";
-
-    if (candidate) {
-      // Standard Generative Language API shape:
-      // candidate.content.parts is an array of { text: "..." }
-      if (candidate.content && Array.isArray(candidate.content.parts)) {
-        answer = candidate.content.parts
-          .map((p) => p.text || "")
-          .join(" ")
-          .trim();
-      }
-
-      // Fallback: some shapes use candidate.parts directly
-      if (!answer && Array.isArray(candidate.parts)) {
-        answer = candidate.parts
-          .map((p) => p.text || "")
-          .join(" ")
-          .trim();
-      }
-
-      // Fallback: some shapes expose output_text or text directly
-      if (!answer && typeof candidate.output_text === "string") {
-        answer = candidate.output_text.trim();
-      }
-      if (!answer && typeof candidate.text === "string") {
-        answer = candidate.text.trim();
-      }
-    }
-
-    // Absolute last resort: show the raw candidate (so you always see *something*)
     if (!answer) {
-      answer =
-        "Tiny Tracker got an unexpected response from Gemini:\n\n" +
-        JSON.stringify(candidate || data, null, 2);
+      console.error("No text in Gemini response:", data);
+      return "Sorry, I couldn't generate a response.";
     }
 
-    return answer;
+    // Return a trimmed, human-sized reply
+    return trimAIAnswer(answer);
   } catch (error) {
     console.error("🔴 AI Error:", error);
     throw error;
