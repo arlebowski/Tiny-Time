@@ -2171,13 +2171,14 @@ const AIChatTab = ({ user, kidId }) => {
       React.createElement('div', { ref: messagesEndRef })
     ),
 
-    // Input Area - iMessage style
-    React.createElement('div', {
+        // Input Area - iMessage style
+    React.createElement('div', { 
       className: "px-4 pb-4 pt-2",
       style: { backgroundColor: '#E0E7FF' }
     },
-      React.createElement('div', {
-        // less rounded + center the send button vertically
+      React.createElement('div', { 
+        // items-center => send button vertically centered
+        // rounded-2xl => less rounded, matches message bubbles more
         className: "flex items-center gap-2 bg-white rounded-2xl px-3 py-1.5 border border-gray-200"
       },
         React.createElement('textarea', {
