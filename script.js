@@ -2202,64 +2202,37 @@ const AIChatTab = ({ user, kidId }) => {
 // AI Integration - Google Gemini API (FREE!) - FIXED MODEL NAME
 // ========================================
 
-// ⚠️ ADD YOUR GEMINI API KEY HERE ⚠️
-// Get it free at: https://aistudio.google.com/apikey
-const GEMINI_API_KEY = "AIzaSyD-oo_KbD4pUMu3z5uh6GvWVUg7uwEsGWU";
-
 const getAIResponse = async (question, kidId) => {
   try {
-    // Check if API key is set
-    if (!GEMINI_API_KEY || GEMINI_API_KEY === "PASTE_YOUR_KEY_HERE") {
-      throw new Error("❌ GEMINI API KEY NOT SET! Edit script.js line 2072 and add your key.");
-    }
-    
-    // Build context from baby's data
+    // Build context from baby's data (same as before)
     const context = await buildAIContext(kidId, question);
-    
-    console.log('🔑 Using API key:', GEMINI_API_KEY.substring(0, 10) + '...');
-    
-    // Call Gemini API (FREE!) - Using gemini-pro (most reliable)
-    // Call Gemini API
-    const response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_API_KEY,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-          // You *can* also add this header, but it's optional if the key is in the URL:
-          // "x-goog-api-key": GEMINI_API_KEY,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: context.fullPrompt
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 1500
-          }
-        })
-      }
-    );
-    
+
+    // Call your Cloudflare Worker (this talks to Gemini using the secret key)
+    const response = await fetch("https://tiny-tracker-ai.adamlebowski.workers.dev/", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        prompt: context.fullPrompt
+      })
+    });
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('❌ Gemini API Error:', errorData);
-      console.error('❌ Status:', response.status);
-      console.error('❌ API Key starts with:', GEMINI_API_KEY.substring(0, 10));
-      throw new Error(`AI request failed: ${response.status} - ${errorData.error?.message || 'Check your API key'}`);
+      console.error("Worker error:", response.status, await response.text());
+      throw new Error("AI backend error");
     }
-    
+
     const data = await response.json();
-    return data.candidates[0].content.parts[0].text;
-    
+
+    // Extract Gemini's text from the Worker response
+    const answer =
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
+      "Sorry, I couldn't generate a response.";
+
+    return answer;
   } catch (error) {
-    console.error('🔴 AI Error:', error);
+    console.error("🔴 AI Error:", error);
     throw error;
   }
 };
