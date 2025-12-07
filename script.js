@@ -2083,14 +2083,13 @@ const AIChatTab = ({ user, kidId }) => {
   }
 
   return React.createElement('div', {
-    className: "flex flex-col",
-    style: { height: 'calc(100vh - 10rem)' }
+    className: "flex flex-col h-full"
   },
     // Small header bar with Clear button
     React.createElement('div', {
       className: "flex items-center justify-between px-4 pt-2 pb-1 text-xs text-gray-500"
     },
-      React.createElement('span', null, 'Tiny Tracker AI'),
+      React.createElement('div', { className: "flex justify-end px-4 pt-2 pb-1" },
       messages.length > 0 && React.createElement('button', {
         onClick: handleClearConversation,
         className: "text-[11px] text-gray-400 hover:text-red-500"
@@ -2099,7 +2098,8 @@ const AIChatTab = ({ user, kidId }) => {
 
     // Messages Area - looks like iMessage
     React.createElement('div', {
-      className: "flex-1 overflow-y-auto px-4 py-3 space-y-3"
+      className: "flex-1 overflow-y-auto px-4 py-3 space-y-3",
+      style: { minHeight: 0 }
     },
       // First message if empty
       messages.length === 0 && React.createElement(React.Fragment, null,
