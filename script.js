@@ -1975,24 +1975,38 @@ ReactDOM.render(React.createElement(App), document.getElementById('root'));
 // ========================================
 
 const AIChatTab = ({ user, kidId }) => {
+  ...
+};
+and replace that whole function with this:
+
+js
+Copy code
+const AIChatTab = ({ user, kidId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const messagesEndRef = React.useRef(null);
-  
+
   useEffect(() => {
     loadConversation();
   }, [kidId]);
-  
+
+  // extra: make sure we jump to bottom on first mount too
+  useEffect(() => {
+    scrollToBottom();
+  }, []);
+
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-  
+
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
   };
-  
+
   const loadConversation = async () => {
     if (!kidId) return;
     setInitializing(true);
@@ -2006,33 +2020,33 @@ const AIChatTab = ({ user, kidId }) => {
     }
     setInitializing(false);
   };
-  
+
   const handleSend = async () => {
     if (!input.trim() || loading) return;
-    
+
     const userMessage = {
       role: 'user',
       content: input.trim(),
       timestamp: Date.now()
     };
-    
+
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setLoading(true);
-    
+
     try {
       await firestoreStorage.saveMessage(userMessage);
       const aiResponse = await getAIResponse(input.trim(), kidId);
-      
+
       const assistantMessage = {
         role: 'assistant',
         content: aiResponse,
         timestamp: Date.now()
       };
-      
+
       setMessages(prev => [...prev, assistantMessage]);
       await firestoreStorage.saveMessage(assistantMessage);
-      
+
     } catch (error) {
       console.error('Error getting AI response:', error);
       const errorMessage = {
@@ -2043,10 +2057,10 @@ const AIChatTab = ({ user, kidId }) => {
       };
       setMessages(prev => [...prev, errorMessage]);
     }
-    
+
     setLoading(false);
   };
-  
+
   const handleClearConversation = async () => {
     if (!confirm('Clear all conversation history?')) return;
     try {
@@ -2056,47 +2070,58 @@ const AIChatTab = ({ user, kidId }) => {
       console.error('Error clearing conversation:', error);
     }
   };
-  
+
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   };
-  
+
   const suggestedQuestions = [
     'How much should my baby be eating?',
     'Is cluster feeding normal?',
     'Why is my baby eating less today?',
     'What\'s a normal feeding schedule?'
   ];
-  
+
   if (initializing) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
-      React.createElement('div', { className: "text-gray-600" }, 'Loading conversation...')
+      React.createElement('div', { className: "text-gray-600" }, 'Loading conversation.')
     );
   }
-  
-  return React.createElement('div', { 
+
+  return React.createElement('div', {
     className: "flex flex-col",
     style: { height: 'calc(100vh - 10rem)' }
   },
+    // Small header bar with Clear button
+    React.createElement('div', {
+      className: "flex items-center justify-between px-4 pt-2 pb-1 text-xs text-gray-500"
+    },
+      React.createElement('span', null, 'Tiny Tracker AI'),
+      messages.length > 0 && React.createElement('button', {
+        onClick: handleClearConversation,
+        className: "text-[11px] text-gray-400 hover:text-red-500"
+      }, 'Clear')
+    ),
+
     // Messages Area - looks like iMessage
-    React.createElement('div', { 
-      className: "flex-1 overflow-y-auto px-4 py-4 space-y-3"
+    React.createElement('div', {
+      className: "flex-1 overflow-y-auto px-4 py-3 space-y-3"
     },
       // First message if empty
       messages.length === 0 && React.createElement(React.Fragment, null,
         // Initial AI message
         React.createElement('div', { className: "flex justify-start" },
-          React.createElement('div', { 
+          React.createElement('div', {
             className: "max-w-[75%] bg-gray-200 rounded-2xl px-4 py-3"
           },
             React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
-            React.createElement('div', { className: "text-gray-900" }, 
+            React.createElement('div', { className: "text-gray-900" },
               'Hi! I can help you understand your baby\'s feeding patterns. Ask me anything!'
             )
           )
         ),
-        
+
         // Suggested questions
         React.createElement('div', { className: "flex justify-start mt-2" },
           React.createElement('div', { className: "max-w-[75%] space-y-2" },
@@ -2111,7 +2136,7 @@ const AIChatTab = ({ user, kidId }) => {
           )
         )
       ),
-      
+
       // Conversation messages
       messages.map((message, index) =>
         React.createElement('div', {
@@ -2138,7 +2163,7 @@ const AIChatTab = ({ user, kidId }) => {
           )
         )
       ),
-      
+
       // Loading indicator
       loading && React.createElement('div', { className: "flex justify-start" },
         React.createElement('div', { className: "bg-gray-200 rounded-2xl px-4 py-3" },
@@ -2149,17 +2174,18 @@ const AIChatTab = ({ user, kidId }) => {
           )
         )
       ),
-      
+
       React.createElement('div', { ref: messagesEndRef })
     ),
-    
+
     // Input Area - iMessage style
-    React.createElement('div', { 
+    React.createElement('div', {
       className: "px-4 pb-4 pt-2",
       style: { backgroundColor: '#E0E7FF' }
     },
-      React.createElement('div', { 
-        className: "flex items-end gap-2 bg-white rounded-full px-3 py-1.5 border border-gray-200"
+      React.createElement('div', {
+        // less rounded + center the send button vertically
+        className: "flex items-center gap-2 bg-white rounded-2xl px-3 py-1.5 border border-gray-200"
       },
         React.createElement('textarea', {
           value: input,
