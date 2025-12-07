@@ -1974,6 +1974,7 @@ ReactDOM.render(React.createElement(App), document.getElementById('root'));
 // AI Chat Tab - iMessage Style
 // ========================================
 
+// AI Chat Tab - iMessage Style
 const AIChatTab = ({ user, kidId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
@@ -1984,11 +1985,6 @@ const AIChatTab = ({ user, kidId }) => {
   useEffect(() => {
     loadConversation();
   }, [kidId]);
-
-  // extra: make sure we jump to bottom on first mount too
-  useEffect(() => {
-    scrollToBottom();
-  }, []);
 
   useEffect(() => {
     scrollToBottom();
@@ -2039,7 +2035,6 @@ const AIChatTab = ({ user, kidId }) => {
 
       setMessages(prev => [...prev, assistantMessage]);
       await firestoreStorage.saveMessage(assistantMessage);
-
     } catch (error) {
       console.error('Error getting AI response:', error);
       const errorMessage = {
@@ -2066,121 +2061,229 @@ const AIChatTab = ({ user, kidId }) => {
 
   const formatTimestamp = (timestamp) => {
     const date = new Date(timestamp);
-    return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit'
+    });
   };
 
   const suggestedQuestions = [
     'How much should my baby be eating?',
     'Is cluster feeding normal?',
     'Why is my baby eating less today?',
-    'What\'s a normal feeding schedule?'
+    "What\'s a normal feeding schedule?"
   ];
 
   if (initializing) {
-    return React.createElement('div', { className: "flex items-center justify-center py-12" },
-      React.createElement('div', { className: "text-gray-600" }, 'Loading conversation.')
+    return React.createElement(
+      'div',
+      { className: 'flex items-center justify-center py-12' },
+      React.createElement(
+        'div',
+        { className: 'text-gray-600' },
+        'Loading conversation.'
+      )
     );
   }
 
-  return React.createElement('div', {
-    className: "flex flex-col h-full"
-  },
-    // Small header bar with Clear button
-    React.createElement('div', {
-      className: "flex items-center justify-between px-4 pt-2 pb-1 text-xs text-gray-500"
+  return React.createElement(
+    'div',
+    {
+      className: 'flex flex-col',
+      style: { height: 'calc(100vh - 160px)' } // viewport minus header + nav
     },
-      React.createElement('div', { className: "flex justify-end px-4 pt-2 pb-1" },
-      messages.length > 0 && React.createElement('button', {
-        onClick: handleClearConversation,
-        className: "text-[11px] text-gray-400 hover:text-red-500"
-      }, 'Clear')
+
+    // Top row – just Clear button on the right
+    React.createElement(
+      'div',
+      { className: 'flex justify-end px-4 pt-2 pb-1' },
+      messages.length > 0 &&
+        React.createElement(
+          'button',
+          {
+            onClick: handleClearConversation,
+            className: 'text-[11px] text-gray-400 hover:text-red-500'
+          },
+          'Clear'
+        )
     ),
 
-    // Messages Area - looks like iMessage
-    React.createElement('div', {
-      className: "flex-1 overflow-y-auto px-4 py-3 space-y-3",
-      style: { minHeight: 0 }
-    },
-      // First message if empty
-      messages.length === 0 && React.createElement(React.Fragment, null,
-        // Initial AI message
-        React.createElement('div', { className: "flex justify-start" },
-          React.createElement('div', {
-            className: "max-w-[75%] bg-gray-200 rounded-2xl px-4 py-3"
-          },
-            React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
-            React.createElement('div', { className: "text-gray-900" },
-              'Hi! I can help you understand your baby\'s feeding patterns. Ask me anything!'
+    // Messages area
+    React.createElement(
+      'div',
+      {
+        className: 'flex-1 overflow-y-auto px-4 py-3 space-y-3',
+        style: { minHeight: 0 }
+      },
+
+      // Empty-state intro + suggestions
+      messages.length === 0 &&
+        React.createElement(
+          React.Fragment,
+          null,
+
+          // Intro bubble
+          React.createElement(
+            'div',
+            { className: 'flex justify-start' },
+            React.createElement(
+              'div',
+              {
+                className:
+                  'max-w-[75%] bg-gray-200 rounded-2xl px-4 py-3'
+              },
+              React.createElement(
+                'div',
+                {
+                  className:
+                    'font-semibold text-sm text-gray-700 mb-1'
+                },
+                'Tiny Tracker'
+              ),
+              React.createElement(
+                'div',
+                { className: 'text-gray-900' },
+                "Hi! I can help you understand your baby's feeding patterns. Ask me anything!"
+              )
+            )
+          ),
+
+          // Suggested questions
+          React.createElement(
+            'div',
+            { className: 'flex justify-start mt-2' },
+            React.createElement(
+              'div',
+              { className: 'max-w-[75%] space-y-2' },
+              React.createElement(
+                'div',
+                {
+                  className:
+                    'text-xs text-gray-500 px-2 mb-1'
+                },
+                'Try asking:'
+              ),
+              suggestedQuestions.map((q, i) =>
+                React.createElement(
+                  'button',
+                  {
+                    key: i,
+                    onClick: () => setInput(q),
+                    className:
+                      'block w-full text-left px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50 transition'
+                  },
+                  q
+                )
+              )
             )
           )
         ),
 
-        // Suggested questions
-        React.createElement('div', { className: "flex justify-start mt-2" },
-          React.createElement('div', { className: "max-w-[75%] space-y-2" },
-            React.createElement('div', { className: "text-xs text-gray-500 px-2 mb-1" }, 'Try asking:'),
-            suggestedQuestions.map((q, i) =>
-              React.createElement('button', {
-                key: i,
-                onClick: () => setInput(q),
-                className: "block w-full text-left px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50 transition"
-              }, q)
-            )
-          )
-        )
-      ),
-
       // Conversation messages
       messages.map((message, index) =>
-        React.createElement('div', {
-          key: index,
-          className: `flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`
-        },
-          React.createElement('div', {
-            className: `max-w-[75%] rounded-2xl px-4 py-3 ${
-              message.role === 'user'
-                ? 'bg-indigo-600 text-white'
-                : message.error
-                ? 'bg-red-100 text-red-900'
-                : 'bg-gray-200 text-gray-900'
-            }`
+        React.createElement(
+          'div',
+          {
+            key: index,
+            className:
+              'flex ' +
+              (message.role === 'user'
+                ? 'justify-end'
+                : 'justify-start')
           },
-            message.role === 'assistant' && !message.error &&
-              React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
-            React.createElement('div', { className: "whitespace-pre-wrap text-[15px]" }, message.content),
-            React.createElement('div', {
-              className: `text-[11px] mt-1 ${
-                message.role === 'user' ? 'text-indigo-200' : 'text-gray-500'
-              }`
-            }, formatTimestamp(message.timestamp))
+          React.createElement(
+            'div',
+            {
+              className:
+                'max-w-[75%] rounded-2xl px-4 py-3 ' +
+                (message.role === 'user'
+                  ? 'bg-indigo-600 text-white'
+                  : message.error
+                  ? 'bg-red-100 text-red-900'
+                  : 'bg-gray-200 text-gray-900')
+            },
+            message.role === 'assistant' &&
+              !message.error &&
+              React.createElement(
+                'div',
+                {
+                  className:
+                    'font-semibold text-sm text-gray-700 mb-1'
+                },
+                'Tiny Tracker'
+              ),
+            React.createElement(
+              'div',
+              {
+                className:
+                  'whitespace-pre-wrap text-[15px]'
+              },
+              message.content
+            ),
+            React.createElement(
+              'div',
+              {
+                className:
+                  'text-[11px] mt-1 ' +
+                  (message.role === 'user'
+                    ? 'text-indigo-200'
+                    : 'text-gray-500')
+              },
+              formatTimestamp(message.timestamp)
+            )
           )
         )
       ),
 
       // Loading indicator
-      loading && React.createElement('div', { className: "flex justify-start" },
-        React.createElement('div', { className: "bg-gray-200 rounded-2xl px-4 py-3" },
-          React.createElement('div', { className: "flex gap-1" },
-            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '0ms' } }),
-            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '150ms' } }),
-            React.createElement('div', { className: "w-2 h-2 bg-gray-400 rounded-full animate-bounce", style: { animationDelay: '300ms' } })
+      loading &&
+        React.createElement(
+          'div',
+          { className: 'flex justify-start' },
+          React.createElement(
+            'div',
+            {
+              className:
+                'bg-gray-200 rounded-2xl px-4 py-3'
+            },
+            React.createElement(
+              'div',
+              { className: 'flex gap-1' },
+              React.createElement('div', {
+                className:
+                  'w-2 h-2 bg-gray-400 rounded-full animate-bounce',
+                style: { animationDelay: '0ms' }
+              }),
+              React.createElement('div', {
+                className:
+                  'w-2 h-2 bg-gray-400 rounded-full animate-bounce',
+                style: { animationDelay: '150ms' }
+              }),
+              React.createElement('div', {
+                className:
+                  'w-2 h-2 bg-gray-400 rounded-full animate-bounce',
+                style: { animationDelay: '300ms' }
+              })
+            )
           )
-        )
-      ),
+        ),
 
       React.createElement('div', { ref: messagesEndRef })
     ),
 
-        // Input Area - iMessage style
-    React.createElement('div', { 
-      className: "px-4 pb-4 pt-2",
-      style: { backgroundColor: '#E0E7FF' }
-    },
-      React.createElement('div', { 
-        // items-center => send button vertically centered
-        // rounded-2xl => less rounded, matches message bubbles more
-        className: "flex items-center gap-2 bg-white rounded-2xl px-3 py-1.5 border border-gray-200"
+    // Input area
+    React.createElement(
+      'div',
+      {
+        className: 'px-4 pb-4 pt-2',
+        style: { backgroundColor: '#E0E7FF' }
       },
+      React.createElement(
+        'div',
+        {
+          className:
+            'flex items-center gap-2 bg-white rounded-2xl px-3 py-1.5 border border-gray-200'
+        },
         React.createElement('textarea', {
           value: input,
           onChange: (e) => setInput(e.target.value),
@@ -2190,24 +2293,30 @@ const AIChatTab = ({ user, kidId }) => {
               handleSend();
             }
           },
-          placeholder: "Message",
+          placeholder: 'Message',
           disabled: loading,
           rows: 1,
-          className: "flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px] disabled:opacity-50",
+          className:
+            'flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px] disabled:opacity-50',
           style: { maxHeight: '100px' }
         }),
-        React.createElement('button', {
-          onClick: handleSend,
-          disabled: loading || !input.trim(),
-          className: "flex-shrink-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center disabled:opacity-30 transition hover:bg-indigo-700"
-        },
-          React.createElement('svg', {
-            className: "w-4 h-4 text-white",
-            fill: "currentColor",
-            viewBox: "0 0 24 24"
+        React.createElement(
+          'button',
+          {
+            onClick: handleSend,
+            disabled: loading || !input.trim(),
+            className:
+              'flex-shrink-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center disabled:opacity-30 transition hover:bg-indigo-700'
           },
+          React.createElement(
+            'svg',
+            {
+              className: 'w-4 h-4 text-white',
+              fill: 'currentColor',
+              viewBox: '0 0 24 24'
+            },
             React.createElement('path', {
-              d: "M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"
+              d: 'M2.01 21L23 12 2.01 3 2 10l15 2-15 2z'
             })
           )
         )
