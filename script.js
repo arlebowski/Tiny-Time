@@ -2342,11 +2342,6 @@ const AIChatTab = ({ user, kidId }) => {
 // AI Integration via Cloudflare Worker + Gemini
 // ========================================
 
-// ========================================
-// TINY TRACKER V4.3 - PART 10 (GEMINI VERSION)
-// AI Integration - Google Gemini API (via Cloudflare Worker)
-// ========================================
-
 // Keep AI replies compact so they feel human, not like an essay
 const trimAIAnswer = (text) => {
   if (!text || typeof text !== "string") return text;
@@ -2399,32 +2394,54 @@ const getAIResponse = async (question, kidId) => {
 
     const data = await response.json();
 
-    // If backend says there was an explicit error, log it and bail
+    // If backend says there was an error, log it and throw
     if (data && data.error) {
       console.error("AI backend error payload:", data);
       throw new Error("AI backend error: " + data.error);
     }
 
-    // Try to pull the answer text from the first candidate
-    const answer =
-      data &&
-      Array.isArray(data.candidates) &&
-      data.candidates[0] &&
-      data.candidates[0].content &&
-      Array.isArray(data.candidates[0].content.parts)
-        ? data.candidates[0].content.parts
-            .map((p) => p.text || "")
-            .join(" ")
-            .trim()
-        : null;
+    // Try to pull text out of Gemini's first candidate
+    const candidate =
+      data && Array.isArray(data.candidates) ? data.candidates[0] : null;
+    console.log("Gemini raw candidate:", candidate);
 
-    if (!answer) {
-      console.error("No text in Gemini response:", data);
-      return "Sorry, I couldn't generate a response.";
+    let answer = "";
+
+    if (candidate) {
+      // Standard Generative Language API shape:
+      // candidate.content.parts is an array of { text: "..." }
+      if (candidate.content && Array.isArray(candidate.content.parts)) {
+        answer = candidate.content.parts
+          .map((p) => p.text || "")
+          .join(" ")
+          .trim();
+      }
+
+      // Fallback: some shapes use candidate.parts directly
+      if (!answer && Array.isArray(candidate.parts)) {
+        answer = candidate.parts
+          .map((p) => p.text || "")
+          .join(" ")
+          .trim();
+      }
+
+      // Fallback: some shapes expose output_text or text directly
+      if (!answer && typeof candidate.output_text === "string") {
+        answer = candidate.output_text.trim();
+      }
+      if (!answer && typeof candidate.text === "string") {
+        answer = candidate.text.trim();
+      }
     }
 
-    // Return a trimmed, human-sized reply
-    return trimAIAnswer(answer);
+    // Absolute last resort: show the raw candidate (so you always see *something*)
+    if (!answer) {
+      answer =
+        "Tiny Tracker got an unexpected response from Gemini:\n\n" +
+        JSON.stringify(candidate || data, null, 2);
+    }
+
+    return answer;
   } catch (error) {
     console.error("🔴 AI Error:", error);
     throw error;
