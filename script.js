@@ -2229,15 +2229,41 @@ const getAIResponse = async (question, kidId) => {
       console.error("AI backend error payload:", data);
       throw new Error("AI backend error: " + data.error);
     }
-    
-    const answer = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    
+
+    // 🔍 Try several possible shapes for Gemini responses
+    const candidate = data?.candidates?.[0];
+    let answer = null;
+
+    if (candidate) {
+      // Standard Generative Language API shape
+      if (candidate.content?.parts && Array.isArray(candidate.content.parts)) {
+        answer = candidate.content.parts
+          .map((p) => p.text || "")
+          .join(" ")
+          .trim();
+      }
+
+      // Fallback: some responses use candidate.parts directly
+      if (!answer && Array.isArray(candidate.parts)) {
+        answer = candidate.parts
+          .map((p) => p.text || "")
+          .join(" ")
+          .trim();
+      }
+
+      // Fallback: some shapes expose a simple output_text
+      if (!answer && typeof candidate.output_text === "string") {
+        answer = candidate.output_text.trim();
+      }
+    }
+
     if (!answer) {
       console.error("No text in Gemini response:", data);
       return "Sorry, I couldn't generate a response.";
     }
-    
+
     return answer;
+
   } catch (error) {
     console.error("🔴 AI Error:", error);
     throw error;
