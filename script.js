@@ -902,7 +902,16 @@ const TrackerTab = ({ user, kidId }) => {
     
     // Feedings List
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
+      React.createElement(
+        'h2',
+        { className: "text-lg font-semibold text-gray-800 mb-4 flex items-baseline" },
+        'Feedings',
+        React.createElement(
+          'span',
+          { className: "ml-2 text-sm text-gray-400" },
+          `· ${feedings.length} ${feedings.length === 1 ? 'feeding' : 'feedings'}`
+        )
+      ),
       feedings.length === 0 ?
         React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
       :
