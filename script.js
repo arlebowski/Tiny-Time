@@ -570,9 +570,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
 // Main App with Bottom Navigation (FIXED - nav extends to bottom)
 // ========================================
 
-// Local icons for global share actions (scoped to this part only)
-
-// Lucide-style "share" icon (3 nodes connected)
+// Lucide-style "share" (box + arrow up)
 const ShareIcon = (props) => React.createElement(
   'svg',
   {
@@ -587,12 +585,13 @@ const ShareIcon = (props) => React.createElement(
     strokeLinecap: "round",
     strokeLinejoin: "round"
   },
-  React.createElement('circle', { cx: "18", cy: "5", r: "3" }),
-  React.createElement('circle', { cx: "6", cy: "12", r: "3" }),
-  React.createElement('circle', { cx: "18", cy: "19", r: "3" }),
-  React.createElement('line', { x1: "8.59", y1: "13.51", x2: "15.42", y2: "17.49" }),
-  React.createElement('line', { x1: "15.41", y1: "6.51", x2: "8.59", y2: "10.49" })
+  // Box
+  React.createElement('path', { d: "M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" }),
+  // Arrow
+  React.createElement('polyline', { points: "16 6 12 2 8 6" }),
+  React.createElement('line', { x1: "12", y1: "2", x2: "12", y2: "15" })
 );
+
 
 // Lucide-style link icon
 const LinkIcon = (props) => React.createElement(
@@ -613,7 +612,8 @@ const LinkIcon = (props) => React.createElement(
   React.createElement('path', { d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1" })
 );
 
-// Lucide-style "person add" icon
+
+// Lucide-style "person add"
 const PersonAddIcon = (props) => React.createElement(
   'svg',
   {
@@ -628,14 +628,13 @@ const PersonAddIcon = (props) => React.createElement(
     strokeLinecap: "round",
     strokeLinejoin: "round"
   },
-  // Head
   React.createElement('circle', { cx: "9", cy: "7", r: "3" }),
-  // Body
   React.createElement('path', { d: "M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1" }),
-  // Plus symbol
   React.createElement('line', { x1: "17", y1: "8", x2: "23", y2: "8" }),
   React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
 );
+
+
 
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
@@ -645,7 +644,11 @@ const MainApp = ({ user, kidId }) => {
     document.title = 'Tiny Tracker';
   }, []);
 
-  // Global share: app link
+
+  // -----------------------
+  // SHARE ACTIONS
+  // -----------------------
+
   const handleGlobalShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
     const text = "Check out Tiny Tracker - track your baby's feedings and get insights! " + url;
@@ -655,96 +658,116 @@ const MainApp = ({ user, kidId }) => {
         await navigator.share({
           title: 'Tiny Tracker',
           text: "Check out Tiny Tracker - track your baby's feedings and get insights!",
-          url: url
+          url
         });
         return;
-      } catch (error) {
-        console.log('Native share failed or was cancelled:', error);
-      }
+      } catch (err) {}
     }
     
     const messengerUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}&app_id=`;
     window.location.href = messengerUrl;
-    
+
     setTimeout(async () => {
       try {
         await navigator.clipboard.writeText(text);
-        alert('Link copied to clipboard! You can paste it in any app.');
-      } catch (error) {
-        prompt('Copy this link to share:', url);
+        alert("Link copied to clipboard!");
+      } catch {
+        prompt("Copy this link:", url);
       }
     }, 1000);
   };
 
-  // Global share: invite partner (collaborator)
+
   const handleGlobalInvitePartner = async () => {
     try {
       const code = await createInvite(kidId);
       const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-      const shareText =
-        "Come join me on Tiny Tracker so we can both track the baby's feedings together.\n\n" + link;
 
       if (navigator.share) {
         try {
           await navigator.share({
-            title: 'Join me on Tiny Tracker',
-            text: shareText,
+            title: "Join me on Tiny Tracker",
+            text: "Come join me so we can both track the baby's feedings.",
             url: link
           });
           return;
-        } catch (err) {
-          console.log('Share failed or was cancelled, falling back to copy:', err);
-        }
+        } catch (err) {}
       }
 
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(link);
-        alert('Invite link copied! Send it to your partner in any app.');
-      } else {
-        prompt('Copy this invite link:', link);
-      }
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      alert('Failed to create invite. Please try again.');
+      await navigator.clipboard.writeText(link);
+      alert("Invite link copied!");
+
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create invite.");
     }
   };
-  
-  return React.createElement('div', { 
-    className: "min-h-screen",
-    style: { 
-      backgroundColor: '#E0E7FF',
-      paddingBottom: '80px' // Space for fixed nav
-    }
-  },
+
+
+
+  // -----------------------
+  // UI
+  // -----------------------
+
+  return React.createElement(
+    'div',
+    {
+      className: "min-h-screen",
+      style: {
+        backgroundColor: '#E0E7FF',
+        paddingBottom: '80px'
+      }
+    },
+
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header - no drop shadow, just flat, with share icon + dropdown menu
-      React.createElement('div', { 
-        className: "sticky top-0 z-10",
-        style: { backgroundColor: '#E0E7FF' }
-      },
-        React.createElement('div', { className: "pt-4 pb-6 px-4" },
-          React.createElement('div', { className: "relative flex items-center justify-between" },
-            // Left spacer to keep logo centered
+
+      // HEADER
+      React.createElement(
+        'div',
+        {
+          className: "sticky top-0 z-10",
+          style: { backgroundColor: '#E0E7FF' }
+        },
+        React.createElement(
+          'div',
+          { className: "pt-4 pb-6 px-4" },
+          React.createElement(
+            'div',
+            { className: "relative flex items-center justify-between" },
+
+            // left spacer
             React.createElement('div', { className: "w-8" }),
-            // Logo (Baby icon + Tiny Tracker text)
-            React.createElement('div', { className: "flex items-center gap-2" },
+
+            // logo
+            React.createElement(
+              'div',
+              { className: "flex items-center gap-2" },
               React.createElement(Baby, { className: "w-8 h-8 text-indigo-600" }),
-              React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
+              React.createElement(
+                'h1',
+                { className: "text-2xl font-bold text-gray-800 handwriting" },
+                "Tiny Tracker"
+              )
             ),
-            // Global share button
-            React.createElement('button', {
-              onClick: () => setShowShareMenu(!showShareMenu),
-              className: "w-8 h-8 flex items-center justify-center rounded-full bg-white/70 shadow-sm hover:bg-white transition"
-            },
+
+            // share icon
+            React.createElement(
+              'button',
+              {
+                onClick: () => setShowShareMenu(!showShareMenu),
+                className:
+                  "w-8 h-8 flex items-center justify-center rounded-full bg-white/70 shadow-sm hover:bg-white transition"
+              },
               React.createElement(ShareIcon, { className: "w-4 h-4 text-indigo-600" })
             ),
 
-            // Small dropdown menu anchored to the icon
+            // dropdown menu under the icon
             showShareMenu &&
               React.createElement(
                 'div',
                 {
-                  className: "absolute right-0 top-12 w-56 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden"
+                  className:
+                    "absolute right-0 top-12 w-56 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
                 },
                 React.createElement(
                   'button',
@@ -753,10 +776,11 @@ const MainApp = ({ user, kidId }) => {
                       await handleGlobalShareApp();
                       setShowShareMenu(false);
                     },
-                    className: "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                    className:
+                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
                   React.createElement(LinkIcon, { className: "w-4 h-4 text-indigo-600" }),
-                  React.createElement('span', null, 'Share app link')
+                  "Share app link"
                 ),
                 React.createElement(
                   'button',
@@ -765,18 +789,21 @@ const MainApp = ({ user, kidId }) => {
                       await handleGlobalInvitePartner();
                       setShowShareMenu(false);
                     },
-                    className: "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                    className:
+                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
                   React.createElement(PersonAddIcon, { className: "w-4 h-4 text-indigo-600" }),
-                  React.createElement('span', null, 'Invite partner')
+                  "Invite partner"
                 )
               )
           )
         )
       ),
-      
-      // Content
-      React.createElement('div', { className: "px-4" },
+
+      // CONTENT SECTION
+      React.createElement(
+        'div',
+        { className: "px-4" },
         activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId }),
         activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
         activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId }),
@@ -785,47 +812,48 @@ const MainApp = ({ user, kidId }) => {
       )
     ),
 
-    // Transparent overlay to close the menu when tapping away
+
+    // CLICK-AWAY OVERLAY
     showShareMenu &&
+      React.createElement('div', {
+        className: "fixed inset-0 z-0",
+        onClick: () => setShowShareMenu(false)
+      }),
+
+
+    // BOTTOM NAV
+    React.createElement(
+      'div',
+      {
+        className: "fixed bottom-0 left-0 right-0 z-50",
+        style: {
+          backgroundColor: '#E0E7FF',
+          boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
+          paddingBottom: 'env(safe-area-inset-bottom)'
+        }
+      },
       React.createElement(
         'div',
-        {
-          className: "fixed inset-0 z-0",
-          onClick: () => setShowShareMenu(false)
-        }
-      ),
-    
-    // Bottom Navigation - extends to bottom, no scroll behind
-    React.createElement('div', { 
-      className: "fixed bottom-0 left-0 right-0 z-50",
-      style: { 
-        backgroundColor: '#E0E7FF',
-        boxShadow: '0 -1px 3px rgba(0, 0, 0, 0.1)',
-        paddingBottom: 'env(safe-area-inset-bottom)' // iOS safe area
-      }
-    },
-      React.createElement('div', { 
-        className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3"
-      },
+        { className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3" },
         [
           { id: 'tracker', icon: BarChart, label: 'Tracker' },
           { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
           { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
           { id: 'family', icon: Users, label: 'Family' },
           { id: 'settings', icon: Menu, label: 'Settings' }
-        ].map(tab =>
-          React.createElement('button', {
-            key: tab.id,
-            onClick: () => {
-              setActiveTab(tab.id);
-              setShowShareMenu(false);
+        ].map((tab) =>
+          React.createElement(
+            'button',
+            {
+              key: tab.id,
+              onClick: () => {
+                setActiveTab(tab.id);
+                setShowShareMenu(false);
+              },
+              className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
+                activeTab === tab.id ? "text-indigo-600" : "text-gray-400"
+              }`
             },
-            className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
-              activeTab === tab.id 
-                ? 'text-indigo-600' 
-                : 'text-gray-400'
-            }`
-          },
             React.createElement(tab.icon, { className: "w-6 h-6" }),
             React.createElement('span', { className: "text-xs font-medium" }, tab.label)
           )
