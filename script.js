@@ -2113,7 +2113,7 @@ const AIChatTab = ({ user, kidId }) => {
           'button',
           {
             onClick: handleClearConversation,
-            className: 'text-[11px] text-gray-400 hover:text-red-500'
+            className: 'text-[11px] text-gray-500 underline underline-offset-2 hover:text-red-500'
           },
           'Clear'
         )
