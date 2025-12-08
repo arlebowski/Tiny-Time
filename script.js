@@ -570,12 +570,143 @@ const BabySetupScreen = ({ user, onComplete }) => {
 // Main App with Bottom Navigation (FIXED - nav extends to bottom)
 // ========================================
 
+// Local icons for global share actions (scoped to this part only)
+const ShareIos = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  },
+  // Arrow up
+  React.createElement('path', { d: "M12 3v11" }),
+  React.createElement('polyline', { points: "8 7 12 3 16 7" }),
+  // Box
+  React.createElement('rect', { x: "4", y: "11", width: "16", height: "10", rx: "2", ry: "2" })
+);
+
+const LinkIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  },
+  React.createElement('path', { d: "M10 13a5 5 0 0 0 7.54.54l1.92-1.92a3 3 0 0 0-4.24-4.24l-1.1 1.1" }),
+  React.createElement('path', { d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1" })
+);
+
+const PersonAddIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  },
+  // Head
+  React.createElement('circle', { cx: "9", cy: "7", r: "3" }),
+  // Body
+  React.createElement('path', { d: "M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1" }),
+  // Plus symbol
+  React.createElement('line', { x1: "17", y1: "8", x2: "23", y2: "8" }),
+  React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
+);
+
 const MainApp = ({ user, kidId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
+  const [showShareMenu, setShowShareMenu] = useState(false);
   
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
+
+  // Global share: app link
+  const handleGlobalShareApp = async () => {
+    const url = window.location.origin + window.location.pathname;
+    const text = "Check out Tiny Tracker - track your baby's feedings and get insights! " + url;
+    
+    // Try native share first (mobile)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Tiny Tracker',
+          text: "Check out Tiny Tracker - track your baby's feedings and get insights!",
+          url: url
+        });
+        return;
+      } catch (error) {
+        console.log('Native share failed or was cancelled:', error);
+      }
+    }
+    
+    // Try Messenger deep link (mobile)
+    const messengerUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}&app_id=`;
+    window.location.href = messengerUrl;
+    
+    // Fallback: Copy to clipboard after short delay
+    setTimeout(async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert('Link copied to clipboard! You can paste it in any app.');
+      } catch (error) {
+        prompt('Copy this link to share:', url);
+      }
+    }, 1000);
+  };
+
+  // Global share: invite partner (collaborator)
+  const handleGlobalInvitePartner = async () => {
+    try {
+      const code = await createInvite(kidId);
+      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+      const shareText =
+        "Come join me on Tiny Tracker so we can both track the baby's feedings together.\n\n" + link;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Join me on Tiny Tracker',
+            text: shareText,
+            url: link
+          });
+          return;
+        } catch (err) {
+          console.log('Share failed or was cancelled, falling back to copy:', err);
+        }
+      }
+
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(link);
+        alert('Invite link copied! Send it to your partner in any app.');
+      } else {
+        prompt('Copy this invite link:', link);
+      }
+    } catch (error) {
+      console.error('Error creating invite:', error);
+      alert('Failed to create invite. Please try again.');
+    }
+  };
   
   return React.createElement('div', { 
     className: "min-h-screen",
@@ -585,16 +716,26 @@ const MainApp = ({ user, kidId }) => {
     }
   },
     React.createElement('div', { className: "max-w-2xl mx-auto" },
-      // Header - no drop shadow, just flat
+      // Header - no drop shadow, just flat, now with global share button
       React.createElement('div', { 
         className: "sticky top-0 z-10",
         style: { backgroundColor: '#E0E7FF' }
       },
         React.createElement('div', { className: "pt-4 pb-6" },
-          React.createElement('div', { className: "flex items-center justify-center" },
+          React.createElement('div', { className: "flex items-center justify-between px-4" },
+            // Left spacer to keep logo centered
+            React.createElement('div', { className: "w-8" }),
+            // Logo (Baby icon + Tiny Tracker text)
             React.createElement('div', { className: "flex items-center gap-2" },
               React.createElement(Baby, { className: "w-8 h-8 text-indigo-600" }),
               React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
+            ),
+            // Global share button
+            React.createElement('button', {
+              onClick: () => setShowShareMenu(true),
+              className: "w-8 h-8 flex items-center justify-center rounded-full bg-white/70 shadow-sm hover:bg-white transition"
+            },
+              React.createElement(ShareIos, { className: "w-4 h-4 text-indigo-600" })
             )
           )
         )
@@ -609,6 +750,48 @@ const MainApp = ({ user, kidId }) => {
         activeTab === 'settings' && React.createElement(SettingsTab, { user, kidId })
       )
     ),
+
+    // Global share sheet (tap outside to close)
+    showShareMenu &&
+      React.createElement(
+        'div',
+        {
+          className: "fixed inset-0 flex items-end justify-center bg-black/30",
+          style: { zIndex: 60 },
+          onClick: () => setShowShareMenu(false)
+        },
+        React.createElement(
+          'div',
+          {
+            className: "w-full max-w-2xl bg-white rounded-t-2xl shadow-xl p-4 space-y-2",
+            onClick: (e) => e.stopPropagation()
+          },
+          React.createElement(
+            'button',
+            {
+              onClick: async () => {
+                await handleGlobalShareApp();
+                setShowShareMenu(false);
+              },
+              className: "w-full py-3 rounded-xl text-sm font-medium bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition flex items-center justify-center gap-2"
+            },
+            React.createElement(LinkIcon, { className: "w-5 h-5" }),
+            React.createElement('span', null, 'Share app link')
+          ),
+          React.createElement(
+            'button',
+            {
+              onClick: async () => {
+                await handleGlobalInvitePartner();
+                setShowShareMenu(false);
+              },
+              className: "w-full py-3 rounded-xl text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+            },
+            React.createElement(PersonAddIcon, { className: "w-5 h-5" }),
+            React.createElement('span', null, 'Invite partner')
+          )
+        )
+      ),
     
     // Bottom Navigation - extends to bottom, no scroll behind
     React.createElement('div', { 
