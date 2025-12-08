@@ -1497,7 +1497,7 @@ const FamilyTab = ({ user, kidId }) => {
               React.createElement('span', { 
                 className: "material-symbols-outlined w-full h-full flex items-center justify-center text-indigo-600",
                 style: { fontSize: '48px', fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48" }
-              }, 'child_care')
+              }, 'face')
           ),
           React.createElement('div', { 
             className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer hover:bg-indigo-700 transition",
