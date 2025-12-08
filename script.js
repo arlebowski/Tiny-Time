@@ -593,10 +593,7 @@ const MainApp = ({ user, kidId }) => {
         React.createElement('div', { className: "pt-4 pb-6" },
           React.createElement('div', { className: "flex items-center justify-center" },
             React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('span', { 
-                className: "material-symbols-outlined text-indigo-600",
-                style: { fontSize: '32px', fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48" }
-              }, 'face'),
+              React.createElement(Baby, { className: "w-8 h-8 text-indigo-600" }),
               React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
             )
           )
@@ -1497,10 +1494,8 @@ const FamilyTab = ({ user, kidId }) => {
                 className: "w-full h-full object-cover"
               })
             :
-              React.createElement('span', { 
-                className: "material-symbols-outlined w-full h-full flex items-center justify-center text-indigo-600",
-                style: { fontSize: '48px', fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48" }
-              }, 'face')
+              React.createElement('div', { className: "w-full h-full flex items-center justify-center bg-indigo-100" },
+                React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
           ),
           React.createElement('div', { 
             className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer hover:bg-indigo-700 transition",
@@ -1962,6 +1957,14 @@ const Menu = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
   React.createElement('line', { x1: "4", y1: "12", x2: "20", y2: "12" }),
   React.createElement('line', { x1: "4", y1: "6", x2: "20", y2: "6" }),
   React.createElement('line', { x1: "4", y1: "18", x2: "20", y2: "18" })
+);
+
+// Baby icon
+const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M9 12h.01" }),
+  React.createElement('path', { d: "M15 12h.01" }),
+  React.createElement('path', { d: "M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" }),
+  React.createElement('path', { d: "M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1" })
 );
 
 // ========================================
