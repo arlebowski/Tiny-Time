@@ -2340,13 +2340,37 @@ const AIChatTab = ({ user, kidId }) => {
 // ========================================
 // TINY TRACKER V4.3 - PART 10 (GEMINI VERSION)
 // AI Integration via Cloudflare Worker + Gemini
-// + Full Pediatric-Grade Feeding Analytics (Option C)
+// Conversational, analytical, non-creepy
 // ========================================
 
-// ---------------------------------------------------------
-// SECTION 1 — AI RESPONSE (unchanged except no trimming here)
-// ---------------------------------------------------------
+// Optional: keep replies compact (used at end of getAIResponse)
+const trimAIAnswer = (text) => {
+  if (!text || typeof text !== "string") return text;
 
+  // Split into paragraphs
+  const paragraphs = text
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter((p) => p.length > 0);
+
+  // At most 3 short paragraphs
+  let trimmed = paragraphs.slice(0, 3).join("\n\n");
+
+  const MAX_CHARS = 650;
+  if (trimmed.length > MAX_CHARS) {
+    trimmed = trimmed.slice(0, MAX_CHARS);
+    const lastBreak =
+      Math.max(trimmed.lastIndexOf("."), trimmed.lastIndexOf("\n"), trimmed.lastIndexOf(" "));
+    if (lastBreak > 0) trimmed = trimmed.slice(0, lastBreak + 1);
+    trimmed = trimmed.trim() + "…";
+  }
+
+  return trimmed;
+};
+
+// ----------------------------------------
+// 1) Call Cloudflare Worker → Gemini
+// ----------------------------------------
 const getAIResponse = async (question, kidId) => {
   try {
     const context = await buildAIContext(kidId, question);
@@ -2376,283 +2400,336 @@ const getAIResponse = async (question, kidId) => {
     let answer = "";
 
     if (candidate?.content?.parts) {
-      answer = candidate.content.parts.map(p => p.text || "").join(" ").trim();
+      answer = candidate.content.parts.map((p) => p.text || "").join(" ").trim();
     } else if (candidate?.parts) {
-      answer = candidate.parts.map(p => p.text || "").join(" ").trim();
-    } else if (candidate?.output_text) {
+      answer = candidate.parts.map((p) => p.text || "").join(" ").trim();
+    } else if (typeof candidate?.output_text === "string") {
       answer = candidate.output_text.trim();
-    } else if (candidate?.text) {
+    } else if (typeof candidate?.text === "string") {
       answer = candidate.text.trim();
     }
 
     if (!answer) {
-      answer = "Tiny Tracker got an unexpected response:\n\n" +
-               JSON.stringify(candidate || data, null, 2);
+      answer =
+        "Tiny Tracker got an unexpected response from Gemini:\n\n" +
+        JSON.stringify(candidate || data, null, 2);
     }
 
-    return answer;
+    return trimAIAnswer(answer);
   } catch (error) {
     console.error("🔴 AI Error:", error);
     throw error;
   }
 };
 
-// ---------------------------------------------------------
-// SECTION 2 — FULL ANALYTICS ENGINE (OPTION C)
-// ---------------------------------------------------------
+// ----------------------------------------
+// 2) Analytics helpers (no labels)
+// ----------------------------------------
 
-// Utility: convert timestamp → hour (0–23)
-const getHour = ts => new Date(ts).getHours();
+const getHour = (ts) => new Date(ts).getHours();
 
-// Utility: convert timestamp → minutes since midnight
-const getMinutes = ts => {
+const getMinutes = (ts) => {
   const d = new Date(ts);
   return d.getHours() * 60 + d.getMinutes();
 };
 
-// Rolling average helper
-const rollingAverage = (arr, window = 3) => {
-  if (arr.length < window) return null;
-  return arr.slice(-window).reduce((a, b) => a + b, 0) / window;
-};
-
-// Simple slope regression (y over x = time)
-const trendSlope = arr => {
-  if (arr.length < 3) return 0;
-  let n = arr.length;
-  let sumX = 0, sumY = 0, sumXY = 0, sumXX = 0;
-
+const trendSlope = (arr) => {
+  if (!arr || arr.length < 3) return 0;
+  const n = arr.length;
+  let sumX = 0,
+    sumY = 0,
+    sumXY = 0,
+    sumXX = 0;
   for (let i = 0; i < n; i++) {
     sumX += i;
     sumY += arr[i];
     sumXY += i * arr[i];
     sumXX += i * i;
   }
-
-  return (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+  const denom = n * sumXX - sumX * sumX;
+  if (denom === 0) return 0;
+  return (n * sumXY - sumX * sumY) / denom;
 };
 
-// Core: Full pediatric-grade analytics engine
-const analyzeFullPatterns = (feedings) => {
+// High-level advanced stats over ALL feedings (no “grazer/back-loader” labels)
+const analyzeAdvancedFeedingPatterns = (feedings) => {
   if (!feedings || feedings.length === 0) {
     return {
-      daysSpan: 0,
+      daysTracked: 0,
       totalFeedings: 0,
       avgDailyIntake: 0,
-      variability: 0,
-      eveningCluster: null,
-      midDayDrift: null,
-      classification: "unknown",
-      longestGapShift: null,
-      intakeSlope: 0,
-      notes: []
+      avgIntervalHours: 0,
+      morningPercent: 0,
+      afternoonPercent: 0,
+      eveningPercent: 0,
+      nightPercent: 0,
+      midDayDriftDirection: "unknown",
+      midDayDriftMinutesPerDay: 0,
+      last3DailyAvg: null,
+      prev7DailyAvg: null,
+      intakeSlope: 0
     };
   }
 
-  // Always sort by time
-  feedings = [...feedings].sort((a, b) => a.timestamp - b.timestamp);
-
-  const timestamps = feedings.map(f => f.timestamp);
-  const ounces = feedings.map(f => f.ounces);
+  const sorted = [...feedings].sort((a, b) => a.timestamp - b.timestamp);
+  const timestamps = sorted.map((f) => f.timestamp);
 
   const first = timestamps[0];
   const last = timestamps[timestamps.length - 1];
-  const daysSpan = Math.max(1, Math.ceil((last - first) / (24*60*60*1000)));
+  const daysTracked = Math.max(
+    1,
+    Math.ceil((last - first) / (1000 * 60 * 60 * 24))
+  );
 
-  // ---- DAILY TOTALS ----
-  let dailyTotals = {};
-  for (let f of feedings) {
+  // ---- daily totals ----
+  const dailyTotals = {};
+  sorted.forEach((f) => {
     const d = new Date(f.timestamp);
-    const dayKey = `${d.getFullYear()}-${d.getMonth()+1}-${d.getDate()}`;
-    dailyTotals[dayKey] = (dailyTotals[dayKey] || 0) + f.ounces;
+    const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+    dailyTotals[key] = (dailyTotals[key] || 0) + f.ounces;
+  });
+  const dayKeys = Object.keys(dailyTotals).sort();
+  const dailyArray = dayKeys.map((k) => dailyTotals[k]);
+  const totalIntake = dailyArray.reduce((a, b) => a + b, 0);
+  const avgDailyIntake = totalIntake / dailyArray.length;
+
+  // intake trend (slope across days)
+  const intakeSlope = trendSlope(dailyArray);
+
+  // last 3 vs previous 7
+  let last3DailyAvg = null;
+  let prev7DailyAvg = null;
+  if (dailyArray.length >= 3) {
+    const last3 = dailyArray.slice(-3);
+    last3DailyAvg = last3.reduce((a, b) => a + b, 0) / last3.length;
   }
-  const dailyArray = Object.values(dailyTotals);
-  const avgDailyIntake = dailyArray.reduce((a,b) => a+b, 0) / dailyArray.length;
+  if (dailyArray.length >= 10) {
+    const prev7 = dailyArray.slice(-10, -3);
+    prev7DailyAvg = prev7.reduce((a, b) => a + b, 0) / prev7.length;
+  }
 
-  // ---- VARIABILITY ----
-  const mean = ounces.reduce((a,b)=>a+b,0) / ounces.length;
-  const variance = ounces.reduce((a,b)=>a + Math.pow(b-mean,2),0) / ounces.length;
-  const variability = Math.sqrt(variance);
+  // ---- intervals ----
+  let intervals = [];
+  for (let i = 1; i < sorted.length; i++) {
+    const diffHours =
+      (sorted[i].timestamp - sorted[i - 1].timestamp) / (1000 * 60 * 60);
+    intervals.push(diffHours);
+  }
+  const avgIntervalHours =
+    intervals.length > 0
+      ? intervals.reduce((a, b) => a + b, 0) / intervals.length
+      : 0;
 
-  // ---- EVENING CLUSTER DETECTION ----
-  const eveningFeeds = feedings.filter(f => getHour(f.timestamp) >= 18);
-  const morningFeeds = feedings.filter(f => getHour(f.timestamp) <= 11);
+  // ---- time-of-day percentages ----
+  let morning = 0,
+    afternoon = 0,
+    evening = 0,
+    night = 0;
+  sorted.forEach((f) => {
+    const h = getHour(f.timestamp);
+    if (h >= 6 && h < 12) morning += f.ounces;
+    else if (h >= 12 && h < 18) afternoon += f.ounces;
+    else if (h >= 18 && h < 22) evening += f.ounces;
+    else night += f.ounces; // 22–6 bucket
+  });
+  const totalOz = morning + afternoon + evening + night || 1; // avoid /0
+  const morningPercent = (morning / totalOz) * 100;
+  const afternoonPercent = (afternoon / totalOz) * 100;
+  const eveningPercent = (evening / totalOz) * 100;
+  const nightPercent = (night / totalOz) * 100;
 
-  const eveningAvg = eveningFeeds.length
-    ? eveningFeeds.reduce((a,b)=>a+b.ounces,0) / eveningFeeds.length
-    : 0;
-
-  const morningAvg = morningFeeds.length
-    ? morningFeeds.reduce((a,b)=>a+b.ounces,0) / morningFeeds.length
-    : 0;
-
-  const eveningCluster = {
-    eveningAvg,
-    morningAvg,
-    tendency: eveningAvg > morningAvg ? "back-loading" : "front-loading"
-  };
-
-  // ---- MID-DAY DRIFT ----
-  const midDayFeeds = feedings.filter(f => {
+  // ---- mid-day drift (approx) ----
+  const midDayFeeds = sorted.filter((f) => {
     const h = getHour(f.timestamp);
     return h >= 11 && h <= 15;
   });
 
-  let drift = null;
+  let midDayDriftDirection = "unknown";
+  let midDayDriftMinutesPerDay = 0;
+
   if (midDayFeeds.length > 3) {
-    const mins = midDayFeeds.map(f => getMinutes(f.timestamp));
-    const slope = trendSlope(mins);
-    drift = {
-      slope,
-      direction: slope > 1 ? "later" : slope < -1 ? "earlier" : "stable"
-    };
+    // group mid-day feed time by day, take average minutes that day
+    const perDay = {};
+    midDayFeeds.forEach((f) => {
+      const d = new Date(f.timestamp);
+      const key = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+      if (!perDay[key]) perDay[key] = [];
+      perDay[key].push(getMinutes(f.timestamp));
+    });
+    const perDayKeys = Object.keys(perDay).sort();
+    const avgMinutesSeries = perDayKeys.map((k) => {
+      const arr = perDay[k];
+      return arr.reduce((a, b) => a + b, 0) / arr.length;
+    });
+
+    const slope = trendSlope(avgMinutesSeries); // minutes per "step" (day)
+    midDayDriftMinutesPerDay = slope;
+    if (slope > 2) midDayDriftDirection = "later";
+    else if (slope < -2) midDayDriftDirection = "earlier";
+    else midDayDriftDirection = "stable";
   }
-
-  // ---- LONGEST GAP SHIFT ----
-  let gaps = [];
-  for (let i = 1; i < feedings.length; i++) {
-    gaps.push((feedings[i].timestamp - feedings[i-1].timestamp) / (1000*60*60));
-  }
-
-  const longestGap = Math.max(...gaps);
-
-  let longestGapShift = null;
-  if (gaps.length > 5) {
-    const firstHalf = gaps.slice(0, Math.floor(gaps.length/2));
-    const secondHalf = gaps.slice(Math.floor(gaps.length/2));
-    longestGapShift = {
-      earlier: Math.max(...firstHalf),
-      later: Math.max(...secondHalf),
-      driftingLater: Math.max(...secondHalf) > Math.max(...firstHalf)
-    };
-  }
-
-  // ---- 3-DAY ROLLING TREND ----
-  const rolling = rollingAverage(dailyArray, 3);
-  const intakeSlope = trendSlope(dailyArray);
-
-  // ---- CLASSIFICATION ----
-  let classification = "unknown";
-  if (eveningCluster.eveningAvg > morningAvg + 0.5) classification = "back-loader";
-  else if (morningAvg > eveningCluster.eveningAvg + 0.5) classification = "front-loader";
-  else classification = "grazer";
 
   return {
-    daysSpan,
-    totalFeedings: feedings.length,
+    daysTracked,
+    totalFeedings: sorted.length,
     avgDailyIntake,
-    variability,
-    eveningCluster,
-    midDayDrift: drift,
-    classification,
-    longestGapShift,
-    intakeSlope,
-    notes: []
+    avgIntervalHours,
+    morningPercent,
+    afternoonPercent,
+    eveningPercent,
+    nightPercent,
+    midDayDriftDirection,
+    midDayDriftMinutesPerDay,
+    last3DailyAvg,
+    prev7DailyAvg,
+    intakeSlope
   };
 };
 
-// ---------------------------------------------------------
-// SECTION 3 — BUILD PROMPT WITH OPTION C ANALYTICS
-// ---------------------------------------------------------
+// Format last 7 days of feedings as a compact log Gemini can read
+const formatRecentFeedingLog = (feedings) => {
+  if (!feedings || feedings.length === 0) return "No recent feedings logged.";
 
+  const sorted = [...feedings].sort((a, b) => a.timestamp - b.timestamp);
+
+  const lines = sorted.map((f) => {
+    const d = new Date(f.timestamp);
+    const dateStr = d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric"
+    });
+    const timeStr = d.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit"
+    });
+    return `${dateStr} ${timeStr} — ${f.ounces.toFixed(1)} oz`;
+  });
+
+  return lines.join("\n");
+};
+
+// ----------------------------------------
+// 3) Build AI context (prompt)
+// ----------------------------------------
 const buildAIContext = async (kidId, question) => {
   const babyData = await firestoreStorage.getKidData();
   const settings = await firestoreStorage.getSettings();
   const allFeedings = await firestoreStorage.getAllFeedings();
+  const recentFeedings = await firestoreStorage.getFeedingsLastNDays(7);
   const conversation = await firestoreStorage.getConversation();
 
   const ageInMonths = calculateAgeInMonths(babyData.birthDate);
-  const ageInDays = Math.floor((Date.now() - babyData.birthDate) / (24*60*60*1000));
+  const ageInDays = Math.floor(
+    (Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24)
+  );
 
-  // New advanced analytics
-  const fullAnalysis = analyzeFullPatterns(allFeedings);
+  const advancedStats = analyzeAdvancedFeedingPatterns(allFeedings);
+  const recentLog = formatRecentFeedingLog(recentFeedings);
 
-  // Build conversation history
+  // recent conversation (for follow-ups)
   let conversationHistory = "";
-  if (conversation?.messages) {
-    const last10 = conversation.messages.slice(-10);
+  if (conversation && conversation.messages) {
+    const recentMessages = conversation.messages.slice(-10);
     conversationHistory = "\n\nPREVIOUS CONVERSATION:\n";
-    last10.forEach(msg => {
-      conversationHistory += `${msg.role === "user" ? "Parent" : "AI"}: ${msg.content}\n\n`;
+    recentMessages.forEach((msg) => {
+      conversationHistory += `${
+        msg.role === "user" ? "Parent" : "AI"
+      }: ${msg.content}\n\n`;
     });
   }
 
-  // Build prompt
   const fullPrompt = `
-You are talking to a tired but very loving parent about their baby’s feeding. 
-You have access to real trend analytics computed for you — not raw logs — and
-your job is to sound like a smart, kind human friend who is obsessed with their baby’s patterns.
+You are one member of a small group chat with a tired but very loving parent.
+You are here ONLY to help them understand their baby's feeding patterns and make practical decisions.
 
-Keep replies:
-- Warm, calm, conversational
-- 1–2 short paragraphs (NO long essays)
-- Insightful and actionable
+## Tone
+- Sound like a smart, observant friend in the group chat.
+- Casual and human, but not over-familiar.
+- NO pet names or terms of endearment (no "love", "mama", etc.).
+- Do NOT start with greetings ("hey", "hi", etc.). Start directly with the point.
+- Short answers: 1–2 short paragraphs max.
 
-## Tone / vibe upgrade
-Speak like you're chatting in a small group text with the parent:
-- casual, friendly, human;
-- short sentences;
-- occasional asides like “honestly” or “tbh”;
-- contractions always (“he’s”, “you’re”, “it’s”);
-- feel free to be gently funny or lightly teasing if it fits;
-- no formal structure, no numbered sections in the reply;
-- vibes = close friend who notices patterns before they do.
+## How to answer
+1. FIRST, answer the parent's literal question as directly and concretely as possible.
+   - If they ask "how much did the baby eat at X time on Y day", use the detailed log to give the exact amount and closest time.
+   - Example style: "On Dec 5 around 6:40 pm, Levi had 3.0 oz."
+2. THEN, if it's relevant, add 1 short paragraph of pattern-based insight and one or two practical suggestions.
+   - Especially for questions about sleep stretches, feeding schedules, or shifting calories earlier/later in the day.
+3. Ask at most ONE follow-up question if it will clearly help refine future advice.
 
-BABY SNAPSHOT:
+## Hard rules
+- Anchor everything in the actual numbers and times provided below.
+- Do NOT invent labels or types like "grazer" or "back-loader".
+- Do NOT diagnose medical conditions or give medical instructions.
+  If something seems concerning, say: "You might want to check this with your pediatrician."
+- Keep language simple, concrete, and non-dramatic.
+
+## Baby snapshot
 - Name: ${babyData.name || "Baby"}
-- Age: ${ageInMonths} months (${ageInDays} days)
-- Weight: ${settings?.babyWeight || "not set"} lbs
-- Target intake: ${
+- Age: ${ageInMonths} month${ageInMonths !== 1 ? "s" : ""} (${ageInDays} days)
+- Current weight: ${settings?.babyWeight || "not set"} lbs
+- Target daily intake (based on settings): ${
     settings?.babyWeight && settings?.multiplier
       ? (settings.babyWeight * settings.multiplier).toFixed(1)
       : "not set"
   } oz/day
 
-ADVANCED PATTERNS (full dataset):
-- Days tracked: ${fullAnalysis.daysSpan}
-- Avg daily intake: ${fullAnalysis.avgDailyIntake.toFixed(1)} oz
-- Variability: ${fullAnalysis.variability.toFixed(2)}
-
-- Evening pattern: ${fullAnalysis.eveningCluster.tendency}
-  (Evening avg: ${fullAnalysis.eveningCluster.eveningAvg.toFixed(1)} oz,
-   Morning avg: ${fullAnalysis.eveningCluster.morningAvg.toFixed(1)} oz)
-
-- Mid-day drift: ${
-    fullAnalysis.midDayDrift
-      ? fullAnalysis.midDayDrift.direction
-      : "insufficient data"
+## Long-term feeding patterns (all data)
+- Days tracked: ${advancedStats.daysTracked}
+- Total feedings logged: ${advancedStats.totalFeedings}
+- Average daily intake: ${advancedStats.avgDailyIntake.toFixed(1)} oz
+- Average interval between feeds: ${advancedStats.avgIntervalHours.toFixed(2)} hours
+- Intake by time of day (approx % of total):
+  • Morning (6–12): ${advancedStats.morningPercent.toFixed(0)}%
+  • Afternoon (12–18): ${advancedStats.afternoonPercent.toFixed(0)}%
+  • Evening (18–22): ${advancedStats.eveningPercent.toFixed(0)}%
+  • Night (22–6): ${advancedStats.nightPercent.toFixed(0)}%
+- Mid-day feed timing over days: ${advancedStats.midDayDriftDirection}
+  (about ${advancedStats.midDayDriftMinutesPerDay.toFixed(1)} minutes per day)
+- 3-day vs earlier trend:
+  ${
+    advancedStats.last3DailyAvg
+      ? `Last 3-day average: ${advancedStats.last3DailyAvg.toFixed(
+          1
+        )} oz/day` + (advancedStats.prev7DailyAvg
+          ? `; earlier 7-day average: ${advancedStats.prev7DailyAvg.toFixed(
+              1
+            )} oz/day`
+          : "")
+      : "Not enough data for 3-day vs earlier trend."
   }
+- Overall intake slope over time: ${advancedStats.intakeSlope.toFixed(3)} (positive = trending up)
 
-- Longest gap drifting later?: ${
-    fullAnalysis.longestGapShift?.driftingLater ? "yes" : "no"
-  }
-
-- Intake trend slope: ${fullAnalysis.intakeSlope.toFixed(3)}
-
-- Feeding type classification: ${fullAnalysis.classification}
+## Detailed feeding log (last 7 days)
+Use this for any time-specific questions.
+${recentLog}
 
 ${conversationHistory}
 
-Parent’s question:
+Parent's latest question:
 ${question}
 
-Now give:
-1) One big-picture observation
-2) 1–2 deeper insights grounded in these trends
-3) 1–2 helpful questions back to the parent
-(Keep the reply SHORT and natural.)
+Remember:
+- Answer the specific question first, as clearly and concretely as possible.
+- Then optionally add one short, helpful pattern insight + suggestion.
+- Keep it brief, like a good friend replying in a chat.
 `;
 
-  return { fullPrompt, messages: [] };
+  return {
+    fullPrompt,
+    messages: [] // Not used for Gemini (we put everything into fullPrompt)
+  };
 };
 
-// ---------------------------------------------------------
-// Utility function
-// ---------------------------------------------------------
-
-const calculateAgeInMonths = birthDate => {
+// ----------------------------------------
+// 4) Age helper
+// ----------------------------------------
+const calculateAgeInMonths = (birthDate) => {
   if (!birthDate) return 0;
-  const b = new Date(birthDate);
-  const n = new Date();
-  return (n.getFullYear() - b.getFullYear()) * 12 + (n.getMonth() - b.getMonth());
+  const birth = new Date(birthDate);
+  const now = new Date();
+  return (
+    (now.getFullYear() - birth.getFullYear()) * 12 +
+    (now.getMonth() - birth.getMonth())
+  );
 };
