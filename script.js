@@ -593,7 +593,10 @@ const MainApp = ({ user, kidId }) => {
         React.createElement('div', { className: "pt-4 pb-6" },
           React.createElement('div', { className: "flex items-center justify-center" },
             React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('span', { className: "text-3xl" }, '🍼'),
+              React.createElement('span', { 
+                className: "material-symbols-outlined text-indigo-600",
+                style: { fontSize: '32px', fontVariationSettings: "'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48" }
+              }, 'face'),
               React.createElement('h1', { className: "text-2xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker')
             )
           )
