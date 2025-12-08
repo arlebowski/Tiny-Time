@@ -902,16 +902,7 @@ const TrackerTab = ({ user, kidId }) => {
     
     // Feedings List
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement(
-        'h2',
-        { className: "text-lg font-semibold text-gray-800 mb-4 flex items-baseline" },
-        'Feedings',
-        React.createElement(
-          'span',
-          { className: "ml-2 text-sm text-gray-400" },
-          `· ${feedings.length} ${feedings.length === 1 ? 'feeding' : 'feedings'}`
-        )
-      ),
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
       feedings.length === 0 ?
         React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
       :
@@ -1496,6 +1487,7 @@ const FamilyTab = ({ user, kidId }) => {
             :
               React.createElement('div', { className: "w-full h-full flex items-center justify-center bg-indigo-100" },
                 React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
+              )
           ),
           React.createElement('div', { 
             className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer hover:bg-indigo-700 transition",
@@ -1959,7 +1951,6 @@ const Menu = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
   React.createElement('line', { x1: "4", y1: "18", x2: "20", y2: "18" })
 );
 
-// Baby icon
 const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M9 12h.01" }),
   React.createElement('path', { d: "M15 12h.01" }),
