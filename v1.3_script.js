@@ -1209,9 +1209,31 @@ const AnalyticsTab = ({ kidId }) => {
     chartData: []
   });
 
+  const chartScrollRef = React.useRef(null);
+
   useEffect(() => {
     loadAnalytics();
   }, [timeRange, kidId]);
+
+  // Auto-scroll chart to the right (latest data) once data + layout are ready
+  useEffect(() => {
+    if (
+      loading ||
+      !chartScrollRef.current ||
+      !stats.chartData ||
+      stats.chartData.length === 0
+    ) {
+      return;
+    }
+
+    const container = chartScrollRef.current;
+
+    // Defer to end of event loop so layout & scrollWidth are correct
+    setTimeout(() => {
+      if (!container) return;
+      container.scrollLeft = container.scrollWidth;
+    }, 0);
+  }, [loading, stats.chartData, timeRange]);
 
   const loadAnalytics = async () => {
     setLoading(true);
@@ -1291,7 +1313,7 @@ const AnalyticsTab = ({ kidId }) => {
       grouped[key].volume += f.ounces;
       grouped[key].count += 1;
     });
-    // FIXED: Reverse array so oldest is on left, newest on right
+    // Oldest on left, newest on right
     return Object.values(grouped).map(item => ({
       date: item.date,
       volume: parseFloat(item.volume.toFixed(1)),
@@ -1366,6 +1388,7 @@ const AnalyticsTab = ({ kidId }) => {
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "relative" },
           React.createElement('div', { 
+            ref: chartScrollRef,
             className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
             style: { scrollBehavior: 'smooth' }
           },
