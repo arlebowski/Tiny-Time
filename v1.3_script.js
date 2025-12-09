@@ -1227,22 +1227,35 @@ const AnalyticsTab = ({ kidId }) => {
       return;
     }
 
-    const now = Date.now();
-    let timeframeMs, labelText;
-    
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+    // Start of "today" in local time
+    const todayStartDate = new Date();
+    todayStartDate.setHours(0, 0, 0, 0);
+    const todayStart = todayStartDate.getTime();
+
+    let numDays, labelText;
     if (timeRange === 'day') {
-      timeframeMs = 3 * 24 * 60 * 60 * 1000;
+      // 3-day avg = yesterday, -2, -3 (no today)
+      numDays = 3;
       labelText = '3-day avg';
     } else if (timeRange === 'week') {
-      timeframeMs = 7 * 24 * 60 * 60 * 1000;
+      // 7-day avg = last 7 full days, excluding today
+      numDays = 7;
       labelText = '7-day avg';
     } else {
-      timeframeMs = 30 * 24 * 60 * 60 * 1000;
+      // 30-day avg = last 30 full days, excluding today
+      numDays = 30;
       labelText = '30-day avg';
     }
 
-    const timeframeAgo = now - timeframeMs;
-    const recentFeedings = feedings.filter(f => f.timestamp >= timeframeAgo);
+    const periodStart = todayStart - numDays * MS_PER_DAY; // inclusive
+    const periodEnd = todayStart; // exclusive (cuts off today completely)
+
+    const recentFeedings = feedings.filter(f => 
+      f.timestamp >= periodStart && f.timestamp < periodEnd
+    );
+
     const totalVolume = recentFeedings.reduce((sum, f) => sum + f.ounces, 0);
     const avgVolumePerFeed = recentFeedings.length > 0 ? totalVolume / recentFeedings.length : 0;
     const uniqueDays = new Set(recentFeedings.map(f => new Date(f.timestamp).toDateString())).size;
