@@ -1485,6 +1485,13 @@ const FamilyTab = ({ user, kidId }) => {
     fileInputRef.current?.click();
   };
 
+  // Helper: update kid doc with partial fields
+  const updateKidPartial = async (partial) => {
+    if (!kidId) throw new Error('No kidId set');
+    const db = firebase.firestore();
+    await db.collection('kids').doc(kidId).set(partial, { merge: true });
+  };
+
   // FIXED: Auto-compress images to meet size requirements
   const compressImage = (file, maxSizeKB = 300) => {
     // maxSizeKB is the approximate target size in kilobytes
@@ -1578,11 +1585,14 @@ const FamilyTab = ({ user, kidId }) => {
       const compressedBase64 = await compressImage(file, 300);
       
       // Save to Firestore
-      await firestoreStorage.updateKid({ photoURL: compressedBase64 });
+      await updateKidPartial({ photoURL: compressedBase64 });
       setBabyPhotoUrl(compressedBase64);
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo');
+    } finally {
+      // allow selecting same file again
+      event.target.value = '';
     }
   };
 
@@ -1650,7 +1660,7 @@ const FamilyTab = ({ user, kidId }) => {
   const handleUpdateBabyName = async () => {
     if (!tempBabyName.trim()) return;
     try {
-      await firestoreStorage.updateKid({ name: tempBabyName.trim() });
+      await updateKidPartial({ name: tempBabyName.trim() });
       setEditingName(false);
       await loadData();
     } catch (error) {
@@ -1662,7 +1672,7 @@ const FamilyTab = ({ user, kidId }) => {
     if (!tempBirthDate) return;
     try {
       const birthTimestamp = new Date(tempBirthDate).getTime();
-      await firestoreStorage.updateKid({ birthDate: birthTimestamp });
+      await updateKidPartial({ birthDate: birthTimestamp });
       setEditingBirthDate(false);
       await loadData();
     } catch (error) {
