@@ -2523,7 +2523,12 @@ const AIChatTab = ({ user, kidId }) => {
         },
         React.createElement('textarea', {
           value: input,
-          onChange: (e) => setInput(e.target.value),
+          onChange: (e) => {
+            setInput(e.target.value);
+            const el = e.target;
+            el.style.height = 'auto';
+            el.style.height = el.scrollHeight + 'px';
+          },
           onKeyPress: (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
