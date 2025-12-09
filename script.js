@@ -77,7 +77,6 @@ const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
   
   const kidId = kidRef.id;
   
-  // link kid to user
   await db.collection('users').doc(userId).set({
     kidId: kidId
   }, { merge: true });
@@ -96,58 +95,6 @@ const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
   });
   
   return kidId;
-};
-
-// NEW: ensure a full user profile exists and keep it updated
-const ensureUserProfile = async (user, options = {}) => {
-  const userRef = db.collection('users').doc(user.uid);
-  const inviteCode = options.inviteCode || null;
-
-  await db.runTransaction(async (transaction) => {
-    const userSnap = await transaction.get(userRef);
-    const existing = userSnap.exists ? userSnap.data() : {};
-    const now = firebase.firestore.FieldValue.serverTimestamp();
-
-    const updates = {
-      // prefer current auth info, fall back to existing data
-      email: user.email || existing.email || null,
-      displayName: user.displayName || existing.displayName || null,
-      photoURL: user.photoURL || existing.photoURL || null,
-      // updated every time they open the app / log in
-      lastActiveAt: now
-    };
-
-    // first time only
-    if (!existing.createdAt) {
-      updates.createdAt = now;
-    }
-
-    // capture who invited them + invite code on first signup
-    if (inviteCode && !existing.invitedBy && !existing.inviteCode) {
-      const inviteRef = db.collection('invites').doc(inviteCode);
-      const inviteSnap = await transaction.get(inviteRef);
-      if (inviteSnap.exists) {
-        const inviteData = inviteSnap.data();
-        updates.invitedBy = inviteData.createdBy || null;
-        updates.inviteCode = inviteCode;
-      }
-    }
-
-    // assign a sequential userNumber if they don't have one yet
-    if (!existing.userNumber) {
-      const counterRef = db.collection('meta').doc('counters');
-      const counterSnap = await transaction.get(counterRef);
-      const counterData = counterSnap.exists ? counterSnap.data() : {};
-      const current = typeof counterData.userNumber === 'number' ? counterData.userNumber : 0;
-      const next = current + 1;
-
-      // update global counter + user doc inside the same transaction
-      transaction.set(counterRef, { userNumber: next }, { merge: true });
-      updates.userNumber = next;
-    }
-
-    transaction.set(userRef, updates, { merge: true });
-  });
 };
 
 const saveUserKidId = async (userId, kidId) => {
@@ -170,24 +117,6 @@ const signOut = async () => {
   const res = await auth.signOut();
   logEvent('logout', {});
   return res;
-};
-
-// NEW: soft-delete helper (not yet wired to UI)
-const deleteCurrentUserAccount = async () => {
-  const user = auth.currentUser;
-  if (!user) {
-    throw new Error('No user signed in');
-  }
-
-  const userRef = db.collection('users').doc(user.uid);
-
-  await userRef.set({
-    deleted: true,
-    deletedAt: firebase.firestore.FieldValue.serverTimestamp()
-  }, { merge: true });
-
-  logEvent('account_deleted', {});
-  await auth.signOut();
 };
 
 // ========================================
@@ -470,9 +399,6 @@ const App = () => {
         const inviteCode = urlParams.get('invite');
         
         try {
-          // ✅ Make sure the user profile exists and capture invite + lastActiveAt
-          await ensureUserProfile(user, { inviteCode });
-          
           let userKidId;
 
           if (inviteCode) {
@@ -495,6 +421,7 @@ const App = () => {
             return;
           }
 
+          // ✅ No more migration here
           setKidId(userKidId);
           await firestoreStorage.initialize(userKidId);
         } catch (error) {
@@ -517,7 +444,7 @@ const App = () => {
     },
       React.createElement('div', { className: "text-center" },
         React.createElement('div', { className: "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4" }),
-        React.createElement('div', { className: "text-gray-600" }, 'Loading.')
+        React.createElement('div', { className: "text-gray-600" }, 'Loading...')
       )
     );
   }
