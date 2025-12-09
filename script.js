@@ -1,6 +1,7 @@
 // ========================================
 // TINY TRACKER V4.1 - PART 1
 // Config, Auth, Firestore Layer + AI Functions (No Migration)
+// + Google Analytics
 // ========================================
 
 const firebaseConfig = {
@@ -9,12 +10,29 @@ const firebaseConfig = {
   projectId: "baby-feeding-tracker-978e6",
   storageBucket: "baby-feeding-tracker-978e6.firebasestorage.app",
   messagingSenderId: "775043948126",
-  appId: "1:775043948126:web:28d8aefeea99cc7d25decf"
+  appId: "1:775043948126:web:28d8aefeea99cc7d25decf",
+  // 👇 This will appear in your config after you enable Google Analytics
+  // Go to Firebase → Project Settings → General → Web app config and copy it.
+  // measurementId: "G-XXXXXXXXXX"
 };
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+
+// ✅ Google Analytics instance
+// (Requires the firebase-analytics script tag in your HTML)
+const analytics = firebase.analytics();
+
+// Small helper so other parts can log events easily
+const logEvent = (eventName, params) => {
+  try {
+    analytics.logEvent(eventName, params);
+  } catch (e) {
+    // fail silently so analytics never breaks the app
+    console.warn('Analytics logEvent failed', e);
+  }
+};
 
 // ========================================
 // AUTH & USER MANAGEMENT
