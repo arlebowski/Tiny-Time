@@ -1209,9 +1209,19 @@ const AnalyticsTab = ({ kidId }) => {
     chartData: []
   });
 
+  const chartScrollRef = React.useRef(null);
+
   useEffect(() => {
     loadAnalytics();
   }, [timeRange, kidId]);
+
+  useEffect(() => {
+    if (stats.chartData && stats.chartData.length > 0 && chartScrollRef.current) {
+      const container = chartScrollRef.current;
+      // Scroll to the far right (latest data)
+      container.scrollLeft = container.scrollWidth;
+    }
+  }, [stats.chartData]);
 
   const loadAnalytics = async () => {
     setLoading(true);
@@ -1366,6 +1376,7 @@ const AnalyticsTab = ({ kidId }) => {
       stats.chartData.length > 0 ?
         React.createElement('div', { className: "relative" },
           React.createElement('div', { 
+            ref: chartScrollRef,
             className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
             style: { scrollBehavior: 'smooth' }
           },
