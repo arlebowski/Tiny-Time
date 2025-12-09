@@ -19,103 +19,133 @@ const auth = firebase.auth();
 const db = firebase.firestore();
 
 // ✅ Google Analytics instance
-// (Requires the firebase-analytics script tag in your HTML)
 const analytics = firebase.analytics();
 
-// Small helper so other parts can log events easily
 const logEvent = (eventName, params) => {
   try {
     analytics.logEvent(eventName, params);
   } catch (e) {
-    // fail silently so analytics never breaks the app
-    console.warn('Analytics logEvent failed', e);
+    console.warn("Analytics logEvent failed", e);
   }
 };
 
-// App-level event on every load (for DAU / retention)
-logEvent('app_open', {});
+logEvent("app_open", {});
 
-// Optional helper for navigation events, used later in the UI
 const trackTabSelected = (tabName) => {
-  logEvent('tab_selected', { tab_name: tabName });
+  logEvent("tab_selected", { tab_name: tabName });
 };
-// expose to window so React parts can call it
 window.trackTabSelected = trackTabSelected;
 
 // ========================================
 // AUTH & USER MANAGEMENT
 // ========================================
 
+// Create or update user profile ONCE per sign-in
+const ensureUserProfile = async (user, inviteCode = null) => {
+  if (!user) return;
+
+  const userRef = db.collection("users").doc(user.uid);
+  const snap = await userRef.get();
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+
+  const base = {
+    email: user.email || null,
+    displayName: user.displayName || null,
+    photoURL: user.photoURL || null,
+    lastActiveAt: now
+  };
+
+  // First-time creation
+  if (!snap.exists) {
+    await userRef.set(
+      {
+        ...base,
+        createdAt: now,
+        inviteCode: inviteCode || null
+      },
+      { merge: true }
+    );
+    return;
+  }
+
+  // Returning user → update lastActiveAt and freshen profile data
+  await userRef.set(base, { merge: true });
+};
+
 const getUserKidId = async (userId) => {
-  const userDoc = await db.collection('users').doc(userId).get();
+  const userDoc = await db.collection("users").doc(userId).get();
   if (userDoc.exists && userDoc.data().kidId) {
     return userDoc.data().kidId;
   }
-  
-  const kidsSnapshot = await db.collection('kids')
-    .where('members', 'array-contains', userId)
+
+  const kidsSnapshot = await db
+    .collection("kids")
+    .where("members", "array-contains", userId)
     .limit(1)
     .get();
-  
+
   if (!kidsSnapshot.empty) {
     const kidId = kidsSnapshot.docs[0].id;
-    await db.collection('users').doc(userId).set({ kidId }, { merge: true });
+    await db.collection("users").doc(userId).set({ kidId }, { merge: true });
     return kidId;
   }
-  
+
   return null;
 };
 
 const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
-  const kidRef = await db.collection('kids').add({
+  const kidRef = await db.collection("kids").add({
     name: babyName,
     birthDate: birthDate,
     ownerId: userId,
     members: [userId],
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
-  
-  const kidId = kidRef.id;
-  
-  await db.collection('users').doc(userId).set({
-    kidId: kidId
-  }, { merge: true });
-  
-  await db.collection('kids').doc(kidId).collection('settings').doc('default').set({
-    babyWeight: babyWeight,
-    multiplier: 2.5,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
 
-  // kid creation / onboarding completion
-  logEvent('kid_created', {
+  const kidId = kidRef.id;
+
+  await db
+    .collection("users")
+    .doc(userId)
+    .set({ kidId: kidId }, { merge: true });
+
+  await db
+    .collection("kids")
+    .doc(kidId)
+    .collection("settings")
+    .doc("default")
+    .set(
+      {
+        babyWeight: babyWeight,
+        multiplier: 2.5,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+  logEvent("kid_created", {
     kid_id: kidId,
     has_name: !!babyName,
     has_weight: babyWeight != null
   });
-  
+
   return kidId;
 };
 
 const saveUserKidId = async (userId, kidId) => {
-  await db.collection('users').doc(userId).set({
-    kidId: kidId
-  }, { merge: true });
+  await db.collection("users").doc(userId).set({ kidId }, { merge: true });
 };
 
 const signInWithGoogle = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
   const result = await auth.signInWithPopup(provider);
-
-  // sign up / login event
-  logEvent('login', { method: 'google' });
-
+  logEvent("login", { method: "google" });
   return result;
 };
 
 const signOut = async () => {
   const res = await auth.signOut();
-  logEvent('logout', {});
+  logEvent("logout", {});
   return res;
 };
 
@@ -125,81 +155,78 @@ const signOut = async () => {
 
 const createInviteCode = async (kidId, userId) => {
   const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-  await db.collection('invites').doc(code).set({
-    kidId: kidId,
-    createdBy: userId,
-    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-    used: false
-  });
+  await db
+    .collection("invites")
+    .doc(code)
+    .set({
+      kidId: kidId,
+      createdBy: userId,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+      used: false
+    });
 
-  // share event via invite
-  logEvent('share', {
-    type: 'invite',
+  logEvent("share", {
+    type: "invite",
     kid_id: kidId
   });
 
   return code;
 };
 
-// Helper used by the UI – this is what handleCreateInvite expects
 const createInvite = async (kidId) => {
   const user = auth.currentUser;
-  if (!user) {
-    throw new Error('Not signed in');
-  }
+  if (!user) throw new Error("Not signed in");
   return await createInviteCode(kidId, user.uid);
 };
 
 const acceptInvite = async (code, userId) => {
-  const inviteDoc = await db.collection('invites').doc(code).get();
-  
-  if (!inviteDoc.exists) {
-    throw new Error('Invalid invite code');
-  }
-  
-  const invite = inviteDoc.data();
-  if (invite.used) {
-    throw new Error('Invite already used');
-  }
-  
-  const kidId = invite.kidId;
-  
-  await db.collection('kids').doc(kidId).update({
-    members: firebase.firestore.FieldValue.arrayUnion(userId)
-  });
-  
-  await db.collection('invites').doc(code).update({
-    used: true,
-    usedBy: userId,
-    usedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  const inviteDoc = await db.collection("invites").doc(code).get();
 
-  // invite acceptance event
-  logEvent('invite_accepted', {
-    kid_id: kidId
-  });
-  
+  if (!inviteDoc.exists) throw new Error("Invalid invite code");
+
+  const invite = inviteDoc.data();
+  if (invite.used) throw new Error("Invite already used");
+
+  const kidId = invite.kidId;
+
+  await db
+    .collection("kids")
+    .doc(kidId)
+    .update({
+      members: firebase.firestore.FieldValue.arrayUnion(userId)
+    });
+
+  await db
+    .collection("invites")
+    .doc(code)
+    .update({
+      used: true,
+      usedBy: userId,
+      usedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+  logEvent("invite_accepted", { kid_id: kidId });
+
   return kidId;
 };
 
-// 🔧 Fix: actually look up each member's profile in `users` so we can show names
+// Lookup profiles for family tab
 const getFamilyMembers = async (kidId) => {
-  const kidDoc = await db.collection('kids').doc(kidId).get();
+  const kidDoc = await db.collection("kids").doc(kidId).get();
   if (!kidDoc.exists) return [];
-  
+
   const members = kidDoc.data().members || [];
 
   const memberDetails = await Promise.all(
     members.map(async (uid) => {
-      const userDoc = await db.collection('users').doc(uid).get();
+      const userDoc = await db.collection("users").doc(uid).get();
       const data = userDoc.exists ? userDoc.data() : {};
-
       const isCurrentUser = auth.currentUser && auth.currentUser.uid === uid;
 
       const email =
         data.email ||
         (isCurrentUser ? auth.currentUser.email : null) ||
-        'Family Member';
+        "Family Member";
 
       return {
         uid,
@@ -225,154 +252,189 @@ const getFamilyMembers = async (kidId) => {
 
 const firestoreStorage = {
   currentKidId: null,
-  
-  initialize: async function(kidId) {
-    this.currentKidId = kidId;
-    logEvent('kid_selected', { kid_id: kidId });
-  },
-  
-  saveFeeding: async function(feeding) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings').add(feeding);
 
-    // feeding added event
-    logEvent('feeding_added', {
+  initialize: async function (kidId) {
+    this.currentKidId = kidId;
+    logEvent("kid_selected", { kid_id: kidId });
+  },
+
+  saveFeeding: async function (feeding) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+    await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("feedings")
+      .add(feeding);
+
+    logEvent("feeding_added", {
       kid_id: this.currentKidId,
       ounces: feeding.ounces
     });
   },
-  
-  addFeeding: async function(ounces, timestamp) {
-    // Alias for saveFeeding with direct parameters
+
+  addFeeding: async function (ounces, timestamp) {
     return await this.saveFeeding({
       ounces: ounces,
       timestamp: timestamp
     });
   },
-  
-  getFeedings: async function() {
+
+  getFeedings: async function () {
     if (!this.currentKidId) return [];
-    const snapshot = await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings')
-      .orderBy('timestamp', 'desc')
+    const snapshot = await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("feedings")
+      .orderBy("timestamp", "desc")
       .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   },
-  
-  getAllFeedings: async function() {
-    // Alias for getFeedings for compatibility
+
+  getAllFeedings: async function () {
     return await this.getFeedings();
   },
-  
-  getFeedingsLastNDays: async function(days) {
-    if (!this.currentKidId) return [];
-    const cutoff = Date.now() - (days * 24 * 60 * 60 * 1000);
-    const snapshot = await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings')
-      .where('timestamp', '>', cutoff)
-      .orderBy('timestamp', 'asc')
-      .get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-  },
-  
-  deleteFeeding: async function(feedingId) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings').doc(feedingId).delete();
 
-    logEvent('feeding_deleted', {
+  getFeedingsLastNDays: async function (days) {
+    if (!this.currentKidId) return [];
+    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
+    const snapshot = await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("feedings")
+      .where("timestamp", ">", cutoff)
+      .orderBy("timestamp", "asc")
+      .get();
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+  },
+
+  deleteFeeding: async function (feedingId) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+    await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("feedings")
+      .doc(feedingId)
+      .delete();
+
+    logEvent("feeding_deleted", {
       kid_id: this.currentKidId
     });
   },
-  
-  updateFeeding: async function(feedingId, ounces, timestamp) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('feedings').doc(feedingId).update({
+
+  updateFeeding: async function (feedingId, ounces, timestamp) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+    await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("feedings")
+      .doc(feedingId)
+      .update({
         ounces: ounces,
         timestamp: timestamp
       });
 
-    logEvent('feeding_updated', {
+    logEvent("feeding_updated", {
       kid_id: this.currentKidId,
       ounces: ounces
     });
   },
-  
-  getSettings: async function() {
+
+  getSettings: async function () {
     if (!this.currentKidId) return null;
-    const doc = await db.collection('kids').doc(this.currentKidId)
-      .collection('settings').doc('default').get();
+    const doc = await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("settings")
+      .doc("default")
+      .get();
     return doc.exists ? doc.data() : null;
   },
-  
-  saveSettings: async function(settings) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('settings').doc('default').set(settings, { merge: true });
 
-    logEvent('settings_updated', {
+  saveSettings: async function (settings) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+    await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("settings")
+      .doc("default")
+      .set(settings, { merge: true });
+
+    logEvent("settings_updated", {
       kid_id: this.currentKidId
     });
   },
-  
-  getKidData: async function() {
+
+  getKidData: async function () {
     if (!this.currentKidId) return null;
-    const doc = await db.collection('kids').doc(this.currentKidId).get();
+    const doc = await db.collection("kids").doc(this.currentKidId).get();
     return doc.exists ? { id: doc.id, ...doc.data() } : null;
   },
-  
-  updateKidData: async function(data) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId).set(data, { merge: true });
 
-    logEvent('kid_profile_updated', {
+  updateKidData: async function (data) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+    await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .set(data, { merge: true });
+
+    logEvent("kid_profile_updated", {
       kid_id: this.currentKidId
     });
   },
-  
-  // AI Conversation methods
-  getConversation: async function() {
+
+  getConversation: async function () {
     if (!this.currentKidId) return null;
-    const doc = await db.collection('kids').doc(this.currentKidId)
-      .collection('conversations').doc('default').get();
+    const doc = await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("conversations")
+      .doc("default")
+      .get();
     return doc.exists ? doc.data() : null;
   },
-  
-  saveMessage: async function(message) {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    const conversationRef = db.collection('kids').doc(this.currentKidId)
-      .collection('conversations').doc('default');
-    
-    const doc = await conversationRef.get();
-    const messages = doc.exists ? (doc.data().messages || []) : [];
-    
-    messages.push(message);
-    
-    await conversationRef.set({
-      messages: messages,
-      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-    }, { merge: true });
 
-    // AI chat event
-    logEvent('ai_message_sent', {
+  saveMessage: async function (message) {
+    if (!this.currentKidId) throw new Error("No kid selected");
+    const conversationRef = db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("conversations")
+      .doc("default");
+
+    const doc = await conversationRef.get();
+    const messages = doc.exists ? doc.data().messages || [] : [];
+
+    messages.push(message);
+
+    await conversationRef.set(
+      {
+        messages: messages,
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    logEvent("ai_message_sent", {
       kid_id: this.currentKidId,
       role: message.role
     });
   },
-  
-  clearConversation: async function() {
-    if (!this.currentKidId) throw new Error('No kid selected');
-    await db.collection('kids').doc(this.currentKidId)
-      .collection('conversations').doc('default').delete();
 
-    logEvent('ai_conversation_cleared', {
+  clearConversation: async function () {
+    if (!this.currentKidId) throw new Error("No kid selected");
+    await db
+      .collection("kids")
+      .doc(this.currentKidId)
+      .collection("conversations")
+      .doc("default")
+      .delete();
+
+    logEvent("ai_conversation_cleared", {
       kid_id: this.currentKidId
     });
   },
-  
-  getMembers: async function() {
+
+  getMembers: async function () {
     if (!this.currentKidId) return [];
     return await getFamilyMembers(this.currentKidId);
   }
