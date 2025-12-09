@@ -2202,7 +2202,7 @@ ReactDOM.render(React.createElement(App), document.getElementById('root'));
 // AI Chat Tab - iMessage Style
 const AIChatTab = ({ user, kidId }) => {
   const [messages, setMessages] = useState([]);
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState(localStorage.getItem('aiChatDraft') || '');
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
   const messagesEndRef = React.useRef(null);
@@ -2221,6 +2221,11 @@ const AIChatTab = ({ user, kidId }) => {
       scrollToBottom();
     }
   }, [initializing]);
+
+  // persist draft input across tab/app switches
+  useEffect(() => {
+    localStorage.setItem('aiChatDraft', input);
+  }, [input]);
 
   const scrollToBottom = () => {
     const container = messagesContainerRef.current;
