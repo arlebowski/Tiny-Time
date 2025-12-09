@@ -1485,8 +1485,16 @@ const FamilyTab = ({ user, kidId }) => {
     fileInputRef.current?.click();
   };
 
+  // Helper: update kid doc with partial fields
+  const updateKidPartial = async (partial) => {
+    if (!kidId) throw new Error('No kidId set');
+    const db = firebase.firestore();
+    await db.collection('kids').doc(kidId).set(partial, { merge: true });
+  };
+
   // FIXED: Auto-compress images to meet size requirements
-  const compressImage = (file, maxSizeKB = 500) => {
+  const compressImage = (file, maxSizeKB = 300) => {
+    // maxSizeKB is the approximate target size in kilobytes
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -1497,7 +1505,7 @@ const FamilyTab = ({ user, kidId }) => {
           let height = img.height;
           
           // Resize if too large
-          const maxDimension = 1200;
+          const maxDimension = 800;
           if (width > maxDimension || height > maxDimension) {
             if (width > height) {
               height = (height / width) * maxDimension;
@@ -1511,16 +1519,45 @@ const FamilyTab = ({ user, kidId }) => {
           canvas.width = width;
           canvas.height = height;
           const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get 2D context'));
+            return;
+          }
+
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Try different quality levels to hit target size
-          let quality = 0.9;
+          // Helper: estimate bytes from base64 length
+          const getApproxBytes = (b64) => Math.ceil((b64.length * 3) / 4);
+          const maxBytes = maxSizeKB * 1024;
+
+          let quality = 0.8;
           let base64 = canvas.toDataURL('image/jpeg', quality);
+          let approxBytes = getApproxBytes(base64);
           
-          // Keep reducing quality until under max size
-          while (base64.length > maxSizeKB * 1024 * 1.37 && quality > 0.1) {
+          // First pass: reduce quality
+          while (approxBytes > maxBytes && quality > 0.2) {
             quality -= 0.1;
             base64 = canvas.toDataURL('image/jpeg', quality);
+            approxBytes = getApproxBytes(base64);
+          }
+
+          // Second pass: if still too big, shrink dimensions further
+          if (approxBytes > maxBytes) {
+            let scale = 0.8; // shrink by 20% at a time
+            while (approxBytes > maxBytes && scale > 0.4) {
+              const newWidth = Math.round(width * scale);
+              const newHeight = Math.round(height * scale);
+
+              canvas.width = newWidth;
+              canvas.height = newHeight;
+              ctx.clearRect(0, 0, newWidth, newHeight);
+              ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+              base64 = canvas.toDataURL('image/jpeg', quality);
+              approxBytes = getApproxBytes(base64);
+
+              scale -= 0.1;
+            }
           }
           
           resolve(base64);
@@ -1544,15 +1581,18 @@ const FamilyTab = ({ user, kidId }) => {
     }
 
     try {
-      // Compress image to ~500KB
-      const compressedBase64 = await compressImage(file, 500);
+      // Compress image to ~300KB
+      const compressedBase64 = await compressImage(file, 300);
       
       // Save to Firestore
-      await firestoreStorage.updateKid({ photoURL: compressedBase64 });
+      await updateKidPartial({ photoURL: compressedBase64 });
       setBabyPhotoUrl(compressedBase64);
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo');
+    } finally {
+      // allow selecting same file again
+      event.target.value = '';
     }
   };
 
@@ -1620,7 +1660,7 @@ const FamilyTab = ({ user, kidId }) => {
   const handleUpdateBabyName = async () => {
     if (!tempBabyName.trim()) return;
     try {
-      await firestoreStorage.updateKid({ name: tempBabyName.trim() });
+      await updateKidPartial({ name: tempBabyName.trim() });
       setEditingName(false);
       await loadData();
     } catch (error) {
@@ -1632,7 +1672,7 @@ const FamilyTab = ({ user, kidId }) => {
     if (!tempBirthDate) return;
     try {
       const birthTimestamp = new Date(tempBirthDate).getTime();
-      await firestoreStorage.updateKid({ birthDate: birthTimestamp });
+      await updateKidPartial({ birthDate: birthTimestamp });
       setEditingBirthDate(false);
       await loadData();
     } catch (error) {
