@@ -1215,13 +1215,25 @@ const AnalyticsTab = ({ kidId }) => {
     loadAnalytics();
   }, [timeRange, kidId]);
 
+  // Auto-scroll chart to the right (latest data) once data + layout are ready
   useEffect(() => {
-    if (stats.chartData && stats.chartData.length > 0 && chartScrollRef.current) {
-      const container = chartScrollRef.current;
-      // Scroll to the far right (latest data)
-      container.scrollLeft = container.scrollWidth;
+    if (
+      loading ||
+      !chartScrollRef.current ||
+      !stats.chartData ||
+      stats.chartData.length === 0
+    ) {
+      return;
     }
-  }, [stats.chartData]);
+
+    const container = chartScrollRef.current;
+
+    // Defer to end of event loop so layout & scrollWidth are correct
+    setTimeout(() => {
+      if (!container) return;
+      container.scrollLeft = container.scrollWidth;
+    }, 0);
+  }, [loading, stats.chartData, timeRange]);
 
   const loadAnalytics = async () => {
     setLoading(true);
@@ -1301,7 +1313,7 @@ const AnalyticsTab = ({ kidId }) => {
       grouped[key].volume += f.ounces;
       grouped[key].count += 1;
     });
-    // FIXED: Reverse array so oldest is on left, newest on right
+    // Oldest on left, newest on right
     return Object.values(grouped).map(item => ({
       date: item.date,
       volume: parseFloat(item.volume.toFixed(1)),
