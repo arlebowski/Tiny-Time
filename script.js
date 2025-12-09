@@ -1427,13 +1427,18 @@ const AnalyticsTab = ({ kidId }) => {
 
   const maxVolume = Math.max(...stats.chartData.map(d => d.volume));
 
-  return React.createElement('div', { className: "space-y-4" },
+return React.createElement('div', { className: "space-y-4" },
     React.createElement('div', { className: "flex justify-center" },
       React.createElement('div', { className: "inline-flex gap-0.5 bg-gray-100/50 rounded-lg p-0.5" },
         ['day', 'week', 'month'].map(range =>
           React.createElement('button', {
             key: range,
-            onClick: () => setTimeRange(range),
+            onClick: () => {
+              setTimeRange(range);
+              if (window.trackTabSelected) {
+                window.trackTabSelected(`analytics_${range}`);
+              }
+            },
             className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${timeRange === range ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`
           }, range.charAt(0).toUpperCase() + range.slice(1))
         )
