@@ -616,7 +616,7 @@ const LoginScreen = () => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-4" },
-            React.createElement("span", { className: "text-5xl" }, "🍼")
+            React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
           )
         ),
         React.createElement(
