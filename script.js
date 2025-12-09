@@ -11,9 +11,7 @@ const firebaseConfig = {
   storageBucket: "baby-feeding-tracker-978e6.firebasestorage.app",
   messagingSenderId: "775043948126",
   appId: "1:775043948126:web:28d8aefeea99cc7d25decf",
-  // 👇 This will appear in your config after you enable Google Analytics
-  // Go to Firebase → Project Settings → General → Web app config and copy it.
-  // measurementId: "G-NYQMC8STML"
+  measurementId: "G-NYQMC8STML"
 };
 
 firebase.initializeApp(firebaseConfig);
