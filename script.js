@@ -32,6 +32,16 @@ const logEvent = (eventName, params) => {
   }
 };
 
+// App-level event on every load (for DAU / retention)
+logEvent('app_open', {});
+
+// Optional helper for navigation events, used later in the UI
+const trackTabSelected = (tabName) => {
+  logEvent('tab_selected', { tab_name: tabName });
+};
+// expose to window so React parts can call it
+window.trackTabSelected = trackTabSelected;
+
 // ========================================
 // AUTH & USER MANAGEMENT
 // ========================================
@@ -76,6 +86,13 @@ const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
     multiplier: 2.5,
     createdAt: firebase.firestore.FieldValue.serverTimestamp()
   });
+
+  // kid creation / onboarding completion
+  logEvent('kid_created', {
+    kid_id: kidId,
+    has_name: !!babyName,
+    has_weight: babyWeight != null
+  });
   
   return kidId;
 };
@@ -88,11 +105,18 @@ const saveUserKidId = async (userId, kidId) => {
 
 const signInWithGoogle = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
-  return await auth.signInWithPopup(provider);
+  const result = await auth.signInWithPopup(provider);
+
+  // sign up / login event
+  logEvent('login', { method: 'google' });
+
+  return result;
 };
 
 const signOut = async () => {
-  return await auth.signOut();
+  const res = await auth.signOut();
+  logEvent('logout', {});
+  return res;
 };
 
 // ========================================
@@ -107,10 +131,17 @@ const createInviteCode = async (kidId, userId) => {
     createdAt: firebase.firestore.FieldValue.serverTimestamp(),
     used: false
   });
+
+  // share event via invite
+  logEvent('share', {
+    type: 'invite',
+    kid_id: kidId
+  });
+
   return code;
 };
 
-// 🔧 Helper used by the UI – this is what handleCreateInvite expects
+// Helper used by the UI – this is what handleCreateInvite expects
 const createInvite = async (kidId) => {
   const user = auth.currentUser;
   if (!user) {
@@ -141,6 +172,11 @@ const acceptInvite = async (code, userId) => {
     used: true,
     usedBy: userId,
     usedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  // invite acceptance event
+  logEvent('invite_accepted', {
+    kid_id: kidId
   });
   
   return kidId;
@@ -192,12 +228,19 @@ const firestoreStorage = {
   
   initialize: async function(kidId) {
     this.currentKidId = kidId;
+    logEvent('kid_selected', { kid_id: kidId });
   },
   
   saveFeeding: async function(feeding) {
     if (!this.currentKidId) throw new Error('No kid selected');
     await db.collection('kids').doc(this.currentKidId)
       .collection('feedings').add(feeding);
+
+    // feeding added event
+    logEvent('feeding_added', {
+      kid_id: this.currentKidId,
+      ounces: feeding.ounces
+    });
   },
   
   addFeeding: async function(ounces, timestamp) {
@@ -237,6 +280,10 @@ const firestoreStorage = {
     if (!this.currentKidId) throw new Error('No kid selected');
     await db.collection('kids').doc(this.currentKidId)
       .collection('feedings').doc(feedingId).delete();
+
+    logEvent('feeding_deleted', {
+      kid_id: this.currentKidId
+    });
   },
   
   updateFeeding: async function(feedingId, ounces, timestamp) {
@@ -246,6 +293,11 @@ const firestoreStorage = {
         ounces: ounces,
         timestamp: timestamp
       });
+
+    logEvent('feeding_updated', {
+      kid_id: this.currentKidId,
+      ounces: ounces
+    });
   },
   
   getSettings: async function() {
@@ -259,6 +311,10 @@ const firestoreStorage = {
     if (!this.currentKidId) throw new Error('No kid selected');
     await db.collection('kids').doc(this.currentKidId)
       .collection('settings').doc('default').set(settings, { merge: true });
+
+    logEvent('settings_updated', {
+      kid_id: this.currentKidId
+    });
   },
   
   getKidData: async function() {
@@ -270,6 +326,10 @@ const firestoreStorage = {
   updateKidData: async function(data) {
     if (!this.currentKidId) throw new Error('No kid selected');
     await db.collection('kids').doc(this.currentKidId).set(data, { merge: true });
+
+    logEvent('kid_profile_updated', {
+      kid_id: this.currentKidId
+    });
   },
   
   // AI Conversation methods
@@ -294,12 +354,22 @@ const firestoreStorage = {
       messages: messages,
       updatedAt: firebase.firestore.FieldValue.serverTimestamp()
     }, { merge: true });
+
+    // AI chat event
+    logEvent('ai_message_sent', {
+      kid_id: this.currentKidId,
+      role: message.role
+    });
   },
   
   clearConversation: async function() {
     if (!this.currentKidId) throw new Error('No kid selected');
     await db.collection('kids').doc(this.currentKidId)
       .collection('conversations').doc('default').delete();
+
+    logEvent('ai_conversation_cleared', {
+      kid_id: this.currentKidId
+    });
   },
   
   getMembers: async function() {
