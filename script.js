@@ -150,6 +150,53 @@ const signOut = async () => {
 };
 
 // ========================================
+// ACCOUNT DELETION (Soft Delete + Cleanup)
+// ========================================
+
+const deleteCurrentUserAccount = async () => {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No user signed in");
+
+  const uid = user.uid;
+  const now = firebase.firestore.FieldValue.serverTimestamp();
+
+  // 1️⃣ Soft delete user profile
+  await db.collection("users").doc(uid).set({
+    deleted: true,
+    deletedAt: now
+  }, { merge: true });
+
+  // 2️⃣ Remove from all kids they belong to
+  const kidsSnapshot = await db.collection("kids")
+    .where("members", "array-contains", uid)
+    .get();
+
+  for (const doc of kidsSnapshot.docs) {
+    const kidId = doc.id;
+    const kidData = doc.data();
+
+    const otherMembers = (kidData.members || []).filter(m => m !== uid);
+    const updates = { members: otherMembers };
+
+    // 3️⃣ Transfer ownership if needed
+    if (kidData.ownerId === uid) {
+      if (otherMembers.length > 0) {
+        updates.ownerId = otherMembers[0];
+      }
+      // If no other members, kid remains but ownerId stays (harmless)
+    }
+
+    await db.collection("kids").doc(kidId).update(updates);
+  }
+
+  // 4️⃣ Log event
+  logEvent("account_deleted", { uid });
+
+  // 5️⃣ Sign them out
+  await auth.signOut();
+};
+
+// ========================================
 // INVITE SYSTEM
 // ========================================
 
@@ -2344,7 +2391,7 @@ const FamilyTab = ({ user, kidId }) => {
 
 // ========================================
 // TINY TRACKER V3 - PART 7
-// Settings Tab - Share App, Sign Out (Target Settings moved to Family tab)
+// Settings Tab - Share App, Sign Out, Delete Account
 // ========================================
 
 const SettingsTab = ({ user, kidId }) => {
@@ -2352,7 +2399,6 @@ const SettingsTab = ({ user, kidId }) => {
     const url = window.location.origin + window.location.pathname;
     const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
     
-    // Try native share first (works on mobile)
     if (navigator.share) {
       try {
         await navigator.share({
@@ -2362,21 +2408,18 @@ const SettingsTab = ({ user, kidId }) => {
         });
         return;
       } catch (error) {
-        // User cancelled or share failed, fall through to Messenger
+        // User cancelled or incompatible device
       }
     }
     
-    // Try Messenger deep link (mobile)
     const messengerUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}&app_id=`;
     window.location.href = messengerUrl;
     
-    // Fallback: Copy to clipboard after short delay
     setTimeout(async () => {
       try {
         await navigator.clipboard.writeText(text);
-        alert('Link copied to clipboard! You can paste it in Messenger or any app.');
+        alert('Link copied to clipboard! You can paste it anywhere.');
       } catch (error) {
-        // Final fallback: show the link
         prompt('Copy this link to share:', url);
       }
     }, 1000);
@@ -2388,7 +2431,28 @@ const SettingsTab = ({ user, kidId }) => {
     }
   };
 
+  const handleDeleteAccount = async () => {
+    const confirmDelete = confirm(
+      "Are you sure you want to delete your account?\n\n" +
+      "- You will be removed from the family.\n" +
+      "- If you are the owner, ownership will transfer to another member.\n" +
+      "- Your baby's data will NOT be deleted.\n\n" +
+      "This action cannot be undone."
+    );
+    
+    if (!confirmDelete) return;
+
+    try {
+      await deleteCurrentUserAccount();
+      alert("Your account has been deleted.");
+    } catch (err) {
+      console.error("Account deletion failed:", err);
+      alert("Something went wrong deleting your account. Please try again.");
+    }
+  };
+
   return React.createElement('div', { className: "space-y-4" },
+
     // Share & Support Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Share & Support'),
@@ -2408,6 +2472,8 @@ const SettingsTab = ({ user, kidId }) => {
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Account'),
       React.createElement('div', { className: "space-y-3" },
+
+        // User Profile Display
         React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-medium text-gray-800" }, user.displayName || 'User'),
@@ -2420,13 +2486,21 @@ const SettingsTab = ({ user, kidId }) => {
               className: "w-10 h-10 rounded-full"
             })
         ),
+
+        // Sign Out Button
         React.createElement('button', {
           onClick: handleSignOut,
           className: "w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold hover:bg-red-100 transition"
-        }, 'Sign Out')
+        }, 'Sign Out'),
+
+        // Delete Account Button (Destructive)
+        React.createElement('button', {
+          onClick: handleDeleteAccount,
+          className: "w-full bg-red-600 text-white py-3 rounded-xl font-semibold hover:bg-red-700 transition"
+        }, 'Delete My Account')
       )
     ),
-    
+
     // Info Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'About'),
