@@ -151,8 +151,7 @@ const getFamilyMembers = async (familyId) => {
 };
 
 // ========================================
-// BRAND NEW — FAMILY-BASED STORAGE LAYER
-// This is the beating heart. All tabs use this.
+// FAMILY-BASED STORAGE LAYER
 // ========================================
 const firestoreStorage = {
   currentFamilyId: null,
@@ -209,6 +208,15 @@ const firestoreStorage = {
 
   async deleteFeeding(id) {
     await this._kidRef().collection("feedings").doc(id).delete();
+  },
+
+  // ⭐⭐⭐⭐⭐ ADDED PATCH — REQUIRED BY ANALYTICS TAB
+  async getAllFeedings() {
+    const snap = await this._kidRef()
+      .collection("feedings")
+      .orderBy("timestamp", "asc")
+      .get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   },
 
   // -----------------------
