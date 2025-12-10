@@ -1,9 +1,11 @@
 // ========================================
-// TINY TRACKER V4.1 - PART 1
-// Config, Auth, Firestore Layer + AI Functions (No Migration)
-// + Google Analytics
+// TINY TRACKER V5 - PART 1
+// Config, Auth, Family-Based Firestore Layer + AI Functions
 // ========================================
 
+// ---------------------------
+// FIREBASE CONFIG
+// ---------------------------
 const firebaseConfig = {
   apiKey: "AIzaSyBUscvx-JB3lNWKVu9bPnYTBHVPvrndc_w",
   authDomain: "baby-feeding-tracker-978e6.firebaseapp.com",
@@ -18,36 +20,31 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
 
-// ✅ Google Analytics instance
+// ---------------------------
+// ANALYTICS
+// ---------------------------
 const analytics = firebase.analytics();
 
 const logEvent = (eventName, params) => {
   try {
     analytics.logEvent(eventName, params);
   } catch (e) {
-    console.warn("Analytics logEvent failed", e);
+    console.warn("Analytics failed:", e);
   }
 };
 
 logEvent("app_open", {});
-
-const trackTabSelected = (tabName) => {
-  logEvent("tab_selected", { tab_name: tabName });
-};
-window.trackTabSelected = trackTabSelected;
+window.trackTabSelected = (tab) => logEvent("tab_selected", { tab });
 
 // ========================================
-// AUTH & USER MANAGEMENT
+// USER PROFILE MANAGEMENT
 // ========================================
-
-// Create or update user profile ONCE per sign-in
 const ensureUserProfile = async (user, inviteCode = null) => {
   if (!user) return;
 
   const userRef = db.collection("users").doc(user.uid);
   const snap = await userRef.get();
   const now = firebase.firestore.FieldValue.serverTimestamp();
-
   const base = {
     email: user.email || null,
     displayName: user.displayName || null,
@@ -55,85 +52,14 @@ const ensureUserProfile = async (user, inviteCode = null) => {
     lastActiveAt: now
   };
 
-  // First-time creation
   if (!snap.exists) {
     await userRef.set(
-      {
-        ...base,
-        createdAt: now,
-        inviteCode: inviteCode || null
-      },
+      { ...base, createdAt: now, inviteCode: inviteCode || null },
       { merge: true }
     );
-    return;
+  } else {
+    await userRef.set(base, { merge: true });
   }
-
-  // Returning user → update lastActiveAt and freshen profile data
-  await userRef.set(base, { merge: true });
-};
-
-const getUserKidId = async (userId) => {
-  const userDoc = await db.collection("users").doc(userId).get();
-  if (userDoc.exists && userDoc.data().kidId) {
-    return userDoc.data().kidId;
-  }
-
-  const kidsSnapshot = await db
-    .collection("kids")
-    .where("members", "array-contains", userId)
-    .limit(1)
-    .get();
-
-  if (!kidsSnapshot.empty) {
-    const kidId = kidsSnapshot.docs[0].id;
-    await db.collection("users").doc(userId).set({ kidId }, { merge: true });
-    return kidId;
-  }
-
-  return null;
-};
-
-const createKidForUser = async (userId, babyName, babyWeight, birthDate) => {
-  const kidRef = await db.collection("kids").add({
-    name: babyName,
-    birthDate: birthDate,
-    ownerId: userId,
-    members: [userId],
-    createdAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
-
-  const kidId = kidRef.id;
-
-  await db
-    .collection("users")
-    .doc(userId)
-    .set({ kidId: kidId }, { merge: true });
-
-  await db
-    .collection("kids")
-    .doc(kidId)
-    .collection("settings")
-    .doc("default")
-    .set(
-      {
-        babyWeight: babyWeight,
-        multiplier: 2.5,
-        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
-
-  logEvent("kid_created", {
-    kid_id: kidId,
-    has_name: !!babyName,
-    has_weight: babyWeight != null
-  });
-
-  return kidId;
-};
-
-const saveUserKidId = async (userId, kidId) => {
-  await db.collection("users").doc(userId).set({ kidId }, { merge: true });
 };
 
 const signInWithGoogle = async () => {
@@ -144,371 +70,215 @@ const signInWithGoogle = async () => {
 };
 
 const signOut = async () => {
-  const res = await auth.signOut();
-  logEvent("logout", {});
-  return res;
-};
-
-// ========================================
-// ACCOUNT DELETION (Soft Delete + Cleanup)
-// ========================================
-
-const deleteCurrentUserAccount = async () => {
-  const user = auth.currentUser;
-  if (!user) throw new Error("No user signed in");
-
-  const uid = user.uid;
-  const now = firebase.firestore.FieldValue.serverTimestamp();
-
-  // 1️⃣ Soft delete user profile
-  await db.collection("users").doc(uid).set(
-    {
-      deleted: true,
-      deletedAt: now
-    },
-    { merge: true }
-  );
-
-  // 2️⃣ Remove from all kids they belong to
-  const kidsSnapshot = await db
-    .collection("kids")
-    .where("members", "array-contains", uid)
-    .get();
-
-  for (const doc of kidsSnapshot.docs) {
-    const kidId = doc.id;
-    const kidData = doc.data();
-
-    const otherMembers = (kidData.members || []).filter((m) => m !== uid);
-    const updates = { members: otherMembers };
-
-    // 3️⃣ Transfer ownership if needed
-    if (kidData.ownerId === uid) {
-      if (otherMembers.length > 0) {
-        updates.ownerId = otherMembers[0];
-      }
-      // If no other members, kid remains but ownerId stays (harmless)
-    }
-
-    await db.collection("kids").doc(kidId).update(updates);
-  }
-
-  // 4️⃣ Log event
-  logEvent("account_deleted", { uid });
-
-  // 5️⃣ Sign them out
   await auth.signOut();
+  logEvent("logout", {});
 };
 
 // ========================================
-// INVITE SYSTEM
+// INVITES
 // ========================================
-
-const createInviteCode = async (kidId, userId) => {
+const createInviteCode = async (familyId, kidId, userId) => {
   const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-  await db
-    .collection("invites")
-    .doc(code)
-    .set({
-      kidId: kidId,
-      createdBy: userId,
-      createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-      used: false
-    });
 
-  logEvent("share", {
-    type: "invite",
-    kid_id: kidId
+  await db.collection("invites").doc(code).set({
+    familyId,
+    kidId,
+    createdBy: userId,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    used: false
   });
 
+  logEvent("invite_created", { familyId, kidId });
   return code;
 };
 
-const createInvite = async (kidId) => {
+const createInvite = async (familyId, kidId) => {
   const user = auth.currentUser;
   if (!user) throw new Error("Not signed in");
-  return await createInviteCode(kidId, user.uid);
+  return await createInviteCode(familyId, kidId, user.uid);
 };
 
 const acceptInvite = async (code, userId) => {
-  const inviteDoc = await db.collection("invites").doc(code).get();
+  const snap = await db.collection("invites").doc(code).get();
+  if (!snap.exists) throw new Error("Invalid invite");
 
-  if (!inviteDoc.exists) throw new Error("Invalid invite code");
-
-  const invite = inviteDoc.data();
+  const invite = snap.data();
   if (invite.used) throw new Error("Invite already used");
 
-  const kidId = invite.kidId;
-
-  await db
-    .collection("kids")
-    .doc(kidId)
+  // Add user to family
+  await db.collection("families")
+    .doc(invite.familyId)
     .update({
       members: firebase.firestore.FieldValue.arrayUnion(userId)
     });
 
-  await db
-    .collection("invites")
-    .doc(code)
+  // Add user to kid’s members
+  await db.collection("families")
+    .doc(invite.familyId)
+    .collection("kids")
+    .doc(invite.kidId)
     .update({
-      used: true,
-      usedBy: userId,
-      usedAt: firebase.firestore.FieldValue.serverTimestamp()
+      members: firebase.firestore.FieldValue.arrayUnion(userId)
     });
 
-  logEvent("invite_accepted", { kid_id: kidId });
+  // Mark invite used
+  await db.collection("invites").doc(code).update({
+    used: true,
+    usedBy: userId,
+    usedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
 
-  return kidId;
+  return { familyId: invite.familyId, kidId: invite.kidId };
 };
 
-// Lookup profiles for family tab
-// ✅ Now supports both legacy kids/{kidId} and future families/{familyId}/kids/{kidId}
-const getFamilyMembers = async (kidId, familyId = null) => {
-  let kidDoc;
+// ========================================
+// FAMILY MEMBER LOOKUP
+// ========================================
+const getFamilyMembers = async (familyId) => {
+  const famDoc = await db.collection("families").doc(familyId).get();
+  if (!famDoc.exists) return [];
 
-  if (familyId) {
-    kidDoc = await db
-      .collection("families")
-      .doc(familyId)
-      .collection("kids")
-      .doc(kidId)
-      .get();
-  } else {
-    kidDoc = await db.collection("kids").doc(kidId).get();
-  }
+  const { members = [] } = famDoc.data();
 
-  if (!kidDoc.exists) return [];
-
-  const kidData = kidDoc.data() || {};
-  const members = kidData.members || [];
-
-  const memberDetails = await Promise.all(
-    members.map(async (uid) => {
-      const userDoc = await db.collection("users").doc(uid).get();
-      const data = userDoc.exists ? userDoc.data() : {};
-      const isCurrentUser = auth.currentUser && auth.currentUser.uid === uid;
-
-      const email =
-        data.email ||
-        (isCurrentUser ? auth.currentUser.email : null) ||
-        "Family Member";
-
-      return {
-        uid,
-        displayName:
-          data.displayName ||
-          (isCurrentUser ? auth.currentUser.displayName : null) ||
-          null,
-        email,
-        photoURL:
-          data.photoURL ||
-          (isCurrentUser ? auth.currentUser.photoURL : null) ||
-          null
-      };
-    })
+  const userDocs = await Promise.all(
+    members.map((uid) => db.collection("users").doc(uid).get())
   );
 
-  return memberDetails;
+  return userDocs.map((doc) => ({
+    uid: doc.id,
+    ...doc.data()
+  }));
 };
 
 // ========================================
-// FIRESTORE STORAGE LAYER
+// BRAND NEW — FAMILY-BASED STORAGE LAYER
+// This is the beating heart. All tabs use this.
 // ========================================
-
 const firestoreStorage = {
-  currentFamilyId: null, // ✅ new: optional family context
+  currentFamilyId: null,
   currentKidId: null,
 
-  // ✅ Backward compatible:
-  // - initialize(kidId)
-  // - initialize(familyId, kidId)
-  initialize: async function (kidIdOrFamilyId, maybeKidId) {
-    if (maybeKidId !== undefined) {
-      // Called as initialize(familyId, kidId)
-      this.currentFamilyId = kidIdOrFamilyId;
-      this.currentKidId = maybeKidId;
-    } else {
-      // Legacy: initialize(kidId)
-      this.currentFamilyId = null;
-      this.currentKidId = kidIdOrFamilyId;
-    }
-
-    logEvent("kid_selected", { kid_id: this.currentKidId });
+  initialize: async function (familyId, kidId) {
+    this.currentFamilyId = familyId;
+    this.currentKidId = kidId;
+    logEvent("kid_selected", { familyId, kidId });
   },
 
-  // ✅ Internal helper: resolve the correct kid document ref
-  _getKidRef: function () {
-    if (!this.currentKidId) throw new Error("No kid selected");
-
-    if (this.currentFamilyId) {
-      return db
-        .collection("families")
-        .doc(this.currentFamilyId)
-        .collection("kids")
-        .doc(this.currentKidId);
-    }
-
-    // Legacy path (no family yet)
-    return db.collection("kids").doc(this.currentKidId);
+  _kidRef() {
+    if (!this.currentFamilyId || !this.currentKidId)
+      throw new Error("Storage not initialized");
+    return db
+      .collection("families")
+      .doc(this.currentFamilyId)
+      .collection("kids")
+      .doc(this.currentKidId);
   },
 
-  saveFeeding: async function (feeding) {
-    const kidRef = this._getKidRef();
-    await kidRef.collection("feedings").add(feeding);
-
-    logEvent("feeding_added", {
-      kid_id: this.currentKidId,
-      ounces: feeding.ounces
-    });
+  // -----------------------
+  // FEEDINGS
+  // -----------------------
+  async addFeeding(ounces, timestamp) {
+    await this._kidRef().collection("feedings").add({ ounces, timestamp });
+    logEvent("feeding_added", { ounces });
   },
 
-  addFeeding: async function (ounces, timestamp) {
-    return await this.saveFeeding({
-      ounces: ounces,
-      timestamp: timestamp
-    });
-  },
-
-  getFeedings: async function () {
-    if (!this.currentKidId) return [];
-    const kidRef = this._getKidRef();
-    const snapshot = await kidRef
+  async getFeedings() {
+    const snap = await this._kidRef()
       .collection("feedings")
       .orderBy("timestamp", "desc")
       .get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   },
 
-  getAllFeedings: async function () {
-    return await this.getFeedings();
-  },
-
-  getFeedingsLastNDays: async function (days) {
-    if (!this.currentKidId) return [];
-    const kidRef = this._getKidRef();
-    const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    const snapshot = await kidRef
+  async getFeedingsLastNDays(days) {
+    const cutoff = Date.now() - days * 86400000;
+    const snap = await this._kidRef()
       .collection("feedings")
       .where("timestamp", ">", cutoff)
       .orderBy("timestamp", "asc")
       .get();
-    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   },
 
-  deleteFeeding: async function (feedingId) {
-    if (!this.currentKidId) throw new Error("No kid selected");
-    const kidRef = this._getKidRef();
-    await kidRef.collection("feedings").doc(feedingId).delete();
-
-    logEvent("feeding_deleted", {
-      kid_id: this.currentKidId
-    });
+  async updateFeeding(id, ounces, timestamp) {
+    await this._kidRef()
+      .collection("feedings")
+      .doc(id)
+      .update({ ounces, timestamp });
   },
 
-  updateFeeding: async function (feedingId, ounces, timestamp) {
-    if (!this.currentKidId) throw new Error("No kid selected");
-    const kidRef = this._getKidRef();
-    await kidRef.collection("feedings").doc(feedingId).update({
-      ounces: ounces,
-      timestamp: timestamp
-    });
-
-    logEvent("feeding_updated", {
-      kid_id: this.currentKidId,
-      ounces: ounces
-    });
+  async deleteFeeding(id) {
+    await this._kidRef().collection("feedings").doc(id).delete();
   },
 
-  getSettings: async function () {
-    if (!this.currentKidId) return null;
-    const kidRef = this._getKidRef();
-    const doc = await kidRef.collection("settings").doc("default").get();
-    return doc.exists ? doc.data() : null;
-  },
-
-  saveSettings: async function (settings) {
-    if (!this.currentKidId) throw new Error("No kid selected");
-    const kidRef = this._getKidRef();
-    await kidRef.collection("settings").doc("default").set(settings, {
-      merge: true
-    });
-
-    logEvent("settings_updated", {
-      kid_id: this.currentKidId
-    });
-  },
-
-  getKidData: async function () {
-    if (!this.currentKidId) return null;
-    const kidRef = this._getKidRef();
-    const doc = await kidRef.get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
-  },
-
-  updateKidData: async function (data) {
-    if (!this.currentKidId) throw new Error("No kid selected");
-    const kidRef = this._getKidRef();
-    await kidRef.set(data, { merge: true });
-
-    logEvent("kid_profile_updated", {
-      kid_id: this.currentKidId
-    });
-  },
-
-  getConversation: async function () {
-    if (!this.currentKidId) return null;
-    const kidRef = this._getKidRef();
-    const doc = await kidRef
-      .collection("conversations")
+  // -----------------------
+  // SETTINGS
+  // -----------------------
+  async getSettings() {
+    const doc = await this._kidRef()
+      .collection("settings")
       .doc("default")
       .get();
     return doc.exists ? doc.data() : null;
   },
 
-  saveMessage: async function (message) {
-    if (!this.currentKidId) throw new Error("No kid selected");
-    const kidRef = this._getKidRef();
-    const conversationRef = kidRef.collection("conversations").doc("default");
+  async saveSettings(settings) {
+    await this._kidRef()
+      .collection("settings")
+      .doc("default")
+      .set(settings, { merge: true });
+  },
 
-    const doc = await conversationRef.get();
+  // -----------------------
+  // KID PROFILE
+  // -----------------------
+  async getKidData() {
+    const doc = await this._kidRef().get();
+    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+  },
+
+  async updateKidData(data) {
+    await this._kidRef().set(data, { merge: true });
+  },
+
+  // -----------------------
+  // AI CHAT
+  // -----------------------
+  async getConversation() {
+    const doc = await this._kidRef()
+      .collection("conversations")
+      .doc("default")
+      .get();
+    return doc.exists ? doc.data().messages || [] : [];
+  },
+
+  async saveMessage(message) {
+    const ref = this._kidRef()
+      .collection("conversations")
+      .doc("default");
+
+    const doc = await ref.get();
     const messages = doc.exists ? doc.data().messages || [] : [];
-
     messages.push(message);
 
-    await conversationRef.set(
-      {
-        messages: messages,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      },
-      { merge: true }
-    );
-
-    logEvent("ai_message_sent", {
-      kid_id: this.currentKidId,
-      role: message.role
-    });
+    await ref.set({ messages }, { merge: true });
   },
 
-  clearConversation: async function () {
-    if (!this.currentKidId) throw new Error("No kid selected");
-    const kidRef = this._getKidRef();
-    await kidRef.collection("conversations").doc("default").delete();
-
-    logEvent("ai_conversation_cleared", {
-      kid_id: this.currentKidId
-    });
+  async clearConversation() {
+    await this._kidRef().collection("conversations").doc("default").delete();
   },
 
-  getMembers: async function () {
-    if (!this.currentKidId) return [];
-    // ✅ Pass familyId when available, falls back to legacy kids path otherwise
-    return await getFamilyMembers(this.currentKidId, this.currentFamilyId);
+  // -----------------------
+  // MEMBERS
+  // -----------------------
+  async getMembers() {
+    return await getFamilyMembers(this.currentFamilyId);
   }
 };
 
 // ========================================
-// TINY TRACKER V4.1 - PART 2
-// App Wrapper, Login Screen, Baby Setup Screen
+// TINY TRACKER V5 - PART 2
+// App Wrapper, Login Screen, Baby Setup (family-aware)
 // ========================================
 
 const { useState, useEffect } = React;
@@ -516,97 +286,118 @@ const { useState, useEffect } = React;
 const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // These now represent the NEW schema
+  const [familyId, setFamilyId] = useState(null);
   const [kidId, setKidId] = useState(null);
-  const [familyId, setFamilyId] = useState(null); // ✅ new: future family container
+
   const [needsSetup, setNeedsSetup] = useState(false);
 
+  // ----------------------------------------------------
+  // AUTH STATE CHANGE
+  // ----------------------------------------------------
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        setUser(user);
-        const urlParams = new URLSearchParams(window.location.search);
-        const inviteCode = urlParams.get("invite");
-
-        try {
-          //
-          // ✅ IMPORTANT: Create/update user profile ONCE per login
-          //
-          await ensureUserProfile(user, inviteCode);
-
-          //
-          // ✅ Load any existing familyId from user doc (added later by migration)
-          //
-          try {
-            const userDoc = await db.collection("users").doc(user.uid).get();
-            if (userDoc.exists) {
-              const data = userDoc.data() || {};
-              if (data.familyId) {
-                setFamilyId(data.familyId);
-              } else {
-                setFamilyId(null);
-              }
-            } else {
-              setFamilyId(null);
-            }
-          } catch (e) {
-            console.warn("Failed to load familyId from user doc:", e);
-            setFamilyId(null);
-          }
-
-          let userKidId;
-
-          //
-          // If they are entering via invite link
-          //
-          if (inviteCode) {
-            userKidId = await acceptInvite(inviteCode, user.uid);
-            if (userKidId) {
-              await saveUserKidId(user.uid, userKidId);
-            }
-            // Clean the URL
-            window.history.replaceState(
-              {},
-              document.title,
-              window.location.pathname
-            );
-          }
-          //
-          // Standard login path
-          //
-          else {
-            userKidId = await getUserKidId(user.uid);
-          }
-
-          //
-          // No kid → show setup screen
-          //
-          if (!userKidId) {
-            setNeedsSetup(true);
-            setLoading(false);
-            return;
-          }
-
-          //
-          // Kid found → proceed to app
-          //
-          setKidId(userKidId);
-
-          // ✅ For now, keep legacy behavior: initialize with kidId only
-          //    Later, after migration, we'll switch to:
-          //    await firestoreStorage.initialize(familyId, userKidId);
-          await firestoreStorage.initialize(userKidId);
-        } catch (error) {
-          console.error("Setup error:", error);
-        }
-      }
-      //
-      // Logged out
-      //
-      else {
+    const unsubscribe = auth.onAuthStateChanged(async (u) => {
+      if (!u) {
         setUser(null);
         setKidId(null);
         setFamilyId(null);
         setNeedsSetup(false);
+        setLoading(false);
+        return;
+      }
+
+      setUser(u);
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const inviteCode = urlParams.get("invite");
+
+      try {
+        //
+        // 1️⃣ Ensure user profile exists
+        //
+        await ensureUserProfile(u, inviteCode);
+
+        //
+        // 2️⃣ Look up user's families (new schema)
+        //
+        const famSnap = await db
+          .collection("families")
+          .where("members", "array-contains", u.uid)
+          .limit(1)
+          .get();
+
+        let resolvedFamilyId = null;
+        let resolvedKidId = null;
+
+        if (!famSnap.empty) {
+          resolvedFamilyId = famSnap.docs[0].id;
+          const familyData = famSnap.docs[0].data();
+
+          //
+          // 3️⃣ Look up kids inside this family
+          //
+          const kidSnap = await db
+            .collection("families")
+            .doc(resolvedFamilyId)
+            .collection("kids")
+            .get();
+
+          if (!kidSnap.empty) {
+            // prefer primaryKidId if present
+            if (familyData.primaryKidId) {
+              resolvedKidId = familyData.primaryKidId;
+            } else {
+              resolvedKidId = kidSnap.docs[0].id;
+            }
+          }
+        }
+
+        //
+        // 4️⃣ Handle incoming invite
+        //
+        if (inviteCode) {
+          const newKidId = await acceptInvite(inviteCode, u.uid);
+
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+
+          if (newKidId) {
+            // Re-resolve familyId because invite acceptance puts you into a family
+            const famResnap = await db
+              .collection("families")
+              .where("members", "array-contains", u.uid)
+              .limit(1)
+              .get();
+
+            if (!famResnap.empty) {
+              resolvedFamilyId = famResnap.docs[0].id;
+              resolvedKidId = newKidId;
+            }
+          }
+        }
+
+        //
+        // 5️⃣ If no family OR no kid in the family → onboarding needed
+        //
+        if (!resolvedFamilyId || !resolvedKidId) {
+          setNeedsSetup(true);
+          setFamilyId(null);
+          setKidId(null);
+          setLoading(false);
+          return;
+        }
+
+        //
+        // 6️⃣ We now have full context → store & init
+        //
+        setFamilyId(resolvedFamilyId);
+        setKidId(resolvedKidId);
+
+        await firestoreStorage.initialize(resolvedFamilyId, resolvedKidId);
+
+      } catch (err) {
+        console.error("Setup error:", err);
       }
 
       setLoading(false);
@@ -615,10 +406,9 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
-  // ========================================
+  // ----------------------------------------------------
   // LOADING SCREEN
-  // ========================================
-
+  // ----------------------------------------------------
   if (loading) {
     return React.createElement(
       "div",
@@ -628,55 +418,48 @@ const App = () => {
       },
       React.createElement(
         "div",
-          { className: "text-center" },
-          React.createElement("div", {
-            className:
-              "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4",
-          }),
-          React.createElement(
-            "div",
-            { className: "text-gray-600" },
-            "Loading..."
-          )
+        { className: "text-center" },
+        React.createElement("div", {
+          className:
+            "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4",
+        }),
+        React.createElement("div", { className: "text-gray-600" }, "Loading...")
       )
     );
   }
 
-  // ========================================
+  // ----------------------------------------------------
   // LOGIN SCREEN
-  // ========================================
-
+  // ----------------------------------------------------
   if (!user) {
     return React.createElement(LoginScreen);
   }
 
-  // ========================================
-  // BABY SETUP
-  // ========================================
-
+  // ----------------------------------------------------
+  // ONBOARDING (now family-aware)
+  // ----------------------------------------------------
   if (needsSetup) {
     return React.createElement(BabySetupScreen, {
       user,
-      onComplete: async (kidId) => {
-        setKidId(kidId);
+      onComplete: async (createdFamilyId, createdKidId) => {
+        setFamilyId(createdFamilyId);
+        setKidId(createdKidId);
         setNeedsSetup(false);
-        // Still legacy path for now
-        await firestoreStorage.initialize(kidId);
+
+        await firestoreStorage.initialize(createdFamilyId, createdKidId);
       },
     });
   }
 
-  // ========================================
+  // ----------------------------------------------------
   // MAIN APP
-  // ========================================
-
-  // ✅ Pass familyId down so future parts can use it once migration is done.
+  // ----------------------------------------------------
   return React.createElement(MainApp, { user, kidId, familyId });
 };
 
-// ========================================
-// LOGIN SCREEN
-// ========================================
+// =====================================================
+// LOGIN SCREEN (unchanged)
+// =====================================================
 
 const LoginScreen = () => {
   const [signingIn, setSigningIn] = useState(false);
@@ -738,7 +521,6 @@ const LoginScreen = () => {
           className:
             "w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-3 disabled:opacity-50",
         },
-
         React.createElement(
           "svg",
           { width: "20", height: "20", viewBox: "0 0 24 24" },
@@ -763,7 +545,6 @@ const LoginScreen = () => {
               "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z",
           })
         ),
-
         signingIn ? "Signing in..." : "Sign in with Google"
       ),
 
@@ -788,9 +569,9 @@ const LoginScreen = () => {
   );
 };
 
-// ========================================
-// BABY SETUP SCREEN
-// ========================================
+// =====================================================
+// BABY SETUP — now creates a FAMILY + KID
+// =====================================================
 
 const BabySetupScreen = ({ user, onComplete }) => {
   const [babyName, setBabyName] = useState("");
@@ -821,14 +602,57 @@ const BabySetupScreen = ({ user, onComplete }) => {
 
     try {
       const birthTimestamp = new Date(birthDate).getTime();
-      const kidId = await createKidForUser(
-        user.uid,
-        babyName.trim(),
-        weight,
-        birthTimestamp
-      );
-      onComplete(kidId);
+
+      //
+      // Create a NEW family + kid
+      //
+      const famRef = await db.collection("families").add({
+        members: [user.uid],
+        name: `${babyName}'s family`,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        primaryKidId: null,
+      });
+
+      const familyId = famRef.id;
+
+      const kidRef = await db
+        .collection("families")
+        .doc(familyId)
+        .collection("kids")
+        .add({
+          name: babyName.trim(),
+          ownerId: user.uid,
+          birthDate: birthTimestamp,
+          members: [user.uid],
+          photoURL: null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+
+      const kidId = kidRef.id;
+
+      // set primaryKidId
+      await famRef.set({ primaryKidId: kidId }, { merge: true });
+
+      // default settings
+      await db
+        .collection("families")
+        .doc(familyId)
+        .collection("kids")
+        .doc(kidId)
+        .collection("settings")
+        .doc("default")
+        .set({
+          babyWeight: weight,
+          multiplier: 2.5,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+        });
+
+      //
+      // return family + kid to App
+      //
+      onComplete(familyId, kidId);
     } catch (err) {
+      console.error(err);
       setError("Failed to save. Please try again.");
       setSaving(false);
     }
@@ -953,8 +777,8 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.2 - PART 3
-// Main App with Bottom Navigation (FIXED - nav extends to bottom)
+// TINY TRACKER V5 - PART 3
+// Main App with Bottom Navigation (family-aware)
 // ========================================
 
 // Lucide-style "share" (box + arrow up)
@@ -972,13 +796,10 @@ const ShareIcon = (props) => React.createElement(
     strokeLinecap: "round",
     strokeLinejoin: "round"
   },
-  // Box
   React.createElement('path', { d: "M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" }),
-  // Arrow
   React.createElement('polyline', { points: "16 6 12 2 8 6" }),
   React.createElement('line', { x1: "12", y1: "2", x2: "12", y2: "15" })
 );
-
 
 // Lucide-style link icon
 const LinkIcon = (props) => React.createElement(
@@ -998,7 +819,6 @@ const LinkIcon = (props) => React.createElement(
   React.createElement('path', { d: "M10 13a5 5 0 0 0 7.54.54l1.92-1.92a3 3 0 0 0-4.24-4.24l-1.1 1.1" }),
   React.createElement('path', { d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1" })
 );
-
 
 // Lucide-style "person add"
 const PersonAddIcon = (props) => React.createElement(
@@ -1021,16 +841,17 @@ const PersonAddIcon = (props) => React.createElement(
   React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
 );
 
+// =====================================================
+// MAIN APP
+// =====================================================
 
-
-const MainApp = ({ user, kidId }) => {
+const MainApp = ({ user, kidId, familyId }) => {
   const [activeTab, setActiveTab] = useState('tracker');
   const [showShareMenu, setShowShareMenu] = useState(false);
-  
+
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
-
 
   // -----------------------
   // SHARE ACTIONS
@@ -1039,7 +860,7 @@ const MainApp = ({ user, kidId }) => {
   const handleGlobalShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
     const text = "Check out Tiny Tracker - track your baby's feedings and get insights! " + url;
-    
+
     if (navigator.share) {
       try {
         await navigator.share({
@@ -1050,7 +871,7 @@ const MainApp = ({ user, kidId }) => {
         return;
       } catch (err) {}
     }
-    
+
     const messengerUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}&app_id=`;
     window.location.href = messengerUrl;
 
@@ -1063,7 +884,6 @@ const MainApp = ({ user, kidId }) => {
       }
     }, 1000);
   };
-
 
   const handleGlobalInvitePartner = async () => {
     try {
@@ -1083,14 +903,11 @@ const MainApp = ({ user, kidId }) => {
 
       await navigator.clipboard.writeText(link);
       alert("Invite link copied!");
-
     } catch (err) {
       console.error(err);
       alert("Failed to create invite.");
     }
   };
-
-
 
   // -----------------------
   // UI
@@ -1122,10 +939,8 @@ const MainApp = ({ user, kidId }) => {
             'div',
             { className: "relative flex items-center justify-between" },
 
-            // left spacer
             React.createElement('div', { className: "w-8" }),
 
-            // logo
             React.createElement(
               'div',
               { className: "flex items-center gap-2" },
@@ -1137,7 +952,6 @@ const MainApp = ({ user, kidId }) => {
               )
             ),
 
-            // share icon
             React.createElement(
               'button',
               {
@@ -1148,7 +962,6 @@ const MainApp = ({ user, kidId }) => {
               React.createElement(ShareIcon, { className: "w-4 h-4 text-indigo-600" })
             ),
 
-            // dropdown menu under the icon
             showShareMenu &&
               React.createElement(
                 'div',
@@ -1191,24 +1004,25 @@ const MainApp = ({ user, kidId }) => {
       React.createElement(
         'div',
         { className: "px-4" },
-        activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId }),
-        activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
-        activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId }),
-        activeTab === 'family' && React.createElement(FamilyTab, { user, kidId }),
-        activeTab === 'settings' && React.createElement(SettingsTab, { user, kidId })
+        activeTab === 'tracker' &&
+          React.createElement(TrackerTab, { user, kidId, familyId }),
+        activeTab === 'analytics' &&
+          React.createElement(AnalyticsTab, { kidId, familyId }),
+        activeTab === 'chat' &&
+          React.createElement(AIChatTab, { user, kidId, familyId }),
+        activeTab === 'family' &&
+          React.createElement(FamilyTab, { user, kidId, familyId }),
+        activeTab === 'settings' &&
+          React.createElement(SettingsTab, { user, kidId, familyId })
       )
     ),
 
-
-    // CLICK-AWAY OVERLAY
     showShareMenu &&
       React.createElement('div', {
         className: "fixed inset-0 z-0",
         onClick: () => setShowShareMenu(false)
       }),
 
-
-    // BOTTOM NAV
     React.createElement(
       'div',
       {
@@ -1255,7 +1069,7 @@ const MainApp = ({ user, kidId }) => {
 // Tracker Tab - Main Feeding Interface
 // ========================================
 
-const TrackerTab = ({ user, kidId }) => {
+const TrackerTab = ({ user, kidId, familyId }) => {
   const [babyWeight, setBabyWeight] = useState(null);
   const [multiplier, setMultiplier] = useState(2.5);
   const [ounces, setOunces] = useState('');
@@ -1584,7 +1398,7 @@ const TrackerTab = ({ user, kidId }) => {
 // Analytics Tab
 // ========================================
 
-const AnalyticsTab = ({ kidId }) => {
+const AnalyticsTab = ({ kidId, familyId }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('day');
@@ -1832,7 +1646,7 @@ return React.createElement('div', { className: "space-y-4" },
 // Family Tab - FIXED: name field width, bigger buttons, show member names, image compression
 // ========================================
 
-const FamilyTab = ({ user, kidId }) => {
+const FamilyTab = ({ user, kidId, familyId }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
@@ -2708,7 +2522,7 @@ ReactDOM.render(React.createElement(App), document.getElementById('root'));
 // ========================================
 
 // AI Chat Tab - iMessage Style
-const AIChatTab = ({ user, kidId }) => {
+const AIChatTab = ({ user, kidId, familyId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState(localStorage.getItem('aiChatDraft') || '');
   const [loading, setLoading] = useState(false);
