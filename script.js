@@ -257,7 +257,7 @@ const firestoreStorage = {
       .collection("conversations")
       .doc("default")
       .get();
-    return doc.exists ? doc.data().messages || [] : [];
+    return doc.exists ? doc.data() : { messages: [] };
   },
 
   async saveMessage(message) {
