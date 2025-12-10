@@ -1,5 +1,5 @@
 // ========================================
-// TINY TRACKER V5 - PART 1
+// TINY TRACKER - PART 1
 // Config, Auth, Family-Based Firestore Layer + AI Functions
 // ========================================
 
@@ -285,7 +285,7 @@ const firestoreStorage = {
 };
 
 // ========================================
-// TINY TRACKER V5 - PART 2
+// TINY TRACKER - PART 2
 // App Wrapper, Login Screen, Baby Setup (family-aware)
 // ========================================
 
@@ -785,7 +785,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
 };
 
 // ========================================
-// TINY TRACKER V5 - PART 3
+// TINY TRACKER - PART 3
 // Main App with Bottom Navigation (family-aware)
 // ========================================
 
@@ -1073,7 +1073,7 @@ const MainApp = ({ user, kidId, familyId }) => {
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 4  
+// TINY TRACKER - PART 4  
 // Tracker Tab - Main Feeding Interface
 // ========================================
 
@@ -1402,7 +1402,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 };
 
 // ========================================
-// TINY TRACKER V2 - PART 5
+// TINY TRACKER - PART 5
 // Analytics Tab
 // ========================================
 
@@ -1650,7 +1650,7 @@ return React.createElement('div', { className: "space-y-4" },
 };
 
 // ========================================
-// TINY TRACKER V4.3 - PART 6
+// TINY TRACKER - PART 6
 // Family Tab - FIXED: name field width, bigger buttons, show member names, image compression
 // ========================================
 
@@ -2277,7 +2277,7 @@ const FamilyTab = ({ user, kidId, familyId }) => {
 };
 
 // ========================================
-// TINY TRACKER V3 - PART 7
+// TINY TRACKER - PART 7
 // Settings Tab - Share App, Sign Out, Delete Account
 // ========================================
 
@@ -2400,7 +2400,7 @@ const SettingsTab = ({ user, kidId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.1 - PART 8
+// TINY TRACKER - PART 8
 // SVG Icons & Render (with Menu/Hamburger icon for settings)
 // ========================================
 
@@ -2525,7 +2525,7 @@ if (metaThemeColor) {
 ReactDOM.render(React.createElement(App), document.getElementById('root'));
 
 // ========================================
-// TINY TRACKER V4.1 - PART 9
+// TINY TRACKER - PART 9
 // AI Chat Tab - iMessage Style
 // ========================================
 
@@ -2903,7 +2903,7 @@ const AIChatTab = ({ user, kidId, familyId }) => {
 };
 
 // ========================================
-// TINY TRACKER V4.3 - PART 10 (GEMINI VERSION)
+// TINY TRACKER - PART 10 (GEMINI VERSION)
 // AI Integration via Cloudflare Worker + Gemini
 // Conversational, analytical, non-creepy
 // ========================================
