@@ -161,13 +161,17 @@ const deleteCurrentUserAccount = async () => {
   const now = firebase.firestore.FieldValue.serverTimestamp();
 
   // 1️⃣ Soft delete user profile
-  await db.collection("users").doc(uid).set({
-    deleted: true,
-    deletedAt: now
-  }, { merge: true });
+  await db.collection("users").doc(uid).set(
+    {
+      deleted: true,
+      deletedAt: now
+    },
+    { merge: true }
+  );
 
   // 2️⃣ Remove from all kids they belong to
-  const kidsSnapshot = await db.collection("kids")
+  const kidsSnapshot = await db
+    .collection("kids")
     .where("members", "array-contains", uid)
     .get();
 
@@ -175,7 +179,7 @@ const deleteCurrentUserAccount = async () => {
     const kidId = doc.id;
     const kidData = doc.data();
 
-    const otherMembers = (kidData.members || []).filter(m => m !== uid);
+    const otherMembers = (kidData.members || []).filter((m) => m !== uid);
     const updates = { members: otherMembers };
 
     // 3️⃣ Transfer ownership if needed
@@ -258,11 +262,25 @@ const acceptInvite = async (code, userId) => {
 };
 
 // Lookup profiles for family tab
-const getFamilyMembers = async (kidId) => {
-  const kidDoc = await db.collection("kids").doc(kidId).get();
+// ✅ Now supports both legacy kids/{kidId} and future families/{familyId}/kids/{kidId}
+const getFamilyMembers = async (kidId, familyId = null) => {
+  let kidDoc;
+
+  if (familyId) {
+    kidDoc = await db
+      .collection("families")
+      .doc(familyId)
+      .collection("kids")
+      .doc(kidId)
+      .get();
+  } else {
+    kidDoc = await db.collection("kids").doc(kidId).get();
+  }
+
   if (!kidDoc.exists) return [];
 
-  const members = kidDoc.data().members || [];
+  const kidData = kidDoc.data() || {};
+  const members = kidData.members || [];
 
   const memberDetails = await Promise.all(
     members.map(async (uid) => {
@@ -298,20 +316,45 @@ const getFamilyMembers = async (kidId) => {
 // ========================================
 
 const firestoreStorage = {
+  currentFamilyId: null, // ✅ new: optional family context
   currentKidId: null,
 
-  initialize: async function (kidId) {
-    this.currentKidId = kidId;
-    logEvent("kid_selected", { kid_id: kidId });
+  // ✅ Backward compatible:
+  // - initialize(kidId)
+  // - initialize(familyId, kidId)
+  initialize: async function (kidIdOrFamilyId, maybeKidId) {
+    if (maybeKidId !== undefined) {
+      // Called as initialize(familyId, kidId)
+      this.currentFamilyId = kidIdOrFamilyId;
+      this.currentKidId = maybeKidId;
+    } else {
+      // Legacy: initialize(kidId)
+      this.currentFamilyId = null;
+      this.currentKidId = kidIdOrFamilyId;
+    }
+
+    logEvent("kid_selected", { kid_id: this.currentKidId });
+  },
+
+  // ✅ Internal helper: resolve the correct kid document ref
+  _getKidRef: function () {
+    if (!this.currentKidId) throw new Error("No kid selected");
+
+    if (this.currentFamilyId) {
+      return db
+        .collection("families")
+        .doc(this.currentFamilyId)
+        .collection("kids")
+        .doc(this.currentKidId);
+    }
+
+    // Legacy path (no family yet)
+    return db.collection("kids").doc(this.currentKidId);
   },
 
   saveFeeding: async function (feeding) {
-    if (!this.currentKidId) throw new Error("No kid selected");
-    await db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .collection("feedings")
-      .add(feeding);
+    const kidRef = this._getKidRef();
+    await kidRef.collection("feedings").add(feeding);
 
     logEvent("feeding_added", {
       kid_id: this.currentKidId,
@@ -328,9 +371,8 @@ const firestoreStorage = {
 
   getFeedings: async function () {
     if (!this.currentKidId) return [];
-    const snapshot = await db
-      .collection("kids")
-      .doc(this.currentKidId)
+    const kidRef = this._getKidRef();
+    const snapshot = await kidRef
       .collection("feedings")
       .orderBy("timestamp", "desc")
       .get();
@@ -343,10 +385,9 @@ const firestoreStorage = {
 
   getFeedingsLastNDays: async function (days) {
     if (!this.currentKidId) return [];
+    const kidRef = this._getKidRef();
     const cutoff = Date.now() - days * 24 * 60 * 60 * 1000;
-    const snapshot = await db
-      .collection("kids")
-      .doc(this.currentKidId)
+    const snapshot = await kidRef
       .collection("feedings")
       .where("timestamp", ">", cutoff)
       .orderBy("timestamp", "asc")
@@ -356,12 +397,8 @@ const firestoreStorage = {
 
   deleteFeeding: async function (feedingId) {
     if (!this.currentKidId) throw new Error("No kid selected");
-    await db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .collection("feedings")
-      .doc(feedingId)
-      .delete();
+    const kidRef = this._getKidRef();
+    await kidRef.collection("feedings").doc(feedingId).delete();
 
     logEvent("feeding_deleted", {
       kid_id: this.currentKidId
@@ -370,15 +407,11 @@ const firestoreStorage = {
 
   updateFeeding: async function (feedingId, ounces, timestamp) {
     if (!this.currentKidId) throw new Error("No kid selected");
-    await db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .collection("feedings")
-      .doc(feedingId)
-      .update({
-        ounces: ounces,
-        timestamp: timestamp
-      });
+    const kidRef = this._getKidRef();
+    await kidRef.collection("feedings").doc(feedingId).update({
+      ounces: ounces,
+      timestamp: timestamp
+    });
 
     logEvent("feeding_updated", {
       kid_id: this.currentKidId,
@@ -388,23 +421,17 @@ const firestoreStorage = {
 
   getSettings: async function () {
     if (!this.currentKidId) return null;
-    const doc = await db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .collection("settings")
-      .doc("default")
-      .get();
+    const kidRef = this._getKidRef();
+    const doc = await kidRef.collection("settings").doc("default").get();
     return doc.exists ? doc.data() : null;
   },
 
   saveSettings: async function (settings) {
     if (!this.currentKidId) throw new Error("No kid selected");
-    await db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .collection("settings")
-      .doc("default")
-      .set(settings, { merge: true });
+    const kidRef = this._getKidRef();
+    await kidRef.collection("settings").doc("default").set(settings, {
+      merge: true
+    });
 
     logEvent("settings_updated", {
       kid_id: this.currentKidId
@@ -413,16 +440,15 @@ const firestoreStorage = {
 
   getKidData: async function () {
     if (!this.currentKidId) return null;
-    const doc = await db.collection("kids").doc(this.currentKidId).get();
+    const kidRef = this._getKidRef();
+    const doc = await kidRef.get();
     return doc.exists ? { id: doc.id, ...doc.data() } : null;
   },
 
   updateKidData: async function (data) {
     if (!this.currentKidId) throw new Error("No kid selected");
-    await db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .set(data, { merge: true });
+    const kidRef = this._getKidRef();
+    await kidRef.set(data, { merge: true });
 
     logEvent("kid_profile_updated", {
       kid_id: this.currentKidId
@@ -431,9 +457,8 @@ const firestoreStorage = {
 
   getConversation: async function () {
     if (!this.currentKidId) return null;
-    const doc = await db
-      .collection("kids")
-      .doc(this.currentKidId)
+    const kidRef = this._getKidRef();
+    const doc = await kidRef
       .collection("conversations")
       .doc("default")
       .get();
@@ -442,11 +467,8 @@ const firestoreStorage = {
 
   saveMessage: async function (message) {
     if (!this.currentKidId) throw new Error("No kid selected");
-    const conversationRef = db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .collection("conversations")
-      .doc("default");
+    const kidRef = this._getKidRef();
+    const conversationRef = kidRef.collection("conversations").doc("default");
 
     const doc = await conversationRef.get();
     const messages = doc.exists ? doc.data().messages || [] : [];
@@ -469,12 +491,8 @@ const firestoreStorage = {
 
   clearConversation: async function () {
     if (!this.currentKidId) throw new Error("No kid selected");
-    await db
-      .collection("kids")
-      .doc(this.currentKidId)
-      .collection("conversations")
-      .doc("default")
-      .delete();
+    const kidRef = this._getKidRef();
+    await kidRef.collection("conversations").doc("default").delete();
 
     logEvent("ai_conversation_cleared", {
       kid_id: this.currentKidId
@@ -483,7 +501,8 @@ const firestoreStorage = {
 
   getMembers: async function () {
     if (!this.currentKidId) return [];
-    return await getFamilyMembers(this.currentKidId);
+    // ✅ Pass familyId when available, falls back to legacy kids path otherwise
+    return await getFamilyMembers(this.currentKidId, this.currentFamilyId);
   }
 };
 
@@ -498,6 +517,7 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [kidId, setKidId] = useState(null);
+  const [familyId, setFamilyId] = useState(null); // ✅ new: future family container
   const [needsSetup, setNeedsSetup] = useState(false);
 
   useEffect(() => {
@@ -505,13 +525,33 @@ const App = () => {
       if (user) {
         setUser(user);
         const urlParams = new URLSearchParams(window.location.search);
-        const inviteCode = urlParams.get('invite');
+        const inviteCode = urlParams.get("invite");
 
         try {
           //
           // ✅ IMPORTANT: Create/update user profile ONCE per login
           //
           await ensureUserProfile(user, inviteCode);
+
+          //
+          // ✅ Load any existing familyId from user doc (added later by migration)
+          //
+          try {
+            const userDoc = await db.collection("users").doc(user.uid).get();
+            if (userDoc.exists) {
+              const data = userDoc.data() || {};
+              if (data.familyId) {
+                setFamilyId(data.familyId);
+              } else {
+                setFamilyId(null);
+              }
+            } else {
+              setFamilyId(null);
+            }
+          } catch (e) {
+            console.warn("Failed to load familyId from user doc:", e);
+            setFamilyId(null);
+          }
 
           let userKidId;
 
@@ -524,8 +564,12 @@ const App = () => {
               await saveUserKidId(user.uid, userKidId);
             }
             // Clean the URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-          } 
+            window.history.replaceState(
+              {},
+              document.title,
+              window.location.pathname
+            );
+          }
           //
           // Standard login path
           //
@@ -546,18 +590,22 @@ const App = () => {
           // Kid found → proceed to app
           //
           setKidId(userKidId);
-          await firestoreStorage.initialize(userKidId);
 
+          // ✅ For now, keep legacy behavior: initialize with kidId only
+          //    Later, after migration, we'll switch to:
+          //    await firestoreStorage.initialize(familyId, userKidId);
+          await firestoreStorage.initialize(userKidId);
         } catch (error) {
           console.error("Setup error:", error);
         }
-      } 
+      }
       //
       // Logged out
       //
       else {
         setUser(null);
         setKidId(null);
+        setFamilyId(null);
         setNeedsSetup(false);
       }
 
@@ -580,16 +628,16 @@ const App = () => {
       },
       React.createElement(
         "div",
-        { className: "text-center" },
-        React.createElement("div", {
-          className:
-            "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4",
-        }),
-        React.createElement(
-          "div",
-          { className: "text-gray-600" },
-          "Loading..."
-        )
+          { className: "text-center" },
+          React.createElement("div", {
+            className:
+              "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4",
+          }),
+          React.createElement(
+            "div",
+            { className: "text-gray-600" },
+            "Loading..."
+          )
       )
     );
   }
@@ -612,6 +660,7 @@ const App = () => {
       onComplete: async (kidId) => {
         setKidId(kidId);
         setNeedsSetup(false);
+        // Still legacy path for now
         await firestoreStorage.initialize(kidId);
       },
     });
@@ -621,7 +670,8 @@ const App = () => {
   // MAIN APP
   // ========================================
 
-  return React.createElement(MainApp, { user, kidId });
+  // ✅ Pass familyId down so future parts can use it once migration is done.
+  return React.createElement(MainApp, { user, kidId, familyId });
 };
 
 // ========================================
@@ -663,7 +713,9 @@ const LoginScreen = () => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-4" },
-            React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
+            React.createElement(Baby, {
+              className: "w-12 h-12 text-indigo-600",
+            })
           )
         ),
         React.createElement(
