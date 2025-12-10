@@ -151,7 +151,8 @@ const getFamilyMembers = async (familyId) => {
 };
 
 // ========================================
-// FAMILY-BASED STORAGE LAYER
+// BRAND NEW — FAMILY-BASED STORAGE LAYER
+// This is the beating heart. All tabs use this.
 // ========================================
 const firestoreStorage = {
   currentFamilyId: null,
@@ -210,15 +211,6 @@ const firestoreStorage = {
     await this._kidRef().collection("feedings").doc(id).delete();
   },
 
-  // ⭐⭐⭐⭐⭐ ADDED PATCH — REQUIRED BY ANALYTICS TAB
-  async getAllFeedings() {
-    const snap = await this._kidRef()
-      .collection("feedings")
-      .orderBy("timestamp", "asc")
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-  },
-
   // -----------------------
   // SETTINGS
   // -----------------------
@@ -257,7 +249,7 @@ const firestoreStorage = {
       .collection("conversations")
       .doc("default")
       .get();
-    return doc.exists ? doc.data() : { messages: [] };
+    return doc.exists ? doc.data().messages || [] : [];
   },
 
   async saveMessage(message) {
@@ -352,6 +344,7 @@ const App = () => {
             .get();
 
           if (!kidSnap.empty) {
+            // prefer primaryKidId if present
             if (familyData.primaryKidId) {
               resolvedKidId = familyData.primaryKidId;
             } else {
@@ -361,13 +354,16 @@ const App = () => {
         }
 
         //
-        // 4️⃣ Handle invite
+        // 4️⃣ Handle incoming invite
         //
         if (inviteCode) {
           const newKidId = await acceptInvite(inviteCode, u.uid);
+
+          // Clean URL
           window.history.replaceState({}, document.title, window.location.pathname);
 
           if (newKidId) {
+            // Re-resolve familyId because invite acceptance puts you into a family
             const famResnap = await db
               .collection("families")
               .where("members", "array-contains", u.uid)
@@ -382,7 +378,7 @@ const App = () => {
         }
 
         //
-        // 5️⃣ Need setup?
+        // 5️⃣ If no family OR no kid in the family → onboarding needed
         //
         if (!resolvedFamilyId || !resolvedKidId) {
           setNeedsSetup(true);
@@ -393,10 +389,11 @@ const App = () => {
         }
 
         //
-        // 6️⃣ Initialize storage
+        // 6️⃣ We now have full context → store & init
         //
         setFamilyId(resolvedFamilyId);
         setKidId(resolvedKidId);
+
         await firestoreStorage.initialize(resolvedFamilyId, resolvedKidId);
 
       } catch (err) {
@@ -409,6 +406,9 @@ const App = () => {
     return () => unsubscribe();
   }, []);
 
+  // ----------------------------------------------------
+  // LOADING SCREEN
+  // ----------------------------------------------------
   if (loading) {
     return React.createElement(
       "div",
@@ -428,8 +428,16 @@ const App = () => {
     );
   }
 
-  if (!user) return React.createElement(LoginScreen);
+  // ----------------------------------------------------
+  // LOGIN SCREEN
+  // ----------------------------------------------------
+  if (!user) {
+    return React.createElement(LoginScreen);
+  }
 
+  // ----------------------------------------------------
+  // ONBOARDING (now family-aware)
+  // ----------------------------------------------------
   if (needsSetup) {
     return React.createElement(BabySetupScreen, {
       user,
@@ -437,11 +445,15 @@ const App = () => {
         setFamilyId(createdFamilyId);
         setKidId(createdKidId);
         setNeedsSetup(false);
+
         await firestoreStorage.initialize(createdFamilyId, createdKidId);
       },
     });
   }
 
+  // ----------------------------------------------------
+  // MAIN APP
+  // ----------------------------------------------------
   return React.createElement(MainApp, { user, kidId, familyId });
 };
 
@@ -489,8 +501,16 @@ const LoginScreen = () => {
             })
           )
         ),
-        React.createElement("h1", { className: "text-3xl font-bold text-gray-800 handwriting mb-2" }, "Tiny Tracker"),
-        React.createElement("p", { className: "text-gray-600" }, "Track your baby's feeding journey")
+        React.createElement(
+          "h1",
+          { className: "text-3xl font-bold text-gray-800 handwriting mb-2" },
+          "Tiny Tracker"
+        ),
+        React.createElement(
+          "p",
+          { className: "text-gray-600" },
+          "Track your baby's feeding journey"
+        )
       ),
 
       React.createElement(
@@ -501,7 +521,31 @@ const LoginScreen = () => {
           className:
             "w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-3 disabled:opacity-50",
         },
-        "Sign in with Google"
+        React.createElement(
+          "svg",
+          { width: "20", height: "20", viewBox: "0 0 24 24" },
+          React.createElement("path", {
+            fill: "#4285F4",
+            d:
+              "M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z",
+          }),
+          React.createElement("path", {
+            fill: "#34A853",
+            d:
+              "M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z",
+          }),
+          React.createElement("path", {
+            fill: "#FBBC05",
+            d:
+              "M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z",
+          }),
+          React.createElement("path", {
+            fill: "#EA4335",
+            d:
+              "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z",
+          })
+        ),
+        signingIn ? "Signing in..." : "Sign in with Google"
       ),
 
       error &&
@@ -516,7 +560,9 @@ const LoginScreen = () => {
 
       React.createElement(
         "p",
-        { className: "text-center text-xs text-gray-500 mt-6" },
+        {
+          className: "text-center text-xs text-gray-500 mt-6",
+        },
         "Track feedings, invite your partner, and analyze patterns"
       )
     )
@@ -524,12 +570,11 @@ const LoginScreen = () => {
 };
 
 // =====================================================
-// BABY SETUP — now creates FAMILY + KID (with familyName)
+// BABY SETUP — now creates a FAMILY + KID
 // =====================================================
 
 const BabySetupScreen = ({ user, onComplete }) => {
   const [babyName, setBabyName] = useState("");
-  const [familyName, setFamilyName] = useState("");  // 🆕 NEW FIELD
   const [babyWeight, setBabyWeight] = useState("");
   const [birthDate, setBirthDate] = useState("");
   const [saving, setSaving] = useState(false);
@@ -559,20 +604,17 @@ const BabySetupScreen = ({ user, onComplete }) => {
       const birthTimestamp = new Date(birthDate).getTime();
 
       //
-      // Create FAMILY using typed or default name
+      // Create a NEW family + kid
       //
       const famRef = await db.collection("families").add({
         members: [user.uid],
-        name: familyName.trim() || `${babyName}'s family`,   // 🆕 UPDATED
+        name: `${babyName}'s family`,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         primaryKidId: null,
       });
 
       const familyId = famRef.id;
 
-      //
-      // Create KID
-      //
       const kidRef = await db
         .collection("families")
         .doc(familyId)
@@ -588,11 +630,10 @@ const BabySetupScreen = ({ user, onComplete }) => {
 
       const kidId = kidRef.id;
 
+      // set primaryKidId
       await famRef.set({ primaryKidId: kidId }, { merge: true });
 
-      //
-      // Default settings
-      //
+      // default settings
       await db
         .collection("families")
         .doc(familyId)
@@ -606,6 +647,9 @@ const BabySetupScreen = ({ user, onComplete }) => {
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
 
+      //
+      // return family + kid to App
+      //
       onComplete(familyId, kidId);
     } catch (err) {
       console.error(err);
@@ -625,8 +669,6 @@ const BabySetupScreen = ({ user, onComplete }) => {
       {
         className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full",
       },
-
-      // TITLE
       React.createElement(
         "div",
         { className: "text-center mb-6" },
@@ -651,12 +693,10 @@ const BabySetupScreen = ({ user, onComplete }) => {
         )
       ),
 
-      // FORM
       React.createElement(
         "div",
         { className: "space-y-4" },
 
-        // Baby Name
         React.createElement(
           "div",
           null,
@@ -675,26 +715,6 @@ const BabySetupScreen = ({ user, onComplete }) => {
           })
         ),
 
-        // 🟦 NEW FIELD — Family Name
-        React.createElement(
-          "div",
-          null,
-          React.createElement(
-            "label",
-            { className: "block text-sm font-medium text-gray-700 mb-2" },
-            "Family Name (optional)"
-          ),
-          React.createElement("input", {
-            type: "text",
-            value: familyName,
-            onChange: (e) => setFamilyName(e.target.value),
-            placeholder: `${babyName || "Baby"}'s Family`,
-            className:
-              "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
-          })
-        ),
-
-        // Weight
         React.createElement(
           "div",
           null,
@@ -714,7 +734,6 @@ const BabySetupScreen = ({ user, onComplete }) => {
           })
         ),
 
-        // Birthdate
         React.createElement(
           "div",
           null,
@@ -1623,13 +1642,12 @@ return React.createElement('div', { className: "space-y-4" },
 };
 
 // ========================================
-// TINY TRACKER V5 - PART 6
-// Family Tab (family-aware) + image compression + editable family name
+// TINY TRACKER V4.3 - PART 6
+// Family Tab - FIXED: name field width, bigger buttons, show member names, image compression
 // ========================================
 
 const FamilyTab = ({ user, kidId, familyId }) => {
   const [kidData, setKidData] = useState(null);
-  const [familyData, setFamilyData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
   const [loading, setLoading] = useState(true);
@@ -1637,71 +1655,65 @@ const FamilyTab = ({ user, kidId, familyId }) => {
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
-
+  
   // Edit states
-  const [editingFamilyName, setEditingFamilyName] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [editingBirthDate, setEditingBirthDate] = useState(false);
   const [editingWeight, setEditingWeight] = useState(false);
   const [editingMultiplier, setEditingMultiplier] = useState(false);
   const [editingUserName, setEditingUserName] = useState(false);
-
+  
   // Temp values
-  const [tempFamilyName, setTempFamilyName] = useState('');
   const [tempBabyName, setTempBabyName] = useState('');
   const [tempBirthDate, setTempBirthDate] = useState('');
   const [tempWeight, setTempWeight] = useState('');
   const [tempMultiplier, setTempMultiplier] = useState('');
   const [tempUserName, setTempUserName] = useState('');
 
+  // File input ref
   const fileInputRef = React.useRef(null);
 
   useEffect(() => {
     loadData();
-  }, [kidId, familyId]);
+  }, [kidId]);
 
   const loadData = async () => {
-    if (!kidId || !familyId) return;
+    if (!kidId) return;
     setLoading(true);
     try {
       const kid = await firestoreStorage.getKidData();
       setKidData(kid);
-      if (kid.photoURL) setBabyPhotoUrl(kid.photoURL);
-
-      const famDoc = await db.collection("families").doc(familyId).get();
-      setFamilyData(famDoc.data());
-
-      const membersList = await firestoreStorage.getMembers();
-      setMembers(membersList);
-
+      if (kid.photoURL) {
+        setBabyPhotoUrl(kid.photoURL);
+      }
+      
+      const memberList = await firestoreStorage.getMembers();
+      setMembers(memberList);
+      
       const settingsData = await firestoreStorage.getSettings();
-      if (settingsData) setSettings(settingsData);
-    } catch (e) {
-      console.error("Family tab load error:", e);
+      if (settingsData) {
+        setSettings(settingsData);
+      }
+    } catch (error) {
+      console.error('Error loading family data:', error);
     }
     setLoading(false);
   };
 
-  // =============================
-  // FIXED: correct Firestore path
-  // =============================
+  const handlePhotoClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Helper: update kid doc with partial fields
   const updateKidPartial = async (partial) => {
-    await db
-      .collection("families")
-      .doc(familyId)
-      .collection("kids")
-      .doc(kidId)
-      .set(partial, { merge: true });
+    if (!kidId) throw new Error('No kidId set');
+    const db = firebase.firestore();
+    await db.collection('kids').doc(kidId).set(partial, { merge: true });
   };
 
-  const updateFamilyPartial = async (partial) => {
-    await db.collection("families").doc(familyId).set(partial, { merge: true });
-  };
-
-  // ================
-  // Image compression
-  // ================
+  // FIXED: Auto-compress images to meet size requirements
   const compressImage = (file, maxSizeKB = 300) => {
+    // maxSizeKB is the approximate target size in kilobytes
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -1710,35 +1722,63 @@ const FamilyTab = ({ user, kidId, familyId }) => {
           const canvas = document.createElement('canvas');
           let width = img.width;
           let height = img.height;
-
-          const maxDim = 800;
-          if (width > maxDim || height > maxDim) {
+          
+          // Resize if too large
+          const maxDimension = 800;
+          if (width > maxDimension || height > maxDimension) {
             if (width > height) {
-              height = (height / width) * maxDim;
-              width = maxDim;
+              height = (height / width) * maxDimension;
+              width = maxDimension;
             } else {
-              width = (width / height) * maxDim;
-              height = maxDim;
+              width = (width / height) * maxDimension;
+              height = maxDimension;
             }
           }
-
+          
           canvas.width = width;
           canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          ctx.drawImage(img, 0, 0, width, height);
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            reject(new Error('Could not get 2D context'));
+            return;
+          }
 
-          // base64 size estimation
-          const getBytes = (b64) => Math.ceil((b64.length * 3) / 4);
+          ctx.drawImage(img, 0, 0, width, height);
+          
+          // Helper: estimate bytes from base64 length
+          const getApproxBytes = (b64) => Math.ceil((b64.length * 3) / 4);
           const maxBytes = maxSizeKB * 1024;
 
           let quality = 0.8;
-          let base64 = canvas.toDataURL("image/jpeg", quality);
-
-          while (getBytes(base64) > maxBytes && quality > 0.2) {
+          let base64 = canvas.toDataURL('image/jpeg', quality);
+          let approxBytes = getApproxBytes(base64);
+          
+          // First pass: reduce quality
+          while (approxBytes > maxBytes && quality > 0.2) {
             quality -= 0.1;
-            base64 = canvas.toDataURL("image/jpeg", quality);
+            base64 = canvas.toDataURL('image/jpeg', quality);
+            approxBytes = getApproxBytes(base64);
           }
 
+          // Second pass: if still too big, shrink dimensions further
+          if (approxBytes > maxBytes) {
+            let scale = 0.8; // shrink by 20% at a time
+            while (approxBytes > maxBytes && scale > 0.4) {
+              const newWidth = Math.round(width * scale);
+              const newHeight = Math.round(height * scale);
+
+              canvas.width = newWidth;
+              canvas.height = newHeight;
+              ctx.clearRect(0, 0, newWidth, newHeight);
+              ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+              base64 = canvas.toDataURL('image/jpeg', quality);
+              approxBytes = getApproxBytes(base64);
+
+              scale -= 0.1;
+            }
+          }
+          
           resolve(base64);
         };
         img.onerror = reject;
@@ -1749,133 +1789,484 @@ const FamilyTab = ({ user, kidId, familyId }) => {
     });
   };
 
-  const handlePhotoChange = async (e) => {
-    const file = e.target.files?.[0];
+  const handlePhotoChange = async (event) => {
+    const file = event.target.files?.[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      alert("Please select an image");
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      alert('Please select an image file');
       return;
     }
+
     try {
-      const compressed = await compressImage(file, 300);
-      await updateKidPartial({ photoURL: compressed });
-      setBabyPhotoUrl(compressed);
-    } catch (e) {
-      console.error("Photo upload error:", e);
-      alert("Upload failed");
+      // Compress image to ~300KB
+      const compressedBase64 = await compressImage(file, 300);
+      
+      // Save to Firestore
+      await updateKidPartial({ photoURL: compressedBase64 });
+      setBabyPhotoUrl(compressedBase64);
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo');
+    } finally {
+      // allow selecting same file again
+      event.target.value = '';
     }
-    e.target.value = "";
   };
 
-  // ===== FAMILY NAME SAVE =====
-  const handleUpdateFamilyName = async () => {
-    if (!tempFamilyName.trim()) return;
-    await updateFamilyPartial({ name: tempFamilyName.trim() });
-    setEditingFamilyName(false);
-    loadData();
+  const handleCreateInvite = async () => {
+  try {
+    const code = await createInvite(kidId);
+    const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+
+    const shareText =
+      "Come join me on Tiny Tracker so we can both track the baby's feedings together.";
+
+    // Try native share sheet first (iOS / Android / mobile browsers)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Join me on Tiny Tracker',
+          text: `${shareText}\n\n${link}`,
+          url: link
+        });
+        return; // done – user shared or cancelled
+      } catch (err) {
+        console.log('Share failed or was cancelled, falling back to copy UI:', err);
+        // fall through to copy UI
+      }
+    }
+
+    // Fallback: show the existing copy-link UI and auto-copy if possible
+    setInviteLink(link);
+    setShowInvite(true);
+
+    try {
+      await navigator.clipboard.writeText(link);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 1500);
+    } catch (err) {
+      // ignore – user can still manually copy from the text field
+    }
+  } catch (error) {
+    console.error('Error creating invite:', error);
+    alert('Failed to create invite');
+  }
+};
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
   };
 
-  // ===== Baby name, birthdate, weight, multiplier, username functions unchanged =====
+  const handleRemoveMember = async (memberId) => {
+    if (!confirm('Remove this person\'s access?')) return;
+    try {
+      await removeMember(kidId, memberId);
+      await loadData();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Failed to remove member');
+    }
+  };
+
+  const handleUpdateBabyName = async () => {
+    if (!tempBabyName.trim()) return;
+    try {
+      await updateKidPartial({ name: tempBabyName.trim() });
+      setEditingName(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating name:', error);
+    }
+  };
+
+  const handleUpdateBirthDate = async () => {
+    if (!tempBirthDate) return;
+    try {
+      const birthTimestamp = new Date(tempBirthDate).getTime();
+      await updateKidPartial({ birthDate: birthTimestamp });
+      setEditingBirthDate(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating birth date:', error);
+    }
+  };
+
+  const handleUpdateWeight = async () => {
+    const weight = parseFloat(tempWeight);
+    if (!weight || weight <= 0) return;
+    try {
+      await firestoreStorage.saveSettings({ ...settings, babyWeight: weight });
+      setEditingWeight(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating weight:', error);
+    }
+  };
+
+  const handleUpdateMultiplier = async () => {
+    const mult = parseFloat(tempMultiplier);
+    if (!mult || mult <= 0) return;
+    try {
+      await firestoreStorage.saveSettings({ ...settings, multiplier: mult });
+      setEditingMultiplier(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating multiplier:', error);
+    }
+  };
+
+  const handleUpdateUserName = async () => {
+    if (!tempUserName.trim()) return;
+    try {
+      await updateUserProfile(user.uid, { displayName: tempUserName.trim() });
+      setEditingUserName(false);
+      await loadData();
+    } catch (error) {
+      console.error('Error updating user name:', error);
+    }
+  };
 
   const calculateAge = (birthDate) => {
-    if (!birthDate) return "Not set";
+    if (!birthDate) return 'Not set';
     const birth = new Date(birthDate);
     const now = new Date();
-    const days = Math.floor((now - birth) / (1000 * 60 * 60 * 24));
-    if (days < 31) return `${days} day${days !== 1 ? "s" : ""} old`;
-    const months =
-      now.getMonth() -
-      birth.getMonth() +
-      12 * (now.getFullYear() - birth.getFullYear());
-    return `${months} month${months !== 1 ? "s" : ""} old`;
+    const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+    if (months === 0) {
+      const days = Math.floor((now - birth) / (1000 * 60 * 60 * 24));
+      return `${days} day${days !== 1 ? 's' : ''} old`;
+    }
+    return `${months} month${months !== 1 ? 's' : ''} old`;
   };
 
-  const formatDate = (ts) =>
-    ts
-      ? new Date(ts).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })
-      : "";
+  const formatDate = (timestamp) => {
+    if (!timestamp) return '';
+    return new Date(timestamp).toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
 
-  const formatDateForInput = (ts) =>
-    ts ? new Date(ts).toISOString().split("T")[0] : "";
+  const formatDateForInput = (timestamp) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    return date.toISOString().split('T')[0];
+  };
 
   if (loading) {
-    return React.createElement(
-      "div",
-      { className: "py-12 text-center text-gray-500" },
-      "Loading..."
+    return React.createElement('div', { className: "flex items-center justify-center py-12" },
+      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
     );
   }
 
   const isOwner = kidData?.ownerId === user.uid;
 
-  // ============================
-  // RETURN UI WITH FAMILY NAME
-  // ============================
-  return React.createElement(
-    "div",
-    { className: "space-y-6" },
+  return React.createElement('div', { className: "space-y-4" },
+    // Hidden file input
+    React.createElement('input', {
+      ref: fileInputRef,
+      type: "file",
+      accept: "image/*",
+      onChange: handlePhotoChange,
+      style: { display: 'none' }
+    }),
 
-    // ========= FAMILY NAME CARD =========
-    React.createElement(
-      "div",
-      { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement(
-        "h2",
-        { className: "text-lg font-semibold text-gray-800 mb-4" },
-        "Family"
+    // Baby Info Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
+      
+      React.createElement('div', { className: "flex items-start gap-4 mb-6" },
+        React.createElement('div', { className: "relative flex-shrink-0" },
+          React.createElement('div', {
+            onClick: handlePhotoClick,
+            className: "w-24 h-24 rounded-full overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition relative"
+          },
+            babyPhotoUrl ?
+              React.createElement('img', {
+                src: babyPhotoUrl,
+                alt: kidData?.name || 'Baby',
+                className: "w-full h-full object-cover"
+              })
+            :
+              React.createElement('div', { className: "w-full h-full flex items-center justify-center bg-indigo-100" },
+                React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
+              )
+          ),
+          React.createElement('div', { 
+            className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer hover:bg-indigo-700 transition",
+            onClick: handlePhotoClick
+          },
+            React.createElement(Camera, { className: "w-4 h-4 text-white" })
+          )
+        ),
+        
+        // FIXED: Name field with proper width constraint
+        React.createElement('div', { className: "flex-1 min-w-0" },
+          editingName ?
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('input', {
+                type: "text",
+                value: tempBabyName,
+                onChange: (e) => setTempBabyName(e.target.value),
+                placeholder: "Baby's name",
+                maxLength: 20,
+                className: "flex-1 px-3 py-2 text-lg font-medium border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500",
+                style: { minWidth: 0 }
+              }),
+              // FIXED: Bigger buttons (w-6 h-6 instead of w-4 h-4)
+              React.createElement('button', {
+                onClick: handleUpdateBabyName,
+                className: "text-green-600 hover:text-green-700 flex-shrink-0"
+              }, React.createElement(Check, { className: "w-6 h-6" })),
+              React.createElement('button', {
+                onClick: () => setEditingName(false),
+                className: "text-gray-400 hover:text-gray-600 flex-shrink-0"
+              }, React.createElement(X, { className: "w-6 h-6" }))
+            )
+          :
+            React.createElement('div', { className: "flex items-center gap-2" },
+              React.createElement('h3', { className: "text-lg font-semibold text-gray-800 truncate" }, 
+                kidData?.name || 'Baby'
+              ),
+              React.createElement('button', {
+                onClick: () => {
+                  setTempBabyName(kidData?.name || '');
+                  setEditingName(true);
+                },
+                className: "text-indigo-600 hover:text-indigo-700 flex-shrink-0"
+              }, React.createElement(Edit2, { className: "w-4 h-4" }))
+            ),
+          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, 
+            calculateAge(kidData?.birthDate)
+          )
+        )
+      ),
+      
+      // Birth Date
+      React.createElement('div', { className: "flex items-center justify-between py-3" },
+        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Birth Date'),
+        editingBirthDate ?
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "date",
+              value: tempBirthDate,
+              onChange: (e) => setTempBirthDate(e.target.value),
+              className: "px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm"
+            }),
+            React.createElement('button', {
+              onClick: handleUpdateBirthDate,
+              className: "text-green-600 hover:text-green-700"
+            }, React.createElement(Check, { className: "w-6 h-6" })),
+            React.createElement('button', {
+              onClick: () => setEditingBirthDate(false),
+              className: "text-gray-400 hover:text-gray-600"
+            }, React.createElement(X, { className: "w-6 h-6" }))
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-gray-800 font-medium" }, 
+              formatDate(kidData?.birthDate) || 'Not set'
+            ),
+            React.createElement('button', {
+              onClick: () => {
+                setTempBirthDate(formatDateForInput(kidData?.birthDate) || '');
+                setEditingBirthDate(true);
+              },
+              className: "text-indigo-600 hover:text-indigo-700"
+            }, React.createElement(Edit2, { className: "w-4 h-4" }))
+          )
+      ),
+      
+      // Current Weight
+      React.createElement('div', { className: "flex items-center justify-between py-3" },
+        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Current Weight'),
+        editingWeight ?
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "number",
+              step: "0.1",
+              value: tempWeight,
+              onChange: (e) => setTempWeight(e.target.value),
+              placeholder: "8.5",
+              className: "w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right"
+            }),
+            React.createElement('span', { className: "text-gray-600" }, 'lbs'),
+            React.createElement('button', {
+              onClick: handleUpdateWeight,
+              className: "text-green-600 hover:text-green-700"
+            }, React.createElement(Check, { className: "w-6 h-6" })),
+            React.createElement('button', {
+              onClick: () => setEditingWeight(false),
+              className: "text-gray-400 hover:text-gray-600"
+            }, React.createElement(X, { className: "w-6 h-6" }))
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-gray-800 font-medium" }, 
+              settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set'
+            ),
+            React.createElement('button', {
+              onClick: () => {
+                setTempWeight(settings.babyWeight?.toString() || '');
+                setEditingWeight(true);
+              },
+              className: "text-indigo-600 hover:text-indigo-700"
+            }, React.createElement(Edit2, { className: "w-4 h-4" }))
+          )
+      ),
+      
+      // Target Multiplier
+      React.createElement('div', { className: "flex items-center justify-between py-3" },
+        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Target Multiplier (oz/lb)'),
+        editingMultiplier ?
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('input', {
+              type: "number",
+              step: "0.1",
+              value: tempMultiplier,
+              onChange: (e) => setTempMultiplier(e.target.value),
+              placeholder: "2.5",
+              className: "w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right"
+            }),
+            React.createElement('span', { className: "text-gray-600" }, 'x'),
+            React.createElement('button', {
+              onClick: handleUpdateMultiplier,
+              className: "text-green-600 hover:text-green-700"
+            }, React.createElement(Check, { className: "w-6 h-6" })),
+            React.createElement('button', {
+              onClick: () => setEditingMultiplier(false),
+              className: "text-gray-400 hover:text-gray-600"
+            }, React.createElement(X, { className: "w-6 h-6" }))
+          )
+        :
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('span', { className: "text-gray-800 font-medium" }, 
+              `${settings.multiplier}x`
+            ),
+            React.createElement('button', {
+              onClick: () => {
+                setTempMultiplier(settings.multiplier?.toString() || '2.5');
+                setEditingMultiplier(true);
+              },
+              className: "text-indigo-600 hover:text-indigo-700"
+            }, React.createElement(Edit2, { className: "w-4 h-4" }))
+          )
+      )
+    ),
+
+    // Family Members Card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Family Members'),
+      React.createElement('div', { className: "space-y-3 mb-4" },
+        members.map(member => 
+          React.createElement('div', { 
+            key: member.uid,
+            className: "flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
+          },
+            React.createElement('div', { className: "flex-shrink-0" },
+              member.photoURL ?
+                React.createElement('img', {
+                  src: member.photoURL,
+                  alt: member.displayName || member.email,
+                  className: "w-12 h-12 rounded-full"
+                })
+              :
+                React.createElement('div', { 
+                  className: "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg",
+                  style: { backgroundColor: '#818cf8' }
+                },
+                  React.createElement('span', {}, (member.displayName || member.email).charAt(0).toUpperCase())
+                )
+            ),
+            React.createElement('div', { className: "flex-1 min-w-0" },
+              member.uid === user.uid && editingUserName ?
+                React.createElement('div', { className: "flex items-center gap-2" },
+                  React.createElement('input', {
+                    type: "text",
+                    value: tempUserName,
+                    onChange: (e) => setTempUserName(e.target.value),
+                    placeholder: "Your name",
+                    className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg",
+                    style: { minWidth: 0 }
+                  }),
+                  React.createElement('button', {
+                    onClick: handleUpdateUserName,
+                    className: "text-green-600 hover:text-green-700 flex-shrink-0"
+                  }, React.createElement(Check, { className: "w-6 h-6" })),
+                  React.createElement('button', {
+                    onClick: () => setEditingUserName(false),
+                    className: "text-gray-400 hover:text-gray-600 flex-shrink-0"
+                  }, React.createElement(X, { className: "w-6 h-6" }))
+                )
+              :
+                React.createElement('div', null,
+                  React.createElement('div', { className: "flex items-center gap-2" },
+                    // FIXED: Show displayName or email properly
+                    React.createElement('span', { className: "font-medium text-gray-800 truncate" }, 
+                      member.displayName || member.email.split('@')[0]
+                    ),
+                    member.uid === kidData?.ownerId && 
+                      React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded flex-shrink-0" }, 'Owner'),
+                    member.uid === user.uid &&
+                      React.createElement('button', {
+                        onClick: () => {
+                          setTempUserName(member.displayName || '');
+                          setEditingUserName(true);
+                        },
+                        className: "text-indigo-600 hover:text-indigo-700 flex-shrink-0"
+                      }, React.createElement(Edit2, { className: "w-3 h-3" }))
+                  ),
+                  React.createElement('div', { className: "text-sm text-gray-500 truncate" }, member.email)
+                )
+            ),
+            isOwner && member.uid !== user.uid &&
+              React.createElement('button', {
+                onClick: () => handleRemoveMember(member.uid),
+                className: "text-red-400 hover:text-red-600 text-sm font-medium flex-shrink-0"
+              }, 'Remove')
+          )
+        )
       ),
 
-      editingFamilyName
-        ? React.createElement(
-            "div",
-            { className: "flex items-center gap-2" },
-            React.createElement("input", {
+      !showInvite ?
+        React.createElement('button', {
+          onClick: handleCreateInvite,
+          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+        },
+          React.createElement(UserPlus, { className: "w-5 h-5" }),
+          '+ Invite Partner'
+        )
+      :
+        React.createElement('div', { className: "bg-indigo-50 rounded-xl p-4" },
+          React.createElement('div', { className: "text-sm text-gray-600 mb-2" }, 'Share this link with your partner:'),
+          React.createElement('div', { className: "flex gap-2" },
+            React.createElement('input', {
               type: "text",
-              value: tempFamilyName,
-              onChange: (e) => setTempFamilyName(e.target.value),
-              className:
-                "flex-1 px-3 py-2 text-lg border-2 border-indigo-300 rounded-lg",
-              placeholder: "Family Name",
+              value: inviteLink,
+              readOnly: true,
+              className: "flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
             }),
-            React.createElement(
-              "button",
-              { onClick: handleUpdateFamilyName, className: "text-green-600" },
-              React.createElement(Check, { className: "w-6 h-6" })
-            ),
-            React.createElement(
-              "button",
-              { onClick: () => setEditingFamilyName(false), className: "text-gray-500" },
-              React.createElement(X, { className: "w-6 h-6" })
-            )
-          )
-        : React.createElement(
-            "div",
-            { className: "flex items-center gap-2" },
-            React.createElement(
-              "span",
-              { className: "text-lg font-medium text-gray-800 truncate" },
-              familyData?.name || "My Family"
-            ),
-            React.createElement(
-              "button",
-              {
-                onClick: () => {
-                  setTempFamilyName(familyData?.name || "");
-                  setEditingFamilyName(true);
-                },
-                className: "text-indigo-600",
-              },
-              React.createElement(Edit2, { className: "w-4 h-4" })
-            )
-          )
-    ),
+            React.createElement('button', {
+              onClick: handleCopyLink,
+              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
+            }, copying ? 'Copied!' : 'Copy')
+          ),
+          React.createElement('button', {
+            onClick: () => setShowInvite(false),
+            className: "mt-2 text-sm text-gray-600 hover:text-gray-800"
+          }, 'Close')
+        )
+    )
   );
 };
-
 
 // ========================================
 // TINY TRACKER V3 - PART 7
