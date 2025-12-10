@@ -1591,25 +1591,38 @@ const AnalyticsTab = ({ kidId }) => {
     todayStartDate.setHours(0, 0, 0, 0);
     const todayStart = todayStartDate.getTime();
 
+    // How many distinct calendar days of data we have in total
+    const allUniqueDays = new Set(feedings.map(f => new Date(f.timestamp).toDateString())).size;
+
     let numDays, labelText;
     if (timeRange === 'day') {
-      // 3-day avg = yesterday, -2, -3 (no today)
       numDays = 3;
       labelText = '3-day avg';
     } else if (timeRange === 'week') {
-      // 7-day avg = last 7 full days, excluding today
       numDays = 7;
       labelText = '7-day avg';
     } else {
-      // 30-day avg = last 30 full days, excluding today
       numDays = 30;
       labelText = '30-day avg';
     }
 
-    const periodStart = todayStart - numDays * MS_PER_DAY; // inclusive
-    const periodEnd = todayStart; // exclusive (cuts off today completely)
+    // Global 3-day bootstrap rule:
+    // - If we have <= 3 distinct days of data, include today in the window.
+    // - Once we have > 3 distinct days of data, all windows use only completed days (exclude today).
+    const bootstrap = allUniqueDays <= 3;
 
-    const recentFeedings = feedings.filter(f => 
+    let periodStart, periodEnd;
+    if (bootstrap) {
+      // Include today: last `numDays` days up through the end of today
+      periodEnd = todayStart + MS_PER_DAY; // end of today
+      periodStart = periodEnd - numDays * MS_PER_DAY;
+    } else {
+      // Exclude today: last `numDays` full days before today
+      periodEnd = todayStart; // start of today (exclusive upper bound)
+      periodStart = todayStart - numDays * MS_PER_DAY;
+    }
+
+    const recentFeedings = feedings.filter(f =>
       f.timestamp >= periodStart && f.timestamp < periodEnd
     );
 
