@@ -424,6 +424,19 @@ const App = () => {
   const [needsSetup, setNeedsSetup] = useState(false);
 
   // ----------------------------------------------------
+  // KID SWITCH (multi-kid)
+  // ----------------------------------------------------
+  const handleKidChange = async (newKidId) => {
+    if (!newKidId || newKidId === kidId || !familyId) return;
+    setKidId(newKidId);
+    try {
+      await firestoreStorage.initialize(familyId, newKidId);
+    } catch (err) {
+      console.error("Failed to switch kid:", err);
+    }
+  };
+
+  // ----------------------------------------------------
   // AUTH STATE CHANGE
   // ----------------------------------------------------
   useEffect(() => {
@@ -575,7 +588,12 @@ const App = () => {
   // ----------------------------------------------------
   // MAIN APP
   // ----------------------------------------------------
-  return React.createElement(MainApp, { user, kidId, familyId });
+  return React.createElement(MainApp, {
+    user,
+    kidId,
+    familyId,
+    onKidChange: handleKidChange
+  });
 };
 
 // =====================================================
@@ -1095,17 +1113,80 @@ const PersonAddIcon = (props) => React.createElement(
   React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
 );
 
+// Per-kid theme palette
+const KID_THEMES = {
+  indigo: { bg: '#E0E7FF', accent: '#4F46E5', soft: '#EEF2FF' },
+  teal:   { bg: '#CCFBF1', accent: '#0F766E', soft: '#E0F2F1' },
+  pink:   { bg: '#FCE7F3', accent: '#DB2777', soft: '#FDF2F8' },
+  amber:  { bg: '#FEF3C7', accent: '#D97706', soft: '#FFFBEB' },
+  purple: { bg: '#EDE9FE', accent: '#7C3AED', soft: '#F5F3FF' }
+};
+
 // =====================================================
 // MAIN APP
 // =====================================================
 
-const MainApp = ({ user, kidId, familyId }) => {
+const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [activeTab, setActiveTab] = useState('tracker');
   const [showShareMenu, setShowShareMenu] = useState(false);
+
+  const [kids, setKids] = useState([]);
+  const [activeKid, setActiveKid] = useState(null);
+  const [themeKey, setThemeKey] = useState('indigo');
+  const [showKidMenu, setShowKidMenu] = useState(false);
+
+  const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
+
+  useEffect(() => {
+    loadKidsAndTheme();
+  }, [familyId, kidId]);
+
+  async function loadKidsAndTheme() {
+    if (!familyId || !kidId) return;
+    try {
+      const kidsSnap = await db
+        .collection("families")
+        .doc(familyId)
+        .collection("kids")
+        .get();
+
+      const list = kidsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setKids(list);
+
+      const current = list.find((k) => k.id === kidId) || null;
+      setActiveKid(current);
+
+      // theme from settings
+      const settingsDoc = await db
+        .collection("families")
+        .doc(familyId)
+        .collection("kids")
+        .doc(kidId)
+        .collection("settings")
+        .doc("default")
+        .get();
+
+      const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
+      setThemeKey(settingsData.themeKey || "indigo");
+    } catch (err) {
+      console.error("Error loading kids/theme:", err);
+    }
+  }
+
+  const handleSelectKid = (newKidId) => {
+    if (!newKidId || newKidId === kidId) {
+      setShowKidMenu(false);
+      return;
+    }
+    if (typeof onKidChange === 'function') {
+      onKidChange(newKidId);
+    }
+    setShowKidMenu(false);
+  };
 
   // -----------------------
   // SHARE ACTIONS
@@ -1172,7 +1253,7 @@ const MainApp = ({ user, kidId, familyId }) => {
     {
       className: "min-h-screen",
       style: {
-        backgroundColor: '#E0E7FF',
+        backgroundColor: theme.bg,
         paddingBottom: '80px'
       }
     },
@@ -1184,7 +1265,7 @@ const MainApp = ({ user, kidId, familyId }) => {
         'div',
         {
           className: "sticky top-0 z-10",
-          style: { backgroundColor: '#E0E7FF' }
+          style: { backgroundColor: theme.bg }
         },
         React.createElement(
           'div',
@@ -1193,19 +1274,79 @@ const MainApp = ({ user, kidId, familyId }) => {
             'div',
             { className: "relative flex items-center justify-between" },
 
+            // Left spacer (keeps title centered)
             React.createElement('div', { className: "w-8" }),
 
+            // Center: kid name + Tracker ▾
             React.createElement(
               'div',
-              { className: "flex items-center gap-2" },
-              React.createElement(Baby, { className: "w-8 h-8 text-indigo-600" }),
+              { className: "flex flex-col items-center" },
               React.createElement(
-                'h1',
-                { className: "text-2xl font-bold text-gray-800 handwriting" },
-                "Tiny Tracker"
-              )
+                'button',
+                {
+                  type: 'button',
+                  onClick: () => setShowKidMenu(!showKidMenu),
+                  className:
+                    "inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/70 shadow-sm hover:bg-white transition"
+                },
+                React.createElement(Baby, {
+                  className: "w-6 h-6",
+                  style: { color: theme.accent }
+                }),
+                React.createElement(
+                  'span',
+                  { className: "text-base font-semibold text-gray-800 handwriting" },
+                  (activeKid?.name || 'Baby') + "'s Tracker"
+                ),
+                React.createElement(
+                  'span',
+                  { className: "text-xs text-gray-500" },
+                  "▾"
+                )
+              ),
+
+              // Kid switcher dropdown
+              showKidMenu && kids.length > 0 &&
+                React.createElement(
+                  'div',
+                  {
+                    className:
+                      "absolute left-1/2 -translate-x-1/2 mt-2 w-60 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                  },
+                  kids.map((k) =>
+                    React.createElement(
+                      'button',
+                      {
+                        key: k.id,
+                        onClick: () => handleSelectKid(k.id),
+                        className:
+                          "w-full px-3 py-2 text-sm flex items-center justify-between hover:bg-indigo-50"
+                      },
+                      React.createElement(
+                        'span',
+                        {
+                          className:
+                            "font-medium text-gray-800 truncate"
+                        },
+                        k.name || 'Baby'
+                      ),
+                      k.id === kidId &&
+                        React.createElement(
+                          'span',
+                          { className: "text-xs text-indigo-600" },
+                          "Current"
+                        )
+                    )
+                  ),
+                  React.createElement(
+                    'div',
+                    { className: "border-t border-gray-100 px-3 py-2 text-[11px] text-gray-500" },
+                    "Tip: you can also manage kids in the Family tab."
+                  )
+                )
             ),
 
+            // Right: share menu button
             React.createElement(
               'button',
               {
@@ -1213,7 +1354,10 @@ const MainApp = ({ user, kidId, familyId }) => {
                 className:
                   "w-8 h-8 flex items-center justify-center rounded-full bg-white/70 shadow-sm hover:bg-white transition"
               },
-              React.createElement(ShareIcon, { className: "w-4 h-4 text-indigo-600" })
+              React.createElement(ShareIcon, {
+                className: "w-4 h-4",
+                style: { color: theme.accent }
+              })
             ),
 
             showShareMenu &&
@@ -1233,7 +1377,7 @@ const MainApp = ({ user, kidId, familyId }) => {
                     className:
                       "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
-                  React.createElement(LinkIcon, { className: "w-4 h-4 text-indigo-600" }),
+                  React.createElement(LinkIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
                   "Share app link"
                 ),
                 React.createElement(
@@ -1246,7 +1390,7 @@ const MainApp = ({ user, kidId, familyId }) => {
                     className:
                       "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
-                  React.createElement(PersonAddIcon, { className: "w-4 h-4 text-indigo-600" }),
+                  React.createElement(PersonAddIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
                   "Invite partner"
                 )
               )
@@ -1265,7 +1409,7 @@ const MainApp = ({ user, kidId, familyId }) => {
         activeTab === 'chat' &&
           React.createElement(AIChatTab, { user, kidId, familyId }),
         activeTab === 'family' &&
-          React.createElement(FamilyTab, { user, kidId, familyId }),
+          React.createElement(FamilyTab, { user, kidId, familyId, onKidChange, kids }),
         activeTab === 'settings' &&
           React.createElement(SettingsTab, { user, kidId, familyId })
       )
@@ -1282,7 +1426,7 @@ const MainApp = ({ user, kidId, familyId }) => {
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
-          backgroundColor: '#E0E7FF',
+          backgroundColor: theme.bg,
           boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
@@ -1305,9 +1449,10 @@ const MainApp = ({ user, kidId, familyId }) => {
                 setActiveTab(tab.id);
                 setShowShareMenu(false);
               },
-              className: `flex-1 py-2 flex flex-col items-center gap-1 transition ${
-                activeTab === tab.id ? "text-indigo-600" : "text-gray-400"
-              }`
+              className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+              style: {
+                color: activeTab === tab.id ? theme.accent : '#9CA3AF'
+              }
             },
             React.createElement(tab.icon, { className: "w-6 h-6" }),
             React.createElement('span', { className: "text-xs font-medium" }, tab.label)
@@ -2139,18 +2284,26 @@ const AnalyticsTab = ({ kidId, familyId }) => {
 
 // ========================================
 // TINY TRACKER - PART 6
-// Family Tab - FIXED: name field width, bigger buttons, show member names, image compression
+// Family Tab - multi-kid + image compression + theme picker
 // ========================================
 
-const FamilyTab = ({ user, kidId, familyId }) => {
+const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
+  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5, themeKey: 'indigo' });
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
+
+  // Add Child modal state
+  const [showAddChild, setShowAddChild] = useState(false);
+  const [newBabyName, setNewBabyName] = useState('');
+  const [newBabyWeight, setNewBabyWeight] = useState('');
+  const [newBirthDate, setNewBirthDate] = useState('');
+  const [addingChild, setAddingChild] = useState(false);
+  const [addChildError, setAddChildError] = useState(null);
   
   // Edit states
   const [editingName, setEditingName] = useState(false);
@@ -2169,6 +2322,15 @@ const FamilyTab = ({ user, kidId, familyId }) => {
   // File input ref
   const fileInputRef = React.useRef(null);
 
+  // Theme options for this kid
+  const THEME_OPTIONS = [
+    { key: 'indigo', label: 'Indigo', boxClass: 'bg-indigo-100', ringClass: 'ring-indigo-400' },
+    { key: 'teal',   label: 'Teal',   boxClass: 'bg-teal-100',   ringClass: 'ring-teal-400' },
+    { key: 'pink',   label: 'Pink',   boxClass: 'bg-pink-100',   ringClass: 'ring-pink-400' },
+    { key: 'amber',  label: 'Amber',  boxClass: 'bg-amber-100',  ringClass: 'ring-amber-400' },
+    { key: 'purple', label: 'Purple', boxClass: 'bg-purple-100', ringClass: 'ring-purple-400' }
+  ];
+
   useEffect(() => {
     loadData();
   }, [kidId]);
@@ -2179,8 +2341,10 @@ const FamilyTab = ({ user, kidId, familyId }) => {
     try {
       const kid = await firestoreStorage.getKidData();
       setKidData(kid);
-      if (kid.photoURL) {
+      if (kid?.photoURL) {
         setBabyPhotoUrl(kid.photoURL);
+      } else {
+        setBabyPhotoUrl(null);
       }
       
       const memberList = await firestoreStorage.getMembers();
@@ -2188,7 +2352,13 @@ const FamilyTab = ({ user, kidId, familyId }) => {
       
       const settingsData = await firestoreStorage.getSettings();
       if (settingsData) {
-        setSettings(settingsData);
+        setSettings({
+          babyWeight: settingsData.babyWeight ?? null,
+          multiplier: settingsData.multiplier ?? 2.5,
+          themeKey: settingsData.themeKey || 'indigo'
+        });
+      } else {
+        setSettings({ babyWeight: null, multiplier: 2.5, themeKey: 'indigo' });
       }
     } catch (error) {
       console.error('Error loading family data:', error);
@@ -2316,44 +2486,44 @@ const FamilyTab = ({ user, kidId, familyId }) => {
   };
 
   const handleCreateInvite = async () => {
-  try {
-    const code = await createInvite(familyId, kidId);
-    const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-
-    const shareText =
-      "Come join me on Tiny Tracker so we can both track the baby's feedings together.";
-
-    // Try native share sheet first (iOS / Android / mobile browsers)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: 'Join me on Tiny Tracker',
-          text: `${shareText}\n\n${link}`,
-          url: link
-        });
-        return; // done – user shared or cancelled
-      } catch (err) {
-        console.log('Share failed or was cancelled, falling back to copy UI:', err);
-        // fall through to copy UI
-      }
-    }
-
-    // Fallback: show the existing copy-link UI and auto-copy if possible
-    setInviteLink(link);
-    setShowInvite(true);
-
     try {
-      await navigator.clipboard.writeText(link);
-      setCopying(true);
-      setTimeout(() => setCopying(false), 1500);
-    } catch (err) {
-      // ignore – user can still manually copy from the text field
+      const code = await createInvite(familyId, kidId);
+      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+
+      const shareText =
+        "Come join me on Tiny Tracker so we can both track the baby's feedings together.";
+
+      // Try native share sheet first (iOS / Android / mobile browsers)
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: 'Join me on Tiny Tracker',
+            text: `${shareText}\n\n${link}`,
+            url: link
+          });
+          return; // done – user shared or cancelled
+        } catch (err) {
+          console.log('Share failed or was cancelled, falling back to copy UI:', err);
+          // fall through to copy UI
+        }
+      }
+
+      // Fallback: show the existing copy-link UI and auto-copy if possible
+      setInviteLink(link);
+      setShowInvite(true);
+
+      try {
+        await navigator.clipboard.writeText(link);
+        setCopying(true);
+        setTimeout(() => setCopying(false), 1500);
+      } catch (err) {
+        // ignore – user can still manually copy from the text field
+      }
+    } catch (error) {
+      console.error('Error creating invite:', error);
+      alert('Failed to create invite');
     }
-  } catch (error) {
-    console.error('Error creating invite:', error);
-    alert('Failed to create invite');
-  }
-};
+  };
 
   const handleCopyLink = async () => {
     try {
@@ -2403,9 +2573,10 @@ const FamilyTab = ({ user, kidId, familyId }) => {
     const weight = parseFloat(tempWeight);
     if (!weight || weight <= 0) return;
     try {
-      await firestoreStorage.saveSettings({ ...settings, babyWeight: weight });
+      const newSettings = { ...settings, babyWeight: weight };
+      await firestoreStorage.saveSettings(newSettings);
       setEditingWeight(false);
-      await loadData();
+      setSettings(newSettings);
     } catch (error) {
       console.error('Error updating weight:', error);
     }
@@ -2415,9 +2586,10 @@ const FamilyTab = ({ user, kidId, familyId }) => {
     const mult = parseFloat(tempMultiplier);
     if (!mult || mult <= 0) return;
     try {
-      await firestoreStorage.saveSettings({ ...settings, multiplier: mult });
+      const newSettings = { ...settings, multiplier: mult };
+      await firestoreStorage.saveSettings(newSettings);
       setEditingMultiplier(false);
-      await loadData();
+      setSettings(newSettings);
     } catch (error) {
       console.error('Error updating multiplier:', error);
     }
@@ -2431,6 +2603,82 @@ const FamilyTab = ({ user, kidId, familyId }) => {
       await loadData();
     } catch (error) {
       console.error('Error updating user name:', error);
+    }
+  };
+
+  const handleThemeChange = async (themeKey) => {
+    try {
+      const newSettings = { ...settings, themeKey };
+      setSettings(newSettings);
+      await firestoreStorage.saveSettings(newSettings);
+    } catch (error) {
+      console.error('Error updating theme:', error);
+    }
+  };
+
+  const handleCreateChild = async () => {
+    if (!newBabyName.trim()) {
+      setAddChildError("Please enter your baby's name");
+      return;
+    }
+    const weight = parseFloat(newBabyWeight);
+    if (!weight || weight <= 0) {
+      setAddChildError("Please enter a valid weight");
+      return;
+    }
+    if (!newBirthDate) {
+      setAddChildError("Please enter birth date");
+      return;
+    }
+
+    setAddingChild(true);
+    setAddChildError(null);
+
+    try {
+      const birthTimestamp = new Date(newBirthDate).getTime();
+
+      const kidRef = await db
+        .collection('families')
+        .doc(familyId)
+        .collection('kids')
+        .add({
+          name: newBabyName.trim(),
+          ownerId: user.uid,
+          birthDate: birthTimestamp,
+          members: [user.uid],
+          photoURL: null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+      const newKidId = kidRef.id;
+
+      await db
+        .collection('families')
+        .doc(familyId)
+        .collection('kids')
+        .doc(newKidId)
+        .collection('settings')
+        .doc('default')
+        .set({
+          babyWeight: weight,
+          multiplier: 2.5,
+          themeKey: settings.themeKey || 'indigo',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+      setShowAddChild(false);
+      setNewBabyName('');
+      setNewBabyWeight('');
+      setNewBirthDate('');
+
+      if (onKidChange) {
+        onKidChange(newKidId);
+      }
+    } catch (error) {
+      console.error('Error creating child:', error);
+      setAddChildError('Failed to add child. Please try again.');
+    } finally {
+      setAddingChild(false);
     }
   };
 
@@ -2468,6 +2716,7 @@ const FamilyTab = ({ user, kidId, familyId }) => {
   }
 
   const isOwner = kidData?.ownerId === user.uid;
+  const currentThemeKey = settings.themeKey || 'indigo';
 
   return React.createElement('div', { className: "space-y-4" },
     // Hidden file input
@@ -2508,7 +2757,7 @@ const FamilyTab = ({ user, kidId, familyId }) => {
           )
         ),
         
-        // FIXED: Name field with proper width constraint
+        // Name / age
         React.createElement('div', { className: "flex-1 min-w-0" },
           editingName ?
             React.createElement('div', { className: "flex items-center gap-2" },
@@ -2521,7 +2770,6 @@ const FamilyTab = ({ user, kidId, familyId }) => {
                 className: "flex-1 px-3 py-2 text-lg font-medium border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500",
                 style: { minWidth: 0 }
               }),
-              // FIXED: Bigger buttons (w-6 h-6 instead of w-4 h-4)
               React.createElement('button', {
                 onClick: handleUpdateBabyName,
                 className: "text-green-600 hover:text-green-700 flex-shrink-0"
@@ -2659,7 +2907,65 @@ const FamilyTab = ({ user, kidId, familyId }) => {
               className: "text-indigo-600 hover:text-indigo-700"
             }, React.createElement(Edit2, { className: "w-4 h-4" }))
           )
+      ),
+
+      // Theme picker
+      React.createElement('div', { className: "pt-4 mt-2 border-t border-gray-100" },
+        React.createElement('div', { className: "flex items-center justify-between mb-3" },
+          React.createElement('span', { className: "text-gray-600 font-medium" }, 'Theme Color'),
+          React.createElement('span', { className: "text-xs text-gray-400" }, 'Applies to header / nav')
+        ),
+        React.createElement('div', { className: "flex gap-2" },
+          THEME_OPTIONS.map((opt) =>
+            React.createElement('button', {
+              key: opt.key,
+              type: 'button',
+              onClick: () => handleThemeChange(opt.key),
+              className:
+                "w-10 h-10 rounded-full border-2 flex items-center justify-center " +
+                (currentThemeKey === opt.key
+                  ? `${opt.boxClass} ring-2 ${opt.ringClass} border-transparent`
+                  : `${opt.boxClass} border-white`)
+            },
+              React.createElement('span', {
+                className:
+                  "text-[11px] font-medium text-gray-700"
+              }, opt.label[0])
+            )
+          )
+        )
       )
+    ),
+
+    // Children card
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('div', { className: "flex items-center justify-between mb-4" },
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Children'),
+        React.createElement('button', {
+          onClick: () => setShowAddChild(true),
+          className: "text-sm font-medium text-indigo-600 hover:text-indigo-700"
+        }, '+ Add Child')
+      ),
+      kids.length === 0
+        ? React.createElement('p', { className: "text-sm text-gray-500" }, 'No children set up yet.')
+        : React.createElement('div', { className: "space-y-2" },
+            kids.map((k) =>
+              React.createElement('button', {
+                key: k.id,
+                type: 'button',
+                onClick: () => onKidChange && onKidChange(k.id),
+                className:
+                  "w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm " +
+                  (k.id === kidId
+                    ? "border-indigo-500 bg-indigo-50"
+                    : "border-gray-200 bg-gray-50")
+              },
+                React.createElement('span', { className: "font-medium text-gray-800 truncate" }, k.name || 'Baby'),
+                k.id === kidId &&
+                  React.createElement('span', { className: "text-xs text-indigo-600" }, 'Current')
+              )
+            )
+          )
     ),
 
     // Family Members Card
@@ -2709,7 +3015,6 @@ const FamilyTab = ({ user, kidId, familyId }) => {
               :
                 React.createElement('div', null,
                   React.createElement('div', { className: "flex items-center gap-2" },
-                    // FIXED: Show displayName or email properly
                     React.createElement('span', { className: "font-medium text-gray-800 truncate" }, 
                       member.displayName || member.email.split('@')[0]
                     ),
@@ -2764,7 +3069,121 @@ const FamilyTab = ({ user, kidId, familyId }) => {
             className: "mt-2 text-sm text-gray-600 hover:text-gray-800"
           }, 'Close')
         )
-    )
+    ),
+
+    // Add Child modal
+    showAddChild &&
+      React.createElement(
+        'div',
+        {
+          className: "fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        },
+        React.createElement(
+          'div',
+          {
+            className: "bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4"
+          },
+          React.createElement(
+            'h2',
+            { className: "text-lg font-semibold text-gray-800 mb-4" },
+            "Add Child"
+          ),
+          React.createElement(
+            'div',
+            { className: "space-y-3" },
+            React.createElement(
+              'div',
+              null,
+              React.createElement(
+                'label',
+                { className: "block text-sm font-medium text-gray-700 mb-1" },
+                "Baby's Name"
+              ),
+              React.createElement('input', {
+                type: "text",
+                value: newBabyName,
+                onChange: (e) => setNewBabyName(e.target.value),
+                placeholder: "Liam",
+                className:
+                  "w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 text-sm"
+              })
+            ),
+            React.createElement(
+              'div',
+              { className: "flex gap-3" },
+              React.createElement(
+                'div',
+                { className: "flex-1" },
+                React.createElement(
+                  'label',
+                  { className: "block text-sm font-medium text-gray-700 mb-1" },
+                  "Weight (lbs)"
+                ),
+                React.createElement('input', {
+                  type: "number",
+                  step: "0.1",
+                  value: newBabyWeight,
+                  onChange: (e) => setNewBabyWeight(e.target.value),
+                  placeholder: "8.5",
+                  className:
+                    "w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 text-sm"
+                })
+              ),
+              React.createElement(
+                'div',
+                { className: "flex-1" },
+                React.createElement(
+                  'label',
+                  { className: "block text-sm font-medium text-gray-700 mb-1" },
+                  "Birth Date"
+                ),
+                React.createElement('input', {
+                  type: "date",
+                  value: newBirthDate,
+                  onChange: (e) => setNewBirthDate(e.target.value),
+                  className:
+                    "w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 text-sm"
+                })
+              )
+            ),
+            addChildError &&
+              React.createElement(
+                'div',
+                {
+                  className:
+                    "p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600"
+                },
+                addChildError
+              )
+          ),
+          React.createElement(
+            'div',
+            { className: "mt-4 flex gap-2" },
+            React.createElement(
+              'button',
+              {
+                onClick: handleCreateChild,
+                disabled: addingChild,
+                className:
+                  "flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
+              },
+              addingChild ? "Adding..." : "Add Child"
+            ),
+            React.createElement(
+              'button',
+              {
+                onClick: () => {
+                  setShowAddChild(false);
+                  setAddChildError(null);
+                },
+                className:
+                  "flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 transition"
+              },
+              "Cancel"
+            )
+          )
+        )
+      )
   );
 };
 
