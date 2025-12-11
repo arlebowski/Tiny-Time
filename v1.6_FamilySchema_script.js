@@ -146,9 +146,39 @@ const getFamilyMembers = async (familyId) => {
 
   return userDocs.map((doc) => ({
     uid: doc.id,
-    ...doc.data()
+    ...doc.data(),
   }));
 };
+
+// Update user profile (used on Family tab when renaming yourself)
+const updateUserProfile = async (userId, data) => {
+  if (!userId) throw new Error("No userId");
+  await db.collection("users").doc(userId).set(data, { merge: true });
+};
+
+// Remove a member from a family + kid (used on Family tab)
+const removeMember = async (familyId, kidId, memberId) => {
+  if (!familyId || !kidId || !memberId) throw new Error("Missing ids");
+
+  // Remove from family members array
+  await db
+    .collection("families")
+    .doc(familyId)
+    .update({
+      members: firebase.firestore.FieldValue.arrayRemove(memberId),
+    });
+
+  // Remove from kid members array
+  await db
+    .collection("families")
+    .doc(familyId)
+    .collection("kids")
+    .doc(kidId)
+    .update({
+      members: firebase.firestore.FieldValue.arrayRemove(memberId),
+    });
+};
+
 
 // ========================================
 // FAMILY-BASED STORAGE LAYER
@@ -365,23 +395,14 @@ const App = () => {
         // 4️⃣ Handle incoming invite
         //
         if (inviteCode) {
-          const newKidId = await acceptInvite(inviteCode, u.uid);
+          const inviteResult = await acceptInvite(inviteCode, u.uid);
 
           // Clean URL
           window.history.replaceState({}, document.title, window.location.pathname);
 
-          if (newKidId) {
-            // Re-resolve familyId because invite acceptance puts you into a family
-            const famResnap = await db
-              .collection("families")
-              .where("members", "array-contains", u.uid)
-              .limit(1)
-              .get();
-
-            if (!famResnap.empty) {
-              resolvedFamilyId = famResnap.docs[0].id;
-              resolvedKidId = newKidId;
-            }
+          if (inviteResult && inviteResult.familyId && inviteResult.kidId) {
+            resolvedFamilyId = inviteResult.familyId;
+            resolvedKidId = inviteResult.kidId;
           }
         }
 
@@ -895,7 +916,7 @@ const MainApp = ({ user, kidId, familyId }) => {
 
   const handleGlobalInvitePartner = async () => {
     try {
-      const code = await createInvite(kidId);
+      const code = await createInvite(familyId, kidId);
       const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
 
       if (navigator.share) {
@@ -1714,9 +1735,13 @@ const FamilyTab = ({ user, kidId, familyId }) => {
 
   // Helper: update kid doc with partial fields
   const updateKidPartial = async (partial) => {
-    if (!kidId) throw new Error('No kidId set');
-    const db = firebase.firestore();
-    await db.collection('kids').doc(kidId).set(partial, { merge: true });
+    if (!kidId || !familyId) throw new Error('No kidId/familyId set');
+    await db
+      .collection('families')
+      .doc(familyId)
+      .collection('kids')
+      .doc(kidId)
+      .set(partial, { merge: true });
   };
 
   // FIXED: Auto-compress images to meet size requirements
@@ -1825,7 +1850,7 @@ const FamilyTab = ({ user, kidId, familyId }) => {
 
   const handleCreateInvite = async () => {
   try {
-    const code = await createInvite(kidId);
+    const code = await createInvite(familyId, kidId);
     const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
 
     const shareText =
@@ -1876,7 +1901,7 @@ const FamilyTab = ({ user, kidId, familyId }) => {
   const handleRemoveMember = async (memberId) => {
     if (!confirm('Remove this person\'s access?')) return;
     try {
-      await removeMember(kidId, memberId);
+      await removeMember(familyId, kidId, memberId);
       await loadData();
     } catch (error) {
       console.error('Error removing member:', error);
