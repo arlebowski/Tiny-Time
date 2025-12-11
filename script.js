@@ -579,7 +579,7 @@ const App = () => {
 };
 
 // =====================================================
-// LOGIN SCREEN (now supports Google + Email/Password)
+// LOGIN SCREEN (Google + Email/Password, clearer modes)
 // =====================================================
 
 const LoginScreen = () => {
@@ -595,7 +595,8 @@ const LoginScreen = () => {
     try {
       await signInWithGoogle();
     } catch (error) {
-      setError(error.message);
+      console.error("Google sign-in error", error);
+      setError("Google sign-in failed. Please try again.");
       setSigningIn(false);
     }
   };
@@ -618,7 +619,25 @@ const LoginScreen = () => {
       }
       // on success, onAuthStateChanged in App will take over
     } catch (error) {
-      setError(error.message);
+      console.error("Email auth error", error);
+      let friendly = "Something went wrong. Please try again.";
+
+      if (
+        error.code === "auth/invalid-login-credentials" ||
+        error.code === "auth/wrong-password"
+      ) {
+        friendly = "Email or password is incorrect.";
+      } else if (error.code === "auth/user-not-found") {
+        friendly =
+          "No account found for this email. Switch to “Create account” to sign up.";
+      } else if (error.code === "auth/too-many-requests") {
+        friendly =
+          "Too many attempts. Please wait a moment and try again.";
+      } else if (error.message) {
+        friendly = error.message;
+      }
+
+      setError(friendly);
       setSigningIn(false);
     }
   };
@@ -714,13 +733,45 @@ const LoginScreen = () => {
         { className: "mt-6 border-t border-gray-100 pt-4" },
         React.createElement(
           "p",
-          { className: "text-xs text-gray-500 text-center" },
+          { className: "text-sm text-gray-700 text-center font-medium" },
           "Or continue with email"
+        ),
+
+        // Mode pills
+        React.createElement(
+          "div",
+          { className: "flex justify-center gap-2 mt-3" },
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              onClick: () => setMode("login"),
+              className:
+                "px-3 py-1 text-xs rounded-full border " +
+                (mode === "login"
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-white text-gray-500 border-gray-200"),
+            },
+            "Log in"
+          ),
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              onClick: () => setMode("signup"),
+              className:
+                "px-3 py-1 text-xs rounded-full border " +
+                (mode === "signup"
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "bg-white text-gray-500 border-gray-200"),
+            },
+            "Create account"
+          )
         ),
 
         React.createElement(
           "div",
-          { className: "space-y-3 mt-3" },
+          { className: "space-y-3 mt-4" },
 
           // Email input
           React.createElement("input", {
@@ -739,7 +790,8 @@ const LoginScreen = () => {
             value: password,
             onChange: (e) => setPassword(e.target.value),
             placeholder: "Password",
-            autoComplete: mode === "signup" ? "new-password" : "current-password",
+            autoComplete:
+              mode === "signup" ? "new-password" : "current-password",
             className:
               "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
           }),
@@ -753,22 +805,9 @@ const LoginScreen = () => {
               className:
                 "w-full bg-indigo-600 text-white py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm",
             },
-            mode === "signup" ? "Create account with email" : "Log in with email"
-          ),
-
-          // Mode toggle
-          React.createElement(
-            "button",
-            {
-              type: "button",
-              onClick: () =>
-                setMode((prev) => (prev === "login" ? "signup" : "login")),
-              className:
-                "w-full text-xs text-gray-500 mt-1 hover:text-gray-700",
-            },
-            mode === "login"
-              ? "New here? Create an account with email"
-              : "Already have an account? Log in with email"
+            mode === "signup"
+              ? "Create account with email"
+              : "Log in with email"
           )
         )
       ),
