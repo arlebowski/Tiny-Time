@@ -1113,6 +1113,24 @@ const PersonAddIcon = (props) => React.createElement(
   React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
 );
 
+// Lucide-style ChevronDown
+const ChevronDown = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('polyline', { points: "6 9 12 15 18 9" })
+);
+
 // Per-kid theme palette
 const KID_THEMES = {
   indigo: { bg: '#E0E7FF', accent: '#4F46E5', soft: '#EEF2FF' },
@@ -1135,7 +1153,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [themeKey, setThemeKey] = useState('indigo');
   const [showKidMenu, setShowKidMenu] = useState(false);
 
-  // When header “Add child” is tapped
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
@@ -1150,6 +1167,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
   async function loadKidsAndTheme() {
     if (!familyId || !kidId) return;
+
     try {
       const kidsSnap = await db
         .collection("families")
@@ -1157,13 +1175,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         .collection("kids")
         .get();
 
-      const list = kidsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const list = kidsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setKids(list);
 
-      const current = list.find((k) => k.id === kidId) || null;
+      const current = list.find(k => k.id === kidId) || null;
       setActiveKid(current);
 
-      // theme from settings
       const settingsDoc = await db
         .collection("families")
         .doc(familyId)
@@ -1175,6 +1192,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
       const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
       setThemeKey(settingsData.themeKey || "indigo");
+
     } catch (err) {
       console.error("Error loading kids/theme:", err);
     }
@@ -1191,9 +1209,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     setShowKidMenu(false);
   };
 
-  // -----------------------
+  // --------------------------------------
   // SHARE ACTIONS
-  // -----------------------
+  // --------------------------------------
 
   const handleGlobalShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
@@ -1247,9 +1265,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     }
   };
 
-  // -----------------------
+  // --------------------------------------
   // UI
-  // -----------------------
+  // --------------------------------------
 
   return React.createElement(
     'div',
@@ -1263,7 +1281,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
     React.createElement('div', { className: "max-w-2xl mx-auto" },
 
-      // HEADER
+      // ---------------- HEADER ----------------
       React.createElement(
         'div',
         {
@@ -1285,17 +1303,14 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'button',
                 {
                   type: 'button',
-                  onClick: () => {
-                    setShowKidMenu(!showKidMenu);
-                  },
-                  className:
-                    "flex items-center gap-2 focus:outline-none"
+                  onClick: () => setShowKidMenu(!showKidMenu),
+                  className: "flex items-center gap-2 focus:outline-none"
                 },
                 React.createElement(
                   'div',
-                  { className: "flex items-center justify-center mr-1" },
+                  { className: "flex items-center justify-center mr-2" },
                   React.createElement(Baby, {
-                    className: "w-7 h-7",
+                    className: "w-8 h-8",       // bigger icon
                     style: { color: theme.accent }
                   })
                 ),
@@ -1307,13 +1322,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   (activeKid?.name || 'Baby') + "'s Tracker"
                 ),
-                React.createElement(
-                  'span',
-                  {
-                    className: "ml-1 text-sm text-gray-500"
-                  },
-                  "▾"
-                )
+                React.createElement(ChevronDown, {
+                  className: "w-4 h-4 ml-2",
+                  style: { color: theme.accent }
+                })
               ),
 
               // Kid switcher dropdown
@@ -1333,9 +1345,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         onClick: () => handleSelectKid(k.id),
                         className:
                           "w-full px-3 py-2.5 text-sm flex items-center justify-between " +
-                          (isCurrent
-                            ? "bg-indigo-50"
-                            : "hover:bg-gray-50")
+                          (isCurrent ? "bg-indigo-50" : "hover:bg-gray-50")
                       },
                       React.createElement(
                         'span',
@@ -1360,6 +1370,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                       )
                     );
                   }),
+
+                  // Add child
                   React.createElement(
                     'button',
                     {
@@ -1377,7 +1389,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 )
             ),
 
-            // RIGHT: share menu button
+            // RIGHT: Share button
             React.createElement(
               'button',
               {
@@ -1394,6 +1406,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
               })
             ),
 
+            // Share dropdown
             showShareMenu &&
               React.createElement(
                 'div',
@@ -1411,7 +1424,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     className:
                       "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
-                  React.createElement(LinkIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
+                  React.createElement(LinkIcon, {
+                    className: "w-4 h-4",
+                    style: { color: theme.accent }
+                  }),
                   "Share app link"
                 ),
                 React.createElement(
@@ -1424,7 +1440,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     className:
                       "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
-                  React.createElement(PersonAddIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
+                  React.createElement(PersonAddIcon, {
+                    className: "w-4 h-4",
+                    style: { color: theme.accent }
+                  }),
                   "Invite partner"
                 )
               )
@@ -1432,7 +1451,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         )
       ),
 
-      // CONTENT SECTION
+      // ---------- PAGE CONTENT ----------
       React.createElement(
         'div',
         { className: "px-4" },
@@ -1459,7 +1478,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       )
     ),
 
-    // click-away overlay for menus
+    // Click-away overlay to close menus
     (showShareMenu || showKidMenu) &&
       React.createElement('div', {
         className: "fixed inset-0 z-40",
@@ -1469,7 +1488,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         }
       }),
 
-    // Bottom nav
+    // Bottom navigation
     React.createElement(
       'div',
       {
@@ -1505,7 +1524,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
               }
             },
             React.createElement(tab.icon, { className: "w-6 h-6" }),
-            React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+            React.createElement(
+              'span',
+              { className: "text-xs font-medium" },
+              tab.label
+            )
           )
         )
       )
