@@ -69,6 +69,31 @@ const signInWithGoogle = async () => {
   return result;
 };
 
+const signInWithGoogle = async () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  const result = await auth.signInWithPopup(provider);
+  logEvent("login", { method: "google" });
+  return result;
+};
+
+// Email/password auth helpers
+const signUpWithEmail = async (email, password) => {
+  const result = await auth.createUserWithEmailAndPassword(email, password);
+  logEvent("login", { method: "password_signup" });
+  return result;
+};
+
+const signInWithEmail = async (email, password) => {
+  const result = await auth.signInWithEmailAndPassword(email, password);
+  logEvent("login", { method: "password_login" });
+  return result;
+};
+
+const signOut = async () => {
+  await auth.signOut();
+  logEvent("logout", {});
+};
+
 const signOut = async () => {
   await auth.signOut();
   logEvent("logout", {});
@@ -566,18 +591,44 @@ const App = () => {
 };
 
 // =====================================================
-// LOGIN SCREEN (unchanged)
+// LOGIN SCREEN (now supports Google + Email/Password)
 // =====================================================
 
 const LoginScreen = () => {
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState("login"); // "login" | "signup"
 
   const handleSignIn = async () => {
     setSigningIn(true);
     setError(null);
     try {
       await signInWithGoogle();
+    } catch (error) {
+      setError(error.message);
+      setSigningIn(false);
+    }
+  };
+
+  const handleEmailSubmit = async () => {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError("Please enter an email and password.");
+      return;
+    }
+
+    setSigningIn(true);
+    setError(null);
+
+    try {
+      if (mode === "signup") {
+        await signUpWithEmail(trimmedEmail, password);
+      } else {
+        await signInWithEmail(trimmedEmail, password);
+      }
+      // on success, onAuthStateChanged in App will take over
     } catch (error) {
       setError(error.message);
       setSigningIn(false);
@@ -595,6 +646,7 @@ const LoginScreen = () => {
       {
         className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full",
       },
+      // Header
       React.createElement(
         "div",
         { className: "text-center mb-8" },
@@ -621,6 +673,7 @@ const LoginScreen = () => {
         )
       ),
 
+      // Google button
       React.createElement(
         "button",
         {
@@ -656,6 +709,7 @@ const LoginScreen = () => {
         signingIn ? "Signing in..." : "Sign in with Google"
       ),
 
+      // Error (for either Google or email)
       error &&
         React.createElement(
           "div",
@@ -665,6 +719,71 @@ const LoginScreen = () => {
           },
           error
         ),
+
+      // Email/password section
+      React.createElement(
+        "div",
+        { className: "mt-6 border-t border-gray-100 pt-4" },
+        React.createElement(
+          "p",
+          { className: "text-xs text-gray-500 text-center" },
+          "Or continue with email"
+        ),
+
+        React.createElement(
+          "div",
+          { className: "space-y-3 mt-3" },
+
+          // Email input
+          React.createElement("input", {
+            type: "email",
+            value: email,
+            onChange: (e) => setEmail(e.target.value),
+            placeholder: "Email",
+            autoComplete: "email",
+            className:
+              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
+          }),
+
+          // Password input
+          React.createElement("input", {
+            type: "password",
+            value: password,
+            onChange: (e) => setPassword(e.target.value),
+            placeholder: "Password",
+            autoComplete: mode === "signup" ? "new-password" : "current-password",
+            className:
+              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
+          }),
+
+          // Email submit button
+          React.createElement(
+            "button",
+            {
+              onClick: handleEmailSubmit,
+              disabled: signingIn,
+              className:
+                "w-full bg-indigo-600 text-white py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm",
+            },
+            mode === "signup" ? "Create account with email" : "Log in with email"
+          ),
+
+          // Mode toggle
+          React.createElement(
+            "button",
+            {
+              type: "button",
+              onClick: () =>
+                setMode((prev) => (prev === "login" ? "signup" : "login")),
+              className:
+                "w-full text-xs text-gray-500 mt-1 hover:text-gray-700",
+            },
+            mode === "login"
+              ? "New here? Create an account with email"
+              : "Already have an account? Log in with email"
+          )
+        )
+      ),
 
       React.createElement(
         "p",
