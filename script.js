@@ -1286,21 +1286,16 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 {
                   type: 'button',
                   onClick: () => {
-                    if (kids.length > 1) {
-                      setShowKidMenu(!showKidMenu);
-                    }
+                    setShowKidMenu(!showKidMenu);
                   },
                   className:
                     "flex items-center gap-2 focus:outline-none"
                 },
                 React.createElement(
                   'div',
-                  {
-                    className:
-                      "w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center"
-                  },
+                  { className: "flex items-center justify-center mr-1" },
                   React.createElement(Baby, {
-                    className: "w-6 h-6",
+                    className: "w-7 h-7",
                     style: { color: theme.accent }
                   })
                 ),
@@ -1312,18 +1307,17 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   (activeKid?.name || 'Baby') + "'s Tracker"
                 ),
-                kids.length > 1 &&
-                  React.createElement(
-                    'span',
-                    {
-                      className: "ml-1 text-sm text-gray-500"
-                    },
-                    "▾"
-                  )
+                React.createElement(
+                  'span',
+                  {
+                    className: "ml-1 text-sm text-gray-500"
+                  },
+                  "▾"
+                )
               ),
 
               // Kid switcher dropdown
-              showKidMenu && kids.length > 1 &&
+              showKidMenu && kids.length > 0 &&
                 React.createElement(
                   'div',
                   {
