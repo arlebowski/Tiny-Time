@@ -2958,26 +2958,6 @@ const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
 );
 
 // ========================================
-// SET THEME COLOR FOR MOBILE BROWSER
-// ========================================
-
-const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-if (metaThemeColor) {
-  metaThemeColor.setAttribute('content', '#E0E7FF');
-} else {
-  const meta = document.createElement('meta');
-  meta.name = 'theme-color';
-  meta.content = '#E0E7FF';
-  document.head.appendChild(meta);
-}
-
-// ========================================
-// RENDER APP
-// ========================================
-
-ReactDOM.render(React.createElement(App), document.getElementById('root'));
-
-// ========================================
 // TINY TRACKER - PART 9
 // AI Chat Tab - iMessage Style
 // ========================================
@@ -3792,3 +3772,44 @@ const calculateAgeInMonths = (birthDate) => {
     (now.getMonth() - birth.getMonth())
   );
 };
+
+// ========================================
+// TINY TRACKER V4.4 – PART 11
+// App Initialization, Theme Color, and Render Ordering Fix
+// ========================================
+//
+// IMPORTANT:
+// ReactDOM.render() must run AFTER all components (including App) are defined.
+// iOS Safari and some mobile WebViews will crash with a blank screen if App
+// is referenced before it is initialized.
+//
+// This part moves the theme-color logic and the ReactDOM.render() call to the
+// very bottom of script.js to guarantee correct load order across devices.
+//
+// Also: GitHub Pages aggressively caches script.js — use ?v=### to force refresh.
+//
+// ========================================
+
+
+// ========================================
+// SET THEME COLOR FOR MOBILE BROWSER
+// ========================================
+
+const metaThemeColor = document.querySelector('meta[name="theme-color"]');
+if (metaThemeColor) {
+  metaThemeColor.setAttribute('content', '#E0E7FF');
+} else {
+  const meta = document.createElement('meta');
+  meta.name = 'theme-color';
+  meta.content = '#E0E7FF';
+  document.head.appendChild(meta);
+}
+
+// ========================================
+// RENDER APP (must stay last)
+// ========================================
+
+ReactDOM.render(
+  React.createElement(App),
+  document.getElementById('root')
+);
