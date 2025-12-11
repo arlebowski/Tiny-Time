@@ -1135,6 +1135,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [themeKey, setThemeKey] = useState('indigo');
   const [showKidMenu, setShowKidMenu] = useState(false);
 
+  // When header “Add child” is tapped
+  const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
+
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
   useEffect(() => {
@@ -1272,55 +1275,72 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           { className: "pt-4 pb-6 px-4" },
           React.createElement(
             'div',
-            { className: "relative flex items-center justify-between" },
+            { className: "flex items-center justify-between" },
 
-            // Left spacer (keeps title centered)
-            React.createElement('div', { className: "w-8" }),
-
-            // Center: kid name + Tracker ▾
+            // LEFT: logo + "{kid}'s Tracker"
             React.createElement(
               'div',
-              { className: "flex flex-col items-center" },
+              { className: "relative" },
               React.createElement(
                 'button',
                 {
                   type: 'button',
-                  onClick: () => setShowKidMenu(!showKidMenu),
+                  onClick: () => {
+                    if (kids.length > 1) {
+                      setShowKidMenu(!showKidMenu);
+                    }
+                  },
                   className:
-                    "inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/70 shadow-sm hover:bg-white transition"
+                    "flex items-center gap-2 focus:outline-none"
                 },
-                React.createElement(Baby, {
-                  className: "w-6 h-6",
-                  style: { color: theme.accent }
-                }),
-                React.createElement(
-                  'span',
-                  { className: "text-base font-semibold text-gray-800 handwriting" },
-                  (activeKid?.name || 'Baby') + "'s Tracker"
-                ),
-                React.createElement(
-                  'span',
-                  { className: "text-xs text-gray-500" },
-                  "▾"
-                )
-              ),
-
-              // Kid switcher dropdown
-              showKidMenu && kids.length > 0 &&
                 React.createElement(
                   'div',
                   {
                     className:
-                      "absolute left-1/2 -translate-x-1/2 mt-2 w-60 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                      "w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center"
                   },
-                  kids.map((k) =>
-                    React.createElement(
+                  React.createElement(Baby, {
+                    className: "w-6 h-6",
+                    style: { color: theme.accent }
+                  })
+                ),
+                React.createElement(
+                  'span',
+                  {
+                    className:
+                      "text-xl font-semibold text-gray-800 handwriting"
+                  },
+                  (activeKid?.name || 'Baby') + "'s Tracker"
+                ),
+                kids.length > 1 &&
+                  React.createElement(
+                    ChevronDown,
+                    {
+                      className: "w-4 h-4 text-gray-500 mt-[2px]"
+                    }
+                  )
+              ),
+
+              // Kid switcher dropdown
+              showKidMenu && kids.length > 1 &&
+                React.createElement(
+                  'div',
+                  {
+                    className:
+                      "absolute left-0 mt-3 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                  },
+                  kids.map((k) => {
+                    const isCurrent = k.id === kidId;
+                    return React.createElement(
                       'button',
                       {
                         key: k.id,
                         onClick: () => handleSelectKid(k.id),
                         className:
-                          "w-full px-3 py-2 text-sm flex items-center justify-between hover:bg-indigo-50"
+                          "w-full px-3 py-2.5 text-sm flex items-center justify-between " +
+                          (isCurrent
+                            ? "bg-indigo-50"
+                            : "hover:bg-gray-50")
                       },
                       React.createElement(
                         'span',
@@ -1330,29 +1350,48 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         },
                         k.name || 'Baby'
                       ),
-                      k.id === kidId &&
-                        React.createElement(
-                          'span',
-                          { className: "text-xs text-indigo-600" },
-                          "Current"
-                        )
-                    )
-                  ),
+                      React.createElement(
+                        'span',
+                        {
+                          className:
+                            "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center"
+                        },
+                        isCurrent
+                          ? React.createElement('span', {
+                              className:
+                                "w-2 h-2 rounded-full bg-indigo-500"
+                            })
+                          : null
+                      )
+                    );
+                  }),
                   React.createElement(
-                    'div',
-                    { className: "border-t border-gray-100 px-3 py-2 text-[11px] text-gray-500" },
-                    "Tip: you can also manage kids in the Family tab."
+                    'button',
+                    {
+                      type: 'button',
+                      onClick: () => {
+                        setShowKidMenu(false);
+                        setActiveTab('family');
+                        setHeaderRequestedAddChild(true);
+                      },
+                      className:
+                        "w-full px-3 py-2 text-xs font-medium text-indigo-600 border-t border-gray-100 text-left hover:bg-indigo-50"
+                    },
+                    "+ Add child"
                   )
                 )
             ),
 
-            // Right: share menu button
+            // RIGHT: share menu button
             React.createElement(
               'button',
               {
-                onClick: () => setShowShareMenu(!showShareMenu),
+                onClick: () => {
+                  setShowShareMenu(!showShareMenu);
+                  setShowKidMenu(false);
+                },
                 className:
-                  "w-8 h-8 flex items-center justify-center rounded-full bg-white/70 shadow-sm hover:bg-white transition"
+                  "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
               },
               React.createElement(ShareIcon, {
                 className: "w-4 h-4",
@@ -1365,7 +1404,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'div',
                 {
                   className:
-                    "absolute right-0 top-12 w-56 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                    "absolute right-4 top-20 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50"
                 },
                 React.createElement(
                   'button',
@@ -1409,18 +1448,33 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         activeTab === 'chat' &&
           React.createElement(AIChatTab, { user, kidId, familyId }),
         activeTab === 'family' &&
-          React.createElement(FamilyTab, { user, kidId, familyId, onKidChange, kids }),
+          React.createElement(FamilyTab, {
+            user,
+            kidId,
+            familyId,
+            onKidChange,
+            kids,
+            themeKey,
+            onThemeChange: setThemeKey,
+            requestAddChild: headerRequestedAddChild,
+            onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
+          }),
         activeTab === 'settings' &&
           React.createElement(SettingsTab, { user, kidId, familyId })
       )
     ),
 
-    showShareMenu &&
+    // click-away overlay for menus
+    (showShareMenu || showKidMenu) &&
       React.createElement('div', {
-        className: "fixed inset-0 z-0",
-        onClick: () => setShowShareMenu(false)
+        className: "fixed inset-0 z-40",
+        onClick: () => {
+          setShowShareMenu(false);
+          setShowKidMenu(false);
+        }
       }),
 
+    // Bottom nav
     React.createElement(
       'div',
       {
@@ -1448,6 +1502,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
               onClick: () => {
                 setActiveTab(tab.id);
                 setShowShareMenu(false);
+                setShowKidMenu(false);
               },
               className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
               style: {
@@ -2287,7 +2342,17 @@ const AnalyticsTab = ({ kidId, familyId }) => {
 // Family Tab - multi-kid + image compression + theme picker
 // ========================================
 
-const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
+const FamilyTab = ({
+  user,
+  kidId,
+  familyId,
+  onKidChange,
+  kids = [],
+  themeKey,
+  onThemeChange,
+  requestAddChild,
+  onRequestAddChildHandled
+}) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5, themeKey: 'indigo' });
@@ -2324,16 +2389,24 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
 
   // Theme options for this kid
   const THEME_OPTIONS = [
-    { key: 'indigo', label: 'Indigo', boxClass: 'bg-indigo-100', ringClass: 'ring-indigo-400' },
-    { key: 'teal',   label: 'Teal',   boxClass: 'bg-teal-100',   ringClass: 'ring-teal-400' },
-    { key: 'pink',   label: 'Pink',   boxClass: 'bg-pink-100',   ringClass: 'ring-pink-400' },
-    { key: 'amber',  label: 'Amber',  boxClass: 'bg-amber-100',  ringClass: 'ring-amber-400' },
-    { key: 'purple', label: 'Purple', boxClass: 'bg-purple-100', ringClass: 'ring-purple-400' }
+    { key: 'indigo', boxClass: 'bg-indigo-200', ringClass: 'ring-indigo-400' },
+    { key: 'teal',   boxClass: 'bg-teal-200',   ringClass: 'ring-teal-400' },
+    { key: 'pink',   boxClass: 'bg-pink-200',   ringClass: 'ring-pink-400' },
+    { key: 'amber',  boxClass: 'bg-amber-200',  ringClass: 'ring-amber-400' },
+    { key: 'purple', boxClass: 'bg-purple-200', ringClass: 'ring-purple-400' }
   ];
 
   useEffect(() => {
     loadData();
   }, [kidId]);
+
+  // Auto-open Add Child when triggered from header
+  useEffect(() => {
+    if (requestAddChild) {
+      setShowAddChild(true);
+      onRequestAddChildHandled && onRequestAddChildHandled();
+    }
+  }, [requestAddChild]);
 
   const loadData = async () => {
     if (!kidId) return;
@@ -2383,7 +2456,6 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
 
   // FIXED: Auto-compress images to meet size requirements
   const compressImage = (file, maxSizeKB = 300) => {
-    // maxSizeKB is the approximate target size in kilobytes
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -2393,7 +2465,6 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
           let width = img.width;
           let height = img.height;
           
-          // Resize if too large
           const maxDimension = 800;
           if (width > maxDimension || height > maxDimension) {
             if (width > height) {
@@ -2415,7 +2486,6 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
 
           ctx.drawImage(img, 0, 0, width, height);
           
-          // Helper: estimate bytes from base64 length
           const getApproxBytes = (b64) => Math.ceil((b64.length * 3) / 4);
           const maxBytes = maxSizeKB * 1024;
 
@@ -2423,16 +2493,14 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
           let base64 = canvas.toDataURL('image/jpeg', quality);
           let approxBytes = getApproxBytes(base64);
           
-          // First pass: reduce quality
           while (approxBytes > maxBytes && quality > 0.2) {
             quality -= 0.1;
             base64 = canvas.toDataURL('image/jpeg', quality);
             approxBytes = getApproxBytes(base64);
           }
 
-          // Second pass: if still too big, shrink dimensions further
           if (approxBytes > maxBytes) {
-            let scale = 0.8; // shrink by 20% at a time
+            let scale = 0.8;
             while (approxBytes > maxBytes && scale > 0.4) {
               const newWidth = Math.round(width * scale);
               const newHeight = Math.round(height * scale);
@@ -2463,24 +2531,19 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Check file type
     if (!file.type.startsWith('image/')) {
       alert('Please select an image file');
       return;
     }
 
     try {
-      // Compress image to ~300KB
       const compressedBase64 = await compressImage(file, 300);
-      
-      // Save to Firestore
       await updateKidPartial({ photoURL: compressedBase64 });
       setBabyPhotoUrl(compressedBase64);
     } catch (error) {
       console.error('Error uploading photo:', error);
       alert('Failed to upload photo');
     } finally {
-      // allow selecting same file again
       event.target.value = '';
     }
   };
@@ -2493,7 +2556,6 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
       const shareText =
         "Come join me on Tiny Tracker so we can both track the baby's feedings together.";
 
-      // Try native share sheet first (iOS / Android / mobile browsers)
       if (navigator.share) {
         try {
           await navigator.share({
@@ -2501,14 +2563,12 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
             text: `${shareText}\n\n${link}`,
             url: link
           });
-          return; // done – user shared or cancelled
+          return;
         } catch (err) {
           console.log('Share failed or was cancelled, falling back to copy UI:', err);
-          // fall through to copy UI
         }
       }
 
-      // Fallback: show the existing copy-link UI and auto-copy if possible
       setInviteLink(link);
       setShowInvite(true);
 
@@ -2516,9 +2576,7 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
         await navigator.clipboard.writeText(link);
         setCopying(true);
         setTimeout(() => setCopying(false), 1500);
-      } catch (err) {
-        // ignore – user can still manually copy from the text field
-      }
+      } catch (err) {}
     } catch (error) {
       console.error('Error creating invite:', error);
       alert('Failed to create invite');
@@ -2606,10 +2664,11 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
     }
   };
 
-  const handleThemeChange = async (themeKey) => {
+  const handleThemeChange = async (newThemeKey) => {
     try {
-      const newSettings = { ...settings, themeKey };
+      const newSettings = { ...settings, themeKey: newThemeKey };
       setSettings(newSettings);
+      onThemeChange && onThemeChange(newThemeKey); // update header immediately
       await firestoreStorage.saveSettings(newSettings);
     } catch (error) {
       console.error('Error updating theme:', error);
@@ -2716,7 +2775,7 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
   }
 
   const isOwner = kidData?.ownerId === user.uid;
-  const currentThemeKey = settings.themeKey || 'indigo';
+  const currentThemeKey = themeKey || settings.themeKey || 'indigo';
 
   return React.createElement('div', { className: "space-y-4" },
     // Hidden file input
@@ -2727,6 +2786,35 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
       onChange: handlePhotoChange,
       style: { display: 'none' }
     }),
+
+    // Kids selector card (moved above Baby Info)
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('div', { className: "flex items-center justify-between mb-4" },
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Kids'),
+        React.createElement('button', {
+          onClick: () => setShowAddChild(true),
+          className: "text-sm font-medium text-indigo-600 hover:text-indigo-700"
+        }, '+ Add Child')
+      ),
+      kids.length === 0
+        ? React.createElement('p', { className: "text-sm text-gray-500" }, 'No kids set up yet.')
+        : React.createElement('div', { className: "space-y-2" },
+            kids.map((k) =>
+              React.createElement('button', {
+                key: k.id,
+                type: 'button',
+                onClick: () => onKidChange && onKidChange(k.id),
+                className:
+                  "w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition " +
+                  (k.id === kidId
+                    ? "border-indigo-500 bg-indigo-50"
+                    : "border-gray-200 bg-gray-50 hover:bg-gray-100")
+              },
+                React.createElement('span', { className: "font-medium text-gray-800 truncate" }, k.name || 'Baby')
+              )
+            )
+          )
+    ),
 
     // Baby Info Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
@@ -2912,60 +3000,23 @@ const FamilyTab = ({ user, kidId, familyId, onKidChange, kids = [] }) => {
       // Theme picker
       React.createElement('div', { className: "pt-4 mt-2 border-t border-gray-100" },
         React.createElement('div', { className: "flex items-center justify-between mb-3" },
-          React.createElement('span', { className: "text-gray-600 font-medium" }, 'Theme Color'),
-          React.createElement('span', { className: "text-xs text-gray-400" }, 'Applies to header / nav')
+          React.createElement('span', { className: "text-gray-600 font-medium" }, 'App Color')
         ),
-        React.createElement('div', { className: "flex gap-2" },
+        React.createElement('div', { className: "flex gap-3" },
           THEME_OPTIONS.map((opt) =>
             React.createElement('button', {
               key: opt.key,
               type: 'button',
               onClick: () => handleThemeChange(opt.key),
               className:
-                "w-10 h-10 rounded-full border-2 flex items-center justify-center " +
+                "w-9 h-9 rounded-full border-2 flex items-center justify-center transition " +
                 (currentThemeKey === opt.key
-                  ? `${opt.boxClass} ring-2 ${opt.ringClass} border-transparent`
-                  : `${opt.boxClass} border-white`)
-            },
-              React.createElement('span', {
-                className:
-                  "text-[11px] font-medium text-gray-700"
-              }, opt.label[0])
-            )
+                  ? `${opt.boxClass} ring-2 ${opt.ringClass} border-white`
+                  : `${opt.boxClass} border-transparent hover:opacity-80`)
+            })
           )
         )
       )
-    ),
-
-    // Children card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "flex items-center justify-between mb-4" },
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Children'),
-        React.createElement('button', {
-          onClick: () => setShowAddChild(true),
-          className: "text-sm font-medium text-indigo-600 hover:text-indigo-700"
-        }, '+ Add Child')
-      ),
-      kids.length === 0
-        ? React.createElement('p', { className: "text-sm text-gray-500" }, 'No children set up yet.')
-        : React.createElement('div', { className: "space-y-2" },
-            kids.map((k) =>
-              React.createElement('button', {
-                key: k.id,
-                type: 'button',
-                onClick: () => onKidChange && onKidChange(k.id),
-                className:
-                  "w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm " +
-                  (k.id === kidId
-                    ? "border-indigo-500 bg-indigo-50"
-                    : "border-gray-200 bg-gray-50")
-              },
-                React.createElement('span', { className: "font-medium text-gray-800 truncate" }, k.name || 'Baby'),
-                k.id === kidId &&
-                  React.createElement('span', { className: "text-xs text-indigo-600" }, 'Current')
-              )
-            )
-          )
     ),
 
     // Family Members Card
