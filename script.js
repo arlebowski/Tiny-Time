@@ -74,6 +74,85 @@ const signOut = async () => {
   logEvent("logout", {});
 };
 
+// Delete current user account:
+// - Remove user from all families' members arrays
+// - Remove user from all kids' members arrays
+// - If user is owner of a kid, transfer ownership to another member if possible
+// - Delete their user profile doc
+// - Delete their auth account
+const deleteCurrentUserAccount = async () => {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("Not signed in");
+  }
+
+  const uid = user.uid;
+
+  // 1) Find all families where this user is a member
+  const famSnap = await db
+    .collection("families")
+    .where("members", "array-contains", uid)
+    .get();
+
+  const familyPromises = famSnap.docs.map(async (famDoc) => {
+    const famRef = famDoc.ref;
+    const famData = famDoc.data() || {};
+    const members = Array.isArray(famData.members) ? famData.members : [];
+    const otherMembers = members.filter((m) => m !== uid);
+
+    // Remove from family.members
+    await famRef.update({
+      members: firebase.firestore.FieldValue.arrayRemove(uid),
+    });
+
+    // For each kid in this family:
+    const kidsSnap = await famRef.collection("kids").get();
+
+    const kidPromises = kidsSnap.docs.map(async (kidDoc) => {
+      const kidRef = kidDoc.ref;
+      const kidData = kidDoc.data() || {};
+
+      // Always remove from kid.members
+      const updates = {
+        members: firebase.firestore.FieldValue.arrayRemove(uid),
+      };
+
+      // If this user was the owner, transfer ownership if possible
+      if (kidData.ownerId === uid) {
+        if (otherMembers.length > 0) {
+          updates.ownerId = otherMembers[0]; // simple: first remaining member
+        } else {
+          // No other members – keep baby data, but no owner
+          updates.ownerId = null;
+        }
+      }
+
+      await kidRef.update(updates);
+    });
+
+    await Promise.all(kidPromises);
+  });
+
+  await Promise.all(familyPromises);
+
+  // 2) Delete user profile document (non-fatal if already gone)
+  try {
+    await db.collection("users").doc(uid).delete();
+  } catch (e) {
+    console.warn("Failed to delete user profile doc:", e);
+  }
+
+  // 3) Log analytics event
+  try {
+    logEvent("account_deleted", { uid });
+  } catch (e) {
+    console.warn("Analytics log failed for account_deleted:", e);
+  }
+
+  // 4) Delete auth user (may require recent login)
+  await user.delete();
+};
+
 // ========================================
 // INVITES
 // ========================================
