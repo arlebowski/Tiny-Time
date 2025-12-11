@@ -69,13 +69,6 @@ const signInWithGoogle = async () => {
   return result;
 };
 
-const signInWithGoogle = async () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  const result = await auth.signInWithPopup(provider);
-  logEvent("login", { method: "google" });
-  return result;
-};
-
 // Email/password auth helpers
 const signUpWithEmail = async (email, password) => {
   const result = await auth.createUserWithEmailAndPassword(email, password);
@@ -87,11 +80,6 @@ const signInWithEmail = async (email, password) => {
   const result = await auth.signInWithEmailAndPassword(email, password);
   logEvent("login", { method: "password_login" });
   return result;
-};
-
-const signOut = async () => {
-  await auth.signOut();
-  logEvent("logout", {});
 };
 
 const signOut = async () => {
