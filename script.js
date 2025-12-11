@@ -916,7 +916,7 @@ const MainApp = ({ user, kidId, familyId }) => {
 
   const handleGlobalInvitePartner = async () => {
     try {
-      const code = await createInvite(kidId);
+      const code = await createInvite(familyId, kidId);
       const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
 
       if (navigator.share) {
