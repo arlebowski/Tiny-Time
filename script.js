@@ -1168,6 +1168,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
   // This prevents the same tap that opens the menu from also "clicking" a menu item
   const [kidMenuOpenedAt, setKidMenuOpenedAt] = useState(0);
+  const [kidMenuClickable, setKidMenuClickable] = useState(true);
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
 
@@ -1178,6 +1179,17 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   useEffect(() => {
     loadKidsAndTheme();
   }, [familyId, kidId]);
+
+  useEffect(() => {
+  let t;
+  if (showKidMenu) {
+    setKidMenuClickable(false);
+    t = setTimeout(() => setKidMenuClickable(true), 250);
+  } else {
+    setKidMenuClickable(true);
+  }
+  return () => t && clearTimeout(t);
+}, [showKidMenu]);
 
   async function loadKidsAndTheme() {
     if (!familyId || !kidId) return;
@@ -1366,7 +1378,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                       "absolute left-0 mt-3 w-64 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
                     onClick: (e) => e.stopPropagation(),
                     style: {
-                      pointerEvents: Date.now() - kidMenuOpenedAt < 200 ? "none" : "auto",
+                      pointerEvents: kidMenuClickable ? "auto" : "none",
                     },
                   },
 
