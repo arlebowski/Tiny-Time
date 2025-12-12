@@ -1318,7 +1318,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   'span',
                   {
                     className:
-                      "text-xl font-semibold text-gray-800 handwriting"
+                      "text-[28px] font-semibold text-gray-800 handwriting leading-none"
                   },
                   (activeKid?.name || 'Baby') + "'s Tracker"
                 ),
