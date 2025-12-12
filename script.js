@@ -1303,7 +1303,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'button',
                 {
                   type: 'button',
-                  onClick: () => setShowKidMenu(!showKidMenu),
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    setShowKidMenu(false);
+                    setActiveTab('family');
+                    setHeaderRequestedAddChild(true);
+                  },
                   className: "flex items-center gap-2 focus:outline-none"
                 },
                 React.createElement(
@@ -1334,7 +1339,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   'div',
                   {
                     className:
-                      "absolute left-0 mt-3 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                      "absolute left-0 mt-3 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                    onClick: (e) => e.stopPropagation()
                   },
                   kids.map((k) => {
                     const isCurrent = k.id === kidId;
