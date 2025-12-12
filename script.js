@@ -1054,90 +1054,100 @@ const BabySetupScreen = ({ user, onComplete }) => {
 // ========================================
 
 // Lucide-style "share" (box + arrow up)
-const ShareIcon = (props) => React.createElement(
-  'svg',
-  {
-    ...props,
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  },
-  React.createElement('path', { d: "M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" }),
-  React.createElement('polyline', { points: "16 6 12 2 8 6" }),
-  React.createElement('line', { x1: "12", y1: "2", x2: "12", y2: "15" })
-);
+const ShareIcon = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", {
+      d: "M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7",
+    }),
+    React.createElement("polyline", { points: "16 6 12 2 8 6" }),
+    React.createElement("line", { x1: "12", y1: "2", x2: "12", y2: "15" })
+  );
 
 // Lucide-style link icon
-const LinkIcon = (props) => React.createElement(
-  'svg',
-  {
-    ...props,
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  },
-  React.createElement('path', { d: "M10 13a5 5 0 0 0 7.54.54l1.92-1.92a3 3 0 0 0-4.24-4.24l-1.1 1.1" }),
-  React.createElement('path', { d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1" })
-);
+const LinkIcon = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", {
+      d: "M10 13a5 5 0 0 0 7.54.54l1.92-1.92a3 3 0 0 0-4.24-4.24l-1.1 1.1",
+    }),
+    React.createElement("path", {
+      d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1",
+    })
+  );
 
 // Lucide-style "person add"
-const PersonAddIcon = (props) => React.createElement(
-  'svg',
-  {
-    ...props,
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  },
-  React.createElement('circle', { cx: "9", cy: "7", r: "3" }),
-  React.createElement('path', { d: "M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1" }),
-  React.createElement('line', { x1: "17", y1: "8", x2: "23", y2: "8" }),
-  React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
-);
+const PersonAddIcon = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("circle", { cx: "9", cy: "7", r: "3" }),
+    React.createElement("path", { d: "M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1" }),
+    React.createElement("line", { x1: "17", y1: "8", x2: "23", y2: "8" }),
+    React.createElement("line", { x1: "20", y1: "5", x2: "20", y2: "11" })
+  );
 
-// Lucide-style ChevronDown
-const ChevronDown = (props) => React.createElement(
-  'svg',
-  {
-    ...props,
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "20",
-    height: "20",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round",
-  },
-  React.createElement('polyline', { points: "6 9 12 15 18 9" })
-);
+// ChevronDown (no external dependency)
+const ChevronDown = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "20",
+      height: "20",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("polyline", { points: "6 9 12 15 18 9" })
+  );
 
 // Per-kid theme palette
 const KID_THEMES = {
-  indigo: { bg: '#E0E7FF', accent: '#4F46E5', soft: '#EEF2FF' },
-  teal:   { bg: '#CCFBF1', accent: '#0F766E', soft: '#E0F2F1' },
-  pink:   { bg: '#FCE7F3', accent: '#DB2777', soft: '#FDF2F8' },
-  amber:  { bg: '#FEF3C7', accent: '#D97706', soft: '#FFFBEB' },
-  purple: { bg: '#EDE9FE', accent: '#7C3AED', soft: '#F5F3FF' }
+  indigo: { bg: "#E0E7FF", accent: "#4F46E5", soft: "#EEF2FF" },
+  teal: { bg: "#CCFBF1", accent: "#0F766E", soft: "#E0F2F1" },
+  pink: { bg: "#FCE7F3", accent: "#DB2777", soft: "#FDF2F8" },
+  amber: { bg: "#FEF3C7", accent: "#D97706", soft: "#FFFBEB" },
+  purple: { bg: "#EDE9FE", accent: "#7C3AED", soft: "#F5F3FF" },
 };
 
 // =====================================================
@@ -1145,20 +1155,24 @@ const KID_THEMES = {
 // =====================================================
 
 const MainApp = ({ user, kidId, familyId, onKidChange }) => {
-  const [activeTab, setActiveTab] = useState('tracker');
+  const [activeTab, setActiveTab] = useState("tracker");
+
   const [showShareMenu, setShowShareMenu] = useState(false);
+  const [showKidMenu, setShowKidMenu] = useState(false);
 
   const [kids, setKids] = useState([]);
   const [activeKid, setActiveKid] = useState(null);
-  const [themeKey, setThemeKey] = useState('indigo');
-  const [showKidMenu, setShowKidMenu] = useState(false);
+
+  const [themeKey, setThemeKey] = useState("indigo");
+  const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
+
+  // This prevents the same tap that opens the menu from also "clicking" a menu item
+  const [kidMenuOpenedAt, setKidMenuOpenedAt] = useState(0);
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
 
-  const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
-
   useEffect(() => {
-    document.title = 'Tiny Tracker';
+    document.title = "Tiny Tracker";
   }, []);
 
   useEffect(() => {
@@ -1175,10 +1189,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         .collection("kids")
         .get();
 
-      const list = kidsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = kidsSnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setKids(list);
 
-      const current = list.find(k => k.id === kidId) || null;
+      const current = list.find((k) => k.id === kidId) || null;
       setActiveKid(current);
 
       const settingsDoc = await db
@@ -1192,20 +1206,33 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
       const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
       setThemeKey(settingsData.themeKey || "indigo");
-
     } catch (err) {
       console.error("Error loading kids/theme:", err);
     }
   }
 
+  const toggleKidMenu = (e) => {
+    e.stopPropagation();
+    setShowKidMenu((v) => {
+      const next = !v;
+      if (next) setKidMenuOpenedAt(Date.now());
+      return next;
+    });
+    setShowShareMenu(false);
+  };
+
   const handleSelectKid = (newKidId) => {
-    if (!newKidId || newKidId === kidId) {
+    if (!newKidId) return;
+
+    if (newKidId === kidId) {
       setShowKidMenu(false);
       return;
     }
-    if (typeof onKidChange === 'function') {
+
+    if (typeof onKidChange === "function") {
       onKidChange(newKidId);
     }
+
     setShowKidMenu(false);
   };
 
@@ -1215,14 +1242,15 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
   const handleGlobalShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
-    const text = "Check out Tiny Tracker - track your baby's feedings and get insights! " + url;
+    const text =
+      "Check out Tiny Tracker - track your baby's feedings and get insights! " + url;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Tiny Tracker',
+          title: "Tiny Tracker",
           text: "Check out Tiny Tracker - track your baby's feedings and get insights!",
-          url
+          url,
         });
         return;
       } catch (err) {}
@@ -1251,7 +1279,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           await navigator.share({
             title: "Join me on Tiny Tracker",
             text: "Come join me so we can both track the baby's feedings.",
-            url: link
+            url: link,
           });
           return;
         } catch (err) {}
@@ -1270,140 +1298,126 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   // --------------------------------------
 
   return React.createElement(
-    'div',
+    "div",
     {
       className: "min-h-screen",
       style: {
         backgroundColor: theme.bg,
-        paddingBottom: '80px'
-      }
+        paddingBottom: "80px",
+      },
     },
 
-    React.createElement('div', { className: "max-w-2xl mx-auto" },
+    React.createElement(
+      "div",
+      { className: "max-w-2xl mx-auto" },
 
       // ---------------- HEADER ----------------
       React.createElement(
-        'div',
-        {
-          className: "sticky top-0 z-10",
-          style: { backgroundColor: theme.bg }
-        },
+        "div",
+        { className: "sticky top-0 z-10", style: { backgroundColor: theme.bg } },
         React.createElement(
-          'div',
+          "div",
           { className: "pt-4 pb-6 px-4 relative" },
           React.createElement(
-            'div',
+            "div",
             { className: "flex items-center justify-between" },
 
             // LEFT: logo + "{kid}'s Tracker"
             React.createElement(
-              'div',
+              "div",
               { className: "relative" },
               React.createElement(
-                'button',
+                "button",
                 {
-                  type: 'button',
-                  onMouseDown: (e) => {
-                    e.stopPropagation();
-                    setShowKidMenu((v) => !v);
-                    setShowShareMenu(false);
-                  },
-                  onTouchStart: (e) => {
-                    e.stopPropagation();
-                    setShowKidMenu((v) => !v);
-                    setShowShareMenu(false);
-                  },
-                  className: "flex items-center gap-2 focus:outline-none"
+                  type: "button",
+                  onClick: toggleKidMenu,
+                  className: "flex items-center gap-2 focus:outline-none",
                 },
                 React.createElement(
-                  'div',
+                  "div",
                   { className: "flex items-center justify-center mr-2" },
                   React.createElement(Baby, {
-                    className: "w-8 h-8",
-                    style: { color: theme.accent }
+                    className: "w-9 h-9",
+                    style: { color: theme.accent },
                   })
                 ),
                 React.createElement(
-                  'span',
+                  "span",
                   {
                     className:
-                      "text-2xl font-semibold text-gray-800 handwriting leading-none"
+                      "text-2xl font-semibold text-gray-800 handwriting leading-none",
                   },
-                  (activeKid?.name || 'Baby') + "'s Tracker"
+                  (activeKid?.name || "Baby") + "'s Tracker"
                 ),
-                React.createElement(ChevronDown, {
-                  className: "w-5 h-5 ml-2",
-                  style: { color: theme.accent }
-                })
+                // Chevron only when there are 2+ kids
+                kids.length >= 2 &&
+                  React.createElement(ChevronDown, {
+                    className: "w-5 h-5 ml-2",
+                    style: { color: theme.accent },
+                  })
               ),
 
               // Kid switcher dropdown
-              showKidMenu && kids.length > 0 &&
+              showKidMenu &&
                 React.createElement(
-                  'div',
+                  "div",
                   {
                     className:
-                      "absolute left-0 mt-3 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
-                    onClick: (e) => e.stopPropagation()
+                      "absolute left-0 mt-3 w-64 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                    onClick: (e) => e.stopPropagation(),
+                    style: {
+                      pointerEvents: Date.now() - kidMenuOpenedAt < 200 ? "none" : "auto",
+                    },
                   },
+
                   kids.map((k) => {
                     const isCurrent = k.id === kidId;
                     return React.createElement(
-                      'button',
+                      "button",
                       {
                         key: k.id,
-                        type: 'button',
-                        onMouseDown: (e) => {
-                          e.stopPropagation();
-                          handleSelectKid(k.id);
-                        },
-                        onTouchStart: (e) => {
+                        type: "button",
+                        onClick: (e) => {
                           e.stopPropagation();
                           handleSelectKid(k.id);
                         },
                         className:
-                          "w-full px-3 py-2.5 text-sm flex items-center justify-between " +
-                          (isCurrent ? "bg-indigo-50" : "hover:bg-gray-50")
+                          "w-full px-4 py-3 text-sm flex items-center justify-between " +
+                          (isCurrent ? "bg-indigo-50" : "hover:bg-gray-50"),
                       },
                       React.createElement(
-                        'span',
+                        "span",
                         { className: "font-medium text-gray-800 truncate" },
-                        k.name || 'Baby'
+                        k.name || "Baby"
                       ),
                       React.createElement(
-                        'span',
+                        "span",
                         {
                           className:
-                            "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center"
+                            "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center",
                         },
                         isCurrent
-                          ? React.createElement('span', {
-                              className: "w-2 h-2 rounded-full bg-indigo-500"
+                          ? React.createElement("span", {
+                              className: "w-2 h-2 rounded-full bg-indigo-500",
                             })
                           : null
                       )
                     );
                   }),
 
-                  // Add child
+                  // Add child (bigger tap target)
                   React.createElement(
-                    'button',
+                    "button",
                     {
-                      type: 'button',
-                      onMouseDown: (e) => {
+                      type: "button",
+                      onClick: (e) => {
                         e.stopPropagation();
                         setShowKidMenu(false);
-                        setActiveTab('family');
-                        setHeaderRequestedAddChild(true);
-                      },
-                      onTouchStart: (e) => {
-                        e.stopPropagation();
-                        setShowKidMenu(false);
-                        setActiveTab('family');
+                        setActiveTab("family");
                         setHeaderRequestedAddChild(true);
                       },
                       className:
-                        "w-full px-3 py-2 text-xs font-medium text-indigo-600 border-t border-gray-100 text-left hover:bg-indigo-50"
+                        "w-full px-4 py-3 text-sm font-semibold text-indigo-600 border-t border-gray-100 text-left hover:bg-indigo-50",
                     },
                     "+ Add child"
                   )
@@ -1412,68 +1426,63 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
             // RIGHT: Share button
             React.createElement(
-              'button',
+              "button",
               {
-                type: 'button',
-                onMouseDown: (e) => {
+                type: "button",
+                onClick: (e) => {
                   e.stopPropagation();
-                  setShowShareMenu(!showShareMenu);
-                  setShowKidMenu(false);
-                },
-                onTouchStart: (e) => {
-                  e.stopPropagation();
-                  setShowShareMenu(!showShareMenu);
+                  setShowShareMenu((v) => !v);
                   setShowKidMenu(false);
                 },
                 className:
-                  "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
+                  "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition",
               },
               React.createElement(ShareIcon, {
                 className: "w-4 h-4",
-                style: { color: theme.accent }
+                style: { color: theme.accent },
               })
             ),
 
             // Share dropdown
             showShareMenu &&
               React.createElement(
-                'div',
+                "div",
                 {
                   className:
                     "absolute right-4 top-20 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
-                  onClick: (e) => e.stopPropagation()
+                  onClick: (e) => e.stopPropagation(),
                 },
                 React.createElement(
-                  'button',
+                  "button",
                   {
-                    type: 'button',
+                    type: "button",
                     onClick: async () => {
                       await handleGlobalShareApp();
                       setShowShareMenu(false);
                     },
                     className:
-                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                      "w-full px-3 py-3 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800",
                   },
                   React.createElement(LinkIcon, {
                     className: "w-4 h-4",
-                    style: { color: theme.accent }
+                    style: { color: theme.accent },
                   }),
                   "Share app link"
                 ),
                 React.createElement(
-                  'button',
+                  "button",
                   {
-                    type: 'button',
+                    type: "button",
                     onClick: async () => {
                       await handleGlobalInvitePartner();
                       setShowShareMenu(false);
                     },
                     className:
-                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                      "w-full px-3 py-3 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800",
                   },
                   React.createElement(PersonAddIcon, {
                     className: "w-4 h-4",
-                    style: { color: theme.accent }
+                    style: { color: theme.accent },
                   }),
                   "Invite partner"
                 )
@@ -1484,15 +1493,15 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
       // ---------- PAGE CONTENT ----------
       React.createElement(
-        'div',
+        "div",
         { className: "px-4" },
-        activeTab === 'tracker' &&
+        activeTab === "tracker" &&
           React.createElement(TrackerTab, { user, kidId, familyId }),
-        activeTab === 'analytics' &&
+        activeTab === "analytics" &&
           React.createElement(AnalyticsTab, { kidId, familyId }),
-        activeTab === 'chat' &&
+        activeTab === "chat" &&
           React.createElement(AIChatTab, { user, kidId, familyId }),
-        activeTab === 'family' &&
+        activeTab === "family" &&
           React.createElement(FamilyTab, {
             user,
             kidId,
@@ -1502,65 +1511,65 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             themeKey,
             onThemeChange: setThemeKey,
             requestAddChild: headerRequestedAddChild,
-            onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
+            onRequestAddChildHandled: () => setHeaderRequestedAddChild(false),
           }),
-        activeTab === 'settings' &&
+        activeTab === "settings" &&
           React.createElement(SettingsTab, { user, kidId, familyId })
       )
     ),
 
     // Click-away overlay to close menus (UNDER dropdowns)
     (showShareMenu || showKidMenu) &&
-      React.createElement('div', {
+      React.createElement("div", {
         className: "fixed inset-0 z-30",
         onClick: () => {
           setShowShareMenu(false);
           setShowKidMenu(false);
-        }
+        },
       }),
+
+/*
+    NOTE:
+    The overlay is intentionally z-30 while dropdown menus are z-50,
+    so the menu remains clickable and the overlay only catches outside clicks.
+*/
 
     // Bottom navigation
     React.createElement(
-      'div',
+      "div",
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
           backgroundColor: theme.bg,
-          boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
-          paddingBottom: 'env(safe-area-inset-bottom)'
-        }
+          boxShadow: "0 -1px 3px rgba(0,0,0,0.1)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        },
       },
       React.createElement(
-        'div',
+        "div",
         { className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3" },
         [
-          { id: 'tracker', icon: BarChart, label: 'Tracker' },
-          { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
-          { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
-          { id: 'family', icon: Users, label: 'Family' },
-          { id: 'settings', icon: Menu, label: 'Settings' }
+          { id: "tracker", icon: BarChart, label: "Tracker" },
+          { id: "analytics", icon: TrendingUp, label: "Analytics" },
+          { id: "chat", icon: MessageCircle, label: "AI Chat" },
+          { id: "family", icon: Users, label: "Family" },
+          { id: "settings", icon: Menu, label: "Settings" },
         ].map((tab) =>
           React.createElement(
-            'button',
+            "button",
             {
               key: tab.id,
-              type: 'button',
+              type: "button",
               onClick: () => {
                 setActiveTab(tab.id);
                 setShowShareMenu(false);
                 setShowKidMenu(false);
               },
               className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-              style: {
-                color: activeTab === tab.id ? theme.accent : '#9CA3AF'
-              }
+              style: { color: activeTab === tab.id ? theme.accent : "#9CA3AF" },
             },
             React.createElement(tab.icon, { className: "w-6 h-6" }),
-            React.createElement(
-              'span',
-              { className: "text-xs font-medium" },
-              tab.label
-            )
+            React.createElement("span", { className: "text-xs font-medium" }, tab.label)
           )
         )
       )
