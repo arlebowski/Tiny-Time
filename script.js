@@ -1050,77 +1050,8 @@ const BabySetupScreen = ({ user, onComplete }) => {
 
 // ========================================
 // TINY TRACKER - PART 3
-// Main App with Bottom Navigation (family-aware)
+// Main App Shell (Header + Tabs + Global Kid Switcher + Global Theming)
 // ========================================
-
-// Lucide-style "share" (box + arrow up)
-const ShareIcon = (props) =>
-  React.createElement(
-    "svg",
-    {
-      ...props,
-      xmlns: "http://www.w3.org/2000/svg",
-      width: "24",
-      height: "24",
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-    },
-    React.createElement("path", {
-      d: "M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7",
-    }),
-    React.createElement("polyline", { points: "16 6 12 2 8 6" }),
-    React.createElement("line", { x1: "12", y1: "2", x2: "12", y2: "15" })
-  );
-
-// Lucide-style link icon
-const LinkIcon = (props) =>
-  React.createElement(
-    "svg",
-    {
-      ...props,
-      xmlns: "http://www.w3.org/2000/svg",
-      width: "24",
-      height: "24",
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-    },
-    React.createElement("path", {
-      d: "M10 13a5 5 0 0 0 7.54.54l1.92-1.92a3 3 0 0 0-4.24-4.24l-1.1 1.1",
-    }),
-    React.createElement("path", {
-      d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1",
-    })
-  );
-
-// Lucide-style "person add"
-const PersonAddIcon = (props) =>
-  React.createElement(
-    "svg",
-    {
-      ...props,
-      xmlns: "http://www.w3.org/2000/svg",
-      width: "24",
-      height: "24",
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-    },
-    React.createElement("circle", { cx: "9", cy: "7", r: "3" }),
-    React.createElement("path", { d: "M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1" }),
-    React.createElement("line", { x1: "17", y1: "8", x2: "23", y2: "8" }),
-    React.createElement("line", { x1: "20", y1: "5", x2: "20", y2: "11" })
-  );
 
 // ChevronDown (no external dependency)
 const ChevronDown = (props) =>
@@ -1129,12 +1060,12 @@ const ChevronDown = (props) =>
     {
       ...props,
       xmlns: "http://www.w3.org/2000/svg",
-      width: "20",
-      height: "20",
+      width: "22",
+      height: "22",
       viewBox: "0 0 24 24",
       fill: "none",
       stroke: "currentColor",
-      strokeWidth: "2",
+      strokeWidth: "3",
       strokeLinecap: "round",
       strokeLinejoin: "round",
     },
@@ -1166,10 +1097,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [themeKey, setThemeKey] = useState("indigo");
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
-  // This prevents the same tap that opens the menu from also "clicking" a menu item
-  const [kidMenuOpenedAt, setKidMenuOpenedAt] = useState(0);
-  const [kidMenuClickable, setKidMenuClickable] = useState(true);
-
+  // “Add child from header” -> Family tab opens modal
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
 
   useEffect(() => {
@@ -1179,17 +1107,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   useEffect(() => {
     loadKidsAndTheme();
   }, [familyId, kidId]);
-
-  useEffect(() => {
-  let t;
-  if (showKidMenu) {
-    setKidMenuClickable(false);
-    t = setTimeout(() => setKidMenuClickable(true), 250);
-  } else {
-    setKidMenuClickable(true);
-  }
-  return () => t && clearTimeout(t);
-}, [showKidMenu]);
 
   async function loadKidsAndTheme() {
     if (!familyId || !kidId) return;
@@ -1223,13 +1140,21 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     }
   }
 
+  // Close menus on Escape (desktop)
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setShowShareMenu(false);
+        setShowKidMenu(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
   const toggleKidMenu = (e) => {
     e.stopPropagation();
-    setShowKidMenu((v) => {
-      const next = !v;
-      if (next) setKidMenuOpenedAt(Date.now());
-      return next;
-    });
+    setShowKidMenu((v) => !v);
     setShowShareMenu(false);
   };
 
@@ -1326,7 +1251,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       // ---------------- HEADER ----------------
       React.createElement(
         "div",
-        { className: "sticky top-0 z-10", style: { backgroundColor: theme.bg } },
+        // IMPORTANT: header z-index must be ABOVE overlay so dropdown items are clickable
+        { className: "sticky top-0 z-50", style: { backgroundColor: theme.bg } },
         React.createElement(
           "div",
           { className: "pt-4 pb-6 px-4 relative" },
@@ -1334,7 +1260,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             "div",
             { className: "flex items-center justify-between" },
 
-            // LEFT: logo + "{kid}'s Tracker"
+            // LEFT: logo + "{kid}'s Tracker" + chevron
             React.createElement(
               "div",
               { className: "relative" },
@@ -1349,7 +1275,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   "div",
                   { className: "flex items-center justify-center mr-2" },
                   React.createElement(Baby, {
-                    className: "w-9 h-9",
+                    className: "w-10 h-10",
                     style: { color: theme.accent },
                   })
                 ),
@@ -1357,14 +1283,13 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   "span",
                   {
                     className:
-                      "text-2xl font-semibold text-gray-800 handwriting leading-none",
+                      "text-3xl font-semibold text-gray-800 handwriting leading-none",
                   },
                   (activeKid?.name || "Baby") + "'s Tracker"
                 ),
-                // Chevron only when there are 2+ kids
                 kids.length >= 2 &&
                   React.createElement(ChevronDown, {
-                    className: "w-5 h-5 ml-2",
+                    className: "w-6 h-6 ml-2",
                     style: { color: theme.accent },
                   })
               ),
@@ -1377,13 +1302,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     className:
                       "absolute left-0 mt-3 w-64 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
                     onClick: (e) => e.stopPropagation(),
-                    style: {
-                      pointerEvents: kidMenuClickable ? "auto" : "none",
-                    },
                   },
 
                   kids.map((k) => {
-                    const isCurrent = k.id === kidId;
+                    const isSelected = k.id === kidId;
+
                     return React.createElement(
                       "button",
                       {
@@ -1395,7 +1318,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         },
                         className:
                           "w-full px-4 py-3 text-sm flex items-center justify-between " +
-                          (isCurrent ? "bg-indigo-50" : "hover:bg-gray-50"),
+                          (isSelected ? "bg-indigo-50" : "hover:bg-gray-50"),
                       },
                       React.createElement(
                         "span",
@@ -1408,7 +1331,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                           className:
                             "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center",
                         },
-                        isCurrent
+                        isSelected
                           ? React.createElement("span", {
                               className: "w-2 h-2 rounded-full bg-indigo-500",
                             })
@@ -1507,12 +1430,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       React.createElement(
         "div",
         { className: "px-4" },
-        activeTab === "tracker" &&
-          React.createElement(TrackerTab, { user, kidId, familyId }),
-        activeTab === "analytics" &&
-          React.createElement(AnalyticsTab, { kidId, familyId }),
-        activeTab === "chat" &&
-          React.createElement(AIChatTab, { user, kidId, familyId }),
+        activeTab === "tracker" && React.createElement(TrackerTab, { user, kidId, familyId }),
+        activeTab === "analytics" && React.createElement(AnalyticsTab, { kidId, familyId }),
+        activeTab === "chat" && React.createElement(AIChatTab, { user, kidId, familyId }),
         activeTab === "family" &&
           React.createElement(FamilyTab, {
             user,
@@ -1525,12 +1445,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             requestAddChild: headerRequestedAddChild,
             onRequestAddChildHandled: () => setHeaderRequestedAddChild(false),
           }),
-        activeTab === "settings" &&
-          React.createElement(SettingsTab, { user, kidId, familyId })
+        activeTab === "settings" && React.createElement(SettingsTab, { user, kidId, familyId })
       )
     ),
 
-    // Click-away overlay to close menus (UNDER dropdowns)
+    // Click-away overlay to close menus (UNDER header + dropdowns)
     (showShareMenu || showKidMenu) &&
       React.createElement("div", {
         className: "fixed inset-0 z-30",
@@ -1539,12 +1458,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           setShowKidMenu(false);
         },
       }),
-
-/*
-    NOTE:
-    The overlay is intentionally z-30 while dropdown menus are z-50,
-    so the menu remains clickable and the overlay only catches outside clicks.
-*/
 
     // Bottom navigation
     React.createElement(
@@ -1565,29 +1478,27 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           { id: "analytics", icon: TrendingUp, label: "Analytics" },
           { id: "chat", icon: MessageCircle, label: "AI Chat" },
           { id: "family", icon: Users, label: "Family" },
-          { id: "settings", icon: Menu, label: "Settings" },
+          { id: "settings", icon: Settings, label: "Settings" },
         ].map((tab) =>
           React.createElement(
             "button",
             {
               key: tab.id,
-              type: "button",
-              onClick: () => {
-                setActiveTab(tab.id);
-                setShowShareMenu(false);
-                setShowKidMenu(false);
-              },
-              className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-              style: { color: activeTab === tab.id ? theme.accent : "#9CA3AF" },
+              onClick: () => setActiveTab(tab.id),
+              className:
+                "flex flex-col items-center gap-1 text-xs font-medium transition " +
+                (activeTab === tab.id ? "opacity-100" : "opacity-70"),
+              style: { color: activeTab === tab.id ? theme.accent : "#6B7280" },
             },
-            React.createElement(tab.icon, { className: "w-6 h-6" }),
-            React.createElement("span", { className: "text-xs font-medium" }, tab.label)
+            React.createElement(tab.icon, { className: "w-5 h-5" }),
+            tab.label
           )
         )
       )
     )
   );
 };
+
 
 // ========================================
 // TINY TRACKER - PART 4  
