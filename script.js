@@ -1290,7 +1290,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         },
         React.createElement(
           'div',
-          { className: "pt-4 pb-6 px-4" },
+          { className: "pt-4 pb-6 px-4 relative" },
           React.createElement(
             'div',
             { className: "flex items-center justify-between" },
@@ -1304,13 +1304,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 {
                   type: 'button',
                   onMouseDown: (e) => {
-                    e.preventDefault();
                     e.stopPropagation();
                     setShowKidMenu((v) => !v);
                     setShowShareMenu(false);
                   },
                   onTouchStart: (e) => {
-                    e.preventDefault();
                     e.stopPropagation();
                     setShowKidMenu((v) => !v);
                     setShowShareMenu(false);
@@ -1321,7 +1319,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   'div',
                   { className: "flex items-center justify-center mr-2" },
                   React.createElement(Baby, {
-                    className: "w-8 h-8",       // bigger icon
+                    className: "w-8 h-8",
                     style: { color: theme.accent }
                   })
                 ),
@@ -1329,12 +1327,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   'span',
                   {
                     className:
-                      "text-[28px] font-semibold text-gray-800 handwriting leading-none"
+                      "text-2xl font-semibold text-gray-800 handwriting leading-none"
                   },
                   (activeKid?.name || 'Baby') + "'s Tracker"
                 ),
                 React.createElement(ChevronDown, {
-                  className: "w-4 h-4 ml-2",
+                  className: "w-5 h-5 ml-2",
                   style: { color: theme.accent }
                 })
               ),
@@ -1354,17 +1352,22 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                       'button',
                       {
                         key: k.id,
-                        onClick: () => handleSelectKid(k.id),
+                        type: 'button',
+                        onMouseDown: (e) => {
+                          e.stopPropagation();
+                          handleSelectKid(k.id);
+                        },
+                        onTouchStart: (e) => {
+                          e.stopPropagation();
+                          handleSelectKid(k.id);
+                        },
                         className:
                           "w-full px-3 py-2.5 text-sm flex items-center justify-between " +
                           (isCurrent ? "bg-indigo-50" : "hover:bg-gray-50")
                       },
                       React.createElement(
                         'span',
-                        {
-                          className:
-                            "font-medium text-gray-800 truncate"
-                        },
+                        { className: "font-medium text-gray-800 truncate" },
                         k.name || 'Baby'
                       ),
                       React.createElement(
@@ -1375,8 +1378,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         },
                         isCurrent
                           ? React.createElement('span', {
-                              className:
-                                "w-2 h-2 rounded-full bg-indigo-500"
+                              className: "w-2 h-2 rounded-full bg-indigo-500"
                             })
                           : null
                       )
@@ -1389,14 +1391,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     {
                       type: 'button',
                       onMouseDown: (e) => {
-                        e.preventDefault();
                         e.stopPropagation();
                         setShowKidMenu(false);
                         setActiveTab('family');
                         setHeaderRequestedAddChild(true);
                       },
                       onTouchStart: (e) => {
-                        e.preventDefault();
                         e.stopPropagation();
                         setShowKidMenu(false);
                         setActiveTab('family');
@@ -1414,7 +1414,14 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             React.createElement(
               'button',
               {
-                onClick: () => {
+                type: 'button',
+                onMouseDown: (e) => {
+                  e.stopPropagation();
+                  setShowShareMenu(!showShareMenu);
+                  setShowKidMenu(false);
+                },
+                onTouchStart: (e) => {
+                  e.stopPropagation();
                   setShowShareMenu(!showShareMenu);
                   setShowKidMenu(false);
                 },
@@ -1433,11 +1440,13 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'div',
                 {
                   className:
-                    "absolute right-4 top-20 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50"
+                    "absolute right-4 top-20 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                  onClick: (e) => e.stopPropagation()
                 },
                 React.createElement(
                   'button',
                   {
+                    type: 'button',
                     onClick: async () => {
                       await handleGlobalShareApp();
                       setShowShareMenu(false);
@@ -1454,6 +1463,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 React.createElement(
                   'button',
                   {
+                    type: 'button',
                     onClick: async () => {
                       await handleGlobalInvitePartner();
                       setShowShareMenu(false);
@@ -1499,7 +1509,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       )
     ),
 
-    // Click-away overlay to close menus
+    // Click-away overlay to close menus (UNDER dropdowns)
     (showShareMenu || showKidMenu) &&
       React.createElement('div', {
         className: "fixed inset-0 z-30",
@@ -1534,6 +1544,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             'button',
             {
               key: tab.id,
+              type: 'button',
               onClick: () => {
                 setActiveTab(tab.id);
                 setShowShareMenu(false);
