@@ -1303,11 +1303,17 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'button',
                 {
                   type: 'button',
-                  onClick: (e) => {
+                  onMouseDown: (e) => {
+                    e.preventDefault();
                     e.stopPropagation();
-                    setShowKidMenu(false);
-                    setActiveTab('family');
-                    setHeaderRequestedAddChild(true);
+                    setShowKidMenu((v) => !v);
+                    setShowShareMenu(false);
+                  },
+                  onTouchStart: (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowKidMenu((v) => !v);
+                    setShowShareMenu(false);
                   },
                   className: "flex items-center gap-2 focus:outline-none"
                 },
@@ -1382,7 +1388,16 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     'button',
                     {
                       type: 'button',
-                      onClick: () => {
+                      onMouseDown: (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowKidMenu(false);
+                        setActiveTab('family');
+                        setHeaderRequestedAddChild(true);
+                      },
+                      onTouchStart: (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setShowKidMenu(false);
                         setActiveTab('family');
                         setHeaderRequestedAddChild(true);
@@ -1487,7 +1502,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     // Click-away overlay to close menus
     (showShareMenu || showKidMenu) &&
       React.createElement('div', {
-        className: "fixed inset-0 z-40",
+        className: "fixed inset-0 z-30",
         onClick: () => {
           setShowShareMenu(false);
           setShowKidMenu(false);
