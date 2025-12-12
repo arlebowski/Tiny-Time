@@ -1,4 +1,3 @@
-
 // ========================================
 // TINY TRACKER - PART 1
 // Config, Auth, Family-Based Firestore Layer + AI Functions
@@ -951,7 +950,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-3" },
-            React.createElement(Baby, { className: "w-10 h-10 text-indigo-600" })
+            React.createElement("span", { className: "text-4xl" }, "🍼")
           )
         ),
         React.createElement(
@@ -1051,50 +1050,138 @@ const BabySetupScreen = ({ user, onComplete }) => {
 
 // ========================================
 // TINY TRACKER - PART 3
-// App Shell + Header + Global Kid Switcher
+// Main App with Bottom Navigation (family-aware)
 // ========================================
 
+// Lucide-style "share" (box + arrow up)
+const ShareIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  },
+  React.createElement('path', { d: "M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" }),
+  React.createElement('polyline', { points: "16 6 12 2 8 6" }),
+  React.createElement('line', { x1: "12", y1: "2", x2: "12", y2: "15" })
+);
+
+// Lucide-style link icon
+const LinkIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  },
+  React.createElement('path', { d: "M10 13a5 5 0 0 0 7.54.54l1.92-1.92a3 3 0 0 0-4.24-4.24l-1.1 1.1" }),
+  React.createElement('path', { d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1" })
+);
+
+// Lucide-style "person add"
+const PersonAddIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "24",
+    height: "24",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round"
+  },
+  React.createElement('circle', { cx: "9", cy: "7", r: "3" }),
+  React.createElement('path', { d: "M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1" }),
+  React.createElement('line', { x1: "17", y1: "8", x2: "23", y2: "8" }),
+  React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
+);
+
+// Lucide-style ChevronDown
+const ChevronDown = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('polyline', { points: "6 9 12 15 18 9" })
+);
+
+// Per-kid theme palette
 const KID_THEMES = {
-  indigo: { bg: "#E0E7FF", accent: "#4F46E5" },
-  teal: { bg: "#CCFBF1", accent: "#0F766E" },
-  pink: { bg: "#FCE7F3", accent: "#DB2777" },
-  amber: { bg: "#FEF3C7", accent: "#D97706" },
-  purple: { bg: "#EDE9FE", accent: "#7C3AED" }
+  indigo: { bg: '#E0E7FF', accent: '#4F46E5', soft: '#EEF2FF' },
+  teal:   { bg: '#CCFBF1', accent: '#0F766E', soft: '#E0F2F1' },
+  pink:   { bg: '#FCE7F3', accent: '#DB2777', soft: '#FDF2F8' },
+  amber:  { bg: '#FEF3C7', accent: '#D97706', soft: '#FFFBEB' },
+  purple: { bg: '#EDE9FE', accent: '#7C3AED', soft: '#F5F3FF' }
 };
 
-const MainApp = ({ user, kidId, familyId, onKidChange }) => {
-  const [activeTab, setActiveTab] = useState("tracker");
-  const [kids, setKids] = useState([]);
-  const [activeKid, setActiveKid] = useState(null);
+// =====================================================
+// MAIN APP
+// =====================================================
 
-  const [showKidMenu, setShowKidMenu] = useState(false);
+const MainApp = ({ user, kidId, familyId, onKidChange }) => {
+  const [activeTab, setActiveTab] = useState('tracker');
   const [showShareMenu, setShowShareMenu] = useState(false);
 
-  const [themeKey, setThemeKey] = useState("indigo");
+  const [kids, setKids] = useState([]);
+  const [activeKid, setActiveKid] = useState(null);
+  const [themeKey, setThemeKey] = useState('indigo');
+  const [showKidMenu, setShowKidMenu] = useState(false);
+
+  const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
+
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
-  const [requestAddChild, setRequestAddChild] = useState(false);
-
-  // -------------------------------
-  // Load kids + theme
-  // -------------------------------
   useEffect(() => {
+    document.title = 'Tiny Tracker';
+  }, []);
+
+  useEffect(() => {
+    loadKidsAndTheme();
+  }, [familyId, kidId]);
+
+  async function loadKidsAndTheme() {
     if (!familyId || !kidId) return;
 
-    (async () => {
-      const snap = await db
+    try {
+      const kidsSnap = await db
         .collection("families")
         .doc(familyId)
         .collection("kids")
         .get();
 
-      const list = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const list = kidsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setKids(list);
 
-      const current = list.find(k => k.id === kidId);
-      setActiveKid(current || null);
+      const current = list.find(k => k.id === kidId) || null;
+      setActiveKid(current);
 
-      const settingsSnap = await db
+      const settingsDoc = await db
         .collection("families")
         .doc(familyId)
         .collection("kids")
@@ -1103,167 +1190,309 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         .doc("default")
         .get();
 
-      if (settingsSnap.exists) {
-        setThemeKey(settingsSnap.data().themeKey || "indigo");
-      }
-    })();
-  }, [familyId, kidId]);
+      const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
+      setThemeKey(settingsData.themeKey || "indigo");
 
-  // Close menus on outside click
-  useEffect(() => {
-    const close = () => {
+    } catch (err) {
+      console.error("Error loading kids/theme:", err);
+    }
+  }
+
+  const handleSelectKid = (newKidId) => {
+    if (!newKidId || newKidId === kidId) {
       setShowKidMenu(false);
-      setShowShareMenu(false);
-    };
-    window.addEventListener("click", close);
-    return () => window.removeEventListener("click", close);
-  }, []);
-
-  // -------------------------------
-  // Header actions
-  // -------------------------------
-  const handleKidSelect = (id) => {
-    if (id !== kidId) onKidChange(id);
+      return;
+    }
+    if (typeof onKidChange === 'function') {
+      onKidChange(newKidId);
+    }
     setShowKidMenu(false);
   };
 
-  const handleAddChildFromHeader = () => {
-    setShowKidMenu(false);
-    setActiveTab("family");
-    setRequestAddChild(true);
+  // --------------------------------------
+  // SHARE ACTIONS
+  // --------------------------------------
+
+  const handleGlobalShareApp = async () => {
+    const url = window.location.origin + window.location.pathname;
+    const text = "Check out Tiny Tracker - track your baby's feedings and get insights! " + url;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Tiny Tracker',
+          text: "Check out Tiny Tracker - track your baby's feedings and get insights!",
+          url
+        });
+        return;
+      } catch (err) {}
+    }
+
+    const messengerUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}&app_id=`;
+    window.location.href = messengerUrl;
+
+    setTimeout(async () => {
+      try {
+        await navigator.clipboard.writeText(text);
+        alert("Link copied to clipboard!");
+      } catch {
+        prompt("Copy this link:", url);
+      }
+    }, 1000);
   };
 
-  // -------------------------------
-  // Render
-  // -------------------------------
+  const handleGlobalInvitePartner = async () => {
+    try {
+      const code = await createInvite(familyId, kidId);
+      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: "Join me on Tiny Tracker",
+            text: "Come join me so we can both track the baby's feedings.",
+            url: link
+          });
+          return;
+        } catch (err) {}
+      }
+
+      await navigator.clipboard.writeText(link);
+      alert("Invite link copied!");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to create invite.");
+    }
+  };
+
+  // --------------------------------------
+  // UI
+  // --------------------------------------
+
   return React.createElement(
-    "div",
+    'div',
     {
       className: "min-h-screen",
-      style: { backgroundColor: theme.bg, paddingBottom: "80px" }
+      style: {
+        backgroundColor: theme.bg,
+        paddingBottom: '80px'
+      }
     },
 
-    React.createElement(
-      "div",
-      { className: "max-w-2xl mx-auto" },
+    React.createElement('div', { className: "max-w-2xl mx-auto" },
 
-      // ================= HEADER =================
+      // ---------------- HEADER ----------------
       React.createElement(
-        "div",
+        'div',
         {
-          className: "sticky top-0 z-50 px-4 pt-4 pb-6",
+          className: "sticky top-0 z-10",
           style: { backgroundColor: theme.bg }
         },
-
         React.createElement(
-          "div",
-          { className: "flex items-center justify-between relative" },
-
-          // Left: Logo + Name
+          'div',
+          { className: "pt-4 pb-6 px-4 relative" },
           React.createElement(
-            "button",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                setShowKidMenu(v => !v);
-              },
-              className: "flex items-center gap-2"
-            },
-            React.createElement(Baby, {
-              className: "w-11 h-11",
-              style: { color: theme.accent }
-            }),
+            'div',
+            { className: "flex items-center justify-between" },
+
+            // LEFT: logo + "{kid}'s Tracker"
             React.createElement(
-              "span",
-              {
-                className:
-                  "text-3xl font-semibold handwriting text-gray-800"
-              },
-              (activeKid?.name || "Baby") + "’s Tracker"
-            ),
-            kids.length > 1 &&
-              React.createElement(ChevronDown, {
-                className: "w-5 h-5 ml-1",
-                style: { color: theme.accent }
-              })
-          ),
-
-          // Right: Share
-          React.createElement(
-            "button",
-            {
-              onClick: (e) => {
-                e.stopPropagation();
-                setShowShareMenu(v => !v);
-              },
-              className:
-                "w-10 h-10 rounded-full bg-white flex items-center justify-center shadow"
-            },
-            React.createElement(Share, {
-              className: "w-4 h-4",
-              style: { color: theme.accent }
-            })
-          ),
-
-          // -------- Kid Menu --------
-          showKidMenu &&
-            React.createElement(
-              "div",
-              {
-                className:
-                  "absolute left-0 top-full mt-3 w-64 bg-white rounded-2xl shadow-lg z-50 overflow-hidden",
-                onClick: (e) => e.stopPropagation()
-              },
-
-              kids.map(k =>
-                React.createElement(
-                  "button",
-                  {
-                    key: k.id,
-                    onClick: () => handleKidSelect(k.id),
-                    className:
-                      "w-full px-4 py-3 flex justify-between text-sm hover:bg-gray-50"
+              'div',
+              { className: "relative" },
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onMouseDown: (e) => {
+                    e.stopPropagation();
+                    setShowKidMenu((v) => !v);
+                    setShowShareMenu(false);
                   },
-                  React.createElement(
-                    "span",
-                    { className: "font-medium" },
-                    k.name
-                  ),
-                  k.id === kidId &&
-                    React.createElement(Check, {
-                      className: "w-4 h-4 text-indigo-600"
-                    })
-                )
+                  onTouchStart: (e) => {
+                    e.stopPropagation();
+                    setShowKidMenu((v) => !v);
+                    setShowShareMenu(false);
+                  },
+                  className: "flex items-center gap-2 focus:outline-none"
+                },
+                React.createElement(
+                  'div',
+                  { className: "flex items-center justify-center mr-2" },
+                  React.createElement(Baby, {
+                    className: "w-8 h-8",
+                    style: { color: theme.accent }
+                  })
+                ),
+                React.createElement(
+                  'span',
+                  {
+                    className:
+                      "text-2xl font-semibold text-gray-800 handwriting leading-none"
+                  },
+                  (activeKid?.name || 'Baby') + "'s Tracker"
+                ),
+                React.createElement(ChevronDown, {
+                  className: "w-5 h-5 ml-2",
+                  style: { color: theme.accent }
+                })
               ),
 
-              React.createElement(
-                "button",
-                {
-                  onClick: handleAddChildFromHeader,
-                  className:
-                    "w-full px-4 py-3 text-sm font-medium text-indigo-600 border-t"
+              // Kid switcher dropdown
+              showKidMenu && kids.length > 0 &&
+                React.createElement(
+                  'div',
+                  {
+                    className:
+                      "absolute left-0 mt-3 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                    onClick: (e) => e.stopPropagation()
+                  },
+                  kids.map((k) => {
+                    const isCurrent = k.id === kidId;
+                    return React.createElement(
+                      'button',
+                      {
+                        key: k.id,
+                        type: 'button',
+                        onMouseDown: (e) => {
+                          e.stopPropagation();
+                          handleSelectKid(k.id);
+                        },
+                        onTouchStart: (e) => {
+                          e.stopPropagation();
+                          handleSelectKid(k.id);
+                        },
+                        className:
+                          "w-full px-3 py-2.5 text-sm flex items-center justify-between " +
+                          (isCurrent ? "bg-indigo-50" : "hover:bg-gray-50")
+                      },
+                      React.createElement(
+                        'span',
+                        { className: "font-medium text-gray-800 truncate" },
+                        k.name || 'Baby'
+                      ),
+                      React.createElement(
+                        'span',
+                        {
+                          className:
+                            "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center"
+                        },
+                        isCurrent
+                          ? React.createElement('span', {
+                              className: "w-2 h-2 rounded-full bg-indigo-500"
+                            })
+                          : null
+                      )
+                    );
+                  }),
+
+                  // Add child
+                  React.createElement(
+                    'button',
+                    {
+                      type: 'button',
+                      onMouseDown: (e) => {
+                        e.stopPropagation();
+                        setShowKidMenu(false);
+                        setActiveTab('family');
+                        setHeaderRequestedAddChild(true);
+                      },
+                      onTouchStart: (e) => {
+                        e.stopPropagation();
+                        setShowKidMenu(false);
+                        setActiveTab('family');
+                        setHeaderRequestedAddChild(true);
+                      },
+                      className:
+                        "w-full px-3 py-2 text-xs font-medium text-indigo-600 border-t border-gray-100 text-left hover:bg-indigo-50"
+                    },
+                    "+ Add child"
+                  )
+                )
+            ),
+
+            // RIGHT: Share button
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onMouseDown: (e) => {
+                  e.stopPropagation();
+                  setShowShareMenu(!showShareMenu);
+                  setShowKidMenu(false);
                 },
-                "+ Add Child"
+                onTouchStart: (e) => {
+                  e.stopPropagation();
+                  setShowShareMenu(!showShareMenu);
+                  setShowKidMenu(false);
+                },
+                className:
+                  "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
+              },
+              React.createElement(ShareIcon, {
+                className: "w-4 h-4",
+                style: { color: theme.accent }
+              })
+            ),
+
+            // Share dropdown
+            showShareMenu &&
+              React.createElement(
+                'div',
+                {
+                  className:
+                    "absolute right-4 top-20 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                  onClick: (e) => e.stopPropagation()
+                },
+                React.createElement(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: async () => {
+                      await handleGlobalShareApp();
+                      setShowShareMenu(false);
+                    },
+                    className:
+                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                  },
+                  React.createElement(LinkIcon, {
+                    className: "w-4 h-4",
+                    style: { color: theme.accent }
+                  }),
+                  "Share app link"
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: async () => {
+                      await handleGlobalInvitePartner();
+                      setShowShareMenu(false);
+                    },
+                    className:
+                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                  },
+                  React.createElement(PersonAddIcon, {
+                    className: "w-4 h-4",
+                    style: { color: theme.accent }
+                  }),
+                  "Invite partner"
+                )
               )
-            )
+          )
         )
       ),
 
-      // ================= CONTENT =================
+      // ---------- PAGE CONTENT ----------
       React.createElement(
-        "div",
+        'div',
         { className: "px-4" },
-
-        activeTab === "tracker" &&
+        activeTab === 'tracker' &&
           React.createElement(TrackerTab, { user, kidId, familyId }),
-
-        activeTab === "analytics" &&
+        activeTab === 'analytics' &&
           React.createElement(AnalyticsTab, { kidId, familyId }),
-
-        activeTab === "chat" &&
+        activeTab === 'chat' &&
           React.createElement(AIChatTab, { user, kidId, familyId }),
-
-        activeTab === "family" &&
+        activeTab === 'family' &&
           React.createElement(FamilyTab, {
             user,
             kidId,
@@ -1272,51 +1501,66 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             kids,
             themeKey,
             onThemeChange: setThemeKey,
-            requestAddChild,
-            onRequestAddChildHandled: () => setRequestAddChild(false)
+            requestAddChild: headerRequestedAddChild,
+            onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
           }),
-
-        activeTab === "settings" &&
+        activeTab === 'settings' &&
           React.createElement(SettingsTab, { user, kidId, familyId })
       )
     ),
 
-    // ================= BOTTOM NAV =================
+    // Click-away overlay to close menus (UNDER dropdowns)
+    (showShareMenu || showKidMenu) &&
+      React.createElement('div', {
+        className: "fixed inset-0 z-30",
+        onClick: () => {
+          setShowShareMenu(false);
+          setShowKidMenu(false);
+        }
+      }),
+
+    // Bottom navigation
     React.createElement(
-      "div",
+      'div',
       {
-        className:
-          "fixed bottom-0 left-0 right-0 z-50 border-t",
+        className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
           backgroundColor: theme.bg,
-          paddingBottom: "env(safe-area-inset-bottom)"
+          boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
+          paddingBottom: 'env(safe-area-inset-bottom)'
         }
       },
       React.createElement(
-        "div",
-        { className: "max-w-2xl mx-auto flex justify-around py-3" },
+        'div',
+        { className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3" },
         [
-          ["tracker", BarChart, "Tracker"],
-          ["analytics", TrendingUp, "Analytics"],
-          ["chat", MessageCircle, "AI Chat"],
-          ["family", Users, "Family"],
-          ["settings", Settings, "Settings"]
-        ].map(([id, Icon, label]) =>
+          { id: 'tracker', icon: BarChart, label: 'Tracker' },
+          { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
+          { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
+          { id: 'family', icon: Users, label: 'Family' },
+          { id: 'settings', icon: Menu, label: 'Settings' }
+        ].map((tab) =>
           React.createElement(
-            "button",
+            'button',
             {
-              key: id,
-              onClick: () => setActiveTab(id),
-              className: "flex flex-col items-center text-xs",
+              key: tab.id,
+              type: 'button',
+              onClick: () => {
+                setActiveTab(tab.id);
+                setShowShareMenu(false);
+                setShowKidMenu(false);
+              },
+              className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
               style: {
-                color:
-                  activeTab === id
-                    ? theme.accent
-                    : "#6B7280"
+                color: activeTab === tab.id ? theme.accent : '#9CA3AF'
               }
             },
-            React.createElement(Icon, { className: "w-5 h-5" }),
-            label
+            React.createElement(tab.icon, { className: "w-6 h-6" }),
+            React.createElement(
+              'span',
+              { className: "text-xs font-medium" },
+              tab.label
+            )
           )
         )
       )
@@ -3468,51 +3712,6 @@ const ChevronRight = (props) => React.createElement('svg', { ...props, xmlns: "h
   React.createElement('path', { d: "m9 18 6-6-6-6" })
 );
 
-// ChevronDown (used by kid picker)
-const ChevronDown = (props) =>
-  React.createElement(
-    "svg",
-    {
-      ...props,
-      xmlns: "http://www.w3.org/2000/svg",
-      width: "24",
-      height: "24",
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      strokeLinecap: "round",
-      strokeLinejoin: "round"
-    },
-    React.createElement("path", { d: "m6 9 6 6 6-6" })
-  );
-
-// Share (used in header)
-const Share = (props) =>
-  React.createElement(
-    "svg",
-    {
-      ...props,
-      xmlns: "http://www.w3.org/2000/svg",
-      width: "24",
-      height: "24",
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2",
-      strokeLinecap: "round",
-      strokeLinejoin: "round"
-    },
-    React.createElement("circle", { cx: "18", cy: "5", r: "3" }),
-    React.createElement("circle", { cx: "6", cy: "12", r: "3" }),
-    React.createElement("circle", { cx: "18", cy: "19", r: "3" }),
-    React.createElement("line", { x1: "8.6", y1: "13.5", x2: "15.4", y2: "17.5" }),
-    React.createElement("line", { x1: "15.4", y1: "6.5", x2: "8.6", y2: "10.5" })
-  );
-
-// Settings alias (your nav expects Settings but you defined Menu)
-const Settings = Menu;
-
 // Clock icon
 const Clock = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
@@ -3586,42 +3785,6 @@ const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
   React.createElement('path', { d: "M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" }),
   React.createElement('path', { d: "M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1" })
 );
-
-const ChevronDown = (props) =>
-  React.createElement(
-    'svg',
-    {
-      ...props,
-      xmlns: 'http://www.w3.org/2000/svg',
-      viewBox: '0 0 24 24',
-      fill: 'none',
-      stroke: 'currentColor',
-      strokeWidth: '2',
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round'
-    },
-    React.createElement('polyline', { points: '6 9 12 15 18 9' })
-  );
-
-const Share = (props) =>
-  React.createElement(
-    'svg',
-    {
-      ...props,
-      xmlns: 'http://www.w3.org/2000/svg',
-      viewBox: '0 0 24 24',
-      fill: 'none',
-      stroke: 'currentColor',
-      strokeWidth: '2',
-      strokeLinecap: 'round',
-      strokeLinejoin: 'round'
-    },
-    React.createElement('circle', { cx: '18', cy: '5', r: '3' }),
-    React.createElement('circle', { cx: '6', cy: '12', r: '3' }),
-    React.createElement('circle', { cx: '18', cy: '19', r: '3' }),
-    React.createElement('line', { x1: '8.59', y1: '13.51', x2: '15.42', y2: '17.49' }),
-    React.createElement('line', { x1: '15.41', y1: '6.51', x2: '8.59', y2: '10.49' })
-  );
 
 // ========================================
 // TINY TRACKER - PART 9
