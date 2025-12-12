@@ -1279,14 +1279,16 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       }
     },
 
-    React.createElement('div', { className: "max-w-2xl mx-auto" },
+    // WRAPPER (header + page content)
+    React.createElement(
+      'div',
+      { className: "max-w-2xl mx-auto" },
 
-            // ---------------- HEADER ----------------
+      // ---------------- HEADER ----------------
       React.createElement(
         'div',
         {
-          // IMPORTANT: must be higher than the click-away overlay
-          className: "sticky top-0 z-40",
+          className: "sticky top-0 z-50",
           style: { backgroundColor: theme.bg }
         },
         React.createElement(
@@ -1322,10 +1324,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 ),
                 React.createElement(
                   'span',
-                  {
-                    className:
-                      "text-2xl font-semibold text-gray-800 handwriting leading-none"
-                  },
+                  { className: "text-2xl font-semibold text-gray-800 handwriting leading-none" },
                   (activeKid?.name || 'Baby') + "'s Tracker"
                 ),
                 React.createElement(ChevronDown, {
@@ -1367,15 +1366,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                       ),
                       React.createElement(
                         'span',
-                        {
-                          className:
-                            "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center"
-                        },
-                        isCurrent
-                          ? React.createElement('span', {
-                              className: "w-2 h-2 rounded-full bg-indigo-500"
-                            })
-                          : null
+                        { className: "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center" },
+                        isCurrent ? React.createElement('span', { className: "w-2 h-2 rounded-full bg-indigo-500" }) : null
                       )
                     );
                   }),
@@ -1443,10 +1435,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     className:
                       "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
-                  React.createElement(LinkIcon, {
-                    className: "w-4 h-4",
-                    style: { color: theme.accent }
-                  }),
+                  React.createElement(LinkIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
                   "Share app link"
                 ),
                 React.createElement(
@@ -1462,10 +1451,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     className:
                       "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
                   },
-                  React.createElement(PersonAddIcon, {
-                    className: "w-4 h-4",
-                    style: { color: theme.accent }
-                  }),
+                  React.createElement(PersonAddIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
                   "Invite partner"
                 )
               )
@@ -1473,12 +1459,33 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         )
       ),
 
+      // ---------------- PAGE CONTENT ----------------
+      React.createElement(
+        'div',
+        { className: "px-4" },
+        activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId, familyId }),
+        activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
+        activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId }),
+        activeTab === 'family' && React.createElement(FamilyTab, {
+          user,
+          kidId,
+          familyId,
+          onKidChange,
+          kids,
+          themeKey,
+          onThemeChange: setThemeKey,
+          requestAddChild: headerRequestedAddChild,
+          onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
+        }),
+        activeTab === 'settings' && React.createElement(SettingsTab, { user })
+      )
+    ),
+
     // Click-away overlay to close menus (UNDER dropdowns)
     (showShareMenu || showKidMenu) &&
       React.createElement('div', {
-        // IMPORTANT: must be lower than the header (header is z-40)
-        className: "fixed inset-0 z-30",
-        onPointerDown: (e) => {
+        className: "fixed inset-0 z-20",
+        onClick: (e) => {
           e.preventDefault();
           e.stopPropagation();
           setShowShareMenu(false);
@@ -1518,16 +1525,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 setShowKidMenu(false);
               },
               className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-              style: {
-                color: activeTab === tab.id ? theme.accent : '#9CA3AF'
-              }
+              style: { color: activeTab === tab.id ? theme.accent : '#9CA3AF' }
             },
             React.createElement(tab.icon, { className: "w-6 h-6" }),
-            React.createElement(
-              'span',
-              { className: "text-xs font-medium" },
-              tab.label
-            )
+            React.createElement('span', { className: "text-xs font-medium" }, tab.label)
           )
         )
       )
