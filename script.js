@@ -2357,7 +2357,7 @@ const AnalyticsTab = ({ kidId, familyId }) => {
 
 // ========================================
 // TINY TRACKER - PART 6
-// Family Tab - multi-kid + image compression + theme picker
+// Family Tab - Multi-kid + Theme + Photo + Members
 // ========================================
 
 const FamilyTab = ({
@@ -2373,58 +2373,56 @@ const FamilyTab = ({
 }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5, themeKey: 'indigo' });
+  const [settings, setSettings] = useState({
+    babyWeight: null,
+    multiplier: 2.5,
+    themeKey: 'indigo'
+  });
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
 
-  // Add Child modal state
-  const [showAddChild, setShowAddChild] = useState(false);
-  const [newBabyName, setNewBabyName] = useState('');
-  const [newBabyWeight, setNewBabyWeight] = useState('');
-  const [newBirthDate, setNewBirthDate] = useState('');
-  const [addingChild, setAddingChild] = useState(false);
-  const [addChildError, setAddChildError] = useState(null);
-  
   // Edit states
   const [editingName, setEditingName] = useState(false);
   const [editingBirthDate, setEditingBirthDate] = useState(false);
   const [editingWeight, setEditingWeight] = useState(false);
   const [editingMultiplier, setEditingMultiplier] = useState(false);
   const [editingUserName, setEditingUserName] = useState(false);
-  
-  // Temp values
+
+  // Temp fields
   const [tempBabyName, setTempBabyName] = useState('');
   const [tempBirthDate, setTempBirthDate] = useState('');
   const [tempWeight, setTempWeight] = useState('');
   const [tempMultiplier, setTempMultiplier] = useState('');
   const [tempUserName, setTempUserName] = useState('');
 
-  // File input ref
   const fileInputRef = React.useRef(null);
 
-  // Theme options for this kid
-  const THEME_OPTIONS = [
-    { key: 'indigo', boxClass: 'bg-indigo-200', ringClass: 'ring-indigo-400' },
-    { key: 'teal',   boxClass: 'bg-teal-200',   ringClass: 'ring-teal-400' },
-    { key: 'pink',   boxClass: 'bg-pink-200',   ringClass: 'ring-pink-400' },
-    { key: 'amber',  boxClass: 'bg-amber-200',  ringClass: 'ring-amber-400' },
-    { key: 'purple', boxClass: 'bg-purple-200', ringClass: 'ring-purple-400' }
-  ];
+  // Add Child modal state
+  const [showAddChild, setShowAddChild] = useState(false);
+  const [newBabyName, setNewBabyName] = useState('');
+  const [newBabyWeight, setNewBabyWeight] = useState('');
+  const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
+  const [savingChild, setSavingChild] = useState(false);
+
+  // --------------------------------------
+  // Data loading
+  // --------------------------------------
 
   useEffect(() => {
     loadData();
-  }, [kidId]);
+  }, [kidId, familyId]);
 
-  // Auto-open Add Child when triggered from header
   useEffect(() => {
     if (requestAddChild) {
       setShowAddChild(true);
-      onRequestAddChildHandled && onRequestAddChildHandled();
+      if (onRequestAddChildHandled) {
+        onRequestAddChildHandled();
+      }
     }
-  }, [requestAddChild]);
+  }, [requestAddChild, onRequestAddChildHandled]);
 
   const loadData = async () => {
     if (!kidId) return;
@@ -2434,193 +2432,147 @@ const FamilyTab = ({
       setKidData(kid);
       if (kid?.photoURL) {
         setBabyPhotoUrl(kid.photoURL);
-      } else {
-        setBabyPhotoUrl(null);
       }
-      
+
       const memberList = await firestoreStorage.getMembers();
       setMembers(memberList);
-      
+
       const settingsData = await firestoreStorage.getSettings();
       if (settingsData) {
-        setSettings({
-          babyWeight: settingsData.babyWeight ?? null,
-          multiplier: settingsData.multiplier ?? 2.5,
-          themeKey: settingsData.themeKey || 'indigo'
-        });
+        const merged = {
+          babyWeight:
+            typeof settingsData.babyWeight === 'number'
+              ? settingsData.babyWeight
+              : null,
+          multiplier:
+            typeof settingsData.multiplier === 'number'
+              ? settingsData.multiplier
+              : 2.5,
+          themeKey: settingsData.themeKey || themeKey || 'indigo'
+        };
+        setSettings(merged);
+
+        if (onThemeChange && merged.themeKey && merged.themeKey !== themeKey) {
+          onThemeChange(merged.themeKey);
+        }
       } else {
-        setSettings({ babyWeight: null, multiplier: 2.5, themeKey: 'indigo' });
+        const merged = {
+          babyWeight: null,
+          multiplier: 2.5,
+          themeKey: themeKey || 'indigo'
+        };
+        setSettings(merged);
       }
     } catch (error) {
-      console.error('Error loading family data:', error);
+      console.error('Error loading family tab:', error);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const handlePhotoClick = () => {
-    fileInputRef.current?.click();
+  const updateKidPartial = async (updates) => {
+    await firestoreStorage.updateKid(updates);
   };
 
-  // Helper: update kid doc with partial fields
-  const updateKidPartial = async (partial) => {
-    if (!kidId || !familyId) throw new Error('No kidId/familyId set');
-    await db
-      .collection('families')
-      .doc(familyId)
-      .collection('kids')
-      .doc(kidId)
-      .set(partial, { merge: true });
-  };
+  // --------------------------------------
+  // Add Child
+  // --------------------------------------
 
-  // FIXED: Auto-compress images to meet size requirements
-  const compressImage = (file, maxSizeKB = 300) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          let width = img.width;
-          let height = img.height;
-          
-          const maxDimension = 800;
-          if (width > maxDimension || height > maxDimension) {
-            if (width > height) {
-              height = (height / width) * maxDimension;
-              width = maxDimension;
-            } else {
-              width = (width / height) * maxDimension;
-              height = maxDimension;
-            }
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            reject(new Error('Could not get 2D context'));
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-          
-          const getApproxBytes = (b64) => Math.ceil((b64.length * 3) / 4);
-          const maxBytes = maxSizeKB * 1024;
-
-          let quality = 0.8;
-          let base64 = canvas.toDataURL('image/jpeg', quality);
-          let approxBytes = getApproxBytes(base64);
-          
-          while (approxBytes > maxBytes && quality > 0.2) {
-            quality -= 0.1;
-            base64 = canvas.toDataURL('image/jpeg', quality);
-            approxBytes = getApproxBytes(base64);
-          }
-
-          if (approxBytes > maxBytes) {
-            let scale = 0.8;
-            while (approxBytes > maxBytes && scale > 0.4) {
-              const newWidth = Math.round(width * scale);
-              const newHeight = Math.round(height * scale);
-
-              canvas.width = newWidth;
-              canvas.height = newHeight;
-              ctx.clearRect(0, 0, newWidth, newHeight);
-              ctx.drawImage(img, 0, 0, newWidth, newHeight);
-
-              base64 = canvas.toDataURL('image/jpeg', quality);
-              approxBytes = getApproxBytes(base64);
-
-              scale -= 0.1;
-            }
-          }
-          
-          resolve(base64);
-        };
-        img.onerror = reject;
-        img.src = e.target.result;
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
-  const handlePhotoChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
+  const handleCreateChild = async () => {
+    if (!newBabyName.trim()) {
+      alert("Please enter your child's name");
       return;
     }
-
-    try {
-      const compressedBase64 = await compressImage(file, 300);
-      await updateKidPartial({ photoURL: compressedBase64 });
-      setBabyPhotoUrl(compressedBase64);
-    } catch (error) {
-      console.error('Error uploading photo:', error);
-      alert('Failed to upload photo');
-    } finally {
-      event.target.value = '';
+    const weight = parseFloat(newBabyWeight);
+    if (!weight || weight <= 0) {
+      alert('Please enter a valid weight');
+      return;
     }
-  };
+    if (!newBabyBirthDate) {
+      alert('Please enter birth date');
+      return;
+    }
+    if (!familyId) return;
 
-  const handleCreateInvite = async () => {
+    setSavingChild(true);
     try {
-      const code = await createInvite(familyId, kidId);
-      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+      const birthTimestamp = new Date(newBabyBirthDate).getTime();
 
-      const shareText =
-        "Come join me on Tiny Tracker so we can both track the baby's feedings together.";
+      const kidRef = await db
+        .collection('families')
+        .doc(familyId)
+        .collection('kids')
+        .add({
+          name: newBabyName.trim(),
+          ownerId: user.uid,
+          birthDate: birthTimestamp,
+          members: [user.uid],
+          photoURL: null,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
 
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: 'Join me on Tiny Tracker',
-            text: `${shareText}\n\n${link}`,
-            url: link
-          });
-          return;
-        } catch (err) {
-          console.log('Share failed or was cancelled, falling back to copy UI:', err);
-        }
+      const newKidId = kidRef.id;
+      const defaultTheme = themeKey || 'indigo';
+
+      await db
+        .collection('families')
+        .doc(familyId)
+        .collection('kids')
+        .doc(newKidId)
+        .collection('settings')
+        .doc('default')
+        .set({
+          babyWeight: weight,
+          multiplier: 2.5,
+          themeKey: defaultTheme,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+      setShowAddChild(false);
+      setNewBabyName('');
+      setNewBabyWeight('');
+      setNewBabyBirthDate('');
+
+      if (typeof onKidChange === 'function') {
+        onKidChange(newKidId);
+      } else {
+        await loadData();
       }
-
-      setInviteLink(link);
-      setShowInvite(true);
-
-      try {
-        await navigator.clipboard.writeText(link);
-        setCopying(true);
-        setTimeout(() => setCopying(false), 1500);
-      } catch (err) {}
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      alert('Failed to create invite');
+    } catch (err) {
+      console.error('Error creating child:', err);
+      alert('Failed to create child. Please try again.');
+    } finally {
+      setSavingChild(false);
     }
   };
 
-  const handleCopyLink = async () => {
+  // --------------------------------------
+  // Theme handling
+  // --------------------------------------
+
+  const handleThemeSelect = async (newThemeKey) => {
+    if (!newThemeKey || newThemeKey === settings.themeKey) return;
+
+    const updated = {
+      ...settings,
+      themeKey: newThemeKey
+    };
+    setSettings(updated);
+
+    if (onThemeChange) {
+      onThemeChange(newThemeKey);
+    }
+
     try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopying(true);
-      setTimeout(() => setCopying(false), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
+      await firestoreStorage.saveSettings(updated);
+    } catch (err) {
+      console.error('Error saving theme:', err);
     }
   };
 
-  const handleRemoveMember = async (memberId) => {
-    if (!confirm('Remove this person\'s access?')) return;
-    try {
-      await removeMember(familyId, kidId, memberId);
-      await loadData();
-    } catch (error) {
-      console.error('Error removing member:', error);
-      alert('Failed to remove member');
-    }
-  };
+  // --------------------------------------
+  // Updates: name, dates, settings
+  // --------------------------------------
 
   const handleUpdateBabyName = async () => {
     if (!tempBabyName.trim()) return;
@@ -2649,10 +2601,12 @@ const FamilyTab = ({
     const weight = parseFloat(tempWeight);
     if (!weight || weight <= 0) return;
     try {
-      const newSettings = { ...settings, babyWeight: weight };
-      await firestoreStorage.saveSettings(newSettings);
+      await firestoreStorage.saveSettings({
+        ...settings,
+        babyWeight: weight
+      });
       setEditingWeight(false);
-      setSettings(newSettings);
+      await loadData();
     } catch (error) {
       console.error('Error updating weight:', error);
     }
@@ -2662,10 +2616,12 @@ const FamilyTab = ({
     const mult = parseFloat(tempMultiplier);
     if (!mult || mult <= 0) return;
     try {
-      const newSettings = { ...settings, multiplier: mult };
-      await firestoreStorage.saveSettings(newSettings);
+      await firestoreStorage.saveSettings({
+        ...settings,
+        multiplier: mult
+      });
       setEditingMultiplier(false);
-      setSettings(newSettings);
+      await loadData();
     } catch (error) {
       console.error('Error updating multiplier:', error);
     }
@@ -2674,7 +2630,7 @@ const FamilyTab = ({
   const handleUpdateUserName = async () => {
     if (!tempUserName.trim()) return;
     try {
-      await updateUserProfile(user.uid, { displayName: tempUserName.trim() });
+      await firestoreStorage.updateUserProfile({ displayName: tempUserName.trim() });
       setEditingUserName(false);
       await loadData();
     } catch (error) {
@@ -2682,573 +2638,887 @@ const FamilyTab = ({
     }
   };
 
-  const handleThemeChange = async (newThemeKey) => {
-    try {
-      const newSettings = { ...settings, themeKey: newThemeKey };
-      setSettings(newSettings);
-      onThemeChange && onThemeChange(newThemeKey); // update header immediately
-      await firestoreStorage.saveSettings(newSettings);
-    } catch (error) {
-      console.error('Error updating theme:', error);
-    }
-  };
+  // --------------------------------------
+  // Photo upload + compression (max ~2MB)
+// --------------------------------------
 
-  const handleCreateChild = async () => {
-    if (!newBabyName.trim()) {
-      setAddChildError("Please enter your baby's name");
-      return;
-    }
-    const weight = parseFloat(newBabyWeight);
-    if (!weight || weight <= 0) {
-      setAddChildError("Please enter a valid weight");
-      return;
-    }
-    if (!newBirthDate) {
-      setAddChildError("Please enter birth date");
-      return;
-    }
+  const compressImage = (file, maxSizeKB = 2048) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
 
-    setAddingChild(true);
-    setAddChildError(null);
+          const maxDimension = 1200;
+          if (width > maxDimension || height > maxDimension) {
+            if (width > height) {
+              height = Math.round((height * maxDimension) / width);
+              width = maxDimension;
+            } else {
+              width = Math.round((width * maxDimension) / height);
+              height = maxDimension;
+            }
+          }
 
-    try {
-      const birthTimestamp = new Date(newBirthDate).getTime();
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
 
-      const kidRef = await db
-        .collection('families')
-        .doc(familyId)
-        .collection('kids')
-        .add({
-          name: newBabyName.trim(),
-          ownerId: user.uid,
-          birthDate: birthTimestamp,
-          members: [user.uid],
-          photoURL: null,
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+          const getApproxBytes = (b64) => Math.ceil((b64.length * 3) / 4);
+          const maxBytes = maxSizeKB * 1024;
 
-      const newKidId = kidRef.id;
+          let quality = 0.9;
+          let base64 = canvas.toDataURL('image/jpeg', quality);
+          let approxBytes = getApproxBytes(base64);
 
-      await db
-        .collection('families')
-        .doc(familyId)
-        .collection('kids')
-        .doc(newKidId)
-        .collection('settings')
-        .doc('default')
-        .set({
-          babyWeight: weight,
-          multiplier: 2.5,
-          themeKey: settings.themeKey || 'indigo',
-          createdAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+          while (approxBytes > maxBytes && quality > 0.3) {
+            quality -= 0.1;
+            base64 = canvas.toDataURL('image/jpeg', quality);
+            approxBytes = getApproxBytes(base64);
+          }
 
-      setShowAddChild(false);
-      setNewBabyName('');
-      setNewBabyWeight('');
-      setNewBirthDate('');
-
-      if (onKidChange) {
-        onKidChange(newKidId);
-      }
-    } catch (error) {
-      console.error('Error creating child:', error);
-      setAddChildError('Failed to add child. Please try again.');
-    } finally {
-      setAddingChild(false);
-    }
-  };
-
-  const calculateAge = (birthDate) => {
-    if (!birthDate) return 'Not set';
-    const birth = new Date(birthDate);
-    const now = new Date();
-    const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
-    if (months === 0) {
-      const days = Math.floor((now - birth) / (1000 * 60 * 60 * 24));
-      return `${days} day${days !== 1 ? 's' : ''} old`;
-    }
-    return `${months} month${months !== 1 ? 's' : ''} old`;
-  };
-
-  const formatDate = (timestamp) => {
-    if (!timestamp) return '';
-    return new Date(timestamp).toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric' 
+          resolve(base64);
+        };
+        img.onerror = reject;
+        img.src = e.target.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
     });
   };
 
-  const formatDateForInput = (timestamp) => {
-    if (!timestamp) return '';
-    const date = new Date(timestamp);
-    return date.toISOString().split('T')[0];
+  const handlePhotoChange = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const compressedBase64 = await compressImage(file, 2048);
+      await firestoreStorage.uploadKidPhoto(compressedBase64);
+      await loadData();
+    } catch (error) {
+      console.error('Error uploading photo:', error);
+      alert('Failed to upload photo');
+    }
   };
 
+  const handlePhotoClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+      fileInputRef.current.click();
+    }
+  };
+
+  // --------------------------------------
+  // Invite / members
+  // --------------------------------------
+
+  const handleInvite = async () => {
+    if (!familyId || !kidId) return;
+    try {
+      const code = await createInvite(familyId, kidId);
+      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+      setInviteLink(link);
+      setShowInvite(true);
+    } catch (error) {
+      console.error('Error creating invite:', error);
+      alert('Failed to create invite');
+    }
+  };
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopying(true);
+      setTimeout(() => setCopying(false), 2000);
+    } catch (error) {
+      console.error('Copy failed:', error);
+    }
+  };
+
+  const handleRemoveMember = async (memberId) => {
+    if (!confirm("Remove this person's access?")) return;
+    try {
+      await removeMember(familyId, kidId, memberId);
+      await loadData();
+    } catch (error) {
+      console.error('Error removing member:', error);
+      alert('Failed to remove member');
+    }
+  };
+
+  // --------------------------------------
+  // Render
+  // --------------------------------------
+
   if (loading) {
-    return React.createElement('div', { className: "flex items-center justify-center py-12" },
-      React.createElement('div', { className: "text-gray-600" }, 'Loading...')
+    return React.createElement(
+      'div',
+      { className: 'flex items-center justify-center py-12' },
+      React.createElement('div', { className: 'text-gray-600' }, 'Loading...')
     );
   }
 
   const isOwner = kidData?.ownerId === user.uid;
-  const currentThemeKey = themeKey || settings.themeKey || 'indigo';
+  const activeThemeKey = settings.themeKey || themeKey || 'indigo';
 
-  return React.createElement('div', { className: "space-y-4" },
+  return React.createElement(
+    'div',
+    { className: 'space-y-4 relative' },
+
     // Hidden file input
     React.createElement('input', {
       ref: fileInputRef,
-      type: "file",
-      accept: "image/*",
+      type: 'file',
+      accept: 'image/*',
       onChange: handlePhotoChange,
       style: { display: 'none' }
     }),
 
-    // Kids selector card (moved above Baby Info)
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "flex items-center justify-between mb-4" },
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Kids'),
-        React.createElement('button', {
-          onClick: () => setShowAddChild(true),
-          className: "text-sm font-medium text-indigo-600 hover:text-indigo-700"
-        }, '+ Add Child')
-      ),
-      kids.length === 0
-        ? React.createElement('p', { className: "text-sm text-gray-500" }, 'No kids set up yet.')
-        : React.createElement('div', { className: "space-y-2" },
-            kids.map((k) =>
-              React.createElement('button', {
-                key: k.id,
-                type: 'button',
-                onClick: () => onKidChange && onKidChange(k.id),
-                className:
-                  "w-full flex items-center justify-between px-3 py-2 rounded-lg border text-sm transition " +
-                  (k.id === kidId
-                    ? "border-indigo-500 bg-indigo-50"
-                    : "border-gray-200 bg-gray-50 hover:bg-gray-100")
-              },
-                React.createElement('span', { className: "font-medium text-gray-800 truncate" }, k.name || 'Baby')
-              )
-            )
-          )
-    ),
-
-    // Baby Info Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
-      
-      React.createElement('div', { className: "flex items-start gap-4 mb-6" },
-        React.createElement('div', { className: "relative flex-shrink-0" },
-          React.createElement('div', {
-            onClick: handlePhotoClick,
-            className: "w-24 h-24 rounded-full overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition relative"
-          },
-            babyPhotoUrl ?
-              React.createElement('img', {
-                src: babyPhotoUrl,
-                alt: kidData?.name || 'Baby',
-                className: "w-full h-full object-cover"
-              })
-            :
-              React.createElement('div', { className: "w-full h-full flex items-center justify-center bg-indigo-100" },
-                React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" })
-              )
+    // Kids Card (multi-kid)
+    kids && kids.length > 0 &&
+      React.createElement(
+        'div',
+        { className: 'bg-white rounded-2xl shadow-lg p-6' },
+        React.createElement(
+          'div',
+          { className: 'flex items-center justify-between mb-3' },
+          React.createElement(
+            'h2',
+            { className: 'text-lg font-semibold text-gray-800' },
+            'Kids'
           ),
-          React.createElement('div', { 
-            className: "absolute bottom-0 right-0 bg-indigo-600 rounded-full p-2 cursor-pointer hover:bg-indigo-700 transition",
-            onClick: handlePhotoClick
-          },
-            React.createElement(Camera, { className: "w-4 h-4 text-white" })
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => setShowAddChild(true),
+              className: 'text-sm font-medium text-indigo-600 hover:text-indigo-700'
+            },
+            '+ Add Child'
           )
         ),
-        
-        // Name / age
-        React.createElement('div', { className: "flex-1 min-w-0" },
-          editingName ?
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('input', {
-                type: "text",
-                value: tempBabyName,
-                onChange: (e) => setTempBabyName(e.target.value),
-                placeholder: "Baby's name",
-                maxLength: 20,
-                className: "flex-1 px-3 py-2 text-lg font-medium border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500",
-                style: { minWidth: 0 }
-              }),
-              React.createElement('button', {
-                onClick: handleUpdateBabyName,
-                className: "text-green-600 hover:text-green-700 flex-shrink-0"
-              }, React.createElement(Check, { className: "w-6 h-6" })),
-              React.createElement('button', {
-                onClick: () => setEditingName(false),
-                className: "text-gray-400 hover:text-gray-600 flex-shrink-0"
-              }, React.createElement(X, { className: "w-6 h-6" }))
-            )
-          :
-            React.createElement('div', { className: "flex items-center gap-2" },
-              React.createElement('h3', { className: "text-lg font-semibold text-gray-800 truncate" }, 
-                kidData?.name || 'Baby'
-              ),
-              React.createElement('button', {
+        React.createElement(
+          'div',
+          { className: 'space-y-2' },
+          kids.map((k) => {
+            const isCurrent = k.id === kidId;
+            return React.createElement(
+              'button',
+              {
+                key: k.id,
                 onClick: () => {
-                  setTempBabyName(kidData?.name || '');
-                  setEditingName(true);
+                  if (isCurrent) return;
+                  if (typeof onKidChange === 'function') {
+                    onKidChange(k.id);
+                  }
                 },
-                className: "text-indigo-600 hover:text-indigo-700 flex-shrink-0"
-              }, React.createElement(Edit2, { className: "w-4 h-4" }))
-            ),
-          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, 
-            calculateAge(kidData?.birthDate)
+                className:
+                  'w-full px-4 py-3 rounded-xl border flex items-center justify-between text-sm ' +
+                  (isCurrent
+                    ? 'border-indigo-500 bg-indigo-50 text-gray-900'
+                    : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100')
+              },
+              React.createElement(
+                'span',
+                { className: 'font-medium truncate' },
+                k.name || 'Baby'
+              ),
+              isCurrent &&
+                React.createElement(
+                  'span',
+                  { className: 'text-xs font-semibold text-indigo-600' },
+                  'Active'
+                )
+            );
+          })
+        ),
+        React.createElement(
+          'p',
+          { className: 'mt-3 text-xs text-gray-500' },
+          'Active kid controls what you see in Tracker, Analytics, and AI Chat.'
+        )
+      ),
+
+    // Baby Info Card
+    React.createElement(
+      'div',
+      { className: 'bg-white rounded-2xl shadow-lg p-6' },
+      React.createElement(
+        'h2',
+        { className: 'text-lg font-semibold text-gray-800 mb-4' },
+        'Baby Info'
+      ),
+
+      React.createElement(
+        'div',
+        { className: 'flex items-start gap-4 mb-6' },
+        // Photo
+        React.createElement(
+          'div',
+          { className: 'relative flex-shrink-0' },
+          React.createElement(
+            'div',
+            {
+              onClick: handlePhotoClick,
+              className:
+                'w-24 h-24 rounded-full overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition relative'
+            },
+            babyPhotoUrl
+              ? React.createElement('img', {
+                  src: babyPhotoUrl,
+                  alt: kidData?.name || 'Baby',
+                  className: 'w-full h-full object-cover'
+                })
+              : React.createElement(
+                  'div',
+                  {
+                    className:
+                      'w-full h-full flex items-center justify-center bg-indigo-100'
+                  },
+                  React.createElement(Baby, {
+                    className: 'w-12 h-12 text-indigo-600'
+                  })
+                )
+          ),
+          React.createElement(
+            'div',
+            {
+              className:
+                'absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-white'
+            },
+            React.createElement(Camera, { className: 'w-4 h-4 text-white' })
+          )
+        ),
+
+        // Name + age + owner
+        React.createElement(
+          'div',
+          { className: 'flex-1 space-y-2 min-w-0' },
+
+          // Name row
+          editingName
+            ? React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement('input', {
+                  type: 'text',
+                  value: tempBabyName,
+                  onChange: (e) => setTempBabyName(e.target.value),
+                  className:
+                    'flex-1 px-3 py-2 text-lg font-medium border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500',
+                  style: { minWidth: 0 }
+                }),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: handleUpdateBabyName,
+                    className: 'text-green-600 hover:text-green-700 flex-shrink-0'
+                  },
+                  React.createElement(Check, { className: 'w-6 h-6' })
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => setEditingName(false),
+                    className: 'text-gray-400 hover:text-gray-600 flex-shrink-0'
+                  },
+                  React.createElement(X, { className: 'w-6 h-6' })
+                )
+              )
+            : React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement(
+                  'h3',
+                  {
+                    className:
+                      'text-lg font-semibold text-gray-800 truncate'
+                  },
+                  kidData?.name || 'Baby'
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => {
+                      setTempBabyName(kidData?.name || '');
+                      setEditingName(true);
+                    },
+                    className: 'text-indigo-600 hover:text-indigo-700'
+                  },
+                  React.createElement(Edit2, { className: 'w-4 h-4' })
+                )
+              ),
+
+          // Age
+          React.createElement(
+            'div',
+            { className: 'text-sm text-gray-500' },
+            kidData?.birthDate
+              ? (() => {
+                  const today = new Date();
+                  const birth = new Date(kidData.birthDate);
+                  const diffMs = today.getTime() - birth.getTime();
+                  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                  if (diffDays < 7) return `${diffDays} days old`;
+                  if (diffDays < 30)
+                    return `${Math.floor(diffDays / 7)} weeks old`;
+                  const months = Math.floor(diffDays / 30);
+                  return `${months} month${months === 1 ? '' : 's'} old`;
+                })()
+              : 'Birth date not set'
+          ),
+
+          // Owner display / your name
+          React.createElement(
+            'div',
+            { className: 'mt-1 text-sm text-gray-500' },
+            'Owner: ',
+            editingUserName
+              ? React.createElement(
+                  'span',
+                  null,
+                  React.createElement('input', {
+                    type: 'text',
+                    value: tempUserName,
+                    onChange: (e) => setTempUserName(e.target.value),
+                    className:
+                      'px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500'
+                  }),
+                  React.createElement(
+                    'button',
+                    {
+                      onClick: handleUpdateUserName,
+                      className:
+                        'ml-2 text-green-600 hover:text-green-700'
+                    },
+                    React.createElement(Check, { className: 'w-4 h-4' })
+                  ),
+                  React.createElement(
+                    'button',
+                    {
+                      onClick: () => setEditingUserName(false),
+                      className: 'ml-1 text-gray-400 hover:text-gray-600'
+                    },
+                    React.createElement(X, { className: 'w-4 h-4' })
+                  )
+                )
+              : React.createElement(
+                  'span',
+                  null,
+                  kidData?.ownerName || 'You',
+                  isOwner &&
+                    React.createElement(
+                      'button',
+                      {
+                        onClick: () => {
+                          setTempUserName(kidData?.ownerName || '');
+                          setEditingUserName(true);
+                        },
+                        className:
+                          'ml-2 text-indigo-600 hover:text-indigo-700'
+                      },
+                      'Edit'
+                    )
+                )
           )
         )
       ),
-      
-      // Birth Date
-      React.createElement('div', { className: "flex items-center justify-between py-3" },
-        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Birth Date'),
-        editingBirthDate ?
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('input', {
-              type: "date",
-              value: tempBirthDate,
-              onChange: (e) => setTempBirthDate(e.target.value),
-              className: "px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm"
-            }),
-            React.createElement('button', {
-              onClick: handleUpdateBirthDate,
-              className: "text-green-600 hover:text-green-700"
-            }, React.createElement(Check, { className: "w-6 h-6" })),
-            React.createElement('button', {
-              onClick: () => setEditingBirthDate(false),
-              className: "text-gray-400 hover:text-gray-600"
-            }, React.createElement(X, { className: "w-6 h-6" }))
-          )
-        :
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('span', { className: "text-gray-800 font-medium" }, 
-              formatDate(kidData?.birthDate) || 'Not set'
-            ),
-            React.createElement('button', {
-              onClick: () => {
-                setTempBirthDate(formatDateForInput(kidData?.birthDate) || '');
-                setEditingBirthDate(true);
-              },
-              className: "text-indigo-600 hover:text-indigo-700"
-            }, React.createElement(Edit2, { className: "w-4 h-4" }))
-          )
+
+      // Birth date row
+      React.createElement(
+        'div',
+        { className: 'grid grid-cols-2 gap-4 mb-3' },
+        React.createElement(
+          'div',
+          { className: 'space-y-1' },
+          React.createElement(
+            'div',
+            { className: 'text-xs font-medium text-gray-500 uppercase' },
+            'Birth Date'
+          ),
+          editingBirthDate
+            ? React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement('input', {
+                  type: 'date',
+                  value: tempBirthDate,
+                  onChange: (e) => setTempBirthDate(e.target.value),
+                  className:
+                    'px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm'
+                }),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: handleUpdateBirthDate,
+                    className: 'text-green-600 hover:text-green-700'
+                  },
+                  React.createElement(Check, { className: 'w-6 h-6' })
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => setEditingBirthDate(false),
+                    className: 'text-gray-400 hover:text-gray-600'
+                  },
+                  React.createElement(X, { className: 'w-6 h-6' })
+                )
+              )
+            : React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement(
+                  'span',
+                  { className: 'text-gray-800 font-medium' },
+                  kidData?.birthDate
+                    ? new Date(kidData.birthDate).toLocaleDateString()
+                    : 'Not set'
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => {
+                      if (kidData?.birthDate) {
+                        const d = new Date(kidData.birthDate);
+                        const iso = d.toISOString().slice(0, 10);
+                        setTempBirthDate(iso);
+                      } else {
+                        setTempBirthDate('');
+                      }
+                      setEditingBirthDate(true);
+                    },
+                    className: 'text-indigo-600 hover:text-indigo-700'
+                  },
+                  React.createElement(Edit2, { className: 'w-4 h-4' })
+                )
+              )
+        ),
+
+        // Weight row
+        React.createElement(
+          'div',
+          { className: 'space-y-1' },
+          React.createElement(
+            'div',
+            { className: 'text-xs font-medium text-gray-500 uppercase' },
+            'Current Weight'
+          ),
+          editingWeight
+            ? React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement('input', {
+                  type: 'number',
+                  step: '0.1',
+                  value: tempWeight,
+                  onChange: (e) => setTempWeight(e.target.value),
+                  placeholder: '8.5',
+                  className:
+                    'w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right'
+                }),
+                React.createElement(
+                  'span',
+                  { className: 'text-gray-600' },
+                  'lbs'
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: handleUpdateWeight,
+                    className: 'text-green-600 hover:text-green-700'
+                  },
+                  React.createElement(Check, { className: 'w-6 h-6' })
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => setEditingWeight(false),
+                    className: 'text-gray-400 hover:text-gray-600'
+                  },
+                  React.createElement(X, { className: 'w-6 h-6' })
+                )
+              )
+            : React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement(
+                  'span',
+                  { className: 'text-gray-800 font-medium' },
+                  settings.babyWeight
+                    ? `${settings.babyWeight} lbs`
+                    : 'Not set'
+                ),
+                React.createElement(
+                  'button',
+                  {
+                    onClick: () => {
+                      setTempWeight(
+                        settings.babyWeight?.toString() || ''
+                      );
+                      setEditingWeight(true);
+                    },
+                    className: 'text-indigo-600 hover:text-indigo-700'
+                  },
+                  React.createElement(Edit2, { className: 'w-4 h-4' })
+                )
+              )
+        )
       ),
-      
-      // Current Weight
-      React.createElement('div', { className: "flex items-center justify-between py-3" },
-        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Current Weight'),
-        editingWeight ?
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('input', {
-              type: "number",
-              step: "0.1",
-              value: tempWeight,
-              onChange: (e) => setTempWeight(e.target.value),
-              placeholder: "8.5",
-              className: "w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right"
-            }),
-            React.createElement('span', { className: "text-gray-600" }, 'lbs'),
-            React.createElement('button', {
-              onClick: handleUpdateWeight,
-              className: "text-green-600 hover:text-green-700"
-            }, React.createElement(Check, { className: "w-6 h-6" })),
-            React.createElement('button', {
-              onClick: () => setEditingWeight(false),
-              className: "text-gray-400 hover:text-gray-600"
-            }, React.createElement(X, { className: "w-6 h-6" }))
-          )
-        :
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('span', { className: "text-gray-800 font-medium" }, 
-              settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set'
-            ),
-            React.createElement('button', {
-              onClick: () => {
-                setTempWeight(settings.babyWeight?.toString() || '');
-                setEditingWeight(true);
-              },
-              className: "text-indigo-600 hover:text-indigo-700"
-            }, React.createElement(Edit2, { className: "w-4 h-4" }))
-          )
-      ),
-      
-      // Target Multiplier
-      React.createElement('div', { className: "flex items-center justify-between py-3" },
-        React.createElement('span', { className: "text-gray-600 font-medium" }, 'Target Multiplier (oz/lb)'),
-        editingMultiplier ?
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('input', {
-              type: "number",
-              step: "0.1",
-              value: tempMultiplier,
-              onChange: (e) => setTempMultiplier(e.target.value),
-              placeholder: "2.5",
-              className: "w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right"
-            }),
-            React.createElement('span', { className: "text-gray-600" }, 'x'),
-            React.createElement('button', {
-              onClick: handleUpdateMultiplier,
-              className: "text-green-600 hover:text-green-700"
-            }, React.createElement(Check, { className: "w-6 h-6" })),
-            React.createElement('button', {
-              onClick: () => setEditingMultiplier(false),
-              className: "text-gray-400 hover:text-gray-600"
-            }, React.createElement(X, { className: "w-6 h-6" }))
-          )
-        :
-          React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('span', { className: "text-gray-800 font-medium" }, 
-              `${settings.multiplier}x`
-            ),
-            React.createElement('button', {
-              onClick: () => {
-                setTempMultiplier(settings.multiplier?.toString() || '2.5');
-                setEditingMultiplier(true);
-              },
-              className: "text-indigo-600 hover:text-indigo-700"
-            }, React.createElement(Edit2, { className: "w-4 h-4" }))
-          )
+
+      // Multiplier row
+      React.createElement(
+        'div',
+        { className: 'mt-2 space-y-1' },
+        React.createElement(
+          'div',
+          { className: 'text-xs font-medium text-gray-500 uppercase' },
+          'Target Multiplier (oz/lb)'
+        ),
+        editingMultiplier
+          ? React.createElement(
+              'div',
+              { className: 'flex items-center gap-2' },
+              React.createElement('input', {
+                type: 'number',
+                step: '0.1',
+                value: tempMultiplier,
+                onChange: (e) => setTempMultiplier(e.target.value),
+                placeholder: '2.5',
+                className:
+                  'w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right'
+              }),
+              React.createElement(
+                'span',
+                { className: 'text-gray-600' },
+                'x'
+              ),
+              React.createElement(
+                'button',
+                {
+                  onClick: handleUpdateMultiplier,
+                  className: 'text-green-600 hover:text-green-700'
+                },
+                React.createElement(Check, { className: 'w-6 h-6' })
+              ),
+              React.createElement(
+                'button',
+                {
+                  onClick: () => setEditingMultiplier(false),
+                  className: 'text-gray-400 hover:text-gray-600'
+                },
+                React.createElement(X, { className: 'w-6 h-6' })
+              )
+            )
+          : React.createElement(
+              'div',
+              { className: 'flex items-center gap-2' },
+              React.createElement(
+                'span',
+                { className: 'text-gray-800 font-medium' },
+                `${settings.multiplier}x`
+              ),
+              React.createElement(
+                'button',
+                {
+                  onClick: () => {
+                    setTempMultiplier(
+                      settings.multiplier?.toString() || '2.5'
+                    );
+                    setEditingMultiplier(true);
+                  },
+                  className: 'text-indigo-600 hover:text-indigo-700'
+                },
+                React.createElement(Edit2, { className: 'w-4 h-4' })
+              )
+            )
       ),
 
       // Theme picker
-      React.createElement('div', { className: "pt-4 mt-2 border-t border-gray-100" },
-        React.createElement('div', { className: "flex items-center justify-between mb-3" },
-          React.createElement('span', { className: "text-gray-600 font-medium" }, 'App Color')
+      React.createElement(
+        'div',
+        { className: 'mt-6 pt-4 border-t border-gray-100' },
+        React.createElement(
+          'div',
+          { className: 'flex items-center justify-between mb-3' },
+          React.createElement(
+            'span',
+            { className: 'text-sm font-semibold text-gray-800' },
+            'App Color'
+          ),
+          React.createElement(
+            'span',
+            { className: 'text-xs text-gray-500' },
+            'Applies to top bar & tabs'
+          )
         ),
-        React.createElement('div', { className: "flex gap-3" },
-          THEME_OPTIONS.map((opt) =>
-            React.createElement('button', {
-              key: opt.key,
-              type: 'button',
-              onClick: () => handleThemeChange(opt.key),
-              className:
-                "w-9 h-9 rounded-full border-2 flex items-center justify-center transition " +
-                (currentThemeKey === opt.key
-                  ? `${opt.boxClass} ring-2 ${opt.ringClass} border-white`
-                  : `${opt.boxClass} border-transparent hover:opacity-80`)
-            })
+        React.createElement(
+          'div',
+          { className: 'flex items-center gap-3' },
+          Object.keys(KID_THEMES).map((key) =>
+            React.createElement(
+              'button',
+              {
+                key,
+                type: 'button',
+                onClick: () => handleThemeSelect(key),
+                className:
+                  'w-9 h-9 rounded-full border-2 flex items-center justify-center ' +
+                  (activeThemeKey === key
+                    ? 'border-indigo-600'
+                    : 'border-transparent'),
+                style: {
+                  backgroundColor: KID_THEMES[key].bg
+                }
+              },
+              activeThemeKey === key
+                ? React.createElement('div', {
+                    className: 'w-4 h-4 rounded-full',
+                    style: { backgroundColor: KID_THEMES[key].accent }
+                  })
+                : null
+            )
           )
         )
       )
     ),
 
     // Family Members Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Family Members'),
-      React.createElement('div', { className: "space-y-3 mb-4" },
-        members.map(member => 
-          React.createElement('div', { 
-            key: member.uid,
-            className: "flex items-center gap-3 p-3 bg-gray-50 rounded-xl"
-          },
-            React.createElement('div', { className: "flex-shrink-0" },
-              member.photoURL ?
-                React.createElement('img', {
-                  src: member.photoURL,
-                  alt: member.displayName || member.email,
-                  className: "w-12 h-12 rounded-full"
-                })
-              :
-                React.createElement('div', { 
-                  className: "w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg",
-                  style: { backgroundColor: '#818cf8' }
+    React.createElement(
+      'div',
+      { className: 'bg-white rounded-2xl shadow-lg p-6' },
+      React.createElement(
+        'h2',
+        { className: 'text-lg font-semibold text-gray-800 mb-4' },
+        'Family Members'
+      ),
+      React.createElement(
+        'div',
+        { className: 'space-y-3 mb-4' },
+        members.map((member) =>
+          React.createElement(
+            'div',
+            {
+              key: member.uid,
+              className:
+                'flex items-center gap-3 p-3 bg-gray-50 rounded-xl'
+            },
+            React.createElement(
+              'div',
+              { className: 'flex-shrink-0' },
+              member.photoURL
+                ? React.createElement('img', {
+                    src: member.photoURL,
+                    alt: member.displayName || member.email,
+                    className: 'w-12 h-12 rounded-full'
+                  })
+                : React.createElement(
+                    'div',
+                    {
+                      className:
+                        'w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold'
+                    },
+                    (member.displayName || member.email || '?')
+                      .charAt(0)
+                      .toUpperCase()
+                  )
+            ),
+            React.createElement(
+              'div',
+              { className: 'flex-1 min-w-0' },
+              React.createElement(
+                'div',
+                { className: 'text-sm font-medium text-gray-800 truncate' },
+                member.displayName || member.email || 'Member'
+              ),
+              React.createElement(
+                'div',
+                { className: 'text-xs text-gray-500 truncate' },
+                member.email
+              )
+            ),
+            member.uid !== user.uid &&
+              React.createElement(
+                'button',
+                {
+                  onClick: () => handleRemoveMember(member.uid),
+                  className:
+                    'text-xs text-red-500 hover:text-red-600 font-medium'
                 },
-                  React.createElement('span', {}, (member.displayName || member.email).charAt(0).toUpperCase())
-                )
-            ),
-            React.createElement('div', { className: "flex-1 min-w-0" },
-              member.uid === user.uid && editingUserName ?
-                React.createElement('div', { className: "flex items-center gap-2" },
-                  React.createElement('input', {
-                    type: "text",
-                    value: tempUserName,
-                    onChange: (e) => setTempUserName(e.target.value),
-                    placeholder: "Your name",
-                    className: "flex-1 px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg",
-                    style: { minWidth: 0 }
-                  }),
-                  React.createElement('button', {
-                    onClick: handleUpdateUserName,
-                    className: "text-green-600 hover:text-green-700 flex-shrink-0"
-                  }, React.createElement(Check, { className: "w-6 h-6" })),
-                  React.createElement('button', {
-                    onClick: () => setEditingUserName(false),
-                    className: "text-gray-400 hover:text-gray-600 flex-shrink-0"
-                  }, React.createElement(X, { className: "w-6 h-6" }))
-                )
-              :
-                React.createElement('div', null,
-                  React.createElement('div', { className: "flex items-center gap-2" },
-                    React.createElement('span', { className: "font-medium text-gray-800 truncate" }, 
-                      member.displayName || member.email.split('@')[0]
-                    ),
-                    member.uid === kidData?.ownerId && 
-                      React.createElement('span', { className: "text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded flex-shrink-0" }, 'Owner'),
-                    member.uid === user.uid &&
-                      React.createElement('button', {
-                        onClick: () => {
-                          setTempUserName(member.displayName || '');
-                          setEditingUserName(true);
-                        },
-                        className: "text-indigo-600 hover:text-indigo-700 flex-shrink-0"
-                      }, React.createElement(Edit2, { className: "w-3 h-3" }))
-                  ),
-                  React.createElement('div', { className: "text-sm text-gray-500 truncate" }, member.email)
-                )
-            ),
-            isOwner && member.uid !== user.uid &&
-              React.createElement('button', {
-                onClick: () => handleRemoveMember(member.uid),
-                className: "text-red-400 hover:text-red-600 text-sm font-medium flex-shrink-0"
-              }, 'Remove')
+                'Remove'
+              )
           )
         )
       ),
-
-      !showInvite ?
-        React.createElement('button', {
-          onClick: handleCreateInvite,
-          className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+      React.createElement(
+        'button',
+        {
+          onClick: handleInvite,
+          className:
+            'w-full mt-1 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2 py-3'
         },
-          React.createElement(UserPlus, { className: "w-5 h-5" }),
-          '+ Invite Partner'
-        )
-      :
-        React.createElement('div', { className: "bg-indigo-50 rounded-xl p-4" },
-          React.createElement('div', { className: "text-sm text-gray-600 mb-2" }, 'Share this link with your partner:'),
-          React.createElement('div', { className: "flex gap-2" },
-            React.createElement('input', {
-              type: "text",
-              value: inviteLink,
-              readOnly: true,
-              className: "flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm"
-            }),
-            React.createElement('button', {
-              onClick: handleCopyLink,
-              className: "px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium"
-            }, copying ? 'Copied!' : 'Copy')
-          ),
-          React.createElement('button', {
-            onClick: () => setShowInvite(false),
-            className: "mt-2 text-sm text-gray-600 hover:text-gray-800"
-          }, 'Close')
-        )
+        React.createElement(UserPlus, { className: 'w-5 h-5' }),
+        '+ Invite Partner'
+      )
     ),
 
-    // Add Child modal
+    // Invite link panel
+    showInvite &&
+      React.createElement(
+        'div',
+        { className: 'bg-indigo-50 rounded-2xl p-4' },
+        React.createElement(
+          'div',
+          { className: 'text-sm text-gray-600 mb-2' },
+          'Share this link with your partner:'
+        ),
+        React.createElement(
+          'div',
+          { className: 'flex gap-2' },
+          React.createElement('input', {
+            type: 'text',
+            value: inviteLink,
+            readOnly: true,
+            className:
+              'flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm'
+          }),
+          React.createElement(
+            'button',
+            {
+              onClick: handleCopyLink,
+              className:
+                'px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium'
+            },
+            copying ? 'Copied!' : 'Copy'
+          )
+        ),
+        React.createElement(
+          'button',
+          {
+            onClick: () => setShowInvite(false),
+            className:
+              'mt-2 text-sm text-gray-600 hover:text-gray-800'
+          },
+          'Close'
+        )
+      ),
+
+    // Add Child Modal
     showAddChild &&
       React.createElement(
         'div',
         {
-          className: "fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          className:
+            'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 px-4'
         },
         React.createElement(
           'div',
           {
-            className: "bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4"
+            className:
+              'bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm'
           },
           React.createElement(
             'h2',
-            { className: "text-lg font-semibold text-gray-800 mb-4" },
-            "Add Child"
+            { className: 'text-lg font-semibold text-gray-800 mb-2' },
+            'Add Child'
+          ),
+          React.createElement(
+            'p',
+            { className: 'text-xs text-gray-500 mb-4' },
+            'This child will share the same family and members.'
           ),
           React.createElement(
             'div',
-            { className: "space-y-3" },
+            { className: 'space-y-3' },
             React.createElement(
               'div',
               null,
               React.createElement(
                 'label',
-                { className: "block text-sm font-medium text-gray-700 mb-1" },
-                "Baby's Name"
+                {
+                  className:
+                    'block text-xs font-medium text-gray-700 mb-1'
+                },
+                "Child's Name"
               ),
               React.createElement('input', {
-                type: "text",
+                type: 'text',
                 value: newBabyName,
                 onChange: (e) => setNewBabyName(e.target.value),
-                placeholder: "Liam",
                 className:
-                  "w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 text-sm"
+                  'w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400'
               })
             ),
             React.createElement(
               'div',
-              { className: "flex gap-3" },
+              { className: 'grid grid-cols-2 gap-3' },
               React.createElement(
                 'div',
-                { className: "flex-1" },
+                null,
                 React.createElement(
                   'label',
-                  { className: "block text-sm font-medium text-gray-700 mb-1" },
-                  "Weight (lbs)"
+                  {
+                    className:
+                      'block text-xs font-medium text-gray-700 mb-1'
+                  },
+                  'Weight (lbs)'
                 ),
                 React.createElement('input', {
-                  type: "number",
-                  step: "0.1",
+                  type: 'number',
+                  step: '0.1',
                   value: newBabyWeight,
                   onChange: (e) => setNewBabyWeight(e.target.value),
-                  placeholder: "8.5",
                   className:
-                    "w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 text-sm"
+                    'w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400'
                 })
               ),
               React.createElement(
                 'div',
-                { className: "flex-1" },
+                null,
                 React.createElement(
                   'label',
-                  { className: "block text-sm font-medium text-gray-700 mb-1" },
-                  "Birth Date"
+                  {
+                    className:
+                      'block text-xs font-medium text-gray-700 mb-1'
+                  },
+                  'Birth Date'
                 ),
                 React.createElement('input', {
-                  type: "date",
-                  value: newBirthDate,
-                  onChange: (e) => setNewBirthDate(e.target.value),
+                  type: 'date',
+                  value: newBabyBirthDate,
+                  onChange: (e) => setNewBabyBirthDate(e.target.value),
                   className:
-                    "w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400 text-sm"
+                    'w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400'
                 })
               )
-            ),
-            addChildError &&
-              React.createElement(
-                'div',
-                {
-                  className:
-                    "p-2 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600"
-                },
-                addChildError
-              )
+            )
           ),
           React.createElement(
             'div',
-            { className: "mt-4 flex gap-2" },
+            { className: 'mt-5 flex justify-end gap-3' },
             React.createElement(
               'button',
               {
-                onClick: handleCreateChild,
-                disabled: addingChild,
+                type: 'button',
+                onClick: () => setShowAddChild(false),
                 className:
-                  "flex-1 bg-indigo-600 text-white py-2.5 rounded-xl text-sm font-semibold hover:bg-indigo-700 transition disabled:opacity-50"
+                  'text-sm text-gray-600 hover:text-gray-800'
               },
-              addingChild ? "Adding..." : "Add Child"
+              'Cancel'
             ),
             React.createElement(
               'button',
               {
-                onClick: () => {
-                  setShowAddChild(false);
-                  setAddChildError(null);
-                },
+                type: 'button',
+                onClick: handleCreateChild,
+                disabled: savingChild,
                 className:
-                  "flex-1 bg-gray-100 text-gray-700 py-2.5 rounded-xl text-sm font-semibold hover:bg-gray-200 transition"
+                  'px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50'
               },
-              "Cancel"
+              savingChild ? 'Saving...' : 'Add Child'
             )
           )
         )
