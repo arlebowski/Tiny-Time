@@ -1372,11 +1372,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 className:
                   "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition",
               },
-              React.createElement(ShareIcon, {
+              React.createElement(Share, {
                 className: "w-4 h-4",
                 style: { color: theme.accent },
               })
-            ),
+
 
             // Share dropdown
             showShareMenu &&
@@ -1398,10 +1398,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     className:
                       "w-full px-3 py-3 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800",
                   },
-                  React.createElement(LinkIcon, {
+                  React.createElement(Link, {
                     className: "w-4 h-4",
                     style: { color: theme.accent },
-                  }),
+                  })
                   "Share app link"
                 ),
                 React.createElement(
@@ -1415,10 +1415,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     className:
                       "w-full px-3 py-3 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800",
                   },
-                  React.createElement(PersonAddIcon, {
+                  React.createElement(UserPlus, {
                     className: "w-4 h-4",
                     style: { color: theme.accent },
-                  }),
+                  })
                   "Invite partner"
                 )
               )
