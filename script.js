@@ -1198,7 +1198,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
               className:
                 "w-10 h-10 rounded-full bg-white flex items-center justify-center shadow"
             },
-            React.createElement(Share, {
+            React.createElement(Share2, {
               className: "w-4 h-4",
               style: { color: theme.accent }
             })
