@@ -950,7 +950,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-3" },
-            React.createElement("span", { className: "text-4xl" }, "🍼")
+            React.createElement(Baby, { className: "w-10 h-10 text-indigo-600" })
           )
         ),
         React.createElement(
