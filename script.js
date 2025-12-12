@@ -1281,11 +1281,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
     React.createElement('div', { className: "max-w-2xl mx-auto" },
 
-      // ---------------- HEADER ----------------
+            // ---------------- HEADER ----------------
       React.createElement(
         'div',
         {
-          className: "sticky top-0 z-10",
+          // IMPORTANT: must be higher than the click-away overlay
+          className: "sticky top-0 z-40",
           style: { backgroundColor: theme.bg }
         },
         React.createElement(
@@ -1303,12 +1304,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'button',
                 {
                   type: 'button',
-                  onMouseDown: (e) => {
-                    e.stopPropagation();
-                    setShowKidMenu((v) => !v);
-                    setShowShareMenu(false);
-                  },
-                  onTouchStart: (e) => {
+                  onPointerDown: (e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     setShowKidMenu((v) => !v);
                     setShowShareMenu(false);
@@ -1344,6 +1341,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   {
                     className:
                       "absolute left-0 mt-3 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                    onPointerDown: (e) => e.stopPropagation(),
                     onClick: (e) => e.stopPropagation()
                   },
                   kids.map((k) => {
@@ -1353,11 +1351,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                       {
                         key: k.id,
                         type: 'button',
-                        onMouseDown: (e) => {
-                          e.stopPropagation();
-                          handleSelectKid(k.id);
-                        },
-                        onTouchStart: (e) => {
+                        onPointerDown: (e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           handleSelectKid(k.id);
                         },
@@ -1390,13 +1385,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     'button',
                     {
                       type: 'button',
-                      onMouseDown: (e) => {
-                        e.stopPropagation();
-                        setShowKidMenu(false);
-                        setActiveTab('family');
-                        setHeaderRequestedAddChild(true);
-                      },
-                      onTouchStart: (e) => {
+                      onPointerDown: (e) => {
+                        e.preventDefault();
                         e.stopPropagation();
                         setShowKidMenu(false);
                         setActiveTab('family');
@@ -1415,14 +1405,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
               'button',
               {
                 type: 'button',
-                onMouseDown: (e) => {
+                onPointerDown: (e) => {
+                  e.preventDefault();
                   e.stopPropagation();
-                  setShowShareMenu(!showShareMenu);
-                  setShowKidMenu(false);
-                },
-                onTouchStart: (e) => {
-                  e.stopPropagation();
-                  setShowShareMenu(!showShareMenu);
+                  setShowShareMenu((v) => !v);
                   setShowKidMenu(false);
                 },
                 className:
@@ -1441,13 +1427,16 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 {
                   className:
                     "absolute right-4 top-20 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                  onPointerDown: (e) => e.stopPropagation(),
                   onClick: (e) => e.stopPropagation()
                 },
                 React.createElement(
                   'button',
                   {
                     type: 'button',
-                    onClick: async () => {
+                    onPointerDown: async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       await handleGlobalShareApp();
                       setShowShareMenu(false);
                     },
@@ -1464,7 +1453,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   'button',
                   {
                     type: 'button',
-                    onClick: async () => {
+                    onPointerDown: async (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
                       await handleGlobalInvitePartner();
                       setShowShareMenu(false);
                     },
@@ -1482,38 +1473,14 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         )
       ),
 
-      // ---------- PAGE CONTENT ----------
-      React.createElement(
-        'div',
-        { className: "px-4" },
-        activeTab === 'tracker' &&
-          React.createElement(TrackerTab, { user, kidId, familyId }),
-        activeTab === 'analytics' &&
-          React.createElement(AnalyticsTab, { kidId, familyId }),
-        activeTab === 'chat' &&
-          React.createElement(AIChatTab, { user, kidId, familyId }),
-        activeTab === 'family' &&
-          React.createElement(FamilyTab, {
-            user,
-            kidId,
-            familyId,
-            onKidChange,
-            kids,
-            themeKey,
-            onThemeChange: setThemeKey,
-            requestAddChild: headerRequestedAddChild,
-            onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
-          }),
-        activeTab === 'settings' &&
-          React.createElement(SettingsTab, { user, kidId, familyId })
-      )
-    ),
-
     // Click-away overlay to close menus (UNDER dropdowns)
     (showShareMenu || showKidMenu) &&
       React.createElement('div', {
+        // IMPORTANT: must be lower than the header (header is z-40)
         className: "fixed inset-0 z-30",
-        onClick: () => {
+        onPointerDown: (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           setShowShareMenu(false);
           setShowKidMenu(false);
         }
