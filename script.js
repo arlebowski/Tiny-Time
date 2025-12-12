@@ -3442,32 +3442,103 @@ const SettingsTab = ({ user, kidId }) => {
 // ========================================
 
 // Edit icon
-const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
-);
+const Edit2 = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M17 3a2.85 2.85 0 1 1 4 4L7 21H3v-4L17 3z" }),
+    React.createElement("path", { d: "M16 5l3 3" })
+  );
 
 // Check icon
-const Check = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M20 6 9 17l-5-5" })
-);
+const Check = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M20 6L9 17l-5-5" })
+  );
 
-// X (close) icon
-const X = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M18 6 6 18" }),
-  React.createElement('path', { d: "m6 6 12 12" })
-);
+// X icon
+const X = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M18 6L6 18" }),
+    React.createElement("path", { d: "M6 6l12 12" })
+  );
 
-// Chevron left
-const ChevronLeft = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "m15 18-6-6 6-6" })
-);
+// ChevronLeft icon
+const ChevronLeft = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M15 18l-6-6 6-6" })
+  );
 
-// Chevron right
-const ChevronRight = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "m9 18 6-6-6-6" })
-);
+// ChevronRight icon
+const ChevronRight = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M9 18l6-6-6-6" })
+  );
 
-// ChevronDown (used by kid picker)
+// ✅ ChevronDown icon (NEW)
 const ChevronDown = (props) =>
   React.createElement(
     "svg",
@@ -3481,13 +3552,13 @@ const ChevronDown = (props) =>
       stroke: "currentColor",
       strokeWidth: "2",
       strokeLinecap: "round",
-      strokeLinejoin: "round"
+      strokeLinejoin: "round",
     },
-    React.createElement("path", { d: "m6 9 6 6 6-6" })
+    React.createElement("path", { d: "M6 9l6 6 6-6" })
   );
 
-// Share (used in header)
-const Share = (props) =>
+// Clock icon
+const Clock = (props) =>
   React.createElement(
     "svg",
     {
@@ -3500,91 +3571,242 @@ const Share = (props) =>
       stroke: "currentColor",
       strokeWidth: "2",
       strokeLinecap: "round",
-      strokeLinejoin: "round"
+      strokeLinejoin: "round",
+    },
+    React.createElement("circle", { cx: "12", cy: "12", r: "10" }),
+    React.createElement("path", { d: "M12 6v6l4 2" })
+  );
+
+// Plus icon
+const Plus = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M12 5v14" }),
+    React.createElement("path", { d: "M5 12h14" })
+  );
+
+// Camera icon
+const Camera = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h3l2-3h8l2 3h3a2 2 0 0 1 2 2z" }),
+    React.createElement("circle", { cx: "12", cy: "13", r: "4" })
+  );
+
+// UserPlus icon
+const UserPlus = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
+    React.createElement("circle", { cx: "8.5", cy: "7", r: "4" }),
+    React.createElement("path", { d: "M20 8v6" }),
+    React.createElement("path", { d: "M23 11h-6" })
+  );
+
+// Send icon
+const Send = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M22 2L11 13" }),
+    React.createElement("path", { d: "M22 2L15 22l-4-9-9-4 20-7z" })
+  );
+
+// BarChart icon
+const BarChart = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M12 20V10" }),
+    React.createElement("path", { d: "M18 20V4" }),
+    React.createElement("path", { d: "M6 20v-4" })
+  );
+
+// TrendingUp icon
+const TrendingUp = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M23 6l-9.5 9.5-5-5L1 18" }),
+    React.createElement("path", { d: "M17 6h6v6" })
+  );
+
+// MessageCircle icon
+const MessageCircle = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z" })
+  );
+
+// Users icon
+const Users = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
+    React.createElement("circle", { cx: "9", cy: "7", r: "4" }),
+    React.createElement("path", { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
+    React.createElement("path", { d: "M16 3.13a4 4 0 0 1 0 7.75" })
+  );
+
+// Menu (hamburger) icon
+const Menu = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("line", { x1: "4", y1: "6", x2: "20", y2: "6" }),
+    React.createElement("line", { x1: "4", y1: "12", x2: "20", y2: "12" }),
+    React.createElement("line", { x1: "4", y1: "18", x2: "20", y2: "18" })
+  );
+
+// Baby icon
+const Baby = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+    },
+    React.createElement("path", { d: "M9 12h.01" }),
+    React.createElement("path", { d: "M15 12h.01" }),
+    React.createElement("path", { d: "M10 16s1 1 2 1 2-1 2-1" }),
+    React.createElement("path", { d: "M12 2a10 10 0 0 0-7 17" }),
+    React.createElement("path", { d: "M12 2a10 10 0 0 1 7 17" })
+  );
+
+// ✅ Share2 icon (NEW) — use this in the header
+const Share2 = (props) =>
+  React.createElement(
+    "svg",
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "24",
+      height: "24",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2",
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
     },
     React.createElement("circle", { cx: "18", cy: "5", r: "3" }),
     React.createElement("circle", { cx: "6", cy: "12", r: "3" }),
     React.createElement("circle", { cx: "18", cy: "19", r: "3" }),
-    React.createElement("line", { x1: "8.6", y1: "13.5", x2: "15.4", y2: "17.5" }),
-    React.createElement("line", { x1: "15.4", y1: "6.5", x2: "8.6", y2: "10.5" })
+    React.createElement("line", { x1: "8.59", y1: "13.51", x2: "15.42", y2: "17.49" }),
+    React.createElement("line", { x1: "15.41", y1: "6.51", x2: "8.59", y2: "10.49" })
   );
-
-// Settings alias (your nav expects Settings but you defined Menu)
-const Settings = Menu;
-
-// Clock icon
-const Clock = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
-  React.createElement('polyline', { points: "12 6 12 12 16 14" })
-);
-
-// Plus icon
-const Plus = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M5 12h14" }),
-  React.createElement('path', { d: "M12 5v14" })
-);
-
-// Camera icon (for baby photo)
-const Camera = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" }),
-  React.createElement('circle', { cx: "12", cy: "13", r: "4" })
-);
-
-// UserPlus icon (for invite)
-const UserPlus = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }),
-  React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
-  React.createElement('line', { x1: "19", x2: "19", y1: "8", y2: "14" }),
-  React.createElement('line', { x1: "22", x2: "16", y1: "11", y2: "11" })
-);
-
-// Send icon (for chat)
-const Send = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "m22 2-7 20-4-9-9-4Z" }),
-  React.createElement('path', { d: "M22 2 11 13" })
-);
-
-// Navigation Icons
-
-// BarChart (Tracker tab)
-const BarChart = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('line', { x1: "12", y1: "20", x2: "12", y2: "10" }),
-  React.createElement('line', { x1: "18", y1: "20", x2: "18", y2: "4" }),
-  React.createElement('line', { x1: "6", y1: "20", x2: "6", y2: "16" })
-);
-
-// TrendingUp (Analytics tab)
-const TrendingUp = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('polyline', { points: "23 6 13.5 15.5 8.5 10.5 1 18" }),
-  React.createElement('polyline', { points: "17 6 23 6 23 12" })
-);
-
-// MessageCircle (AI Chat tab)
-const MessageCircle = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" })
-);
-
-// Users (Family tab)
-const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
-  React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
-  React.createElement('path', { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
-  React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
-);
-
-// Menu/Hamburger (Settings tab)
-const Menu = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('line', { x1: "4", y1: "12", x2: "20", y2: "12" }),
-  React.createElement('line', { x1: "4", y1: "6", x2: "20", y2: "6" }),
-  React.createElement('line', { x1: "4", y1: "18", x2: "20", y2: "18" })
-);
-
-const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M9 12h.01" }),
-  React.createElement('path', { d: "M15 12h.01" }),
-  React.createElement('path', { d: "M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" }),
-  React.createElement('path', { d: "M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1" })
-);
 
 // ========================================
 // TINY TRACKER - PART 9
