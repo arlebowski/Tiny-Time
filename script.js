@@ -3762,6 +3762,9 @@ const Menu = (props) =>
     React.createElement("line", { x1: "4", y1: "18", x2: "20", y2: "18" })
   );
 
+// Settings is an alias for Menu (used in bottom navigation)
+const Settings = Menu;
+
 // Baby icon
 const Baby = (props) =>
   React.createElement(
@@ -3807,6 +3810,9 @@ const Share2 = (props) =>
     React.createElement("line", { x1: "8.59", y1: "13.51", x2: "15.42", y2: "17.49" }),
     React.createElement("line", { x1: "15.41", y1: "6.51", x2: "8.59", y2: "10.49" })
   );
+
+// Share is an alias for Share2 (used in header button)
+const Share = Share2;
 
 // ========================================
 // TINY TRACKER - PART 9
