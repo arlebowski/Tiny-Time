@@ -2721,18 +2721,48 @@ const FamilyTab = ({
   // Invite / members
   // --------------------------------------
 
-  const handleInvite = async () => {
-    if (!familyId || !kidId) return;
-    try {
-      const code = await createInvite(familyId, kidId);
-      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-      setInviteLink(link);
-      setShowInvite(true);
-    } catch (error) {
-      console.error('Error creating invite:', error);
-      alert('Failed to create invite');
+const handleInvite = async () => {
+  const resolvedKidId = kidId || (kids && kids.length ? kids[0].id : null);
+
+  if (!familyId) {
+    alert("Missing family. Try refreshing.");
+    return;
+  }
+  if (!resolvedKidId) {
+    alert("No kid selected. Try switching kids and retry.");
+    return;
+  }
+
+  try {
+    const code = await createInvite(familyId, resolvedKidId);
+    const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+
+    // Prefer share sheet (feels instant + obvious)
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join Tiny Tracker",
+          text: "Join our family on Tiny Tracker:",
+          url: link
+        });
+        return;
+      } catch (e) {
+        // user cancelled; fall back to copy
+      }
     }
-  };
+
+    // Clipboard fallback
+    await navigator.clipboard.writeText(link);
+    alert("Invite link copied!");
+
+    // Keep your existing panel too (optional)
+    setInviteLink(link);
+    setShowInvite(true);
+  } catch (error) {
+    console.error("Error creating invite:", error);
+    alert("Failed to create invite");
+  }
+};
 
   const handleCopyLink = async () => {
     try {
