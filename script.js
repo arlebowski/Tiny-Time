@@ -191,36 +191,39 @@ const createInvite = async (familyId, kidId) => {
 };
 
 const acceptInvite = async (code, userId) => {
-  const snap = await db.collection("invites").doc(code).get();
+  const inviteRef = db.collection("invites").doc(code);
+  const snap = await inviteRef.get();
   if (!snap.exists) throw new Error("Invalid invite");
 
   const invite = snap.data();
   if (invite.used) throw new Error("Invite already used");
 
-  // Add user to family
-  await db.collection("families")
-    .doc(invite.familyId)
-    .update({
-      members: firebase.firestore.FieldValue.arrayUnion(userId)
-    });
+  const familyRef = db.collection("families").doc(invite.familyId);
 
-  // Add user to kid’s members
-  await db.collection("families")
-    .doc(invite.familyId)
-    .collection("kids")
-    .doc(invite.kidId)
-    .update({
-      members: firebase.firestore.FieldValue.arrayUnion(userId)
-    });
+  // 1) Add user to family
+  await familyRef.update({
+    members: firebase.firestore.FieldValue.arrayUnion(userId)
+  });
 
-  // Mark invite used
-  await db.collection("invites").doc(code).update({
+  // 2) Add user to ALL kids in this family (so access = family-wide)
+  const kidsSnap = await familyRef.collection("kids").get();
+  const kidUpdates = kidsSnap.docs.map((kidDoc) =>
+    kidDoc.ref.update({
+      members: firebase.firestore.FieldValue.arrayUnion(userId)
+    })
+  );
+  await Promise.all(kidUpdates);
+
+  // 3) Mark invite used
+  await inviteRef.update({
     used: true,
     usedBy: userId,
     usedAt: firebase.firestore.FieldValue.serverTimestamp()
   });
 
-  return { familyId: invite.familyId, kidId: invite.kidId };
+  // Return something reasonable
+  // Prefer invite.kidId if present, else pick family primary kid if you want later.
+  return { familyId: invite.familyId, kidId: invite.kidId || (kidsSnap.docs[0]?.id || null) };
 };
 
 // ========================================
@@ -249,28 +252,25 @@ const updateUserProfile = async (userId, data) => {
 };
 
 // Remove a member from a family + kid (used on Family tab)
-const removeMember = async (familyId, kidId, memberId) => {
-  if (!familyId || !kidId || !memberId) throw new Error("Missing ids");
+const removeMember = async (familyId, kidId_ignored, memberId) => {
+  if (!familyId || !memberId) throw new Error("Missing ids");
 
-  // Remove from family members array
-  await db
-    .collection("families")
-    .doc(familyId)
-    .update({
-      members: firebase.firestore.FieldValue.arrayRemove(memberId),
-    });
+  const familyRef = db.collection("families").doc(familyId);
 
-  // Remove from kid members array
-  await db
-    .collection("families")
-    .doc(familyId)
-    .collection("kids")
-    .doc(kidId)
-    .update({
+  // 1) Remove from family
+  await familyRef.update({
+    members: firebase.firestore.FieldValue.arrayRemove(memberId),
+  });
+
+  // 2) Remove from ALL kids in the family
+  const kidsSnap = await familyRef.collection("kids").get();
+  const kidUpdates = kidsSnap.docs.map((kidDoc) =>
+    kidDoc.ref.update({
       members: firebase.firestore.FieldValue.arrayRemove(memberId),
-    });
+    })
+  );
+  await Promise.all(kidUpdates);
 };
-
 
 // ========================================
 // FAMILY-BASED STORAGE LAYER
@@ -2498,6 +2498,11 @@ const FamilyTab = ({
     try {
       const birthTimestamp = new Date(newBabyBirthDate).getTime();
 
+      const famDoc = await db.collection("families").doc(familyId).get();
+      const famMembers = famDoc.exists && Array.isArray(famDoc.data().members)
+        ? famDoc.data().members
+        : [user.uid];
+      
       const kidRef = await db
         .collection('families')
         .doc(familyId)
@@ -2506,7 +2511,7 @@ const FamilyTab = ({
           name: newBabyName.trim(),
           ownerId: user.uid,
           birthDate: birthTimestamp,
-          members: [user.uid],
+          members: famMembers, // ✅ inherit all family members
           photoURL: null,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
