@@ -983,7 +983,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
             onChange: (e) => setBabyName(e.target.value),
             placeholder: "Emma",
             className:
-              "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
+              "w-full px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
           })
         ),
 
@@ -1764,11 +1764,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             value: ounces,
             onChange: (e) => setOunces(e.target.value),
             onKeyPress: (e) => e.key === 'Enter' && !showCustomTime && handleAddFeeding(),
-            className: "flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+            className: "flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
           }),
           React.createElement('button', {
             onClick: () => setShowCustomTime(!showCustomTime),
-            className: `px-4 py-3 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
+            className: `px-4 py-2.5 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
           }, React.createElement(Clock, { className: "w-5 h-5" }))
         ),
         
@@ -1776,7 +1776,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           type: "time",
           value: customTime,
           onChange: (e) => setCustomTime(e.target.value),
-          className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+          className: "w-full px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
         }),
         
         React.createElement('button', {
