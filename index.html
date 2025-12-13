@@ -34,6 +34,36 @@
     body {
       overscroll-behavior: none;
     }
+    
+    /* ============================================
+       FIX: Date input overflow on mobile devices
+       ============================================
+       Issue: Date inputs were overhanging cards on actual mobile devices
+       even though they appeared fine in desktop browser dev tools.
+       
+       Root cause: 
+       - Mobile browsers (especially iOS Safari) handle date inputs differently
+       - Grid items have default min-width: auto which prevents shrinking
+       - Date inputs in grid-cols-2 layout need explicit min-width: 0
+       
+       Solution: Force proper box-sizing and width constraints on date inputs,
+       allow grid items to shrink, and prevent horizontal overflow in cards.
+    */
+    input[type="date"] {
+      box-sizing: border-box !important;
+      max-width: 100% !important;
+      min-width: 0 !important;
+      width: 100% !important;
+    }
+    /* Allow grid items to shrink below content size (critical for date inputs in grids) */
+    .grid > * {
+      min-width: 0;
+    }
+    /* Prevent horizontal overflow in white card containers */
+    .bg-white.rounded-3xl,
+    .bg-white.rounded-2xl {
+      overflow-x: hidden;
+    }
   </style>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100">
