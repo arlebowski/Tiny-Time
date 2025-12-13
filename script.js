@@ -1247,28 +1247,49 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   };
 
   const handleGlobalInvitePartner = async () => {
-    try {
-      const code = await createInvite(familyId, kidId);
-      const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: "Join me on Tiny Tracker",
-            text: "Come join me so we can both track the baby's feedings.",
-            url: link
-          });
-          return;
-        } catch (err) {}
-      }
-
-      await navigator.clipboard.writeText(link);
-      alert("Invite link copied!");
-    } catch (err) {
-      console.error(err);
-      alert("Failed to create invite.");
+    const resolvedKidId = kidId || (kids && kids.length ? kids[0].id : null);
+  
+    if (!familyId || !resolvedKidId) {
+      alert("Something went wrong. Try refreshing.");
+      return;
     }
+  
+    let link;
+  
+    // ---- ONLY invite creation can fail ----
+    try {
+      const code = await createInvite(familyId, resolvedKidId);
+      link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+    } catch (err) {
+      console.error("Invite creation failed:", err);
+      alert("Failed to create invite.");
+      return;
+    }
+  
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: "Join me on Tiny Tracker",
+          text: "Come join me so we can track together.",
+          url: link
+        });
+        return;
+      } catch {
+        // cancel = noop
+      }
+    }
+  
+    if (document.hasFocus() && navigator.clipboard?.writeText) {
+      try {
+        await navigator.clipboard.writeText(link);
+        alert("Invite link copied!");
+        return;
+      } catch {}
+    }
+  
+    window.prompt("Copy this invite link:", link);
   };
+
 
   // --------------------------------------
   // UI
@@ -2729,48 +2750,44 @@ const FamilyTab = ({
 const handleInvite = async () => {
   const resolvedKidId = kidId || (kids && kids.length ? kids[0].id : null);
 
-  if (!familyId) {
-    alert("Missing family. Try refreshing.");
-    return;
-  }
-  if (!resolvedKidId) {
-    alert("No kid selected. Try switching kids and retry.");
+  if (!familyId || !resolvedKidId) {
+    alert("Something went wrong. Try refreshing.");
     return;
   }
 
+  let link;
+
+  // ---- ONLY invite creation can fail ----
   try {
     const code = await createInvite(familyId, resolvedKidId);
-    const link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+    link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
+  } catch (err) {
+    console.error("Invite creation failed:", err);
+    alert("Failed to create invite");
+    return;
+  }
 
-    // Prefer share sheet (feels instant + obvious)
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: "Join Tiny Tracker",
-          text: "Join our family on Tiny Tracker:",
-          url: link
-        });
-        return;
-      } catch (e) {
-        // user cancelled share sheet; fall back to copy/panel
-      }
+  // ---- Optional UX only ----
+  if (navigator.share) {
+    try {
+      await navigator.share({
+        title: "Join Tiny Tracker",
+        text: "Join our family on Tiny Tracker:",
+        url: link
+      });
+      return;
+    } catch {
+      // user cancelled → do nothing
     }
+  }
 
-    // Clipboard fallback (do NOT fail the whole invite if copy is blocked)
+  setInviteLink(link);
+  setShowInvite(true);
+
+  if (document.hasFocus() && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(link);
-      alert("Invite link copied!");
-    } catch (err) {
-      console.warn("Clipboard copy blocked (document not focused):", err);
-      // No alert needed; the invite panel below will show the link to copy manually
-    }
-
-    // Keep your existing panel too (optional)
-    setInviteLink(link);
-    setShowInvite(true);
-  } catch (error) {
-    console.error("Error creating invite:", error);
-    alert("Failed to create invite");
+    } catch {}
   }
 };
 
