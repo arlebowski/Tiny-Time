@@ -1008,7 +1008,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
 
         React.createElement(
           "div",
-          null,
+          { className: "min-w-0" }, // FIX: Prevent date input overflow on mobile - allow container to shrink
           React.createElement(
             "label",
             { className: "block text-sm font-medium text-gray-700 mb-2" },
@@ -3515,7 +3515,7 @@ const handleInvite = async () => {
             ),
             React.createElement(
               'div',
-              { className: 'grid grid-cols-2 gap-3' },
+              { className: 'grid grid-cols-2 gap-3 min-w-0' }, // FIX: Prevent grid overflow on mobile
               React.createElement(
                 'div',
                 null,
@@ -3538,7 +3538,7 @@ const handleInvite = async () => {
               ),
               React.createElement(
                 'div',
-                null,
+                { className: 'min-w-0' }, // FIX: Prevent date input overflow on mobile - allow grid item to shrink
                 React.createElement(
                   'label',
                   {
