@@ -1215,30 +1215,35 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
   const handleGlobalShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
-    const text = "Check out Tiny Tracker - track your baby's feedings and get insights! " + url;
-
+  
+    // Best path: native share sheet
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Tiny Tracker',
-          text: "Check out Tiny Tracker - track your baby's feedings and get insights!",
+          title: "Tiny Tracker",
+          text: "Check out Tiny Tracker — track your baby's feedings and get insights!",
           url
         });
         return;
-      } catch (err) {}
-    }
-
-    const messengerUrl = `fb-messenger://share/?link=${encodeURIComponent(url)}&app_id=`;
-    window.location.href = messengerUrl;
-
-    setTimeout(async () => {
-      try {
-        await navigator.clipboard.writeText(text);
-        alert("Link copied to clipboard!");
-      } catch {
-        prompt("Copy this link:", url);
+      } catch (err) {
+        // User canceled share sheet — do nothing else
+        return;
       }
-    }, 1000);
+    }
+  
+    // Fallback: copy link (only if focused), otherwise show prompt
+    const text = `Check out Tiny Tracker — track your baby's feedings and get insights! ${url}`;
+  
+    try {
+      if (document.hasFocus() && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        alert("Link copied!");
+      } else {
+        window.prompt("Copy this link:", url);
+      }
+    } catch (e) {
+      window.prompt("Copy this link:", url);
+    }
   };
 
   const handleGlobalInvitePartner = async () => {
