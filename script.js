@@ -1275,11 +1275,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         });
         return;
       } catch {
-        // cancel = noop
+        return; // user cancelled → STOP, no clipboard
       }
     }
   
-    if (document.hasFocus() && navigator.clipboard?.writeText) {
+    // Only if share is NOT available
+    if (navigator.clipboard?.writeText) {
       try {
         await navigator.clipboard.writeText(link);
         alert("Invite link copied!");
@@ -2775,20 +2776,15 @@ const handleInvite = async () => {
         text: "Join our family on Tiny Tracker:",
         url: link
       });
-      return;
+      return; // shared successfully
     } catch {
-      // user cancelled → do nothing
+      return; // user cancelled → STOP here
     }
   }
 
+  // Only reach here if share is NOT supported
   setInviteLink(link);
   setShowInvite(true);
-
-  if (document.hasFocus() && navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(link);
-    } catch {}
-  }
 };
 
   const handleCopyLink = async () => {
