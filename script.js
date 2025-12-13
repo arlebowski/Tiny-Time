@@ -2747,13 +2747,18 @@ const handleInvite = async () => {
         });
         return;
       } catch (e) {
-        // user cancelled; fall back to copy
+        // user cancelled share sheet; fall back to copy/panel
       }
     }
 
-    // Clipboard fallback
-    await navigator.clipboard.writeText(link);
-    alert("Invite link copied!");
+    // Clipboard fallback (do NOT fail the whole invite if copy is blocked)
+    try {
+      await navigator.clipboard.writeText(link);
+      alert("Invite link copied!");
+    } catch (err) {
+      console.warn("Clipboard copy blocked (document not focused):", err);
+      // No alert needed; the invite panel below will show the link to copy manually
+    }
 
     // Keep your existing panel too (optional)
     setInviteLink(link);
@@ -2765,12 +2770,15 @@ const handleInvite = async () => {
 };
 
   const handleCopyLink = async () => {
+    if (!inviteLink) return;
+  
     try {
       await navigator.clipboard.writeText(inviteLink);
       setCopying(true);
       setTimeout(() => setCopying(false), 2000);
-    } catch (error) {
-      console.error('Copy failed:', error);
+    } catch (err) {
+      // Safari fallback that always works
+      window.prompt("Copy this invite link:", inviteLink);
     }
   };
 
