@@ -1895,11 +1895,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                       className: "bg-indigo-100 rounded-full flex items-center justify-center",
                       style: { width: '48px', height: '48px' }
                     },
-                      React.createElement(Baby, {
-                        size: 32,
-                        strokeWidth: 2,
-                        className: 'text-indigo-600'
-                      })
+                      React.createElement('span', { className: "text-xl" }, '🍼')
                     ),
                     React.createElement('div', {},
                       React.createElement('div', { className: "font-semibold text-gray-800" }, `${feeding.ounces} oz`),
