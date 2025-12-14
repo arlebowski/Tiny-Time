@@ -1140,6 +1140,7 @@ const KID_THEMES = {
   purple: { bg: '#EDE9FE', accent: '#7C3AED', soft: '#F5F3FF' }
 };
 
+
 // =====================================================
 // MAIN APP
 // =====================================================
@@ -1160,6 +1161,18 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
+
+  useEffect(() => {
+    // Sync iOS Safari safe-area / browser chrome with active kid theme
+    try {
+      document.body.style.backgroundColor = theme.bg;
+      if (typeof window.updateMetaThemeColor === 'function') {
+        window.updateMetaThemeColor(theme);
+      }
+    } catch (e) {
+      // non-fatal
+    }
+  }, [themeKey]);
 
   useEffect(() => {
     loadKidsAndTheme();
@@ -1492,7 +1505,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         { className: "px-4" },
         activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId, familyId }),
         activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
-        activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId }),
+        activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId, familyId, themeKey }),
         activeTab === 'family' && React.createElement(FamilyTab, {
           user,
           kidId,
@@ -3821,11 +3834,14 @@ const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://ww
 // ========================================
 
 // AI Chat Tab - iMessage Style
-const AIChatTab = ({ user, kidId, familyId }) => {
+const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
+  const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
+
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState(localStorage.getItem('aiChatDraft') || '');
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
+  const [inputFocused, setInputFocused] = useState(false);
   const messagesEndRef = React.useRef(null);
   const messagesContainerRef = React.useRef(null);
 
@@ -4139,13 +4155,17 @@ const AIChatTab = ({ user, kidId, familyId }) => {
       'div',
       {
         className: 'px-4 pb-4 pt-2',
-        style: { backgroundColor: '#E0E7FF' }
+        style: { backgroundColor: theme.bg }
       },
       React.createElement(
         'div',
         {
           className:
-            'flex items-center gap-2 bg-white rounded-2xl px-3 py-1.5 border border-gray-200'
+            'flex items-center gap-2 bg-white rounded-2xl px-3 py-1.5 border',
+          style: {
+            borderColor: inputFocused ? theme.accent : '#e5e7eb',
+            boxShadow: inputFocused ? `0 0 0 3px ${theme.soft || theme.bg}` : 'none'
+          }
         },
         React.createElement('textarea', {
           value: input,
@@ -4155,6 +4175,8 @@ const AIChatTab = ({ user, kidId, familyId }) => {
             el.style.height = 'auto';
             el.style.height = el.scrollHeight + 'px';
           },
+          onFocus: () => setInputFocused(true),
+          onBlur: () => setInputFocused(false),
           onKeyPress: (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
@@ -4174,7 +4196,8 @@ const AIChatTab = ({ user, kidId, familyId }) => {
             onClick: handleSend,
             disabled: loading || !input.trim(),
             className:
-              'flex-shrink-0 w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center disabled:opacity-30 transition hover:bg-indigo-700'
+              'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center disabled:opacity-30 transition',
+            style: { backgroundColor: theme.accent }
           },
           React.createElement(
             'svg',
@@ -4653,15 +4676,26 @@ const calculateAgeInMonths = (birthDate) => {
 // SET THEME COLOR FOR MOBILE BROWSER
 // ========================================
 
-const metaThemeColor = document.querySelector('meta[name="theme-color"]');
-if (metaThemeColor) {
-  metaThemeColor.setAttribute('content', '#E0E7FF');
-} else {
-  const meta = document.createElement('meta');
-  meta.name = 'theme-color';
-  meta.content = '#E0E7FF';
-  document.head.appendChild(meta);
-}
+const ensureMetaThemeTag = () => {
+  let meta = document.querySelector('meta[name="theme-color"]');
+
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    document.head.appendChild(meta);
+  }
+
+  return meta;
+};
+
+const updateMetaThemeColor = (theme) => {
+  const meta = ensureMetaThemeTag();
+  const color = (theme && theme.bg) || '#E0E7FF';
+  meta.setAttribute('content', color);
+};
+
+updateMetaThemeColor();
+window.updateMetaThemeColor = updateMetaThemeColor;
 
 // ========================================
 // RENDER APP (must stay last)
