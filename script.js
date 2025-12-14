@@ -846,9 +846,15 @@ const LoginScreen = () => {
 // =====================================================
 
 const BabySetupScreen = ({ user, onComplete }) => {
+  const getTodayLocalDateString = () => {
+    const now = new Date();
+    const offsetMs = now.getTimezoneOffset() * 60000;
+    return new Date(now.getTime() - offsetMs).toISOString().split("T")[0];
+  };
+
   const [babyName, setBabyName] = useState("");
   const [babyWeight, setBabyWeight] = useState("");
-  const [birthDate, setBirthDate] = useState("");
+  const [birthDate, setBirthDate] = useState(getTodayLocalDateString);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
