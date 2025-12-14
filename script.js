@@ -472,6 +472,37 @@ const firestoreStorage = {
   },
 
   // -----------------------
+  // SLEEP SETTINGS (per kid)
+  // -----------------------
+  async getSleepSettings() {
+    const doc = await this._kidRef().get();
+    const d = doc.exists ? doc.data() : {};
+    return {
+      sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
+      sleepNightEnd: d.sleepNightEnd ?? 420,      // 7:00 AM
+      sleepTargetHours: d.sleepTargetHours ?? 14
+    };
+  },
+
+  async updateSleepSettings({
+    sleepNightStart,
+    sleepNightEnd,
+    sleepTargetHours
+  }) {
+    await this._kidRef().update({
+      ...(sleepNightStart != null ? { sleepNightStart } : {}),
+      ...(sleepNightEnd != null ? { sleepNightEnd } : {}),
+      ...(sleepTargetHours != null ? { sleepTargetHours } : {})
+    });
+
+    logEvent("sleep_settings_updated", {
+      sleepNightStart,
+      sleepNightEnd,
+      sleepTargetHours
+    });
+  },
+
+  // -----------------------
   // KID PROFILE
   // -----------------------
   async getKidData() {
