@@ -1019,7 +1019,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
             value: birthDate,
             onChange: (e) => setBirthDate(e.target.value),
             className:
-              "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
+              "w-full min-w-0 max-w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
           })
         ),
 
