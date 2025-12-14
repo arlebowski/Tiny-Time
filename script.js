@@ -342,6 +342,118 @@ const firestoreStorage = {
   },
 
   // -----------------------
+  // SLEEP SESSIONS
+  // -----------------------
+  async startSleep(startTime = null) {
+    const user = auth.currentUser;
+    const uid = user ? user.uid : null;
+
+    // Ensure only one active sleep per kid
+    const activeSnap = await this._kidRef()
+      .collection("sleepSessions")
+      .where("isActive", "==", true)
+      .limit(1)
+      .get();
+
+    if (!activeSnap.empty) {
+      const d = activeSnap.docs[0];
+      return { id: d.id, ...d.data() };
+    }
+
+    const startMs = typeof startTime === "number" ? startTime : Date.now();
+
+    const ref = await this._kidRef().collection("sleepSessions").add({
+      startTime: startMs,
+      endTime: null,
+      isActive: true,
+      startedByUid: uid,
+      endedByUid: null,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    logEvent("sleep_started", { startTime: startMs });
+    const doc = await ref.get();
+    return { id: doc.id, ...doc.data() };
+  },
+
+  async endSleep(sessionId, endTime = null) {
+    const user = auth.currentUser;
+    const uid = user ? user.uid : null;
+
+    if (!sessionId) throw new Error("Missing sleep session id");
+
+    const endMs = typeof endTime === "number" ? endTime : Date.now();
+
+    await this._kidRef()
+      .collection("sleepSessions")
+      .doc(sessionId)
+      .update({
+        endTime: endMs,
+        isActive: false,
+        endedByUid: uid
+      });
+
+    logEvent("sleep_ended", { endTime: endMs });
+  },
+
+  // Subscribe to the active sleep session (if any). Callback receives:
+  // - null when no active session
+  // - { id, ...data } when active
+  subscribeActiveSleep(callback) {
+    if (typeof callback !== "function") throw new Error("Missing callback");
+
+    return this._kidRef()
+      .collection("sleepSessions")
+      .where("isActive", "==", true)
+      .limit(1)
+      .onSnapshot(
+        (snap) => {
+          if (snap.empty) {
+            callback(null);
+            return;
+          }
+          const d = snap.docs[0];
+          callback({ id: d.id, ...d.data() });
+        },
+        (err) => {
+          console.error("Active sleep subscription error:", err);
+          callback(null);
+        }
+      );
+  },
+
+  async getSleepSessionsLastNDays(days) {
+    const cutoff = Date.now() - days * 86400000;
+
+    const snap = await this._kidRef()
+      .collection("sleepSessions")
+      .where("startTime", ">", cutoff)
+      .orderBy("startTime", "asc")
+      .get();
+
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  async getAllSleepSessions() {
+    const snap = await this._kidRef()
+      .collection("sleepSessions")
+      .orderBy("startTime", "asc")
+      .get();
+
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  async updateSleepSession(id, data) {
+    if (!id) throw new Error("Missing sleep session id");
+    await this._kidRef().collection("sleepSessions").doc(id).update(data || {});
+  },
+
+  async deleteSleepSession(id) {
+    if (!id) throw new Error("Missing sleep session id");
+    await this._kidRef().collection("sleepSessions").doc(id).delete();
+  },
+
+  // -----------------------
   // SETTINGS
   // -----------------------
   async getSettings() {
