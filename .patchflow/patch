@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# This script:
+# 1) Saves a backup snapshot
+# 2) Creates a new branch
+# 3) Reads a unified diff from your clipboard
+# 4) Applies it exactly
+# 5) Commits it
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+# Refuse to stack changes (prevents confusion)
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Working tree not clean. Commit/stash first."
+  echo "Run: git status"
+  exit 1
+fi
+
+BR="patch-$(date +%Y%m%d-%H%M%S)"
+
+# Read patch from clipboard (macOS)
+PATCH_FILE="$(mktemp /tmp/patch.XXXXXX.diff)"
+pbpaste > "$PATCH_FILE"
+
+# Basic validation
+if ! head -n 1 "$PATCH_FILE" | grep -q "^diff --git"; then
+  echo "Clipboard does not start with: diff --git"
+  echo "You probably copied only part of the diff. Copy the whole thing."
+  exit 1
+fi
+
+# Backup snapshot (so you can undo)
+git stash push -u -m "backup-before-$BR" >/dev/null
+
+# New branch for safety (keeps main clean)
+git checkout -b "$BR" >/dev/null
+
+# Apply patch deterministically
+git apply --check "$PATCH_FILE"
+git apply --index "$PATCH_FILE"
+
+# Commit it
+git commit -m "Apply patch ($BR)" >/dev/null
+
+echo "✅ Done."
+echo "Branch: $BR"
+echo "Backup: git stash list | head"
+echo "Next: git push -u origin HEAD"

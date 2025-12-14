@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+CUR="$(git branch --show-current)"
+if [[ "$CUR" == "main" ]]; then
+  echo "You're on main. Refusing. Run the patch task first."
+  exit 1
+fi
+
+# Require clean state
+if ! git diff --quiet || ! git diff --cached --quiet; then
+  echo "Working tree not clean. Commit first."
+  exit 1
+fi
+
+echo "Publishing branch: $CUR"
+
+# Update main and merge
+git checkout main
+git pull
+git merge "$CUR"
+git push
+
+# Return to your branch
+git checkout "$CUR"
+
+echo "✅ Published to main (GitHub Pages will update from main)."
