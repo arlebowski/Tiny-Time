@@ -1751,6 +1751,27 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [editTime, setEditTime] = useState('');
   const [loading, setLoading] = useState(true);
   const [showCustomTime, setShowCustomTime] = useState(false);
+  const [logMode, setLogMode] = useState('feeding');
+
+  // Sleep logging state
+  const [activeSleep, setActiveSleep] = useState(null);
+  const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
+
+  useEffect(() => {
+    if (!kidId) return;
+    return firestoreStorage.subscribeActiveSleep((session) => {
+      setActiveSleep(session);
+    });
+  }, [kidId]);
+
+  useEffect(() => {
+    if (!activeSleep) return;
+    const start = activeSleep.startTime;
+    const tick = () => setSleepElapsedMs(Date.now() - start);
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [activeSleep]);
 
   useEffect(() => {
     loadData();
@@ -2000,7 +2021,89 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         )
       )
     ),
-    
+
+      // -----------------------
+      // LOG CARD — SLEEP MODE
+      // -----------------------
+      logMode === "sleep" &&
+        React.createElement(
+          "div",
+          { className: "space-y-3" },
+          !activeSleep &&
+            React.createElement(
+              "button",
+              {
+                className:
+                  "w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold",
+                onClick: async () => {
+                  await firestoreStorage.startSleep();
+                }
+              },
+              "Start Sleep"
+            ),
+
+          activeSleep &&
+            React.createElement(
+              "div",
+              { className: "space-y-2" },
+              React.createElement(
+                "div",
+                { className: "text-sm text-gray-500 text-center" },
+                "Sleeping since ",
+                new Date(activeSleep.startTime).toLocaleTimeString([], {
+                  hour: "numeric",
+                  minute: "2-digit"
+                })
+              ),
+              React.createElement(
+                "div",
+                { className: "text-center text-3xl font-semibold" },
+                Math.floor(sleepElapsedMs / 60000),
+                " min"
+              ),
+              React.createElement(
+                "button",
+                {
+                  className:
+                    "w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold",
+                  onClick: async () => {
+                    await firestoreStorage.endSleep(activeSleep.id);
+                  }
+                },
+                "End Sleep"
+              )
+            )
+        ),
+
+      React.createElement(
+        "div",
+        { className: "flex gap-2 mt-4" },
+        React.createElement(
+          "button",
+          {
+            className:
+              logMode === "feeding"
+                ? "flex-1 py-2 rounded-lg bg-indigo-600 text-white font-semibold"
+                : "flex-1 py-2 rounded-lg bg-gray-100 text-gray-700",
+            onClick: () => {
+              setLogMode("feeding");
+            }
+          },
+          "Feeding"
+      ),
+      React.createElement(
+        "button",
+        {
+          className:
+            logMode === "sleep"
+              ? "flex-1 py-2 rounded-lg bg-indigo-600 text-white font-semibold"
+              : "flex-1 py-2 rounded-lg bg-gray-100 text-gray-700",
+          onClick: () => setLogMode("sleep")
+        },
+        "Sleep"
+      )
+    ),
+
     // Feedings List
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
