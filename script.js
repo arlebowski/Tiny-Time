@@ -1817,7 +1817,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           type: "time",
           value: customTime,
           onChange: (e) => setCustomTime(e.target.value),
-          className: "w-full px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+          className: "block w-full min-w-0 max-w-full appearance-none box-border px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
         }),
         
         React.createElement('button', {
