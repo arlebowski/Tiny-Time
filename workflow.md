@@ -50,8 +50,13 @@ Any AI reading this repository **must follow these rules**:
    - All code changes must be returned as a **unified diff**
    - Diffs must be minimal and scoped
    - No speculative or drive-by changes
+   - **AI must explicitly label which file(s) are being changed** before the diff (example: “Files: index.html, script.js”).
 
-4. **EXECUTION IS EXTERNAL**
+4. **STEP-BY-STEP APPLICATION INSTRUCTIONS**
+   - Alongside the diff, AI must provide **exact, step-by-step instructions** to apply it using the workflow below.
+   - Instructions must be concrete (what to click, what command to run, what success looks like).
+
+5. **EXECUTION IS EXTERNAL**
    - Diffs are applied locally via git + VS Code Tasks
    - AI never executes code or modifies files directly
 
@@ -64,10 +69,37 @@ If these constraints cannot be followed, the AI should ask for clarification **b
 1. Human describes intent ("I want to change X")
 2. AI reads source via raw GitHub URLs
 3. AI proposes a **unified diff only**
-4. Human applies diff using VS Code task:
+4. Human applies diff using the VS Code Task:
    - `Patch: Apply (clipboard)`
 5. Human previews locally
 6. Human publishes to `main` when satisfied
+
+---
+
+## Applying a Patch (Exact Steps)
+
+When the AI provides a unified diff:
+
+1. Copy the unified diff to your clipboard.
+2. In VS Code: **Terminal → Run Task… → `Patch: Apply (clipboard)`**
+3. If the task fails, paste the terminal error into chat.
+4. If it succeeds, preview locally:
+   - VS Code: **Terminal → Run Task… → `Preview: Start local server (8000)`**
+   - Open `http://localhost:8000`
+5. If the change is correct, publish:
+   - VS Code: **Terminal → Run Task… → `Publish: Merge current branch to main + push`**
+
+Optional terminal equivalents (only if you prefer terminal over Tasks):
+
+- Apply patch (clipboard → file):
+  - Save the diff into a file (example `patch.diff`) then:
+    ```bash
+    git apply patch.diff
+    ```
+  - Or apply and commit via the `.patchflow/patch` script:
+    ```bash
+    ./.patchflow/patch
+    ```
 
 ---
 
@@ -82,3 +114,4 @@ This workflow provides:
 - reproducibility across chats and tools
 
 This is intentional.
+
