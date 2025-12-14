@@ -1797,7 +1797,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Log Feeding'),
       React.createElement('div', { className: "space-y-3" },
-        React.createElement('div', { className: "flex gap-3" },
+        React.createElement('div', { className: "flex gap-3 min-w-0" },
           React.createElement('input', {
             type: "number",
             step: "0.25",
@@ -1805,11 +1805,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             value: ounces,
             onChange: (e) => setOunces(e.target.value),
             onKeyPress: (e) => e.key === 'Enter' && !showCustomTime && handleAddFeeding(),
-            className: "flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+            className: "min-w-0 flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
           }),
           React.createElement('button', {
             onClick: () => setShowCustomTime(!showCustomTime),
-            className: `px-4 py-2.5 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
+            className: `shrink-0 px-4 py-2.5 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
           }, React.createElement(Clock, { className: "w-5 h-5" }))
         ),
         
@@ -1841,20 +1841,20 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             React.createElement('div', { key: feeding.id },
               editingFeedingId === feeding.id ?
                 React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl space-y-3" },
-                  React.createElement('div', { className: "flex gap-2" },
+                  React.createElement('div', { className: "flex gap-2 min-w-0" },
                     React.createElement('input', {
                       type: "number",
                       step: "0.25",
                       value: editOunces,
                       onChange: (e) => setEditOunces(e.target.value),
                       placeholder: "Ounces",
-                      className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                      className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                     }),
                     React.createElement('input', {
                       type: "time",
                       value: editTime,
                       onChange: (e) => setEditTime(e.target.value),
-                      className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                      className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                     })
                   ),
                   React.createElement('div', { className: "flex gap-2" },
