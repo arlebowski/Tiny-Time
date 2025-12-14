@@ -1159,6 +1159,14 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
   useEffect(() => {
+    try {
+      requestAnimationFrame(() => window.scrollTo(0, 0));
+    } catch (e) {
+      window.scrollTo(0, 0);
+    }
+  }, []);
+
+  useEffect(() => {
     document.title = 'Tiny Tracker';
   }, []);
 
