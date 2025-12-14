@@ -1808,7 +1808,21 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             className: "min-w-0 flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
           }),
           React.createElement('button', {
-            onClick: () => setShowCustomTime(!showCustomTime),
+            onClick: () => {
+              setShowCustomTime((prev) => {
+                const next = !prev;
+                if (next) {
+                  setCustomTime((t) => {
+                    if (t && String(t).trim()) return t;
+                    const d = new Date();
+                    const hh = String(d.getHours()).padStart(2, '0');
+                    const mm = String(d.getMinutes()).padStart(2, '0');
+                    return `${hh}:${mm}`;
+                  });
+                }
+                return next;
+              });
+            },
             className: `shrink-0 px-4 py-2.5 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
           }, React.createElement(Clock, { className: "w-5 h-5" }))
         ),
@@ -1817,7 +1831,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           type: "time",
           value: customTime,
           onChange: (e) => setCustomTime(e.target.value),
-          className: "block w-full min-w-0 max-w-full appearance-none box-border px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+          className: "block w-full min-w-0 max-w-full appearance-none box-border px-4 py-3 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
         }),
         
         React.createElement('button', {
