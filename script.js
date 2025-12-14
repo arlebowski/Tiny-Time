@@ -1756,6 +1756,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   // Sleep logging state
   const [activeSleep, setActiveSleep] = useState(null);
   const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
+  const [sleepStartStr, setSleepStartStr] = useState('');
+  const [sleepEndStr, setSleepEndStr] = useState('');
 
   useEffect(() => {
     if (!kidId) return;
@@ -1772,6 +1774,48 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [activeSleep]);
+
+  const _pad2 = (n) => String(n).padStart(2, '0');
+  const _toHHMM = (ms) => {
+    try {
+      const d = new Date(ms);
+      return _pad2(d.getHours()) + ':' + _pad2(d.getMinutes());
+    } catch (e) {
+      return '';
+    }
+  };
+  const _hhmmToMsToday = (hhmm) => {
+    if (!hhmm || typeof hhmm !== 'string' || hhmm.indexOf(':') === -1) return null;
+    const parts = hhmm.split(':');
+    const hh = parseInt(parts[0], 10);
+    const mm = parseInt(parts[1], 10);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    const d = new Date();
+    d.setHours(hh);
+    d.setMinutes(mm);
+    d.setSeconds(0);
+    d.setMilliseconds(0);
+    return d.getTime();
+  };
+  const _formatMMSS = (ms) => {
+    const total = Math.max(0, Math.floor((ms || 0) / 1000));
+    const mm = Math.floor(total / 60);
+    const ss = total % 60;
+    return _pad2(mm) + ':' + _pad2(ss);
+  };
+
+  // Keep time inputs in sync with active sleep state
+  useEffect(() => {
+    if (activeSleep && activeSleep.startTime) {
+      setSleepStartStr(_toHHMM(activeSleep.startTime));
+      if (!sleepEndStr) setSleepEndStr(_toHHMM(Date.now()));
+      return;
+    }
+    if (logMode === 'sleep') {
+      setSleepStartStr(_toHHMM(Date.now()));
+      setSleepEndStr('');
+    }
+  }, [logMode, activeSleep]);
 
   useEffect(() => {
     loadData();
@@ -1973,7 +2017,24 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     
     // Log Feeding Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Log Feeding'),
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Log Feeding'),
+      React.createElement('div', { className: "mt-3 mb-4 inline-flex w-full bg-gray-100 rounded-xl p-1" },
+        React.createElement('button', {
+          onClick: () => setLogMode('feeding'),
+          className: logMode === 'feeding'
+            ? "flex-1 py-2 rounded-lg bg-white shadow text-gray-900 font-semibold"
+            : "flex-1 py-2 rounded-lg text-gray-600"
+        }, 'Feed'),
+        React.createElement('button', {
+          onClick: () => setLogMode('sleep'),
+          className: logMode === 'sleep'
+            ? "flex-1 py-2 rounded-lg bg-white shadow text-gray-900 font-semibold"
+            : "flex-1 py-2 rounded-lg text-gray-600"
+        }, 'Sleep')
+      ),
+
+      // Feeding form
+      (logMode === 'feeding') &&
       React.createElement('div', { className: "space-y-3" },
         React.createElement('div', { className: "flex gap-3 min-w-0" },
           React.createElement('input', {
@@ -2004,14 +2065,14 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             className: `shrink-0 px-4 py-2.5 rounded-xl transition ${showCustomTime ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`
           }, React.createElement(Clock, { className: "w-5 h-5" }))
         ),
-        
+
         showCustomTime && React.createElement('input', {
           type: "time",
           value: customTime,
           onChange: (e) => setCustomTime(e.target.value),
           className: "block w-full min-w-0 max-w-full appearance-none box-border px-4 py-3 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
         }),
-        
+
         React.createElement('button', {
           onClick: handleAddFeeding,
           className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
@@ -2019,89 +2080,63 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           React.createElement(Plus, { className: "w-5 h-5" }),
           'Add Feeding'
         )
-      )
-    ),
+      ),
 
-      // -----------------------
-      // LOG CARD — SLEEP MODE
-      // -----------------------
-      logMode === "sleep" &&
-        React.createElement(
-          "div",
-          { className: "space-y-3" },
-          !activeSleep &&
-            React.createElement(
-              "button",
-              {
-                className:
-                  "w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold",
-                onClick: async () => {
-                  await firestoreStorage.startSleep();
+      // Sleep form
+      (logMode === 'sleep') &&
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "flex items-center justify-between" },
+            React.createElement('div', { className: "text-sm text-gray-600" }, 'Start Time'),
+            React.createElement('input', {
+              type: 'time',
+              value: sleepStartStr,
+              onChange: (e) => setSleepStartStr(e.target.value),
+              onBlur: async (e) => {
+                if (!activeSleep) return;
+                const ms = _hhmmToMsToday(e.target.value);
+                if (!ms) return;
+                try {
+                  await firestoreStorage.updateSleepSession(activeSleep.id, { startTime: ms });
+                } catch (err) {
+                  console.error(err);
                 }
               },
-              "Start Sleep"
-            ),
+              className: "text-indigo-600 font-semibold bg-transparent"
+            })
+          ),
 
-          activeSleep &&
-            React.createElement(
-              "div",
-              { className: "space-y-2" },
-              React.createElement(
-                "div",
-                { className: "text-sm text-gray-500 text-center" },
-                "Sleeping since ",
-                new Date(activeSleep.startTime).toLocaleTimeString([], {
-                  hour: "numeric",
-                  minute: "2-digit"
-                })
-              ),
-              React.createElement(
-                "div",
-                { className: "text-center text-3xl font-semibold" },
-                Math.floor(sleepElapsedMs / 60000),
-                " min"
-              ),
-              React.createElement(
-                "button",
-                {
-                  className:
-                    "w-full py-3 rounded-xl bg-indigo-600 text-white font-semibold",
-                  onClick: async () => {
-                    await firestoreStorage.endSleep(activeSleep.id);
-                  }
-                },
-                "End Sleep"
-              )
-            )
-        ),
+          activeSleep && React.createElement('div', { className: "flex items-center justify-between" },
+            React.createElement('div', { className: "text-sm text-gray-600" }, 'End Time'),
+            React.createElement('input', {
+              type: 'time',
+              value: sleepEndStr,
+              onChange: (e) => setSleepEndStr(e.target.value),
+              className: "text-indigo-600 font-semibold bg-transparent"
+            })
+          ),
 
-      React.createElement(
-        "div",
-        { className: "flex gap-2 mt-4" },
-        React.createElement(
-          "button",
-          {
-            className:
-              logMode === "feeding"
-                ? "flex-1 py-2 rounded-lg bg-indigo-600 text-white font-semibold"
-                : "flex-1 py-2 rounded-lg bg-gray-100 text-gray-700",
-            onClick: () => {
-              setLogMode("feeding");
-            }
-          },
-          "Feeding"
-      ),
-      React.createElement(
-        "button",
-        {
-          className:
-            logMode === "sleep"
-              ? "flex-1 py-2 rounded-lg bg-indigo-600 text-white font-semibold"
-              : "flex-1 py-2 rounded-lg bg-gray-100 text-gray-700",
-          onClick: () => setLogMode("sleep")
-        },
-        "Sleep"
-      )
+          activeSleep && React.createElement('div', { className: "text-center" },
+            React.createElement('div', { className: "text-sm text-gray-500" }, 'Timer'),
+            React.createElement('div', { className: "text-4xl font-semibold" }, _formatMMSS(sleepElapsedMs))
+          ),
+
+          (!activeSleep) && React.createElement('button', {
+            onClick: async () => {
+              const ms = _hhmmToMsToday(sleepStartStr) || Date.now();
+              await firestoreStorage.startSleep(ms);
+            },
+            className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
+          }, 'Start Sleep'),
+
+          (activeSleep) && React.createElement('button', {
+            onClick: async () => {
+              const endMs = _hhmmToMsToday(sleepEndStr) || Date.now();
+              await firestoreStorage.endSleep(activeSleep.id, endMs);
+              setSleepEndStr('');
+            },
+            className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
+          }, 'End Sleep')
+        )
     ),
 
     // Feedings List
