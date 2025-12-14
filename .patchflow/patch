@@ -21,7 +21,7 @@ fi
 BR="patch-$(date +%Y%m%d-%H%M%S)"
 
 # Read patch from clipboard (macOS)
-PATCH_FILE="$(mktemp /tmp/patch.XXXXXX.diff)"
+PATCH_FILE="$(mktemp -t patchflow)"
 pbpaste > "$PATCH_FILE"
 
 # Basic validation
