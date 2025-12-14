@@ -47,9 +47,12 @@ Any AI reading this repository **must follow these rules**:
    - AI must NOT refactor broadly unless explicitly asked
 
 3. **PATCH-ONLY OUTPUT**
-   - All code changes must be returned as a **unified diff**
+   - All code changes must be returned as a **git diff–formatted unified diff**
+   - The diff **must start with** `diff --git`
+   - Partial diffs, context-only diffs (`--- a / +++ b` without `diff --git`), or truncated lines are **not acceptable**
    - Diffs must be minimal and scoped
    - No speculative or drive-by changes
+   - **AI must explicitly label which file(s) are being changed** before the diff (example: “Files: index.html, script.js”).
    - **AI must explicitly label which file(s) are being changed** before the diff (example: “Files: index.html, script.js”).
 
 4. **STEP-BY-STEP APPLICATION INSTRUCTIONS**
@@ -78,28 +81,28 @@ If these constraints cannot be followed, the AI should ask for clarification **b
 
 ## Applying a Patch (Exact Steps)
 
-When the AI provides a unified diff:
+When the AI provides a patch:
 
-1. Copy the unified diff to your clipboard.
-2. In VS Code: **Terminal → Run Task… → `Patch: Apply (clipboard)`**
-3. If the task fails, paste the terminal error into chat.
-4. If it succeeds, preview locally:
+1. **Verify format**
+   - The first line of the clipboard **must** start with:
+     ```
+     diff --git
+     ```
+   - If not, the patch task will fail by design.
+
+2. **Apply the patch**
+   - In VS Code: **Terminal → Run Task… → `Patch: Apply (clipboard)`**
+
+3. **If the task fails**
+   - Paste the terminal error back into chat
+   - Do **not** try to "fix" the patch manually
+
+4. **Preview locally**
    - VS Code: **Terminal → Run Task… → `Preview: Start local server (8000)`**
    - Open `http://localhost:8000`
-5. If the change is correct, publish:
+
+5. **Publish when satisfied**
    - VS Code: **Terminal → Run Task… → `Publish: Merge current branch to main + push`**
-
-Optional terminal equivalents (only if you prefer terminal over Tasks):
-
-- Apply patch (clipboard → file):
-  - Save the diff into a file (example `patch.diff`) then:
-    ```bash
-    git apply patch.diff
-    ```
-  - Or apply and commit via the `.patchflow/patch` script:
-    ```bash
-    ./.patchflow/patch
-    ```
 
 ---
 
