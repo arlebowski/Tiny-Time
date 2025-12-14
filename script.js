@@ -1166,6 +1166,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     // Sync iOS Safari safe-area / browser chrome with active kid theme
     try {
       document.body.style.backgroundColor = theme.bg;
+      document.documentElement.style.backgroundColor = theme.bg;
       if (typeof window.updateMetaThemeColor === 'function') {
         window.updateMetaThemeColor(theme);
       }
