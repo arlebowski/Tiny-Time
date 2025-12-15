@@ -474,13 +474,38 @@ const firestoreStorage = {
   // -----------------------
   // SLEEP SETTINGS (per kid)
   // -----------------------
+  _defaultSleepTargetHoursFromBirthTs(birthTs) {
+    // Age-based (best-practice) defaults using midpoints of common pediatric ranges.
+    // Newborn (0-3mo): 14–17h => 15.5
+    // Infant (4-12mo): 12–16h => 14
+    // Toddler (1-2y): 11–14h => 12.5
+    // Preschool (3-5y): 10–13h => 11.5
+    try {
+      if (!birthTs) return 14;
+      const ageDays = Math.max(0, (Date.now() - birthTs) / 86400000);
+      const ageMonths = ageDays / 30.4375;
+      if (ageMonths < 4) return 15.5;
+      if (ageMonths < 12) return 14;
+      if (ageMonths < 24) return 12.5;
+      if (ageMonths < 60) return 11.5;
+      return 10.5;
+    } catch {
+      return 14;
+    }
+  },
+
   async getSleepSettings() {
     const doc = await this._kidRef().get();
     const d = doc.exists ? doc.data() : {};
+    const autoTarget = this._defaultSleepTargetHoursFromBirthTs(d.birthDate);
+    // If user explicitly set sleepTargetHours, treat it as override. Otherwise use auto.
+    const hasOverride = typeof d.sleepTargetHours === "number" && !Number.isNaN(d.sleepTargetHours);
     return {
       sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
-      sleepNightEnd: d.sleepNightEnd ?? 420,      // 7:00 AM
-      sleepTargetHours: d.sleepTargetHours ?? 14
+      sleepNightEnd: d.sleepNightEnd ?? 420, // 7:00 AM
+      sleepTargetHours: hasOverride ? d.sleepTargetHours : autoTarget,
+      sleepTargetAutoHours: autoTarget,
+      sleepTargetIsOverride: hasOverride
     };
   },
 
@@ -1746,6 +1771,12 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [customTime, setCustomTime] = useState('');
   const [feedings, setFeedings] = useState([]);
   const [sleepSessions, setSleepSessions] = useState([]);
+  const [sleepSettings, setSleepSettings] = useState(null);
+  const [yesterdayConsumed, setYesterdayConsumed] = useState(0);
+  const [yesterdayFeedingCount, setYesterdayFeedingCount] = useState(0);
+  const [sleepTodayMs, setSleepTodayMs] = useState(0);
+  const [sleepTodayCount, setSleepTodayCount] = useState(0);
+  const [sleepYesterdayMs, setSleepYesterdayMs] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [editingFeedingId, setEditingFeedingId] = useState(null);
   const [editOunces, setEditOunces] = useState('');
@@ -1869,12 +1900,30 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   useEffect(() => {
     if (!kidId) return;
     loadSleepSessions();
-  }, [kidId, activeSleep]);
+  }, [kidId, activeSleep, currentDate]);
 
   const loadSleepSessions = async () => {
     try {
-      const sessions = await firestoreStorage.getSleepSessionsLastNDays(1);
-      setSleepSessions((sessions || []).filter(s => s && s.endTime));
+      const sessions = await firestoreStorage.getSleepSessionsLastNDays(8);
+      const ended = (sessions || []).filter(s => s && s.endTime);
+      const startOfDay = new Date(currentDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(currentDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      const yDate = new Date(currentDate);
+      yDate.setDate(yDate.getDate() - 1);
+      const yStart = new Date(yDate);
+      yStart.setHours(0, 0, 0, 0);
+      const yEnd = new Date(yDate);
+      yEnd.setHours(23, 59, 59, 999);
+      const todaySessions = ended.filter(s => s.startTime >= startOfDay.getTime() && s.startTime <= endOfDay.getTime());
+      const ySessions = ended.filter(s => s.startTime >= yStart.getTime() && s.startTime <= yEnd.getTime());
+      const todayMs = todaySessions.reduce((sum, ss) => sum + Math.max(0, (ss.endTime || 0) - (ss.startTime || 0)), 0);
+      const yMs = ySessions.reduce((sum, ss) => sum + Math.max(0, (ss.endTime || 0) - (ss.startTime || 0)), 0);
+      setSleepSessions(todaySessions);
+      setSleepTodayMs(todayMs);
+      setSleepTodayCount(todaySessions.length);
+      setSleepYesterdayMs(yMs);
     } catch (err) {
       console.error("Failed to load sleep sessions", err);
     }
@@ -1890,14 +1939,26 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
   const loadFeedings = async () => {
     try {
-      const allFeedings = await firestoreStorage.getFeedingsLastNDays(7);
+      const allFeedings = await firestoreStorage.getFeedingsLastNDays(8);
       const startOfDay = new Date(currentDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(currentDate);
       endOfDay.setHours(23, 59, 59, 999);
-      
-      const dayFeedings = allFeedings.filter(f => 
-        f.timestamp >= startOfDay.getTime() && 
+
+      const yDate = new Date(currentDate);
+      yDate.setDate(yDate.getDate() - 1);
+      const yStart = new Date(yDate);
+      yStart.setHours(0, 0, 0, 0);
+      const yEnd = new Date(yDate);
+      yEnd.setHours(23, 59, 59, 999);
+
+      const yFeedings = allFeedings.filter(f => f.timestamp >= yStart.getTime() && f.timestamp <= yEnd.getTime());
+      const yConsumed = yFeedings.reduce((sum, f) => sum + (f.ounces || 0), 0);
+      setYesterdayConsumed(yConsumed);
+      setYesterdayFeedingCount(yFeedings.length);
+
+      const dayFeedings = allFeedings.filter(f =>
+        f.timestamp >= startOfDay.getTime() &&
         f.timestamp <= endOfDay.getTime()
       ).map(f => ({
         ...f,
@@ -1922,6 +1983,9 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         if (settings.babyWeight) setBabyWeight(settings.babyWeight);
         if (settings.multiplier) setMultiplier(settings.multiplier);
       }
+      const ss = await firestoreStorage.getSleepSettings();
+      setSleepSettings(ss || null);
+      await loadFeedings();
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -2015,7 +2079,16 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const totalConsumed = feedings.reduce((sum, f) => sum + f.ounces, 0);
   const targetOunces = babyWeight ? babyWeight * multiplier : 0;
   const remaining = Math.max(0, targetOunces - totalConsumed);
-  const percentComplete = targetOunces > 0 ? Math.min((totalConsumed / targetOunces) * 100, 100) : 0;
+  const percentComplete = (totalConsumed / targetOunces) * 100;
+  const sleepTargetHours = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
+  const sleepTargetMs = sleepTargetHours * 3600000;
+  const activeExtraMs = activeSleep && activeSleep.startTime ? Math.max(0, Date.now() - activeSleep.startTime) : 0;
+  const sleepTotalMsLive = sleepTodayMs + activeExtraMs;
+  const sleepPercent = sleepTargetMs > 0 ? (sleepTotalMsLive / sleepTargetMs) * 100 : 0;
+  const sleepTotalHours = sleepTotalMsLive / 3600000;
+  const sleepRemainingHours = Math.max(0, sleepTargetHours - sleepTotalHours);
+  const sleepDeltaHours = (sleepTotalMsLive - sleepYesterdayMs) / 3600000;
+  const feedingDeltaOz = totalConsumed - yesterdayConsumed;
 
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
@@ -2038,40 +2111,90 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
         }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
       ),
-      
-      React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-4" },
-        React.createElement('div', { className: "text-center" },
-          React.createElement('div', { className: "text-2xl font-bold text-indigo-600" }, 
-            totalConsumed.toFixed(1),
-            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+
+      React.createElement('div', { className: "mb-5" },
+        React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-2" }, 'Feeding'),
+        React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-3" },
+          React.createElement('div', { className: "text-center" },
+            React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
+              totalConsumed.toFixed(1),
+              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Consumed')
           ),
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Consumed')
+          React.createElement('div', { className: "text-center" },
+            React.createElement('div', { className: "text-2xl font-bold text-gray-800" },
+              targetOunces.toFixed(1),
+              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
+          ),
+          React.createElement('div', { className: "text-center" },
+            React.createElement('div', {
+              className: `text-2xl font-bold ${remaining > 0 ? 'text-gray-800' : 'text-red-600'}`
+            },
+              Math.abs(remaining).toFixed(1),
+              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500" }, remaining > 0 ? 'Remaining' : 'Over')
+          )
         ),
-        React.createElement('div', { className: "text-center" },
-          React.createElement('div', { className: "text-2xl font-bold text-gray-800" }, 
-            targetOunces.toFixed(1),
-            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-          ),
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
+        React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-2 mb-2" },
+          React.createElement('div', {
+            className: "bg-indigo-600 h-2 rounded-full transition-all",
+            style: { width: `${Math.min(percentComplete, 100)}%` }
+          })
         ),
-        React.createElement('div', { className: "text-center" },
-          React.createElement('div', { 
-            className: `text-2xl font-bold ${remaining > 0 ? 'text-orange-600' : 'text-green-600'}` 
-          }, 
-            Math.abs(remaining).toFixed(1),
-            React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+        React.createElement('div', { className: "flex items-center justify-between text-xs text-gray-500" },
+          React.createElement('div', { className: `text-xs ${feedingDeltaOz >= 0 ? 'text-green-600' : 'text-red-600'}` },
+            feedingDeltaOz >= 0 ? `+${feedingDeltaOz.toFixed(1)} oz` : `-${Math.abs(feedingDeltaOz).toFixed(1)} oz`
           ),
-          React.createElement('div', { className: "text-xs text-gray-500" }, remaining > 0 ? 'Remaining' : 'Over')
+          React.createElement('div', null, `${percentComplete.toFixed(0)}%`)
         )
       ),
-      
-      React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-3 overflow-hidden" },
-        React.createElement('div', {
-          className: `h-full transition-all duration-500 ${percentComplete >= 100 ? 'bg-green-500' : 'bg-indigo-600'}`,
-          style: { width: `${Math.min(percentComplete, 100)}%` }
-        })
+
+      React.createElement('div', { className: "mb-5" },
+        React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-2" }, 'Sleep'),
+        React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-3" },
+          React.createElement('div', { className: "text-center" },
+            React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
+              sleepTotalHours.toFixed(1),
+              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'hrs')
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Slept')
+          ),
+          React.createElement('div', { className: "text-center" },
+            React.createElement('div', { className: "text-2xl font-bold text-gray-800" },
+              sleepTargetHours.toFixed(1),
+              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'hrs')
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
+          ),
+          React.createElement('div', { className: "text-center" },
+            React.createElement('div', { className: "text-2xl font-bold text-gray-800" },
+              sleepRemainingHours.toFixed(1),
+              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'hrs')
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Remaining')
+          )
+        ),
+        React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-2 mb-2" },
+          React.createElement('div', {
+            className: "bg-indigo-600 h-2 rounded-full transition-all",
+            style: { width: `${Math.min(sleepPercent, 100)}%` }
+          })
+        ),
+        React.createElement('div', { className: "flex items-center justify-between text-xs text-gray-500" },
+          React.createElement('div', { className: `text-xs ${sleepDeltaHours >= 0 ? 'text-green-600' : 'text-red-600'}` },
+            sleepDeltaHours >= 0 ? `+${sleepDeltaHours.toFixed(1)} hrs` : `-${Math.abs(sleepDeltaHours).toFixed(1)} hrs`
+          ),
+          React.createElement('div', null, `${sleepPercent.toFixed(0)}%`)
+        )
       ),
-      React.createElement('div', { className: "text-right text-xs text-gray-500 mt-1" }, `${percentComplete.toFixed(0)}%`)
+
+      React.createElement('div', { className: "text-center text-sm text-gray-600 mt-1" },
+        `${feedings.length} feedings \u00B7 ${sleepTodayCount + (activeSleep ? 1 : 0)} sleeps`
+      )
     ),
     
     // Log Feeding Card
@@ -2904,11 +3027,8 @@ const FamilyTab = ({
 }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({
-    babyWeight: null,
-    multiplier: 2.5,
-    themeKey: 'indigo'
-  });
+  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
+  const [sleepSettings, setSleepSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
@@ -2994,6 +3114,9 @@ const FamilyTab = ({
         };
         setSettings(merged);
       }
+
+      const ss = await firestoreStorage.getSleepSettings();
+      if (ss) setSleepSettings(ss);
     } catch (error) {
       console.error('Error loading family tab:', error);
     } finally {
@@ -3800,6 +3923,32 @@ const handleInvite = async () => {
                 React.createElement(Edit2, { className: 'w-4 h-4' })
               )
             )
+      ),
+
+      sleepSettings && React.createElement('div', { className: "mt-6 pt-4 border-t border-gray-100" },
+        React.createElement('div', { className: "text-sm font-semibold text-gray-800 mb-3" }, 'Sleep settings'),
+        React.createElement('div', { className: "mb-3 text-xs text-gray-500" },
+          `Auto target: ${Number(sleepSettings.sleepTargetAutoHours || 14).toFixed(1)} hrs (by age). ` +
+          (sleepSettings.sleepTargetIsOverride ? "Override enabled." : "You can override below.")
+        ),
+        React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+          React.createElement('div', null,
+            React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, 'Daily sleep target (hrs)'),
+            React.createElement('input', {
+              type: 'number',
+              step: '0.5',
+              value: (sleepSettings.sleepTargetHours != null ? String(sleepSettings.sleepTargetHours) : ''),
+              onChange: (e) => setSleepSettings({ ...sleepSettings, sleepTargetHours: parseFloat(e.target.value || '0') }),
+              onBlur: async () => {
+                try {
+                  const v = parseFloat(sleepSettings.sleepTargetHours);
+                  if (Number.isFinite(v) && v > 0) await firestoreStorage.updateSleepSettings({ sleepTargetHours: v });
+                } catch (err) { console.error(err); }
+              },
+              className: "w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+            })
+          )
+        )
       ),
 
       // Theme picker
