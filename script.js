@@ -3283,7 +3283,7 @@ const FamilyTab = ({
   };
 
   const updateKidPartial = async (updates) => {
-    await firestoreStorage.updateKid(updates);
+    await firestoreStorage.updateKidData(updates);
   };
 
   // --------------------------------------
@@ -3913,7 +3913,7 @@ const handleInvite = async () => {
                   value: tempBirthDate,
                   onChange: (e) => setTempBirthDate(e.target.value),
                   className:
-                    'px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm'
+                    'px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm min-w-[150px]'
                 }),
                 React.createElement(
                   'button',
