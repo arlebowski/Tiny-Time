@@ -1758,6 +1758,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
   const [sleepStartStr, setSleepStartStr] = useState('');
   const [sleepEndStr, setSleepEndStr] = useState('');
+  const sleepIntervalRef = React.useRef(null);
   const [lastActiveSleepId, setLastActiveSleepId] = useState(null);
 
   useEffect(() => {
@@ -1768,15 +1769,29 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   }, [kidId]);
 
   useEffect(() => {
-    if (!activeSleep) return;
+    if (sleepIntervalRef.current) {
+      clearInterval(sleepIntervalRef.current);
+      sleepIntervalRef.current = null;
+    }
+
+    if (!activeSleep) {
+      setSleepElapsedMs(0);
+      setSleepStartStr('');
+      setSleepEndStr('');
+      return;
+    }
+
     const start = activeSleep.startTime;
-    const tick = () => {
-      setSleepElapsedMs(Date.now() - start);
-      if (!activeSleep.endTime) setSleepEndStr(_toHHMM(Date.now()));
-    };
+    const tick = () => setSleepElapsedMs(Date.now() - start);
     tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
+    sleepIntervalRef.current = setInterval(tick, 1000);
+
+    return () => {
+      if (sleepIntervalRef.current) {
+        clearInterval(sleepIntervalRef.current);
+        sleepIntervalRef.current = null;
+      }
+    };
   }, [activeSleep]);
 
   useEffect(() => {
@@ -1793,6 +1808,16 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       const d = new Date(ms);
       return _pad2(d.getHours()) + ':' + _pad2(d.getMinutes());
     } catch (e) {
+      return '';
+    }
+  };
+  const _toHHMMNoZero = (ms) => {
+    try {
+      const d = new Date(ms);
+      let h = d.getHours();
+      let m = d.getMinutes();
+      return h + ':' + String(m).padStart(2, '0');
+    } catch {
       return '';
     }
   };
@@ -1813,7 +1838,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const total = Math.max(0, Math.floor((ms || 0) / 1000));
     const mm = Math.floor(total / 60);
     const ss = total % 60;
-    return _pad2(mm) + ':' + _pad2(ss);
+    return mm + ':' + _pad2(ss);
   };
 
   // Keep time inputs in sync with active sleep state
@@ -2109,76 +2134,69 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
       // Sleep form
       (logMode === 'sleep') &&
-        React.createElement('div', { className: "space-y-3" },
+        React.createElement('div', { className: "space-y-4" },
+
           React.createElement(
-            "div",
-            { className: "flex items-center justify-between gap-4" },
+            'div',
+            { className: "grid grid-cols-2 gap-4 text-center" },
+
             React.createElement(
-              "div",
-              { className: "flex items-center justify-between flex-1" },
-              React.createElement('div', { className: "text-sm text-gray-600" }, 'Start'),
-              React.createElement('input', {
-                type: 'time',
-                value: sleepStartStr,
-                onChange: (e) => setSleepStartStr(e.target.value),
-                onBlur: async (e) => {
-                  if (!activeSleep) return;
-                  const ms = _hhmmToMsToday(e.target.value);
-                  if (!ms) return;
-                  try {
-                    await firestoreStorage.updateSleepSession(activeSleep.id, { startTime: ms });
-                  } catch (err) {
-                    console.error(err);
-                  }
-                },
-                className: "text-indigo-600 font-semibold bg-transparent"
-              })
+              'div',
+              null,
+              React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'Start'),
+              React.createElement(
+                'div',
+                { className: "text-indigo-600 font-semibold text-lg" },
+                sleepStartStr || '--:--'
+              )
             ),
+
             activeSleep &&
               React.createElement(
-                "div",
-                { className: "flex items-center justify-between flex-1" },
-                React.createElement('div', { className: "text-sm text-gray-600" }, 'End'),
-                (sleepEndStr
-                  ? React.createElement('input', {
-                      type: 'time',
-                      value: sleepEndStr || '',
-                      onChange: (e) => setSleepEndStr(e.target.value),
-                      className: "text-indigo-600 font-semibold bg-transparent"
-                    })
-                  : React.createElement(
-                      "button",
-                      {
-                        className: "text-indigo-600 font-semibold",
-                        onClick: () => setSleepEndStr(_toHHMM(Date.now()))
-                      },
-                      "--:--"
-                    )
+                'div',
+                null,
+                React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'End'),
+                React.createElement(
+                  'div',
+                  {
+                    className: "text-indigo-600 font-semibold text-lg cursor-pointer",
+                    onClick: () => setSleepEndStr(_toHHMMNoZero(Date.now()))
+                  },
+                  sleepEndStr || '--:--'
                 )
               )
           ),
 
-          activeSleep && React.createElement('div', { className: "text-center" },
-            React.createElement('div', { className: "text-sm text-gray-500" }, 'Timer'),
-            React.createElement('div', { className: "text-4xl font-semibold" }, _formatMMSS(sleepElapsedMs))
-          ),
+          activeSleep &&
+            React.createElement(
+              'div',
+              { className: "text-center text-4xl font-semibold my-2" },
+              _formatMMSS(sleepElapsedMs)
+            ),
 
-          (!activeSleep) && React.createElement('button', {
-            onClick: async () => {
-              const ms = _hhmmToMsToday(sleepStartStr) || Date.now();
-              await firestoreStorage.startSleep(ms);
-            },
-            className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-          }, 'Start Sleep'),
+          !activeSleep &&
+            React.createElement(
+              'button',
+              {
+                className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold",
+                onClick: async () => await firestoreStorage.startSleep(Date.now())
+              },
+              'Start Sleep'
+            ),
 
-          (activeSleep) && React.createElement('button', {
-            onClick: async () => {
-              const endMs = sleepEndStr ? (_hhmmToMsToday(sleepEndStr) || Date.now()) : Date.now();
-              await firestoreStorage.endSleep(activeSleep.id, endMs);
-              setSleepEndStr('');
-            },
-            className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-          }, 'End Sleep')
+          activeSleep &&
+            React.createElement(
+              'button',
+              {
+                className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold",
+                onClick: async () => {
+                  await firestoreStorage.endSleep(activeSleep.id, Date.now());
+                  setActiveSleep(null);
+                  setSleepElapsedMs(0);
+                }
+              },
+              'End Sleep'
+            )
         )
     ),
 
