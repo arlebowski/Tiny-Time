@@ -1758,6 +1758,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
   const [sleepStartStr, setSleepStartStr] = useState('');
   const [sleepEndStr, setSleepEndStr] = useState('');
+  const [lastActiveSleepId, setLastActiveSleepId] = useState(null);
 
   useEffect(() => {
     if (!kidId) return;
@@ -1769,10 +1770,21 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   useEffect(() => {
     if (!activeSleep) return;
     const start = activeSleep.startTime;
-    const tick = () => setSleepElapsedMs(Date.now() - start);
+    const tick = () => {
+      setSleepElapsedMs(Date.now() - start);
+      if (!activeSleep.endTime) setSleepEndStr(_toHHMM(Date.now()));
+    };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
+  }, [activeSleep]);
+
+  useEffect(() => {
+    if (!activeSleep) {
+      setSleepElapsedMs(0);
+      setSleepEndStr('');
+      setLastActiveSleepId(null);
+    }
   }, [activeSleep]);
 
   const _pad2 = (n) => String(n).padStart(2, '0');
@@ -1808,7 +1820,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   useEffect(() => {
     if (activeSleep && activeSleep.startTime) {
       setSleepStartStr(_toHHMM(activeSleep.startTime));
-      if (!sleepEndStr) setSleepEndStr(_toHHMM(Date.now()));
+      if (activeSleep.id && activeSleep.id !== lastActiveSleepId) {
+        setSleepEndStr('');
+        setLastActiveSleepId(activeSleep.id);
+      }
       return;
     }
     if (logMode === 'sleep') {
@@ -2030,7 +2045,17 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           className: logMode === 'sleep'
             ? "flex-1 py-2 rounded-lg bg-white shadow text-gray-900 font-semibold"
             : "flex-1 py-2 rounded-lg text-gray-600"
-        }, 'Sleep')
+        },
+          React.createElement(
+            "span",
+            { className: "inline-flex items-center gap-2" },
+            "Sleep",
+            activeSleep &&
+              React.createElement("span", {
+                className: "inline-block w-2 h-2 rounded-full bg-indigo-600 animate-pulse"
+              })
+          )
+        )
       ),
 
       // Feeding form
@@ -2085,35 +2110,52 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       // Sleep form
       (logMode === 'sleep') &&
         React.createElement('div', { className: "space-y-3" },
-          React.createElement('div', { className: "flex items-center justify-between" },
-            React.createElement('div', { className: "text-sm text-gray-600" }, 'Start Time'),
-            React.createElement('input', {
-              type: 'time',
-              value: sleepStartStr,
-              onChange: (e) => setSleepStartStr(e.target.value),
-              onBlur: async (e) => {
-                if (!activeSleep) return;
-                const ms = _hhmmToMsToday(e.target.value);
-                if (!ms) return;
-                try {
-                  await firestoreStorage.updateSleepSession(activeSleep.id, { startTime: ms });
-                } catch (err) {
-                  console.error(err);
-                }
-              },
-              className: "text-indigo-600 font-semibold bg-transparent"
-            })
-          ),
-
-          activeSleep && React.createElement('div', { className: "flex items-center justify-between" },
-            React.createElement('div', { className: "text-sm text-gray-600" }, 'End Time'),
-            React.createElement('input', {
-              type: 'time',
-              value: sleepEndStr || '',
-              onChange: (e) => setSleepEndStr(e.target.value),
-              placeholder: "--:--",
-              className: "text-indigo-600 font-semibold bg-transparent"
-            })
+          React.createElement(
+            "div",
+            { className: "flex items-center justify-between gap-4" },
+            React.createElement(
+              "div",
+              { className: "flex items-center justify-between flex-1" },
+              React.createElement('div', { className: "text-sm text-gray-600" }, 'Start'),
+              React.createElement('input', {
+                type: 'time',
+                value: sleepStartStr,
+                onChange: (e) => setSleepStartStr(e.target.value),
+                onBlur: async (e) => {
+                  if (!activeSleep) return;
+                  const ms = _hhmmToMsToday(e.target.value);
+                  if (!ms) return;
+                  try {
+                    await firestoreStorage.updateSleepSession(activeSleep.id, { startTime: ms });
+                  } catch (err) {
+                    console.error(err);
+                  }
+                },
+                className: "text-indigo-600 font-semibold bg-transparent"
+              })
+            ),
+            activeSleep &&
+              React.createElement(
+                "div",
+                { className: "flex items-center justify-between flex-1" },
+                React.createElement('div', { className: "text-sm text-gray-600" }, 'End'),
+                (sleepEndStr
+                  ? React.createElement('input', {
+                      type: 'time',
+                      value: sleepEndStr || '',
+                      onChange: (e) => setSleepEndStr(e.target.value),
+                      className: "text-indigo-600 font-semibold bg-transparent"
+                    })
+                  : React.createElement(
+                      "button",
+                      {
+                        className: "text-indigo-600 font-semibold",
+                        onClick: () => setSleepEndStr(_toHHMM(Date.now()))
+                      },
+                      "--:--"
+                    )
+                )
+              )
           ),
 
           activeSleep && React.createElement('div', { className: "text-center" },
