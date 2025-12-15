@@ -3405,7 +3405,11 @@ const FamilyTab = ({
   const handleUpdateBirthDate = async () => {
     if (!tempBirthDate) return;
     try {
-      const birthTimestamp = new Date(tempBirthDate).getTime();
+      const [year, month, day] = tempBirthDate.split('-').map((v) => Number(v));
+      if (!year || !month || !day) {
+        throw new Error('Invalid birth date');
+      }
+      const birthTimestamp = new Date(year, month - 1, day).getTime();
       await updateKidPartial({ birthDate: birthTimestamp });
       setEditingBirthDate(false);
       await loadData();
