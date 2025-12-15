@@ -1913,6 +1913,19 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     }
   }, [activeSleep]);
 
+  // Inject a calm zZz keyframe animation (used for the Sleep in-progress indicator)
+  useEffect(() => {
+    try {
+      if (document.getElementById('tt-zzz-style')) return;
+      const s = document.createElement('style');
+      s.id = 'tt-zzz-style';
+      s.textContent = `@keyframes ttZzz{0%{opacity:0;transform:translateY(2px)}20%{opacity:.9}80%{opacity:.9;transform:translateY(-4px)}100%{opacity:0;transform:translateY(-6px)}}`;
+      document.head.appendChild(s);
+    } catch (e) {
+      // non-fatal
+    }
+  }, []);
+
   const _pad2 = (n) => String(n).padStart(2, '0');
   const _toHHMM = (ms) => {
     try {
@@ -1950,9 +1963,14 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   };
   const _formatMMSS = (ms) => {
     const total = Math.max(0, Math.floor((ms || 0) / 1000));
-    const mm = Math.floor(total / 60);
-    const ss = total % 60;
-    return mm + ':' + _pad2(ss);
+    const hh = Math.floor(total / 3600);
+    const rem = total % 3600;
+    const mm = Math.floor(rem / 60);
+    const ss = rem % 60;
+    // < 1 hour: MM:SS  |  >= 1 hour: H:MM:SS
+    return hh > 0
+      ? (hh + ':' + _pad2(mm) + ':' + _pad2(ss))
+      : (mm + ':' + _pad2(ss));
   };
 
   // ========================================
@@ -2304,9 +2322,15 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             { className: "inline-flex items-center gap-2" },
             "Sleep",
             activeSleep &&
-              React.createElement("span", {
-                className: "inline-block w-2 h-2 rounded-full bg-indigo-600 animate-pulse"
-              })
+              React.createElement(
+                "span",
+                { className: "inline-flex items-center", title: "Sleep in progress", 'aria-label': "Sleep in progress" },
+                React.createElement(
+                  "span",
+                  { className: "text-indigo-600 text-xs font-bold select-none", style: { animation: "ttZzz 2.4s ease-in-out infinite" } },
+                  "zZz"
+                )
+              )
           )
         )
       ),
