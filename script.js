@@ -4080,7 +4080,7 @@ const handleInvite = async () => {
       sleepSettings && React.createElement('div', { className: "mt-6 pt-4 border-t border-gray-100" },
         React.createElement('div', { className: "text-xs tracking-widest text-gray-500 uppercase mt-6" }, 'SLEEP SETTINGS'),
         React.createElement('div', { className: "text-sm text-gray-500 mt-1" },
-          `Auto target: ${autoSleepTargetHrs.toFixed(1)} hrs (by age). ${sleepTargetOverride ? 'Override enabled.' : ''}`
+          `Auto target: ${Number(sleepSettings.sleepTargetAutoHours || 14).toFixed(1)} hrs (by age). ${sleepTargetOverride ? 'Override enabled.' : ''}`
         ),
         React.createElement('div', { className: "flex items-center mt-4" },
           React.createElement('div', { className: "text-xs tracking-widest text-gray-500 uppercase" }, 'DAILY SLEEP TARGET (HRS)'),
