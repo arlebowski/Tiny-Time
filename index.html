@@ -88,6 +88,27 @@
       border: none;
     }
 
+    .trackerEditBlock {
+      width: 100%;
+      max-width: 560px;
+      margin: 0 auto;
+      box-sizing: border-box;
+    }
+
+    .trackerEditGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      width: 100%;
+      box-sizing: border-box;
+      align-items: stretch;
+    }
+
+    .trackerEditGrid > * {
+      width: 100%;
+      box-sizing: border-box;
+    }
+
     .editFieldLabel {
       font-size: 12px;
       line-height: 12px;
@@ -99,12 +120,13 @@
     .editField {
       display: flex;
       flex-direction: column;
-      flex: 1;
+      width: 100%;
     }
 
     .feedingAmountField {
       position: relative;
-      flex: 1;
+      width: 100%;
+      box-sizing: border-box;
     }
 
     .feedingAmountInput {
@@ -118,10 +140,20 @@
       right: 14px;
       top: 50%;
       transform: translateY(-50%);
-      font-size: 13px;
-      color: rgba(0, 0, 0, 0.55);
       pointer-events: none;
       user-select: none;
+      color: rgba(0,0,0,0.55);
+      font-size: 13px;
+    }
+
+    .trackerEditBtn {
+      width: 100%;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      box-sizing: border-box;
     }
   </style>
 </head>
