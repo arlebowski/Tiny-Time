@@ -1887,42 +1887,57 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     deltaIsGood
   }) => {
     const p = Math.max(0, Math.min(100, Number(percent || 0)));
-    const r = 28;
+    const size = 132;
+    const cx = size / 2;
+    const cy = size / 2;
+    const r = 44;
     const c = 2 * Math.PI * r;
     const dash = (p / 100) * c;
     const gap = c - dash;
+    const angle = (p / 100) * 2 * Math.PI - (Math.PI / 2);
+    const badgeR = r + 14;
+    const badgeX = cx + badgeR * Math.cos(angle);
+    const badgeY = cy + badgeR * Math.sin(angle);
     return React.createElement(
       'div',
       { className: "flex flex-col items-center" },
       React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-2" }, title),
       React.createElement(
         'div',
-        { className: "relative", style: { width: '92px', height: '92px' } },
+        { className: "relative", style: { width: `${size}px`, height: `${size}px` } },
         React.createElement(
           'svg',
-          { width: 92, height: 92, viewBox: "0 0 92 92" },
-          React.createElement('circle', { cx: 46, cy: 46, r, stroke: "#E5E7EB", strokeWidth: 8, fill: "none" }),
+          { width: size, height: size, viewBox: `0 0 ${size} ${size}` },
+          React.createElement('circle', { cx, cy, r, stroke: "#E5E7EB", strokeWidth: 12, fill: "none" }),
           React.createElement('circle', {
-            cx: 46, cy: 46, r,
+            cx, cy, r,
             stroke: "#4F46E5",
-            strokeWidth: 8,
+            strokeWidth: 12,
             fill: "none",
             strokeLinecap: "round",
-            transform: "rotate(-90 46 46)",
+            transform: `rotate(-90 ${cx} ${cy})`,
             strokeDasharray: `${dash} ${gap}`
           })
         ),
         React.createElement(
           'div',
+          {
+            className: "absolute text-[11px] text-gray-500 bg-white px-2 py-0.5 rounded-full shadow-sm",
+            style: { left: `${badgeX}px`, top: `${badgeY}px`, transform: "translate(-50%, -50%)" }
+          },
+          `${p.toFixed(0)}%`
+        ),
+        React.createElement(
+          'div',
           { className: "absolute inset-0 flex flex-col items-center justify-center text-center" },
-          React.createElement('div', { className: "text-lg font-bold text-gray-900 leading-none" }, valueTop),
-          React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, `/${valueBottom} ${unit}`),
-          React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, `${p.toFixed(0)}%`)
+          React.createElement('div', { className: "text-3xl font-bold text-indigo-600 leading-none" }, valueTop),
+          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, `/ ${valueBottom} ${unit}`)
         )
       ),
       React.createElement(
         'div',
-        { className: "text-xs mt-2 text-gray-500" },
+        { className: "text-xs mt-3 text-gray-500" },
+        React.createElement('span', null, 'vs yesterday '),
         React.createElement('span', { className: deltaIsGood ? "text-green-600 font-semibold" : "text-red-600 font-semibold" }, deltaLabel)
       )
     );
