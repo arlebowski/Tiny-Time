@@ -3192,6 +3192,7 @@ const FamilyTab = ({
   const [sleepSettings, setSleepSettings] = useState(null);
   const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
   const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
+  const [sleepTargetDraftOverride, setSleepTargetDraftOverride] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
@@ -3255,6 +3256,7 @@ const FamilyTab = ({
     setSleepTargetInput(fixed);
     setSleepTargetLastSaved(fixed);
     setIsEditingSleepTarget(false);
+    setSleepTargetDraftOverride(false);
   }, [sleepSettings]);
 
   const loadData = async () => {
@@ -4083,13 +4085,15 @@ const handleInvite = async () => {
             'Target multiplier (oz/lb)'
           ),
           React.createElement(InfoDot, {
-            onClick: () =>
+            onClick: (e) => {
+              if (e && e.stopPropagation) e.stopPropagation();
               alert(
                 'Target multiplier (oz/lb)\n\n' +
                   'This is used to estimate a daily feeding target:\n' +
                   'weight (lb) × multiplier (oz/lb).\n\n' +
                   'Common rule-of-thumb for formula is ~2.5 oz per lb per day, but needs vary. If your pediatrician gave you a different plan, use that.'
-              )
+              );
+            }
           })
         ),
         editingMultiplier
@@ -4142,69 +4146,42 @@ const handleInvite = async () => {
       ),
 
       sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t border-gray-100" },
-        React.createElement('div', { className: "text-sm font-semibold text-gray-800 mb-3" }, 'Sleep settings'),
-        React.createElement('div', { className: "flex items-center" },
-          React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Daily sleep target (hrs)'),
-          React.createElement(InfoDot, {
-            onClick: () => alert(
-              "Daily sleep target\n\n" +
-              "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" +
-              "If your baby’s clinician suggested a different target, you can override it here."
-            )
-          })
-        ),
-        React.createElement('div', { className: "flex items-center gap-3 mt-2" },
-          React.createElement('input', {
-            type: 'number',
-            inputMode: 'decimal',
-            value: sleepTargetInput,
-            onChange: (e) => setSleepTargetInput(e.target.value),
-            onFocus: () => {
-              setIsEditingSleepTarget(true);
-            },
-            className: "w-28 h-10 px-3 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300",
-            step: "0.1",
-            min: "0"
-          }),
-          isEditingSleepTarget
-            ? React.createElement(
-                React.Fragment,
-                null,
-                React.createElement('button', {
-                  type: 'button',
-                  onClick: async () => {
-                    await saveSleepTargetOverride();
-                    setSleepTargetLastSaved(sleepTargetInput);
-                    setIsEditingSleepTarget(false);
-                  },
-                  className: TT_ICON_BTN_OK
-                }, React.createElement(Check, { className: TT_ICON_SIZE })),
-                React.createElement('button', {
-                  type: 'button',
-                  onClick: () => {
-                    setSleepTargetInput(sleepTargetLastSaved || autoSleepTargetHrs.toFixed(1));
-                    setIsEditingSleepTarget(false);
-                  },
-                  className: TT_ICON_BTN_CANCEL
-                }, React.createElement(X, { className: TT_ICON_SIZE }))
-              )
-            : (
-                sleepTargetOverride
-                  ? React.createElement('button', {
-                      type: 'button',
-                      onClick: async () => {
-                        setSleepTargetInput(autoSleepTargetHrs.toFixed(1));
-                        try {
-                          await firestoreStorage.setSleepTargetOverride(kidId, null);
-                          await loadData();
-                        } catch (e) {
-                          console.error(e);
-                        }
-                      },
-                      className: "h-10 px-3 rounded-lg border border-gray-300 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 whitespace-nowrap"
-                    }, 'Reset')
-                  : null
-              )
+        React.createElement('div', { className: "text-sm font-semibold text-gray-800 mb-2" }, 'Sleep settings'),
+        React.createElement( 'div', { className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3', onClick: isEditingSleepTarget ? undefined : () => { setIsEditingSleepTarget(true); } },
+          React.createElement('div', { className: "flex items-center" },
+            React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Daily sleep target (hrs)'),
+            React.createElement(InfoDot, { onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); alert( "Daily sleep target\n\n" + "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" + "If your baby’s clinician suggested a different target, you can override it here." ); } })
+          ),
+          isEditingSleepTarget ? React.createElement('div', { className: "flex items-center gap-3 mt-2" },
+            React.createElement('input', {
+              type: 'number',
+              inputMode: 'decimal',
+              value: sleepTargetInput,
+              onChange: (e) => {
+                const v = e.target.value;
+                setSleepTargetInput(v);
+                const n = parseFloat(v);
+                if (!n || n <= 0) {
+                  setSleepTargetDraftOverride(false);
+                  return;
+                }
+                setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
+              },
+              onFocus: () => {
+                const n = parseFloat(sleepTargetInput);
+                if (!n || n <= 0) setSleepTargetDraftOverride(false);
+                else setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
+              },
+              className: "w-28 h-10 px-3 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300",
+              step: "0.1",
+              min: "0"
+            }),
+            React.createElement('button', { type: 'button', disabled: !sleepTargetDraftOverride && (sleepTargetInput === sleepTargetLastSaved), onClick: async () => { await saveSleepTargetOverride(); setSleepTargetLastSaved(sleepTargetInput); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_OK }, React.createElement(Check, { className: TT_ICON_SIZE })),
+            React.createElement('button', { type: 'button', onClick: () => { setSleepTargetInput(sleepTargetLastSaved || autoSleepTargetHrs.toFixed(1)); setSleepTargetDraftOverride(false); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_CANCEL }, React.createElement(X, { className: TT_ICON_SIZE }))
+          ) : React.createElement( 'div', { className: 'flex items-center justify-between mt-1' },
+            React.createElement( 'div', { className: 'text-base font-semibold text-gray-900' }, sleepTargetInput || autoSleepTargetHrs.toFixed(1) ),
+            React.createElement(Edit2, { className: 'w-4 h-4 text-indigo-600' })
+          )
         ),
       ),
 
