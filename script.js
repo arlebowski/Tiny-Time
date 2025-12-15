@@ -1877,6 +1877,57 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     return mm + ':' + _pad2(ss);
   };
 
+  const DonutDial = ({
+    title,
+    valueTop,
+    valueBottom,
+    unit,
+    percent,
+    deltaLabel,
+    deltaIsGood
+  }) => {
+    const p = Math.max(0, Math.min(100, Number(percent || 0)));
+    const r = 28;
+    const c = 2 * Math.PI * r;
+    const dash = (p / 100) * c;
+    const gap = c - dash;
+    return React.createElement(
+      'div',
+      { className: "flex flex-col items-center" },
+      React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-2" }, title),
+      React.createElement(
+        'div',
+        { className: "relative", style: { width: '92px', height: '92px' } },
+        React.createElement(
+          'svg',
+          { width: 92, height: 92, viewBox: "0 0 92 92" },
+          React.createElement('circle', { cx: 46, cy: 46, r, stroke: "#E5E7EB", strokeWidth: 8, fill: "none" }),
+          React.createElement('circle', {
+            cx: 46, cy: 46, r,
+            stroke: "#4F46E5",
+            strokeWidth: 8,
+            fill: "none",
+            strokeLinecap: "round",
+            transform: "rotate(-90 46 46)",
+            strokeDasharray: `${dash} ${gap}`
+          })
+        ),
+        React.createElement(
+          'div',
+          { className: "absolute inset-0 flex flex-col items-center justify-center text-center" },
+          React.createElement('div', { className: "text-lg font-bold text-gray-900 leading-none" }, valueTop),
+          React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, `/${valueBottom} ${unit}`),
+          React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, `${p.toFixed(0)}%`)
+        )
+      ),
+      React.createElement(
+        'div',
+        { className: "text-xs mt-2 text-gray-500" },
+        React.createElement('span', { className: deltaIsGood ? "text-green-600 font-semibold" : "text-red-600 font-semibold" }, deltaLabel)
+      )
+    );
+  };
+
   // Keep time inputs in sync with active sleep state
   useEffect(() => {
     if (activeSleep && activeSleep.startTime) {
@@ -1920,7 +1971,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       const ySessions = ended.filter(s => s.startTime >= yStart.getTime() && s.startTime <= yEnd.getTime());
       const todayMs = todaySessions.reduce((sum, ss) => sum + Math.max(0, (ss.endTime || 0) - (ss.startTime || 0)), 0);
       const yMs = ySessions.reduce((sum, ss) => sum + Math.max(0, (ss.endTime || 0) - (ss.startTime || 0)), 0);
-      setSleepSessions(todaySessions);
+      setSleepSessions(todaySessions.sort((a, b) => (b.startTime || 0) - (a.startTime || 0)));
       setSleepTodayMs(todayMs);
       setSleepTodayCount(todaySessions.length);
       setSleepYesterdayMs(yMs);
@@ -2112,88 +2163,27 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
       ),
 
-      React.createElement('div', { className: "mb-5" },
-        React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-2" }, 'Feeding'),
-        React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-3" },
-          React.createElement('div', { className: "text-center" },
-            React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
-              totalConsumed.toFixed(1),
-              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-            ),
-            React.createElement('div', { className: "text-xs text-gray-500" }, 'Consumed')
-          ),
-          React.createElement('div', { className: "text-center" },
-            React.createElement('div', { className: "text-2xl font-bold text-gray-800" },
-              targetOunces.toFixed(1),
-              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-            ),
-            React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
-          ),
-          React.createElement('div', { className: "text-center" },
-            React.createElement('div', {
-              className: `text-2xl font-bold ${remaining > 0 ? 'text-gray-800' : 'text-red-600'}`
-            },
-              Math.abs(remaining).toFixed(1),
-              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
-            ),
-            React.createElement('div', { className: "text-xs text-gray-500" }, remaining > 0 ? 'Remaining' : 'Over')
-          )
-        ),
-        React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-2 mb-2" },
-          React.createElement('div', {
-            className: "bg-indigo-600 h-2 rounded-full transition-all",
-            style: { width: `${Math.min(percentComplete, 100)}%` }
-          })
-        ),
-        React.createElement('div', { className: "flex items-center justify-between text-xs text-gray-500" },
-          React.createElement('div', { className: `text-xs ${feedingDeltaOz >= 0 ? 'text-green-600' : 'text-red-600'}` },
-            feedingDeltaOz >= 0 ? `+${feedingDeltaOz.toFixed(1)} oz` : `-${Math.abs(feedingDeltaOz).toFixed(1)} oz`
-          ),
-          React.createElement('div', null, `${percentComplete.toFixed(0)}%`)
-        )
-      ),
-
-      React.createElement('div', { className: "mb-5" },
-        React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-2" }, 'Sleep'),
-        React.createElement('div', { className: "grid grid-cols-3 gap-4 mb-3" },
-          React.createElement('div', { className: "text-center" },
-            React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
-              sleepTotalHours.toFixed(1),
-              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'hrs')
-            ),
-            React.createElement('div', { className: "text-xs text-gray-500" }, 'Slept')
-          ),
-          React.createElement('div', { className: "text-center" },
-            React.createElement('div', { className: "text-2xl font-bold text-gray-800" },
-              sleepTargetHours.toFixed(1),
-              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'hrs')
-            ),
-            React.createElement('div', { className: "text-xs text-gray-500" }, 'Target')
-          ),
-          React.createElement('div', { className: "text-center" },
-            React.createElement('div', { className: "text-2xl font-bold text-gray-800" },
-              sleepRemainingHours.toFixed(1),
-              React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'hrs')
-            ),
-            React.createElement('div', { className: "text-xs text-gray-500" }, 'Remaining')
-          )
-        ),
-        React.createElement('div', { className: "w-full bg-gray-200 rounded-full h-2 mb-2" },
-          React.createElement('div', {
-            className: "bg-indigo-600 h-2 rounded-full transition-all",
-            style: { width: `${Math.min(sleepPercent, 100)}%` }
-          })
-        ),
-        React.createElement('div', { className: "flex items-center justify-between text-xs text-gray-500" },
-          React.createElement('div', { className: `text-xs ${sleepDeltaHours >= 0 ? 'text-green-600' : 'text-red-600'}` },
-            sleepDeltaHours >= 0 ? `+${sleepDeltaHours.toFixed(1)} hrs` : `-${Math.abs(sleepDeltaHours).toFixed(1)} hrs`
-          ),
-          React.createElement('div', null, `${sleepPercent.toFixed(0)}%`)
-        )
-      ),
-
-      React.createElement('div', { className: "text-center text-sm text-gray-600 mt-1" },
-        `${feedings.length} feedings \u00B7 ${sleepTodayCount + (activeSleep ? 1 : 0)} sleeps`
+      React.createElement(
+        'div',
+        { className: "grid grid-cols-2 gap-6 items-start" },
+        React.createElement(DonutDial, {
+          title: "Feeding",
+          valueTop: totalConsumed.toFixed(1),
+          valueBottom: targetOunces.toFixed(1),
+          unit: "oz",
+          percent: percentComplete,
+          deltaLabel: (feedingDeltaOz >= 0 ? `+${feedingDeltaOz.toFixed(1)} oz` : `-${Math.abs(feedingDeltaOz).toFixed(1)} oz`),
+          deltaIsGood: feedingDeltaOz >= 0
+        }),
+        React.createElement(DonutDial, {
+          title: "Sleep",
+          valueTop: sleepTotalHours.toFixed(1),
+          valueBottom: sleepTargetHours.toFixed(1),
+          unit: "hrs",
+          percent: sleepPercent,
+          deltaLabel: (sleepDeltaHours >= 0 ? `+${sleepDeltaHours.toFixed(1)} hrs` : `-${Math.abs(sleepDeltaHours).toFixed(1)} hrs`),
+          deltaIsGood: sleepDeltaHours >= 0
+        })
       )
     ),
     
@@ -2393,7 +2383,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       React.createElement(
         'h2',
         { className: "text-lg font-semibold text-gray-800 mb-4" },
-        'Sleep'
+        `Sleep · ${sleepSessions.length}`
       ),
       sleepSessions.length === 0
         ? React.createElement(
@@ -2445,7 +2435,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
     // Feedings List
     (logMode === 'feeding') && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, `Feedings · ${feedings.length}`),
       feedings.length === 0 ?
         React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
       :
