@@ -1929,7 +1929,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         React.createElement(
           'div',
           {
-            className: "absolute text-[11px] text-gray-500 bg-white px-2 py-0.5 rounded-full shadow-sm",
+            className: "absolute text-xs text-gray-500",
             style: { left: `${badgeX}px`, top: `${badgeY}px`, transform: "translate(-50%, -50%)" }
           },
           `${p.toFixed(0)}%`
@@ -1945,7 +1945,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
               String(unit || '').toLowerCase()
             )
           ),
-          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, `target ${bottomTxt} ${String(unit || '').toLowerCase()}`)
+          React.createElement(
+            'div',
+            { className: "text-sm text-gray-400 mt-1" },
+            `of ${bottomTxt} ${String(unit || '').toLowerCase()}`
+          )
         )
       ),
       React.createElement(
