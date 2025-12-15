@@ -365,8 +365,8 @@ const firestoreStorage = {
   async _classifySleepTypeForStartMs(startMs) {
     try {
       const ss = await this.getSleepSettings();
-      const dayStart = Number(ss?.daySleepStartMinutes ?? 390);
-      const dayEnd = Number(ss?.daySleepEndMinutes ?? 1170);
+      const dayStart = Number(ss?.sleepDayStart ?? ss?.daySleepStartMinutes ?? 390);
+      const dayEnd = Number(ss?.sleepDayEnd ?? ss?.daySleepEndMinutes ?? 1170);
       const mins = this._minutesOfDayLocal(startMs);
       return this._isWithinWindow(mins, dayStart, dayEnd) ? "day" : "night";
     } catch {
@@ -410,20 +410,52 @@ const firestoreStorage = {
   async endSleep(sessionId, endTime = null) {
     const user = auth.currentUser;
     const uid = user ? user.uid : null;
-
     if (!sessionId) throw new Error("Missing sleep session id");
-
     const endMs = typeof endTime === "number" ? endTime : Date.now();
-
+    // Tag sleep as day vs night based on the saved day window.
+    // Rule: if the *start time* is within the day window => day sleep (nap). Otherwise => night sleep.
+    let isDaySleep = false;
+    try {
+      const kidDoc = await this._kidRef().get();
+      const kd = kidDoc.exists ? kidDoc.data() : {};
+      const dayStart =
+        typeof kd.sleepDayStart === "number" && !Number.isNaN(kd.sleepDayStart)
+          ? kd.sleepDayStart
+          : typeof kd.daySleepStartMinutes === "number" && !Number.isNaN(kd.daySleepStartMinutes)
+            ? kd.daySleepStartMinutes
+            : 390;
+      const dayEnd =
+        typeof kd.sleepDayEnd === "number" && !Number.isNaN(kd.sleepDayEnd)
+          ? kd.sleepDayEnd
+          : typeof kd.daySleepEndMinutes === "number" && !Number.isNaN(kd.daySleepEndMinutes)
+            ? kd.daySleepEndMinutes
+            : 1170;
+      const sessDoc = await this._kidRef().collection("sleepSessions").doc(sessionId).get();
+      const sess = sessDoc.exists ? sessDoc.data() : {};
+      const startMs = typeof sess.startTime === "number" ? sess.startTime : null;
+      if (startMs) {
+        const dt = new Date(startMs);
+        const mins = dt.getHours() * 60 + dt.getMinutes();
+        if (dayStart <= dayEnd) {
+          isDaySleep = mins >= dayStart && mins <= dayEnd;
+        } else {
+          // window wraps midnight
+          isDaySleep = mins >= dayStart || mins <= dayEnd;
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to classify sleep as day/night:", e);
+    }
     await this._kidRef()
       .collection("sleepSessions")
       .doc(sessionId)
       .update({
         endTime: endMs,
         isActive: false,
-        endedByUid: uid
+        endedByUid: uid,
+        isDaySleep: !!isDaySleep,
+        sleepType: isDaySleep ? "day" : "night"
       });
-
     logEvent("sleep_ended", { endTime: endMs });
   },
 
@@ -529,67 +561,64 @@ const firestoreStorage = {
     const doc = await this._kidRef().get();
     const d = doc.exists ? doc.data() : {};
     const autoTarget = this._defaultSleepTargetHoursFromBirthTs(d.birthDate);
-    // If user explicitly set an override, use it. Otherwise use auto.
+    // If user explicitly set an override, use it.
+    // Otherwise use auto.
     const override =
       typeof d.sleepTargetOverrideHrs === "number" && !Number.isNaN(d.sleepTargetOverrideHrs)
         ? d.sleepTargetOverrideHrs
         : typeof d.sleepTargetHours === "number" && !Number.isNaN(d.sleepTargetHours)
-          ? d.sleepTargetHours
-          : null;
+        ? d.sleepTargetHours
+        : null;
     const hasOverride = typeof override === "number";
-    const daySleepStartMinutes = Number(d.daySleepStartMinutes ?? 390); // 6:30 AM
-    const daySleepEndMinutes = Number(d.daySleepEndMinutes ?? 1170); // 7:30 PM
+    const dayStart =
+      typeof d.sleepDayStart === "number" && !Number.isNaN(d.sleepDayStart)
+        ? d.sleepDayStart
+        : typeof d.daySleepStartMinutes === "number" && !Number.isNaN(d.daySleepStartMinutes)
+          ? d.daySleepStartMinutes
+          : 390;
+    const dayEnd =
+      typeof d.sleepDayEnd === "number" && !Number.isNaN(d.sleepDayEnd)
+        ? d.sleepDayEnd
+        : typeof d.daySleepEndMinutes === "number" && !Number.isNaN(d.daySleepEndMinutes)
+          ? d.daySleepEndMinutes
+          : 1170;
     return {
       sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
       sleepNightEnd: d.sleepNightEnd ?? 420, // 7:00 AM
-      sleepDayStart: d.sleepDayStart ?? 390, // 6:30 AM
-      sleepDayEnd: d.sleepDayEnd ?? 1170, // 7:30 PM
+      // Day sleep window (naps): anything that STARTS within this window is treated as day sleep.
+      // Defaults: 6:30 AM → 7:30 PM (matches your screenshot concept)
+      sleepDayStart: dayStart, // 6:30 AM
+      sleepDayEnd: dayEnd, // 7:30 PM
+      // Back-compat fields for existing data/analytics callers
+      daySleepStartMinutes: dayStart,
+      daySleepEndMinutes: dayEnd,
       sleepTargetHours: hasOverride ? override : autoTarget,
       sleepTargetAutoHours: autoTarget,
-      sleepTargetIsOverride: hasOverride,
-      daySleepStartMinutes,
-      daySleepEndMinutes
+      sleepTargetIsOverride: hasOverride
     };
   },
 
-  async updateSleepSettings({
-    sleepNightStart,
-    sleepNightEnd,
-    sleepDayStart,
-    sleepDayEnd,
-    sleepTargetHours,
-    daySleepStartMinutes,
-    daySleepEndMinutes
-  }) {
+  async updateSleepSettings({ sleepNightStart, sleepNightEnd, sleepDayStart, sleepDayEnd, sleepTargetHours }) {
     const payload = {
       ...(sleepNightStart != null ? { sleepNightStart } : {}),
       ...(sleepNightEnd != null ? { sleepNightEnd } : {}),
-      ...(sleepDayStart != null ? { sleepDayStart } : {}),
-      ...(sleepDayEnd != null ? { sleepDayEnd } : {}),
       ...(sleepTargetHours != null ? { sleepTargetHours } : {})
     };
 
-    const dayStartNum = Number(daySleepStartMinutes);
-    if (daySleepStartMinutes != null && !Number.isNaN(dayStartNum)) {
-      payload.daySleepStartMinutes = dayStartNum;
+    const dayStartNum = Number(sleepDayStart);
+    if (sleepDayStart != null && !Number.isNaN(dayStartNum)) {
+      payload.sleepDayStart = dayStartNum;
+      payload.daySleepStartMinutes = dayStartNum; // back-compat
     }
 
-    const dayEndNum = Number(daySleepEndMinutes);
-    if (daySleepEndMinutes != null && !Number.isNaN(dayEndNum)) {
-      payload.daySleepEndMinutes = dayEndNum;
+    const dayEndNum = Number(sleepDayEnd);
+    if (sleepDayEnd != null && !Number.isNaN(dayEndNum)) {
+      payload.sleepDayEnd = dayEndNum;
+      payload.daySleepEndMinutes = dayEndNum; // back-compat
     }
 
     await this._kidRef().update(payload);
-
-    logEvent("sleep_settings_updated", {
-      sleepNightStart,
-      sleepNightEnd,
-      sleepTargetHours,
-      sleepDayStart,
-      sleepDayEnd,
-      daySleepStartMinutes: payload.daySleepStartMinutes,
-      daySleepEndMinutes: payload.daySleepEndMinutes
-    });
+    logEvent("sleep_settings_updated", { sleepNightStart, sleepNightEnd, sleepDayStart: payload.sleepDayStart, sleepDayEnd: payload.sleepDayEnd, sleepTargetHours });
   },
 
   // -----------------------
@@ -3156,6 +3185,8 @@ const FamilyTab = ({
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
   const [sleepTargetInput, setSleepTargetInput] = useState('');
+  const [daySleepStartMin, setDaySleepStartMin] = useState(390);
+  const [daySleepEndMin, setDaySleepEndMin] = useState(1170);
   const [sleepSettings, setSleepSettings] = useState(null);
   const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
   const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
@@ -3230,7 +3261,32 @@ const FamilyTab = ({
     setSleepTargetLastSaved(formatted);
     setIsEditingSleepTarget(false);
     setSleepTargetDraftOverride(false);
+    setDaySleepStartMin(Number(sleepSettings.sleepDayStart ?? 390));
+    setDaySleepEndMin(Number(sleepSettings.sleepDayEnd ?? 1170));
   }, [sleepSettings]);
+
+  const minutesToLabel = (m) => {
+    const mm = ((Number(m) % 1440) + 1440) % 1440;
+    const h24 = Math.floor(mm / 60);
+    const min = mm % 60;
+    const ampm = h24 >= 12 ? "PM" : "AM";
+    const h12 = ((h24 + 11) % 12) + 1;
+    return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
+  };
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  const saveDaySleepWindow = async (startMin, endMin) => {
+    try {
+      await firestoreStorage.updateSleepSettings({
+        sleepDayStart: Number(startMin),
+        sleepDayEnd: Number(endMin),
+      });
+      await loadData();
+    } catch (e) {
+      console.error("Error saving day sleep window:", e);
+    }
+  };
 
   const loadData = async () => {
     if (!kidId) return;
@@ -3648,6 +3704,104 @@ const handleInvite = async () => {
 
   const isOwner = kidData?.ownerId === user.uid;
   const activeThemeKey = settings.themeKey || themeKey || 'indigo';
+
+  // Day sleep window (slider UI)
+  // Anything that STARTS inside this window is counted as Day Sleep (naps). Everything else = Night Sleep.
+  // Saved to Firebase on drag end (touchEnd/mouseUp) to avoid spamming writes.
+  const dayStart = clamp(daySleepStartMin, 0, 1439);
+  const dayEnd = clamp(daySleepEndMin, 0, 1439);
+  const startPct = (dayStart / 1440) * 100;
+  const endPct = (dayEnd / 1440) * 100;
+  const leftPct = Math.min(startPct, endPct);
+  const widthPct = Math.abs(endPct - startPct);
+
+  const DaySleepWindowCard = React.createElement(
+    "div",
+    { className: "mt-5" },
+    React.createElement(
+      "div",
+      { className: "flex items-start justify-between gap-3" },
+      React.createElement(
+        "div",
+        null,
+        React.createElement("div", { className: "text-base font-semibold text-gray-800" }, "Day sleep window"),
+        React.createElement(
+          "div",
+          { className: "text-sm text-gray-500 mt-1" },
+          "Sleep that starts between these times counts as ",
+          React.createElement("span", { className: "font-medium text-gray-700" }, "Day Sleep"),
+          " (naps). Everything else counts as ",
+          React.createElement("span", { className: "font-medium text-gray-700" }, "Night Sleep"),
+          "."
+        )
+      )
+    ),
+    // Start/End “editable boxes”
+    React.createElement(
+      "div",
+      { className: "grid grid-cols-2 gap-3 mt-4" },
+      React.createElement(
+        "div",
+        { className: "border-2 border-gray-200 rounded-2xl p-3 bg-white" },
+        React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold" }, "START"),
+        React.createElement("div", { className: "text-lg font-semibold text-gray-800 mt-1" }, minutesToLabel(dayStart))
+      ),
+      React.createElement(
+        "div",
+        { className: "border-2 border-gray-200 rounded-2xl p-3 bg-white" },
+        React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold" }, "END"),
+        React.createElement("div", { className: "text-lg font-semibold text-gray-800 mt-1" }, minutesToLabel(dayEnd))
+      )
+    ),
+    // Slider track + selection + handles
+    React.createElement(
+      "div",
+      { className: "mt-4" },
+      React.createElement(
+        "div",
+        { className: "relative h-12 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200" },
+        React.createElement("div", { className: "absolute inset-y-0", style: { left: `${leftPct}%`, width: `${widthPct}%`, background: "rgba(99,102,241,0.25)" } }),
+        // left handle visual
+        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${startPct}% - 6px)` } }),
+        // right handle visual
+        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${endPct}% - 6px)` } }),
+        // two range inputs layered (one controls start, one controls end)
+        React.createElement("input", {
+          type: "range",
+          min: 0,
+          max: 1439,
+          value: daySleepStartMin,
+          onChange: (e) => setDaySleepStartMin(Number(e.target.value)),
+          onMouseUp: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
+          onTouchEnd: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
+          className: "absolute inset-0 w-full h-full opacity-0"
+        }),
+        React.createElement("input", {
+          type: "range",
+          min: 0,
+          max: 1439,
+          value: daySleepEndMin,
+          onChange: (e) => setDaySleepEndMin(Number(e.target.value)),
+          onMouseUp: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
+          onTouchEnd: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
+          className: "absolute inset-0 w-full h-full opacity-0"
+        })
+      ),
+      React.createElement(
+        "div",
+        { className: "flex justify-between text-xs text-gray-400 mt-2 px-1" },
+        React.createElement("span", null, "6AM"),
+        React.createElement("span", null, "8AM"),
+        React.createElement("span", null, "10AM"),
+        React.createElement("span", null, "12PM"),
+        React.createElement("span", null, "2PM"),
+        React.createElement("span", null, "4PM"),
+        React.createElement("span", null, "6PM"),
+        React.createElement("span", null, "8PM"),
+        React.createElement("span", null, "10PM")
+      )
+    )
+  );
 
   return React.createElement(
     'div',
@@ -4171,6 +4325,7 @@ const handleInvite = async () => {
           React.createElement('div', null, `Recommended: ${formatSleepTargetDisplay(sleepSettings.sleepTargetAutoHours)} hrs`),
           React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "text-indigo-600 font-medium" }, 'Revert to recommended')
         ),
+        DaySleepWindowCard
       ),
 
       // Theme picker
