@@ -2644,38 +2644,38 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                 { key: s.id },
                 editingSleepId === s.id
                   ? React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl" },
-                      React.createElement('div', { className: "trackerEditBlock space-y-3" },
-                        React.createElement('div', { className: "trackerEditGrid" },
+                      React.createElement('div', { className: "trackerEditBlock space-y-3 w-full max-w-[520px] mx-auto" },
+                        React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
                           React.createElement('div', { className: "editField" },
-                            React.createElement('div', { className: "editFieldLabel" }, 'Start'),
+                            React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'Start'),
                             React.createElement('input', {
                               type: 'time',
                               value: sleepEditStartStr,
                               onChange: (e) => setSleepEditStartStr(e.target.value),
-                              className: "min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                              className: "w-full h-11 min-w-0 px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                             })
                           ),
                           React.createElement('div', { className: "editField" },
-                            React.createElement('div', { className: "editFieldLabel" }, 'End'),
+                            React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'End'),
                             React.createElement('input', {
                               type: 'time',
                               value: sleepEditEndStr,
                               onChange: (e) => setSleepEditEndStr(e.target.value),
-                              className: "min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                              className: "w-full h-11 min-w-0 px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                             })
                           )
                         ),
-                          React.createElement('div', { className: "trackerEditGrid" },
+                          React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
                             React.createElement('button', {
                               onClick: handleSaveSleepEdit,
-                              className: "trackerEditBtn bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
+                              className: "trackerEditBtn w-full h-11 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 leading-none"
                             },
                               React.createElement(Check, { className: "w-4 h-4" }),
                               'Save'
                             ),
                             React.createElement('button', {
                               onClick: handleCancelSleepEdit,
-                              className: "trackerEditBtn bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
+                              className: "trackerEditBtn w-full h-11 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2 leading-none"
                             },
                               React.createElement(X, { className: "w-4 h-4" }),
                               'Cancel'
@@ -2730,37 +2730,37 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             React.createElement('div', { key: feeding.id },
               editingFeedingId === feeding.id ?
                 React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl" },
-                  React.createElement('div', { className: "trackerEditBlock space-y-3" },
-                    React.createElement('div', { className: "trackerEditGrid" },
-                      React.createElement('div', { className: "feedingAmountField" },
+                  React.createElement('div', { className: "trackerEditBlock space-y-3 w-full max-w-[520px] mx-auto" },
+                    React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
+                      React.createElement('div', { className: "feedingAmountField relative w-full" },
                         React.createElement('input', {
                           type: "number",
                           step: "0.25",
                           value: editOunces,
                           onChange: (e) => setEditOunces(e.target.value),
                           placeholder: "Ounces",
-                          className: "feedingAmountInput min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                          className: "feedingAmountInput w-full h-11 min-w-0 px-3 pr-10 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                         }),
-                        React.createElement('span', { className: "feedingAmountUnit" }, 'oz')
+                        React.createElement('span', { className: "feedingAmountUnit absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none" }, 'oz')
                       ),
                       React.createElement('input', {
                         type: "time",
                         value: editTime,
                         onChange: (e) => setEditTime(e.target.value),
-                        className: "min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className: "w-full h-11 min-w-0 px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                       })
                     ),
-                    React.createElement('div', { className: "trackerEditGrid" },
+                    React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
                       React.createElement('button', {
                         onClick: handleSaveEdit,
-                        className: "trackerEditBtn bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2"
+                        className: "trackerEditBtn w-full h-11 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 leading-none"
                       },
                         React.createElement(Check, { className: "w-4 h-4" }),
                         'Save'
                       ),
                       React.createElement('button', {
                         onClick: handleCancelEdit,
-                        className: "trackerEditBtn bg-gray-300 text-gray-700 py-2 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2"
+                        className: "trackerEditBtn w-full h-11 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2 leading-none"
                       },
                         React.createElement(X, { className: "w-4 h-4" }),
                         'Cancel'
