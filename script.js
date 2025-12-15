@@ -2017,7 +2017,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     
     // Log Feeding Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Log Feeding'),
+      null,
       React.createElement('div', { className: "mt-3 mb-4 inline-flex w-full bg-gray-100 rounded-xl p-1" },
         React.createElement('button', {
           onClick: () => setLogMode('feeding'),
@@ -2109,8 +2109,9 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             React.createElement('div', { className: "text-sm text-gray-600" }, 'End Time'),
             React.createElement('input', {
               type: 'time',
-              value: sleepEndStr,
+              value: sleepEndStr || '',
               onChange: (e) => setSleepEndStr(e.target.value),
+              placeholder: "--:--",
               className: "text-indigo-600 font-semibold bg-transparent"
             })
           ),
@@ -2130,7 +2131,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
           (activeSleep) && React.createElement('button', {
             onClick: async () => {
-              const endMs = _hhmmToMsToday(sleepEndStr) || Date.now();
+              const endMs = sleepEndStr ? (_hhmmToMsToday(sleepEndStr) || Date.now()) : Date.now();
               await firestoreStorage.endSleep(activeSleep.id, endMs);
               setSleepEndStr('');
             },
