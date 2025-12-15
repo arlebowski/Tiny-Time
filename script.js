@@ -3174,6 +3174,7 @@ const FamilyTab = ({
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
+  const [sleepTargetInput, setSleepTargetInput] = useState('');
   const [sleepSettings, setSleepSettings] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
@@ -3204,6 +3205,9 @@ const FamilyTab = ({
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
   const [savingChild, setSavingChild] = useState(false);
 
+  const autoSleepTargetHrs = Number(sleepSettings?.sleepTargetAutoHours || 14);
+  const sleepTargetOverride = !!sleepSettings?.sleepTargetIsOverride;
+
   // --------------------------------------
   // Data loading
   // --------------------------------------
@@ -3220,6 +3224,14 @@ const FamilyTab = ({
       }
     }
   }, [requestAddChild, onRequestAddChildHandled]);
+
+  useEffect(() => {
+    if (!sleepSettings) return;
+    const auto = Number(sleepSettings.sleepTargetAutoHours || 14);
+    const current = sleepSettings.sleepTargetHours ?? auto;
+
+    setSleepTargetInput(Number(current).toFixed(1));
+  }, [sleepSettings]);
 
   const loadData = async () => {
     if (!kidId) return;
@@ -3443,9 +3455,27 @@ const FamilyTab = ({
     }
   };
 
+  const saveSleepTargetOverride = async () => {
+    const parsed = parseFloat(sleepTargetInput);
+    const fallback = autoSleepTargetHrs.toFixed(1);
+
+    if (!parsed || parsed <= 0) {
+      alert('Please enter a valid daily sleep target.');
+      setSleepTargetInput(fallback);
+      return;
+    }
+
+    try {
+      await firestoreStorage.setSleepTargetOverride(kidId, parsed);
+      await loadData();
+    } catch (error) {
+      console.error('Error saving sleep target override:', error);
+    }
+  };
+
   // --------------------------------------
   // Photo upload + compression (max ~2MB)
-// --------------------------------------
+  // --------------------------------------
 
   const compressImage = (file, maxSizeKB = 2048) => {
     return new Promise((resolve, reject) => {
@@ -4110,6 +4140,7 @@ const handleInvite = async () => {
               setSleepTargetInput(autoSleepTargetHrs.toFixed(1));
               try {
                 await firestoreStorage.setSleepTargetOverride(kidId, null); // clear override
+                await loadData();
               } catch (e) {
                 console.error(e);
               }
