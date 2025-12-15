@@ -574,6 +574,19 @@ const firestoreStorage = {
   }
 };
 
+// In Firestore storage layer, add a helper if it doesn't exist yet
+// (no-op if already present)
+if (typeof firestoreStorage.setSleepTargetOverride !== 'function') {
+  firestoreStorage.setSleepTargetOverride = async (kidId, hrsOrNull) => {
+    const ref = db.collection('kids').doc(kidId);
+    if (hrsOrNull === null) {
+      await ref.set({ sleepTargetOverrideHrs: firebase.firestore.FieldValue.delete() }, { merge: true });
+    } else {
+      await ref.set({ sleepTargetOverrideHrs: hrsOrNull }, { merge: true });
+    }
+  };
+}
+
 // ========================================
 // TINY TRACKER - PART 2
 // App Wrapper, Login Screen, Baby Setup (family-aware)
@@ -3138,6 +3151,15 @@ const AnalyticsTab = ({ kidId, familyId }) => {
 // Family Tab - Multi-kid + Theme + Photo + Members
 // ========================================
 
+// Small inline "info" button used for tooltips in Family tab
+const InfoDot = ({ onClick, title = "Info" }) =>
+  React.createElement('button', {
+    type: 'button',
+    onClick,
+    title,
+    className: "ml-2 inline-flex items-center justify-center w-5 h-5 rounded-full border border-gray-300 text-[11px] font-semibold text-gray-600 bg-white active:scale-[0.98]"
+  }, 'i');
+
 const FamilyTab = ({
   user,
   kidId,
@@ -3985,10 +4007,16 @@ const handleInvite = async () => {
       React.createElement(
         'div',
         { className: 'mt-2 space-y-1' },
-        React.createElement(
-          'div',
-          { className: 'text-xs font-medium text-gray-500 uppercase' },
-          'Target Multiplier (oz/lb)'
+        React.createElement('div', { className: "flex items-center" },
+          React.createElement('div', { className: "text-xs tracking-widest text-gray-500 uppercase" }, 'TARGET MULTIPLIER (OZ/LB)'),
+          React.createElement(InfoDot, {
+            onClick: () => alert(
+              "Target multiplier (oz/lb)\n\n" +
+              "This is used to estimate a daily feeding target:\n" +
+              "weight (lb) × multiplier (oz/lb).\n\n" +
+              "Common rule-of-thumb for formula is ~2.5 oz per lb per day, but needs vary. If your pediatrician gave you a different plan, use that."
+            )
+          })
         ),
         editingMultiplier
           ? React.createElement(
@@ -4050,29 +4078,45 @@ const handleInvite = async () => {
       ),
 
       sleepSettings && React.createElement('div', { className: "mt-6 pt-4 border-t border-gray-100" },
-        React.createElement('div', { className: "text-sm font-semibold text-gray-800 mb-3" }, 'Sleep settings'),
-        React.createElement('div', { className: "mb-3 text-xs text-gray-500" },
-          `Auto target: ${Number(sleepSettings.sleepTargetAutoHours || 14).toFixed(1)} hrs (by age). ` +
-          (sleepSettings.sleepTargetIsOverride ? "Override enabled." : "You can override below.")
+        React.createElement('div', { className: "text-xs tracking-widest text-gray-500 uppercase mt-6" }, 'SLEEP SETTINGS'),
+        React.createElement('div', { className: "text-sm text-gray-500 mt-1" },
+          `Auto target: ${autoSleepTargetHrs.toFixed(1)} hrs (by age). ${sleepTargetOverride ? 'Override enabled.' : ''}`
         ),
-        React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-          React.createElement('div', null,
-            React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-1" }, 'Daily sleep target (hrs)'),
-            React.createElement('input', {
-              type: 'number',
-              step: '0.5',
-              value: (sleepSettings.sleepTargetHours != null ? String(sleepSettings.sleepTargetHours) : ''),
-              onChange: (e) => setSleepSettings({ ...sleepSettings, sleepTargetHours: parseFloat(e.target.value || '0') }),
-              onBlur: async () => {
-                try {
-                  const v = parseFloat(sleepSettings.sleepTargetHours);
-                  if (Number.isFinite(v) && v > 0) await firestoreStorage.updateSleepSettings({ sleepTargetHours: v });
-                } catch (err) { console.error(err); }
-              },
-              className: "w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
-            })
-          )
-        )
+        React.createElement('div', { className: "flex items-center mt-4" },
+          React.createElement('div', { className: "text-xs tracking-widest text-gray-500 uppercase" }, 'DAILY SLEEP TARGET (HRS)'),
+          React.createElement(InfoDot, {
+            onClick: () => alert(
+              "Daily sleep target\n\n" +
+              "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" +
+              "If your baby’s clinician suggested a different target, you can override it here."
+            )
+          })
+        ),
+        React.createElement('div', { className: "flex items-center gap-3 mt-2" },
+          React.createElement('input', {
+            type: 'number',
+            inputMode: 'decimal',
+            value: sleepTargetInput,
+            onChange: (e) => setSleepTargetInput(e.target.value),
+            onBlur: () => saveSleepTargetOverride(),
+            className: "w-40 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-300",
+            step: "0.1",
+            min: "0"
+          }),
+          sleepTargetOverride && React.createElement('button', {
+            type: 'button',
+            onClick: async () => {
+              // revert to auto
+              setSleepTargetInput(autoSleepTargetHrs.toFixed(1));
+              try {
+                await firestoreStorage.setSleepTargetOverride(kidId, null); // clear override
+              } catch (e) {
+                console.error(e);
+              }
+            },
+            className: "px-3 py-2 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50"
+          }, 'Revert')
+        ),
       ),
 
       // Theme picker
