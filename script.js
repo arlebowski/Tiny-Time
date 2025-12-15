@@ -3187,12 +3187,14 @@ const FamilyTab = ({
   const [sleepTargetInput, setSleepTargetInput] = useState('');
   const [daySleepStartMin, setDaySleepStartMin] = useState(390);
   const [daySleepEndMin, setDaySleepEndMin] = useState(1170);
-  const [daySleepStartInput, setDaySleepStartInput] = useState('6:30 AM');
-  const [daySleepEndInput, setDaySleepEndInput] = useState('7:30 PM');
   const [sleepSettings, setSleepSettings] = useState(null);
   const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
   const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
   const [sleepTargetDraftOverride, setSleepTargetDraftOverride] = useState(false);
+  const [editingDayStart, setEditingDayStart] = useState(false);
+  const [editingDayEnd, setEditingDayEnd] = useState(false);
+  const [tempDayStartInput, setTempDayStartInput] = useState('');
+  const [tempDayEndInput, setTempDayEndInput] = useState('');
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
@@ -3267,6 +3269,15 @@ const FamilyTab = ({
     setDaySleepEndMin(Number(sleepSettings.sleepDayEnd ?? 1170));
   }, [sleepSettings]);
 
+  useEffect(() => {
+    if (!editingDayStart) {
+      setTempDayStartInput(minutesToTimeValue(daySleepStartMin));
+    }
+    if (!editingDayEnd) {
+      setTempDayEndInput(minutesToTimeValue(daySleepEndMin));
+    }
+  }, [daySleepStartMin, daySleepEndMin, editingDayStart, editingDayEnd]);
+
   const minutesToLabel = (m) => {
     const mm = ((Number(m) % 1440) + 1440) % 1440;
     const h24 = Math.floor(mm / 60);
@@ -3276,75 +3287,44 @@ const FamilyTab = ({
     return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
   };
 
-  useEffect(() => {
-    setDaySleepStartInput(minutesToLabel(daySleepStartMin));
-  }, [daySleepStartMin]);
-
-  useEffect(() => {
-    setDaySleepEndInput(minutesToLabel(daySleepEndMin));
-  }, [daySleepEndMin]);
+  const minutesToTimeValue = (m) => {
+    const mm = ((Number(m) % 1440) + 1440) % 1440;
+    const h24 = Math.floor(mm / 60);
+    const min = mm % 60;
+    return `${String(h24).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
+  };
 
   const parseTimeInput = (value) => {
-    if (!value) return null;
-    const raw = value.trim().toUpperCase();
-    const match = raw.match(/^(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/);
-    if (!match) return null;
-
-    let hours = Number(match[1]);
-    const minutes = match[2] ? Number(match[2]) : 0;
-    const suffix = match[3];
-
-    if (Number.isNaN(hours) || Number.isNaN(minutes) || minutes > 59) {
-      return null;
-    }
-
-    if (suffix) {
-      const isPM = suffix === "PM";
-      hours = hours % 12;
-      if (isPM) hours += 12;
-    } else if (hours > 23) {
-      return null;
-    }
-
-    return hours * 60 + minutes;
+    if (!value || typeof value !== "string") return null;
+    const [hStr, mStr] = value.split(":");
+    const h = Number(hStr);
+    const m = Number(mStr);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    return clamp(h * 60 + m, 0, 1439);
   };
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   const saveDaySleepWindow = async (startMin, endMin) => {
+    const startVal = clamp(Number(startMin), 0, 1439);
+    const endVal = clamp(Number(endMin), 0, 1439);
+    setDaySleepStartMin(startVal);
+    setDaySleepEndMin(endVal);
     try {
       await firestoreStorage.updateSleepSettings({
-        sleepDayStart: Number(startMin),
-        sleepDayEnd: Number(endMin),
+        sleepDayStart: startVal,
+        sleepDayEnd: endVal,
       });
-      await loadData();
+      setSleepSettings((prev) => ({
+        ...(prev || {}),
+        sleepDayStart: startVal,
+        sleepDayEnd: endVal,
+        daySleepStartMinutes: startVal,
+        daySleepEndMinutes: endVal
+      }));
     } catch (e) {
       console.error("Error saving day sleep window:", e);
     }
-  };
-
-  const commitDaySleepStartInput = () => {
-    const parsed = parseTimeInput(daySleepStartInput);
-    if (parsed === null) {
-      setDaySleepStartInput(minutesToLabel(daySleepStartMin));
-      return;
-    }
-
-    const clamped = clamp(parsed, 0, 1439);
-    setDaySleepStartMin(clamped);
-    saveDaySleepWindow(clamped, daySleepEndMin);
-  };
-
-  const commitDaySleepEndInput = () => {
-    const parsed = parseTimeInput(daySleepEndInput);
-    if (parsed === null) {
-      setDaySleepEndInput(minutesToLabel(daySleepEndMin));
-      return;
-    }
-
-    const clamped = clamp(parsed, 0, 1439);
-    setDaySleepEndMin(clamped);
-    saveDaySleepWindow(daySleepStartMin, clamped);
   };
 
   const loadData = async () => {
@@ -3797,57 +3777,131 @@ const handleInvite = async () => {
     ),
     // Start/End “editable boxes”
     React.createElement(
-      "div",
-      { className: "grid grid-cols-2 gap-3 mt-4" },
-      React.createElement(
         "div",
-        { className: "border-2 border-gray-200 rounded-2xl p-3 bg-white" },
-        React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold" }, "START"),
-        React.createElement("input", {
-          type: "text",
-          value: daySleepStartInput,
-          onChange: (e) => setDaySleepStartInput(e.target.value),
-          onBlur: commitDaySleepStartInput,
-          onKeyDown: (e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitDaySleepStartInput();
-            }
+        { className: "grid grid-cols-2 gap-3 mt-4" },
+        React.createElement(
+          "div",
+          {
+            className: "border-2 border-gray-200 rounded-2xl p-3 bg-white",
+            onClick: editingDayStart
+              ? undefined
+              : () => {
+                  setEditingDayStart(true);
+                  setTempDayStartInput(minutesToTimeValue(dayStart));
+                }
           },
-          className: "mt-1 w-full bg-transparent text-base font-semibold text-gray-800 focus:outline-none"
-        })
+          React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold flex items-center justify-between" },
+            React.createElement("span", null, "START"),
+            !editingDayStart && React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
+          ),
+          editingDayStart
+            ? React.createElement(
+                "div",
+                { className: "flex items-center gap-2 mt-2" },
+                React.createElement("input", {
+                  type: "time",
+                  value: tempDayStartInput,
+                  onChange: (e) => setTempDayStartInput(e.target.value),
+                  className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                }),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      const mins = parseTimeInput(tempDayStartInput);
+                      if (mins == null) {
+                        alert("Please enter a valid start time.");
+                        return;
+                      }
+                      saveDaySleepWindow(mins, daySleepEndMin);
+                      setEditingDayStart(false);
+                    },
+                    className: TT_ICON_BTN_OK
+                  },
+                  React.createElement(Check, { className: TT_ICON_SIZE })
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      setTempDayStartInput(minutesToTimeValue(dayStart));
+                      setEditingDayStart(false);
+                    },
+                    className: TT_ICON_BTN_CANCEL
+                  },
+                  React.createElement(X, { className: TT_ICON_SIZE })
+                )
+              )
+            : React.createElement("div", { className: "text-lg font-semibold text-gray-800 mt-1" }, minutesToLabel(dayStart))
+        ),
+        React.createElement(
+          "div",
+          {
+            className: "border-2 border-gray-200 rounded-2xl p-3 bg-white",
+            onClick: editingDayEnd
+              ? undefined
+              : () => {
+                  setEditingDayEnd(true);
+                  setTempDayEndInput(minutesToTimeValue(dayEnd));
+                }
+          },
+          React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold flex items-center justify-between" },
+            React.createElement("span", null, "END"),
+            !editingDayEnd && React.createElement(Edit2, { className: "w-4 h-4 text-indigo-600" })
+          ),
+          editingDayEnd
+            ? React.createElement(
+                "div",
+                { className: "flex items-center gap-2 mt-2" },
+                React.createElement("input", {
+                  type: "time",
+                  value: tempDayEndInput,
+                  onChange: (e) => setTempDayEndInput(e.target.value),
+                  className: "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                }),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      const mins = parseTimeInput(tempDayEndInput);
+                      if (mins == null) {
+                        alert("Please enter a valid end time.");
+                        return;
+                      }
+                      saveDaySleepWindow(daySleepStartMin, mins);
+                      setEditingDayEnd(false);
+                    },
+                    className: TT_ICON_BTN_OK
+                  },
+                  React.createElement(Check, { className: TT_ICON_SIZE })
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      setTempDayEndInput(minutesToTimeValue(dayEnd));
+                      setEditingDayEnd(false);
+                    },
+                    className: TT_ICON_BTN_CANCEL
+                  },
+                  React.createElement(X, { className: TT_ICON_SIZE })
+                )
+              )
+            : React.createElement("div", { className: "text-lg font-semibold text-gray-800 mt-1" }, minutesToLabel(dayEnd))
+        )
       ),
-      React.createElement(
-        "div",
-        { className: "border-2 border-gray-200 rounded-2xl p-3 bg-white" },
-        React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold" }, "END"),
-        React.createElement("input", {
-          type: "text",
-          value: daySleepEndInput,
-          onChange: (e) => setDaySleepEndInput(e.target.value),
-          onBlur: commitDaySleepEndInput,
-          onKeyDown: (e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              commitDaySleepEndInput();
-            }
-          },
-          className: "mt-1 w-full bg-transparent text-base font-semibold text-gray-800 focus:outline-none"
-        })
-      )
-    ),
     // Slider track + selection + handles
     React.createElement(
       "div",
       { className: "mt-4" },
       React.createElement(
         "div",
-        { className: "relative h-12 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200" },
+        { className: "relative h-12 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200 day-sleep-slider" },
         React.createElement("div", { className: "absolute inset-y-0", style: { left: `${leftPct}%`, width: `${widthPct}%`, background: "rgba(99,102,241,0.25)" } }),
         // left handle visual
-        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${startPct}% - 6px)` } }),
+        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${startPct}% - 6px)`, pointerEvents: "none" } }),
         // right handle visual
-        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${endPct}% - 6px)` } }),
+        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${endPct}% - 6px)`, pointerEvents: "none" } }),
         // two range inputs layered (one controls start, one controls end)
         React.createElement("input", {
           type: "range",
@@ -3855,8 +3909,8 @@ const handleInvite = async () => {
           max: 1439,
           value: daySleepStartMin,
           onChange: (e) => setDaySleepStartMin(Number(e.target.value)),
-          onMouseUp: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
-          onTouchEnd: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
+          onMouseUp: (e) => saveDaySleepWindow(Number(e.target.value), daySleepEndMin),
+          onTouchEnd: (e) => saveDaySleepWindow(Number(e.target.value), daySleepEndMin),
           className: "absolute inset-0 w-full h-full opacity-0"
         }),
         React.createElement("input", {
@@ -3865,8 +3919,8 @@ const handleInvite = async () => {
           max: 1439,
           value: daySleepEndMin,
           onChange: (e) => setDaySleepEndMin(Number(e.target.value)),
-          onMouseUp: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
-          onTouchEnd: () => saveDaySleepWindow(daySleepStartMin, daySleepEndMin),
+          onMouseUp: (e) => saveDaySleepWindow(daySleepStartMin, Number(e.target.value)),
+          onTouchEnd: (e) => saveDaySleepWindow(daySleepStartMin, Number(e.target.value)),
           className: "absolute inset-0 w-full h-full opacity-0"
         })
       ),

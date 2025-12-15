@@ -65,6 +65,28 @@
     .bg-white.rounded-2xl {
       overflow-x: hidden;
     }
+
+    /* Allow dual-thumb day sleep slider to capture events on both handles */
+    .day-sleep-slider input[type="range"] {
+      pointer-events: none;
+      background: transparent;
+      -webkit-appearance: none;
+    }
+    .day-sleep-slider input[type="range"]::-webkit-slider-thumb {
+      pointer-events: auto;
+      -webkit-appearance: none;
+      width: 32px;
+      height: 48px;
+      background: transparent;
+      border: none;
+    }
+    .day-sleep-slider input[type="range"]::-moz-range-thumb {
+      pointer-events: auto;
+      width: 32px;
+      height: 48px;
+      background: transparent;
+      border: none;
+    }
   </style>
 </head>
 <body class="bg-white">
