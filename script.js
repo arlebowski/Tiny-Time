@@ -498,12 +498,18 @@ const firestoreStorage = {
     const doc = await this._kidRef().get();
     const d = doc.exists ? doc.data() : {};
     const autoTarget = this._defaultSleepTargetHoursFromBirthTs(d.birthDate);
-    // If user explicitly set sleepTargetHours, treat it as override. Otherwise use auto.
-    const hasOverride = typeof d.sleepTargetHours === "number" && !Number.isNaN(d.sleepTargetHours);
+    // If user explicitly set an override, use it. Otherwise use auto.
+    const override =
+      typeof d.sleepTargetOverrideHrs === "number" && !Number.isNaN(d.sleepTargetOverrideHrs)
+        ? d.sleepTargetOverrideHrs
+        : typeof d.sleepTargetHours === "number" && !Number.isNaN(d.sleepTargetHours)
+          ? d.sleepTargetHours
+          : null;
+    const hasOverride = typeof override === "number";
     return {
       sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
       sleepNightEnd: d.sleepNightEnd ?? 420, // 7:00 AM
-      sleepTargetHours: hasOverride ? d.sleepTargetHours : autoTarget,
+      sleepTargetHours: hasOverride ? override : autoTarget,
       sleepTargetAutoHours: autoTarget,
       sleepTargetIsOverride: hasOverride
     };
@@ -580,9 +586,15 @@ if (typeof firestoreStorage.setSleepTargetOverride !== 'function') {
   firestoreStorage.setSleepTargetOverride = async (kidId, hrsOrNull) => {
     const ref = db.collection('kids').doc(kidId);
     if (hrsOrNull === null) {
-      await ref.set({ sleepTargetOverrideHrs: firebase.firestore.FieldValue.delete() }, { merge: true });
+      await ref.set({
+        sleepTargetOverrideHrs: firebase.firestore.FieldValue.delete(),
+        sleepTargetHours: firebase.firestore.FieldValue.delete()
+      }, { merge: true });
     } else {
-      await ref.set({ sleepTargetOverrideHrs: hrsOrNull }, { merge: true });
+      await ref.set({
+        sleepTargetOverrideHrs: hrsOrNull,
+        sleepTargetHours: hrsOrNull
+      }, { merge: true });
     }
   };
 }
