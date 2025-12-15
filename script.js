@@ -542,6 +542,8 @@ const firestoreStorage = {
     return {
       sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
       sleepNightEnd: d.sleepNightEnd ?? 420, // 7:00 AM
+      sleepDayStart: d.sleepDayStart ?? 390, // 6:30 AM
+      sleepDayEnd: d.sleepDayEnd ?? 1170, // 7:30 PM
       sleepTargetHours: hasOverride ? override : autoTarget,
       sleepTargetAutoHours: autoTarget,
       sleepTargetIsOverride: hasOverride,
@@ -553,6 +555,8 @@ const firestoreStorage = {
   async updateSleepSettings({
     sleepNightStart,
     sleepNightEnd,
+    sleepDayStart,
+    sleepDayEnd,
     sleepTargetHours,
     daySleepStartMinutes,
     daySleepEndMinutes
@@ -560,6 +564,8 @@ const firestoreStorage = {
     const payload = {
       ...(sleepNightStart != null ? { sleepNightStart } : {}),
       ...(sleepNightEnd != null ? { sleepNightEnd } : {}),
+      ...(sleepDayStart != null ? { sleepDayStart } : {}),
+      ...(sleepDayEnd != null ? { sleepDayEnd } : {}),
       ...(sleepTargetHours != null ? { sleepTargetHours } : {})
     };
 
@@ -579,6 +585,8 @@ const firestoreStorage = {
       sleepNightStart,
       sleepNightEnd,
       sleepTargetHours,
+      sleepDayStart,
+      sleepDayEnd,
       daySleepStartMinutes: payload.daySleepStartMinutes,
       daySleepEndMinutes: payload.daySleepEndMinutes
     });
