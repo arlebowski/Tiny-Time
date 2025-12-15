@@ -3283,7 +3283,7 @@ const FamilyTab = ({
   };
 
   const updateKidPartial = async (updates) => {
-    await firestoreStorage.updateKid(updates);
+    await firestoreStorage.updateKidData(updates);
   };
 
   // --------------------------------------
@@ -3405,7 +3405,11 @@ const FamilyTab = ({
   const handleUpdateBirthDate = async () => {
     if (!tempBirthDate) return;
     try {
-      const birthTimestamp = new Date(tempBirthDate).getTime();
+      const [year, month, day] = tempBirthDate.split('-').map((v) => Number(v));
+      if (!year || !month || !day) {
+        throw new Error('Invalid birth date');
+      }
+      const birthTimestamp = new Date(year, month - 1, day).getTime();
       await updateKidPartial({ birthDate: birthTimestamp });
       setEditingBirthDate(false);
       await loadData();
@@ -3913,7 +3917,7 @@ const handleInvite = async () => {
                   value: tempBirthDate,
                   onChange: (e) => setTempBirthDate(e.target.value),
                   className:
-                    'px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm'
+                    'px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm min-w-[150px]'
                 }),
                 React.createElement(
                   'button',
