@@ -3115,6 +3115,12 @@ const FamilyTab = ({
   const autoSleepTargetHrs = Number(sleepSettings?.sleepTargetAutoHours || 14);
   const sleepTargetOverride = !!sleepSettings?.sleepTargetIsOverride;
 
+  const formatSleepTargetDisplay = (value) => {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return '';
+    return Number.isInteger(num) ? String(num) : num.toFixed(1);
+  };
+
   // --------------------------------------
   // Data loading
   // --------------------------------------
@@ -3136,9 +3142,9 @@ const FamilyTab = ({
     if (!sleepSettings) return;
     const auto = Number(sleepSettings.sleepTargetAutoHours || 14);
     const current = sleepSettings.sleepTargetHours ?? auto;
-    const fixed = Number(current).toFixed(1);
-    setSleepTargetInput(fixed);
-    setSleepTargetLastSaved(fixed);
+    const formatted = formatSleepTargetDisplay(current);
+    setSleepTargetInput(formatted);
+    setSleepTargetLastSaved(formatted);
     setIsEditingSleepTarget(false);
     setSleepTargetDraftOverride(false);
   }, [sleepSettings]);
@@ -3371,7 +3377,7 @@ const FamilyTab = ({
 
   const saveSleepTargetOverride = async () => {
     const hrs = parseFloat(sleepTargetInput);
-    const fallback = autoSleepTargetHrs.toFixed(1);
+    const fallback = formatSleepTargetDisplay(autoSleepTargetHrs);
 
     if (!hrs || hrs <= 0) {
       alert('Please enter a valid daily sleep target.');
@@ -3390,6 +3396,17 @@ const FamilyTab = ({
       await loadData();
     } catch (error) {
       console.error('Error saving sleep target override:', error);
+    }
+  };
+
+  const handleRevertSleepTarget = async () => {
+    try {
+      await firestoreStorage.setSleepTargetOverride(kidId, null);
+      await loadData();
+      setIsEditingSleepTarget(false);
+      setSleepTargetDraftOverride(false);
+    } catch (error) {
+      console.error('Error reverting to recommended sleep target:', error);
     }
   };
 
@@ -4061,11 +4078,15 @@ const handleInvite = async () => {
               min: "0"
             }),
             React.createElement('button', { type: 'button', disabled: !sleepTargetDraftOverride && (sleepTargetInput === sleepTargetLastSaved), onClick: async () => { await saveSleepTargetOverride(); setSleepTargetLastSaved(sleepTargetInput); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_OK }, React.createElement(Check, { className: TT_ICON_SIZE })),
-            React.createElement('button', { type: 'button', onClick: () => { setSleepTargetInput(sleepTargetLastSaved || autoSleepTargetHrs.toFixed(1)); setSleepTargetDraftOverride(false); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_CANCEL }, React.createElement(X, { className: TT_ICON_SIZE }))
+            React.createElement('button', { type: 'button', onClick: () => { setSleepTargetInput(sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs)); setSleepTargetDraftOverride(false); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_CANCEL }, React.createElement(X, { className: TT_ICON_SIZE }))
           ) : React.createElement( 'div', { className: 'flex items-center justify-between mt-1' },
-            React.createElement( 'div', { className: 'text-base font-semibold text-gray-900' }, sleepTargetInput || autoSleepTargetHrs.toFixed(1) ),
+            React.createElement( 'div', { className: 'text-base font-semibold text-gray-900' }, sleepTargetInput || formatSleepTargetDisplay(autoSleepTargetHrs) ),
             React.createElement(Edit2, { className: 'w-4 h-4 text-indigo-600' })
           )
+        ),
+        sleepSettings?.sleepTargetIsOverride && Math.abs(Number(sleepSettings.sleepTargetHours ?? 0) - Number(sleepSettings.sleepTargetAutoHours ?? 0)) >= 0.05 && React.createElement('div', { className: "flex items-center justify-between mt-2 text-xs text-gray-600" },
+          React.createElement('div', null, `Recommended: ${formatSleepTargetDisplay(sleepSettings.sleepTargetAutoHours)} hrs`),
+          React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "text-indigo-600 font-medium" }, 'Revert to recommended')
         ),
       ),
 
