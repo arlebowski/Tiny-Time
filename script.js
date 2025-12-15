@@ -1758,6 +1758,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
   const [sleepStartStr, setSleepStartStr] = useState('');
   const [sleepEndStr, setSleepEndStr] = useState('');
+  const [editingSleepField, setEditingSleepField] = useState(null); // 'start' | 'end' | null
   const sleepIntervalRef = React.useRef(null);
   const [lastActiveSleepId, setLastActiveSleepId] = useState(null);
 
@@ -2148,25 +2149,65 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                 'div',
                 null,
                 React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'Start'),
-                React.createElement(
-                  'div',
-                  { className: "text-indigo-600 font-semibold text-lg" },
-                  _toHHMMNoZero(activeSleep.startTime)
-                )
+                editingSleepField === 'start'
+                  ? React.createElement('input', {
+                      type: 'time',
+                      autoFocus: true,
+                      defaultValue: _toHHMM(activeSleep.startTime),
+                      onBlur: async (e) => {
+                        setEditingSleepField(null);
+                        const ms = _hhmmToMsToday(e.target.value);
+                        if (!ms) return;
+                        try {
+                          await firestoreStorage.updateSleepSession(activeSleep.id, { startTime: ms });
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      },
+                      className: "text-indigo-600 font-semibold bg-transparent text-center"
+                    })
+                  : React.createElement(
+                      'div',
+                      {
+                        className: "text-indigo-600 font-semibold text-lg cursor-pointer",
+                        onClick: () => setEditingSleepField('start')
+                      },
+                      _toHHMMNoZero(activeSleep.startTime)
+                    )
               ),
 
               React.createElement(
                 'div',
                 null,
                 React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'End'),
-                React.createElement(
-                  'div',
-                  {
-                    className: "text-indigo-600 font-semibold text-lg cursor-pointer",
-                    onClick: () => setSleepEndStr(_toHHMMNoZero(Date.now()))
-                  },
-                  sleepEndStr || '--:--'
-                )
+                editingSleepField === 'end'
+                  ? React.createElement('input', {
+                      type: 'time',
+                      autoFocus: true,
+                      defaultValue: sleepEndStr
+                        ? _toHHMM(_hhmmToMsToday(sleepEndStr))
+                        : _toHHMM(Date.now()),
+                      onBlur: async (e) => {
+                        setEditingSleepField(null);
+                        const ms = _hhmmToMsToday(e.target.value);
+                        if (!ms) return;
+                        try {
+                          await firestoreStorage.updateSleepSession(activeSleep.id, { endTime: ms });
+                          setSleepEndStr(_toHHMMNoZero(ms));
+                        } catch (err) {
+                          console.error(err);
+                        }
+                      },
+                      className: "text-indigo-600 font-semibold bg-transparent text-center"
+                    })
+                  : React.createElement(
+                      'div',
+                      {
+                        className: "text-indigo-600 font-semibold text-lg cursor-pointer",
+                        onClick: () => setEditingSleepField('end')
+                      },
+                      sleepEndStr || '--:--'
+                    )
               )
             ),
 
