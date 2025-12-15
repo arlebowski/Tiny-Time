@@ -1891,12 +1891,12 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const cx = size / 2;
     const cy = size / 2;
     const r = 56;
-    const strokeW = 14;
+    const strokeW = 12;
     const c = 2 * Math.PI * r;
     const dash = (p / 100) * c;
     const gap = c - dash;
     const angle = (p / 100) * 2 * Math.PI - (Math.PI / 2);
-    const badgeR = r + 34;
+    const badgeR = r + 18;
     const badgeX = cx + badgeR * Math.cos(angle);
     const badgeY = cy + badgeR * Math.sin(angle);
     const _stripDotZero = (v) => {
@@ -1939,9 +1939,13 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           { className: "absolute inset-0 flex flex-col items-center justify-center text-center" },
           React.createElement('div', { className: "text-3xl font-bold text-indigo-600 leading-none" },
             topTxt,
-            React.createElement('span', { className: "text-sm font-semibold text-indigo-400 ml-1 align-baseline" }, String(unit || '').toUpperCase())
+            React.createElement(
+              'span',
+              { className: "text-xs font-semibold text-indigo-400 ml-1 align-baseline lowercase" },
+              String(unit || '').toLowerCase()
+            )
           ),
-          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, `/ ${bottomTxt} ${unit}`)
+          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, `target ${bottomTxt} ${String(unit || '').toLowerCase()}`)
         )
       ),
       React.createElement(
