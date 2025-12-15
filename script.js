@@ -344,6 +344,35 @@ const firestoreStorage = {
   // -----------------------
   // SLEEP SESSIONS
   // -----------------------
+  _minutesOfDayLocal(ms) {
+    try {
+      const d = new Date(ms);
+      return d.getHours() * 60 + d.getMinutes();
+    } catch {
+      return 0;
+    }
+  },
+  _isWithinWindow(mins, startMins, endMins) {
+    const s = Number(startMins);
+    const e = Number(endMins);
+    const m = Number(mins);
+    if (Number.isNaN(s) || Number.isNaN(e) || Number.isNaN(m)) return false;
+    if (s === e) return false; // degenerate window
+    if (s < e) return m >= s && m <= e;
+    // wraps past midnight
+    return (m >= s) || (m <= e);
+  },
+  async _classifySleepTypeForStartMs(startMs) {
+    try {
+      const ss = await this.getSleepSettings();
+      const dayStart = Number(ss?.daySleepStartMinutes ?? 390);
+      const dayEnd = Number(ss?.daySleepEndMinutes ?? 1170);
+      const mins = this._minutesOfDayLocal(startMs);
+      return this._isWithinWindow(mins, dayStart, dayEnd) ? "day" : "night";
+    } catch {
+      return "night";
+    }
+  },
   async startSleep(startTime = null) {
     const user = auth.currentUser;
     const uid = user ? user.uid : null;
@@ -361,11 +390,13 @@ const firestoreStorage = {
     }
 
     const startMs = typeof startTime === "number" ? startTime : Date.now();
+    const sleepType = await this._classifySleepTypeForStartMs(startMs);
 
     const ref = await this._kidRef().collection("sleepSessions").add({
       startTime: startMs,
       endTime: null,
       isActive: true,
+      sleepType,
       startedByUid: uid,
       endedByUid: null,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -506,30 +537,50 @@ const firestoreStorage = {
           ? d.sleepTargetHours
           : null;
     const hasOverride = typeof override === "number";
+    const daySleepStartMinutes = Number(d.daySleepStartMinutes ?? 390); // 6:30 AM
+    const daySleepEndMinutes = Number(d.daySleepEndMinutes ?? 1170); // 7:30 PM
     return {
       sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
       sleepNightEnd: d.sleepNightEnd ?? 420, // 7:00 AM
       sleepTargetHours: hasOverride ? override : autoTarget,
       sleepTargetAutoHours: autoTarget,
-      sleepTargetIsOverride: hasOverride
+      sleepTargetIsOverride: hasOverride,
+      daySleepStartMinutes,
+      daySleepEndMinutes
     };
   },
 
   async updateSleepSettings({
     sleepNightStart,
     sleepNightEnd,
-    sleepTargetHours
+    sleepTargetHours,
+    daySleepStartMinutes,
+    daySleepEndMinutes
   }) {
-    await this._kidRef().update({
+    const payload = {
       ...(sleepNightStart != null ? { sleepNightStart } : {}),
       ...(sleepNightEnd != null ? { sleepNightEnd } : {}),
       ...(sleepTargetHours != null ? { sleepTargetHours } : {})
-    });
+    };
+
+    const dayStartNum = Number(daySleepStartMinutes);
+    if (daySleepStartMinutes != null && !Number.isNaN(dayStartNum)) {
+      payload.daySleepStartMinutes = dayStartNum;
+    }
+
+    const dayEndNum = Number(daySleepEndMinutes);
+    if (daySleepEndMinutes != null && !Number.isNaN(dayEndNum)) {
+      payload.daySleepEndMinutes = dayEndNum;
+    }
+
+    await this._kidRef().update(payload);
 
     logEvent("sleep_settings_updated", {
       sleepNightStart,
       sleepNightEnd,
-      sleepTargetHours
+      sleepTargetHours,
+      daySleepStartMinutes: payload.daySleepStartMinutes,
+      daySleepEndMinutes: payload.daySleepEndMinutes
     });
   },
 
