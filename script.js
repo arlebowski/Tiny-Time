@@ -1815,8 +1815,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     try {
       const d = new Date(ms);
       let h = d.getHours();
-      let m = d.getMinutes();
-      return h + ':' + String(m).padStart(2, '0');
+      const m = d.getMinutes();
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12;
+      h = h === 0 ? 12 : h;
+      return `${h}:${String(m).padStart(2, '0')} ${ampm}`;
     } catch {
       return '';
     }
@@ -2136,22 +2139,22 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       (logMode === 'sleep') &&
         React.createElement('div', { className: "space-y-4" },
 
-          React.createElement(
-            'div',
-            { className: "grid grid-cols-2 gap-4 text-center" },
-
+          activeSleep &&
             React.createElement(
               'div',
-              null,
-              React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'Start'),
+              { className: "grid grid-cols-2 gap-4 text-center" },
+
               React.createElement(
                 'div',
-                { className: "text-indigo-600 font-semibold text-lg" },
-                sleepStartStr || '--:--'
-              )
-            ),
+                null,
+                React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'Start'),
+                React.createElement(
+                  'div',
+                  { className: "text-indigo-600 font-semibold text-lg" },
+                  _toHHMMNoZero(activeSleep.startTime)
+                )
+              ),
 
-            activeSleep &&
               React.createElement(
                 'div',
                 null,
@@ -2165,7 +2168,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                   sleepEndStr || '--:--'
                 )
               )
-          ),
+            ),
 
           activeSleep &&
             React.createElement(
