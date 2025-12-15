@@ -1903,6 +1903,23 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [logMode, setLogMode] = useState('feeding');
 
+  // Consistent icon-button styling for edit actions (✓ / ✕) — match Family tab
+  const TRACKER_ICON_BTN_BASE =
+    "h-10 w-10 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center";
+  const TRACKER_ICON_BTN_OK = TRACKER_ICON_BTN_BASE + " text-green-600";
+  const TRACKER_ICON_BTN_CANCEL = TRACKER_ICON_BTN_BASE + " text-gray-500";
+  const TRACKER_ICON_SIZE = "w-5 h-5";
+
+  const TrackerEditActions = ({ onSave, onCancel }) =>
+    React.createElement('div', { className: "flex justify-end gap-2 pt-1" },
+      React.createElement('button', { type: 'button', onClick: onSave, className: TRACKER_ICON_BTN_OK, title: "Save" },
+        React.createElement(Check, { className: TRACKER_ICON_SIZE })
+      ),
+      React.createElement('button', { type: 'button', onClick: onCancel, className: TRACKER_ICON_BTN_CANCEL, title: "Cancel" },
+        React.createElement(X, { className: TRACKER_ICON_SIZE })
+      )
+    );
+
   // Sleep logging state
   const [activeSleep, setActiveSleep] = useState(null);
   const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
@@ -2665,22 +2682,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                             })
                           )
                         ),
-                          React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
-                            React.createElement('button', {
-                              onClick: handleSaveSleepEdit,
-                              className: "trackerEditBtn w-full h-11 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 leading-none"
-                            },
-                              React.createElement(Check, { className: "w-4 h-4" }),
-                              'Save'
-                            ),
-                            React.createElement('button', {
-                              onClick: handleCancelSleepEdit,
-                              className: "trackerEditBtn w-full h-11 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2 leading-none"
-                            },
-                              React.createElement(X, { className: "w-4 h-4" }),
-                              'Cancel'
-                            )
-                          )
+                        React.createElement(TrackerEditActions, { onSave: handleSaveSleepEdit, onCancel: handleCancelSleepEdit })
                         )
                       )
                   : React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
@@ -2750,22 +2752,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                         className: "w-full h-11 min-w-0 px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                       })
                     ),
-                    React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
-                      React.createElement('button', {
-                        onClick: handleSaveEdit,
-                        className: "trackerEditBtn w-full h-11 bg-green-600 text-white rounded-lg hover:bg-green-700 transition flex items-center justify-center gap-2 leading-none"
-                      },
-                        React.createElement(Check, { className: "w-4 h-4" }),
-                        'Save'
-                      ),
-                      React.createElement('button', {
-                        onClick: handleCancelEdit,
-                        className: "trackerEditBtn w-full h-11 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition flex items-center justify-center gap-2 leading-none"
-                      },
-                        React.createElement(X, { className: "w-4 h-4" }),
-                        'Cancel'
-                      )
-                    )
+                    React.createElement(TrackerEditActions, { onSave: handleSaveEdit, onCancel: handleCancelEdit })
                   )
                 )
               :
