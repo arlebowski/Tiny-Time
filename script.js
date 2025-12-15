@@ -2303,7 +2303,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                     className: "bg-indigo-100 rounded-full flex items-center justify-center",
                     style: { width: '48px', height: '48px' }
                   },
-                  React.createElement('span', { className: "text-xl" }, '🌙')
+                  React.createElement('span', { className: "text-xl" }, '😴')
                 ),
                 React.createElement(
                   'div',
