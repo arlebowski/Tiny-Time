@@ -2644,20 +2644,26 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                 { key: s.id },
                 editingSleepId === s.id
                   ? React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl space-y-3" },
-                      React.createElement('div', { className: "flex gap-2 min-w-0" },
-                        React.createElement('input', {
-                          type: 'time',
-                          value: sleepEditStartStr,
-                          onChange: (e) => setSleepEditStartStr(e.target.value),
-                          className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                        }),
-                        React.createElement('input', {
-                          type: 'time',
-                          value: sleepEditEndStr,
-                          onChange: (e) => setSleepEditEndStr(e.target.value),
-                          className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                        })
-                      ),
+                  React.createElement('div', { className: "flex gap-2 min-w-0" },
+                    React.createElement('div', { className: "editField" },
+                      React.createElement('div', { className: "editFieldLabel" }, 'Start'),
+                      React.createElement('input', {
+                        type: 'time',
+                        value: sleepEditStartStr,
+                        onChange: (e) => setSleepEditStartStr(e.target.value),
+                        className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                      })
+                    ),
+                    React.createElement('div', { className: "editField" },
+                      React.createElement('div', { className: "editFieldLabel" }, 'End'),
+                      React.createElement('input', {
+                        type: 'time',
+                        value: sleepEditEndStr,
+                        onChange: (e) => setSleepEditEndStr(e.target.value),
+                        className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                      })
+                    )
+                  ),
                       React.createElement('div', { className: "flex gap-2" },
                         React.createElement('button', {
                           onClick: handleSaveSleepEdit,
@@ -2723,14 +2729,18 @@ const TrackerTab = ({ user, kidId, familyId }) => {
               editingFeedingId === feeding.id ?
                 React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl space-y-3" },
                   React.createElement('div', { className: "flex gap-2 min-w-0" },
-                    React.createElement('input', {
-                      type: "number",
-                      step: "0.25",
-                      value: editOunces,
-                      onChange: (e) => setEditOunces(e.target.value),
-                      placeholder: "Ounces",
-                      className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                    }),
+                    React.createElement('div', { className: "amountWithUnit" },
+                      React.createElement('input', {
+                        type: "number",
+                        step: "0.25",
+                        value: editOunces,
+                        onChange: (e) => setEditOunces(e.target.value),
+                        placeholder: "Ounces",
+                        className: "min-w-0 flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500",
+                        style: { paddingRight: '36px' }
+                      }),
+                      React.createElement('span', { className: "unitSuffix" }, 'oz')
+                    ),
                     React.createElement('input', {
                       type: "time",
                       value: editTime,
