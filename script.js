@@ -3191,6 +3191,9 @@ const FamilyTab = ({
   const [sleepTargetInput, setSleepTargetInput] = useState('');
   const [sleepSettings, setSleepSettings] = useState(null);
   const [sleepTargetOverride, setSleepTargetOverride] = useState(false);
+  const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
+  const [sleepTargetDraftOverride, setSleepTargetDraftOverride] = useState(false);
+  const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
@@ -3243,10 +3246,13 @@ const FamilyTab = ({
     if (!sleepSettings) return;
     const auto = Number(sleepSettings.sleepTargetAutoHours || 14);
     const current = sleepSettings.sleepTargetHours ?? auto;
+    const savedStr = Number(current).toFixed(1);
 
-    setSleepTargetInput(Number(current).toFixed(1));
     setSleepTargetOverride(!!sleepSettings.sleepTargetIsOverride);
-  }, [sleepSettings]);
+    setSleepTargetLastSaved(savedStr);
+
+    if (!isEditingSleepTarget) setSleepTargetInput(savedStr);
+  }, [sleepSettings, isEditingSleepTarget]);
 
   const loadData = async () => {
     if (!kidId) return;
@@ -4157,32 +4163,64 @@ const handleInvite = async () => {
               setSleepTargetInput(v);
               const n = parseFloat(v);
               if (!n || n <= 0) {
-                setSleepTargetOverride(false);
+                setSleepTargetDraftOverride(false);
                 return;
               }
-              setSleepTargetOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
+              setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
             },
-            onBlur: () => saveSleepTargetOverride(),
+            onFocus: () => {
+              setIsEditingSleepTarget(true);
+              const n = parseFloat(sleepTargetInput);
+              if (!n || n <= 0) setSleepTargetDraftOverride(false);
+              else setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
+            },
             className: "w-28 h-10 px-3 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300",
             step: "0.1",
             min: "0"
           }),
-          React.createElement('button', {
-            type: 'button',
-            disabled: !sleepTargetOverride,
-            onClick: async () => {
-              // revert to auto
-              setSleepTargetInput(autoSleepTargetHrs.toFixed(1));
-              setSleepTargetOverride(false);
-              try {
-                await firestoreStorage.setSleepTargetOverride(kidId, null); // clear override
-                await loadData();
-              } catch (e) {
-                console.error(e);
-              }
-            },
-            className: "h-10 px-3 rounded-lg border border-gray-300 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white whitespace-nowrap"
-          }, 'Reset')
+          // Editing controls: Save / Cancel
+          isEditingSleepTarget
+            ? React.createElement(
+                React.Fragment,
+                null,
+                React.createElement('button', {
+                  type: 'button',
+                  disabled: !sleepTargetDraftOverride && (sleepTargetInput === sleepTargetLastSaved),
+                  onClick: async () => {
+                    await saveSleepTargetOverride();
+                    setSleepTargetLastSaved(sleepTargetInput);
+                    setIsEditingSleepTarget(false);
+                  },
+                  className: "h-10 w-10 rounded-lg border border-gray-300 text-green-600 bg-white hover:bg-gray-50 disabled:opacity-40"
+                }, React.createElement(Check, { className: 'w-5 h-5 mx-auto' })),
+                React.createElement('button', {
+                  type: 'button',
+                  onClick: () => {
+                    setSleepTargetInput(sleepTargetLastSaved || autoSleepTargetHrs.toFixed(1));
+                    setSleepTargetDraftOverride(false);
+                    setIsEditingSleepTarget(false);
+                  },
+                  className: "h-10 w-10 rounded-lg border border-gray-300 text-gray-500 bg-white hover:bg-gray-50"
+                }, React.createElement(X, { className: 'w-5 h-5 mx-auto' }))
+              )
+            : (
+                // Not editing: show Reset only when overridden
+                sleepTargetOverride
+                  ? React.createElement('button', {
+                      type: 'button',
+                      onClick: async () => {
+                        setSleepTargetInput(autoSleepTargetHrs.toFixed(1));
+                        try {
+                          await firestoreStorage.setSleepTargetOverride(kidId, null); // clear override
+                          await loadData();
+                        } catch (e) {
+                          console.error(e);
+                        }
+                      },
+                      className: "h-10 px-3 rounded-lg border border-gray-300 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 whitespace-nowrap"
+                    }, 'Reset')
+                  : null
+              )
         ),
       ),
 
