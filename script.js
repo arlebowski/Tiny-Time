@@ -1904,99 +1904,6 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     return mm + ':' + _pad2(ss);
   };
 
-  const DonutDial = ({
-    title,
-    valueTop,
-    valueBottom,
-    unit,
-    percent,
-    deltaLabel,
-    deltaIsGood
-  }) => {
-    const p = Math.max(0, Math.min(100, Number(percent || 0)));
-    const size = 168;
-    const cx = size / 2;
-    const cy = size / 2;
-    const r = 56;
-    const strokeW = 12;
-    const c = 2 * Math.PI * r;
-    const dashOffset = c - (p / 100) * c;
-    const angle = (p / 100) * 2 * Math.PI - (Math.PI / 2);
-    const badgeR = r + 24;
-    const badgeX = cx + badgeR * Math.cos(angle);
-    const badgeY = cy + badgeR * Math.sin(angle);
-    const _stripDotZero = (v) => {
-      const s = String(v ?? '');
-      return s.endsWith('.0') ? s.slice(0, -2) : s;
-    };
-    const topTxt = _stripDotZero(valueTop);
-    const bottomTxt = _stripDotZero(valueBottom);
-    return React.createElement(
-      'div',
-      { className: "flex flex-col items-center" },
-      React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-2" }, title),
-      React.createElement(
-        'div',
-        { className: "relative", style: { width: `${size}px`, height: `${size}px` } },
-        React.createElement(
-          'svg',
-          { width: size, height: size, viewBox: `0 0 ${size} ${size}` },
-          React.createElement('circle', { cx, cy, r, stroke: "#E5E7EB", strokeWidth: strokeW, fill: "none" }),
-          React.createElement('circle', {
-            cx, cy, r,
-            stroke: "#4F46E5",
-            strokeWidth: strokeW,
-            fill: "none",
-            strokeLinecap: "round",
-            transform: `rotate(-90 ${cx} ${cy})`,
-            strokeDasharray: `${c}`,
-            strokeDashoffset: dashOffset,
-            style: { transition: "stroke-dashoffset 420ms ease-out" }
-          })
-        ),
-        React.createElement(
-          'div',
-          {
-            className: "absolute text-xs text-gray-500",
-            style: { left: `${badgeX}px`, top: `${badgeY}px`, transform: "translate(-50%, -50%)" }
-          },
-          `${p.toFixed(0)}%`
-        ),
-        React.createElement(
-          'div',
-          { className: "absolute inset-0 flex flex-col items-center justify-center text-center" },
-          React.createElement('div', { className: "text-3xl font-bold text-indigo-600 leading-none" },
-            topTxt,
-            React.createElement(
-              'span',
-              { className: "text-xs font-semibold text-indigo-400 ml-1 align-baseline lowercase" },
-              String(unit || '').toLowerCase()
-            )
-          ),
-          React.createElement(
-            'div',
-            { className: "text-xs text-gray-400 mt-0.5" },
-            `of ${bottomTxt} ${String(unit || '').toLowerCase()}`
-          )
-        )
-      ),
-      React.createElement(
-        'div',
-        { className: "text-xs mt-2 text-gray-500" },
-        React.createElement(
-          'span',
-          { className: deltaIsGood ? "text-green-600 font-semibold" : "text-red-600 font-semibold" },
-          deltaLabel
-        ),
-        React.createElement(
-          'span',
-          { className: "text-xs font-normal text-gray-400 ml-1" },
-          'vs yesterday'
-        )
-      )
-    );
-  };
-
   // ========================================
   // ADDITIVE: Today Progress Bars (Experiment)
   // ========================================
@@ -2305,30 +2212,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
       ),
 
-      React.createElement(
-        'div',
-        { className: "grid grid-cols-2 gap-6 items-start" },
-        React.createElement(DonutDial, {
-          title: "Feeding",
-          valueTop: totalConsumed.toFixed(1),
-          valueBottom: targetOunces.toFixed(1),
-          unit: "oz",
-          percent: percentComplete,
-          deltaLabel: (feedingDeltaOz >= 0 ? `+${feedingDeltaOz.toFixed(1)} oz` : `-${Math.abs(feedingDeltaOz).toFixed(1)} oz`),
-          deltaIsGood: feedingDeltaOz >= 0
-        }),
-        React.createElement(DonutDial, {
-          title: "Sleep",
-          valueTop: sleepTotalHours.toFixed(1),
-          valueBottom: sleepTargetHours.toFixed(1),
-          unit: "hrs",
-          percent: sleepPercent,
-          deltaLabel: (sleepDeltaHours >= 0 ? `+${sleepDeltaHours.toFixed(1)} hrs` : `-${Math.abs(sleepDeltaHours).toFixed(1)} hrs`),
-          deltaIsGood: sleepDeltaHours >= 0
-        })
-      ),
-
-      // Experimental stacked progress bars (do not remove donuts yet)
+      // Stacked progress bars (current Today-card design)
       React.createElement(ProgressBarRow, {
         label: "Feeding",
         value: Number(totalConsumed.toFixed(1)),
