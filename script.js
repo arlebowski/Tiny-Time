@@ -3187,6 +3187,8 @@ const FamilyTab = ({
   const [sleepTargetInput, setSleepTargetInput] = useState('');
   const [daySleepStartMin, setDaySleepStartMin] = useState(390);
   const [daySleepEndMin, setDaySleepEndMin] = useState(1170);
+  const [daySleepStartInput, setDaySleepStartInput] = useState('6:30 AM');
+  const [daySleepEndInput, setDaySleepEndInput] = useState('7:30 PM');
   const [sleepSettings, setSleepSettings] = useState(null);
   const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
   const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
@@ -3274,6 +3276,39 @@ const FamilyTab = ({
     return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
   };
 
+  useEffect(() => {
+    setDaySleepStartInput(minutesToLabel(daySleepStartMin));
+  }, [daySleepStartMin]);
+
+  useEffect(() => {
+    setDaySleepEndInput(minutesToLabel(daySleepEndMin));
+  }, [daySleepEndMin]);
+
+  const parseTimeInput = (value) => {
+    if (!value) return null;
+    const raw = value.trim().toUpperCase();
+    const match = raw.match(/^(\d{1,2})(?::?(\d{2}))?\s*(AM|PM)?$/);
+    if (!match) return null;
+
+    let hours = Number(match[1]);
+    const minutes = match[2] ? Number(match[2]) : 0;
+    const suffix = match[3];
+
+    if (Number.isNaN(hours) || Number.isNaN(minutes) || minutes > 59) {
+      return null;
+    }
+
+    if (suffix) {
+      const isPM = suffix === "PM";
+      hours = hours % 12;
+      if (isPM) hours += 12;
+    } else if (hours > 23) {
+      return null;
+    }
+
+    return hours * 60 + minutes;
+  };
+
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
   const saveDaySleepWindow = async (startMin, endMin) => {
@@ -3286,6 +3321,30 @@ const FamilyTab = ({
     } catch (e) {
       console.error("Error saving day sleep window:", e);
     }
+  };
+
+  const commitDaySleepStartInput = () => {
+    const parsed = parseTimeInput(daySleepStartInput);
+    if (parsed === null) {
+      setDaySleepStartInput(minutesToLabel(daySleepStartMin));
+      return;
+    }
+
+    const clamped = clamp(parsed, 0, 1439);
+    setDaySleepStartMin(clamped);
+    saveDaySleepWindow(clamped, daySleepEndMin);
+  };
+
+  const commitDaySleepEndInput = () => {
+    const parsed = parseTimeInput(daySleepEndInput);
+    if (parsed === null) {
+      setDaySleepEndInput(minutesToLabel(daySleepEndMin));
+      return;
+    }
+
+    const clamped = clamp(parsed, 0, 1439);
+    setDaySleepEndMin(clamped);
+    saveDaySleepWindow(daySleepStartMin, clamped);
   };
 
   const loadData = async () => {
@@ -3744,13 +3803,37 @@ const handleInvite = async () => {
         "div",
         { className: "border-2 border-gray-200 rounded-2xl p-3 bg-white" },
         React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold" }, "START"),
-        React.createElement("div", { className: "text-lg font-semibold text-gray-800 mt-1" }, minutesToLabel(dayStart))
+        React.createElement("input", {
+          type: "text",
+          value: daySleepStartInput,
+          onChange: (e) => setDaySleepStartInput(e.target.value),
+          onBlur: commitDaySleepStartInput,
+          onKeyDown: (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitDaySleepStartInput();
+            }
+          },
+          className: "mt-1 w-full bg-transparent text-base font-semibold text-gray-800 focus:outline-none"
+        })
       ),
       React.createElement(
         "div",
         { className: "border-2 border-gray-200 rounded-2xl p-3 bg-white" },
         React.createElement("div", { className: "text-[10px] tracking-wider text-gray-400 font-semibold" }, "END"),
-        React.createElement("div", { className: "text-lg font-semibold text-gray-800 mt-1" }, minutesToLabel(dayEnd))
+        React.createElement("input", {
+          type: "text",
+          value: daySleepEndInput,
+          onChange: (e) => setDaySleepEndInput(e.target.value),
+          onBlur: commitDaySleepEndInput,
+          onKeyDown: (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitDaySleepEndInput();
+            }
+          },
+          className: "mt-1 w-full bg-transparent text-base font-semibold text-gray-800 focus:outline-none"
+        })
       )
     ),
     // Slider track + selection + handles
