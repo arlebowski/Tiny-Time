@@ -2230,6 +2230,15 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const sleepDeltaHours = (sleepTotalMsLive - sleepYesterdayMs) / 3600000;
   const feedingDeltaOz = totalConsumed - yesterdayConsumed;
 
+  const _fmtDelta = (n) => {
+    const s = Math.abs(Number(n || 0)).toFixed(1);
+    return s.endsWith('.0') ? s.slice(0, -2) : s;
+  };
+  const feedingDeltaLabel = `${feedingDeltaOz >= 0 ? '+' : '-'}${_fmtDelta(feedingDeltaOz)} oz`;
+  const feedingDeltaIsGood = feedingDeltaOz >= 0;
+  const sleepDeltaLabel = `${sleepDeltaHours >= 0 ? '+' : '-'}${_fmtDelta(sleepDeltaHours)} hrs`;
+  const sleepDeltaIsGood = sleepDeltaHours >= 0;
+
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
       React.createElement('div', { className: "text-gray-600" }, 'Loading...')
