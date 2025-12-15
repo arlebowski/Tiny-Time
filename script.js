@@ -1887,17 +1887,24 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     deltaIsGood
   }) => {
     const p = Math.max(0, Math.min(100, Number(percent || 0)));
-    const size = 132;
+    const size = 168;
     const cx = size / 2;
     const cy = size / 2;
-    const r = 44;
+    const r = 56;
+    const strokeW = 14;
     const c = 2 * Math.PI * r;
     const dash = (p / 100) * c;
     const gap = c - dash;
     const angle = (p / 100) * 2 * Math.PI - (Math.PI / 2);
-    const badgeR = r + 14;
+    const badgeR = r + 34;
     const badgeX = cx + badgeR * Math.cos(angle);
     const badgeY = cy + badgeR * Math.sin(angle);
+    const _stripDotZero = (v) => {
+      const s = String(v ?? '');
+      return s.endsWith('.0') ? s.slice(0, -2) : s;
+    };
+    const topTxt = _stripDotZero(valueTop);
+    const bottomTxt = _stripDotZero(valueBottom);
     return React.createElement(
       'div',
       { className: "flex flex-col items-center" },
@@ -1908,11 +1915,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         React.createElement(
           'svg',
           { width: size, height: size, viewBox: `0 0 ${size} ${size}` },
-          React.createElement('circle', { cx, cy, r, stroke: "#E5E7EB", strokeWidth: 12, fill: "none" }),
+          React.createElement('circle', { cx, cy, r, stroke: "#E5E7EB", strokeWidth: strokeW, fill: "none" }),
           React.createElement('circle', {
             cx, cy, r,
             stroke: "#4F46E5",
-            strokeWidth: 12,
+            strokeWidth: strokeW,
             fill: "none",
             strokeLinecap: "round",
             transform: `rotate(-90 ${cx} ${cy})`,
@@ -1930,8 +1937,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         React.createElement(
           'div',
           { className: "absolute inset-0 flex flex-col items-center justify-center text-center" },
-          React.createElement('div', { className: "text-3xl font-bold text-indigo-600 leading-none" }, valueTop),
-          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, `/ ${valueBottom} ${unit}`)
+          React.createElement('div', { className: "text-3xl font-bold text-indigo-600 leading-none" },
+            topTxt,
+            React.createElement('span', { className: "text-sm font-semibold text-indigo-400 ml-1 align-baseline" }, String(unit || '').toUpperCase())
+          ),
+          React.createElement('div', { className: "text-sm text-gray-500 mt-1" }, `/ ${bottomTxt} ${unit}`)
         )
       ),
       React.createElement(
