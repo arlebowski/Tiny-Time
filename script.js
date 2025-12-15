@@ -2169,7 +2169,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                   : React.createElement(
                       'div',
                       {
-                        className: "text-indigo-600 font-semibold text-lg cursor-pointer",
+                        className:
+                          "inline-block px-3 py-2 rounded-lg bg-gray-50 text-indigo-600 font-semibold text-lg cursor-pointer",
                         onClick: () => setEditingSleepField('start')
                       },
                       _toHHMMNoZero(activeSleep.startTime)
@@ -2203,7 +2204,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                   : React.createElement(
                       'div',
                       {
-                        className: "text-indigo-600 font-semibold text-lg cursor-pointer",
+                        className:
+                          "inline-block px-3 py-2 rounded-lg bg-gray-50 text-indigo-600 font-semibold text-lg cursor-pointer",
                         onClick: () => setEditingSleepField('end')
                       },
                       sleepEndStr || '--:--'
