@@ -2018,16 +2018,16 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         ),
         React.createElement(
           'div',
-          { className: "text-sm font-medium" },
+          { className: "text-xs font-medium" },
           React.createElement(
             'span',
-            { className: deltaIsGood ? "text-green-600" : "text-red-600" },
+            { className: deltaIsGood ? "text-green-600 font-semibold" : "text-red-600 font-semibold" },
             deltaLabel
           ),
           React.createElement(
             'span',
-            { className: "text-gray-500 font-normal" },
-            " vs yesterday"
+            { className: "text-gray-400 font-normal ml-1" },
+            "vs yday"
           )
         )
       )
