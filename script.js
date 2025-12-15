@@ -584,7 +584,9 @@ const firestoreStorage = {
 // (no-op if already present)
 if (typeof firestoreStorage.setSleepTargetOverride !== 'function') {
   firestoreStorage.setSleepTargetOverride = async (kidId, hrsOrNull) => {
-    const ref = db.collection('kids').doc(kidId);
+    // Use the family-scoped kid document (same as the rest of the storage layer)
+    // so overrides persist instead of being written to a top-level /kids collection.
+    const ref = firestoreStorage._kidRef();
     if (hrsOrNull === null) {
       await ref.set({
         sleepTargetOverrideHrs: firebase.firestore.FieldValue.delete(),
