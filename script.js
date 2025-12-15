@@ -2264,7 +2264,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     // -----------------------
     // SLEEP LOG (TODAY)
     // -----------------------
-    React.createElement(
+    (logMode === 'sleep') && React.createElement(
       'div',
       { className: "bg-white rounded-2xl shadow-lg p-6 mt-6" },
       React.createElement(
@@ -2295,16 +2295,20 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                 'div',
                 {
                   key: s.id,
-                  className: "flex items-center justify-between bg-gray-50 rounded-xl p-4"
+                  className: "flex items-center gap-3 bg-gray-50 rounded-xl p-4"
                 },
                 React.createElement(
                   'div',
-                  null,
-                  React.createElement(
-                    'div',
-                    { className: "font-semibold text-gray-800" },
-                    durLabel
-                  ),
+                  {
+                    className: "bg-indigo-100 rounded-full flex items-center justify-center",
+                    style: { width: '48px', height: '48px' }
+                  },
+                  React.createElement('span', { className: "text-xl" }, '🌙')
+                ),
+                React.createElement(
+                  'div',
+                  {},
+                  React.createElement('div', { className: "font-semibold text-gray-800" }, durLabel),
                   React.createElement(
                     'div',
                     { className: "text-sm text-gray-500" },
@@ -2317,7 +2321,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     ),
 
     // Feedings List
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+    (logMode === 'feeding') && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings'),
       feedings.length === 0 ?
         React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
