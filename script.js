@@ -365,8 +365,8 @@ const firestoreStorage = {
   async _classifySleepTypeForStartMs(startMs) {
     try {
       const ss = await this.getSleepSettings();
-      const dayStart = Number(ss?.daySleepStartMinutes ?? 390);
-      const dayEnd = Number(ss?.daySleepEndMinutes ?? 1170);
+      const dayStart = Number(ss?.sleepDayStart ?? ss?.daySleepStartMinutes ?? 390);
+      const dayEnd = Number(ss?.sleepDayEnd ?? ss?.daySleepEndMinutes ?? 1170);
       const mins = this._minutesOfDayLocal(startMs);
       return this._isWithinWindow(mins, dayStart, dayEnd) ? "day" : "night";
     } catch {
@@ -418,8 +418,18 @@ const firestoreStorage = {
     try {
       const kidDoc = await this._kidRef().get();
       const kd = kidDoc.exists ? kidDoc.data() : {};
-      const dayStart = kd.sleepDayStart ?? 390;
-      const dayEnd = kd.sleepDayEnd ?? 1170;
+      const dayStart =
+        typeof kd.sleepDayStart === "number" && !Number.isNaN(kd.sleepDayStart)
+          ? kd.sleepDayStart
+          : typeof kd.daySleepStartMinutes === "number" && !Number.isNaN(kd.daySleepStartMinutes)
+            ? kd.daySleepStartMinutes
+            : 390;
+      const dayEnd =
+        typeof kd.sleepDayEnd === "number" && !Number.isNaN(kd.sleepDayEnd)
+          ? kd.sleepDayEnd
+          : typeof kd.daySleepEndMinutes === "number" && !Number.isNaN(kd.daySleepEndMinutes)
+            ? kd.daySleepEndMinutes
+            : 1170;
       const sessDoc = await this._kidRef().collection("sleepSessions").doc(sessionId).get();
       const sess = sessDoc.exists ? sessDoc.data() : {};
       const startMs = typeof sess.startTime === "number" ? sess.startTime : null;
@@ -560,13 +570,28 @@ const firestoreStorage = {
         ? d.sleepTargetHours
         : null;
     const hasOverride = typeof override === "number";
+    const dayStart =
+      typeof d.sleepDayStart === "number" && !Number.isNaN(d.sleepDayStart)
+        ? d.sleepDayStart
+        : typeof d.daySleepStartMinutes === "number" && !Number.isNaN(d.daySleepStartMinutes)
+          ? d.daySleepStartMinutes
+          : 390;
+    const dayEnd =
+      typeof d.sleepDayEnd === "number" && !Number.isNaN(d.sleepDayEnd)
+        ? d.sleepDayEnd
+        : typeof d.daySleepEndMinutes === "number" && !Number.isNaN(d.daySleepEndMinutes)
+          ? d.daySleepEndMinutes
+          : 1170;
     return {
       sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
       sleepNightEnd: d.sleepNightEnd ?? 420, // 7:00 AM
       // Day sleep window (naps): anything that STARTS within this window is treated as day sleep.
       // Defaults: 6:30 AM → 7:30 PM (matches your screenshot concept)
-      sleepDayStart: d.sleepDayStart ?? 390, // 6:30 AM
-      sleepDayEnd: d.sleepDayEnd ?? 1170, // 7:30 PM
+      sleepDayStart: dayStart, // 6:30 AM
+      sleepDayEnd: dayEnd, // 7:30 PM
+      // Back-compat fields for existing data/analytics callers
+      daySleepStartMinutes: dayStart,
+      daySleepEndMinutes: dayEnd,
       sleepTargetHours: hasOverride ? override : autoTarget,
       sleepTargetAutoHours: autoTarget,
       sleepTargetIsOverride: hasOverride
@@ -574,14 +599,26 @@ const firestoreStorage = {
   },
 
   async updateSleepSettings({ sleepNightStart, sleepNightEnd, sleepDayStart, sleepDayEnd, sleepTargetHours }) {
-    await this._kidRef().update({
+    const payload = {
       ...(sleepNightStart != null ? { sleepNightStart } : {}),
       ...(sleepNightEnd != null ? { sleepNightEnd } : {}),
-      ...(sleepDayStart != null ? { sleepDayStart } : {}),
-      ...(sleepDayEnd != null ? { sleepDayEnd } : {}),
       ...(sleepTargetHours != null ? { sleepTargetHours } : {})
-    });
-    logEvent("sleep_settings_updated", { sleepNightStart, sleepNightEnd, sleepTargetHours });
+    };
+
+    const dayStartNum = Number(sleepDayStart);
+    if (sleepDayStart != null && !Number.isNaN(dayStartNum)) {
+      payload.sleepDayStart = dayStartNum;
+      payload.daySleepStartMinutes = dayStartNum; // back-compat
+    }
+
+    const dayEndNum = Number(sleepDayEnd);
+    if (sleepDayEnd != null && !Number.isNaN(dayEndNum)) {
+      payload.sleepDayEnd = dayEndNum;
+      payload.daySleepEndMinutes = dayEndNum; // back-compat
+    }
+
+    await this._kidRef().update(payload);
+    logEvent("sleep_settings_updated", { sleepNightStart, sleepNightEnd, sleepDayStart: payload.sleepDayStart, sleepDayEnd: payload.sleepDayEnd, sleepTargetHours });
   },
 
   // -----------------------
