@@ -3176,6 +3176,7 @@ const FamilyTab = ({
   const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
   const [sleepTargetInput, setSleepTargetInput] = useState('');
   const [sleepSettings, setSleepSettings] = useState(null);
+  const [sleepTargetOverride, setSleepTargetOverride] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
@@ -3206,7 +3207,6 @@ const FamilyTab = ({
   const [savingChild, setSavingChild] = useState(false);
 
   const autoSleepTargetHrs = Number(sleepSettings?.sleepTargetAutoHours || 14);
-  const sleepTargetOverride = !!sleepSettings?.sleepTargetIsOverride;
 
   // --------------------------------------
   // Data loading
@@ -3231,6 +3231,7 @@ const FamilyTab = ({
     const current = sleepSettings.sleepTargetHours ?? auto;
 
     setSleepTargetInput(Number(current).toFixed(1));
+    setSleepTargetOverride(!!sleepSettings.sleepTargetIsOverride);
   }, [sleepSettings]);
 
   const loadData = async () => {
@@ -3460,17 +3461,26 @@ const FamilyTab = ({
   };
 
   const saveSleepTargetOverride = async () => {
-    const parsed = parseFloat(sleepTargetInput);
+    const hrs = parseFloat(sleepTargetInput);
     const fallback = autoSleepTargetHrs.toFixed(1);
 
-    if (!parsed || parsed <= 0) {
+    if (!hrs || hrs <= 0) {
       alert('Please enter a valid daily sleep target.');
       setSleepTargetInput(fallback);
+      setSleepTargetOverride(false);
       return;
     }
 
+    const isSameAsAuto = Math.abs(hrs - autoSleepTargetHrs) < 0.05;
+
     try {
-      await firestoreStorage.setSleepTargetOverride(kidId, parsed);
+      if (isSameAsAuto) {
+        await firestoreStorage.setSleepTargetOverride(kidId, null);
+        setSleepTargetOverride(false);
+      } else {
+        await firestoreStorage.setSleepTargetOverride(kidId, hrs);
+        setSleepTargetOverride(true);
+      }
       await loadData();
     } catch (error) {
       console.error('Error saving sleep target override:', error);
@@ -4128,9 +4138,18 @@ const handleInvite = async () => {
             type: 'number',
             inputMode: 'decimal',
             value: sleepTargetInput,
-            onChange: (e) => setSleepTargetInput(e.target.value),
+            onChange: (e) => {
+              const v = e.target.value;
+              setSleepTargetInput(v);
+              const n = parseFloat(v);
+              if (!n || n <= 0) {
+                setSleepTargetOverride(false);
+                return;
+              }
+              setSleepTargetOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
+            },
             onBlur: () => saveSleepTargetOverride(),
-            className: "w-28 px-3 py-2 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300",
+            className: "w-28 h-10 px-3 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300",
             step: "0.1",
             min: "0"
           }),
@@ -4140,6 +4159,7 @@ const handleInvite = async () => {
             onClick: async () => {
               // revert to auto
               setSleepTargetInput(autoSleepTargetHrs.toFixed(1));
+              setSleepTargetOverride(false);
               try {
                 await firestoreStorage.setSleepTargetOverride(kidId, null); // clear override
                 await loadData();
@@ -4147,7 +4167,7 @@ const handleInvite = async () => {
                 console.error(e);
               }
             },
-            className: "px-3 py-2 rounded-lg border border-gray-300 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white"
+            className: "h-10 px-3 rounded-lg border border-gray-300 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white whitespace-nowrap"
           }, 'Reset')
         ),
       ),
