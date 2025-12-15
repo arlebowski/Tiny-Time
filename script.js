@@ -1906,6 +1906,9 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [sleepStartStr, setSleepStartStr] = useState('');
   const [sleepEndStr, setSleepEndStr] = useState('');
   const [editingSleepField, setEditingSleepField] = useState(null); // 'start' | 'end' | null
+  const [editingSleep, setEditingSleep] = useState(null);
+  const [editSleepStartStr, setEditSleepStartStr] = useState('');
+  const [editSleepEndStr, setEditSleepEndStr] = useState('');
   const sleepIntervalRef = React.useRef(null);
   const [lastActiveSleepId, setLastActiveSleepId] = useState(null);
 
@@ -1992,6 +1995,19 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const mm = parseInt(parts[1], 10);
     if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
     const d = new Date();
+    d.setHours(hh);
+    d.setMinutes(mm);
+    d.setSeconds(0);
+    d.setMilliseconds(0);
+    return d.getTime();
+  };
+  const _hhmmToMsForDate = (hhmm, baseDate) => {
+    if (!hhmm || typeof hhmm !== 'string' || hhmm.indexOf(':') === -1) return null;
+    const parts = hhmm.split(':');
+    const hh = parseInt(parts[0], 10);
+    const mm = parseInt(parts[1], 10);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    const d = new Date(baseDate || Date.now());
     d.setHours(hh);
     d.setMinutes(mm);
     d.setSeconds(0);
@@ -2252,6 +2268,45 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     }
   };
 
+  const handleStartEditSleep = (session) => {
+    setEditingSleep(session);
+    setEditSleepStartStr(_toHHMM(session.startTime));
+    setEditSleepEndStr(_toHHMM(session.endTime));
+  };
+
+  const handleSaveSleepEdit = async () => {
+    if (!editingSleep) return;
+    const baseDate = editingSleep.startTime || currentDate;
+    const startMs = _hhmmToMsForDate(editSleepStartStr, baseDate);
+    const endMs = _hhmmToMsForDate(editSleepEndStr, baseDate);
+    if (!startMs || !endMs) return;
+    try {
+      await firestoreStorage.updateSleepSession(editingSleep.id, { startTime: startMs, endTime: endMs });
+      setEditingSleep(null);
+      setEditSleepStartStr('');
+      setEditSleepEndStr('');
+      await loadSleepSessions();
+    } catch (err) {
+      console.error('Error updating sleep session:', err);
+    }
+  };
+
+  const handleCancelSleepEdit = () => {
+    setEditingSleep(null);
+    setEditSleepStartStr('');
+    setEditSleepEndStr('');
+  };
+
+  const handleDeleteSleepSession = async (sleepId) => {
+    if (!confirm('Delete this sleep entry?')) return;
+    try {
+      await firestoreStorage.deleteSleepSession(sleepId);
+      await loadSleepSessions();
+    } catch (err) {
+      console.error('Error deleting sleep session:', err);
+    }
+  };
+
   const goToPreviousDay = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() - 1);
@@ -2295,6 +2350,27 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const feedingDeltaIsGood = feedingDeltaOz >= 0;
   const sleepDeltaLabel = `${sleepDeltaHours >= 0 ? '+' : '-'}${_fmtDelta(sleepDeltaHours)} hrs`;
   const sleepDeltaIsGood = sleepDeltaHours >= 0;
+  const _sleepTypeForSession = (session) => {
+    if (!session) return 'night';
+    if (session.sleepType === 'day' || session.sleepType === 'night') return session.sleepType;
+    if (typeof session.isDaySleep === 'boolean') return session.isDaySleep ? 'day' : 'night';
+    const start = session.startTime;
+    if (!start) return 'night';
+    const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
+    const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
+    const mins = (() => {
+      try {
+        const d = new Date(start);
+        return d.getHours() * 60 + d.getMinutes();
+      } catch {
+        return 0;
+      }
+    })();
+    const within = dayStart <= dayEnd
+      ? (mins >= dayStart && mins <= dayEnd)
+      : (mins >= dayStart || mins <= dayEnd);
+    return within ? 'day' : 'night';
+  };
 
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
@@ -2560,35 +2636,136 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                 hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
               const startLabel = new Date(s.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
               const endLabel = new Date(s.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              const sleepEmoji = _sleepTypeForSession(s) === 'day' ? '😴' : '🌙';
 
               return React.createElement(
                 'div',
                 {
                   key: s.id,
-                  className: "flex items-center gap-3 bg-gray-50 rounded-xl p-4"
+                  className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl"
                 },
-                React.createElement(
-                  'div',
-                  {
-                    className: "bg-indigo-100 rounded-full flex items-center justify-center",
-                    style: { width: '48px', height: '48px' }
-                  },
-                  React.createElement('span', { className: "text-xl" }, '😴')
-                ),
-                React.createElement(
-                  'div',
-                  {},
-                  React.createElement('div', { className: "font-semibold text-gray-800" }, durLabel),
+                React.createElement('div', { className: "flex items-center gap-3" },
                   React.createElement(
                     'div',
-                    { className: "text-sm text-gray-500" },
-                    `${startLabel} – ${endLabel}`
+                    {
+                      className: "bg-indigo-100 rounded-full flex items-center justify-center",
+                      style: { width: '48px', height: '48px' }
+                    },
+                    React.createElement('span', { className: "text-xl" }, sleepEmoji)
+                  ),
+                  React.createElement(
+                    'div',
+                    {},
+                    React.createElement('div', { className: "font-semibold text-gray-800" }, durLabel),
+                    React.createElement(
+                      'div',
+                      { className: "text-sm text-gray-500" },
+                      `${startLabel} – ${endLabel}`
+                    )
                   )
+                ),
+                React.createElement('div', { className: "flex gap-2" },
+                  React.createElement('button', {
+                    onClick: () => handleStartEditSleep(s),
+                    className: "text-indigo-600 hover:text-indigo-700 transition"
+                  }, React.createElement(Edit2, { className: "w-5 h-5" })),
+                  React.createElement('button', {
+                    onClick: () => handleDeleteSleepSession(s.id),
+                    className: "text-red-400 hover:text-red-600 transition"
+                  }, React.createElement(X, { className: "w-5 h-5" }))
                 )
               );
             })
           )
     ),
+
+    editingSleep &&
+      React.createElement(
+        'div',
+        {
+          className:
+            'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 px-4'
+        },
+        React.createElement(
+          'div',
+          {
+            className:
+              'bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm'
+          },
+          React.createElement(
+            'h3',
+            { className: 'text-lg font-semibold text-gray-800 mb-4' },
+            'Edit Sleep'
+          ),
+          React.createElement(
+            'div',
+            { className: 'space-y-4' },
+            React.createElement(
+              'div',
+              null,
+              React.createElement(
+                'label',
+                {
+                  className:
+                    'block text-sm font-medium text-gray-700 mb-1'
+                },
+                'Start time'
+              ),
+              React.createElement('input', {
+                type: 'time',
+                value: editSleepStartStr || '',
+                onChange: (e) => setEditSleepStartStr(e.target.value),
+                className:
+                  'w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400'
+              })
+            ),
+            React.createElement(
+              'div',
+              null,
+              React.createElement(
+                'label',
+                {
+                  className:
+                    'block text-sm font-medium text-gray-700 mb-1'
+                },
+                'End time'
+              ),
+              React.createElement('input', {
+                type: 'time',
+                value: editSleepEndStr || '',
+                onChange: (e) => setEditSleepEndStr(e.target.value),
+                className:
+                  'w-full px-3 py-2 border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400'
+              })
+            )
+          ),
+          React.createElement(
+            'div',
+            { className: 'mt-5 flex justify-end gap-3' },
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: handleCancelSleepEdit,
+                className:
+                  'text-sm text-gray-600 hover:text-gray-800'
+              },
+              'Cancel'
+            ),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: handleSaveSleepEdit,
+                disabled: !editSleepStartStr || !editSleepEndStr,
+                className:
+                  'px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50'
+              },
+              'Save'
+            )
+          )
+        )
+      ),
 
     // Feedings List
     (logMode === 'feeding') && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
