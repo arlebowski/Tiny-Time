@@ -1962,6 +1962,61 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     );
   };
 
+  // ========================================
+  // ADDITIVE: Today Progress Bars (Experiment)
+  // ========================================
+
+  const ProgressBarRow = ({
+    label,
+    value,
+    target,
+    unit,
+    deltaLabel,
+    deltaIsGood
+  }) => {
+    const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
+
+    return React.createElement(
+      'div',
+      { className: "mt-5" },
+      React.createElement(
+        'div',
+        { className: "text-sm font-medium text-gray-700 mb-1" },
+        label
+      ),
+      React.createElement(
+        'div',
+        { className: "relative w-full h-4 bg-gray-200 rounded-full overflow-hidden" },
+        React.createElement('div', {
+          className: "absolute left-0 top-0 h-full bg-indigo-600 rounded-full",
+          style: {
+            width: `${pct}%`,
+            transition: "width 300ms ease-out"
+          }
+        })
+      ),
+      React.createElement(
+        'div',
+        { className: "mt-1 flex items-baseline justify-between" },
+        React.createElement(
+          'div',
+          { className: "text-base font-semibold text-indigo-600" },
+          `${value} ${unit} `,
+          React.createElement(
+            'span',
+            { className: "text-sm font-normal text-gray-500" },
+            `of ${target} ${unit}`
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: deltaIsGood ? "text-sm text-green-600 font-medium" : "text-sm text-red-600 font-medium" },
+          deltaLabel
+        )
+      )
+    );
+  };
+
   // Keep time inputs in sync with active sleep state
   useEffect(() => {
     if (activeSleep && activeSleep.startTime) {
@@ -2218,7 +2273,26 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           deltaLabel: (sleepDeltaHours >= 0 ? `+${sleepDeltaHours.toFixed(1)} hrs` : `-${Math.abs(sleepDeltaHours).toFixed(1)} hrs`),
           deltaIsGood: sleepDeltaHours >= 0
         })
-      )
+      ),
+
+      // Experimental stacked progress bars (do not remove donuts yet)
+      React.createElement(ProgressBarRow, {
+        label: "Feeding",
+        value: Number(totalConsumed.toFixed(1)),
+        target: Number(targetOunces.toFixed(1)),
+        unit: "oz",
+        deltaLabel: feedingDeltaLabel,
+        deltaIsGood: feedingDeltaIsGood
+      }),
+
+      React.createElement(ProgressBarRow, {
+        label: "Sleep",
+        value: Number(sleepTotalHours.toFixed(1)),
+        target: Number(sleepTargetHours.toFixed(1)),
+        unit: "hrs",
+        deltaLabel: sleepDeltaLabel,
+        deltaIsGood: sleepDeltaIsGood
+      })
     ),
     
     // Log Feeding Card
