@@ -3901,7 +3901,7 @@ const handleInvite = async () => {
           { className: 'space-y-1' },
           React.createElement(
             'div',
-            { className: 'text-xs font-semibold text-gray-600 tracking-wide' },
+            { className: 'text-xs font-medium text-gray-500' },
             'Birth date'
           ),
           editingBirthDate
@@ -3968,7 +3968,7 @@ const handleInvite = async () => {
           { className: 'space-y-1' },
           React.createElement(
             'div',
-            { className: 'text-xs font-semibold text-gray-600 tracking-wide' },
+            { className: 'text-xs font-medium text-gray-500' },
             'Current weight'
           ),
           editingWeight
@@ -4038,7 +4038,7 @@ const handleInvite = async () => {
         'div',
         { className: 'mt-2 space-y-1' },
         React.createElement('div', { className: "flex items-center" },
-          React.createElement('div', { className: "text-xs font-semibold text-gray-600 tracking-wide" }, 'Target multiplier (oz/lb)'),
+          React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Target multiplier (oz/lb)'),
           React.createElement(InfoDot, {
             onClick: () => alert(
               "Target multiplier (oz/lb)\n\n" +
@@ -4107,10 +4107,13 @@ const handleInvite = async () => {
             )
       ),
 
-      sleepSettings && React.createElement('div', { className: "mt-6 pt-4 border-t border-gray-100" },
-        React.createElement('div', { className: "text-xs font-semibold text-gray-700 tracking-wide mt-6" }, 'Sleep settings'),
-        React.createElement('div', { className: "flex items-center mt-4" },
-          React.createElement('div', { className: "text-xs font-semibold text-gray-600 tracking-wide" }, 'Daily sleep target (hrs)'),
+      sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t border-gray-100" },
+        React.createElement('div', { className: "flex items-center justify-between mb-3" },
+          React.createElement('span', { className: 'text-sm font-semibold text-gray-800' }, 'Sleep settings'),
+          React.createElement('span', { className: 'text-xs text-gray-500' }, sleepTargetOverride ? 'Custom' : 'Recommended')
+        ),
+        React.createElement('div', { className: "flex items-center" },
+          React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Daily sleep target (hrs)'),
           React.createElement(InfoDot, {
             onClick: () => alert(
               "Daily sleep target\n\n" +
@@ -4118,6 +4121,11 @@ const handleInvite = async () => {
               "If your baby’s clinician suggested a different target, you can override it here."
             )
           })
+        ),
+        React.createElement(
+          'div',
+          { className: "text-xs text-gray-500 mt-1" },
+          `Recommended: ${autoSleepTargetHrs.toFixed(1)} hrs`
         ),
         React.createElement('div', { className: "flex items-center gap-3 mt-2" },
           React.createElement('input', {
@@ -4130,8 +4138,9 @@ const handleInvite = async () => {
             step: "0.1",
             min: "0"
           }),
-          sleepTargetOverride && React.createElement('button', {
+          React.createElement('button', {
             type: 'button',
+            disabled: !sleepTargetOverride,
             onClick: async () => {
               // revert to auto
               setSleepTargetInput(autoSleepTargetHrs.toFixed(1));
@@ -4142,8 +4151,8 @@ const handleInvite = async () => {
                 console.error(e);
               }
             },
-            className: "px-3 py-2 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50"
-          }, 'Revert')
+            className: "px-3 py-2 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white"
+          }, 'Use recommended')
         ),
       ),
 
