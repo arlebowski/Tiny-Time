@@ -4108,10 +4108,7 @@ const handleInvite = async () => {
       ),
 
       sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t border-gray-100" },
-        React.createElement('div', { className: "flex items-center justify-between mb-3" },
-          React.createElement('span', { className: 'text-sm font-semibold text-gray-800' }, 'Sleep settings'),
-          React.createElement('span', { className: 'text-xs text-gray-500' }, sleepTargetOverride ? 'Custom' : 'Recommended')
-        ),
+        React.createElement('div', { className: "text-sm font-semibold text-gray-800 mb-3" }, 'Sleep settings'),
         React.createElement('div', { className: "flex items-center" },
           React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Daily sleep target (hrs)'),
           React.createElement(InfoDot, {
@@ -4122,11 +4119,6 @@ const handleInvite = async () => {
             )
           })
         ),
-        React.createElement(
-          'div',
-          { className: "text-xs text-gray-500 mt-1" },
-          `Recommended: ${autoSleepTargetHrs.toFixed(1)} hrs`
-        ),
         React.createElement('div', { className: "flex items-center gap-3 mt-2" },
           React.createElement('input', {
             type: 'number',
@@ -4134,7 +4126,7 @@ const handleInvite = async () => {
             value: sleepTargetInput,
             onChange: (e) => setSleepTargetInput(e.target.value),
             onBlur: () => saveSleepTargetOverride(),
-            className: "w-40 px-4 py-3 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-300",
+            className: "w-28 px-3 py-2 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300",
             step: "0.1",
             min: "0"
           }),
@@ -4151,8 +4143,8 @@ const handleInvite = async () => {
                 console.error(e);
               }
             },
-            className: "px-3 py-2 rounded-xl border border-gray-300 text-sm font-semibold text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white"
-          }, 'Use recommended')
+            className: "px-3 py-2 rounded-lg border border-gray-300 text-xs font-medium text-gray-600 bg-white hover:bg-gray-50 disabled:opacity-40 disabled:hover:bg-white"
+          }, 'Reset')
         ),
       ),
 
