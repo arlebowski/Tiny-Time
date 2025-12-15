@@ -3192,6 +3192,7 @@ const FamilyTab = ({
   const [sleepSettings, setSleepSettings] = useState(null);
   const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
   const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
+  const [sleepTargetDraftOverride, setSleepTargetDraftOverride] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
@@ -3255,6 +3256,7 @@ const FamilyTab = ({
     setSleepTargetInput(fixed);
     setSleepTargetLastSaved(fixed);
     setIsEditingSleepTarget(false);
+    setSleepTargetDraftOverride(false);
   }, [sleepSettings]);
 
   const loadData = async () => {
