@@ -3926,13 +3926,28 @@ const handleInvite = async () => {
         )
       ),
 
-      // Birth date row
+      // Baby info rows (mobile-friendly: full-width tappable rows)
       React.createElement(
         'div',
-        { className: 'grid grid-cols-2 gap-4 mb-3' },
+        { className: 'space-y-2 mb-3' },
+        // Birth date
         React.createElement(
           'div',
-          { className: 'space-y-1' },
+          {
+            className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3',
+            onClick: editingBirthDate
+              ? undefined
+              : () => {
+                  if (kidData?.birthDate) {
+                    const d = new Date(kidData.birthDate);
+                    const iso = d.toISOString().slice(0, 10);
+                    setTempBirthDate(iso);
+                  } else {
+                    setTempBirthDate('');
+                  }
+                  setEditingBirthDate(true);
+                }
+          },
           React.createElement(
             'div',
             { className: 'text-xs font-medium text-gray-500' },
@@ -3941,19 +3956,20 @@ const handleInvite = async () => {
           editingBirthDate
             ? React.createElement(
                 'div',
-                { className: 'flex items-center gap-2' },
+                { className: 'flex items-center gap-2 mt-2' },
                 React.createElement('input', {
                   type: 'date',
                   value: tempBirthDate,
                   onChange: (e) => setTempBirthDate(e.target.value),
                   className:
-                    'px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm min-w-[150px]'
+                    'flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm'
                 }),
                 React.createElement(
                   'button',
                   {
                     onClick: handleUpdateBirthDate,
-                    className: 'text-green-600 hover:text-green-700'
+                    className:
+                      'text-green-600 hover:text-green-700 flex-shrink-0'
                   },
                   React.createElement(Check, { className: 'w-6 h-6' })
                 ),
@@ -3961,45 +3977,39 @@ const handleInvite = async () => {
                   'button',
                   {
                     onClick: () => setEditingBirthDate(false),
-                    className: 'text-gray-400 hover:text-gray-600'
+                    className:
+                      'text-gray-400 hover:text-gray-600 flex-shrink-0'
                   },
                   React.createElement(X, { className: 'w-6 h-6' })
                 )
               )
             : React.createElement(
                 'div',
-                { className: 'flex items-center gap-2' },
+                { className: 'flex items-center justify-between mt-1' },
                 React.createElement(
-                  'span',
-                  { className: 'text-gray-800 font-medium' },
+                  'div',
+                  { className: 'text-base font-semibold text-gray-900' },
                   kidData?.birthDate
                     ? new Date(kidData.birthDate).toLocaleDateString()
                     : 'Not set'
                 ),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: () => {
-                      if (kidData?.birthDate) {
-                        const d = new Date(kidData.birthDate);
-                        const iso = d.toISOString().slice(0, 10);
-                        setTempBirthDate(iso);
-                      } else {
-                        setTempBirthDate('');
-                      }
-                      setEditingBirthDate(true);
-                    },
-                    className: 'text-indigo-600 hover:text-indigo-700'
-                  },
-                  React.createElement(Edit2, { className: 'w-4 h-4' })
-                )
+                React.createElement(Edit2, {
+                  className: 'w-4 h-4 text-indigo-600'
+                })
               )
         ),
-
-        // Weight row
+        // Current weight
         React.createElement(
           'div',
-          { className: 'space-y-1' },
+          {
+            className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3',
+            onClick: editingWeight
+              ? undefined
+              : () => {
+                  setTempWeight(settings.babyWeight?.toString() || '');
+                  setEditingWeight(true);
+                }
+          },
           React.createElement(
             'div',
             { className: 'text-xs font-medium text-gray-500' },
@@ -4008,7 +4018,7 @@ const handleInvite = async () => {
           editingWeight
             ? React.createElement(
                 'div',
-                { className: 'flex items-center gap-2' },
+                { className: 'flex items-center gap-2 mt-2' },
                 React.createElement('input', {
                   type: 'number',
                   step: '0.1',
@@ -4016,7 +4026,7 @@ const handleInvite = async () => {
                   onChange: (e) => setTempWeight(e.target.value),
                   placeholder: '8.5',
                   className:
-                    'w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right'
+                    'w-28 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm text-right'
                 }),
                 React.createElement(
                   'span',
@@ -4027,7 +4037,8 @@ const handleInvite = async () => {
                   'button',
                   {
                     onClick: handleUpdateWeight,
-                    className: 'text-green-600 hover:text-green-700'
+                    className:
+                      'text-green-600 hover:text-green-700 flex-shrink-0'
                   },
                   React.createElement(Check, { className: 'w-6 h-6' })
                 ),
@@ -4035,57 +4046,60 @@ const handleInvite = async () => {
                   'button',
                   {
                     onClick: () => setEditingWeight(false),
-                    className: 'text-gray-400 hover:text-gray-600'
+                    className:
+                      'text-gray-400 hover:text-gray-600 flex-shrink-0'
                   },
                   React.createElement(X, { className: 'w-6 h-6' })
                 )
               )
             : React.createElement(
                 'div',
-                { className: 'flex items-center gap-2' },
+                { className: 'flex items-center justify-between mt-1' },
                 React.createElement(
-                  'span',
-                  { className: 'text-gray-800 font-medium' },
-                  settings.babyWeight
-                    ? `${settings.babyWeight} lbs`
-                    : 'Not set'
+                  'div',
+                  { className: 'text-base font-semibold text-gray-900' },
+                  settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set'
                 ),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: () => {
-                      setTempWeight(
-                        settings.babyWeight?.toString() || ''
-                      );
-                      setEditingWeight(true);
-                    },
-                    className: 'text-indigo-600 hover:text-indigo-700'
-                  },
-                  React.createElement(Edit2, { className: 'w-4 h-4' })
-                )
+                React.createElement(Edit2, {
+                  className: 'w-4 h-4 text-indigo-600'
+                })
               )
         )
       ),
-
-      // Multiplier row
+      // Target multiplier (full-width row)
       React.createElement(
         'div',
-        { className: 'mt-2 space-y-1' },
-        React.createElement('div', { className: "flex items-center" },
-          React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Target multiplier (oz/lb)'),
+        {
+          className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 mt-2',
+          onClick: editingMultiplier
+            ? undefined
+            : () => {
+                setTempMultiplier(settings.multiplier?.toString() || '2.5');
+                setEditingMultiplier(true);
+              }
+        },
+        React.createElement(
+          'div',
+          { className: 'flex items-center' },
+          React.createElement(
+            'div',
+            { className: 'text-xs font-medium text-gray-500' },
+            'Target multiplier (oz/lb)'
+          ),
           React.createElement(InfoDot, {
-            onClick: () => alert(
-              "Target multiplier (oz/lb)\n\n" +
-              "This is used to estimate a daily feeding target:\n" +
-              "weight (lb) × multiplier (oz/lb).\n\n" +
-              "Common rule-of-thumb for formula is ~2.5 oz per lb per day, but needs vary. If your pediatrician gave you a different plan, use that."
-            )
+            onClick: () =>
+              alert(
+                'Target multiplier (oz/lb)\n\n' +
+                  'This is used to estimate a daily feeding target:\n' +
+                  'weight (lb) × multiplier (oz/lb).\n\n' +
+                  'Common rule-of-thumb for formula is ~2.5 oz per lb per day, but needs vary. If your pediatrician gave you a different plan, use that.'
+              )
           })
         ),
         editingMultiplier
           ? React.createElement(
               'div',
-              { className: 'flex items-center gap-2' },
+              { className: 'flex items-center gap-2 mt-2' },
               React.createElement('input', {
                 type: 'number',
                 step: '0.1',
@@ -4093,7 +4107,7 @@ const handleInvite = async () => {
                 onChange: (e) => setTempMultiplier(e.target.value),
                 placeholder: '2.5',
                 className:
-                  'w-20 px-3 py-1.5 border-2 border-indigo-300 rounded-lg text-sm text-right'
+                  'w-28 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm text-right'
               }),
               React.createElement(
                 'span',
@@ -4104,7 +4118,8 @@ const handleInvite = async () => {
                 'button',
                 {
                   onClick: handleUpdateMultiplier,
-                  className: 'text-green-600 hover:text-green-700'
+                  className:
+                    'text-green-600 hover:text-green-700 flex-shrink-0'
                 },
                 React.createElement(Check, { className: 'w-6 h-6' })
               ),
@@ -4112,32 +4127,23 @@ const handleInvite = async () => {
                 'button',
                 {
                   onClick: () => setEditingMultiplier(false),
-                  className: 'text-gray-400 hover:text-gray-600'
+                  className:
+                    'text-gray-400 hover:text-gray-600 flex-shrink-0'
                 },
                 React.createElement(X, { className: 'w-6 h-6' })
               )
             )
           : React.createElement(
               'div',
-              { className: 'flex items-center gap-2' },
+              { className: 'flex items-center justify-between mt-1' },
               React.createElement(
-                'span',
-                { className: 'text-gray-800 font-medium' },
+                'div',
+                { className: 'text-base font-semibold text-gray-900' },
                 `${settings.multiplier}x`
               ),
-              React.createElement(
-                'button',
-                {
-                  onClick: () => {
-                    setTempMultiplier(
-                      settings.multiplier?.toString() || '2.5'
-                    );
-                    setEditingMultiplier(true);
-                  },
-                  className: 'text-indigo-600 hover:text-indigo-700'
-                },
-                React.createElement(Edit2, { className: 'w-4 h-4' })
-              )
+              React.createElement(Edit2, {
+                className: 'w-4 h-4 text-indigo-600'
+              })
             )
       ),
 
