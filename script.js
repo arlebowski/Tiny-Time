@@ -1893,10 +1893,9 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const r = 56;
     const strokeW = 12;
     const c = 2 * Math.PI * r;
-    const dash = (p / 100) * c;
-    const gap = c - dash;
+    const dashOffset = c - (p / 100) * c;
     const angle = (p / 100) * 2 * Math.PI - (Math.PI / 2);
-    const badgeR = r + 18;
+    const badgeR = r + 24;
     const badgeX = cx + badgeR * Math.cos(angle);
     const badgeY = cy + badgeR * Math.sin(angle);
     const _stripDotZero = (v) => {
@@ -1923,7 +1922,9 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             fill: "none",
             strokeLinecap: "round",
             transform: `rotate(-90 ${cx} ${cy})`,
-            strokeDasharray: `${dash} ${gap}`
+            strokeDasharray: `${c}`,
+            strokeDashoffset: dashOffset,
+            style: { transition: "stroke-dashoffset 420ms ease-out" }
           })
         ),
         React.createElement(
@@ -1947,14 +1948,14 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           ),
           React.createElement(
             'div',
-            { className: "text-sm text-gray-400 mt-1" },
+            { className: "text-xs text-gray-400 mt-0.5" },
             `of ${bottomTxt} ${String(unit || '').toLowerCase()}`
           )
         )
       ),
       React.createElement(
         'div',
-        { className: "text-xs mt-3 text-gray-500" },
+        { className: "text-xs mt-2 text-gray-500" },
         React.createElement('span', null, 'vs yesterday '),
         React.createElement('span', { className: deltaIsGood ? "text-green-600 font-semibold" : "text-red-600 font-semibold" }, deltaLabel)
       )
