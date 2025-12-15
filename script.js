@@ -3283,7 +3283,7 @@ const FamilyTab = ({
   };
 
   const updateKidPartial = async (updates) => {
-    await firestoreStorage.updateKid(updates);
+    await firestoreStorage.updateKidData(updates);
   };
 
   // --------------------------------------
