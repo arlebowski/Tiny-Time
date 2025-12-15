@@ -1745,6 +1745,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [ounces, setOunces] = useState('');
   const [customTime, setCustomTime] = useState('');
   const [feedings, setFeedings] = useState([]);
+  const [sleepSessions, setSleepSessions] = useState([]);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [editingFeedingId, setEditingFeedingId] = useState(null);
   const [editOunces, setEditOunces] = useState('');
@@ -1864,6 +1865,20 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   useEffect(() => {
     loadData();
   }, [kidId]);
+
+  useEffect(() => {
+    if (!kidId) return;
+    loadSleepSessions();
+  }, [kidId, activeSleep]);
+
+  const loadSleepSessions = async () => {
+    try {
+      const sessions = await firestoreStorage.getSleepSessionsLastNDays(1);
+      setSleepSessions((sessions || []).filter(s => s && s.endTime));
+    } catch (err) {
+      console.error("Failed to load sleep sessions", err);
+    }
+  };
 
   useEffect(() => {
     if (!loading && kidId) {
@@ -2244,6 +2259,61 @@ const TrackerTab = ({ user, kidId, familyId }) => {
               'End Sleep'
             )
         )
+    ),
+
+    // -----------------------
+    // SLEEP LOG (TODAY)
+    // -----------------------
+    React.createElement(
+      'div',
+      { className: "bg-white rounded-2xl shadow-lg p-6 mt-6" },
+      React.createElement(
+        'h2',
+        { className: "text-lg font-semibold text-gray-800 mb-4" },
+        'Sleep'
+      ),
+      sleepSessions.length === 0
+        ? React.createElement(
+            'div',
+            { className: "text-gray-400 text-center py-6" },
+            'No sleep logged yet'
+          )
+        : React.createElement(
+            'div',
+            { className: "space-y-3" },
+            sleepSessions.map((s) => {
+              const durMs = s.endTime - s.startTime;
+              const mins = Math.round(durMs / 60000);
+              const hrs = Math.floor(mins / 60);
+              const rem = mins % 60;
+              const durLabel =
+                hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
+              const startLabel = new Date(s.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              const endLabel = new Date(s.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+
+              return React.createElement(
+                'div',
+                {
+                  key: s.id,
+                  className: "flex items-center justify-between bg-gray-50 rounded-xl p-4"
+                },
+                React.createElement(
+                  'div',
+                  null,
+                  React.createElement(
+                    'div',
+                    { className: "font-semibold text-gray-800" },
+                    durLabel
+                  ),
+                  React.createElement(
+                    'div',
+                    { className: "text-sm text-gray-500" },
+                    `${startLabel} – ${endLabel}`
+                  )
+                )
+              );
+            })
+          )
     ),
 
     // Feedings List
