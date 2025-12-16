@@ -296,6 +296,28 @@ const firestoreStorage = {
   },
 
   // -----------------------
+  // KID PHOTO (base64 data URL)
+  // -----------------------
+  async uploadKidPhoto(base64DataUrl) {
+    if (!base64DataUrl || typeof base64DataUrl !== "string") {
+      throw new Error("uploadKidPhoto: missing base64 data URL");
+    }
+    await this._kidRef().set(
+      {
+        photoURL: base64DataUrl,
+        photoUpdatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+    try {
+      logEvent("kid_photo_uploaded", {});
+    } catch {
+      // ignore analytics failures
+    }
+    return base64DataUrl;
+  },
+
+  // -----------------------
   // FEEDINGS
   // -----------------------
   async addFeeding(ounces, timestamp) {
@@ -4748,11 +4770,10 @@ const handleInvite = async () => {
         // Photo
         React.createElement(
           'div',
-          { className: 'relative flex-shrink-0' },
+          { className: 'relative flex-shrink-0 cursor-pointer', onClick: handlePhotoClick },
           React.createElement(
             'div',
             {
-              onClick: handlePhotoClick,
               className:
                 'w-24 h-24 rounded-full overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition relative'
             },
@@ -4777,7 +4798,8 @@ const handleInvite = async () => {
             'div',
             {
               className:
-                'absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-white'
+                'absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-white cursor-pointer',
+              onClick: (e) => { e.stopPropagation(); handlePhotoClick(); }
             },
             React.createElement(Camera, { className: 'w-4 h-4 text-white' })
           )
