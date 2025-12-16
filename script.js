@@ -3084,37 +3084,6 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     return hours === 0 ? `${mins}m` : `${hours}h ${mins}m`;
   };
 
-  if (loading) {
-    return React.createElement(
-      'div',
-      { className: 'flex items-center justify-center py-12' },
-      React.createElement(
-        'div',
-        { className: 'text-gray-600' },
-        'Loading analytics...'
-      )
-    );
-  }
-
-  if (allFeedings.length === 0) {
-    return React.createElement(
-      'div',
-      { className: 'bg-white rounded-2xl shadow-lg p-6' },
-      React.createElement(
-        'div',
-        {
-          className:
-            'text-center text-gray-400 py-8'
-        },
-        'No feeding data yet. Start logging feedings to see analytics!'
-      )
-    );
-  }
-
-  const maxVolume = Math.max(
-    ...stats.chartData.map(d => d.volume)
-  );
-
   const sleepByDay = useMemo(() => aggregateSleepByDay(sleepSessions, sleepSettings), [sleepSessions, sleepSettings]);
 
   // Build date buckets depending on timeframe.
@@ -3206,6 +3175,37 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       avgSleeps
     };
   }, [timeframe, sleepBuckets]);
+
+  if (loading) {
+    return React.createElement(
+      'div',
+      { className: 'flex items-center justify-center py-12' },
+      React.createElement(
+        'div',
+        { className: 'text-gray-600' },
+        'Loading analytics...'
+      )
+    );
+  }
+
+  if (allFeedings.length === 0) {
+    return React.createElement(
+      'div',
+      { className: 'bg-white rounded-2xl shadow-lg p-6' },
+      React.createElement(
+        'div',
+        {
+          className:
+            'text-center text-gray-400 py-8'
+        },
+        'No feeding data yet. Start logging feedings to see analytics!'
+      )
+    );
+  }
+
+  const maxVolume = Math.max(
+    ...stats.chartData.map(d => d.volume)
+  );
 
   return React.createElement(
     'div',
