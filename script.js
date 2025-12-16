@@ -4270,8 +4270,7 @@ const handleInvite = async () => {
                 type: "time",
                 value: tempDayStartInput,
                 onChange: (e) => setTempDayStartInput(e.target.value),
-                className:
-                  "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                className: "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
               }),
               React.createElement(
                 "div",
@@ -4347,8 +4346,7 @@ const handleInvite = async () => {
                 type: "time",
                 value: tempDayEndInput,
                 onChange: (e) => setTempDayEndInput(e.target.value),
-                className:
-                  "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                className: "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
               }),
               React.createElement(
                 "div",
