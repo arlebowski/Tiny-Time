@@ -4404,13 +4404,13 @@ const handleInvite = async () => {
     // Start/End “editable boxes”
     React.createElement(
       "div",
-      { className: "grid grid-cols-2 gap-3 mt-4 items-start" },
+      { className: "grid grid-cols-2 gap-3 mt-4 items-start min-w-0" },
 
       // Start (match the affordance style used above in settings rows)
       React.createElement(
         "div",
         {
-          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3",
+          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 min-w-0 overflow-hidden",
           onClick: editingDayStart
             ? undefined
             : () => {
@@ -4433,7 +4433,9 @@ const handleInvite = async () => {
                 value: tempDayStartInput,
                 onChange: (e) => setTempDayStartInput(e.target.value),
                 // Force the time input to obey the grid width on iOS
-                className: "col-span-2 w-full max-w-full min-w-0 box-border px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none bg-white px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm",
+                // iOS Safari: hard-force intrinsic control sizing
+                style: { width: "100%", maxWidth: "100%", minWidth: 0, WebkitAppearance: "none", appearance: "none" }
               }),
               React.createElement(
                 "button",
@@ -4484,7 +4486,7 @@ const handleInvite = async () => {
       React.createElement(
         "div",
         {
-          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3",
+          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 min-w-0 overflow-hidden",
           onClick: editingDayEnd
             ? undefined
             : () => {
@@ -4507,7 +4509,9 @@ const handleInvite = async () => {
                 value: tempDayEndInput,
                 onChange: (e) => setTempDayEndInput(e.target.value),
                 // Force the time input to obey the grid width on iOS
-                className: "col-span-2 w-full max-w-full min-w-0 box-border px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none bg-white px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm",
+                // iOS Safari: hard-force intrinsic control sizing
+                style: { width: "100%", maxWidth: "100%", minWidth: 0, WebkitAppearance: "none", appearance: "none" }
               }),
               React.createElement(
                 "button",
