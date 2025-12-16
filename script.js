@@ -694,7 +694,7 @@ if (typeof firestoreStorage.setSleepTargetOverride !== 'function') {
 // App Wrapper, Login Screen, Baby Setup (family-aware)
 // ========================================
 
-const { useState, useEffect } = React;
+const { useState, useEffect, useMemo } = React;
 
 const App = () => {
   const [user, setUser] = useState(null);
