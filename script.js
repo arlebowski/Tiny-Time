@@ -1910,8 +1910,24 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const TRACKER_ICON_BTN_CANCEL = TRACKER_ICON_BTN_BASE + " text-gray-500";
   const TRACKER_ICON_SIZE = "w-5 h-5";
 
+  // Ensure edit-grid items never overflow/overhang on iOS (time inputs have stubborn intrinsic sizing)
+  useEffect(() => {
+    try {
+      if (document.getElementById('tt-tracker-edit-style')) return;
+      const st = document.createElement('style');
+      st.id = 'tt-tracker-edit-style';
+      st.textContent = `
+        .trackerEditCard .trackerEditGrid { width: 100%; }
+        .trackerEditCard .trackerEditGrid > * { min-width: 0; }
+        .trackerEditCard input { min-width: 0; max-width: 100%; }
+        .trackerEditCard input[type="time"] { -webkit-appearance: none; appearance: none; }
+      `;
+      document.head.appendChild(st);
+    } catch (e) {}
+  }, []);
+
   const TrackerEditActions = ({ onSave, onCancel }) =>
-    React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
+    React.createElement('div', { className: "trackerEditGrid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 w-full" },
       React.createElement('button', { type: 'button', onClick: onSave, className: TRACKER_ICON_BTN_OK, title: "Save" },
         React.createElement(Check, { className: TRACKER_ICON_SIZE })
       ),
@@ -2656,36 +2672,35 @@ const TrackerTab = ({ user, kidId, familyId }) => {
               const endLabel = new Date(s.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
               const sleepEmoji = _sleepTypeForSession(s) === 'day' ? '😴' : '🌙';
 
-              return React.createElement(
-                'div',
-                { key: s.id },
-                editingSleepId === s.id
-                  ? React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl" },
-                      React.createElement('div', { className: "trackerEditBlock space-y-3 w-full max-w-[520px] mx-auto" },
-                        React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
-                          React.createElement('div', { className: "editField" },
-                            React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'Start'),
-                            React.createElement('input', {
-                              type: 'time',
-                              value: sleepEditStartStr,
-                              onChange: (e) => setSleepEditStartStr(e.target.value),
-                              className: "w-full h-11 min-w-0 px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                            })
+                return React.createElement(
+                  'div',
+                  { key: s.id },
+                  editingSleepId === s.id
+                    ? React.createElement('div', { className: "trackerEditCard p-4 bg-indigo-50 rounded-xl" },
+                        React.createElement('div', { className: "trackerEditBlock space-y-3 w-full max-w-[520px] mx-auto" },
+                          React.createElement('div', { className: "trackerEditGrid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 w-full" },
+                            React.createElement('div', { className: "editField min-w-0" },
+                              React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'Start'),
+                              React.createElement('input', {
+                                type: 'time',
+                                value: sleepEditStartStr,
+                                onChange: (e) => setSleepEditStartStr(e.target.value),
+                                className: "w-full h-11 min-w-0 appearance-none bg-white px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                              })
+                            ),
+                            React.createElement('div', { className: "editField min-w-0" },
+                              React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'End'),
+                              React.createElement('input', {
+                                type: 'time',
+                                value: sleepEditEndStr,
+                                onChange: (e) => setSleepEditEndStr(e.target.value),
+                                className: "w-full h-11 min-w-0 appearance-none bg-white px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                              })
+                            )
                           ),
-                          React.createElement('div', { className: "editField" },
-                            React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'End'),
-                            React.createElement('input', {
-                              type: 'time',
-                              value: sleepEditEndStr,
-                              onChange: (e) => setSleepEditEndStr(e.target.value),
-                              className: "w-full h-11 min-w-0 px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
-                            })
-                          )
-                        ),
-                        React.createElement(TrackerEditActions, { onSave: handleSaveSleepEdit, onCancel: handleCancelSleepEdit })
+                          React.createElement(TrackerEditActions, { onSave: handleSaveSleepEdit, onCancel: handleCancelSleepEdit })
                         )
-                      )
-                  : React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
+                    : React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
                       React.createElement('div', { className: "flex items-center gap-3" },
                         React.createElement(
                           'div',
@@ -2731,17 +2746,17 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           feedings.map((feeding) =>
             React.createElement('div', { key: feeding.id },
               editingFeedingId === feeding.id ?
-                React.createElement('div', { className: "p-4 bg-indigo-50 rounded-xl" },
+                React.createElement('div', { className: "trackerEditCard p-4 bg-indigo-50 rounded-xl" },
                   React.createElement('div', { className: "trackerEditBlock space-y-3 w-full max-w-[520px] mx-auto" },
-                    React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
-                      React.createElement('div', { className: "feedingAmountField relative w-full" },
+                    React.createElement('div', { className: "trackerEditGrid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 w-full" },
+                      React.createElement('div', { className: "feedingAmountField relative w-full min-w-0" },
                         React.createElement('input', {
                           type: "number",
                           step: "0.25",
                           value: editOunces,
                           onChange: (e) => setEditOunces(e.target.value),
                           placeholder: "Ounces",
-                          className: "feedingAmountInput w-full h-11 min-w-0 px-3 pr-10 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                          className: "feedingAmountInput w-full h-11 min-w-0 appearance-none bg-white px-3 pr-10 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                         }),
                         React.createElement('span', { className: "feedingAmountUnit absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none" }, 'oz')
                       ),
@@ -2749,7 +2764,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                         type: "time",
                         value: editTime,
                         onChange: (e) => setEditTime(e.target.value),
-                        className: "w-full h-11 min-w-0 px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className: "w-full h-11 min-w-0 appearance-none bg-white px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                       })
                     ),
                     React.createElement(TrackerEditActions, { onSave: handleSaveEdit, onCancel: handleCancelEdit })
