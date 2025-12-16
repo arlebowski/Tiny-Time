@@ -3672,7 +3672,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       )
     ),
 
-    // ---- Sleep history (match Volume History date formatting + add y-axis)
+    // ---- Sleep history (TOTAL ONLY, match Volume History styling + add y-axis)
     React.createElement(
       "div",
       { className: "bg-white rounded-2xl shadow-lg p-6" },
@@ -3683,34 +3683,25 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       ),
       React.createElement(
         "div",
-        { className: "flex justify-center gap-4 text-xs text-gray-500 mb-2" },
-        React.createElement(
-          "div",
-          { className: "flex items-center gap-1" },
-          React.createElement("span", { style: { width: 10, height: 10, background: "rgba(79,70,229,0.75)", display: "inline-block", borderRadius: 2 } }),
-          "Night sleep"
-        ),
-        React.createElement(
-          "div",
-          { className: "flex items-center gap-1" },
-          React.createElement("span", { style: { width: 10, height: 10, background: "rgba(79,70,229,0.35)", display: "inline-block", borderRadius: 2 } }),
-          "Day sleep"
-        )
-      ),
-      React.createElement(
-        "div",
         { className: "flex gap-3" },
+        // Make this card a bit taller (and keep scale consistent across y-axis/gridlines/bars)
+        (() => {
+          const CHART_H = 200;   // total vertical space for bar area
+          const SCALE_H = 170;   // actual scaled drawing height for ticks/gridlines/bars
+          return React.createElement(
+            React.Fragment,
+            null,
         // Y-axis (fixed)
         React.createElement(
           "div",
-          { className: "relative flex-shrink-0", style: { width: 34, height: "180px" } },
+          { className: "relative flex-shrink-0", style: { width: 34, height: `${CHART_H}px` } },
           (sleepChartMeta?.ticks || []).map((t) =>
             React.createElement(
               "div",
               {
                 key: `y-${t}`,
                 className: "absolute left-0 text-[10px] text-gray-400",
-                style: { bottom: `${(Number(t) / (sleepChartMeta?.maxY || 1)) * 160}px` }
+                style: { bottom: `${(Number(t) / (sleepChartMeta?.maxY || 1)) * SCALE_H}px` }
               },
               `${t}h`
             )
@@ -3721,7 +3712,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           "div",
           {
             ref: sleepHistoryScrollRef,
-            className: "overflow-x-auto overflow-y-hidden -mx-2 px-2 flex-1",
+            // Match Volume History horizontal padding
+            className: "overflow-x-auto overflow-y-hidden -mx-6 px-6 flex-1",
             style: { scrollBehavior: "smooth" }
           },
           React.createElement(
@@ -3748,7 +3740,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                       position: "absolute",
                       left: 0,
                       right: 0,
-                      bottom: `${(Number(t) / (sleepChartMeta?.maxY || 1)) * 160}px`,
+                      bottom: `${(Number(t) / (sleepChartMeta?.maxY || 1)) * SCALE_H}px`,
                       height: 1,
                       background: "rgba(0,0,0,0.06)"
                     }
@@ -3757,95 +3749,48 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
             ),
             React.createElement(
               "div",
-              { className: "flex gap-6 pb-2" },
+              // Match Volume History: bars sit on the baseline, consistent gap + bottom spacing
+              { className: "flex items-end gap-6 pb-3" },
               (sleepBuckets || []).map((b) => {
                 const total = Number(b?.totalHrs || 0);
-                const dayH = Number(b?.dayHrs || 0);
-                const nightH = Number(b?.nightHrs || 0);
                 const count = Number(b?.count || 0);
 
                 const maxY = Number(sleepChartMeta?.maxY || 1);
-                const totalPx = total > 0 ? Math.max(30, Math.round((total / maxY) * 160)) : 0;
-                const dayPx = total > 0 ? Math.round((dayH / total) * totalPx) : 0;
-                const nightPx = Math.max(0, totalPx - dayPx);
-
-                const showNightLabel = nightPx >= 22;
-                const showDayLabel = dayPx >= 22;
+                const h = (total / maxY) * SCALE_H;
+                const minH = total > 0 ? 30 : 6; // tiny baseline for 0h
 
                 return React.createElement(
                   "div",
-                  { key: b.key, className: "flex flex-col items-center", style: { width: "60px" } },
+                  // Match Volume History: fixed width, consistent vertical spacing, no weird margins
+                  { key: b.key, className: "flex flex-col items-center gap-2 flex-shrink-0", style: { width: 66 } },
                   React.createElement(
                     "div",
-                    { className: "flex flex-col justify-end items-center", style: { height: "180px", width: "60px" } },
+                    { className: "flex flex-col justify-end items-center", style: { height: `${CHART_H}px`, width: "100%" } },
                     React.createElement(
                       "div",
                       {
-                        className: "w-full rounded-lg overflow-hidden flex flex-col justify-end",
-                        style: {
-                          height: `${totalPx}px`,
-                          transition: "height 300ms ease"
-                        }
+                        // EXACT Volume History bar pattern (number inside bar)
+                        className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
+                        style: { height: `${h}px`, minHeight: `${minH}px` }
                       },
-                      // Day segment (top)
                       React.createElement(
                         "div",
-                        {
-                          style: {
-                            height: `${dayPx}px`,
-                            background: "rgba(79,70,229,0.35)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }
-                        },
-                        showDayLabel
-                          ? React.createElement(
-                              "div",
-                              { className: "text-white font-semibold" },
-                              React.createElement("span", { className: "text-xs" }, dayH.toFixed(1)),
-                              React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
-                            )
-                          : null
-                      ),
-                      // Night segment (bottom)
-                      React.createElement(
-                        "div",
-                        {
-                          style: {
-                            height: `${nightPx}px`,
-                            background: "rgba(79,70,229,0.75)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center"
-                          }
-                        },
-                        showNightLabel
-                          ? React.createElement(
-                              "div",
-                              { className: "text-white font-semibold" },
-                              React.createElement("span", { className: "text-xs" }, nightH.toFixed(1)),
-                              React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
-                            )
-                          : null
+                        { className: "text-white font-semibold" },
+                        React.createElement("span", { className: "text-xs" }, total.toFixed(1)),
+                        React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
                       )
                     )
                   ),
-                  React.createElement(
-                    "div",
-                    { className: "text-xs text-gray-600 font-medium" },
-                    b.label
-                  ),
-                  React.createElement(
-                    "div",
-                    { className: "text-xs text-gray-400" },
-                    `${count} sleeps`
-                  )
+                  // x-axis labels: match Volume History spacing/typography
+                  React.createElement("div", { className: "text-xs text-gray-600 font-medium" }, b.label),
+                  React.createElement("div", { className: "text-xs text-gray-400" }, `${count} sleeps`)
                 );
               })
             )
           )
         )
+          );
+        })()
       )
     )
   );
