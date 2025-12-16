@@ -2908,12 +2908,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     }, 0);
   }, [loading, stats.chartData, timeframe]);
 
-  useEffect(() => {
-    // auto-scroll sleep history to the right (most recent)
-    if (sleepHistoryScrollRef.current) {
-      try { sleepHistoryScrollRef.current.scrollLeft = sleepHistoryScrollRef.current.scrollWidth; } catch {}
-    }
-  }, [timeframe, sleepSessions]);
+
 
   const loadAnalytics = async () => {
     if (!kidId) {
@@ -3125,7 +3120,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           nightHrs += v.nightHrs || 0;
           count += v.count || 0;
         }
-        res.push({ key: wk, label: wk.slice(5), ...(sleepByDay[wk] || {}) });
+        // IMPORTANT: use the computed weekly sums (dataByDay has per-day keys, not week keys)
+        res.push({ key: wk, label: wk.slice(5), totalHrs, dayHrs, nightHrs, count });
       }
       return res;
     }
@@ -3146,10 +3142,31 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         nightHrs += v.nightHrs || 0;
         count += v.count || 0;
       }
-      res.push({ key, label: key, ...(sleepByDay[key] || {}) });
+      // IMPORTANT: use computed monthly sums (dataByDay has YYYY-MM-DD keys, not YYYY-MM keys)
+      res.push({ key, label: key, totalHrs, dayHrs, nightHrs, count });
     }
     return res;
   }, [timeframe, sleepByDay]);
+
+  useEffect(() => {
+    // auto-scroll sleep history to the right (most recent)
+    const el = sleepHistoryScrollRef.current;
+    if (!el) return;
+    let raf1 = 0;
+    let raf2 = 0;
+    const scrollToRight = () => {
+      try { el.scrollLeft = el.scrollWidth; } catch {}
+    };
+    // Wait for layout to settle (often needs 2 frames)
+    raf1 = requestAnimationFrame(() => {
+      scrollToRight();
+      raf2 = requestAnimationFrame(scrollToRight);
+    });
+    return () => {
+      try { if (raf1) cancelAnimationFrame(raf1); } catch {}
+      try { if (raf2) cancelAnimationFrame(raf2); } catch {}
+    };
+  }, [timeframe, sleepBuckets?.length]);
 
   const sleepCards = useMemo(() => {
     // Match your feeding cards behavior: show avg for selected timeframe and a small label like "3-day avg"/"7-day avg"/"30-day avg"
@@ -3580,39 +3597,24 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           },
           sleepBuckets.map((b) => {
             const total = Number(b?.totalHrs || 0);
-            const day = Number(b?.dayHrs || 0);
-            const night = Number(b?.nightHrs || 0);
+            const dayH = Number(b?.dayHrs || 0);
             const max = Math.max(1, ...sleepBuckets.map(x => Number(x?.totalHrs || 0)));
-            const barHeight = (total / max) * 160;
-
-            const dateLabel = new Date(b.key).toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric"
-            });
+            const hTotal = Math.round((total / max) * 140);
+            const hDay = total > 0 ? Math.round((dayH / total) * hTotal) : 0;
+            const hNight = Math.max(0, hTotal - hDay);
 
             return React.createElement(
               "div",
-              { key: b.key, className: "flex flex-col items-center gap-2 flex-shrink-0" },
+              { key: b.key, className: "flex flex-col items-center gap-2 flex-shrink-0", style: { width: 66 } },
+              // Total ABOVE the stack (clear for day/week/month)
+              React.createElement("div", { className: "text-sm font-semibold text-gray-700 -mb-1" }, `${total.toFixed(1)}h`),
               React.createElement(
                 "div",
-                { className: "flex flex-col justify-end items-center", style: { height: 180, width: 60 } },
-                React.createElement(
-                  "div",
-                  {
-                    className: "w-full rounded-t-lg flex flex-col justify-start items-center pt-2",
-                    style: {
-                      height: `${barHeight}px`,
-                      background: "rgba(79,70,229,0.75)"
-                    }
-                  },
-                  React.createElement(
-                    "div",
-                    { className: "text-white font-semibold text-xs" },
-                    `${total.toFixed(1)}h`
-                  )
-                )
+                { className: "flex flex-col justify-end items-center", style: { height: 140, width: "100%" } },
+                React.createElement("div", { style: { height: hNight, width: "100%", borderTopLeftRadius: 10, borderTopRightRadius: 10, background: "rgba(79,70,229,0.25)" } }),
+                React.createElement("div", { style: { height: hDay, width: "100%", borderBottomLeftRadius: 10, borderBottomRightRadius: 10, background: "rgba(79,70,229,0.75)" } })
               ),
-              React.createElement("div", { className: "text-xs text-gray-600 font-medium" }, dateLabel)
+              React.createElement("div", { className: "text-xs text-gray-500" }, b.label)
             );
           })
         )
