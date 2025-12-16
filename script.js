@@ -4448,7 +4448,7 @@ const handleInvite = async () => {
         )
       )
     ),
-    // Start/End “editable boxes”
+    // Start/End "editable boxes"
     React.createElement(
       "div",
       { className: "grid grid-cols-2 gap-3 mt-4 items-start" },
@@ -4457,7 +4457,7 @@ const handleInvite = async () => {
       React.createElement(
         "div",
         {
-          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3",
+          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 self-start",
           onClick: editingDayStart
             ? undefined
             : () => {
@@ -4479,11 +4479,11 @@ const handleInvite = async () => {
                 value: tempDayStartInput,
                 onChange: (e) => setTempDayStartInput(e.target.value),
                 // iOS Safari: ensure the control can shrink inside the tile and never overhang
-                className: "block w-full min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                className: "block w-full min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm box-border"
               }),
               React.createElement(
                 "div",
-                { className: "grid grid-cols-2 gap-2 w-full" },
+                { className: "grid grid-cols-2 gap-2" },
                 React.createElement(
                   "button",
                   {
@@ -4534,7 +4534,7 @@ const handleInvite = async () => {
       React.createElement(
         "div",
         {
-          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3",
+          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 self-start",
           onClick: editingDayEnd
             ? undefined
             : () => {
@@ -4556,11 +4556,11 @@ const handleInvite = async () => {
                 value: tempDayEndInput,
                 onChange: (e) => setTempDayEndInput(e.target.value),
                 // iOS Safari: ensure the control can shrink inside the tile and never overhang
-                className: "block w-full min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                className: "block w-full min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm box-border"
               }),
               React.createElement(
                 "div",
-                { className: "grid grid-cols-2 gap-2 w-full" },
+                { className: "grid grid-cols-2 gap-2" },
                 React.createElement(
                   "button",
                   {
