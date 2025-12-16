@@ -3540,7 +3540,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       )
     ),
 
-    // Sleep history (stacked bars) styled like Volume History card
+    // ---- Sleep history (match Volume History exactly)
     React.createElement(
       "div",
       { className: "bg-white rounded-2xl shadow-lg p-6" },
@@ -3551,9 +3551,15 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       ),
       React.createElement(
         "div",
-        { className: "flex items-center justify-center gap-4 text-xs text-gray-500 mb-2" },
-        React.createElement("div", null, "■ Day sleep"),
-        React.createElement("div", null, "■ Night sleep")
+        { className: "flex justify-center gap-4 text-xs text-gray-500 mb-2" },
+        React.createElement("div", { className: "flex items-center gap-1" },
+          React.createElement("span", { style: { width: 10, height: 10, background: "rgba(79,70,229,0.75)", display: "inline-block", borderRadius: 2 } }),
+          "Night sleep"
+        ),
+        React.createElement("div", { className: "flex items-center gap-1" },
+          React.createElement("span", { style: { width: 10, height: 10, background: "rgba(79,70,229,0.35)", display: "inline-block", borderRadius: 2 } }),
+          "Day sleep"
+        )
       ),
       React.createElement(
         "div",
@@ -3564,26 +3570,49 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         },
         React.createElement(
           "div",
-          { className: "flex items-end gap-6 pb-2", style: { minHeight: 180 } },
+          {
+            className: "flex gap-6 pb-2",
+            style: {
+              minWidth: sleepBuckets.length > 4
+                ? `${sleepBuckets.length * 80}px`
+                : "100%"
+            }
+          },
           sleepBuckets.map((b) => {
             const total = Number(b?.totalHrs || 0);
-            const dayH = Number(b?.dayHrs || 0);
+            const day = Number(b?.dayHrs || 0);
+            const night = Number(b?.nightHrs || 0);
             const max = Math.max(1, ...sleepBuckets.map(x => Number(x?.totalHrs || 0)));
-            const hTotal = Math.round((total / max) * 140);
-            const hDay = total > 0 ? Math.round((dayH / total) * hTotal) : 0;
-            const hNight = Math.max(0, hTotal - hDay);
+            const barHeight = (total / max) * 160;
+
+            const dateLabel = new Date(b.key).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric"
+            });
 
             return React.createElement(
               "div",
-              { key: b.key, className: "flex flex-col items-center gap-2 flex-shrink-0", style: { width: 66 } },
+              { key: b.key, className: "flex flex-col items-center gap-2 flex-shrink-0" },
               React.createElement(
                 "div",
-                { className: "flex flex-col justify-end items-center", style: { height: 140, width: "100%" } },
-                React.createElement("div", { style: { height: hNight, width: "100%", borderTopLeftRadius: 10, borderTopRightRadius: 10, background: "rgba(79,70,229,0.25)" } }),
-                React.createElement("div", { style: { height: hDay, width: "100%", borderBottomLeftRadius: 10, borderBottomRightRadius: 10, background: "rgba(79,70,229,0.75)" } })
+                { className: "flex flex-col justify-end items-center", style: { height: 180, width: 60 } },
+                React.createElement(
+                  "div",
+                  {
+                    className: "w-full rounded-t-lg flex flex-col justify-start items-center pt-2",
+                    style: {
+                      height: `${barHeight}px`,
+                      background: "rgba(79,70,229,0.75)"
+                    }
+                  },
+                  React.createElement(
+                    "div",
+                    { className: "text-white font-semibold text-xs" },
+                    `${total.toFixed(1)}h`
+                  )
+                )
               ),
-              React.createElement("div", { className: "text-base font-bold text-gray-900" }, `${total.toFixed(1)}h`),
-              React.createElement("div", { className: "text-xs text-gray-500" }, b.label)
+              React.createElement("div", { className: "text-xs text-gray-600 font-medium" }, dateLabel)
             );
           })
         )
