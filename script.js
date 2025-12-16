@@ -6380,6 +6380,134 @@ const formatRecentFeedingLog = (feedings) => {
 };
 
 // ----------------------------------------
+// 2b) Sleep helpers (compact, prompt-safe)
+// ----------------------------------------
+
+const _safeNumber = (v) =>
+  typeof v === "number" && !Number.isNaN(v) ? v : null;
+
+const _formatDurationHMS = (ms) => {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${h}:${pad(m)}:${pad(s)}`;
+};
+
+const _sleepDayKeyLocal = (ts) => {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
+
+const analyzeSleepSessions = (sessions) => {
+  if (!sessions || sessions.length === 0) {
+    return {
+      daysTracked: 0,
+      totalSessions: 0,
+      avgTotalSleepHours: 0,
+      avgNightSleepHours: 0,
+      avgDaySleepHours: 0
+    };
+  }
+
+  const cleaned = sessions
+    .map((s) => {
+      const start = _safeNumber(s.startTime);
+      const end = _safeNumber(s.endTime);
+      const isActive = !!s.isActive;
+      const sleepType = s.sleepType || (s.isDaySleep ? "day" : "night");
+      return { ...s, startTime: start, endTime: end, isActive, sleepType };
+    })
+    .filter(
+      (s) =>
+        s.startTime &&
+        s.endTime &&
+        s.endTime > s.startTime &&
+        !s.isActive
+    );
+
+  if (cleaned.length === 0) {
+    return {
+      daysTracked: 0,
+      totalSessions: 0,
+      avgTotalSleepHours: 0,
+      avgNightSleepHours: 0,
+      avgDaySleepHours: 0
+    };
+  }
+
+  const daily = {};
+  cleaned.forEach((s) => {
+    const key = _sleepDayKeyLocal(s.startTime);
+    const durMs = s.endTime - s.startTime;
+    if (!daily[key]) daily[key] = { totalMs: 0, dayMs: 0, nightMs: 0 };
+    daily[key].totalMs += durMs;
+    if (s.sleepType === "day") daily[key].dayMs += durMs;
+    else daily[key].nightMs += durMs;
+  });
+
+  const keys = Object.keys(daily).sort();
+  const daysTracked = keys.length;
+
+  const avg = (arr) =>
+    arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+
+  return {
+    daysTracked,
+    totalSessions: cleaned.length,
+    avgTotalSleepHours: avg(keys.map((k) => daily[k].totalMs)) / 3600000,
+    avgNightSleepHours: avg(keys.map((k) => daily[k].nightMs)) / 3600000,
+    avgDaySleepHours: avg(keys.map((k) => daily[k].dayMs)) / 3600000
+  };
+};
+
+const formatRecentSleepLog = (sessions) => {
+  if (!sessions || sessions.length === 0)
+    return "No recent sleep sessions logged.";
+
+  const sorted = [...sessions].sort(
+    (a, b) => (_safeNumber(a.startTime) || 0) - (_safeNumber(b.startTime) || 0)
+  );
+
+  const lines = sorted
+    .map((s) => {
+      const start = _safeNumber(s.startTime);
+      if (!start) return null;
+
+      const end = _safeNumber(s.endTime);
+      const isActive = !!s.isActive;
+      const sleepType =
+        s.sleepType || (s.isDaySleep ? "day" : "night") || "night";
+
+      const d = new Date(start);
+      const dateStr = d.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric"
+      });
+      const startStr = d.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+
+      if (isActive || !end) {
+        return `${dateStr} ${startStr} → in progress (${sleepType})`;
+      }
+
+      const endStr = new Date(end).toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+      const durStr = _formatDurationHMS(end - start);
+
+      return `${dateStr} ${startStr} → ${endStr} — ${durStr} (${sleepType})`;
+    })
+    .filter(Boolean);
+
+  return lines.join("\n");
+};
+
+// ----------------------------------------
 // 3) Build AI context (prompt)
 // ----------------------------------------
 const buildAIContext = async (kidId, question) => {
@@ -6387,6 +6515,14 @@ const buildAIContext = async (kidId, question) => {
   const settings = await firestoreStorage.getSettings();
   const allFeedings = await firestoreStorage.getAllFeedings();
   const recentFeedings = await firestoreStorage.getFeedingsLastNDays(7);
+  let allSleepSessions = [];
+  let recentSleepSessions = [];
+  try {
+    allSleepSessions = await firestoreStorage.getAllSleepSessions();
+    recentSleepSessions = await firestoreStorage.getSleepSessionsLastNDays(7);
+  } catch (e) {
+    console.warn("Sleep data fetch failed", e);
+  }
   const conversation = await firestoreStorage.getConversation();
 
   const ageInMonths = calculateAgeInMonths(babyData.birthDate);
@@ -6396,6 +6532,8 @@ const buildAIContext = async (kidId, question) => {
 
   const advancedStats = analyzeAdvancedFeedingPatterns(allFeedings);
   const recentLog = formatRecentFeedingLog(recentFeedings);
+  const sleepStats = analyzeSleepSessions(allSleepSessions);
+  const recentSleepLog = formatRecentSleepLog(recentSleepSessions);
 
   // recent conversation (for follow-ups)
   let conversationHistory = "";
@@ -6502,6 +6640,14 @@ ${
 
 ## Recent detailed log (last 7 days)
 ${recentLog}
+
+## Sleep summary (${sleepStats.daysTracked} days)
+- Avg total sleep: ${sleepStats.avgTotalSleepHours.toFixed(1)} hours/day
+- Avg night sleep: ${sleepStats.avgNightSleepHours.toFixed(1)} hours/day
+- Avg day sleep: ${sleepStats.avgDaySleepHours.toFixed(1)} hours/day
+
+## Recent sleep log (last 7 days)
+${recentSleepLog}
 
 ## Previous conversation
 ${conversationHistory}
