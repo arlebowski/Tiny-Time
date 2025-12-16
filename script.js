@@ -4265,41 +4265,47 @@ const handleInvite = async () => {
         editingDayStart
           ? React.createElement(
               "div",
-              { className: "flex items-center gap-2 mt-2" },
+              { className: "mt-2 space-y-2" },
               React.createElement("input", {
                 type: "time",
                 value: tempDayStartInput,
                 onChange: (e) => setTempDayStartInput(e.target.value),
                 className:
-                  "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                  "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
               }),
               React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    const mins = parseTimeInput(tempDayStartInput);
-                    if (mins == null) {
-                      alert("Please enter a valid start time.");
-                      return;
-                    }
-                    setDaySleepStartMin(mins);
-                    saveDaySleepWindow(mins, daySleepEndMin);
-                    setEditingDayStart(false);
+                "div",
+                { className: "flex justify-end gap-2" },
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      const mins = parseTimeInput(tempDayStartInput);
+                      if (mins == null) {
+                        alert("Please enter a valid start time.");
+                        return;
+                      }
+                      setDaySleepStartMin(mins);
+                      saveDaySleepWindow(mins, daySleepEndMin);
+                      setEditingDayStart(false);
+                    },
+                    className: TT_ICON_BTN_OK,
+                    type: "button"
                   },
-                  className: TT_ICON_BTN_OK
-                },
-                React.createElement(Check, { className: TT_ICON_SIZE })
-              ),
-              React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    setTempDayStartInput(minutesToTimeValue(dayStart));
-                    setEditingDayStart(false);
+                  React.createElement(Check, { className: TT_ICON_SIZE })
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      setTempDayStartInput(minutesToTimeValue(dayStart));
+                      setEditingDayStart(false);
+                    },
+                    className: TT_ICON_BTN_CANCEL,
+                    type: "button"
                   },
-                  className: TT_ICON_BTN_CANCEL
-                },
-                React.createElement(X, { className: TT_ICON_SIZE })
+                  React.createElement(X, { className: TT_ICON_SIZE })
+                )
               )
             )
           : React.createElement(
@@ -4336,41 +4342,47 @@ const handleInvite = async () => {
         editingDayEnd
           ? React.createElement(
               "div",
-              { className: "flex items-center gap-2 mt-2" },
+              { className: "mt-2 space-y-2" },
               React.createElement("input", {
                 type: "time",
                 value: tempDayEndInput,
                 onChange: (e) => setTempDayEndInput(e.target.value),
                 className:
-                  "flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                  "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
               }),
               React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    const mins = parseTimeInput(tempDayEndInput);
-                    if (mins == null) {
-                      alert("Please enter a valid end time.");
-                      return;
-                    }
-                    setDaySleepEndMin(mins);
-                    saveDaySleepWindow(daySleepStartMin, mins);
-                    setEditingDayEnd(false);
+                "div",
+                { className: "flex justify-end gap-2" },
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      const mins = parseTimeInput(tempDayEndInput);
+                      if (mins == null) {
+                        alert("Please enter a valid end time.");
+                        return;
+                      }
+                      setDaySleepEndMin(mins);
+                      saveDaySleepWindow(daySleepStartMin, mins);
+                      setEditingDayEnd(false);
+                    },
+                    className: TT_ICON_BTN_OK,
+                    type: "button"
                   },
-                  className: TT_ICON_BTN_OK
-                },
-                React.createElement(Check, { className: TT_ICON_SIZE })
-              ),
-              React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    setTempDayEndInput(minutesToTimeValue(dayEnd));
-                    setEditingDayEnd(false);
+                  React.createElement(Check, { className: TT_ICON_SIZE })
+                ),
+                React.createElement(
+                  "button",
+                  {
+                    onClick: () => {
+                      setTempDayEndInput(minutesToTimeValue(dayEnd));
+                      setEditingDayEnd(false);
+                    },
+                    className: TT_ICON_BTN_CANCEL,
+                    type: "button"
                   },
-                  className: TT_ICON_BTN_CANCEL
-                },
-                React.createElement(X, { className: TT_ICON_SIZE })
+                  React.createElement(X, { className: TT_ICON_SIZE })
+                )
               )
             )
           : React.createElement(
