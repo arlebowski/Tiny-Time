@@ -1905,13 +1905,13 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
   // Consistent icon-button styling for edit actions (✓ / ✕) — match Family tab
   const TRACKER_ICON_BTN_BASE =
-    "h-10 w-10 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center";
+    "h-10 w-full rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center";
   const TRACKER_ICON_BTN_OK = TRACKER_ICON_BTN_BASE + " text-green-600";
   const TRACKER_ICON_BTN_CANCEL = TRACKER_ICON_BTN_BASE + " text-gray-500";
   const TRACKER_ICON_SIZE = "w-5 h-5";
 
   const TrackerEditActions = ({ onSave, onCancel }) =>
-    React.createElement('div', { className: "flex justify-end gap-2 pt-1" },
+    React.createElement('div', { className: "trackerEditGrid grid grid-cols-2 gap-3 w-full" },
       React.createElement('button', { type: 'button', onClick: onSave, className: TRACKER_ICON_BTN_OK, title: "Save" },
         React.createElement(Check, { className: TRACKER_ICON_SIZE })
       ),
