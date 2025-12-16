@@ -6400,24 +6400,67 @@ const _sleepDayKeyLocal = (ts) => {
   return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
 };
 
-const analyzeSleepSessions = (sessions) => {
+const _minutesOfDayLocalFromTs = (ts) => {
+  try {
+    const d = new Date(ts);
+    return d.getHours() * 60 + d.getMinutes();
+  } catch {
+    return 0;
+  }
+};
+
+const _isWithinWindowLocal = (mins, startMins, endMins) => {
+  const s = Number(startMins);
+  const e = Number(endMins);
+  const m = Number(mins);
+  if (Number.isNaN(s) || Number.isNaN(e) || Number.isNaN(m)) return false;
+  if (s === e) return false;
+  if (s < e) return m >= s && m <= e;
+  // wraps midnight
+  return m >= s || m <= e;
+};
+
+const _normalizeSleepWindowMins = (startMins, endMins) => {
+  const start = Number(startMins);
+  const end = Number(endMins);
+  if (Number.isFinite(start) && Number.isFinite(end)) {
+    return { start, end };
+  }
+  return { start: 390, end: 1170 };
+};
+
+const _classifyNapOvernight = (startTs, dayStartMins, dayEndMins) => {
+  const mins = _minutesOfDayLocalFromTs(startTs);
+  const { start, end } = _normalizeSleepWindowMins(dayStartMins, dayEndMins);
+  const isNap = _isWithinWindowLocal(mins, start, end);
+  return isNap ? "NAP" : "OVERNIGHT";
+};
+
+const analyzeSleepSessions = (sessions, dayStartMins = 390, dayEndMins = 1170) => {
   if (!sessions || sessions.length === 0) {
     return {
       daysTracked: 0,
       totalSessions: 0,
       avgTotalSleepHours: 0,
-      avgNightSleepHours: 0,
-      avgDaySleepHours: 0
+      avgOvernightSleepHours: 0,
+      avgNapSleepHours: 0
     };
   }
+
+  const { start: windowStart, end: windowEnd } = _normalizeSleepWindowMins(
+    dayStartMins,
+    dayEndMins
+  );
 
   const cleaned = sessions
     .map((s) => {
       const start = _safeNumber(s.startTime);
       const end = _safeNumber(s.endTime);
       const isActive = !!s.isActive;
-      const sleepType = s.sleepType || (s.isDaySleep ? "day" : "night");
-      return { ...s, startTime: start, endTime: end, isActive, sleepType };
+      // IMPORTANT: Do not trust stored sleepType/isDaySleep here.
+      // Reclassify using current day sleep window at read time.
+      const label = start ? _classifyNapOvernight(start, windowStart, windowEnd) : "OVERNIGHT";
+      return { ...s, startTime: start, endTime: end, isActive, _aiSleepLabel: label };
     })
     .filter(
       (s) =>
@@ -6432,8 +6475,8 @@ const analyzeSleepSessions = (sessions) => {
       daysTracked: 0,
       totalSessions: 0,
       avgTotalSleepHours: 0,
-      avgNightSleepHours: 0,
-      avgDaySleepHours: 0
+      avgOvernightSleepHours: 0,
+      avgNapSleepHours: 0
     };
   }
 
@@ -6441,10 +6484,10 @@ const analyzeSleepSessions = (sessions) => {
   cleaned.forEach((s) => {
     const key = _sleepDayKeyLocal(s.startTime);
     const durMs = s.endTime - s.startTime;
-    if (!daily[key]) daily[key] = { totalMs: 0, dayMs: 0, nightMs: 0 };
+    if (!daily[key]) daily[key] = { totalMs: 0, napMs: 0, overnightMs: 0 };
     daily[key].totalMs += durMs;
-    if (s.sleepType === "day") daily[key].dayMs += durMs;
-    else daily[key].nightMs += durMs;
+    if (s._aiSleepLabel === "NAP") daily[key].napMs += durMs;
+    else daily[key].overnightMs += durMs;
   });
 
   const keys = Object.keys(daily).sort();
@@ -6457,12 +6500,12 @@ const analyzeSleepSessions = (sessions) => {
     daysTracked,
     totalSessions: cleaned.length,
     avgTotalSleepHours: avg(keys.map((k) => daily[k].totalMs)) / 3600000,
-    avgNightSleepHours: avg(keys.map((k) => daily[k].nightMs)) / 3600000,
-    avgDaySleepHours: avg(keys.map((k) => daily[k].dayMs)) / 3600000
+    avgOvernightSleepHours: avg(keys.map((k) => daily[k].overnightMs)) / 3600000,
+    avgNapSleepHours: avg(keys.map((k) => daily[k].napMs)) / 3600000
   };
 };
 
-const formatRecentSleepLog = (sessions) => {
+const formatRecentSleepLog = (sessions, dayStartMins = 390, dayEndMins = 1170) => {
   if (!sessions || sessions.length === 0)
     return "No recent sleep sessions logged.";
 
@@ -6477,8 +6520,13 @@ const formatRecentSleepLog = (sessions) => {
 
       const end = _safeNumber(s.endTime);
       const isActive = !!s.isActive;
-      const sleepType =
-        s.sleepType || (s.isDaySleep ? "day" : "night") || "night";
+      // IMPORTANT: Do not trust stored sleepType/isDaySleep here.
+      // Reclassify using current day sleep window at read time.
+      const { start: windowStart, end: windowEnd } = _normalizeSleepWindowMins(
+        dayStartMins,
+        dayEndMins
+      );
+      const label = _classifyNapOvernight(start, windowStart, windowEnd);
 
       const d = new Date(start);
       const dateStr = d.toLocaleDateString("en-US", {
@@ -6491,7 +6539,7 @@ const formatRecentSleepLog = (sessions) => {
       });
 
       if (isActive || !end) {
-        return `${dateStr} ${startStr} → in progress (${sleepType})`;
+        return `${dateStr} ${startStr} → in progress (${label})`;
       }
 
       const endStr = new Date(end).toLocaleTimeString("en-US", {
@@ -6500,7 +6548,7 @@ const formatRecentSleepLog = (sessions) => {
       });
       const durStr = _formatDurationHMS(end - start);
 
-      return `${dateStr} ${startStr} → ${endStr} — ${durStr} (${sleepType})`;
+      return `${dateStr} ${startStr} → ${endStr} — ${durStr} (${label})`;
     })
     .filter(Boolean);
 
@@ -6517,9 +6565,19 @@ const buildAIContext = async (kidId, question) => {
   const recentFeedings = await firestoreStorage.getFeedingsLastNDays(7);
   let allSleepSessions = [];
   let recentSleepSessions = [];
+  let sleepDayStartMins = 390;
+  let sleepDayEndMins = 1170;
   try {
     allSleepSessions = await firestoreStorage.getAllSleepSessions();
     recentSleepSessions = await firestoreStorage.getSleepSessionsLastNDays(7);
+    // Use current sleep day window for AI labeling/aggregation (read-time truth)
+    const ss = await firestoreStorage.getSleepSettings();
+    const { start, end } = _normalizeSleepWindowMins(
+      ss?.sleepDayStart ?? ss?.daySleepStartMinutes,
+      ss?.sleepDayEnd ?? ss?.daySleepEndMinutes
+    );
+    sleepDayStartMins = start;
+    sleepDayEndMins = end;
   } catch (e) {
     console.warn("Sleep data fetch failed", e);
   }
@@ -6532,8 +6590,17 @@ const buildAIContext = async (kidId, question) => {
 
   const advancedStats = analyzeAdvancedFeedingPatterns(allFeedings);
   const recentLog = formatRecentFeedingLog(recentFeedings);
-  const sleepStats = analyzeSleepSessions(allSleepSessions);
-  const recentSleepLog = formatRecentSleepLog(recentSleepSessions);
+  const sleepStats = analyzeSleepSessions(allSleepSessions, sleepDayStartMins, sleepDayEndMins);
+  const recentSleepLog = formatRecentSleepLog(recentSleepSessions, sleepDayStartMins, sleepDayEndMins);
+
+  const todayAnchor = new Date().toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
 
   // recent conversation (for follow-ups)
   let conversationHistory = "";
@@ -6549,6 +6616,9 @@ const buildAIContext = async (kidId, question) => {
 
   const fullPrompt = `
 You are Tiny Tracker, helping a parent understand their baby's feeding patterns and troubleshoot sleep issues.
+
+IMPORTANT: Today is ${todayAnchor} (local time).
+IMPORTANT: Sleep sessions below are labeled as NAP vs OVERNIGHT using the app’s configured day-sleep window. Do NOT reclassify based on clock time.
 
 ## Core principle: LISTEN AND ADAPT
 The parent is reporting what's ACTUALLY HAPPENING with their baby. Your job is to:
@@ -6643,8 +6713,8 @@ ${recentLog}
 
 ## Sleep summary (${sleepStats.daysTracked} days)
 - Avg total sleep: ${sleepStats.avgTotalSleepHours.toFixed(1)} hours/day
-- Avg night sleep: ${sleepStats.avgNightSleepHours.toFixed(1)} hours/day
-- Avg day sleep: ${sleepStats.avgDaySleepHours.toFixed(1)} hours/day
+- Avg overnight sleep: ${sleepStats.avgOvernightSleepHours.toFixed(1)} hours/day
+- Avg nap sleep: ${sleepStats.avgNapSleepHours.toFixed(1)} hours/day
 
 ## Recent sleep log (last 7 days)
 ${recentSleepLog}
