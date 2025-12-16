@@ -3098,7 +3098,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         d.setDate(now.getDate() - i);
         keys.push(makeKey(d));
       }
-      return keys.map(k => ({ key: k, label: k.slice(5), ...sleepByDay[k] }));
+      return keys.map(k => ({ key: k, label: k.slice(5), ...(sleepByDay[k] || {}) }));
     }
 
     if (timeframe === 'week') {
@@ -3125,7 +3125,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           nightHrs += v.nightHrs || 0;
           count += v.count || 0;
         }
-        res.push({ key: wk, label: wk.slice(5), totalHrs, dayHrs, nightHrs, count });
+        res.push({ key: wk, label: wk.slice(5), ...(sleepByDay[wk] || {}) });
       }
       return res;
     }
@@ -3146,7 +3146,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         nightHrs += v.nightHrs || 0;
         count += v.count || 0;
       }
-      res.push({ key, label: key, totalHrs, dayHrs, nightHrs, count });
+      res.push({ key, label: key, ...(sleepByDay[key] || {}) });
     }
     return res;
   }, [timeframe, sleepByDay]);
@@ -3210,8 +3210,6 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
   return React.createElement(
     'div',
     { className: 'space-y-4' },
-    // ---- Feeding stats header (above existing feeding cards)
-    React.createElement('div', { className: "section-title", style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" } }, "Feeding stats"),
     React.createElement(
       'div',
       { className: 'flex justify-center' },
@@ -3245,6 +3243,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         )
       )
     ),
+    // ---- Feeding stats header (should be BELOW day/week/month picker)
+    React.createElement('div', { className: "section-title", style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" } }, "Feeding stats"),
 
     React.createElement(
       'div',
