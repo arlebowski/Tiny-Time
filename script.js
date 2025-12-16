@@ -3099,44 +3099,87 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
   // Build date buckets depending on timeframe.
   const sleepBuckets = useMemo(() => {
     const now = new Date();
-    const makeKey = (d) => _dateKeyLocal(d.getTime());
+
+    const parseDayKeyToDate = (key) => {
+      // key: YYYY-MM-DD (local)
+      const parts = String(key || '').split('-');
+      const y = Number(parts[0]);
+      const m = Number(parts[1]);
+      const d = Number(parts[2]);
+      if (!y || !m || !d) return new Date();
+      return new Date(y, m - 1, d);
+    };
+
+    const parseMonthKeyToDate = (key) => {
+      // key: YYYY-MM
+      const parts = String(key || '').split('-');
+      const y = Number(parts[0]);
+      const m = Number(parts[1]);
+      if (!y || !m) return new Date();
+      return new Date(y, m - 1, 1);
+    };
+
+    const fmtDayLabel = (key) =>
+      parseDayKeyToDate(key).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    const fmtWeekLabel = (weekStartKey) =>
+      parseDayKeyToDate(weekStartKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+    const fmtMonthLabel = (monthKey) =>
+      parseMonthKeyToDate(monthKey).toLocaleDateString('en-US', { month: 'short' });
+
+    const makeDayKey = (d) => _dateKeyLocal(d.getTime());
+    const dataByDay = sleepByDay || {};
 
     if (timeframe === 'day') {
       const keys = [];
       for (let i = 6; i >= 0; i--) {
         const d = new Date(now);
         d.setDate(now.getDate() - i);
-        keys.push(makeKey(d));
+        keys.push(makeDayKey(d));
       }
-      return keys.map(k => ({ key: k, label: k.slice(5), ...(sleepByDay[k] || {}) }));
+      return keys.map(k => ({
+        key: k,
+        label: fmtDayLabel(k),
+        ...(dataByDay[k] || {})
+      }));
     }
 
     if (timeframe === 'week') {
-      // 8 weeks including current week, labeled by week start (Mon)
+      // Match Volume History behavior: week start = Sunday
       const res = [];
       const d = new Date(now);
-      const day = d.getDay(); // 0 Sun..6 Sat
-      const diffToMon = (day + 6) % 7;
-      d.setDate(d.getDate() - diffToMon);
+      const diffToSun = d.getDay(); // 0 Sun..6 Sat
+      d.setDate(d.getDate() - diffToSun);
+
+      // 8 weeks including current week (oldest -> newest)
       for (let w = 7; w >= 0; w--) {
         const ws = new Date(d);
         ws.setDate(d.getDate() - w * 7);
-        const wk = makeKey(ws);
+        const wkKey = makeDayKey(ws);
+
         // sum 7 days
         let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
         for (let i = 0; i < 7; i++) {
           const dd = new Date(ws);
           dd.setDate(ws.getDate() + i);
-          const kk = makeKey(dd);
-          const v = sleepByDay[kk];
+          const kk = makeDayKey(dd);
+          const v = dataByDay[kk];
           if (!v) continue;
           totalHrs += v.totalHrs || 0;
           dayHrs += v.dayHrs || 0;
           nightHrs += v.nightHrs || 0;
           count += v.count || 0;
         }
-        // IMPORTANT: use the computed weekly sums (dataByDay has per-day keys, not week keys)
-        res.push({ key: wk, label: wk.slice(5), totalHrs, dayHrs, nightHrs, count });
+
+        res.push({
+          key: wkKey,
+          label: fmtWeekLabel(wkKey),
+          totalHrs,
+          dayHrs,
+          nightHrs,
+          count
+        });
       }
       return res;
     }
@@ -3145,43 +3188,77 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     const res = [];
     for (let m = 5; m >= 0; m--) {
       const ms = new Date(now.getFullYear(), now.getMonth() - m, 1);
-      const key = `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`;
+      const monthKey = `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`;
+
       let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
       const me = new Date(ms.getFullYear(), ms.getMonth() + 1, 1);
       for (let dd = new Date(ms); dd < me; dd.setDate(dd.getDate() + 1)) {
-        const kk = makeKey(dd);
-        const v = sleepByDay[kk];
+        const kk = makeDayKey(dd);
+        const v = dataByDay[kk];
         if (!v) continue;
         totalHrs += v.totalHrs || 0;
         dayHrs += v.dayHrs || 0;
         nightHrs += v.nightHrs || 0;
         count += v.count || 0;
       }
-      // IMPORTANT: use computed monthly sums (dataByDay has YYYY-MM-DD keys, not YYYY-MM keys)
-      res.push({ key, label: key, totalHrs, dayHrs, nightHrs, count });
+
+      res.push({
+        key: monthKey,
+        label: fmtMonthLabel(monthKey),
+        totalHrs,
+        dayHrs,
+        nightHrs,
+        count
+      });
     }
     return res;
   }, [timeframe, sleepByDay]);
 
-  useEffect(() => {
-    // auto-scroll sleep history to the right (most recent)
-    const el = sleepHistoryScrollRef.current;
-    if (!el) return;
-    let raf1 = 0;
-    let raf2 = 0;
-    const scrollToRight = () => {
-      try { el.scrollLeft = el.scrollWidth; } catch {}
-    };
-    // Wait for layout to settle (often needs 2 frames)
-    raf1 = requestAnimationFrame(() => {
-      scrollToRight();
-      raf2 = requestAnimationFrame(scrollToRight);
-    });
-    return () => {
-      try { if (raf1) cancelAnimationFrame(raf1); } catch {}
-      try { if (raf2) cancelAnimationFrame(raf2); } catch {}
-    };
-  }, [timeframe, sleepBuckets?.length]);
+  const sleepChartMeta = useMemo(() => {
+    const buckets = sleepBuckets || [];
+    const maxTotal = Math.max(0, ...buckets.map(b => Number(b?.totalHrs || 0)));
+    // Nice max: round up to nearest 2h, with a minimum of 4h for readability
+    const niceMax = (() => {
+      const base = Math.max(4, maxTotal);
+      return Math.ceil(base / 2) * 2;
+    })();
+
+    // Ticks every 2 hours (or every 4 if huge)
+    const step = niceMax >= 16 ? 4 : 2;
+    const ticks = [];
+    for (let t = 0; t <= niceMax; t += step) ticks.push(t);
+
+    return { maxY: niceMax, ticks, step };
+  }, [sleepBuckets]);
+
+    useEffect(() => {
+      // auto-scroll sleep history to the right (most recent)
+      const el = sleepHistoryScrollRef.current;
+      if (!el) return;
+
+      let raf1 = 0;
+      let raf2 = 0;
+      let t1 = 0;
+
+      const scrollToRight = () => {
+        try { el.scrollLeft = el.scrollWidth; } catch {}
+      };
+
+      // Wait for layout to settle (often needs 2 frames + a short timeout)
+      raf1 = requestAnimationFrame(() => {
+        scrollToRight();
+        raf2 = requestAnimationFrame(() => {
+          scrollToRight();
+          t1 = setTimeout(scrollToRight, 50);
+        });
+      });
+
+      return () => {
+        try { if (raf1) cancelAnimationFrame(raf1); } catch {}
+        try { if (raf2) cancelAnimationFrame(raf2); } catch {}
+        try { if (t1) clearTimeout(t1); } catch {}
+      };
+    }, [timeframe, sleepBuckets?.length]);
 
   const sleepCards = useMemo(() => {
     // Match your feeding cards behavior: show avg for selected timeframe and a small label like "3-day avg"/"7-day avg"/"30-day avg"
@@ -3572,7 +3649,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       )
     ),
 
-    // ---- Sleep history (match Volume History exactly)
+    // ---- Sleep history (match Volume History date formatting + add y-axis)
     React.createElement(
       "div",
       { className: "bg-white rounded-2xl shadow-lg p-6" },
@@ -3584,54 +3661,167 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       React.createElement(
         "div",
         { className: "flex justify-center gap-4 text-xs text-gray-500 mb-2" },
-        React.createElement("div", { className: "flex items-center gap-1" },
+        React.createElement(
+          "div",
+          { className: "flex items-center gap-1" },
           React.createElement("span", { style: { width: 10, height: 10, background: "rgba(79,70,229,0.75)", display: "inline-block", borderRadius: 2 } }),
           "Night sleep"
         ),
-        React.createElement("div", { className: "flex items-center gap-1" },
+        React.createElement(
+          "div",
+          { className: "flex items-center gap-1" },
           React.createElement("span", { style: { width: 10, height: 10, background: "rgba(79,70,229,0.35)", display: "inline-block", borderRadius: 2 } }),
           "Day sleep"
         )
       ),
       React.createElement(
         "div",
-        {
-          ref: sleepHistoryScrollRef,
-          className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
-          style: { scrollBehavior: "smooth" }
-        },
+        { className: "flex gap-3" },
+        // Y-axis (fixed)
+        React.createElement(
+          "div",
+          { className: "relative flex-shrink-0", style: { width: 34, height: "180px" } },
+          (sleepChartMeta?.ticks || []).map((t) =>
+            React.createElement(
+              "div",
+              {
+                key: `y-${t}`,
+                className: "absolute left-0 text-[10px] text-gray-400",
+                style: { bottom: `${(Number(t) / (sleepChartMeta?.maxY || 1)) * 160}px` }
+              },
+              `${t}h`
+            )
+          )
+        ),
+        // Scrollable chart area (bars + gridlines)
         React.createElement(
           "div",
           {
-            className: "flex gap-6 pb-2",
-            style: {
-              minWidth: sleepBuckets.length > 4
-                ? `${sleepBuckets.length * 80}px`
-                : "100%"
-            }
+            ref: sleepHistoryScrollRef,
+            className: "overflow-x-auto overflow-y-hidden -mx-2 px-2 flex-1",
+            style: { scrollBehavior: "smooth" }
           },
-          sleepBuckets.map((b) => {
-            const total = Number(b?.totalHrs || 0);
-            const dayH = Number(b?.dayHrs || 0);
-            const max = Math.max(1, ...sleepBuckets.map(x => Number(x?.totalHrs || 0)));
-            const hTotal = Math.round((total / max) * 140);
-            const hDay = total > 0 ? Math.round((dayH / total) * hTotal) : 0;
-            const hNight = Math.max(0, hTotal - hDay);
-
-            return React.createElement(
+          React.createElement(
+            "div",
+            {
+              className: "relative",
+              style: {
+                minWidth:
+                  (sleepBuckets || []).length > 4
+                    ? `${(sleepBuckets || []).length * 80}px`
+                    : "100%"
+              }
+            },
+            // gridlines
+            React.createElement(
               "div",
-              { key: b.key, className: "flex flex-col items-center gap-2 flex-shrink-0", style: { width: 66 } },
-              // Total ABOVE the stack (clear for day/week/month)
-              React.createElement("div", { className: "text-sm font-semibold text-gray-700 -mb-1" }, `${total.toFixed(1)}h`),
-              React.createElement(
-                "div",
-                { className: "flex flex-col justify-end items-center", style: { height: 140, width: "100%" } },
-                React.createElement("div", { style: { height: hNight, width: "100%", borderTopLeftRadius: 10, borderTopRightRadius: 10, background: "rgba(79,70,229,0.25)" } }),
-                React.createElement("div", { style: { height: hDay, width: "100%", borderBottomLeftRadius: 10, borderBottomRightRadius: 10, background: "rgba(79,70,229,0.75)" } })
-              ),
-              React.createElement("div", { className: "text-xs text-gray-500" }, b.label)
-            );
-          })
+              { className: "absolute inset-0 pointer-events-none" },
+              (sleepChartMeta?.ticks || [])
+                .filter((t) => Number(t) !== 0)
+                .map((t) =>
+                  React.createElement("div", {
+                    key: `grid-${t}`,
+                    style: {
+                      position: "absolute",
+                      left: 0,
+                      right: 0,
+                      bottom: `${(Number(t) / (sleepChartMeta?.maxY || 1)) * 160}px`,
+                      height: 1,
+                      background: "rgba(0,0,0,0.06)"
+                    }
+                  })
+                )
+            ),
+            React.createElement(
+              "div",
+              { className: "flex gap-6 pb-2" },
+              (sleepBuckets || []).map((b) => {
+                const total = Number(b?.totalHrs || 0);
+                const dayH = Number(b?.dayHrs || 0);
+                const nightH = Number(b?.nightHrs || 0);
+                const count = Number(b?.count || 0);
+
+                const maxY = Number(sleepChartMeta?.maxY || 1);
+                const totalPx = total > 0 ? Math.max(30, Math.round((total / maxY) * 160)) : 0;
+                const dayPx = total > 0 ? Math.round((dayH / total) * totalPx) : 0;
+                const nightPx = Math.max(0, totalPx - dayPx);
+
+                const showNightLabel = nightPx >= 22;
+                const showDayLabel = dayPx >= 22;
+
+                return React.createElement(
+                  "div",
+                  { key: b.key, className: "flex flex-col items-center", style: { width: "60px" } },
+                  React.createElement(
+                    "div",
+                    { className: "flex flex-col justify-end items-center", style: { height: "180px", width: "60px" } },
+                    React.createElement(
+                      "div",
+                      {
+                        className: "w-full rounded-lg overflow-hidden flex flex-col justify-end",
+                        style: {
+                          height: `${totalPx}px`,
+                          transition: "height 300ms ease"
+                        }
+                      },
+                      // Day segment (top)
+                      React.createElement(
+                        "div",
+                        {
+                          style: {
+                            height: `${dayPx}px`,
+                            background: "rgba(79,70,229,0.35)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }
+                        },
+                        showDayLabel
+                          ? React.createElement(
+                              "div",
+                              { className: "text-white font-semibold" },
+                              React.createElement("span", { className: "text-xs" }, dayH.toFixed(1)),
+                              React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
+                            )
+                          : null
+                      ),
+                      // Night segment (bottom)
+                      React.createElement(
+                        "div",
+                        {
+                          style: {
+                            height: `${nightPx}px`,
+                            background: "rgba(79,70,229,0.75)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
+                          }
+                        },
+                        showNightLabel
+                          ? React.createElement(
+                              "div",
+                              { className: "text-white font-semibold" },
+                              React.createElement("span", { className: "text-xs" }, nightH.toFixed(1)),
+                              React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
+                            )
+                          : null
+                      )
+                    )
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "text-xs text-gray-600 font-medium" },
+                    b.label
+                  ),
+                  React.createElement(
+                    "div",
+                    { className: "text-xs text-gray-400" },
+                    `${count} sleeps`
+                  )
+                );
+              })
+            )
+          )
         )
       )
     )
