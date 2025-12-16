@@ -4451,7 +4451,7 @@ const handleInvite = async () => {
     // Start/End “editable boxes”
     React.createElement(
       "div",
-      { className: "grid grid-cols-2 gap-3 mt-4" },
+      { className: "grid grid-cols-2 gap-3 mt-4 items-start" },
 
       // Start (match the affordance style used above in settings rows)
       React.createElement(
@@ -4478,7 +4478,8 @@ const handleInvite = async () => {
                 type: "time",
                 value: tempDayStartInput,
                 onChange: (e) => setTempDayStartInput(e.target.value),
-                className: "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                // iOS Safari: ensure the control can shrink inside the tile and never overhang
+                className: "block w-full min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
               }),
               React.createElement(
                 "div",
@@ -4554,7 +4555,8 @@ const handleInvite = async () => {
                 type: "time",
                 value: tempDayEndInput,
                 onChange: (e) => setTempDayEndInput(e.target.value),
-                className: "w-full px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
+                // iOS Safari: ensure the control can shrink inside the tile and never overhang
+                className: "block w-full min-w-0 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm"
               }),
               React.createElement(
                 "div",
