@@ -4291,7 +4291,7 @@ const handleInvite = async () => {
               }),
               React.createElement(
                 "div",
-                { className: "flex justify-end gap-2" },
+                { className: "grid grid-cols-2 gap-2 w-full" },
                 React.createElement(
                   "button",
                   {
@@ -4305,7 +4305,7 @@ const handleInvite = async () => {
                       saveDaySleepWindow(mins, daySleepEndMin);
                       setEditingDayStart(false);
                     },
-                    className: TT_ICON_BTN_OK,
+                    className: `${TT_ICON_BTN_OK} w-full`,
                     type: "button"
                   },
                   React.createElement(Check, { className: TT_ICON_SIZE })
@@ -4317,7 +4317,7 @@ const handleInvite = async () => {
                       setTempDayStartInput(minutesToTimeValue(dayStart));
                       setEditingDayStart(false);
                     },
-                    className: TT_ICON_BTN_CANCEL,
+                    className: `${TT_ICON_BTN_CANCEL} w-full`,
                     type: "button"
                   },
                   React.createElement(X, { className: TT_ICON_SIZE })
@@ -4367,7 +4367,7 @@ const handleInvite = async () => {
               }),
               React.createElement(
                 "div",
-                { className: "flex justify-end gap-2" },
+                { className: "grid grid-cols-2 gap-2 w-full" },
                 React.createElement(
                   "button",
                   {
@@ -4381,7 +4381,7 @@ const handleInvite = async () => {
                       saveDaySleepWindow(daySleepStartMin, mins);
                       setEditingDayEnd(false);
                     },
-                    className: TT_ICON_BTN_OK,
+                    className: `${TT_ICON_BTN_OK} w-full`,
                     type: "button"
                   },
                   React.createElement(Check, { className: TT_ICON_SIZE })
@@ -4393,7 +4393,7 @@ const handleInvite = async () => {
                       setTempDayEndInput(minutesToTimeValue(dayEnd));
                       setEditingDayEnd(false);
                     },
-                    className: TT_ICON_BTN_CANCEL,
+                    className: `${TT_ICON_BTN_CANCEL} w-full`,
                     type: "button"
                   },
                   React.createElement(X, { className: TT_ICON_SIZE })
