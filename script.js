@@ -3254,34 +3254,18 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     return { maxY: niceMax, ticks, step };
   }, [sleepBuckets]);
 
-    useEffect(() => {
-      // auto-scroll sleep history to the right (most recent)
-      const el = sleepHistoryScrollRef.current;
-      if (!el) return;
-
-      let raf1 = 0;
-      let raf2 = 0;
-      let t1 = 0;
-
-      const scrollToRight = () => {
-        try { el.scrollLeft = el.scrollWidth; } catch {}
-      };
-
-      // Wait for layout to settle (often needs 2 frames + a short timeout)
-      raf1 = requestAnimationFrame(() => {
-        scrollToRight();
-        raf2 = requestAnimationFrame(() => {
-          scrollToRight();
-          t1 = setTimeout(scrollToRight, 50);
-        });
-      });
-
-      return () => {
-        try { if (raf1) cancelAnimationFrame(raf1); } catch {}
-        try { if (raf2) cancelAnimationFrame(raf2); } catch {}
-        try { if (t1) clearTimeout(t1); } catch {}
-      };
-    }, [timeframe, sleepBuckets?.length]);
+  // Auto-scroll Sleep History to the right — match Volume History behavior 1:1
+  useEffect(() => {
+    if (loading || !sleepHistoryScrollRef.current || !sleepBuckets || sleepBuckets.length === 0) {
+      return;
+    }
+    const container = sleepHistoryScrollRef.current;
+    // Defer to end of event loop so layout & scrollWidth are correct (same as Volume History)
+    setTimeout(() => {
+      if (!container) return;
+      try { container.scrollLeft = container.scrollWidth; } catch {}
+    }, 0);
+  }, [loading, timeframe, sleepBuckets]);
 
   const sleepCards = useMemo(() => {
     // Match your feeding cards behavior: show avg for selected timeframe and a small label like "3-day avg"/"7-day avg"/"30-day avg"
@@ -3686,8 +3670,10 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         { className: "flex gap-3" },
         // Make this card a bit taller (and keep scale consistent across y-axis/gridlines/bars)
         (() => {
+          // IMPORTANT: use ONE consistent height for y-axis tick placement, gridlines, and bar heights
+          // This fixes the "faint lines in the wrong place" issue.
           const CHART_H = 200;   // total vertical space for bar area
-          const SCALE_H = 170;   // actual scaled drawing height for ticks/gridlines/bars
+          const SCALE_H = CHART_H; // was 170; caused mismatch between ticks/gridlines and bar area
           return React.createElement(
             React.Fragment,
             null,
