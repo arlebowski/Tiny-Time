@@ -2821,9 +2821,16 @@ const _isWithinWindow = (startMin, winStart, winEnd) => {
 
 const _getDayWindow = (sleepSettings) => {
   // Prefer current fields; fall back to legacy if present.
-  const dayStart = sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 7 * 60;
-  const dayEnd = sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 19 * 60;
-  return { dayStart: Number(dayStart), dayEnd: Number(dayEnd) };
+  const defaultStart = 7 * 60;
+  const defaultEnd = 19 * 60;
+
+  const dayStartRaw = sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes;
+  const dayEndRaw = sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes;
+
+  const dayStart = Number.isFinite(Number(dayStartRaw)) ? Number(dayStartRaw) : defaultStart;
+  const dayEnd = Number.isFinite(Number(dayEndRaw)) ? Number(dayEndRaw) : defaultEnd;
+
+  return { dayStart, dayEnd };
 };
 
 const _sleepDurationHours = (sess) => {
@@ -2836,7 +2843,7 @@ const _sleepDurationHours = (sess) => {
 };
 
 // Aggregate by local day of START time.
-const aggregateSleepByDay = (sleepSessions, sleepSettings) => {
+const aggregateSleepByDay = (sleepSessions = [], sleepSettings = null) => {
   const { dayStart, dayEnd } = _getDayWindow(sleepSettings);
   const map = {}; // dateKey -> { totalHrs, dayHrs, nightHrs, count }
   (sleepSessions || []).forEach((s) => {
@@ -2914,6 +2921,103 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       try { sleepHistoryScrollRef.current.scrollLeft = sleepHistoryScrollRef.current.scrollWidth; } catch {}
     }
   }, [timeframe, sleepSessions]);
+
+  const sleepByDay = useMemo(
+    () => aggregateSleepByDay(sleepSessions || [], sleepSettings || null),
+    [sleepSessions, sleepSettings]
+  );
+
+  // Build date buckets depending on timeframe.
+  const sleepBuckets = useMemo(() => {
+    const now = new Date();
+    const makeKey = (d) => _dateKeyLocal(d.getTime());
+    const dataByDay = sleepByDay || {};
+
+    if (timeframe === 'day') {
+      const keys = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        keys.push(makeKey(d));
+      }
+      return keys.map(k => ({ key: k, label: k.slice(5), ...(dataByDay[k] || {}) }));
+    }
+
+    if (timeframe === 'week') {
+      // 8 weeks including current week, labeled by week start (Mon)
+      const res = [];
+      const d = new Date(now);
+      const day = d.getDay(); // 0 Sun..6 Sat
+      const diffToMon = (day + 6) % 7;
+      d.setDate(d.getDate() - diffToMon);
+      for (let w = 7; w >= 0; w--) {
+        const ws = new Date(d);
+        ws.setDate(d.getDate() - w * 7);
+        const wk = makeKey(ws);
+        // sum 7 days
+        let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
+        for (let i = 0; i < 7; i++) {
+          const dd = new Date(ws);
+          dd.setDate(ws.getDate() + i);
+          const kk = makeKey(dd);
+          const v = dataByDay[kk];
+          if (!v) continue;
+          totalHrs += v.totalHrs || 0;
+          dayHrs += v.dayHrs || 0;
+          nightHrs += v.nightHrs || 0;
+          count += v.count || 0;
+        }
+        res.push({ key: wk, label: wk.slice(5), ...(dataByDay[wk] || {}) });
+      }
+      return res;
+    }
+
+    // month: last 6 months including current month
+    const res = [];
+    for (let m = 5; m >= 0; m--) {
+      const ms = new Date(now.getFullYear(), now.getMonth() - m, 1);
+      const key = `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`;
+      let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
+      const me = new Date(ms.getFullYear(), ms.getMonth() + 1, 1);
+      for (let dd = new Date(ms); dd < me; dd.setDate(dd.getDate() + 1)) {
+        const kk = makeKey(dd);
+        const v = dataByDay[kk];
+        if (!v) continue;
+        totalHrs += v.totalHrs || 0;
+        dayHrs += v.dayHrs || 0;
+        nightHrs += v.nightHrs || 0;
+        count += v.count || 0;
+      }
+      res.push({ key, label: key, ...(dataByDay[key] || {}) });
+    }
+    return res;
+  }, [timeframe, sleepByDay]);
+
+  const sleepCards = useMemo(() => {
+    // Match your feeding cards behavior: show avg for selected timeframe and a small label like "3-day avg"/"7-day avg"/"30-day avg"
+    const vals = (sleepBuckets || []).map(b => b || {});
+    const totals = vals.map(v => v.totalHrs || 0);
+    const days = vals.map(v => v.dayHrs || 0);
+    const nights = vals.map(v => v.nightHrs || 0);
+    const counts = vals.map(v => v.count || 0);
+
+    const label = timeframe === 'day' ? '3-day avg' : (timeframe === 'week' ? '7-day avg' : '30-day avg');
+    const windowN = timeframe === 'day' ? 3 : (timeframe === 'week' ? 7 : 30);
+    const tail = (arr) => arr.slice(Math.max(0, arr.length - Math.min(windowN, arr.length)));
+    const toSafeAvg = (val) => Number.isFinite(val) ? val : 0;
+
+    const avgTotal = toSafeAvg(_avg(tail(totals)));
+    const avgDay = toSafeAvg(_avg(tail(days)));
+    const avgNight = toSafeAvg(_avg(tail(nights)));
+    const avgSleeps = toSafeAvg(_avg(tail(counts)));
+    return {
+      label,
+      avgTotal,
+      avgDay,
+      avgNight,
+      avgSleeps
+    };
+  }, [timeframe, sleepBuckets]);
 
   const loadAnalytics = async () => {
     if (!kidId) {
@@ -3084,97 +3188,6 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     return hours === 0 ? `${mins}m` : `${hours}h ${mins}m`;
   };
 
-  const sleepByDay = useMemo(() => aggregateSleepByDay(sleepSessions, sleepSettings), [sleepSessions, sleepSettings]);
-
-  // Build date buckets depending on timeframe.
-  const sleepBuckets = useMemo(() => {
-    const now = new Date();
-    const makeKey = (d) => _dateKeyLocal(d.getTime());
-
-    if (timeframe === 'day') {
-      const keys = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(now.getDate() - i);
-        keys.push(makeKey(d));
-      }
-      return keys.map(k => ({ key: k, label: k.slice(5), ...(sleepByDay[k] || {}) }));
-    }
-
-    if (timeframe === 'week') {
-      // 8 weeks including current week, labeled by week start (Mon)
-      const res = [];
-      const d = new Date(now);
-      const day = d.getDay(); // 0 Sun..6 Sat
-      const diffToMon = (day + 6) % 7;
-      d.setDate(d.getDate() - diffToMon);
-      for (let w = 7; w >= 0; w--) {
-        const ws = new Date(d);
-        ws.setDate(d.getDate() - w * 7);
-        const wk = makeKey(ws);
-        // sum 7 days
-        let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
-        for (let i = 0; i < 7; i++) {
-          const dd = new Date(ws);
-          dd.setDate(ws.getDate() + i);
-          const kk = makeKey(dd);
-          const v = sleepByDay[kk];
-          if (!v) continue;
-          totalHrs += v.totalHrs || 0;
-          dayHrs += v.dayHrs || 0;
-          nightHrs += v.nightHrs || 0;
-          count += v.count || 0;
-        }
-        res.push({ key: wk, label: wk.slice(5), ...(sleepByDay[wk] || {}) });
-      }
-      return res;
-    }
-
-    // month: last 6 months including current month
-    const res = [];
-    for (let m = 5; m >= 0; m--) {
-      const ms = new Date(now.getFullYear(), now.getMonth() - m, 1);
-      const key = `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`;
-      let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
-      const me = new Date(ms.getFullYear(), ms.getMonth() + 1, 1);
-      for (let dd = new Date(ms); dd < me; dd.setDate(dd.getDate() + 1)) {
-        const kk = makeKey(dd);
-        const v = sleepByDay[kk];
-        if (!v) continue;
-        totalHrs += v.totalHrs || 0;
-        dayHrs += v.dayHrs || 0;
-        nightHrs += v.nightHrs || 0;
-        count += v.count || 0;
-      }
-      res.push({ key, label: key, ...(sleepByDay[key] || {}) });
-    }
-    return res;
-  }, [timeframe, sleepByDay]);
-
-  const sleepCards = useMemo(() => {
-    // Match your feeding cards behavior: show avg for selected timeframe and a small label like "3-day avg"/"7-day avg"/"30-day avg"
-    const vals = sleepBuckets.map(b => b || {});
-    const totals = vals.map(v => v.totalHrs || 0);
-    const days = vals.map(v => v.dayHrs || 0);
-    const nights = vals.map(v => v.nightHrs || 0);
-    const counts = vals.map(v => v.count || 0);
-
-    const label = timeframe === 'day' ? '3-day avg' : (timeframe === 'week' ? '7-day avg' : '30-day avg');
-    const windowN = timeframe === 'day' ? 3 : (timeframe === 'week' ? 7 : 30);
-    const tail = (arr) => arr.slice(Math.max(0, arr.length - Math.min(windowN, arr.length)));
-
-    const avgTotal = _avg(tail(totals));
-    const avgDay = _avg(tail(days));
-    const avgNight = _avg(tail(nights));
-    const avgSleeps = _avg(tail(counts));
-    return {
-      label,
-      avgTotal,
-      avgDay,
-      avgNight,
-      avgSleeps
-    };
-  }, [timeframe, sleepBuckets]);
 
   if (loading) {
     return React.createElement(
