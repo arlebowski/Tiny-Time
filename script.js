@@ -3254,11 +3254,17 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     return { maxY: niceMax, ticks, step };
   }, [sleepBuckets]);
 
-  // Auto-scroll Sleep History to the right — match Volume History behavior 1:1
+  // Auto-scroll Sleep History to the right — match Volume History pattern 1:1
   useEffect(() => {
-    if (loading || !sleepHistoryScrollRef.current || !sleepBuckets || sleepBuckets.length === 0) {
+    if (
+      loading ||
+      !sleepHistoryScrollRef.current ||
+      !sleepBuckets ||
+      sleepBuckets.length === 0
+    ) {
       return;
     }
+
     const container = sleepHistoryScrollRef.current;
     // Defer to end of event loop so layout & scrollWidth are correct (same as Volume History)
     setTimeout(() => {
@@ -3693,19 +3699,18 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
             )
           )
         ),
-        // Scrollable chart area (bars + gridlines)
+        // Scrollable chart area (bars + gridlines) — fixed plot height + correct coordinate system
         React.createElement(
           "div",
           {
             ref: sleepHistoryScrollRef,
-            // Match Volume History horizontal padding
+            // Match Volume History padding/feel so the x-axis spacing is 1:1
             className: "overflow-x-auto overflow-y-hidden -mx-6 px-6 flex-1",
             style: { scrollBehavior: "smooth" }
           },
           React.createElement(
             "div",
             {
-              className: "relative",
               style: {
                 minWidth:
                   (sleepBuckets || []).length > 4
@@ -3713,66 +3718,90 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                     : "100%"
               }
             },
-            // gridlines
-            React.createElement(
-              "div",
-              { className: "absolute inset-0 pointer-events-none" },
-              (sleepChartMeta?.ticks || [])
-                .filter((t) => Number(t) !== 0)
-                .map((t) =>
-                  React.createElement("div", {
-                    key: `grid-${t}`,
-                    style: {
-                      position: "absolute",
-                      left: 0,
-                      right: 0,
-                      bottom: `${(Number(t) / (sleepChartMeta?.maxY || 1)) * SCALE_H}px`,
-                      height: 1,
-                      background: "rgba(0,0,0,0.06)"
-                    }
-                  })
-                )
-            ),
-            React.createElement(
-              "div",
-              // Match Volume History: bars sit on the baseline, consistent gap + bottom spacing
-              { className: "flex items-end gap-6 pb-3" },
-              (sleepBuckets || []).map((b) => {
-                const total = Number(b?.totalHrs || 0);
-                const count = Number(b?.count || 0);
+            (() => {
+              const CHART_H = 180; // same as Volume History plot area height
+              const DRAW_H = 160;  // same drawable scale used by Volume History bars
+              const maxY = Number(sleepChartMeta?.maxY || 1);
+              const yToPx = (t) => (Number(t) / maxY) * DRAW_H;
 
-                const maxY = Number(sleepChartMeta?.maxY || 1);
-                const h = (total / maxY) * SCALE_H;
-                const minH = total > 0 ? 30 : 6; // tiny baseline for 0h
-
-                return React.createElement(
+              return React.createElement(
+                React.Fragment,
+                null,
+                // Plot area: gridlines + bars share the SAME fixed-height box (fixes misaligned faint lines)
+                React.createElement(
                   "div",
-                  // Match Volume History: fixed width, consistent vertical spacing, no weird margins
-                  { key: b.key, className: "flex flex-col items-center gap-2 flex-shrink-0", style: { width: 66 } },
+                  { className: "relative", style: { height: `${CHART_H}px` } },
+                  // gridlines (only inside plot area)
                   React.createElement(
                     "div",
-                    { className: "flex flex-col justify-end items-center", style: { height: `${CHART_H}px`, width: "100%" } },
-                    React.createElement(
-                      "div",
-                      {
-                        // EXACT Volume History bar pattern (number inside bar)
-                        className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
-                        style: { height: `${h}px`, minHeight: `${minH}px` }
-                      },
-                      React.createElement(
-                        "div",
-                        { className: "text-white font-semibold" },
-                        React.createElement("span", { className: "text-xs" }, total.toFixed(1)),
-                        React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
+                    { className: "absolute inset-0 pointer-events-none" },
+                    (sleepChartMeta?.ticks || [])
+                      .filter((t) => Number(t) !== 0)
+                      .map((t) =>
+                        React.createElement("div", {
+                          key: `grid-${t}`,
+                          style: {
+                            position: "absolute",
+                            left: 0,
+                            right: 0,
+                            bottom: `${yToPx(t)}px`,
+                            height: 1,
+                            background: "rgba(0,0,0,0.06)"
+                          }
+                        })
                       )
-                    )
                   ),
-                  // x-axis labels: match Volume History spacing/typography
-                  React.createElement("div", { className: "text-xs text-gray-600 font-medium" }, b.label),
-                  React.createElement("div", { className: "text-xs text-gray-400" }, `${count} sleeps`)
-                );
-              })
-            )
+                  // bars (on top of gridlines)
+                  React.createElement(
+                    "div",
+                    { className: "relative z-10 flex gap-6 items-end h-full" },
+                    (sleepBuckets || []).map((b) => {
+                      const total = Number(b?.totalHrs || 0);
+                      const count = Number(b?.count || 0);
+                      const h = total > 0 ? Math.max(30, Math.round((total / maxY) * DRAW_H)) : 6;
+
+                      return React.createElement(
+                        "div",
+                        {
+                          key: b.key,
+                          // IMPORTANT: prevent shrinking so overflow exists and scrolling works
+                          className: "flex flex-col items-center gap-2 flex-shrink-0"
+                        },
+                        React.createElement(
+                          "div",
+                          { className: "flex flex-col justify-end items-center", style: { height: `${CHART_H}px`, width: "60px" } },
+                          React.createElement(
+                            "div",
+                            {
+                              className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
+                              style: { height: `${h}px`, minHeight: total > 0 ? "30px" : "6px" }
+                            },
+                            total > 0
+                              ? React.createElement(
+                                  "div",
+                                  { className: "text-white font-semibold" },
+                                  React.createElement("span", { className: "text-xs" }, total.toFixed(1)),
+                                  React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
+                                )
+                              : null
+                          )
+                        ),
+                        React.createElement(
+                          "div",
+                          { className: "text-xs text-gray-600 font-medium" },
+                          b.label
+                        ),
+                        React.createElement(
+                          "div",
+                          { className: "text-xs text-gray-400" },
+                          `${count} sleeps`
+                        )
+                      );
+                    })
+                  )
+                )
+              );
+            })()
           )
         )
           );
