@@ -1802,7 +1802,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         'div',
         { className: "px-4" },
         activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId, familyId }),
-        activeTab === 'analytics' && React.createElement(AnalyticsTab, { kidId }),
+        activeTab === 'analytics' && React.createElement(AnalyticsTab, { user, kidId, familyId }),
         activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId, familyId, themeKey }),
         activeTab === 'family' && React.createElement(FamilyTab, {
           user,
@@ -2792,10 +2792,88 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 // Analytics Tab
 // ========================================
 
-const AnalyticsTab = ({ kidId, familyId }) => {
+// ========================================
+// SLEEP ANALYTICS HELPERS
+// ========================================
+const _dateKeyLocal = (ms) => {
+  const d = new Date(ms);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const _minutesSinceMidnightLocal = (ms) => {
+  const d = new Date(ms);
+  return d.getHours() * 60 + d.getMinutes();
+};
+
+// Returns true if "startMin" is within [winStart, winEnd) where window may wrap over midnight.
+const _isWithinWindow = (startMin, winStart, winEnd) => {
+  const s = Number(winStart);
+  const e = Number(winEnd);
+  if (isNaN(s) || isNaN(e)) return false;
+  if (s === e) return false;
+  if (s < e) return startMin >= s && startMin < e;
+  // wraps midnight
+  return startMin >= s || startMin < e;
+};
+
+const _getDayWindow = (sleepSettings) => {
+  // Prefer current fields; fall back to legacy if present.
+  const dayStart = sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 7 * 60;
+  const dayEnd = sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 19 * 60;
+  return { dayStart: Number(dayStart), dayEnd: Number(dayEnd) };
+};
+
+const _sleepDurationHours = (sess) => {
+  const start = sess?.startTime;
+  const end = sess?.endTime;
+  if (!start || !end) return 0;
+  const ms = Number(end) - Number(start);
+  if (!isFinite(ms) || ms <= 0) return 0;
+  return ms / (1000 * 60 * 60);
+};
+
+// Aggregate by local day of START time.
+const aggregateSleepByDay = (sleepSessions, sleepSettings) => {
+  const { dayStart, dayEnd } = _getDayWindow(sleepSettings);
+  const map = {}; // dateKey -> { totalHrs, dayHrs, nightHrs, count }
+  (sleepSessions || []).forEach((s) => {
+    const start = s?.startTime;
+    const end = s?.endTime;
+    if (!start || !end) return;
+    const key = _dateKeyLocal(start);
+    const startMin = _minutesSinceMidnightLocal(start);
+    const isDay = _isWithinWindow(startMin, dayStart, dayEnd);
+    const hrs = _sleepDurationHours(s);
+    if (!map[key]) map[key] = { totalHrs: 0, dayHrs: 0, nightHrs: 0, count: 0 };
+    map[key].totalHrs += hrs;
+    if (isDay) map[key].dayHrs += hrs;
+    else map[key].nightHrs += hrs;
+    map[key].count += 1;
+  });
+  return map;
+};
+
+const _fmtHours1 = (hrs) => {
+  const n = Number(hrs || 0);
+  return `${n.toFixed(1)} hrs`;
+};
+
+const _avg = (arr) => {
+  if (!arr || !arr.length) return 0;
+  const s = arr.reduce((a, b) => a + (Number(b) || 0), 0);
+  return s / arr.length;
+};
+
+const AnalyticsTab = ({ user, kidId, familyId }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [timeRange, setTimeRange] = useState('day');
+  const [timeframe, setTimeframe] = useState('day');
+  const [sleepSessions, setSleepSessions] = useState([]);
+  const [sleepSettings, setSleepSettings] = useState(null);
+  const sleepHistoryScrollRef = React.useRef(null);
   const [stats, setStats] = useState({
     avgVolumePerFeed: 0,
     avgVolumePerDay: 0,
@@ -2808,7 +2886,7 @@ const AnalyticsTab = ({ kidId, familyId }) => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [timeRange, kidId]);
+  }, [timeframe, kidId]);
 
   // Auto-scroll chart to the right (latest data) once data + layout are ready
   useEffect(() => {
@@ -2828,14 +2906,47 @@ const AnalyticsTab = ({ kidId, familyId }) => {
       if (!container) return;
       container.scrollLeft = container.scrollWidth;
     }, 0);
-  }, [loading, stats.chartData, timeRange]);
+  }, [loading, stats.chartData, timeframe]);
+
+  useEffect(() => {
+    // auto-scroll sleep history to the right (most recent)
+    if (sleepHistoryScrollRef.current) {
+      try { sleepHistoryScrollRef.current.scrollLeft = sleepHistoryScrollRef.current.scrollWidth; } catch {}
+    }
+  }, [timeframe, sleepSessions]);
 
   const loadAnalytics = async () => {
+    if (!kidId) {
+      setAllFeedings([]);
+      setSleepSessions([]);
+      setSleepSettings(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
-    const feedings = await firestoreStorage.getAllFeedings();
-    setAllFeedings(feedings);
-    calculateStats(feedings);
-    setLoading(false);
+    try {
+      const feedings = await firestoreStorage.getAllFeedings();
+      setAllFeedings(feedings);
+      calculateStats(feedings);
+
+      try {
+        const sleeps = await firestoreStorage.getAllSleepSessions(kidId);
+        setSleepSessions((sleeps || []).filter(s => !!s.endTime));
+      } catch (e) {
+        console.error('Failed to load sleep sessions for analytics', e);
+        setSleepSessions([]);
+      }
+
+      try {
+        const ss = await firestoreStorage.getSleepSettings();
+        setSleepSettings(ss || null);
+      } catch (e) {
+        console.error('Failed to load sleep settings for analytics', e);
+        setSleepSettings(null);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const calculateStats = (feedings) => {
@@ -2863,10 +2974,10 @@ const AnalyticsTab = ({ kidId, familyId }) => {
     ).size;
 
     let numDays, labelText;
-    if (timeRange === 'day') {
+    if (timeframe === 'day') {
       numDays = 3;
       labelText = '3-day avg';
-    } else if (timeRange === 'week') {
+    } else if (timeframe === 'week') {
       numDays = 7;
       labelText = '7-day avg';
     } else {
@@ -2922,7 +3033,7 @@ const AnalyticsTab = ({ kidId, familyId }) => {
         ? totalIntervalMinutes / (recentFeedings.length - 1)
         : 0;
 
-    const chartData = generateChartData(feedings, timeRange);
+    const chartData = generateChartData(feedings, timeframe);
 
     setStats({
       avgVolumePerFeed,
@@ -3004,9 +3115,103 @@ const AnalyticsTab = ({ kidId, familyId }) => {
     ...stats.chartData.map(d => d.volume)
   );
 
+  const sleepByDay = useMemo(() => aggregateSleepByDay(sleepSessions, sleepSettings), [sleepSessions, sleepSettings]);
+
+  // Build date buckets depending on timeframe.
+  const sleepBuckets = useMemo(() => {
+    const now = new Date();
+    const makeKey = (d) => _dateKeyLocal(d.getTime());
+
+    if (timeframe === 'day') {
+      const keys = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now);
+        d.setDate(now.getDate() - i);
+        keys.push(makeKey(d));
+      }
+      return keys.map(k => ({ key: k, label: k.slice(5), ...sleepByDay[k] }));
+    }
+
+    if (timeframe === 'week') {
+      // 8 weeks including current week, labeled by week start (Mon)
+      const res = [];
+      const d = new Date(now);
+      const day = d.getDay(); // 0 Sun..6 Sat
+      const diffToMon = (day + 6) % 7;
+      d.setDate(d.getDate() - diffToMon);
+      for (let w = 7; w >= 0; w--) {
+        const ws = new Date(d);
+        ws.setDate(d.getDate() - w * 7);
+        const wk = makeKey(ws);
+        // sum 7 days
+        let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
+        for (let i = 0; i < 7; i++) {
+          const dd = new Date(ws);
+          dd.setDate(ws.getDate() + i);
+          const kk = makeKey(dd);
+          const v = sleepByDay[kk];
+          if (!v) continue;
+          totalHrs += v.totalHrs || 0;
+          dayHrs += v.dayHrs || 0;
+          nightHrs += v.nightHrs || 0;
+          count += v.count || 0;
+        }
+        res.push({ key: wk, label: wk.slice(5), totalHrs, dayHrs, nightHrs, count });
+      }
+      return res;
+    }
+
+    // month: last 6 months including current month
+    const res = [];
+    for (let m = 5; m >= 0; m--) {
+      const ms = new Date(now.getFullYear(), now.getMonth() - m, 1);
+      const key = `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`;
+      let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
+      const me = new Date(ms.getFullYear(), ms.getMonth() + 1, 1);
+      for (let dd = new Date(ms); dd < me; dd.setDate(dd.getDate() + 1)) {
+        const kk = makeKey(dd);
+        const v = sleepByDay[kk];
+        if (!v) continue;
+        totalHrs += v.totalHrs || 0;
+        dayHrs += v.dayHrs || 0;
+        nightHrs += v.nightHrs || 0;
+        count += v.count || 0;
+      }
+      res.push({ key, label: key, totalHrs, dayHrs, nightHrs, count });
+    }
+    return res;
+  }, [timeframe, sleepByDay]);
+
+  const sleepCards = useMemo(() => {
+    // Match your feeding cards behavior: show avg for selected timeframe and a small label like "3-day avg"/"7-day avg"/"30-day avg"
+    const vals = sleepBuckets.map(b => b || {});
+    const totals = vals.map(v => v.totalHrs || 0);
+    const days = vals.map(v => v.dayHrs || 0);
+    const nights = vals.map(v => v.nightHrs || 0);
+    const counts = vals.map(v => v.count || 0);
+
+    const label = timeframe === 'day' ? '3-day avg' : (timeframe === 'week' ? '7-day avg' : '30-day avg');
+    const windowN = timeframe === 'day' ? 3 : (timeframe === 'week' ? 7 : 30);
+    const tail = (arr) => arr.slice(Math.max(0, arr.length - Math.min(windowN, arr.length)));
+
+    const avgTotal = _avg(tail(totals));
+    const avgDay = _avg(tail(days));
+    const avgNight = _avg(tail(nights));
+    const avgSleeps = _avg(tail(counts));
+    return {
+      label,
+      avgTotal,
+      avgDay,
+      avgNight,
+      avgSleeps
+    };
+  }, [timeframe, sleepBuckets]);
+
   return React.createElement(
     'div',
     { className: 'space-y-4' },
+    // ---- Feeding stats header (above existing feeding cards)
+    React.createElement('div', { className: "section-title", style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" } }, "Feeding stats"),
     React.createElement(
       'div',
       { className: 'flex justify-center' },
@@ -3022,7 +3227,7 @@ const AnalyticsTab = ({ kidId, familyId }) => {
             {
               key: range,
               onClick: () => {
-                setTimeRange(range);
+                setTimeframe(range);
                 if (window.trackTabSelected) {
                   window.trackTabSelected(
                     `analytics_${range}`
@@ -3030,7 +3235,7 @@ const AnalyticsTab = ({ kidId, familyId }) => {
                 }
               },
               className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${
-                timeRange === range
+                timeframe === range
                   ? 'bg-white text-indigo-600 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`
@@ -3273,6 +3478,63 @@ const AnalyticsTab = ({ kidId, familyId }) => {
             },
             'No data to display'
           )
+    ),
+
+    // ---- Sleep stats header
+    React.createElement("div", { className: "section-title", style: { fontWeight: 700, fontSize: 18, margin: "18px 0 10px" } }, "Sleep stats"),
+
+    // 4 small cards (match existing small-card grid styles)
+    React.createElement("div", { className: "stat-grid" },
+      React.createElement("div", { className: "stat-card" },
+        React.createElement("div", { className: "stat-title" }, "Total Sleep"),
+        React.createElement("div", { className: "stat-value" }, _fmtHours1(sleepCards.avgTotal)),
+        React.createElement("div", { className: "stat-sub" }, sleepCards.label)
+      ),
+      React.createElement("div", { className: "stat-card" },
+        React.createElement("div", { className: "stat-title" }, "Day Sleep"),
+        React.createElement("div", { className: "stat-value" }, _fmtHours1(sleepCards.avgDay)),
+        React.createElement("div", { className: "stat-sub" }, sleepCards.label)
+      ),
+      React.createElement("div", { className: "stat-card" },
+        React.createElement("div", { className: "stat-title" }, "Night Sleep"),
+        React.createElement("div", { className: "stat-value" }, _fmtHours1(sleepCards.avgNight)),
+        React.createElement("div", { className: "stat-sub" }, sleepCards.label)
+      ),
+      React.createElement("div", { className: "stat-card" },
+        React.createElement("div", { className: "stat-title" }, "Sleeps / Day"),
+        React.createElement("div", { className: "stat-value" }, Number(sleepCards.avgSleeps || 0).toFixed(1)),
+        React.createElement("div", { className: "stat-sub" }, sleepCards.label)
+      )
+    ),
+
+    // Sleep history (stacked bars)
+    React.createElement("div", { className: "chart-card" },
+      React.createElement("div", { className: "chart-title" }, "Sleep history"),
+      React.createElement("div", { className: "legend-row", style: { display: "flex", gap: 12, fontSize: 12, opacity: 0.8, marginBottom: 8 } },
+        React.createElement("div", null, "■ Day sleep"),
+        React.createElement("div", null, "■ Night sleep")
+      ),
+      React.createElement("div", { className: "hscroll", ref: sleepHistoryScrollRef, style: { overflowX: "auto", paddingBottom: 6 } },
+        React.createElement("div", { className: "bars", style: { display: "flex", alignItems: "flex-end", gap: 14, minHeight: 180, padding: "6px 6px 0" } },
+          sleepBuckets.map((b) => {
+            const total = Number(b?.totalHrs || 0);
+            const dayH = Number(b?.dayHrs || 0);
+            const nightH = Number(b?.nightHrs || 0);
+            const max = Math.max(1, ...sleepBuckets.map(x => Number(x?.totalHrs || 0)));
+            const hTotal = Math.round((total / max) * 140);
+            const hDay = total > 0 ? Math.round((dayH / total) * hTotal) : 0;
+            const hNight = Math.max(0, hTotal - hDay);
+            return React.createElement("div", { key: b.key, style: { width: 66, textAlign: "center" } },
+              React.createElement("div", { style: { height: 140, display: "flex", flexDirection: "column", justifyContent: "flex-end" } },
+                React.createElement("div", { style: { height: hNight, borderTopLeftRadius: 10, borderTopRightRadius: 10, background: "rgba(79,70,229,0.25)" } }),
+                React.createElement("div", { style: { height: hDay, borderBottomLeftRadius: 10, borderBottomRightRadius: 10, background: "rgba(79,70,229,0.75)" } })
+              ),
+              React.createElement("div", { style: { marginTop: 8, fontWeight: 600 } }, `${total.toFixed(1)}h`),
+              React.createElement("div", { style: { fontSize: 12, opacity: 0.7 } }, b.label)
+            );
+          })
+        )
+      )
     )
   );
 };
