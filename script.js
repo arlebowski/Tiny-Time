@@ -2698,9 +2698,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                               })
                             )
                           ),
-                          React.createElement(TrackerEditActions, { onSave: handleSaveSleepEdit, onCancel: handleCancelSleepEdit })
-                    )
-                    : React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
+                            React.createElement(TrackerEditActions, { onSave: handleSaveSleepEdit, onCancel: handleCancelSleepEdit })
+                          )
+                        )
+                      : React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
                       React.createElement('div', { className: "flex items-center gap-3" },
                         React.createElement(
                           'div',
