@@ -2973,8 +2973,9 @@ const DailyActivityChart = ({
   const fmtDay = (day0) =>
     new Date(day0).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-  const now = Date.now();
-  const today0 = startOfDayLocal(now);
+  const today = new Date();
+  const nowMs = Date.now();
+  const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const dayStarts = [];
   for (let i = days - 1; i >= 0; i--) dayStarts.push(today0 - i * 86400000);
 
@@ -3368,7 +3369,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
   }, [loading, stats.chartData, timeframe]);
 
   // View mode state for Daily Activity chart
-  const [actogramView, setActogramView] = React.useState('day');
+  const [actogramView, setActogramView] = React.useState('week'); // Default to week view
 
   const loadAnalytics = async () => {
     if (!kidId) {
@@ -3790,7 +3791,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       // Calendar-style activity chart
       React.createElement(DailyActivityChart, {
         startHour: 6,
-        spanHour: 24,
+        spanHours: 24,  // Fixed typo: was "spanHour", should be "spanHours"
         viewMode: actogramView,
         feedings: allFeedings,
         sleepSessions: sleepSessions,
