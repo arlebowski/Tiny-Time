@@ -2913,8 +2913,6 @@ const _avg = (arr) => {
 // Uses app's indigo color scheme: bg=#E0E7FF, accent=#4F46E5, soft=#EEF2FF
 // =====================================================
 const DailyActivityChart = ({
-  startHour = 6,
-  spanHours = 24,
   viewMode = 'day', // 'day' or 'week'
   feedings = [],
   sleepSessions = [],
@@ -2926,8 +2924,6 @@ const DailyActivityChart = ({
   console.log('View Mode:', viewMode);
   console.log('Raw feedings count:', feedings?.length || 0);
   console.log('Raw sleepSessions count:', sleepSessions?.length || 0);
-  console.log('Start Hour:', startHour);
-  console.log('Span Hours:', spanHours);
   // === END DIAGNOSTIC ===
 
   const days = viewMode === 'day' ? 1 : 7;
@@ -2974,25 +2970,25 @@ const DailyActivityChart = ({
     new Date(day0).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
   const today = new Date();
-  const nowMs = Date.now();
   const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const dayStarts = [];
-  for (let i = days - 1; i >= 0; i--) dayStarts.push(today0 - i * 86400000);
+  const nowMs = Date.now();
 
   // === DIAGNOSTIC: Check today calculation ===
   console.log('Today date:', new Date(today0).toISOString());
-  console.log('Now:', new Date(now).toISOString());
+  console.log('Now:', new Date(nowMs).toISOString());
   console.log('Days to show:', days);
   // === END DIAGNOSTIC ===
+
+  const dayStarts = [];
+  for (let i = days - 1; i >= 0; i--) dayStarts.push(today0 - i * 86400000);
 
   // === DIAGNOSTIC: Check day starts ===
   console.log('Day starts:', dayStarts.map(d => new Date(d).toISOString()));
   // === END DIAGNOSTIC ===
 
-  // Window calculation that properly handles midnight crossings
-  // A "day" in the actogram runs from 6am on day0 to 6am on day0+1
-  const windowStartMs = (day0) => day0 + startHour * 3600000;
-  const windowEndMs = (day0) => day0 + (startHour + spanHours) * 3600000;
+  // Window: midnight to midnight (24 hours)
+  const windowStartMs = (day0) => day0;
+  const windowEndMs = (day0) => day0 + 86400000; // +24 hours
 
   // === DIAGNOSTIC: Check window calculation for today ===
   const todayWindowStart = windowStartMs(today0);
@@ -3010,7 +3006,7 @@ const DailyActivityChart = ({
 
   const getCurrentTimePct = () => {
     if (!nowInTodayWindow) return null;
-    return ((nowMs - windowStartMs(today0)) / (spanHours * 3600000)) * 100;
+    return ((nowMs - windowStartMs(today0)) / 86400000) * 100;
   };
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -3065,16 +3061,10 @@ const DailyActivityChart = ({
     return within ? 'day' : 'night';
   };
 
-  // labels every 2 hours
   const hourLabels = [];
-  for (let i = 0; i <= 12; i++) {
-    const hh = (startHour + i * 2) % 24;
-    const label =
-      hh === 0 ? '12am' :
-      hh < 12 ? `${hh}am` :
-      hh === 12 ? '12pm' :
-      `${hh - 12}pm`;
-    hourLabels.push({ i, label });
+  for (let i = 0; i < 25; i++) {
+    const label = i === 0 ? '12am' : i < 12 ? `${i}am` : i === 12 ? '12pm' : `${i - 12}pm`;
+    hourLabels.push({ i: i, label });
   }
 
   // Taller for day view, shorter for week view
@@ -3790,8 +3780,6 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
 
       // Calendar-style activity chart
       React.createElement(DailyActivityChart, {
-        startHour: 6,
-        spanHours: 24,  // Fixed typo: was "spanHour", should be "spanHours"
         viewMode: actogramView,
         feedings: allFeedings,
         sleepSessions: sleepSessions,
