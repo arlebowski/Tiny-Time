@@ -2997,7 +2997,11 @@ const DailyActivityChart = ({
   console.log('Today window end:', new Date(todayWindowEnd).toISOString());
   // === END DIAGNOSTIC ===
 
-  const feeds = feedings.map((f) => ({ s: new Date(f.startTime).getTime() }));
+  // Feedings are stored as { ounces, timestamp } (not startTime).
+  // Use toMs() so we support numeric ms, Firestore Timestamp, Date, or string.
+  const feeds = (Array.isArray(feedings) ? feedings : [])
+    .map((f) => ({ s: toMs(f.timestamp ?? f.startTime ?? f.time ?? f.startAt ?? f.start) }))
+    .filter((ev) => !!ev.s);
   console.log('Parsed feeds:', feeds.length, feeds.slice(0, 3)); // Show first 3
 
   // Current time indicator (for Day view only)
