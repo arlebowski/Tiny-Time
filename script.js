@@ -1987,7 +1987,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       return;
     }
 
-    const start = activeSleep.startTime;
+    const start = _normalizeSleepStartMs(activeSleep.startTime);
+    if (!start) { setSleepElapsedMs(0); return; }
     const tick = () => setSleepElapsedMs(Date.now() - start);
     tick();
     sleepIntervalRef.current = setInterval(tick, 1000);
@@ -2068,6 +2069,35 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     d.setSeconds(0);
     d.setMilliseconds(0);
     return d.getTime();
+  };
+
+  // Sleep-specific time parsing helpers:
+  // - If it's after midnight and the user picks a late-night time (e.g. 23:00 at 01:00), assume they mean the previous day.
+  // - For end times, if the chosen time-of-day is earlier than the start time-of-day, assume the sleep crossed midnight and add a day.
+  const _hhmmToMsNearNowSmart = (hhmm, nowMs = Date.now(), futureCutoffHours = 3) => {
+    const ms = _hhmmToMsForDate(hhmm, nowMs);
+    if (!ms) return null;
+    const cutoff = futureCutoffHours * 3600000;
+    return (ms > (nowMs + cutoff)) ? (ms - 86400000) : ms;
+  };
+  const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
+    if (!startMs) return null;
+    // If start is wildly in the future (due to day ambiguity), pull it back 1 day.
+    return (startMs > nowMs + 3 * 3600000) ? (startMs - 86400000) : startMs;
+  };
+  const _hhmmToSleepEndMs = (hhmm, startMs, nowMs = Date.now()) => {
+    const base = (typeof startMs === 'number' && Number.isFinite(startMs)) ? startMs : nowMs;
+    let endMs = _hhmmToMsForDate(hhmm, base);
+    if (!endMs) return null;
+    // If end looks earlier than start, assume it rolled past midnight.
+    if (typeof startMs === 'number' && Number.isFinite(startMs) && endMs < startMs) {
+      endMs += 86400000;
+    }
+    // Also guard against accidentally selecting an end time that's a full day ahead.
+    if (endMs > nowMs + 6 * 3600000) {
+      endMs -= 86400000;
+    }
+    return endMs;
   };
   const _formatMMSS = (ms) => {
     const total = Math.max(0, Math.floor((ms || 0) / 1000));
@@ -2333,9 +2363,16 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     if (!editingSleepId) return;
     const session = sleepSessions.find((sess) => sess.id === editingSleepId);
     const baseDate = session?.startTime || currentDate;
-    const startMs = _hhmmToMsForDate(sleepEditStartStr, baseDate);
-    const endMs = _hhmmToMsForDate(sleepEditEndStr, baseDate);
+    let startMs = _hhmmToMsForDate(sleepEditStartStr, baseDate);
+    let endMs = _hhmmToMsForDate(sleepEditEndStr, baseDate);
     if (!startMs || !endMs) return;
+    // If the user edits a sleep that crosses midnight (11pm → 1am), interpret end as next day.
+    if (typeof session?.endTime === 'number' && Number.isFinite(session.endTime) && startMs > session.endTime) {
+      startMs -= 86400000;
+    }
+    if (endMs < startMs) {
+      endMs += 86400000;
+    }
     try {
       await firestoreStorage.updateSleepSession(editingSleepId, { startTime: startMs, endTime: endMs });
       setEditingSleepId(null);
@@ -2390,7 +2427,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const percentComplete = (totalConsumed / targetOunces) * 100;
   const sleepTargetHours = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
   const sleepTargetMs = sleepTargetHours * 3600000;
-  const activeExtraMs = activeSleep && activeSleep.startTime ? Math.max(0, Date.now() - activeSleep.startTime) : 0;
+  const activeExtraMs = activeSleep && activeSleep.startTime ? Math.max(0, Date.now() - _normalizeSleepStartMs(activeSleep.startTime)) : 0;
   const sleepTotalMsLive = sleepTodayMs + activeExtraMs;
   const sleepPercent = sleepTargetMs > 0 ? (sleepTotalMsLive / sleepTargetMs) * 100 : 0;
   const sleepTotalHours = sleepTotalMsLive / 3600000;
@@ -2573,7 +2610,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                       defaultValue: _toHHMM(activeSleep.startTime),
                       onBlur: async (e) => {
                         setEditingSleepField(null);
-                        const ms = _hhmmToMsToday(e.target.value);
+                        const ms = _hhmmToMsNearNowSmart(e.target.value);
                         if (!ms) return;
                         try {
                           await firestoreStorage.updateSleepSession(activeSleep.id, { startTime: ms });
@@ -2603,11 +2640,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                       type: 'time',
                       autoFocus: true,
                       defaultValue: sleepEndStr
-                        ? _toHHMM(_hhmmToMsToday(sleepEndStr))
+                        ? _toHHMM(_hhmmToMsNearNowSmart(sleepEndStr))
                         : _toHHMM(Date.now()),
                       onBlur: async (e) => {
                         setEditingSleepField(null);
-                        const ms = _hhmmToMsToday(e.target.value);
+                        const ms = _hhmmToSleepEndMs(e.target.value, activeSleep.startTime);
                         if (!ms) return;
                         try {
                           await firestoreStorage.updateSleepSession(activeSleep.id, { endTime: ms });
