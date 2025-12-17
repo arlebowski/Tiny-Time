@@ -2214,11 +2214,39 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       yStart.setHours(0, 0, 0, 0);
       const yEnd = new Date(yDate);
       yEnd.setHours(23, 59, 59, 999);
-      const todaySessions = ended.filter(s => s.startTime >= startOfDay.getTime() && s.startTime <= endOfDay.getTime());
-      const ySessions = ended.filter(s => s.startTime >= yStart.getTime() && s.startTime <= yEnd.getTime());
-      const todayMs = todaySessions.reduce((sum, ss) => sum + Math.max(0, (ss.endTime || 0) - (ss.startTime || 0)), 0);
-      const yMs = ySessions.reduce((sum, ss) => sum + Math.max(0, (ss.endTime || 0) - (ss.startTime || 0)), 0);
-      setSleepSessions(todaySessions.sort((a, b) => (b.startTime || 0) - (a.startTime || 0)));
+      const dayStartMs = startOfDay.getTime();
+      const dayEndMs = endOfDay.getTime() + 1; // make end inclusive
+      const yDayStartMs = yStart.getTime();
+      const yDayEndMs = yEnd.getTime() + 1;
+
+      const _normalizeSleepInterval = (startMs, endMs, nowMs = Date.now()) => {
+        let sMs = Number(startMs);
+        let eMs = Number(endMs);
+        if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+        // If start time accidentally landed in the future (common around midnight), pull it back one day.
+        if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+        // If end < start, assume the sleep crossed midnight and the start belongs to the previous day.
+        if (eMs < sMs) sMs -= 86400000;
+        if (eMs < sMs) return null; // still invalid
+        return { startMs: sMs, endMs: eMs };
+      };
+
+      const _overlapMs = (rangeStartMs, rangeEndMs, winStartMs, winEndMs) => {
+        const a = Math.max(rangeStartMs, winStartMs);
+        const b = Math.min(rangeEndMs, winEndMs);
+        return Math.max(0, b - a);
+      };
+
+      const normEnded = ended.map((s) => {
+        const norm = _normalizeSleepInterval(s.startTime, s.endTime);
+        return norm ? { ...s, _normStartTime: norm.startMs, _normEndTime: norm.endMs } : null;
+      }).filter(Boolean);
+
+      const todaySessions = normEnded.filter(s => _overlapMs(s._normStartTime, s._normEndTime, dayStartMs, dayEndMs) > 0);
+      const ySessions = normEnded.filter(s => _overlapMs(s._normStartTime, s._normEndTime, yDayStartMs, yDayEndMs) > 0);
+      const todayMs = todaySessions.reduce((sum, ss) => sum + _overlapMs(ss._normStartTime, ss._normEndTime, dayStartMs, dayEndMs), 0);
+      const yMs = ySessions.reduce((sum, ss) => sum + _overlapMs(ss._normStartTime, ss._normEndTime, yDayStartMs, yDayEndMs), 0);
+      setSleepSessions(todaySessions.sort((a, b) => (b._normStartTime || 0) - (a._normStartTime || 0)));
       setSleepTodayMs(todayMs);
       setSleepTodayCount(todaySessions.length);
       setSleepYesterdayMs(yMs);
@@ -2721,14 +2749,27 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             'div',
             { className: "space-y-3" },
             sleepSessions.map((s) => {
-              const durMs = s.endTime - s.startTime;
+              const _normalizeSleepIntervalForUI = (startMs, endMs, nowMs = Date.now()) => {
+                let sMs = Number(startMs);
+                let eMs = Number(endMs);
+                if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+                if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+                if (eMs < sMs) sMs -= 86400000;
+                if (eMs < sMs) return null;
+                return { startMs: sMs, endMs: eMs };
+              };
+
+              const norm = _normalizeSleepIntervalForUI(s.startTime, s.endTime);
+              const ns = norm ? norm.startMs : s.startTime;
+              const ne = norm ? norm.endMs : s.endTime;
+              const durMs = Math.max(0, (ne || 0) - (ns || 0));
               const mins = Math.round(durMs / 60000);
               const hrs = Math.floor(mins / 60);
               const rem = mins % 60;
               const durLabel =
                 hrs > 0 ? `${hrs}h ${rem}m` : `${mins}m`;
-              const startLabel = new Date(s.startTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-              const endLabel = new Date(s.endTime).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              const startLabel = new Date(ns).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+              const endLabel = new Date(ne).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
               const sleepEmoji = _sleepTypeForSession(s) === 'day' ? '😴' : '🌙';
 
                 return React.createElement(
@@ -2902,31 +2943,56 @@ const _getDayWindow = (sleepSettings) => {
 };
 
 const _sleepDurationHours = (sess) => {
-  const start = sess?.startTime;
-  const end = sess?.endTime;
-  if (!start || !end) return 0;
-  const ms = Number(end) - Number(start);
+  const start = Number(sess?.startTime);
+  const end = Number(sess?.endTime);
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return 0;
+  let s = start;
+  let e = end;
+  const nowMs = Date.now();
+  // If start time accidentally landed in the future (common around midnight), pull it back one day.
+  if (s > nowMs + 3 * 3600000) s -= 86400000;
+  // If end < start, assume the sleep crossed midnight and the start belongs to the previous day.
+  if (e < s) s -= 86400000;
+  const ms = e - s;
   if (!isFinite(ms) || ms <= 0) return 0;
   return ms / (1000 * 60 * 60);
 };
 
-// Aggregate by local day of START time.
+// Aggregate by local day, splitting sessions that cross midnight.
 const aggregateSleepByDay = (sleepSessions, sleepSettings) => {
   const { dayStart, dayEnd } = _getDayWindow(sleepSettings);
   const map = {}; // dateKey -> { totalHrs, dayHrs, nightHrs, count }
   (sleepSessions || []).forEach((s) => {
-    const start = s?.startTime;
-    const end = s?.endTime;
-    if (!start || !end) return;
-    const key = _dateKeyLocal(start);
+    const startRaw = Number(s?.startTime);
+    const endRaw = Number(s?.endTime);
+    if (!Number.isFinite(startRaw) || !Number.isFinite(endRaw)) return;
+    let start = startRaw;
+    let end = endRaw;
+    const nowMs = Date.now();
+    if (start > nowMs + 3 * 3600000) start -= 86400000;
+    if (end < start) start -= 86400000;
+    if (end <= start) return;
+
     const startMin = _minutesSinceMidnightLocal(start);
     const isDay = _isWithinWindow(startMin, dayStart, dayEnd);
-    const hrs = _sleepDurationHours(s);
-    if (!map[key]) map[key] = { totalHrs: 0, dayHrs: 0, nightHrs: 0, count: 0 };
-    map[key].totalHrs += hrs;
-    if (isDay) map[key].dayHrs += hrs;
-    else map[key].nightHrs += hrs;
-    map[key].count += 1;
+
+    // Walk across midnights and allocate hours to each local day.
+    let cursor = start;
+    while (cursor < end) {
+      const dayStartDate = new Date(cursor);
+      dayStartDate.setHours(0, 0, 0, 0);
+      const nextMidnight = dayStartDate.getTime() + 86400000;
+      const segEnd = Math.min(end, nextMidnight);
+      const key = _dateKeyLocal(cursor);
+      const hrs = (segEnd - cursor) / (1000 * 60 * 60);
+      if (!map[key]) map[key] = { totalHrs: 0, dayHrs: 0, nightHrs: 0, count: 0 };
+      map[key].totalHrs += hrs;
+      if (isDay) map[key].dayHrs += hrs;
+      else map[key].nightHrs += hrs;
+      // Count session once, on the day it started (not on every split day).
+      if (cursor === start) map[key].count += 1;
+      cursor = segEnd;
+    }
   });
   return map;
 };
