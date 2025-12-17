@@ -3008,11 +3008,11 @@ const DailyActivityChart = ({
 
   const today = new Date();
   const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const nowMs = Date.now();
+  const nowMsLocal = Date.now();
 
   // === DIAGNOSTIC: Check today calculation ===
   console.log('Today date:', new Date(today0).toISOString());
-  console.log('Now:', new Date(nowMs).toISOString());
+  console.log('Now:', new Date(nowMsLocal).toISOString());
   console.log('Days to show:', days);
   // === END DIAGNOSTIC ===
 
@@ -3034,15 +3034,16 @@ const DailyActivityChart = ({
   console.log('Today window end:', new Date(todayWindowEnd).toISOString());
   // === END DIAGNOSTIC ===
 
-  // Feedings are stored as { ounces, timestamp } (not startTime).
-  // Use toMs() so we support numeric ms, Firestore Timestamp, Date, or string.
+  // Feedings are stored as point-in-time events (typically { ounces, timestamp }).
+  // Use toMs() so we correctly handle Firestore Timestamps, numbers (ms), Dates, and ISO strings.
   const feeds = (Array.isArray(feedings) ? feedings : [])
-    .map((f) => ({ s: toMs(f.timestamp ?? f.startTime ?? f.time ?? f.startAt ?? f.start) }))
+    .map((f) => ({
+      s: toMs(f.timestamp ?? f.startTime ?? f.time ?? f.startAt ?? f.start)
+    }))
     .filter((ev) => !!ev.s);
   console.log('Parsed feeds:', feeds.length, feeds.slice(0, 3)); // Show first 3
 
   // Current time indicator (for Day view only)
-  const nowMsLocal = Date.now();
   const nowInTodayWindow = nowMsLocal >= windowStartMs(today0) && nowMsLocal < windowEndMs(today0);
 
   const getCurrentTimePct = () => {
@@ -3326,7 +3327,7 @@ const DailyActivityChart = ({
                         }, viewMode === 'day' ? '🌙 Active' : '🌙')
                   }),
 
-                  // Feed ticks (SMALL dots on the side)
+                  // Feed ticks (HORIZONTAL LINES at feed time)
                   dayFeeds.map((ev, idx) => {
                     const top = yPct(ev.s, day0);
 
@@ -3336,15 +3337,17 @@ const DailyActivityChart = ({
 
                     return React.createElement('div', {
                       key: `${day0}-feed-${idx}`,
-                      className: 'absolute rounded-full z-10',
+                      className: 'absolute z-10',
                       style: {
                         top: `${top}%`,
-                        left: viewMode === 'day' ? '4px' : '2px',
-                        width: viewMode === 'day' ? '8px' : '6px',
-                        height: viewMode === 'day' ? '8px' : '6px',
+                        left: viewMode === 'day' ? '8px' : '4px',
+                        right: viewMode === 'day' ? '8px' : '4px',
+                        height: viewMode === 'day' ? '2px' : '2px',
                         background: tickColor,
                         transform: 'translateY(-50%)',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                        borderRadius: '9999px',
+                        boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
+                        opacity: 0.95
                       }
                     });
                   })
