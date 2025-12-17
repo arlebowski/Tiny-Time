@@ -2921,6 +2921,15 @@ const DailyActivityChart = ({
   sleepSettings = null
 }) => {
 
+  // === DIAGNOSTIC LOGGING ===
+  console.log('=== ACTOGRAM DEBUG ===');
+  console.log('View Mode:', viewMode);
+  console.log('Raw feedings count:', feedings?.length || 0);
+  console.log('Raw sleepSessions count:', sleepSessions?.length || 0);
+  console.log('Start Hour:', startHour);
+  console.log('Span Hours:', spanHours);
+  // === END DIAGNOSTIC ===
+
   const days = viewMode === 'day' ? 1 : 7;
   const scrollRef = React.useRef(null);
 
@@ -2969,12 +2978,30 @@ const DailyActivityChart = ({
   const dayStarts = [];
   for (let i = days - 1; i >= 0; i--) dayStarts.push(today0 - i * 86400000);
 
+  // === DIAGNOSTIC: Check today calculation ===
+  console.log('Today date:', new Date(today0).toISOString());
+  console.log('Now:', new Date(now).toISOString());
+  console.log('Days to show:', days);
+  // === END DIAGNOSTIC ===
+
+  // === DIAGNOSTIC: Check day starts ===
+  console.log('Day starts:', dayStarts.map(d => new Date(d).toISOString()));
+  // === END DIAGNOSTIC ===
+
   // Window calculation that properly handles midnight crossings
   // A "day" in the actogram runs from 6am on day0 to 6am on day0+1
   const windowStartMs = (day0) => day0 + startHour * 3600000;
   const windowEndMs = (day0) => day0 + (startHour + spanHours) * 3600000;
 
+  // === DIAGNOSTIC: Check window calculation for today ===
+  const todayWindowStart = windowStartMs(today0);
+  const todayWindowEnd = windowEndMs(today0);
+  console.log('Today window start:', new Date(todayWindowStart).toISOString());
+  console.log('Today window end:', new Date(todayWindowEnd).toISOString());
+  // === END DIAGNOSTIC ===
+
   const feeds = feedings.map((f) => ({ s: new Date(f.startTime).getTime() }));
+  console.log('Parsed feeds:', feeds.length, feeds.slice(0, 3)); // Show first 3
 
   // Current time indicator (for Day view only)
   const nowMs = Date.now();
@@ -3000,6 +3027,17 @@ const DailyActivityChart = ({
       return { ...s, s: start, e: end };
     })
     .filter((s) => !!s.s && (!!s.e || s.isActive)); // Include active sessions
+
+  // === DIAGNOSTIC: Check parsed sleep sessions ===
+  console.log('Parsed sleep sessions:', sleeps.length);
+  if (sleeps.length > 0) {
+    console.log('First sleep:', {
+      start: new Date(sleeps[0].s).toISOString(),
+      end: sleeps[0].e ? new Date(sleeps[0].e).toISOString() : 'active',
+      type: sleeps[0].type
+    });
+  }
+  // === END DIAGNOSTIC ===
 
   // Classify sleep as day/night based on start time
   const _sleepTypeForSession = (session) => {
@@ -3115,6 +3153,11 @@ const DailyActivityChart = ({
               const we = windowEndMs(day0);
               const isToday = day0 === today0;
 
+              // === DIAGNOSTIC: Per-day filtering ===
+              console.log(`\n=== Day ${new Date(day0).toLocaleDateString()} ===`);
+              console.log('Window:', new Date(ws).toISOString(), 'to', new Date(we).toISOString());
+              // === END DIAGNOSTIC ===
+
               // Include any sleep that overlaps with this 24-hour window
               const daySleeps = sleeps.filter((ev) => {
                 if (ev.isActive) {
@@ -3126,7 +3169,18 @@ const DailyActivityChart = ({
                 return ev.e && (ev.s < we) && (ev.e > ws);
               });
 
+              // === DIAGNOSTIC: Filtered results ===
+              console.log('Filtered sleeps for this day:', daySleeps.length);
+              if (daySleeps.length > 0) {
+                console.log('First sleep in day:', {
+                  start: new Date(daySleeps[0].s).toISOString(),
+                  end: daySleeps[0].e ? new Date(daySleeps[0].e).toISOString() : 'active'
+                });
+              }
+              // === END DIAGNOSTIC ===
+
               const dayFeeds = feeds.filter((ev) => ev.s >= ws && ev.s < we);
+              console.log('Filtered feeds for this day:', dayFeeds.length);
 
               return React.createElement(
                 'div',
