@@ -2990,8 +2990,22 @@ const DailyActivityChart = ({
 
   const toMs = (t) => {
     if (!t) return null;
-    if (typeof t === 'number') return t;
+    // Normalize numeric timestamps:
+    // - If stored as Unix seconds (10 digits-ish), convert to ms.
+    // - If already ms (13 digits-ish), keep as-is.
+    if (typeof t === 'number') {
+      // 2025 epoch ms ~ 1.7e12. Anything below 1e11 is definitely not ms.
+      if (t > 0 && t < 100000000000) return t * 1000; // seconds -> ms
+      return t; // already ms
+    }
     if (t?.toMillis) return t.toMillis(); // Firestore Timestamp
+    // Handle numeric strings like "1702780000"
+    if (typeof t === 'string' && /^[0-9]+$/.test(t)) {
+      const n = Number(t);
+      if (!Number.isFinite(n)) return null;
+      if (n > 0 && n < 100000000000) return n * 1000;
+      return n;
+    }
     const d = (t instanceof Date) ? t : new Date(t);
     const ms = d.getTime();
     return Number.isFinite(ms) ? ms : null;
