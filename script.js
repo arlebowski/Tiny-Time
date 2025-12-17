@@ -3238,7 +3238,6 @@ const DailyActivityChart = ({
                             border: '1px solid rgba(79,70,229,0.2)'
                           }
                         }, viewMode === 'day' ? '🌙 Active' : '🌙')
-                    );
                   }),
 
                   // Feed ticks (SMALL dots on the side)
