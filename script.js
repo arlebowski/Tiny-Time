@@ -2906,13 +2906,14 @@ const _avg = (arr) => {
 };
 
 // =====================================================
-// DAILY ACTIVITY (Actogram) - FIXED & COMPACT VERSION
+// DAILY ACTIVITY (Actogram) - ENHANCED VERSION
 // X = dates (columns), Y = time of day (rows)
 // Sleep = vertical blocks (start->end) per day column
 // Feeds = short horizontal ticks at feed start time
 // Uses app's indigo color scheme: bg=#E0E7FF, accent=#4F46E5, soft=#EEF2FF
 // =====================================================
 const DailyActivityChart = ({
+  title = 'Daily Activity',
   days = 7,
   startHour = 6,   // 6am -> 6am
   spanHours = 24,
@@ -2967,10 +2968,8 @@ const DailyActivityChart = ({
   const dayStarts = [];
   for (let i = days - 1; i >= 0; i--) dayStarts.push(today0 - i * 86400000);
 
-  // FIXED: Window calculation that properly handles midnight crossings
-  // A "day" in the actogram runs from 6am on day0 to 6am on day0+1
   const windowStartMs = (day0) => day0 + startHour * 3600000;
-  const windowEndMs = (day0) => day0 + (startHour + spanHours) * 3600000;
+  const windowEndMs = (day0) => windowStartMs(day0) + spanHours * 3600000;
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const yPct = (tMs, day0) => {
@@ -3029,10 +3028,10 @@ const DailyActivityChart = ({
     hourLabels.push({ i, label });
   }
 
-  const PLOT_H = 300; // REDUCED from 520px to 300px
+  const PLOT_H = 520;
   const gridBg = {
     backgroundImage:
-      'repeating-linear-gradient(to bottom, rgba(99,102,241,0.10) 0px, rgba(99,102,241,0.10) 1px, transparent 1px, transparent 25px)', // Adjusted for smaller height
+      'repeating-linear-gradient(to bottom, rgba(99,102,241,0.10) 0px, rgba(99,102,241,0.10) 1px, transparent 1px, transparent 40px)',
   };
   const nightShade = {
     // 6am->6am window: shade from ~7pm onward (13/24 = 54.17%)
@@ -3045,6 +3044,11 @@ const DailyActivityChart = ({
     { className: 'bg-white rounded-2xl shadow-lg p-6' },
     React.createElement(
       'div',
+      { className: 'text-sm font-medium text-gray-600 mb-2.5 text-center' },
+      title
+    ),
+    React.createElement(
+      'div',
       { className: 'rounded-xl border border-gray-200 overflow-hidden' },
       React.createElement(
         'div',
@@ -3053,8 +3057,8 @@ const DailyActivityChart = ({
         // left axis
         React.createElement(
           'div',
-          { className: 'w-10 shrink-0 border-r border-gray-100 bg-gray-50' }, // Reduced from w-12 to w-10
-          React.createElement('div', { className: 'h-7' }), // Reduced header height
+          { className: 'w-12 shrink-0 border-r border-gray-100' },
+          React.createElement('div', { className: 'h-8' }),
           React.createElement(
             'div',
             { className: 'relative', style: { height: PLOT_H } },
@@ -3063,7 +3067,7 @@ const DailyActivityChart = ({
                 'div',
                 {
                   key: h.i,
-                  className: 'absolute left-0 w-full text-[9px] text-gray-500 text-center', // Smaller text
+                  className: 'absolute left-0 w-full text-[10px] text-gray-500',
                   style: { top: `${(h.i / (hourLabels.length - 1)) * 100}%`, transform: 'translateY(-50%)' }
                 },
                 h.label
@@ -3084,31 +3088,26 @@ const DailyActivityChart = ({
               const we = windowEndMs(day0);
               const isToday = day0 === today0;
 
-              // FIXED: Include any sleep that overlaps with this 24-hour window
               const daySleeps = sleeps.filter((ev) => {
-                if (ev.isActive) {
-                  // Active sleep: show if it started before window ends
-                  return ev.s < we;
-                }
-                // Completed sleep: show if there's any overlap
-                // Sleep overlaps if: (sleep_start < window_end) AND (sleep_end > window_start)
-                return ev.e && (ev.s < we) && (ev.e > ws);
+                // Include if it overlaps with this day's window
+                if (ev.isActive && ev.s < we) return true; // active sleep
+                return ev.e && ev.e > ws && ev.s < we; // completed sleep
               });
 
-              const dayFeeds = feeds.filter((ev) => ev.s >= ws && ev.s < we);
+              const dayFeeds = feeds.filter((ev) => ev.s >= ws && ev.s <= we);
 
               return React.createElement(
                 'div',
                 {
                   key: day0,
-                  className: 'w-15 border-r border-gray-100', // NARROWER: w-15 (60px) instead of w-20 (80px)
+                  className: 'w-20 border-r border-gray-100',
                   // Today: gradient from soft indigo to bg indigo (#EEF2FF -> #E0E7FF)
                   style: isToday ? { background: 'linear-gradient(to bottom, #EEF2FF 0%, #E0E7FF 100%)' } : {}
                 },
                 React.createElement(
                   'div',
                   {
-                    className: 'h-7 flex items-center justify-center text-[10px] font-medium', // Smaller header
+                    className: 'h-8 flex items-center justify-center text-xs font-medium',
                     // Today header: bg indigo (#E0E7FF) with accent indigo text (#4F46E5)
                     style: isToday ? { background: '#E0E7FF', color: '#4F46E5', fontWeight: '600' } : { color: '#4B5563' }
                   },
@@ -3125,7 +3124,7 @@ const DailyActivityChart = ({
                       // Today: lighter indigo-tinted grid
                       ...(isToday ? {
                         backgroundImage:
-                          'repeating-linear-gradient(to bottom, rgba(99,102,241,0.08) 0px, rgba(99,102,241,0.08) 1px, transparent 1px, transparent 25px), ' +
+                          'repeating-linear-gradient(to bottom, rgba(99,102,241,0.08) 0px, rgba(99,102,241,0.08) 1px, transparent 1px, transparent 40px), ' +
                           'linear-gradient(to bottom, transparent 0%, transparent 54.17%, rgba(15,23,42,0.05) 54.17%, rgba(15,23,42,0.05) 100%)'
                       } : {})
                     }
@@ -3151,13 +3150,13 @@ const DailyActivityChart = ({
                       'div',
                       { key: `${day0}-sleep-${idx}`, style: { position: 'relative' } },
                       React.createElement('div', {
-                        className: 'absolute left-1.5 right-1.5 rounded-md', // Narrower margins for slim columns
+                        className: 'absolute left-2 right-2 rounded-md',
                         style: { top: `${top}%`, height: `${h}%`, background: bgColor }
                       }),
-                      // Nap label (uses accent indigo #4F46E5)
-                      sleepType === 'day' && h < 20 && !isActive &&
+                      // Nap label for day sleep that's short enough (uses accent indigo #4F46E5)
+                      sleepType === 'day' && h < 15 && !isActive &&
                         React.createElement('div', {
-                          className: 'absolute left-1 text-[8px] font-semibold bg-white px-0.5 rounded border',
+                          className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 rounded border',
                           style: {
                             top: `${Math.max(0, top - 2)}%`,
                             whiteSpace: 'nowrap',
@@ -3168,14 +3167,14 @@ const DailyActivityChart = ({
                       // Active indicator (uses accent indigo #4F46E5)
                       isActive &&
                         React.createElement('div', {
-                          className: 'absolute left-1 text-[8px] font-semibold bg-white px-0.5 rounded border',
+                          className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 rounded border',
                           style: {
                             top: `${Math.min(95, bottom + 1)}%`,
                             whiteSpace: 'nowrap',
                             color: '#4F46E5',
                             borderColor: '#C7D2FE'
                           }
-                        }, '🌙') // More compact
+                        }, 'Active 🌙')
                     );
                   }),
 
@@ -3185,8 +3184,8 @@ const DailyActivityChart = ({
                     const tickColor = isToday ? 'rgba(79,70,229,0.9)' : 'rgba(79,70,229,0.85)';
                     return React.createElement('div', {
                       key: `${day0}-feed-${idx}`,
-                      className: 'absolute left-2 right-2 rounded-full', // Adjusted for slim columns
-                      style: { top: `${top}%`, height: 3, background: tickColor } // Thinner tick
+                      className: 'absolute left-3 right-3 rounded-full',
+                      style: { top: `${top}%`, height: 4, background: tickColor }
                     });
                   })
                 )
@@ -3627,14 +3626,9 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     'div',
     { className: 'space-y-4' },
 
-    // Daily Activity section header (outside card, like "Feeding stats")
-    React.createElement('div', {
-      className: "section-title",
-      style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" }
-    }, "Daily Activity"),
-
-    // Actogram chart (compact, scrollable)
+    // Daily Activity Chart (actogram) - ENHANCED with app's indigo color scheme
     React.createElement(DailyActivityChart, {
+      title: 'Daily Activity',
       days: 7,
       startHour: 6,
       spanHours: 24,
