@@ -3001,12 +3001,12 @@ const DailyActivityChart = ({
   console.log('Parsed feeds:', feeds.length, feeds.slice(0, 3)); // Show first 3
 
   // Current time indicator (for Day view only)
-  const nowMs = Date.now();
-  const nowInTodayWindow = nowMs >= windowStartMs(today0) && nowMs < windowEndMs(today0);
+  const nowMsLocal = Date.now();
+  const nowInTodayWindow = nowMsLocal >= windowStartMs(today0) && nowMsLocal < windowEndMs(today0);
 
   const getCurrentTimePct = () => {
     if (!nowInTodayWindow) return null;
-    return ((nowMs - windowStartMs(today0)) / 86400000) * 100;
+    return ((nowMsLocal - windowStartMs(today0)) / 86400000) * 100;
   };
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
