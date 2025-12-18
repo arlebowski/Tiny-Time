@@ -3216,7 +3216,12 @@ const DailyActivityChart = ({
     null,
     React.createElement(
       'div',
-      { className: 'bg-white rounded-2xl shadow-lg overflow-hidden' },
+      {
+        className: 'bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col',
+        style: {
+          height: 420
+        }
+      },
 
       // Month navigation row (no toggle inside card)
       React.createElement(
@@ -3278,237 +3283,244 @@ const DailyActivityChart = ({
       // Scrollable chart area
       React.createElement(
         'div',
-        { className: 'flex' },
-
-        // Y-axis time labels (fixed on left)
+        {
+          className: 'px-4 pb-4 flex-1 overflow-y-auto',
+          style: { overscrollBehavior: 'contain' }
+        },
         React.createElement(
           'div',
-          { className: 'w-14 shrink-0 border-r border-gray-100 bg-gray-50' },
-          // Empty space for column headers
-          React.createElement('div', { className: 'h-2 border-b border-gray-100' }),
+          { className: 'flex' },
+
+          // Y-axis time labels (fixed on left)
           React.createElement(
             'div',
-            { className: 'relative bg-gray-50', style: { height: PLOT_H } },
-            hourLabels.map((h) =>
-              React.createElement(
-                'div',
-                {
-                  key: h.i,
-                  className: 'absolute left-0 w-full text-xs text-gray-500 text-right pr-2',
-                  style: { top: `${(h.i / (hourLabels.length - 1)) * 100}%`, transform: 'translateY(-50%)' }
-                },
-                h.label
-              )
-            )
-          )
-        ),
-
-        // Scrollable day columns
-        React.createElement(
-          'div',
-          {
-            className: 'flex-1 overflow-x-auto',
-            ref: scrollRef,
-            style: { scrollbarWidth: 'thin' }
-          },
-          React.createElement(
-            'div',
-            {
-              className: 'flex',
-              style: { minWidth: effectiveViewMode === 'day' ? '100%' : `${days * (effectiveViewMode === 'month' ? 56 : 80)}px` } // w-20 = 80px
-            },
-            dayStarts.map((day0) => {
-              const ws = windowStartMs(day0);
-              const we = windowEndMs(day0);
-              const isToday = day0 === today0;
-
-              // === DIAGNOSTIC: Per-day filtering ===
-              console.log(`\n=== Day ${new Date(day0).toLocaleDateString()} ===`);
-              console.log('Window:', new Date(ws).toISOString(), 'to', new Date(we).toISOString());
-              // === END DIAGNOSTIC ===
-
-              // Include any sleep that overlaps with this 24-hour window
-              const daySleeps = sleeps.filter((ev) => {
-                if (ev.isActive) {
-                  // Active sleep: show if it started before window ends
-                  return ev.s < we;
-                }
-                // Completed sleep: show if there's any overlap
-                // Sleep overlaps if: (sleep_start < window_end) AND (sleep_end > window_start)
-                return ev.e && (ev.s < we) && (ev.e > ws);
-              });
-
-              // === DIAGNOSTIC: Filtered results ===
-              console.log('Filtered sleeps for this day:', daySleeps.length);
-              if (daySleeps.length > 0) {
-                console.log('First sleep in day:', {
-                  start: new Date(daySleeps[0].s).toISOString(),
-                  end: daySleeps[0].e ? new Date(daySleeps[0].e).toISOString() : 'active'
-                });
-              }
-              // === END DIAGNOSTIC ===
-
-              const dayFeeds = feeds.filter((ev) => ev.s >= ws && ev.s < we);
-              console.log('Filtered feeds for this day:', dayFeeds.length);
-
-              return React.createElement(
-                'div',
-                {
-                  key: day0,
-                  className: `${COL_WIDTH} border-r border-gray-100 shrink-0`,
-                  style: isToday ? { background: 'rgba(102,126,234,0.06)' } : {}
-                },
-
-                // Remove the per-column date header inside the grid (week strip handles dates now)
-                React.createElement('div', { className: 'h-2 border-b border-gray-100' }),
-
-                // Plot area with sleep blocks and feed ticks
+            { className: 'w-14 shrink-0 border-r border-gray-100 bg-gray-50' },
+            // Empty space for column headers
+            React.createElement('div', { className: 'h-2 border-b border-gray-100' }),
+            React.createElement(
+              'div',
+              { className: 'relative bg-gray-50', style: { height: PLOT_H } },
+              hourLabels.map((h) =>
                 React.createElement(
                   'div',
                   {
-                    className: 'relative',
-                    style: {
-                      height: PLOT_H, 
-                      // White background - grid lines only, no night shading
-                      ...gridBg
-                    }
+                    key: h.i,
+                    className: 'absolute left-0 w-full text-xs text-gray-500 text-right pr-2',
+                    style: { top: `${(h.i / (hourLabels.length - 1)) * 100}%`, transform: 'translateY(-50%)' }
+                  },
+                  h.label
+                )
+              )
+            )
+          ),
+
+          // Scrollable day columns
+          React.createElement(
+            'div',
+            {
+              className: 'flex-1 overflow-x-auto',
+              ref: scrollRef,
+              style: { scrollbarWidth: 'thin' }
+            },
+            React.createElement(
+              'div',
+              {
+                className: 'flex',
+                style: { minWidth: effectiveViewMode === 'day' ? '100%' : `${days * (effectiveViewMode === 'month' ? 56 : 80)}px` } // w-20 = 80px
+              },
+              dayStarts.map((day0) => {
+                const ws = windowStartMs(day0);
+                const we = windowEndMs(day0);
+                const isToday = day0 === today0;
+
+                // === DIAGNOSTIC: Per-day filtering ===
+                console.log(`\n=== Day ${new Date(day0).toLocaleDateString()} ===`);
+                console.log('Window:', new Date(ws).toISOString(), 'to', new Date(we).toISOString());
+                // === END DIAGNOSTIC ===
+
+                // Include any sleep that overlaps with this 24-hour window
+                const daySleeps = sleeps.filter((ev) => {
+                  if (ev.isActive) {
+                    // Active sleep: show if it started before window ends
+                    return ev.s < we;
+                  }
+                  // Completed sleep: show if there's any overlap
+                  // Sleep overlaps if: (sleep_start < window_end) AND (sleep_end > window_start)
+                  return ev.e && (ev.s < we) && (ev.e > ws);
+                });
+
+                // === DIAGNOSTIC: Filtered results ===
+                console.log('Filtered sleeps for this day:', daySleeps.length);
+                if (daySleeps.length > 0) {
+                  console.log('First sleep in day:', {
+                    start: new Date(daySleeps[0].s).toISOString(),
+                    end: daySleeps[0].e ? new Date(daySleeps[0].e).toISOString() : 'active'
+                  });
+                }
+                // === END DIAGNOSTIC ===
+
+                const dayFeeds = feeds.filter((ev) => ev.s >= ws && ev.s < we);
+                console.log('Filtered feeds for this day:', dayFeeds.length);
+
+                return React.createElement(
+                  'div',
+                  {
+                    key: day0,
+                    className: `${COL_WIDTH} border-r border-gray-100 shrink-0`,
+                    style: isToday ? { background: 'rgba(102,126,234,0.06)' } : {}
                   },
 
-                  // Current time indicator (green line) - Day view only
-                  effectiveViewMode === 'day' && isToday && nowInTodayWindow &&
-                    React.createElement('div', {
-                      className: 'absolute left-0 right-0 z-20 flex items-center',
-                      style: { top: `${getCurrentTimePct()}%` }
+                  // Remove the per-column date header inside the grid (week strip handles dates now)
+                  React.createElement('div', { className: 'h-2 border-b border-gray-100' }),
+
+                  // Plot area with sleep blocks and feed ticks
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'relative',
+                      style: {
+                        height: PLOT_H,
+                        // White background - grid lines only, no night shading
+                        ...gridBg
+                      }
                     },
-                    React.createElement('div', {
-                      className: 'w-2 h-2 rounded-full bg-green-500 -ml-1',
-                      style: { zIndex: 30 }
-                    }),
-                    React.createElement('div', {
-                      className: 'flex-1 h-1 bg-green-500', // Thicker line h-0.5→h-1
-                      style: { zIndex: 30 }
-                    })
-                  ),
 
-                  // Sleep blocks (WIDE - spanning most of column)
-                  daySleeps.map((ev, idx) => {
-                    const sleepType = _sleepTypeForSession(ev);
-                    const isActive = ev.isActive;
-                    const endTime = isActive ? now : ev.e;
-
-                    const top = yPct(ev.s, day0);
-                    const bottom = yPct(endTime, day0);
-                    const h = Math.max(1, bottom - top);
-
-                    // Sleep colors: more saturated, wider blocks
-                    const bgColor = sleepType === 'night' 
-                      ? 'rgba(99,102,241,0.6)' // Darker indigo for night
-                      : 'rgba(147,197,253,0.6)'; // Sky blue for naps
-
-                    const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
-                    const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
-
-                    // IMPORTANT: Render as ABSOLUTE directly inside the plot area (which is `relative` and has height).
-                    // Do NOT wrap in a `position: relative` div, or % top/height can collapse.
-                    const out = [];
-
-                    out.push(
+                    // Current time indicator (green line) - Day view only
+                    effectiveViewMode === 'day' && isToday && nowInTodayWindow &&
                       React.createElement('div', {
-                        key: `${day0}-sleep-block-${idx}`,
-                        className: 'absolute rounded-lg',
+                        className: 'absolute left-0 right-0 z-20 flex items-center',
+                        style: { top: `${getCurrentTimePct()}%` }
+                      },
+                      React.createElement('div', {
+                        className: 'w-2 h-2 rounded-full bg-green-500 -ml-1',
+                        style: { zIndex: 30 }
+                      }),
+                      React.createElement('div', {
+                        className: 'flex-1 h-1 bg-green-500', // Thicker line h-0.5→h-1
+                        style: { zIndex: 30 }
+                      })
+                    ),
+
+                    // Sleep blocks (WIDE - spanning most of column)
+                    daySleeps.map((ev, idx) => {
+                      const sleepType = _sleepTypeForSession(ev);
+                      const isActive = ev.isActive;
+                      const endTime = isActive ? now : ev.e;
+
+                      const top = yPct(ev.s, day0);
+                      const bottom = yPct(endTime, day0);
+                      const h = Math.max(1, bottom - top);
+
+                      // Sleep colors: more saturated, wider blocks
+                      const bgColor = sleepType === 'night'
+                        ? 'rgba(99,102,241,0.6)' // Darker indigo for night
+                        : 'rgba(147,197,253,0.6)'; // Sky blue for naps
+
+                      const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
+                      const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
+
+                      // IMPORTANT: Render as ABSOLUTE directly inside the plot area (which is `relative` and has height).
+                      // Do NOT wrap in a `position: relative` div, or % top/height can collapse.
+                      const out = [];
+
+                      out.push(
+                        React.createElement('div', {
+                          key: `${day0}-sleep-block-${idx}`,
+                          className: 'absolute rounded-lg',
+                          style: {
+                            top: `${top}%`,
+                            height: `${h}%`,
+                            left: `${leftMargin}px`,
+                            right: `${rightMargin}px`,
+                            background: bgColor,
+                            border: sleepType === 'night'
+                              ? '1px solid rgba(79,70,229,0.4)'
+                              : '1px solid rgba(59,130,246,0.3)',
+                            zIndex: 10 // Keep z-layering safe
+                          }
+                        })
+                      );
+
+                      // Nap labels are visually noisy; only show in DAY view, and only when blocks are tall enough
+                      if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && h >= 6) {
+                        out.push(
+                          React.createElement('div', {
+                            key: `${day0}-sleep-label-${idx}`,
+                            className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                            style: {
+                              top: `${Math.max(0, top - 2)}%`,
+                              color: '#3B82F6',
+                              border: '1px solid rgba(59,130,246,0.2)',
+                              zIndex: 15
+                            },
+                          }, effectiveViewMode === 'day' ? 'Nap' : 'N') // FIXED: use effectiveViewMode
+                        );
+                      }
+
+                      // Active sleep indicator
+                      if (isActive) {
+                        out.push(
+                          React.createElement('div', {
+                            key: `${day0}-sleep-active-${idx}`,
+                            className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                            style: {
+                              top: `${Math.min(95, bottom + 1)}%`,
+                              color: '#4F46E5',
+                              border: '1px solid rgba(79,70,229,0.2)',
+                              zIndex: 15
+                            },
+                          }, effectiveViewMode === 'day' ? '🌙 Active' : '🌙') // FIXED: use effectiveViewMode
+                        );
+                      }
+
+                      return out;
+                    }).flat(),
+
+                    // Feed ticks (HORIZONTAL LINES at feed time)
+                    dayFeeds.map((ev, idx) => {
+                      const top = yPct(ev.s, day0);
+
+                      // Single consistent color for feeds (pink accent)
+                      const tickColor = '#EC4899';
+
+                      return React.createElement('div', {
+                        key: `${day0}-feed-${idx}`,
+                        className: 'absolute',
                         style: {
                           top: `${top}%`,
-                          height: `${h}%`,
-                          left: `${leftMargin}px`,
-                          right: `${rightMargin}px`,
-                          background: bgColor,
-                          border: sleepType === 'night' 
-                            ? '1px solid rgba(79,70,229,0.4)'
-                            : '1px solid rgba(59,130,246,0.3)',
-                          zIndex: 10 // Keep z-layering safe
+                          left: effectiveViewMode === 'day' ? '8px' : '6px',
+                          right: effectiveViewMode === 'day' ? '8px' : '6px',
+                          height: '3px', // Consistent 3px height
+                          background: tickColor,
+                          transform: 'translateY(-50%)',
+                          borderRadius: '2px', // Slight rounding
+                          zIndex: 20 // Above sleep blocks
                         }
-                      })
-                    );
-
-                    // Nap labels are visually noisy; only show in DAY view, and only when blocks are tall enough
-                    if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && h >= 6) {
-                      out.push(
-                        React.createElement('div', {
-                          key: `${day0}-sleep-label-${idx}`,
-                          className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                          style: {
-                            top: `${Math.max(0, top - 2)}%`,
-                            color: '#3B82F6',
-                            border: '1px solid rgba(59,130,246,0.2)',
-                            zIndex: 15
-                          },
-                        }, effectiveViewMode === 'day' ? 'Nap' : 'N') // FIXED: use effectiveViewMode
-                      );
-                    }
-
-                    // Active sleep indicator
-                    if (isActive) {
-                      out.push(
-                        React.createElement('div', {
-                          key: `${day0}-sleep-active-${idx}`,
-                          className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                          style: {
-                            top: `${Math.min(95, bottom + 1)}%`,
-                            color: '#4F46E5',
-                            border: '1px solid rgba(79,70,229,0.2)',
-                            zIndex: 15
-                          },
-                        }, effectiveViewMode === 'day' ? '🌙 Active' : '🌙') // FIXED: use effectiveViewMode
-                      );
-                    }
-
-                    return out;
-                  }).flat(),
-
-                  // Feed ticks (HORIZONTAL LINES at feed time)
-                  dayFeeds.map((ev, idx) => { 
-                    const top = yPct(ev.s, day0);
-
-                    // Single consistent color for feeds (pink accent)
-                    const tickColor = '#EC4899';
-
-                    return React.createElement('div', {
-                      key: `${day0}-feed-${idx}`,
-                      className: 'absolute',
-                      style: {
-                        top: `${top}%`,
-                        left: effectiveViewMode === 'day' ? '8px' : '6px',
-                        right: effectiveViewMode === 'day' ? '8px' : '6px',
-                        height: '3px', // Consistent 3px height
-                        background: tickColor,
-                        transform: 'translateY(-50%)', 
-                        borderRadius: '2px', // Slight rounding
-                        zIndex: 20 // Above sleep blocks
-                      }
-                    });
-                  })
-                )
-              );
-            })
+                      });
+                    })
+                  )
+                );
+              })
+            )
           )
+        )
+      ),
+
+      // Legend at the bottom (inside card)
+      React.createElement(
+        'div',
+        { className: 'px-4 py-4 border-t border-gray-100 flex items-center justify-center gap-5 text-[12px] text-gray-700' },
+        React.createElement('div', { className: 'flex items-center gap-2' },
+          React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#8B5CF6' } }),
+          'Sleep'
         ),
-
-        // Legend at the bottom (inside card)
-        React.createElement(
-          'div',
-          { className: 'px-4 py-4 border-t border-gray-100 flex items-center justify-center gap-5 text-[12px] text-gray-700' },
-          React.createElement('div', { className: 'flex items-center gap-2' },
-            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#8B5CF6' } }),
-            'Sleep'
-          ),
-          React.createElement('div', { className: 'flex items-center gap-2' },
-            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#60A5FA' } }),
-            'Nap'
-          ),
-          React.createElement('div', { className: 'flex items-center gap-2' },
-            React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: '#F43F5E' } }),
-            'Feed'
-          )
+        React.createElement('div', { className: 'flex items-center gap-2' },
+          React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#60A5FA' } }),
+          'Nap'
+        ),
+        React.createElement('div', { className: 'flex items-center gap-2' },
+          React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: '#F43F5E' } }),
+          'Feed'
         )
       )
     )
@@ -3944,7 +3956,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     // Section title OUTSIDE the card (matches your preference)
     React.createElement('div', {
       className: "section-title",
-      style: { fontWeight: 800, fontSize: 28, margin: "6px 0 12px", letterSpacing: "-0.5px" }
+      style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" }
     }, "Daily Activity"),
     React.createElement(DailyActivityChart, {
       viewMode: timeframe, // day | week | month drives the actogram
