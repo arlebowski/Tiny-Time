@@ -1445,6 +1445,7 @@ const ChevronDown = (props) => React.createElement(
 // Per-kid theme palette
 const KID_THEMES = {
   indigo: { bg: '#E0E7FF', accent: '#4F46E5', soft: '#EEF2FF' },
+  health: { bg: '#F2F2F7', accent: '#4F46E5', soft: '#FFFFFF' },
   teal:   { bg: '#CCFBF1', accent: '#0F766E', soft: '#E0F2F1' },
   pink:   { bg: '#FCE7F3', accent: '#DB2777', soft: '#FDF2F8' },
   amber:  { bg: '#FEF3C7', accent: '#D97706', soft: '#FFFBEB' },
