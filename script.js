@@ -3016,7 +3016,7 @@ const _avg = (arr) => {
 // Uses app's indigo color scheme: bg=#E0E7FF, accent=#4F46E5, soft=#EEF2FF
 // =====================================================
 const DailyActivityChart = ({
-  viewMode = 'day', // 'day' or 'week' - keep default as 'day', let caller decide
+  viewMode = 'day', // 'day' | 'week' | 'month'
   feedings = [],
   sleepSessions = [],
   sleepSettings = null
@@ -3031,7 +3031,13 @@ const DailyActivityChart = ({
 
   // Safe default handling without mutation
   const effectiveViewMode = viewMode || 'day';
-  const days = effectiveViewMode === 'day' ? 1 : 7;
+  const days = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 30 : 7);
+  const [offsetDays, setOffsetDays] = React.useState(0); // 0 = week/day ending today
+  const stepDays = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 30 : 7);
+
+  const clampOffset = (n) => Math.max(0, Math.floor(Number(n) || 0));
+  const pageBack = () => setOffsetDays((n) => clampOffset(n + stepDays));
+  const pageFwd = () => setOffsetDays((n) => clampOffset(n - stepDays));
   const scrollRef = React.useRef(null);
 
   // Auto-scroll to the most recent day
@@ -3054,7 +3060,7 @@ const DailyActivityChart = ({
       try { if (raf2) cancelAnimationFrame(raf2); } catch {}
       try { if (t1) clearTimeout(t1); } catch {}
     };
-  }, [days, feedings?.length, sleepSessions?.length]);
+  }, [days, feedings?.length, sleepSessions?.length, offsetDays]);
 
   const toMs = (t) => {
     if (!t) return null;
@@ -3098,8 +3104,11 @@ const DailyActivityChart = ({
   console.log('Days to show:', days);
   // === END DIAGNOSTIC ===
 
+  // End day for the visible range
+  const endDay0 = today0 - clampOffset(offsetDays) * 86400000;
+
   const dayStarts = [];
-  for (let i = days - 1; i >= 0; i--) dayStarts.push(today0 - i * 86400000);
+  for (let i = days - 1; i >= 0; i--) dayStarts.push(endDay0 - i * 86400000);
 
   // === DIAGNOSTIC: Check day starts ===
   console.log('Day starts:', dayStarts.map(d => new Date(d).toISOString()));
@@ -3187,13 +3196,16 @@ const DailyActivityChart = ({
 
   const hourLabels = [];
   for (let i = 0; i < 25; i++) {
-    const label = i === 0 ? '12am' : i < 12 ? `${i}am` : i === 12 ? '12pm' : `${i - 12}pm`;
-    hourLabels.push({ i: i, label });
+    const full = i === 0 ? '12am' : i < 12 ? `${i}am` : i === 12 ? '12pm' : `${i - 12}pm`;
+    const label = (i === 0 || i === 6 || i === 12 || i === 18 || i === 24) ? full : '';
+    hourLabels.push({ i, label });
   }
 
   // Taller for day view, shorter for week view
   const PLOT_H = effectiveViewMode === 'day' ? 480 : 280; // REDUCED: day 600→480, week 360→280
-  const COL_WIDTH = effectiveViewMode === 'day' ? 'w-full' : 'w-20'; // NARROWER: week w-24→w-20 (80px fits 7 easily)
+  const COL_WIDTH = effectiveViewMode === 'day'
+    ? 'w-full'
+    : (effectiveViewMode === 'month' ? 'w-14' : 'w-20');
   const gridBg = {
     backgroundImage:
       `repeating-linear-gradient(to bottom, rgba(99,102,241,0.10) 0px, rgba(99,102,241,0.10) 1px, transparent 1px, transparent ${PLOT_H / 24}px)`,
@@ -3206,6 +3218,63 @@ const DailyActivityChart = ({
       'div',
       { className: 'bg-white rounded-2xl shadow-lg overflow-hidden' },
 
+      // Month navigation row (no toggle inside card)
+      React.createElement(
+        'div',
+        { className: 'px-4 pt-4 pb-2 flex items-center justify-between' },
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: pageBack,
+            className: 'h-10 w-10 rounded-full bg-gray-100 text-indigo-600 flex items-center justify-center active:scale-95'
+          },
+          '‹'
+        ),
+        React.createElement(
+          'div',
+          { className: 'text-[16px] font-semibold text-gray-900' },
+          // Use the middle day for the month label (matches mock behavior)
+          new Date(dayStarts[Math.floor(dayStarts.length / 2)]).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        ),
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: pageFwd,
+            disabled: offsetDays <= 0,
+            className: `h-10 w-10 rounded-full bg-gray-100 text-indigo-600 flex items-center justify-center active:scale-95 ${offsetDays <= 0 ? 'opacity-40' : ''}`
+          },
+          '›'
+        )
+      ),
+
+      // Week strip row (day names + date numbers)
+      React.createElement(
+        'div',
+        { className: 'px-4 pb-3' },
+        React.createElement(
+          'div',
+          { className: 'flex gap-0' },
+          dayStarts.map((day0) => {
+            const d = new Date(day0);
+            const isToday = day0 === today0;
+            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+            const dayNum = d.getDate();
+            return React.createElement(
+              'div',
+              { key: `strip-${day0}`, className: 'flex-1 text-center px-1' },
+              React.createElement(
+                'div',
+                { className: `py-2 rounded-lg ${isToday ? 'bg-indigo-50' : ''}` },
+                React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
+                React.createElement('div', { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` }, String(dayNum))
+              )
+            );
+          })
+        )
+      ),
+
       // Scrollable chart area
       React.createElement(
         'div',
@@ -3216,7 +3285,7 @@ const DailyActivityChart = ({
           'div',
           { className: 'w-14 shrink-0 border-r border-gray-100 bg-gray-50' },
           // Empty space for column headers
-          React.createElement('div', { className: 'h-10 border-b border-gray-100' }),
+          React.createElement('div', { className: 'h-2 border-b border-gray-100' }),
           React.createElement(
             'div',
             { className: 'relative bg-gray-50', style: { height: PLOT_H } },
@@ -3246,7 +3315,7 @@ const DailyActivityChart = ({
             'div',
             {
               className: 'flex',
-              style: { minWidth: effectiveViewMode === 'day' ? '100%' : `${days * 80}px` } // w-20 = 80px
+              style: { minWidth: effectiveViewMode === 'day' ? '100%' : `${days * (effectiveViewMode === 'month' ? 56 : 80)}px` } // w-20 = 80px
             },
             dayStarts.map((day0) => {
               const ws = windowStartMs(day0);
@@ -3287,25 +3356,11 @@ const DailyActivityChart = ({
                 {
                   key: day0,
                   className: `${COL_WIDTH} border-r border-gray-100 shrink-0`,
-                  // Today: gradient from soft indigo to bg indigo (#EEF2FF -> #E0E7FF)
-                  style: isToday ? { background: 'linear-gradient(to bottom, #EEF2FF 0%, #E0E7FF 100%)' } : {}
+                  style: isToday ? { background: 'rgba(102,126,234,0.06)' } : {}
                 },
 
-                // Column header with day name and date
-                React.createElement(
-                  'div',
-                  {
-                    className: 'h-10 flex flex-col items-center justify-center border-b border-gray-100 text-xs font-medium', // Shorter header h-12→h-10
-                    // Today header: bg indigo (#E0E7FF) with accent indigo text (#4F46E5)
-                    style: isToday ? { backgroundColor: '#E0E7FF', color: '#4F46E5' } : { color: '#64748B' }
-                  },
-                  React.createElement('div', { className: 'text-[10px] font-normal' },
-                    new Date(day0).toLocaleDateString('en-US', { weekday: 'short' })
-                  ),
-                  React.createElement('div', { className: 'font-semibold' },
-                    new Date(day0).getDate()
-                  )
-                ),
+                // Remove the per-column date header inside the grid (week strip handles dates now)
+                React.createElement('div', { className: 'h-2 border-b border-gray-100' }),
 
                 // Plot area with sleep blocks and feed ticks
                 React.createElement(
@@ -3375,8 +3430,8 @@ const DailyActivityChart = ({
                       })
                     );
 
-                    // Nap label (only show in day view or for longer naps in week view)
-                    if (sleepType === 'day' && !isActive && (effectiveViewMode === 'day' || h > 6)) {
+                    // Nap labels are visually noisy; only show in DAY view, and only when blocks are tall enough
+                    if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && h >= 6) {
                       out.push(
                         React.createElement('div', {
                           key: `${day0}-sleep-label-${idx}`,
@@ -3435,6 +3490,24 @@ const DailyActivityChart = ({
                 )
               );
             })
+          )
+        ),
+
+        // Legend at the bottom (inside card)
+        React.createElement(
+          'div',
+          { className: 'px-4 py-4 border-t border-gray-100 flex items-center justify-center gap-5 text-[12px] text-gray-700' },
+          React.createElement('div', { className: 'flex items-center gap-2' },
+            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#8B5CF6' } }),
+            'Sleep'
+          ),
+          React.createElement('div', { className: 'flex items-center gap-2' },
+            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#60A5FA' } }),
+            'Nap'
+          ),
+          React.createElement('div', { className: 'flex items-center gap-2' },
+            React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: '#F43F5E' } }),
+            'Feed'
           )
         )
       )
@@ -3868,13 +3941,13 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     'div',
     { className: 'space-y-4' },
 
-    // Daily Activity (uses existing Day/Week/Month toggle below)
-    React.createElement('div', { 
-      className: "section-title", 
-      style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" } 
+    // Section title OUTSIDE the card (matches your preference)
+    React.createElement('div', {
+      className: "section-title",
+      style: { fontWeight: 800, fontSize: 28, margin: "6px 0 12px", letterSpacing: "-0.5px" }
     }, "Daily Activity"),
     React.createElement(DailyActivityChart, {
-      viewMode: timeframe === 'day' ? 'day' : 'week', // 'day' tab = day view, otherwise week
+      viewMode: timeframe, // day | week | month drives the actogram
       feedings: allFeedings,
       sleepSessions: sleepSessions,
       sleepSettings: sleepSettings
