@@ -1,38 +1,3 @@
-// ===== TINY TRACKER BOOT ERROR OVERLAY (iOS-friendly) =====
-(function () {
-  function show(msg) {
-    try {
-      var el = document.getElementById("tt_boot_error");
-      if (!el) {
-        el = document.createElement("pre");
-        el.id = "tt_boot_error";
-        el.style.cssText =
-          "position:fixed;inset:0;z-index:999999;background:#3b0a0a;color:#ffd7d7;padding:16px;margin:0;overflow:auto;font:12px/1.4 -apple-system,BlinkMacSystemFont,system-ui,monospace;white-space:pre-wrap;";
-        document.documentElement.appendChild(el);
-      }
-      el.textContent = msg;
-    } catch (e) {}
-  }
-
-  window.addEventListener("error", function (e) {
-    var m =
-      "JS ERROR\\n" +
-      (e.message || "") +
-      "\\n\\nSource: " + (e.filename || "") +
-      "\\nLine: " + (e.lineno || "") + " Col: " + (e.colno || "") +
-      "\\n\\n" + (e.error && e.error.stack ? e.error.stack : "");
-    show(m);
-  });
-
-  window.addEventListener("unhandledrejection", function (e) {
-    var r = e && e.reason;
-    var m =
-      "UNHANDLED PROMISE REJECTION\\n\\n" +
-      (r && r.stack ? r.stack : String(r));
-    show(m);
-  });
-})();
-
 // ========================================
 // TINY TRACKER - PART 1
 // Config, Auth, Family-Based Firestore Layer + AI Functions
