@@ -3253,6 +3253,7 @@ const DailyActivityChart = ({
           'div',
           {
             className: 'flex-1 overflow-x-auto',
+            ref: scrollRef,
             style: { scrollbarWidth: 'thin' }
           },
           React.createElement(
@@ -3368,44 +3369,59 @@ const DailyActivityChart = ({
                     const leftMargin = viewMode === 'day' ? 8 : 4;
                     const rightMargin = viewMode === 'day' ? 8 : 4;
 
-                    return React.createElement(
-                      'div',
-                      { key: `${day0}-sleep-${idx}`, style: { position: 'relative' } },
+                    // IMPORTANT: Render as ABSOLUTE directly inside the plot area (which is `relative` and has height).
+                    // Do NOT wrap in a `position: relative` div, or % top/height can collapse.
+                    const out = [];
+
+                    out.push(
                       React.createElement('div', {
-                        className: 'absolute rounded-lg',
+                        key: `${day0}-sleep-block-${idx}`,
+                        className: 'absolute rounded-lg z-10',
                         style: {
                           top: `${top}%`,
                           height: `${h}%`,
                           left: `${leftMargin}px`,
                           right: `${rightMargin}px`,
                           background: bgColor,
-                          border: sleepType === 'night' ? '1px solid rgba(79,70,229,0.3)' : '1px solid rgba(59,130,246,0.3)'
+                          border: sleepType === 'night'
+                            ? '1px solid rgba(79,70,229,0.3)'
+                            : '1px solid rgba(59,130,246,0.3)'
                         }
-                      }),
+                      })
+                    );
 
-                      // Nap label (only show in day view or for longer naps in week view)
-                      sleepType === 'day' && !isActive && (viewMode === 'day' || h > 8) &&
+                    // Nap label (only show in day view or for longer naps in week view)
+                    if (sleepType === 'day' && !isActive && (viewMode === 'day' || h > 8)) {
+                      out.push(
                         React.createElement('div', {
-                          className: 'absolute left-2 text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded-md shadow-sm',
+                          key: `${day0}-sleep-label-${idx}`,
+                          className: 'absolute left-2 text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded-md shadow-sm z-20',
                           style: {
                             top: `${Math.max(0, top - 2)}%`,
                             color: '#3B82F6',
                             border: '1px solid rgba(59,130,246,0.2)'
                           }
                         }, viewMode === 'day' ? 'Nap' : 'N')
-                    ),
+                      );
+                    }
 
-                      // Active sleep indicator
-                      isActive &&
+                    // Active sleep indicator
+                    if (isActive) {
+                      out.push(
                         React.createElement('div', {
-                          className: 'absolute left-2 text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded-md shadow-sm',
+                          key: `${day0}-sleep-active-${idx}`,
+                          className: 'absolute left-2 text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded-md shadow-sm z-20',
                           style: {
                             top: `${Math.min(95, bottom + 1)}%`,
                             color: '#4F46E5',
                             border: '1px solid rgba(79,70,229,0.2)'
                           }
                         }, viewMode === 'day' ? '🌙 Active' : '🌙')
-                  }),
+                      );
+                    }
+
+                    return out;
+                  }).flat(),
 
                   // Feed ticks (HORIZONTAL LINES at feed time)
                   dayFeeds.map((ev, idx) => {
