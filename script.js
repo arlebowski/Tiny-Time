@@ -3016,7 +3016,7 @@ const _avg = (arr) => {
 // Uses app's indigo color scheme: bg=#E0E7FF, accent=#4F46E5, soft=#EEF2FF
 // =====================================================
 const DailyActivityChart = ({
-  viewMode = 'day', // 'day' or 'week'
+  viewMode = 'day', // 'day' or 'week' - keep default as 'day', let caller decide
   feedings = [],
   sleepSessions = [],
   sleepSettings = null
@@ -3029,7 +3029,9 @@ const DailyActivityChart = ({
   console.log('Raw sleepSessions count:', sleepSessions?.length || 0);
   // === END DIAGNOSTIC ===
 
-  const days = viewMode === 'day' ? 1 : 7;
+  // Safe default handling without mutation
+  const effectiveViewMode = viewMode || 'day';
+  const days = effectiveViewMode === 'day' ? 1 : 7;
   const scrollRef = React.useRef(null);
 
   // Auto-scroll to the most recent day
@@ -3190,16 +3192,11 @@ const DailyActivityChart = ({
   }
 
   // Taller for day view, shorter for week view
-  const PLOT_H = viewMode === 'day' ? 600 : 360;
-  const COL_WIDTH = viewMode === 'day' ? 'w-full' : 'w-24'; // Day: full width, Week: 96px per column
+  const PLOT_H = effectiveViewMode === 'day' ? 480 : 280; // REDUCED: day 600→480, week 360→280
+  const COL_WIDTH = effectiveViewMode === 'day' ? 'w-full' : 'w-20'; // NARROWER: week w-24→w-20 (80px fits 7 easily)
   const gridBg = {
     backgroundImage:
       `repeating-linear-gradient(to bottom, rgba(99,102,241,0.10) 0px, rgba(99,102,241,0.10) 1px, transparent 1px, transparent ${PLOT_H / 24}px)`,
-  };
-  const nightShade = {
-    // 6am->6am window: shade from ~7pm onward (13/24 = 54.17%)
-    backgroundImage:
-      'linear-gradient(to bottom, transparent 0%, transparent 54.17%, rgba(15,23,42,0.05) 54.17%, rgba(15,23,42,0.05) 100%)',
   };
 
   return React.createElement(
@@ -3208,17 +3205,6 @@ const DailyActivityChart = ({
     React.createElement(
       'div',
       { className: 'bg-white rounded-2xl shadow-lg overflow-hidden' },
-
-      // Calendar-style header with month/year
-      React.createElement(
-        'div',
-        { className: 'px-4 py-3 border-b border-gray-100 flex items-center justify-between' },
-        React.createElement(
-          'div',
-          { className: 'font-semibold text-gray-700' },
-          `${new Date(dayStarts[0]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}`
-        )
-      ),
 
       // Scrollable chart area
       React.createElement(
@@ -3230,7 +3216,7 @@ const DailyActivityChart = ({
           'div',
           { className: 'w-14 shrink-0 border-r border-gray-100 bg-gray-50' },
           // Empty space for column headers
-          React.createElement('div', { className: 'h-12 border-b border-gray-100' }),
+          React.createElement('div', { className: 'h-10 border-b border-gray-100' }),
           React.createElement(
             'div',
             { className: 'relative bg-gray-50', style: { height: PLOT_H } },
@@ -3260,7 +3246,7 @@ const DailyActivityChart = ({
             'div',
             {
               className: 'flex',
-              style: { minWidth: viewMode === 'day' ? '100%' : 'max-content' }
+              style: { minWidth: effectiveViewMode === 'day' ? '100%' : `${days * 80}px` } // w-20 = 80px
             },
             dayStarts.map((day0) => {
               const ws = windowStartMs(day0);
@@ -3309,7 +3295,7 @@ const DailyActivityChart = ({
                 React.createElement(
                   'div',
                   {
-                    className: 'h-12 flex flex-col items-center justify-center border-b border-gray-100 text-xs font-medium',
+                    className: 'h-10 flex flex-col items-center justify-center border-b border-gray-100 text-xs font-medium', // Shorter header h-12→h-10
                     // Today header: bg indigo (#E0E7FF) with accent indigo text (#4F46E5)
                     style: isToday ? { backgroundColor: '#E0E7FF', color: '#4F46E5' } : { color: '#64748B' }
                   },
@@ -3327,27 +3313,25 @@ const DailyActivityChart = ({
                   {
                     className: 'relative',
                     style: {
-                      height: PLOT_H,
-                      // Today: lighter indigo-tinted grid
-                      ...(isToday ? {
-                        backgroundImage:
-                          `repeating-linear-gradient(to bottom, rgba(99,102,241,0.08) 0px, rgba(99,102,241,0.08) 1px, transparent 1px, transparent ${PLOT_H / 24}px), ` +
-                          'linear-gradient(to bottom, transparent 0%, transparent 54.17%, rgba(15,23,42,0.05) 54.17%, rgba(15,23,42,0.05) 100%)'
-                      } : gridBg),
+                      height: PLOT_H, 
+                      // White background - grid lines only, no night shading
+                      ...gridBg
                     }
                   },
 
                   // Current time indicator (green line) - Day view only
-                  viewMode === 'day' && isToday && nowInTodayWindow &&
+                  effectiveViewMode === 'day' && isToday && nowInTodayWindow &&
                     React.createElement('div', {
                       className: 'absolute left-0 right-0 z-20 flex items-center',
                       style: { top: `${getCurrentTimePct()}%` }
                     },
                     React.createElement('div', {
-                      className: 'w-2 h-2 rounded-full bg-green-500 -ml-1'
+                      className: 'w-2 h-2 rounded-full bg-green-500 -ml-1',
+                      style: { zIndex: 30 }
                     }),
                     React.createElement('div', {
-                      className: 'flex-1 h-0.5 bg-green-500'
+                      className: 'flex-1 h-1 bg-green-500', // Thicker line h-0.5→h-1
+                      style: { zIndex: 30 }
                     })
                   ),
 
@@ -3362,12 +3346,12 @@ const DailyActivityChart = ({
                     const h = Math.max(1, bottom - top);
 
                     // Sleep colors: more saturated, wider blocks
-                    const bgColor = sleepType === 'night'
-                      ? (isToday ? 'rgba(99,102,241,0.5)' : 'rgba(99,102,241,0.4)')
-                      : (isToday ? 'rgba(147,197,253,0.5)' : 'rgba(147,197,253,0.4)');
+                    const bgColor = sleepType === 'night' 
+                      ? 'rgba(99,102,241,0.6)' // Darker indigo for night
+                      : 'rgba(147,197,253,0.6)'; // Sky blue for naps
 
-                    const leftMargin = viewMode === 'day' ? 8 : 4;
-                    const rightMargin = viewMode === 'day' ? 8 : 4;
+                    const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
+                    const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
 
                     // IMPORTANT: Render as ABSOLUTE directly inside the plot area (which is `relative` and has height).
                     // Do NOT wrap in a `position: relative` div, or % top/height can collapse.
@@ -3376,32 +3360,34 @@ const DailyActivityChart = ({
                     out.push(
                       React.createElement('div', {
                         key: `${day0}-sleep-block-${idx}`,
-                        className: 'absolute rounded-lg z-10',
+                        className: 'absolute rounded-lg',
                         style: {
                           top: `${top}%`,
                           height: `${h}%`,
                           left: `${leftMargin}px`,
                           right: `${rightMargin}px`,
                           background: bgColor,
-                          border: sleepType === 'night'
-                            ? '1px solid rgba(79,70,229,0.3)'
-                            : '1px solid rgba(59,130,246,0.3)'
+                          border: sleepType === 'night' 
+                            ? '1px solid rgba(79,70,229,0.4)'
+                            : '1px solid rgba(59,130,246,0.3)',
+                          zIndex: 10 // Keep z-layering safe
                         }
                       })
                     );
 
                     // Nap label (only show in day view or for longer naps in week view)
-                    if (sleepType === 'day' && !isActive && (viewMode === 'day' || h > 8)) {
+                    if (sleepType === 'day' && !isActive && (effectiveViewMode === 'day' || h > 6)) {
                       out.push(
                         React.createElement('div', {
                           key: `${day0}-sleep-label-${idx}`,
-                          className: 'absolute left-2 text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded-md shadow-sm z-20',
+                          className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
                           style: {
                             top: `${Math.max(0, top - 2)}%`,
                             color: '#3B82F6',
-                            border: '1px solid rgba(59,130,246,0.2)'
-                          }
-                        }, viewMode === 'day' ? 'Nap' : 'N')
+                            border: '1px solid rgba(59,130,246,0.2)',
+                            zIndex: 15
+                          },
+                        }, effectiveViewMode === 'day' ? 'Nap' : 'N') // FIXED: use effectiveViewMode
                       );
                     }
 
@@ -3410,13 +3396,14 @@ const DailyActivityChart = ({
                       out.push(
                         React.createElement('div', {
                           key: `${day0}-sleep-active-${idx}`,
-                          className: 'absolute left-2 text-[10px] font-semibold bg-white px-1.5 py-0.5 rounded-md shadow-sm z-20',
+                          className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
                           style: {
                             top: `${Math.min(95, bottom + 1)}%`,
                             color: '#4F46E5',
-                            border: '1px solid rgba(79,70,229,0.2)'
-                          }
-                        }, viewMode === 'day' ? '🌙 Active' : '🌙')
+                            border: '1px solid rgba(79,70,229,0.2)',
+                            zIndex: 15
+                          },
+                        }, effectiveViewMode === 'day' ? '🌙 Active' : '🌙') // FIXED: use effectiveViewMode
                       );
                     }
 
@@ -3424,26 +3411,24 @@ const DailyActivityChart = ({
                   }).flat(),
 
                   // Feed ticks (HORIZONTAL LINES at feed time)
-                  dayFeeds.map((ev, idx) => {
+                  dayFeeds.map((ev, idx) => { 
                     const top = yPct(ev.s, day0);
 
-                    // Different feed colors for variety (like Huckleberry)
-                    const feedColors = ['#EC4899', '#F59E0B', '#EF4444']; // Pink, Orange, Red
-                    const tickColor = feedColors[idx % feedColors.length];
+                    // Single consistent color for feeds (pink accent)
+                    const tickColor = '#EC4899';
 
                     return React.createElement('div', {
                       key: `${day0}-feed-${idx}`,
-                      className: 'absolute z-10',
+                      className: 'absolute',
                       style: {
                         top: `${top}%`,
-                        left: viewMode === 'day' ? '8px' : '4px',
-                        right: viewMode === 'day' ? '8px' : '4px',
-                        height: viewMode === 'day' ? '2px' : '2px',
+                        left: effectiveViewMode === 'day' ? '8px' : '6px',
+                        right: effectiveViewMode === 'day' ? '8px' : '6px',
+                        height: '3px', // Consistent 3px height
                         background: tickColor,
-                        transform: 'translateY(-50%)',
-                        borderRadius: '9999px',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.15)',
-                        opacity: 0.95
+                        transform: 'translateY(-50%)', 
+                        borderRadius: '2px', // Slight rounding
+                        zIndex: 20 // Above sleep blocks
                       }
                     });
                   })
@@ -3497,9 +3482,6 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       container.scrollLeft = container.scrollWidth;
     }, 0);
   }, [loading, stats.chartData, timeframe]);
-
-  // View mode state for Daily Activity chart
-  const [actogramView, setActogramView] = React.useState('week'); // Default to week view
 
   const loadAnalytics = async () => {
     if (!kidId) {
@@ -3886,46 +3868,19 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     'div',
     { className: 'space-y-4' },
 
-    // Daily Activity section with view toggle
-    React.createElement(
-      'div',
-      null,
-      React.createElement(
-        'div',
-        { className: 'flex items-center justify-between mb-3' },
-        React.createElement('div', {
-          className: "section-title",
-          style: { fontWeight: 700, fontSize: 18, margin: 0 }
-        }, "Daily Activity"),
+    // Daily Activity (uses existing Day/Week/Month toggle below)
+    React.createElement('div', { 
+      className: "section-title", 
+      style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" } 
+    }, "Daily Activity"),
+    React.createElement(DailyActivityChart, {
+      viewMode: timeframe === 'day' ? 'day' : 'week', // 'day' tab = day view, otherwise week
+      feedings: allFeedings,
+      sleepSessions: sleepSessions,
+      sleepSettings: sleepSettings
+    }),
 
-        // Day/Week toggle
-        React.createElement(
-          'div',
-          { className: 'inline-flex rounded-lg bg-gray-100 p-1' },
-          ['day', 'week'].map(mode =>
-            React.createElement(
-              'button',
-              {
-                key: mode,
-                onClick: () => setActogramView(mode),
-                className: actogramView === mode
-                  ? 'px-4 py-1.5 rounded-md bg-white shadow-sm text-sm font-medium text-gray-900'
-                  : 'px-4 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900'
-              },
-              mode.charAt(0).toUpperCase() + mode.slice(1)
-            )
-          )
-        )
-      ),
-
-      // Calendar-style activity chart
-      React.createElement(DailyActivityChart, {
-        viewMode: actogramView,
-        feedings: allFeedings,
-        sleepSessions: sleepSessions,
-        sleepSettings: sleepSettings
-      })
-    ),
+    // Day/Week/Month toggle (BELOW actogram, applies to everything)
 
     React.createElement(
       'div',
