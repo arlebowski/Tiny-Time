@@ -3039,16 +3039,23 @@ const DailyActivityChart = ({
   const clampOffset = (n) => Math.max(0, Math.floor(Number(n) || 0));
   const pageBack = () => setOffsetDays((n) => clampOffset(n + stepDays));
   const pageFwd = () => setOffsetDays((n) => clampOffset(n - stepDays));
-  const scrollRef = React.useRef(null);
+  const scrollRef = React.useRef(null);        // body horizontal scroll container
+  const headerScrollRef = React.useRef(null);  // header horizontal scroll container
+  const plotScrollRef = React.useRef(null);    // day-view vertical scroll container
 
-  // Auto-scroll to the most recent day
+  // Auto-scroll to the most recent day (ONLY on today; do not fight paging)
   React.useEffect(() => {
+    if (offsetDays !== 0) return;
+    if (effectiveViewMode === 'day') return;
+
     const el = scrollRef.current;
     if (!el) return;
+
     let raf1 = 0;
     let raf2 = 0;
     let t1 = 0;
     const scrollToRight = () => { try { el.scrollLeft = el.scrollWidth; } catch {} };
+
     raf1 = requestAnimationFrame(() => {
       scrollToRight();
       raf2 = requestAnimationFrame(() => {
@@ -3056,12 +3063,33 @@ const DailyActivityChart = ({
         t1 = setTimeout(scrollToRight, 50);
       });
     });
+
     return () => {
       try { if (raf1) cancelAnimationFrame(raf1); } catch {}
       try { if (raf2) cancelAnimationFrame(raf2); } catch {}
       try { if (t1) clearTimeout(t1); } catch {}
     };
-  }, [days, feedings?.length, sleepSessions?.length, offsetDays]);
+  }, [effectiveViewMode, offsetDays]);
+
+  // Day view: auto-scroll vertically to current time (only on today)
+  React.useEffect(() => {
+    if (effectiveViewMode !== 'day') return;
+    if (offsetDays !== 0) return;
+
+    const el = plotScrollRef.current;
+    if (!el) return;
+
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const pct = mins / (24 * 60);
+
+    requestAnimationFrame(() => {
+      try {
+        const target = (el.scrollHeight * pct) - (el.clientHeight * 0.40);
+        el.scrollTop = Math.max(0, target);
+      } catch {}
+    });
+  }, [effectiveViewMode, offsetDays]);
 
   const toMs = (t) => {
     if (!t) return null;
@@ -3208,7 +3236,7 @@ const DailyActivityChart = ({
   // Column sizing (px) to guarantee strip + columns align perfectly on iOS
   // - Week: 7 columns fit comfortably on iPhone without “double stacking” under a single day
   // - Month: treated as rolling 14 days, narrower columns
-  const COL_PX = effectiveViewMode === 'day' ? null : (effectiveViewMode === 'month' ? 32 : 56);
+  const COL_PX = effectiveViewMode === 'day' ? null : (effectiveViewMode === 'month' ? 32 : 32);
   const contentMinWidth = effectiveViewMode === 'day' ? '100%' : `${days * COL_PX}px`;
   const gridBg = {
     backgroundImage:
@@ -3264,26 +3292,30 @@ const DailyActivityChart = ({
         { className: 'px-4 pb-3' },
         React.createElement(
           'div',
-          { style: { minWidth: contentMinWidth } },
+          { className: 'overflow-x-auto', ref: headerScrollRef, style: { scrollbarWidth: 'thin' } },
           React.createElement(
             'div',
-            { className: 'flex gap-0 border-b border-gray-100' },
-            dayStarts.map((day0) => {
-              const d = new Date(day0);
-              const isToday = day0 === today0;
-              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-              const dayNum = d.getDate();
-              return React.createElement(
-                'div',
-                { key: `strip-${day0}`, className: 'shrink-0 text-center border-r border-gray-100', style: { width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px` } },
-                React.createElement(
+            { style: { minWidth: contentMinWidth } },
+            React.createElement(
+              'div',
+              { className: 'flex gap-0 border-b border-gray-100' },
+              dayStarts.map((day0) => {
+                const d = new Date(day0);
+                const isToday = day0 === today0;
+                const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                const dayNum = d.getDate();
+                return React.createElement(
                   'div',
-                  { className: `py-2 rounded-lg ${isToday ? 'bg-indigo-50' : ''}` },
-                  React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
-                  React.createElement('div', { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` }, String(dayNum))
-                )
-              );
-            })
+                  { key: `strip-${day0}`, className: 'shrink-0 text-center border-r border-gray-100', style: { width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px` } },
+                  React.createElement(
+                    'div',
+                    { className: `py-2 rounded-lg ${isToday ? 'bg-indigo-50' : ''}` },
+                    React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
+                    React.createElement('div', { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` }, String(dayNum))
+                  )
+                );
+              })
+            )
           )
         )
       ),
@@ -3293,7 +3325,8 @@ const DailyActivityChart = ({
         'div',
         {
           className: 'px-4 pb-4 flex-1 overflow-y-auto',
-          style: { overscrollBehavior: 'contain' }
+          style: { overscrollBehavior: 'contain' },
+          ref: plotScrollRef
         },
         React.createElement(
           'div',
@@ -3328,7 +3361,14 @@ const DailyActivityChart = ({
             {
               className: 'flex-1 overflow-x-auto',
               ref: scrollRef,
-              style: { scrollbarWidth: 'thin' }
+              style: { scrollbarWidth: 'thin' },
+              onScroll: (e) => {
+                try {
+                  const x = e.currentTarget.scrollLeft;
+                  const h = headerScrollRef.current;
+                  if (h && h.scrollLeft !== x) h.scrollLeft = x;
+                } catch {}
+              }
             },
             React.createElement(
               'div',
