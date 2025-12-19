@@ -3032,7 +3032,7 @@ const DailyActivityChart = ({
 
   // Safe default handling without mutation
   const effectiveViewMode = viewMode || 'day';
-  const days = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 14 : 7); // month = rolling 14 days
+  const days = effectiveViewMode === 'day' ? 1 : 7; // week/month actogram are identical (7 days)
   const [offsetDays, setOffsetDays] = React.useState(0); // 0 = week/day ending today
   const stepDays = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 7 : 7); // nav moves by 1 week
 
@@ -3292,29 +3292,50 @@ const DailyActivityChart = ({
         { className: 'px-4 pb-3' },
         React.createElement(
           'div',
-          { className: 'overflow-x-auto', ref: headerScrollRef, style: { scrollbarWidth: 'thin' } },
+          { className: 'flex' },
+          // Left gutter = same width as Y-axis time column, so headers align with plotted columns
+          React.createElement('div', { className: 'w-14 shrink-0' }),
           React.createElement(
             'div',
-            { style: { minWidth: contentMinWidth } },
+            {
+              className: 'flex-1 overflow-x-auto',
+              ref: headerScrollRef,
+              style: { scrollbarWidth: 'thin' },
+              onScroll: (e) => {
+                try {
+                  const x = e.currentTarget.scrollLeft;
+                  const b = scrollRef.current;
+                  if (b && b.scrollLeft !== x) b.scrollLeft = x;
+                } catch {}
+              }
+            },
             React.createElement(
               'div',
-              { className: 'flex gap-0 border-b border-gray-100' },
-              dayStarts.map((day0) => {
-                const d = new Date(day0);
-                const isToday = day0 === today0;
-                const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-                const dayNum = d.getDate();
-                return React.createElement(
-                  'div',
-                  { key: `strip-${day0}`, className: 'shrink-0 text-center border-r border-gray-100', style: { width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px` } },
-                  React.createElement(
+              { style: { minWidth: contentMinWidth } },
+              React.createElement(
+                'div',
+                { className: 'flex gap-0 border-b border-gray-100' },
+                dayStarts.map((day0) => {
+                  const d = new Date(day0);
+                  const isToday = day0 === today0;
+                  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                  const dayNum = d.getDate();
+                  return React.createElement(
                     'div',
-                    { className: `py-2 rounded-lg ${isToday ? 'bg-indigo-50' : ''}` },
-                    React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
-                    React.createElement('div', { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` }, String(dayNum))
-                  )
-                );
-              })
+                    {
+                      key: `strip-${day0}`,
+                      className: 'shrink-0 text-center border-r border-gray-100',
+                      style: { width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px` }
+                    },
+                    React.createElement(
+                      'div',
+                      { className: `py-2 rounded-lg ${isToday ? 'bg-indigo-50' : ''}` },
+                      React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
+                      React.createElement('div', { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` }, String(dayNum))
+                    )
+                  );
+                })
+              )
             )
           )
         )
@@ -3335,12 +3356,12 @@ const DailyActivityChart = ({
           // Y-axis time labels (fixed on left)
           React.createElement(
             'div',
-            { className: 'w-14 shrink-0 border-r border-gray-100 bg-gray-50' },
+            { className: 'w-14 shrink-0 border-r border-gray-100 bg-white' },
             // Empty space for column headers
             React.createElement('div', { className: 'h-2 border-b border-gray-100' }),
             React.createElement(
               'div',
-              { className: 'relative bg-gray-50', style: { height: PLOT_H } },
+              { className: 'relative bg-white', style: { height: PLOT_H } },
               hourLabels.map((h) =>
                 React.createElement(
                   'div',
