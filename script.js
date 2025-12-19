@@ -3300,7 +3300,7 @@ const DailyActivityChart = ({
           // LEFT: fixed time axis
           React.createElement(
             'div',
-            { className: 'w-10 shrink-0 border-r border-gray-100 bg-white' },
+            { className: 'w-16 shrink-0 border-r border-gray-200 bg-white pr-3' },
 
             // Header spacer MUST match header height on the right
             React.createElement('div', { className: 'h-[52px] border-b border-gray-100' }),
@@ -3309,29 +3309,39 @@ const DailyActivityChart = ({
               'div',
               { className: 'relative bg-white', style: { height: PLOT_H } },
 
-              // Render ALL hour gridlines first (faint)
+              // Render very subtle gridlines at every hour FIRST (behind labels)
               Array.from({ length: 25 }, (_, i) => i).map(i =>
                 React.createElement('div', {
                   key: `grid-${i}`,
                   className: 'absolute left-0 right-0 border-t',
                   style: {
                     top: `${(i / 24) * 100}%`,
-                    borderColor: 'rgba(229, 231, 235, 0.5)' // Very subtle gray
+                    borderColor: 'rgba(0, 0, 0, 0.04)',
+                    pointerEvents: 'none'
                   }
                 })
               ),
 
-              // Then render time labels (only for labeled hours)
+              // Then render time labels in Apple style (medium weight, right-aligned, AM/PM separate)
               hourLabels.map((h) =>
                 h.label ? React.createElement('div', {
                   key: h.i,
-                  className: 'absolute left-0 w-full text-[13px] font-semibold text-gray-700 text-right pr-1',
+                  className: 'absolute right-0 text-right',
                   style: {
                     top: `${(h.i / 24) * 100}%`,
                     transform: 'translateY(-50%)',
-                    zIndex: 10 // Labels sit ABOVE gridlines
+                    zIndex: 10
                   }
-                }, h.label) : null
+                },
+                  // Number part (17px medium weight)
+                  React.createElement('span', {
+                    className: 'text-[17px] font-medium text-gray-700 leading-none'
+                  }, h.label.replace(/am|pm/i, '')),
+                  // AM/PM part (11px light gray) - only if present
+                  h.label.match(/am|pm/i) && React.createElement('span', {
+                    className: 'text-[11px] font-normal text-gray-400 leading-none ml-0.5'
+                  }, h.label.match(/am|pm/i)[0].toUpperCase())
+                ) : null
               )
             )
           ),
@@ -3339,7 +3349,7 @@ const DailyActivityChart = ({
           // RIGHT: SINGLE horizontal scroller containing BOTH header + plot columns
           React.createElement(
             'div',
-            { className: 'flex-1 min-w-0', ref: scrollRef },
+            { className: 'flex-1 min-w-0 border-l border-gray-200', ref: scrollRef },
             React.createElement(
               'div',
               { className: 'w-full' },
@@ -3438,9 +3448,7 @@ const DailyActivityChart = ({
                       {
                         className: 'relative',
                         style: {
-                          height: PLOT_H,
-                          // White background - grid lines only, no night shading
-                          ...gridBg
+                          height: PLOT_H
                         }
                       },
 
