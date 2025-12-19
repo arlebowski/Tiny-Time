@@ -3022,24 +3022,38 @@ const DailyActivityChart = ({
   sleepSessions = [],
   sleepSettings = null
 }) => {
+  // ========================================
+  // ACTOGRAM: "Apple Health" polish + bulletproofing
+  // ========================================
+  // Turn on locally if you need it, but keep it off for production.
+  const DEBUG_ACTOGRAM = false;
+  const dlog = (...args) => { try { if (DEBUG_ACTOGRAM) console.log('[ACTOGRAM]', ...args); } catch {} };
 
-  // === DIAGNOSTIC LOGGING ===
-  console.log('=== ACTOGRAM DEBUG ===');
-  console.log('View Mode:', viewMode);
-  console.log('Raw feedings count:', feedings?.length || 0);
-  console.log('Raw sleepSessions count:', sleepSessions?.length || 0);
-  // === END DIAGNOSTIC ===
+  // Apple Health-ish styling constants (local to this component)
+  const TT = {
+    cardH: 420,           // KEEP CONSISTENT across day/week/month
+    headerH: 52,          // day strip header row height
+    axisW: 52,            // quiet gutter
+    gridMajor: 'rgba(17,24,39,0.08)',
+    gridMinor: 'rgba(17,24,39,0.04)',
+    axisTextClass: 'text-[12px] font-medium text-gray-500',
+    nowGreen: '#22C55E',
+    // Event colors (match legend)
+    sleepNight: 'rgba(79,70,229,0.72)', // indigo
+    sleepDay:   'rgba(96,165,250,0.72)', // blue
+    feedPink:   '#EC4899',
+  };
 
   // Safe default handling without mutation
   const effectiveViewMode = viewMode || 'day';
-  const days = effectiveViewMode === 'day' ? 1 : 7; // week/month actogram are identical (7 days)
+  const days = effectiveViewMode === 'day' ? 1 : 7; // week/month: 7-day rolling window
   const [offsetDays, setOffsetDays] = React.useState(0); // 0 = week/day ending today
-  const stepDays = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 7 : 7); // nav moves by 1 week
+  const stepDays = effectiveViewMode === 'day' ? 1 : 7; // nav moves by 1 week for week/month
 
   const clampOffset = (n) => Math.max(0, Math.floor(Number(n) || 0));
   const pageBack = () => setOffsetDays((n) => clampOffset(n + stepDays));
   const pageFwd = () => setOffsetDays((n) => clampOffset(n - stepDays));
-  const scrollRef = React.useRef(null);     // single horizontal scroller (header + plot)
+  const scrollRef = React.useRef(null);     // single horizontal scroller (header + plot) - MUST be overflow-x-auto
   const plotScrollRef = React.useRef(null); // day-view vertical scroll container
 
   // Auto-scroll to the most recent day (ONLY on today; do not fight paging)
@@ -3053,7 +3067,12 @@ const DailyActivityChart = ({
     let raf1 = 0;
     let raf2 = 0;
     let t1 = 0;
-    const scrollToRight = () => { try { el.scrollLeft = el.scrollWidth; } catch {} };
+    const scrollToRight = () => {
+      try {
+        // scrollWidth includes the visible area; subtract clientWidth to land at max scroll
+        el.scrollLeft = Math.max(0, el.scrollWidth - el.clientWidth);
+      } catch {}
+    };
 
     raf1 = requestAnimationFrame(() => {
       scrollToRight();
@@ -3090,7 +3109,7 @@ const DailyActivityChart = ({
     });
   }, [effectiveViewMode, offsetDays]);
 
-  const toMs = (t) => {
+  const toMs = React.useCallback((t) => {
     if (!t) return null;
     // Normalize numeric timestamps:
     // - If stored as Unix seconds (10 digits-ish), convert to ms.
@@ -3111,64 +3130,38 @@ const DailyActivityChart = ({
     const d = (t instanceof Date) ? t : new Date(t);
     const ms = d.getTime();
     return Number.isFinite(ms) ? ms : null;
-  };
-
-  const startOfDayLocal = (ms) => {
-    const d = new Date(ms);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime();
-  };
-
-  const fmtDay = (day0) =>
-    new Date(day0).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }, []);
 
   const today = new Date();
   const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   const nowMsLocal = Date.now();
 
-  // === DIAGNOSTIC: Check today calculation ===
-  console.log('Today date:', new Date(today0).toISOString());
-  console.log('Now:', new Date(nowMsLocal).toISOString());
-  console.log('Days to show:', days);
-  // === END DIAGNOSTIC ===
+  dlog('viewMode', effectiveViewMode, 'days', days, 'offsetDays', offsetDays);
 
   // End day for the visible range
   const endDay0 = today0 - clampOffset(offsetDays) * 86400000;
 
-  const dayStarts = [];
-  for (let i = days - 1; i >= 0; i--) dayStarts.push(endDay0 - i * 86400000);
-
-  // === DIAGNOSTIC: Check day starts ===
-  console.log('Day starts:', dayStarts.map(d => new Date(d).toISOString()));
-  // === END DIAGNOSTIC ===
+  const dayStarts = React.useMemo(() => {
+    const out = [];
+    for (let i = days - 1; i >= 0; i--) out.push(endDay0 - i * 86400000);
+    return out;
+  }, [days, endDay0]);
 
   // Window: midnight to midnight (24 hours)
   const windowStartMs = (day0) => day0;
   const windowEndMs = (day0) => day0 + 86400000; // +24 hours
 
-  // === DIAGNOSTIC: Check window calculation for today ===
-  const todayWindowStart = windowStartMs(today0);
-  const todayWindowEnd = windowEndMs(today0);
-  console.log('Today window start:', new Date(todayWindowStart).toISOString());
-  console.log('Today window end:', new Date(todayWindowEnd).toISOString());
-  // === END DIAGNOSTIC ===
-
   // Feedings are stored as point-in-time events (typically { ounces, timestamp }).
   // Use toMs() so we correctly handle Firestore Timestamps, numbers (ms), Dates, and ISO strings.
-  const feeds = (Array.isArray(feedings) ? feedings : [])
-    .map((f) => ({
-      s: toMs(f.timestamp ?? f.startTime ?? f.time ?? f.startAt ?? f.start)
-    }))
-    .filter((ev) => !!ev.s);
-  console.log('Parsed feeds:', feeds.length, feeds.slice(0, 3)); // Show first 3
-
-  // Current time indicator (for Day view only)
-  const nowInTodayWindow = nowMsLocal >= windowStartMs(today0) && nowMsLocal < windowEndMs(today0);
-
-  const getCurrentTimePct = () => {
-    if (!nowInTodayWindow) return null;
-    return ((nowMsLocal - windowStartMs(today0)) / 86400000) * 100;
-  };
+  const feeds = React.useMemo(() => {
+    const raw = Array.isArray(feedings) ? feedings : [];
+    const out = [];
+    for (const f of raw) {
+      const s = toMs(f?.timestamp ?? f?.startTime ?? f?.time ?? f?.startAt ?? f?.start);
+      if (s) out.push({ s });
+    }
+    return out;
+  }, [feedings, toMs]);
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const yPct = (tMs, day0) => {
@@ -3178,24 +3171,19 @@ const DailyActivityChart = ({
     return ((x - ws) / (we - ws)) * 100;
   };
 
-  const sleeps = (Array.isArray(sleepSessions) ? sleepSessions : [])
-    .map((s) => {
-      const start = toMs(s.startTime ?? s.startAt ?? s.start);
-      const end = toMs(s.endTime ?? s.endAt ?? s.end);
-      return { ...s, s: start, e: end };
-    })
-    .filter((s) => !!s.s && (!!s.e || s.isActive)); // Include active sessions
+  const sleeps = React.useMemo(() => {
+    const raw = Array.isArray(sleepSessions) ? sleepSessions : [];
+    const out = [];
+    for (const s of raw) {
+      const start = toMs(s?.startTime ?? s?.startAt ?? s?.start);
+      const end = toMs(s?.endTime ?? s?.endAt ?? s?.end);
+      // Include active sessions (missing end), and completed sessions (need end)
+      if (start && (end || s?.isActive)) out.push({ ...s, s: start, e: end || null });
+    }
+    return out;
+  }, [sleepSessions, toMs]);
 
-  // === DIAGNOSTIC: Check parsed sleep sessions ===
-  console.log('Parsed sleep sessions:', sleeps.length);
-  if (sleeps.length > 0) {
-    console.log('First sleep:', {
-      start: new Date(sleeps[0].s).toISOString(),
-      end: sleeps[0].e ? new Date(sleeps[0].e).toISOString() : 'active',
-      type: sleeps[0].type
-    });
-  }
-  // === END DIAGNOSTIC ===
+  dlog('parsed feeds', feeds.length, 'parsed sleeps', sleeps.length);
 
   // Classify sleep as day/night based on start time
   const _sleepTypeForSession = (session) => {
@@ -3222,25 +3210,66 @@ const DailyActivityChart = ({
     return within ? 'day' : 'night';
   };
 
-  const hourLabels = [];
-  for (let i = 0; i < 25; i++) {
-    const full = i === 0 ? '12am' : i < 12 ? `${i}am` : i === 12 ? '12pm' : `${i - 12}pm`;
-    const label = (i === 0 || i === 6 || i === 12 || i === 18 || i === 24) ? full : '';
-    hourLabels.push({ i, label });
-  }
-
-  // Plot height: Day can be taller (scrolls), Week/Month should show full 24h without feeling cramped
-  const PLOT_H = effectiveViewMode === 'day' ? 480 : 260;
-
-  // Column sizing (px) to guarantee strip + columns align perfectly on iOS
-  // - Week: 7 columns fit comfortably on iPhone without “double stacking” under a single day
-  // - Month: treated as rolling 14 days, narrower columns
-  const COL_PX = effectiveViewMode === 'day' ? null : (effectiveViewMode === 'month' ? 32 : 32);
-  const contentMinWidth = effectiveViewMode === 'day' ? '100%' : `${days * COL_PX}px`;
-  const gridBg = {
-    backgroundImage:
-      `repeating-linear-gradient(to bottom, rgba(99,102,241,0.10) 0px, rgba(99,102,241,0.10) 1px, transparent 1px, transparent ${PLOT_H / 24}px)`,
+  // Apple-ish ticks: major every 6 hours; minor every 3 hours; show "Noon" at 12 PM
+  const majorTicks = React.useMemo(() => [0, 6, 12, 18, 24], []);
+  const minorTicks = React.useMemo(() => [3, 9, 15, 21], []);
+  const _pad2 = (n) => String(n).padStart(2, '0');
+  const _formatTimePill = (ms) => {
+    const d = new Date(ms);
+    const h = d.getHours();
+    const m = d.getMinutes();
+    const h12 = (h % 12) === 0 ? 12 : (h % 12);
+    return `${h12}:${_pad2(m)}`;
   };
+  const _formatHourLabelApple = (hour24) => {
+    const h = ((hour24 % 24) + 24) % 24;
+    if (h === 12) return 'Noon';
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = (h % 12) === 0 ? 12 : (h % 12);
+    return `${h12} ${ampm}`;
+  };
+
+  // Keep the chart area visually consistent across day/week/month.
+  // We keep card height fixed (TT.cardH) and use one plot height for all modes.
+  const PLOT_H = 300;
+
+  // Bucket feeds by dayStart for O(1) lookup per column
+  const feedsByDay = React.useMemo(() => {
+    const map = new Map();
+    for (const day0 of dayStarts) map.set(day0, []);
+    for (const ev of feeds) {
+      // Determine which visible day bucket this feed belongs to
+      for (const day0 of dayStarts) {
+        const ws = windowStartMs(day0);
+        const we = windowEndMs(day0);
+        if (ev.s >= ws && ev.s < we) {
+          map.get(day0).push(ev);
+          break;
+        }
+      }
+    }
+    return map;
+  }, [feeds, dayStarts]);
+
+  // Bucket sleeps by dayStart (include overlaps)
+  const sleepsByDay = React.useMemo(() => {
+    const map = new Map();
+    for (const day0 of dayStarts) map.set(day0, []);
+    for (const ev of sleeps) {
+      for (const day0 of dayStarts) {
+        const ws = windowStartMs(day0);
+        const we = windowEndMs(day0);
+        if (ev.isActive) {
+          // Active sleep: show if it started before window ends
+          if (ev.s < we) map.get(day0).push(ev);
+        } else if (ev.e) {
+          // Completed sleep: show if overlap
+          if ((ev.s < we) && (ev.e > ws)) map.get(day0).push(ev);
+        }
+      }
+    }
+    return map;
+  }, [sleeps, dayStarts]);
 
   return React.createElement(
     'div',
@@ -3250,7 +3279,7 @@ const DailyActivityChart = ({
       {
         className: 'bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col',
         style: {
-          height: 420
+          height: TT.cardH
         }
       },
 
@@ -3300,7 +3329,7 @@ const DailyActivityChart = ({
           // LEFT: fixed time axis
           React.createElement(
             'div',
-            { className: 'w-16 shrink-0 border-r border-gray-200 bg-white pr-3' },
+            { className: 'shrink-0 border-r border-gray-200 bg-white pr-2', style: { width: TT.axisW } },
 
             // Header spacer MUST match header height on the right
             React.createElement('div', { className: 'h-[52px] border-b border-gray-100' }),
@@ -3309,39 +3338,45 @@ const DailyActivityChart = ({
               'div',
               { className: 'relative bg-white', style: { height: PLOT_H } },
 
-              // Render very subtle gridlines at every hour FIRST (behind labels)
-              Array.from({ length: 25 }, (_, i) => i).map(i =>
+              // Minor gridlines (3-hour) behind labels
+              minorTicks.map((i) =>
                 React.createElement('div', {
-                  key: `grid-${i}`,
-                  className: 'absolute left-0 right-0 border-t',
+                  key: `gmin-${i}`,
+                  className: 'absolute left-0 right-0',
                   style: {
                     top: `${(i / 24) * 100}%`,
-                    borderColor: 'rgba(0, 0, 0, 0.04)',
+                    height: 1,
+                    background: TT.gridMinor,
                     pointerEvents: 'none'
                   }
                 })
               ),
-
-              // Then render time labels in Apple style (medium weight, right-aligned, AM/PM separate)
-              hourLabels.map((h) =>
-                h.label ? React.createElement('div', {
-                  key: h.i,
-                  className: 'absolute right-0 text-right',
+              // Major gridlines (6-hour)
+              majorTicks.map((i) =>
+                React.createElement('div', {
+                  key: `gmaj-${i}`,
+                  className: 'absolute left-0 right-0',
                   style: {
-                    top: `${(h.i / 24) * 100}%`,
-                    transform: 'translateY(-50%)',
-                    zIndex: 10
+                    top: `${(i / 24) * 100}%`,
+                    height: 1,
+                    background: TT.gridMajor,
+                    pointerEvents: 'none'
                   }
-                },
-                  // Number part (17px medium weight)
-                  React.createElement('span', {
-                    className: 'text-[17px] font-medium text-gray-700 leading-none'
-                  }, h.label.replace(/am|pm/i, '')),
-                  // AM/PM part (11px light gray) - only if present
-                  h.label.match(/am|pm/i) && React.createElement('span', {
-                    className: 'text-[11px] font-normal text-gray-400 leading-none ml-0.5'
-                  }, h.label.match(/am|pm/i)[0].toUpperCase())
-                ) : null
+                })
+              ),
+              // Labels: small + quiet, right-aligned, with "Noon"
+              majorTicks.map((i) =>
+                React.createElement('div', {
+                  key: `glab-${i}`,
+                  className: `absolute right-1 ${TT.axisTextClass}`,
+                  style: {
+                    top: `${(i / 24) * 100}%`,
+                    transform: 'translateY(-50%)',
+                    zIndex: 10,
+                    lineHeight: 1,
+                    whiteSpace: 'nowrap'
+                  }
+                }, _formatHourLabelApple(i))
               )
             )
           ),
@@ -3349,10 +3384,12 @@ const DailyActivityChart = ({
           // RIGHT: SINGLE horizontal scroller containing BOTH header + plot columns
           React.createElement(
             'div',
-            { className: 'flex-1 min-w-0 border-l border-gray-200', ref: scrollRef },
+            // IMPORTANT: this is the ACTUAL horizontal scroll container
+            { className: 'flex-1 min-w-0 border-l border-gray-200 overflow-x-auto', ref: scrollRef },
             React.createElement(
               'div',
-              { className: 'w-full' },
+              // Keep content width stable: day is 100%; week/month is sized by columns
+              { className: 'w-full', style: { minWidth: effectiveViewMode === 'day' ? '100%' : `${days * 44}px` } },
 
               // HEADER ROW (inside the same scroller)
               React.createElement(
@@ -3402,38 +3439,12 @@ const DailyActivityChart = ({
                   const we = windowEndMs(day0);
                   const isToday = day0 === today0;
 
-                  // === DIAGNOSTIC: Per-day filtering ===
-                  console.log(`\n=== Day ${new Date(day0).toLocaleDateString()} ===`);
-                  console.log('Window:', new Date(ws).toISOString(), 'to', new Date(we).toISOString());
-                  // === END DIAGNOSTIC ===
+                  // Current time indicator for this day column (only if today is visible)
+                  const nowInThisWindow = isToday && (nowMsLocal >= ws) && (nowMsLocal < we);
+                  const nowPct = nowInThisWindow ? ((nowMsLocal - ws) / (we - ws)) * 100 : null;
 
-                  // Current time indicator for week view
-                  const nowInTodayWindow = isToday && nowMsLocal >= ws && nowMsLocal < we;
-                  const nowPct = nowInTodayWindow ? ((nowMsLocal - ws) / (we - ws)) * 100 : null;
-
-                  // Include any sleep that overlaps with this 24-hour window
-                  const daySleeps = sleeps.filter((ev) => {
-                    if (ev.isActive) {
-                      // Active sleep: show if it started before window ends
-                      return ev.s < we;
-                    }
-                    // Completed sleep: show if there's any overlap
-                    // Sleep overlaps if: (sleep_start < window_end) AND (sleep_end > window_start)
-                    return ev.e && (ev.s < we) && (ev.e > ws);
-                  });
-
-                  // === DIAGNOSTIC: Filtered results ===
-                  console.log('Filtered sleeps for this day:', daySleeps.length);
-                  if (daySleeps.length > 0) {
-                    console.log('First sleep in day:', {
-                      start: new Date(daySleeps[0].s).toISOString(),
-                      end: daySleeps[0].e ? new Date(daySleeps[0].e).toISOString() : 'active'
-                    });
-                  }
-                  // === END DIAGNOSTIC ===
-
-                  const dayFeeds = feeds.filter((ev) => ev.s >= ws && ev.s < we);
-                  console.log('Filtered feeds for this day:', dayFeeds.length);
+                  const daySleeps = sleepsByDay.get(day0) || [];
+                  const dayFeeds = feedsByDay.get(day0) || [];
 
                   return React.createElement(
                     'div',
@@ -3452,36 +3463,74 @@ const DailyActivityChart = ({
                         }
                       },
 
-                      // Current time indicator (green line) - Day and Week view
-                      nowInTodayWindow && nowPct !== null &&
+                      // Plot gridlines (subtle, Apple-ish) behind events
+                      minorTicks.map((i) =>
                         React.createElement('div', {
-                          className: 'absolute left-0 right-0 z-20 flex items-center',
-                          style: { top: `${nowPct}%` }
+                          key: `${day0}-pmin-${i}`,
+                          className: 'absolute left-0 right-0',
+                          style: {
+                            top: `${(i / 24) * 100}%`,
+                            height: 1,
+                            background: TT.gridMinor,
+                            zIndex: 1,
+                            pointerEvents: 'none'
+                          }
+                        })
+                      ),
+                      majorTicks.map((i) =>
+                        React.createElement('div', {
+                          key: `${day0}-pmaj-${i}`,
+                          className: 'absolute left-0 right-0',
+                          style: {
+                            top: `${(i / 24) * 100}%`,
+                            height: 1,
+                            background: TT.gridMajor,
+                            zIndex: 2,
+                            pointerEvents: 'none'
+                          }
+                        })
+                      ),
+
+                      // Current time indicator (Apple-like): thin green line + time pill (no dot)
+                      nowInThisWindow && nowPct !== null &&
+                        React.createElement('div', {
+                          className: 'absolute left-0 right-0',
+                          style: {
+                            top: `${nowPct}%`,
+                            height: 2,
+                            background: TT.nowGreen,
+                            zIndex: 30
+                          }
                         },
                         React.createElement('div', {
-                          className: 'w-2 h-2 rounded-full bg-green-500 -ml-1',
-                          style: { zIndex: 30 }
-                        }),
-                        React.createElement('div', {
-                          className: 'flex-1 h-1 bg-green-500', // Thicker line h-0.5→h-1
-                          style: { zIndex: 30 }
-                        })
+                          className: 'absolute',
+                          style: {
+                            left: 10,
+                            top: -14,
+                            background: TT.nowGreen,
+                            color: '#fff',
+                            fontSize: 11,
+                            fontWeight: 600,
+                            padding: '2px 8px',
+                            borderRadius: 999,
+                            letterSpacing: '0.2px'
+                          }
+                        }, _formatTimePill(nowMsLocal))
                       ),
 
                       // Sleep blocks (WIDE - spanning most of column)
                       daySleeps.map((ev, idx) => {
                         const sleepType = _sleepTypeForSession(ev);
                         const isActive = ev.isActive;
-                        const endTime = isActive ? now : ev.e;
+                        // FIX: `now` was undefined; use nowMsLocal for active sessions
+                        const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
 
                         const top = yPct(ev.s, day0);
                         const bottom = yPct(endTime, day0);
                         const h = Math.max(1, bottom - top);
 
-                        // Sleep colors: more saturated, wider blocks
-                        const bgColor = sleepType === 'night'
-                          ? 'rgba(79,70,229,0.78)' // Indigo (night sleep) – more saturated
-                          : 'rgba(96,165,250,0.78)'; // Blue (naps) – more saturated
+                        // Sleep colors: Apple-ish translucency
+                        const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
 
                         const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
                         const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
@@ -3500,10 +3549,10 @@ const DailyActivityChart = ({
                               left: `${leftMargin}px`,
                               right: `${rightMargin}px`,
                               background: bgColor,
-                              border: sleepType === 'night'
-                                ? '1px solid rgba(79,70,229,0.4)'
-                                : '1px solid rgba(59,130,246,0.3)',
-                              zIndex: 10 // Keep z-layering safe
+                              // softer border to reduce "ink"
+                              border: '1px solid rgba(255,255,255,0.25)',
+                              boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
+                              zIndex: 10 // Above grid, below feeds/now
                             }
                           })
                         );
@@ -3547,9 +3596,6 @@ const DailyActivityChart = ({
                       dayFeeds.map((ev, idx) => {
                         const top = yPct(ev.s, day0);
 
-                        // Single consistent color for feeds (pink accent)
-                        const tickColor = '#EC4899'; // Pink feed accents
-
                         return React.createElement('div', {
                           key: `${day0}-feed-${idx}`,
                           className: 'absolute',
@@ -3557,11 +3603,11 @@ const DailyActivityChart = ({
                             top: `${top}%`,
                             left: effectiveViewMode === 'day' ? '8px' : '6px',
                             right: effectiveViewMode === 'day' ? '8px' : '6px',
-                            height: '3px', // Consistent 3px height
-                            background: tickColor,
+                            height: '2px', // slightly slimmer (less ink)
+                            background: TT.feedPink,
                             transform: 'translateY(-50%)',
                             borderRadius: '2px', // Slight rounding
-                            zIndex: 20 // Above sleep blocks
+                            zIndex: 20 // Above sleep blocks and grid
                           }
                         });
                       })
@@ -3578,7 +3624,8 @@ const DailyActivityChart = ({
         'div',
         { className: 'px-4 py-4 border-t border-gray-100 flex items-center justify-center gap-5 text-[12px] text-gray-700' },
         React.createElement('div', { className: 'flex items-center gap-2' },
-          React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#8B5CF6' } }),
+          // Match plotted "night sleep" color
+          React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: 'rgba(79,70,229,0.72)' } }),
           'Sleep'
         ),
         React.createElement('div', { className: 'flex items-center gap-2' },
