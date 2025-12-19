@@ -3384,7 +3384,7 @@ const DailyActivityChart = ({
             React.createElement(
               'div',
               // Keep content width stable: day is 100%; week/month is sized by columns
-              { className: 'w-full', style: { minWidth: '100%' } },
+              { className: 'w-full', style: { minWidth: '100%', width: '100%' } },
 
               // HEADER ROW (inside the same scroller)
               React.createElement(
