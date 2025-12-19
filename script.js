@@ -3300,7 +3300,7 @@ const DailyActivityChart = ({
           // LEFT: fixed time axis
           React.createElement(
             'div',
-            { className: 'w-12 shrink-0 border-r border-gray-100 bg-white' },
+            { className: 'w-10 shrink-0 border-r border-gray-100 bg-white' },
 
             // Header spacer MUST match header height on the right
             React.createElement('div', { className: 'h-[52px] border-b border-gray-100' }),
@@ -3308,24 +3308,30 @@ const DailyActivityChart = ({
             React.createElement(
               'div',
               { className: 'relative bg-white', style: { height: PLOT_H } },
+
+              // Render ALL hour gridlines first (faint)
+              Array.from({ length: 25 }, (_, i) => i).map(i =>
+                React.createElement('div', {
+                  key: `grid-${i}`,
+                  className: 'absolute left-0 right-0 border-t',
+                  style: {
+                    top: `${(i / 24) * 100}%`,
+                    borderColor: 'rgba(229, 231, 235, 0.5)' // Very subtle gray
+                  }
+                })
+              ),
+
+              // Then render time labels (only for labeled hours)
               hourLabels.map((h) =>
-                h.label ? React.createElement(
-                  React.Fragment,
-                  { key: h.i },
-                  React.createElement('div', {
-                    className: 'absolute left-0 w-full text-[10px] font-medium text-gray-600 text-right pr-1.5',
-                    style: {
-                      top: `${(h.i / 24) * 100}%`,
-                      transform: 'translateY(-50%)'
-                    }
-                  }, h.label),
-                  React.createElement('div', {
-                    className: 'absolute left-0 right-0 border-t border-gray-200',
-                    style: {
-                      top: `${(h.i / 24) * 100}%`
-                    }
-                  })
-                ) : null
+                h.label ? React.createElement('div', {
+                  key: h.i,
+                  className: 'absolute left-0 w-full text-[13px] font-semibold text-gray-700 text-right pr-1',
+                  style: {
+                    top: `${(h.i / 24) * 100}%`,
+                    transform: 'translateY(-50%)',
+                    zIndex: 10 // Labels sit ABOVE gridlines
+                  }
+                }, h.label) : null
               )
             )
           ),
