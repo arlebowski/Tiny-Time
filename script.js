@@ -3353,7 +3353,11 @@ const DailyActivityChart = ({
                       'div',
                       { className: `py-2 h-[52px] flex flex-col justify-center ${isToday ? 'bg-indigo-50 rounded-lg' : ''}` },
                       React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
-                      React.createElement('div', { className: text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'} }, String(dayNum))
+                      React.createElement(
+                        'div',
+                        { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
+                        String(dayNum)
+                      )
                     )
                   );
                 })
