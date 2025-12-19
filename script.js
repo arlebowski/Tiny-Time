@@ -3048,13 +3048,16 @@ const DailyActivityChart = ({
   const effectiveViewMode = viewMode || 'day';
   const days = effectiveViewMode === 'day' ? 1 : 7; // week/month: 7-day rolling window
   const [offsetDays, setOffsetDays] = React.useState(0); // 0 = week/day ending today
-  const stepDays = effectiveViewMode === 'day' ? 1 : 7; // nav moves by 1 week for week/month
+  const stepDays = 7; // nav always moves week-over-week for consistency
 
   const clampOffset = (n) => Math.max(0, Math.floor(Number(n) || 0));
   const pageBack = () => setOffsetDays((n) => clampOffset(n + stepDays));
   const pageFwd = () => setOffsetDays((n) => clampOffset(n - stepDays));
   const scrollRef = React.useRef(null);     // single horizontal scroller (header + plot) - MUST be overflow-x-auto
   const plotScrollRef = React.useRef(null); // day-view vertical scroll container
+
+  // Apple-style current time (axis-owned, not column-owned)
+  const nowMs = Date.now();
 
   // Auto-scroll to the most recent day (ONLY on today; do not fight paging)
   React.useEffect(() => {
@@ -3134,7 +3137,7 @@ const DailyActivityChart = ({
 
   const today = new Date();
   const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const nowMsLocal = Date.now();
+  const nowMsLocal = nowMs;
 
   dlog('viewMode', effectiveViewMode, 'days', days, 'offsetDays', offsetDays);
 
@@ -3146,6 +3149,18 @@ const DailyActivityChart = ({
     for (let i = days - 1; i >= 0; i--) out.push(endDay0 - i * 86400000);
     return out;
   }, [days, endDay0]);
+
+  const hasToday = React.useMemo(() => dayStarts.includes(today0), [dayStarts, today0]);
+  const showNow = hasToday && effectiveViewMode !== 'month';
+  const nowMinutes = React.useMemo(() => {
+    const d = new Date(nowMs);
+    return d.getHours() * 60 + d.getMinutes();
+  }, [nowMs]);
+  const nowPct = (nowMinutes / (24 * 60)) * 100;
+  const nowLabel = React.useMemo(() => new Date(nowMs).toLocaleTimeString('en-US', {
+    hour: 'numeric',
+    minute: '2-digit'
+  }), [nowMs]);
 
   // Window: midnight to midnight (24 hours)
   const windowStartMs = (day0) => day0;
@@ -3213,21 +3228,13 @@ const DailyActivityChart = ({
   // Apple-ish ticks: major every 6 hours; minor every 3 hours; show "Noon" at 12 PM
   const majorTicks = React.useMemo(() => [0, 6, 12, 18, 24], []);
   const minorTicks = React.useMemo(() => [3, 9, 15, 21], []);
-  const _pad2 = (n) => String(n).padStart(2, '0');
-  const _formatTimePill = (ms) => {
-    const d = new Date(ms);
-    const h = d.getHours();
-    const m = d.getMinutes();
-    const h12 = (h % 12) === 0 ? 12 : (h % 12);
-    return `${h12}:${_pad2(m)}`;
-  };
-  const _formatHourLabelApple = (hour24) => {
-    const h = ((hour24 % 24) + 24) % 24;
-    if (h === 12) return 'Noon';
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const h12 = (h % 12) === 0 ? 12 : (h % 12);
-    return `${h12} ${ampm}`;
-  };
+  const hourLabels = React.useMemo(() => ([
+    { i: 0, label: '12 AM' },
+    { i: 6, label: '6 AM' },
+    { i: 12, label: 'Noon' },
+    { i: 18, label: '6 PM' },
+    { i: 24, label: '12 AM' }
+  ]), []);
 
   // Keep the chart area visually consistent across day/week/month.
   // We keep card height fixed (TT.cardH) and use one plot height for all modes.
@@ -3318,7 +3325,7 @@ const DailyActivityChart = ({
       React.createElement(
         'div',
         {
-          className: 'px-4 pb-4 flex-1 overflow-y-auto overflow-x-hidden',
+          className: 'px-4 pb-2 flex-1 overflow-hidden',
           style: { overscrollBehavior: 'contain' },
           ref: plotScrollRef
         },
@@ -3329,54 +3336,42 @@ const DailyActivityChart = ({
           // LEFT: fixed time axis
           React.createElement(
             'div',
-            { className: 'shrink-0 border-r border-gray-200 bg-white pr-2', style: { width: TT.axisW } },
+            { className: 'w-14 shrink-0 border-r border-gray-200 bg-white pr-2 relative' },
 
             // Header spacer MUST match header height on the right
             React.createElement('div', { className: 'h-[52px] border-b border-gray-100' }),
 
             React.createElement(
               'div',
-              { className: 'relative bg-white', style: { height: PLOT_H } },
+              { className: 'relative bg-white', style: { height: PLOT_H + 12, paddingBottom: 4 } },
 
-              // Minor gridlines (3-hour) behind labels
-              minorTicks.map((i) =>
+              // Time labels (Apple-style, calm)
+              hourLabels.map((h) =>
                 React.createElement('div', {
-                  key: `gmin-${i}`,
-                  className: 'absolute left-0 right-0',
+                  key: h.i,
+                  className: 'absolute right-0 text-right text-[12px] font-medium text-gray-500',
                   style: {
-                    top: `${(i / 24) * 100}%`,
-                    height: 1,
-                    background: TT.gridMinor,
-                    pointerEvents: 'none'
-                  }
-                })
-              ),
-              // Major gridlines (6-hour)
-              majorTicks.map((i) =>
-                React.createElement('div', {
-                  key: `gmaj-${i}`,
-                  className: 'absolute left-0 right-0',
-                  style: {
-                    top: `${(i / 24) * 100}%`,
-                    height: 1,
-                    background: TT.gridMajor,
-                    pointerEvents: 'none'
-                  }
-                })
-              ),
-              // Labels: small + quiet, right-aligned, with "Noon"
-              majorTicks.map((i) =>
-                React.createElement('div', {
-                  key: `glab-${i}`,
-                  className: `absolute right-1 ${TT.axisTextClass}`,
-                  style: {
-                    top: `${(i / 24) * 100}%`,
+                    top: `${(h.i / 24) * 100}%`,
                     transform: 'translateY(-50%)',
                     zIndex: 10,
                     lineHeight: 1,
                     whiteSpace: 'nowrap'
                   }
-                }, _formatHourLabelApple(i))
+                }, h.label)
+              ),
+
+              // Current time pill (axis-owned)
+              showNow && React.createElement(
+                'div',
+                {
+                  className: 'absolute right-0 bg-green-500 text-white text-[11px] font-semibold px-2 py-[2px] rounded-full',
+                  style: {
+                    top: `${nowPct}%`,
+                    transform: 'translateY(-50%)',
+                    zIndex: 20
+                  }
+                },
+                nowLabel
               )
             )
           ),
@@ -3428,194 +3423,177 @@ const DailyActivityChart = ({
               // COLUMNS ROW (plot columns under the header, same geometry)
               React.createElement(
                 'div',
-                {
-                  className: 'grid',
+                { className: 'relative', style: { height: PLOT_H + 12 } },
+                showNow && React.createElement('div', {
+                  className: 'pointer-events-none absolute inset-x-0',
                   style: {
-                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`
+                    top: `${nowPct}%`,
+                    transform: 'translateY(-50%)',
+                    height: 2,
+                    background: TT.nowGreen,
+                    zIndex: 25
                   }
-                },
-                dayStarts.map((day0) => {
-                  const ws = windowStartMs(day0);
-                  const we = windowEndMs(day0);
-                  const isToday = day0 === today0;
+                }),
+                React.createElement(
+                  'div',
+                  {
+                    className: 'grid',
+                    style: {
+                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`,
+                      height: '100%'
+                    }
+                  },
+                  dayStarts.map((day0) => {
+                    const ws = windowStartMs(day0);
+                    const we = windowEndMs(day0);
+                    const isToday = day0 === today0;
 
-                  // Current time indicator for this day column (only if today is visible)
-                  const nowInThisWindow = isToday && (nowMsLocal >= ws) && (nowMsLocal < we);
-                  const nowPct = nowInThisWindow ? ((nowMsLocal - ws) / (we - ws)) * 100 : null;
+                    const daySleeps = sleepsByDay.get(day0) || [];
+                    const dayFeeds = feedsByDay.get(day0) || [];
 
-                  const daySleeps = sleepsByDay.get(day0) || [];
-                  const dayFeeds = feedsByDay.get(day0) || [];
-
-                  return React.createElement(
-                    'div',
-                    {
-                      key: day0,
-                      className: `border-r border-gray-100 last:border-r-0 ${isToday ? 'bg-indigo-50/30' : ''}`
-                    },
-
-                    // Plot area with sleep blocks and feed ticks
-                    React.createElement(
+                    return React.createElement(
                       'div',
                       {
-                        className: 'relative',
-                        style: {
-                          height: PLOT_H
-                        }
+                        key: day0,
+                        className: `border-r border-gray-100 last:border-r-0 ${isToday ? 'bg-indigo-50/30' : ''}`
                       },
 
-                      // Plot gridlines (subtle, Apple-ish) behind events
-                      minorTicks.map((i) =>
-                        React.createElement('div', {
-                          key: `${day0}-pmin-${i}`,
-                          className: 'absolute left-0 right-0',
+                      // Plot area with sleep blocks and feed ticks
+                      React.createElement(
+                        'div',
+                        {
+                          className: 'relative',
                           style: {
-                            top: `${(i / 24) * 100}%`,
-                            height: 1,
-                            background: TT.gridMinor,
-                            zIndex: 1,
-                            pointerEvents: 'none'
-                          }
-                        })
-                      ),
-                      majorTicks.map((i) =>
-                        React.createElement('div', {
-                          key: `${day0}-pmaj-${i}`,
-                          className: 'absolute left-0 right-0',
-                          style: {
-                            top: `${(i / 24) * 100}%`,
-                            height: 1,
-                            background: TT.gridMajor,
-                            zIndex: 2,
-                            pointerEvents: 'none'
-                          }
-                        })
-                      ),
-
-                      // Current time indicator (Apple-like): thin green line + time pill (no dot)
-                      nowInThisWindow && nowPct !== null &&
-                        React.createElement('div', {
-                          className: 'absolute left-0 right-0',
-                          style: {
-                            top: `${nowPct}%`,
-                            height: 2,
-                            background: TT.nowGreen,
-                            zIndex: 30
+                            height: '100%'
                           }
                         },
-                        React.createElement('div', {
-                          className: 'absolute',
-                          style: {
-                            left: 10,
-                            top: -14,
-                            background: TT.nowGreen,
-                            color: '#fff',
-                            fontSize: 11,
-                            fontWeight: 600,
-                            padding: '2px 8px',
-                            borderRadius: 999,
-                            letterSpacing: '0.2px'
-                          }
-                        }, _formatTimePill(nowMsLocal))
-                      ),
 
-                      // Sleep blocks (WIDE - spanning most of column)
-                      daySleeps.map((ev, idx) => {
-                        const sleepType = _sleepTypeForSession(ev);
-                        const isActive = ev.isActive;
-                        // FIX: `now` was undefined; use nowMsLocal for active sessions
-                        const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
-
-                        const top = yPct(ev.s, day0);
-                        const bottom = yPct(endTime, day0);
-                        const h = Math.max(1, bottom - top);
-
-                        // Sleep colors: Apple-ish translucency
-                        const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
-
-                        const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
-                        const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
-
-                        // IMPORTANT: Render as ABSOLUTE directly inside the plot area (which is `relative` and has height).
-                        // Do NOT wrap in a `position: relative` div, or % top/height can collapse.
-                        const out = [];
-
-                        out.push(
+                        // Plot gridlines (subtle, Apple-ish) behind events
+                        minorTicks.map((i) =>
                           React.createElement('div', {
-                            key: `${day0}-sleep-block-${idx}`,
-                            className: 'absolute rounded-lg',
+                            key: `${day0}-pmin-${i}`,
+                            className: 'absolute left-0 right-0',
                             style: {
-                              top: `${top}%`,
-                              height: `${h}%`,
-                              left: `${leftMargin}px`,
-                              right: `${rightMargin}px`,
-                              background: bgColor,
-                              // softer border to reduce "ink"
-                              border: '1px solid rgba(255,255,255,0.25)',
-                              boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
-                              zIndex: 10 // Above grid, below feeds/now
+                              top: `${(i / 24) * 100}%`,
+                              height: 1,
+                              background: TT.gridMinor,
+                              zIndex: 1,
+                              pointerEvents: 'none'
                             }
                           })
-                        );
+                        ),
+                        majorTicks.map((i) =>
+                          React.createElement('div', {
+                            key: `${day0}-pmaj-${i}`,
+                            className: 'absolute left-0 right-0',
+                            style: {
+                              top: `${(i / 24) * 100}%`,
+                              height: 1,
+                              background: TT.gridMajor,
+                              zIndex: 2,
+                              pointerEvents: 'none'
+                            }
+                          })
+                        ),
 
-                        // Nap labels are visually noisy; only show in DAY view, and only when blocks are tall enough
-                        if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && h >= 6) {
+                        // Sleep blocks (WIDE - spanning most of column)
+                        daySleeps.map((ev, idx) => {
+                          const sleepType = _sleepTypeForSession(ev);
+                          const isActive = ev.isActive;
+                          // FIX: `now` was undefined; use nowMsLocal for active sessions
+                          const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
+
+                          const top = yPct(ev.s, day0);
+                          const bottom = yPct(endTime, day0);
+                          const h = Math.max(1, bottom - top);
+
+                          // Sleep colors: Apple-ish translucency
+                          const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
+
+                          const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
+                          const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
+
+                          // IMPORTANT: Render as ABSOLUTE directly inside the plot area (which is `relative` and has height).
+                          // Do NOT wrap in a `position: relative` div, or % top/height can collapse.
+                          const out = [];
+
                           out.push(
                             React.createElement('div', {
-                              key: `${day0}-sleep-label-${idx}`,
-                              className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                              key: `${day0}-sleep-block-${idx}`,
+                              className: 'absolute rounded-lg',
                               style: {
-                                top: `${Math.max(0, top - 2)}%`,
-                                color: '#3B82F6',
-                                border: '1px solid rgba(59,130,246,0.2)',
-                                zIndex: 15
-                              },
-                            }, effectiveViewMode === 'day' ? 'Nap' : 'N') // FIXED: use effectiveViewMode
+                                top: `${top}%`,
+                                height: `${h}%`,
+                                left: `${leftMargin}px`,
+                                right: `${rightMargin}px`,
+                                background: bgColor,
+                                // softer border to reduce "ink"
+                                border: '1px solid rgba(255,255,255,0.25)',
+                                boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
+                                zIndex: 10 // Above grid, below feeds/now
+                              }
+                            })
                           );
-                        }
 
-                        // Active sleep indicator
-                        if (isActive) {
-                          out.push(
-                            React.createElement('div', {
-                              key: `${day0}-sleep-active-${idx}`,
-                              className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                              style: {
-                                top: `${Math.min(95, bottom + 1)}%`,
-                                color: '#4F46E5',
-                                border: '1px solid rgba(79,70,229,0.2)',
-                                zIndex: 15
-                              },
-                            }, effectiveViewMode === 'day' ? '🌙 Active' : '🌙') // FIXED: use effectiveViewMode
-                          );
-                        }
-
-                        return out;
-                      }).flat(),
-
-                      // Feed ticks (HORIZONTAL LINES at feed time)
-                      dayFeeds.map((ev, idx) => {
-                        const top = yPct(ev.s, day0);
-
-                        return React.createElement('div', {
-                          key: `${day0}-feed-${idx}`,
-                          className: 'absolute',
-                          style: {
-                            top: `${top}%`,
-                            left: effectiveViewMode === 'day' ? '8px' : '6px',
-                            right: effectiveViewMode === 'day' ? '8px' : '6px',
-                            height: '2px', // slightly slimmer (less ink)
-                            background: TT.feedPink,
-                            transform: 'translateY(-50%)',
-                            borderRadius: '2px', // Slight rounding
-                            zIndex: 20 // Above sleep blocks and grid
+                          // Nap labels are visually noisy; only show in DAY view, and only when blocks are tall enough
+                          if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && h >= 6) {
+                            out.push(
+                              React.createElement('div', {
+                                key: `${day0}-sleep-label-${idx}`,
+                                className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                                style: {
+                                  top: `${Math.max(0, top - 2)}%`,
+                                  color: '#3B82F6',
+                                  border: '1px solid rgba(59,130,246,0.2)',
+                                  zIndex: 15
+                                },
+                              }, effectiveViewMode === 'day' ? 'Nap' : 'N') // FIXED: use effectiveViewMode
+                            );
                           }
-                        });
-                      })
-                    )
-                  );
-                })
+
+                          // Active sleep indicator
+                          if (isActive) {
+                            out.push(
+                              React.createElement('div', {
+                                key: `${day0}-sleep-active-${idx}`,
+                                className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                                style: {
+                                  top: `${Math.min(95, bottom + 1)}%`,
+                                  color: '#4F46E5',
+                                  border: '1px solid rgba(79,70,229,0.2)',
+                                  zIndex: 15
+                                },
+                              }, effectiveViewMode === 'day' ? '🌙 Active' : '🌙') // FIXED: use effectiveViewMode
+                            );
+                          }
+
+                          return out;
+                        }).flat(),
+
+                        // Feed ticks (HORIZONTAL LINES at feed time)
+                        dayFeeds.map((ev, idx) => {
+                          const top = yPct(ev.s, day0);
+
+                          return React.createElement('div', {
+                            key: `${day0}-feed-${idx}`,
+                            className: 'absolute',
+                            style: {
+                              top: `${top}%`,
+                              left: effectiveViewMode === 'day' ? '8px' : '6px',
+                              right: effectiveViewMode === 'day' ? '8px' : '6px',
+                              height: '2px', // slightly slimmer (less ink)
+                              background: TT.feedPink,
+                              transform: 'translateY(-50%)',
+                              borderRadius: '2px', // Slight rounding
+                              zIndex: 20 // Above sleep blocks and grid
+                            }
+                          });
+                        })
+                      )
+                    );
+                  })
+                )
               )
-            )
           )
       ),
 
