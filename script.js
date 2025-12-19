@@ -3616,7 +3616,9 @@ const DailyActivityChart = ({
         )
       )
     )
-  ));
+  )
+  )
+  );
 };
 
 const AnalyticsTab = ({ user, kidId, familyId }) => {
