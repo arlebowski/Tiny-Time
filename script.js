@@ -3010,7 +3010,7 @@ const _avg = (arr) => {
 };
 
 // =====================================================
-// DAILY ACTIVITY CHART - Calendar-style like Huckleberry
+// DAILY ACTIVITY CHART - Calendar-style Actogram
 // X = dates (columns), Y = time of day (rows)
 // Sleep = vertical blocks (start->end) per day column
 // Feeds = short horizontal ticks at feed start time
@@ -3347,7 +3347,7 @@ const DailyActivityChart = ({
                     {
                       key: `strip-${day0}`,
                       className: 'shrink-0 text-center border-r border-gray-100',
-                      style: { width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px` }
+                      style: { width: effectiveViewMode === 'day' ? '100%' : (String(COL_PX) + 'px') }
                     },
                     React.createElement(
                       'div',
@@ -3403,7 +3403,7 @@ const DailyActivityChart = ({
                       key: day0,
                       className: 'border-r border-gray-100 shrink-0',
                       style: {
-                        width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px`,
+                        width: effectiveViewMode === 'day' ? '100%' : (String(COL_PX) + 'px'),
                         ...(isToday ? { background: 'rgba(99,102,241,0.08)' } : {})
                       }
                     },
