@@ -3032,9 +3032,9 @@ const DailyActivityChart = ({
 
   // Safe default handling without mutation
   const effectiveViewMode = viewMode || 'day';
-  const days = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 30 : 7);
+  const days = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 14 : 7); // month = rolling 14 days
   const [offsetDays, setOffsetDays] = React.useState(0); // 0 = week/day ending today
-  const stepDays = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 30 : 7);
+  const stepDays = effectiveViewMode === 'day' ? 1 : (effectiveViewMode === 'month' ? 7 : 7); // nav moves by 1 week
 
   const clampOffset = (n) => Math.max(0, Math.floor(Number(n) || 0));
   const pageBack = () => setOffsetDays((n) => clampOffset(n + stepDays));
@@ -3202,11 +3202,14 @@ const DailyActivityChart = ({
     hourLabels.push({ i, label });
   }
 
-  // Taller for day view, shorter for week view
-  const PLOT_H = effectiveViewMode === 'day' ? 480 : 280; // REDUCED: day 600→480, week 360→280
-  const COL_WIDTH = effectiveViewMode === 'day'
-    ? 'w-full'
-    : (effectiveViewMode === 'month' ? 'w-14' : 'w-20');
+  // Plot height: Day can be taller (scrolls), Week/Month should show full 24h without feeling cramped
+  const PLOT_H = effectiveViewMode === 'day' ? 480 : 260;
+
+  // Column sizing (px) to guarantee strip + columns align perfectly on iOS
+  // - Week: 7 columns fit comfortably on iPhone without “double stacking” under a single day
+  // - Month: treated as rolling 14 days, narrower columns
+  const COL_PX = effectiveViewMode === 'day' ? null : (effectiveViewMode === 'month' ? 32 : 56);
+  const contentMinWidth = effectiveViewMode === 'day' ? '100%' : `${days * COL_PX}px`;
   const gridBg = {
     backgroundImage:
       `repeating-linear-gradient(to bottom, rgba(99,102,241,0.10) 0px, rgba(99,102,241,0.10) 1px, transparent 1px, transparent ${PLOT_H / 24}px)`,
@@ -3261,23 +3264,27 @@ const DailyActivityChart = ({
         { className: 'px-4 pb-3' },
         React.createElement(
           'div',
-          { className: 'flex gap-0' },
-          dayStarts.map((day0) => {
-            const d = new Date(day0);
-            const isToday = day0 === today0;
-            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-            const dayNum = d.getDate();
-            return React.createElement(
-              'div',
-              { key: `strip-${day0}`, className: 'flex-1 text-center px-1' },
-              React.createElement(
+          { style: { minWidth: contentMinWidth } },
+          React.createElement(
+            'div',
+            { className: 'flex gap-0 border-b border-gray-100' },
+            dayStarts.map((day0) => {
+              const d = new Date(day0);
+              const isToday = day0 === today0;
+              const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+              const dayNum = d.getDate();
+              return React.createElement(
                 'div',
-                { className: `py-2 rounded-lg ${isToday ? 'bg-indigo-50' : ''}` },
-                React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
-                React.createElement('div', { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` }, String(dayNum))
-              )
-            );
-          })
+                { key: `strip-${day0}`, className: 'shrink-0 text-center border-r border-gray-100', style: { width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px` } },
+                React.createElement(
+                  'div',
+                  { className: `py-2 rounded-lg ${isToday ? 'bg-indigo-50' : ''}` },
+                  React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
+                  React.createElement('div', { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` }, String(dayNum))
+                )
+              );
+            })
+          )
         )
       ),
 
@@ -3327,7 +3334,7 @@ const DailyActivityChart = ({
               'div',
               {
                 className: 'flex',
-                style: { minWidth: effectiveViewMode === 'day' ? '100%' : `${days * (effectiveViewMode === 'month' ? 56 : 80)}px` } // w-20 = 80px
+                style: { minWidth: contentMinWidth }
               },
               dayStarts.map((day0) => {
                 const ws = windowStartMs(day0);
@@ -3367,8 +3374,11 @@ const DailyActivityChart = ({
                   'div',
                   {
                     key: day0,
-                    className: `${COL_WIDTH} border-r border-gray-100 shrink-0`,
-                    style: isToday ? { background: 'rgba(102,126,234,0.06)' } : {}
+                    className: 'border-r border-gray-100 shrink-0',
+                    style: {
+                      width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px`,
+                      ...(isToday ? { background: 'rgba(99,102,241,0.08)' } : {})
+                    }
                   },
 
                   // Remove the per-column date header inside the grid (week strip handles dates now)
@@ -3414,8 +3424,8 @@ const DailyActivityChart = ({
 
                       // Sleep colors: more saturated, wider blocks
                       const bgColor = sleepType === 'night'
-                        ? 'rgba(99,102,241,0.6)' // Darker indigo for night
-                        : 'rgba(147,197,253,0.6)'; // Sky blue for naps
+                        ? 'rgba(79,70,229,0.78)' // Indigo (night sleep) – more saturated
+                        : 'rgba(96,165,250,0.78)'; // Blue (naps) – more saturated
 
                       const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
                       const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
@@ -3482,7 +3492,7 @@ const DailyActivityChart = ({
                       const top = yPct(ev.s, day0);
 
                       // Single consistent color for feeds (pink accent)
-                      const tickColor = '#EC4899';
+                      const tickColor = '#EC4899'; // Pink feed accents
 
                       return React.createElement('div', {
                         key: `${day0}-feed-${idx}`,
