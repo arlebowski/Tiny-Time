@@ -3263,9 +3263,9 @@ const DailyActivityChart = ({
           {
             type: 'button',
             onClick: pageBack,
-            className: 'h-10 w-10 rounded-full bg-gray-100 text-indigo-600 flex items-center justify-center active:scale-95'
+            className: 'p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition'
           },
-          '‹'
+          React.createElement(ChevronLeft, { className: 'w-5 h-5' })
         ),
         React.createElement(
           'div',
@@ -3279,9 +3279,9 @@ const DailyActivityChart = ({
             type: 'button',
             onClick: pageFwd,
             disabled: offsetDays <= 0,
-            className: `h-10 w-10 rounded-full bg-gray-100 text-indigo-600 flex items-center justify-center active:scale-95 ${offsetDays <= 0 ? 'opacity-40' : ''}`
+            className: `p-2 rounded-lg transition ${offsetDays <= 0 ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
           },
-          '›'
+          React.createElement(ChevronRight, { className: 'w-5 h-5' })
         )
       ),
 
@@ -3289,7 +3289,7 @@ const DailyActivityChart = ({
       React.createElement(
         'div',
         {
-          className: 'px-4 pb-4 flex-1 overflow-y-auto',
+          className: 'px-4 pb-4 flex-1 overflow-y-auto overflow-x-hidden',
           style: { overscrollBehavior: 'contain' },
           ref: plotScrollRef
         },
@@ -3300,7 +3300,7 @@ const DailyActivityChart = ({
           // LEFT: fixed time axis
           React.createElement(
             'div',
-            { className: 'w-14 shrink-0 border-r border-gray-100 bg-white' },
+            { className: 'w-12 shrink-0 border-r border-gray-100 bg-white' },
 
             // Header spacer MUST match header height on the right
             React.createElement('div', { className: 'h-[52px] border-b border-gray-100' }),
@@ -3309,18 +3309,23 @@ const DailyActivityChart = ({
               'div',
               { className: 'relative bg-white', style: { height: PLOT_H } },
               hourLabels.map((h) =>
-                React.createElement(
-                  'div',
-                  {
-                    key: h.i,
-                    className: 'absolute left-0 w-full text-xs text-gray-500 text-right pr-2',
+                h.label ? React.createElement(
+                  React.Fragment,
+                  { key: h.i },
+                  React.createElement('div', {
+                    className: 'absolute left-0 w-full text-[10px] font-medium text-gray-600 text-right pr-1.5',
                     style: {
-                      top: h.i === 0 ? '0%' : h.i === 24 ? '100%' : `${(h.i / (hourLabels.length - 1)) * 100}%`,
-                      transform: (h.i === 0) ? 'translateY(0)' : (h.i === 24) ? 'translateY(-100%)' : 'translateY(-50%)'
+                      top: `${(h.i / 24) * 100}%`,
+                      transform: 'translateY(-50%)'
                     }
-                  },
-                  h.label
-                )
+                  }, h.label),
+                  React.createElement('div', {
+                    className: 'absolute left-0 right-0 border-t border-gray-200',
+                    style: {
+                      top: `${(h.i / 24) * 100}%`
+                    }
+                  })
+                ) : null
               )
             )
           ),
@@ -3328,15 +3333,20 @@ const DailyActivityChart = ({
           // RIGHT: SINGLE horizontal scroller containing BOTH header + plot columns
           React.createElement(
             'div',
-            { className: 'flex-1 overflow-x-auto', ref: scrollRef, style: { scrollbarWidth: 'thin' } },
+            { className: 'flex-1 min-w-0', ref: scrollRef },
             React.createElement(
               'div',
-              { style: { minWidth: contentMinWidth } },
+              { className: 'w-full' },
 
               // HEADER ROW (inside the same scroller)
               React.createElement(
                 'div',
-                { className: 'flex gap-0 border-b border-gray-100' },
+                {
+                  className: 'grid border-b border-gray-100',
+                  style: {
+                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`
+                  }
+                },
                 dayStarts.map((day0) => {
                   const d = new Date(day0);
                   const isToday = day0 === today0;
@@ -3346,8 +3356,7 @@ const DailyActivityChart = ({
                     'div',
                     {
                       key: `strip-${day0}`,
-                      className: 'shrink-0 text-center border-r border-gray-100',
-                      style: { width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px` }
+                      className: 'text-center border-r border-gray-100 last:border-r-0'
                     },
                     React.createElement(
                       'div',
@@ -3366,7 +3375,12 @@ const DailyActivityChart = ({
               // COLUMNS ROW (plot columns under the header, same geometry)
               React.createElement(
                 'div',
-                { className: 'flex' },
+                {
+                  className: 'grid',
+                  style: {
+                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`
+                  }
+                },
                 dayStarts.map((day0) => {
                   const ws = windowStartMs(day0);
                   const we = windowEndMs(day0);
@@ -3376,6 +3390,10 @@ const DailyActivityChart = ({
                   console.log(`\n=== Day ${new Date(day0).toLocaleDateString()} ===`);
                   console.log('Window:', new Date(ws).toISOString(), 'to', new Date(we).toISOString());
                   // === END DIAGNOSTIC ===
+
+                  // Current time indicator for week view
+                  const nowInTodayWindow = isToday && nowMsLocal >= ws && nowMsLocal < we;
+                  const nowPct = nowInTodayWindow ? ((nowMsLocal - ws) / (we - ws)) * 100 : null;
 
                   // Include any sleep that overlaps with this 24-hour window
                   const daySleeps = sleeps.filter((ev) => {
@@ -3405,11 +3423,7 @@ const DailyActivityChart = ({
                     'div',
                     {
                       key: day0,
-                      className: 'border-r border-gray-100 shrink-0',
-                      style: {
-                        width: effectiveViewMode === 'day' ? '100%' : `${COL_PX}px`,
-                        ...(isToday ? { background: 'rgba(99,102,241,0.08)' } : {})
-                      }
+                      className: `border-r border-gray-100 last:border-r-0 ${isToday ? 'bg-indigo-50/30' : ''}`
                     },
 
                     // Plot area with sleep blocks and feed ticks
@@ -3424,11 +3438,11 @@ const DailyActivityChart = ({
                         }
                       },
 
-                      // Current time indicator (green line) - Day view only
-                      effectiveViewMode === 'day' && isToday && nowInTodayWindow &&
+                      // Current time indicator (green line) - Day and Week view
+                      nowInTodayWindow && nowPct !== null &&
                         React.createElement('div', {
                           className: 'absolute left-0 right-0 z-20 flex items-center',
-                          style: { top: `${getCurrentTimePct()}%` }
+                          style: { top: `${nowPct}%` }
                         },
                         React.createElement('div', {
                           className: 'w-2 h-2 rounded-full bg-green-500 -ml-1',
