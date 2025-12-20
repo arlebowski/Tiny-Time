@@ -3307,8 +3307,10 @@ const DailyActivityChart = ({
   // IMPORTANT: Must fit 12a -> 12a with NO vertical scroll inside the fixed card height.
   // This is tuned so: nav + legend + sticky header + plot fits within TT.cardH.
   // If you change TT.cardH/headerH/paddings elsewhere, adjust this first.
-  const PLOT_H = 220; // small reduction to guarantee room for bottom legend inside fixed-height card
-  const PAD_T = 10;
+  // Give the top 12 AM label box extra headroom (prevents clipping in Day view),
+  // while keeping the overall chart height identical.
+  const PAD_T = 14;
+  const PLOT_H = 216; // 220 - 4 to offset PAD_T +4 (keeps PLOT_TOTAL_H unchanged)
   const PAD_B = 14; // give the bottom "12 AM" label a few extra px so it never clips
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
   const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
