@@ -3285,7 +3285,7 @@ const DailyActivityChart = ({
   // IMPORTANT: Must fit 12a -> 12a with NO vertical scroll inside the fixed card height.
   // This is tuned so: nav + legend + sticky header + plot fits within TT.cardH.
   // If you change TT.cardH/headerH/paddings elsewhere, adjust this first.
-  const PLOT_H = 240;
+  const PLOT_H = 220; // small reduction to guarantee room for bottom legend inside fixed-height card
   const PAD_T = 10;
   const PAD_B = 10;
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
@@ -3383,9 +3383,13 @@ const DailyActivityChart = ({
       React.createElement(
         'div',
         {
-          // Slightly more bottom padding so the grid has the same "breathing" as the top.
-          className: 'px-4 pb-4 flex-1 min-h-0',
-          style: { overscrollBehavior: 'contain' }
+          // IMPORTANT: Do NOT let the chart consume all remaining height (or the bottom legend gets clipped).
+          // Give it an explicit height so the legend below always has room inside the fixed-height card.
+          className: 'px-4 pb-2 flex-none',
+          style: {
+            overscrollBehavior: 'contain',
+            height: TT.headerH + PLOT_TOTAL_H + 6
+          }
         },
         React.createElement(
           'div',
