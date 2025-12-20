@@ -3424,11 +3424,15 @@ const DailyActivityChart = ({
           'div',
           {
             // NO SCROLL: everything must fit on the card (24h + 7 days)
-            className: 'w-full h-full overflow-hidden rounded-xl',
+            className: 'w-full overflow-hidden rounded-xl',
             style: {
+              // LOCK the layout: header row + body row (prevents Day/Week vertical drift)
+              display: 'grid',
+              gridTemplateRows: `${TT.headerH}px ${PLOT_TOTAL_H}px`,
               WebkitOverflowScrolling: 'touch',
               overscrollBehavior: 'contain',
-              scrollbarGutter: 'stable'
+              scrollbarGutter: 'stable',
+              height: TT.headerH + PLOT_TOTAL_H
             },
             ref: (el) => {
               // Single scroll container for BOTH horizontal + vertical behaviors
@@ -3450,24 +3454,25 @@ const DailyActivityChart = ({
             },
 
             // Sticky header row (day strip) — MUST be a fixed height so week headers can't grow and clip the plot
-            React.createElement(
-              'div',
-              {
-                className: 'grid',
-                style: {
-                  position: 'sticky',
-                  top: 0,
-                  zIndex: 40,
-                  background: 'rgba(255,255,255,0.98)',
-                  backdropFilter: 'saturate(180%) blur(10px)',
-                  // Remove this separator so the 12 AM gridline becomes the single top separator.
-                  borderBottom: 'none',
-                  height: TT.headerH,
-                  maxHeight: TT.headerH,
-                  // NO HORIZONTAL SCROLL: columns are equal fractions
-                  gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`
-                }
-              },
+          React.createElement(
+            'div',
+            {
+              className: 'grid',
+              style: {
+                position: 'sticky',
+                top: 0,
+                zIndex: 40,
+                background: 'rgba(255,255,255,0.98)',
+                backdropFilter: 'saturate(180%) blur(10px)',
+                // Remove this separator so the 12 AM gridline becomes the single top separator.
+                borderBottom: 'none',
+                height: TT.headerH,
+                maxHeight: TT.headerH,
+                overflow: 'hidden',
+                // NO HORIZONTAL SCROLL: columns are equal fractions
+                gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`
+              }
+            },
               // Axis header spacer
               React.createElement('div', { style: { height: TT.headerH } }),
               // Day headers (clamp height so content can't expand the header row)
@@ -3515,15 +3520,16 @@ const DailyActivityChart = ({
             ),
 
             // Body row: axis + day columns share ONE coordinate system
-            React.createElement(
-              'div',
-              {
-                className: 'grid relative',
-                style: {
-                  gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`,
-                  height: PLOT_TOTAL_H
-                }
-              },
+          React.createElement(
+            'div',
+            {
+              className: 'grid relative',
+              style: {
+                gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`,
+                height: PLOT_TOTAL_H,
+                overflow: 'hidden'
+              }
+            },
 
               // AXIS COLUMN (sticky-left, no divider line)
               React.createElement(
