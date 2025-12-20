@@ -3652,7 +3652,7 @@ const DailyActivityChart = ({
                       'div',
                       {
                         key: day0,
-                        className: `${isToday ? 'bg-indigo-50/30' : ''}`,
+                        className: '',
                         style: {
                           position: 'relative',
                           height: '100%',
@@ -3665,6 +3665,18 @@ const DailyActivityChart = ({
                       React.createElement(
                         'div',
                         { className: 'relative', style: { height: '100%', zIndex: 10 } },
+
+                        // Today shading: ONLY the 24h grid area (from 12 AM line to 12 AM line)
+                        isToday && React.createElement('div', {
+                          className: 'absolute left-0 right-0 pointer-events-none',
+                          style: {
+                            top: `${PAD_T}px`,
+                            height: `${PLOT_H}px`,
+                            background: 'rgba(79,70,229,0.06)',
+                            borderRadius: 8,
+                            zIndex: 0
+                          }
+                        }),
 
                         // Sleep blocks (wide, clean) - build a single flat children array (more reliable on iOS)
                         (() => {
