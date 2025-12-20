@@ -3297,7 +3297,7 @@ const DailyActivityChart = ({
   // If you change TT.cardH/headerH/paddings elsewhere, adjust this first.
   const PLOT_H = 220; // small reduction to guarantee room for bottom legend inside fixed-height card
   const PAD_T = 10;
-  const PAD_B = 10;
+  const PAD_B = 14; // give the bottom "12 AM" label a few extra px so it never clips
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
   const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
   const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
@@ -3426,7 +3426,7 @@ const DailyActivityChart = ({
               }
             },
 
-            // Sticky header row (day strip)
+            // Sticky header row (day strip) — MUST be a fixed height so week headers can't grow and clip the plot
             React.createElement(
               'div',
               {
@@ -3439,48 +3439,62 @@ const DailyActivityChart = ({
                   backdropFilter: 'saturate(180%) blur(10px)',
                   // Remove this separator so the 12 AM gridline becomes the single top separator.
                   borderBottom: 'none',
+                  height: TT.headerH,
+                  maxHeight: TT.headerH,
                   // NO HORIZONTAL SCROLL: columns are equal fractions
                   gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`
                 }
               },
               // Axis header spacer
               React.createElement('div', { style: { height: TT.headerH } }),
-              // Day headers
-              dayStarts.map((day0) => {
-                const d = new Date(day0);
-                const isToday = day0 === today0;
-                const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-                const dayNum = d.getDate();
-                const daySub = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              // Day headers (clamp height so content can't expand the header row)
+              React.createElement(
+                'div',
+                {
+                  className: 'grid',
+                  style: {
+                    gridColumn: `2 / span ${effectiveViewMode === 'day' ? 1 : days}`,
+                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`,
+                    height: TT.headerH,
+                    maxHeight: TT.headerH
+                  }
+                },
+                dayStarts.map((day0) => {
+                  const d = new Date(day0);
+                  const isToday = day0 === today0;
+                  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                  const dayNum = d.getDate();
+                  const daySub = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-                return React.createElement(
-                  'div',
-                  {
-                    key: `strip-${day0}`,
-                    className: 'text-center',
-                    style: { height: TT.headerH }
-                  },
-                  React.createElement(
+                  return React.createElement(
                     'div',
                     {
-                      className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50' : ''}`,
-                      style: isToday
-                        ? {
-                            borderRadius: 12,           // softer rounded-rect, not a pill
-                            paddingTop: 6,
-                            paddingBottom: 6
-                          }
-                        : undefined
+                      key: `strip-${day0}`,
+                      className: 'text-center',
+                      style: { height: TT.headerH, maxHeight: TT.headerH }
                     },
-                    React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' }, dayName),
                     React.createElement(
                       'div',
-                      { className: `mt-[2px] text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
-                      effectiveViewMode === 'day' ? daySub : String(dayNum)
+                      {
+                        className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50' : ''}`,
+                        style: isToday
+                          ? {
+                              borderRadius: 12,           // softer rounded-rect, not a pill
+                              paddingTop: 6,
+                              paddingBottom: 6
+                            }
+                          : { overflow: 'hidden' }
+                      },
+                      React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' }, dayName),
+                      React.createElement(
+                        'div',
+                        { className: `mt-[2px] text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
+                        effectiveViewMode === 'day' ? daySub : String(dayNum)
+                      )
                     )
-                  )
-                );
-              })
+                  );
+                })
+              )
             ),
 
             // Body row: axis + day columns share ONE coordinate system
