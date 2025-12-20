@@ -3289,10 +3289,6 @@ const DailyActivityChart = ({
   const PAD_T = 10;
   const PAD_B = 10;
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
-  // Visual breathing room under the grid so it doesn't "bump" the card edge.
-  // IMPORTANT: does NOT affect y-axis math (we still compute y positions off PLOT_TOTAL_H).
-  const PLOT_VISUAL_PAD_B = 8;
-  const PLOT_WRAP_H = PLOT_TOTAL_H + PLOT_VISUAL_PAD_B;
   const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
   const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
   const nowY = yPxFromPct(nowPct);
@@ -3379,16 +3375,13 @@ const DailyActivityChart = ({
         )
       ),
 
-      // Scrollable time-grid (ONE scroll container; header + gutter are sticky)
+      // Time-grid (flexes to leave guaranteed room for legend below)
       React.createElement(
         'div',
         {
-          // IMPORTANT: Do NOT let the chart consume all remaining height (or the bottom legend gets clipped).
-          // Give it an explicit height so the legend below always has room inside the fixed-height card.
-          className: 'px-4 pb-2 flex-none',
+          className: 'px-4 pb-2 flex-1 min-h-0',
           style: {
-            overscrollBehavior: 'contain',
-            height: TT.headerH + PLOT_TOTAL_H + 6
+            overscrollBehavior: 'contain'
           }
         },
         React.createElement(
@@ -3504,7 +3497,7 @@ const DailyActivityChart = ({
                 // Time labels (calm, Apple-like)
                 React.createElement(
                   'div',
-                  { className: 'relative', style: { height: PLOT_WRAP_H } },
+                  { className: 'relative', style: { height: PLOT_TOTAL_H } },
                   hourLabels.map((h) =>
                     React.createElement('div', {
                       key: `ylab-${h.i}`,
