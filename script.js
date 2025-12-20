@@ -3260,30 +3260,43 @@ const DailyActivityChart = ({
     { i: 18, label: '6 PM' },
     { i: 24, label: '12 AM' }
   ]), []);
-  const gridTicks = React.useMemo(() => [...majorTicks, ...minorTicks], [majorTicks, minorTicks]);
 
-  // Match "Daily volume" style: black number + smaller grey AM/PM
-  // IMPORTANT: keep "Noon" as "Noon" (not "12 PM")
+  // Match "Daily volume" style: black number + smaller grey AM/PM (and show "Noon" as Noon)
   const renderGutterTime = React.useCallback((label) => {
+    // Keep Noon as "Noon"
     if (label === 'Noon') {
       return React.createElement(
         'span',
         { className: 'inline-flex items-baseline' },
-        React.createElement('span', { className: 'text-[12px] font-semibold text-gray-900 leading-none' }, 'Noon')
+        React.createElement(
+          'span',
+          { className: 'text-[12px] font-semibold text-gray-900 leading-none' },
+          'Noon'
+        )
       );
     }
 
-    const parts = String(label || '').split(' ');
+    const parts = String(label).split(' ');
     const num = parts[0] || '';
     const mer = (parts[1] || '').toUpperCase();
+
+    // If something unexpected comes through, fall back to plain text
     if (!num) return React.createElement('span', null, label);
 
     return React.createElement(
       'span',
-      { className: 'inline-flex items-baseline' },
-      React.createElement('span', { className: 'text-[12px] font-semibold text-gray-900 leading-none' }, num),
+      { className: 'inline-flex items-baseline gap-1' },
+      React.createElement(
+        'span',
+        { className: 'text-[12px] font-semibold text-gray-900 leading-none' },
+        num
+      ),
       mer
-        ? React.createElement('span', { className: 'ml-1 text-[10px] font-semibold text-gray-500 leading-none' }, mer)
+        ? React.createElement(
+            'span',
+            { className: 'text-[10px] font-medium text-gray-400 leading-none' },
+            mer
+          )
         : null
     );
   }, []);
@@ -3523,26 +3536,6 @@ const DailyActivityChart = ({
                 React.createElement(
                   'div',
                   { className: 'relative', style: { height: PLOT_TOTAL_H } },
-
-                  // Gutter gridlines (behind labels to connect lines to labels)
-                  React.createElement(
-                    'div',
-                    { className: 'pointer-events-none absolute inset-0', style: { zIndex: 1 } },
-                    (gridTicks || []).map((i) => {
-                      const y = PAD_T + ((i * 60) / (24 * 60)) * PLOT_H;
-                      const isMajor = (i === 0 || i === 6 || i === 12 || i === 18 || i === 24);
-                      return React.createElement('div', {
-                        key: `gutter-line-${i}`,
-                        className: 'absolute left-0 right-0',
-                        style: {
-                          top: `${y}px`,
-                          height: 1,
-                          background: isMajor ? TT.gridMajor : TT.gridMinor
-                        }
-                      });
-                    })
-                  ),
-
                   hourLabels.map((h) =>
                     React.createElement('div', {
                       key: `ylab-${h.i}`,
@@ -3550,7 +3543,6 @@ const DailyActivityChart = ({
                       style: {
                         top: `${PAD_T + ((h.i * 60) / (24 * 60)) * PLOT_H}px`,
                         transform: 'translateY(-50%)',
-                        zIndex: 10,
                         lineHeight: 1,
                         whiteSpace: 'nowrap'
                       }
