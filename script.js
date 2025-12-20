@@ -3565,41 +3565,21 @@ const DailyActivityChart = ({
                     }, renderGutterTime(h.label))
                   ),
 
-                  // Now indicator (axis-owned): dot + connector stub so it feels attached to the now line
-                  showNow && React.createElement(
-                    React.Fragment,
-                    null,
-                    // Small green stub that reaches into the grid area
-                    React.createElement('div', {
-                      className: 'absolute',
-                      style: {
-                        top: `${nowYClamped}px`,
-                        right: -3,
-                        width: 14,
-                        height: 2,
-                        background: TT.nowGreen,
-                        transform: 'translateY(-50%)',
-                        borderRadius: 2,
-                        zIndex: 55,
-                        pointerEvents: 'none'
-                      }
-                    }),
-                    React.createElement('div', {
-                      className: 'absolute',
-                      style: {
-                        top: `${nowYClamped}px`,
-                        // Straddle the gutter/grid boundary so the dot is "attached" to the now line
-                        right: -3,
-                        width: 6,
-                        height: 6,
-                        background: TT.nowGreen,
-                        transform: 'translateY(-50%)',
-                        borderRadius: 999,
-                        zIndex: 60,
-                        pointerEvents: 'none'
-                      }
-                    })
-                  )
+                  // Now indicator: dot sits exactly on the grid boundary (end/start of the now line)
+                  showNow && React.createElement('div', {
+                    className: 'absolute pointer-events-none',
+                    style: {
+                      top: `${nowYClamped}px`,
+                      // Axis column width is TT.axisW; place dot on the boundary at the very right edge of the gutter.
+                      left: `${TT.axisW - 3}px`,
+                      width: 6,
+                      height: 6,
+                      background: TT.nowGreen,
+                      transform: 'translateY(-50%)',
+                      borderRadius: 999,
+                      zIndex: 60
+                    }
+                  })
                 )
               ),
 
@@ -3644,19 +3624,21 @@ const DailyActivityChart = ({
                   )
                 ),
 
-                // Now line (spans the full grid width)
+                // NOW LINE (grid-owned): draw ONLY across the grid columns (not under the gutter)
                 showNow && React.createElement('div', {
-                  className: 'pointer-events-none absolute left-0 right-0',
+                  className: 'pointer-events-none absolute',
                   style: {
                     top: `${nowYClamped}px`,
-                    transform: 'translateY(-50%)',
+                    left: `${TT.axisW}px`,
+                    right: 0,
                     height: 2,
                     background: TT.nowGreen,
+                    transform: 'translateY(-50%)',
                     zIndex: 25
                   }
                 }),
 
-                // Columns + events
+                // Day columns
                 React.createElement(
                   'div',
                   {
