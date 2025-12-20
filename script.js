@@ -3383,8 +3383,8 @@ const DailyActivityChart = ({
             { className: 'flex-1 min-w-0 border-l border-gray-200 overflow-x-auto', ref: scrollRef },
             React.createElement(
               'div',
-              // Keep content width stable: day is 100%; week/month is sized by columns
-              { className: 'w-full', style: { minWidth: '100%', width: '100%' } },
+              // IMPORTANT: Fill card width so week/month grids expand (prevents “squished calendar” + blank right gap)
+              { className: 'w-full', style: { minWidth: '100%' } },
 
               // HEADER ROW (inside the same scroller)
               React.createElement(
@@ -3605,7 +3605,7 @@ const DailyActivityChart = ({
           )
       ),
 
-      // Legend at the bottom (inside card)
+      // Legend at the bottom (OUTSIDE scrollable area, INSIDE card)
       React.createElement(
         'div',
         { className: 'px-4 py-4 border-t border-gray-100 flex items-center justify-center gap-5 text-[12px] text-gray-700' },
