@@ -3318,6 +3318,10 @@ const DailyActivityChart = ({
     const mins = Number(hour) * 60;
     return PAD_T + (mins / (24 * 60)) * PLOT_H;
   }, [PAD_T, PLOT_H]);
+
+  // Optical correction: align the perceived center of text to the gridline.
+  // iOS/SF tends to look ~1px high when using translateY(-50%) with thin 1px lines.
+  const GUTTER_LABEL_Y_NUDGE = 1;
   const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
   const nowY = yPxFromPct(nowPct);
   // Clamp “now” so pill/line never render outside the plot (prevents running off-card)
@@ -3550,7 +3554,7 @@ const DailyActivityChart = ({
                       style: {
                         // Align the *center* of the label to the 1px gridline position.
                         // (Gridlines are 1px; visually they sit best when labels are offset by 0.5px.)
-                        top: `${tickY(h.i) - 0.5}px`,
+                        top: `${tickY(h.i) + GUTTER_LABEL_Y_NUDGE}px`,
                         transform: 'translateY(-50%)',
                         lineHeight: 1,
                         whiteSpace: 'nowrap'
