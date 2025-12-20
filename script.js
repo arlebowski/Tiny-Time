@@ -3390,8 +3390,9 @@ const DailyActivityChart = ({
               React.createElement(
                 'div',
                 {
-                  className: 'grid border-b border-gray-100',
+                  className: 'grid w-full border-b border-gray-100',
                   style: {
+                    width: '100%',
                     gridTemplateColumns:
                       effectiveViewMode === 'day'
                         ? '1fr'
@@ -3440,8 +3441,9 @@ const DailyActivityChart = ({
                 React.createElement(
                   'div',
                   {
-                    className: 'grid',
+                    className: 'grid w-full',
                     style: {
+                      width: '100%',
                       gridTemplateColumns:
                         effectiveViewMode === 'day'
                           ? '1fr'
