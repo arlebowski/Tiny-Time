@@ -3261,11 +3261,22 @@ const DailyActivityChart = ({
     { i: 24, label: '12 AM' }
   ]), []);
 
-  // Match "Daily volume" style: bold-ish black number + smaller grey AM/PM
+  // Match "Daily volume" style: black number + smaller grey AM/PM (and show "Noon" as Noon)
   const renderGutterTime = React.useCallback((label) => {
-    // Normalize "Noon" to 12 PM for consistent styling
-    const normalized = (label === 'Noon') ? '12 PM' : label;
-    const parts = String(normalized).split(' ');
+    // Keep Noon as "Noon"
+    if (label === 'Noon') {
+      return React.createElement(
+        'span',
+        { className: 'inline-flex items-baseline' },
+        React.createElement(
+          'span',
+          { className: 'text-[12px] font-semibold text-gray-900 leading-none' },
+          'Noon'
+        )
+      );
+    }
+
+    const parts = String(label).split(' ');
     const num = parts[0] || '';
     const mer = (parts[1] || '').toUpperCase();
 
@@ -3591,31 +3602,27 @@ const DailyActivityChart = ({
                 React.createElement(
                   'div',
                   { className: 'pointer-events-none absolute inset-0', style: { zIndex: 1 } },
-                  // Major lines
+                  // Major lines (align line center to tick: y - 0.5)
                   majorTicks.map((i) =>
                     React.createElement('div', {
                       key: `maj-${i}`,
                       className: 'absolute left-0 right-0',
                       style: {
-                        top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
+                        top: `${(PAD_T + ((i * 60) / (24 * 60)) * PLOT_H) - 0.5}px`,
                         height: 1,
-                        background: TT.gridMajor,
-                        // Center the line on the tick so it aligns with the centered gutter label
-                        transform: 'translateY(-50%)'
+                        background: TT.gridMajor
                       }
                     })
                   ),
-                  // Minor lines (every 3h)
+                  // Minor lines (every 3h) (align line center to tick: y - 0.5)
                   minorTicks.map((i) =>
                     React.createElement('div', {
                       key: `min-${i}`,
                       className: 'absolute left-0 right-0',
                       style: {
-                        top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
+                        top: `${(PAD_T + ((i * 60) / (24 * 60)) * PLOT_H) - 0.5}px`,
                         height: 1,
-                        background: TT.gridMinor,
-                        // Center the line on the tick so it aligns with the centered gutter label
-                        transform: 'translateY(-50%)'
+                        background: TT.gridMinor
                       }
                     })
                   )
