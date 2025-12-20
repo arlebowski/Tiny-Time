@@ -3618,9 +3618,11 @@ const DailyActivityChart = ({
                   })
                 )
               )
+            )
           )
-      ),
-  )
+        )
+      )
+    )
   );
 };
 
