@@ -3321,6 +3321,28 @@ const DailyActivityChart = ({
         )
       ),
 
+      // Legend - ABOVE the calendar
+      React.createElement(
+        'div',
+        { className: 'px-4 pb-3 pt-2' },
+        React.createElement(
+          'div',
+          { className: 'flex items-center justify-center gap-5 text-[12px] text-gray-700' },
+          React.createElement('div', { className: 'flex items-center gap-2' },
+            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: 'rgba(79,70,229,0.72)' } }),
+            'Sleep'
+          ),
+          React.createElement('div', { className: 'flex items-center gap-2' },
+            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#60A5FA' } }),
+            'Nap'
+          ),
+          React.createElement('div', { className: 'flex items-center gap-2' },
+            React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: '#F43F5E' } }),
+            'Feed'
+          )
+        )
+      ),
+
       // Scrollable chart area
       React.createElement(
         'div',
@@ -3598,27 +3620,6 @@ const DailyActivityChart = ({
               )
           )
       ),
-
-      // Legend at the bottom (OUTSIDE scrollable area, INSIDE card)
-      React.createElement(
-        'div',
-        { className: 'px-4 py-4 border-t border-gray-100 flex items-center justify-center gap-5 text-[12px] text-gray-700' },
-        React.createElement('div', { className: 'flex items-center gap-2' },
-          // Match plotted "night sleep" color
-          React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: 'rgba(79,70,229,0.72)' } }),
-          'Sleep'
-        ),
-        React.createElement('div', { className: 'flex items-center gap-2' },
-          React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#60A5FA' } }),
-          'Nap'
-        ),
-        React.createElement('div', { className: 'flex items-center gap-2' },
-          React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: '#F43F5E' } }),
-          'Feed'
-        )
-      )
-    )
-  )
   )
   );
 };
