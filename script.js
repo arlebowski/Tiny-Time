@@ -3657,7 +3657,7 @@ const DailyActivityChart = ({
                           position: 'relative',
                           height: '100%',
                           // No gutter divider; keep only ultra-subtle column separators
-                          borderRight: '1px solid rgba(17,24,39,0.06)'
+                          borderRight: 'none'
                         }
                       },
 
