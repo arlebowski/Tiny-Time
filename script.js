@@ -3032,7 +3032,7 @@ const DailyActivityChart = ({
   // Apple Health-ish styling constants (local to this component)
   const TT = {
     cardH: 420,           // KEEP CONSISTENT across day/week/month
-    headerH: 52,          // day strip header row height
+    headerH: 48,          // slightly tighter header for better chart breathing room
     axisW: 52,            // quiet gutter
     gridMajor: 'rgba(17,24,39,0.08)',
     gridMinor: 'rgba(17,24,39,0.04)',
@@ -3455,12 +3455,19 @@ const DailyActivityChart = ({
                   React.createElement(
                     'div',
                     {
-                      className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50 rounded-lg' : ''}`
+                      className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50' : ''}`,
+                      style: isToday
+                        ? {
+                            borderRadius: 12,           // softer rounded-rect, not a pill
+                            paddingTop: 6,
+                            paddingBottom: 6
+                          }
+                        : undefined
                     },
                     React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' }, dayName),
                     React.createElement(
                       'div',
-                      { className: `mt-1 text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
+                      { className: `mt-[2px] text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
                       effectiveViewMode === 'day' ? daySub : String(dayNum)
                     )
                   )
