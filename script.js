@@ -3044,6 +3044,21 @@ const DailyActivityChart = ({
     feedPink:   '#EC4899',
   };
 
+  // Tappable legend toggles (guard: don't allow "all off")
+  const [legendOn, setLegendOn] = React.useState({ sleep: true, nap: true, feed: true });
+  const toggleLegend = (key) => {
+    setLegendOn((prev) => {
+      const next = { ...prev, [key]: !prev[key] };
+      // Guard: don't allow turning everything off
+      if (!next.sleep && !next.nap && !next.feed) return prev;
+      return next;
+    });
+  };
+  const legendBtnClass = (on) =>
+    `flex items-center gap-2 px-2 py-1 rounded-md transition ${
+      on ? 'opacity-100' : 'opacity-35'
+    } hover:bg-gray-50 active:bg-gray-100`;
+
   // Safe default handling without mutation
   const effectiveViewMode = viewMode || 'day';
   const days = effectiveViewMode === 'day' ? 1 : 7; // week/month: 7-day rolling window
@@ -3274,6 +3289,10 @@ const DailyActivityChart = ({
   const PAD_T = 10;
   const PAD_B = 10;
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
+  // Visual breathing room under the grid so it doesn't "bump" the card edge.
+  // IMPORTANT: does NOT affect y-axis math (we still compute y positions off PLOT_TOTAL_H).
+  const PLOT_VISUAL_PAD_B = 8;
+  const PLOT_WRAP_H = PLOT_TOTAL_H + PLOT_VISUAL_PAD_B;
   const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
   const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
   const nowY = yPxFromPct(nowPct);
@@ -3367,15 +3386,36 @@ const DailyActivityChart = ({
         React.createElement(
           'div',
           { className: 'flex items-center justify-center gap-5 text-[12px] text-gray-700' },
-          React.createElement('div', { className: 'flex items-center gap-2' },
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => toggleLegend('sleep'),
+              'aria-pressed': !!legendOn.sleep,
+              className: legendBtnClass(!!legendOn.sleep)
+            },
             React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: TT.sleepNight } }),
             'Sleep'
           ),
-          React.createElement('div', { className: 'flex items-center gap-2' },
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => toggleLegend('nap'),
+              'aria-pressed': !!legendOn.nap,
+              className: legendBtnClass(!!legendOn.nap)
+            },
             React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: TT.sleepDay } }),
             'Nap'
           ),
-          React.createElement('div', { className: 'flex items-center gap-2' },
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => toggleLegend('feed'),
+              'aria-pressed': !!legendOn.feed,
+              className: legendBtnClass(!!legendOn.feed)
+            },
             React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: TT.feedPink } }),
             'Feed'
           )
@@ -3386,7 +3426,8 @@ const DailyActivityChart = ({
       React.createElement(
         'div',
         {
-          className: 'px-4 pb-3 flex-1 min-h-0',
+          // Slightly more bottom padding so the grid has the same "breathing" as the top.
+          className: 'px-4 pb-4 flex-1 min-h-0',
           style: { overscrollBehavior: 'contain' }
         },
         React.createElement(
@@ -3502,7 +3543,7 @@ const DailyActivityChart = ({
                 // Time labels (calm, Apple-like)
                 React.createElement(
                   'div',
-                  { className: 'relative', style: { height: PLOT_TOTAL_H } },
+                  { className: 'relative', style: { height: PLOT_WRAP_H } },
                   hourLabels.map((h) =>
                     React.createElement('div', {
                       key: `ylab-${h.i}`,
@@ -3647,6 +3688,8 @@ const DailyActivityChart = ({
                         // Sleep blocks (wide, clean)
                         daySleeps.map((ev, idx) => {
                           const sleepType = _sleepTypeForSession(ev);
+                          if (sleepType === 'night' && !legendOn.sleep) return null;
+                          if (sleepType === 'day' && !legendOn.nap) return null;
                           const isActive = ev.isActive;
                           const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
 
@@ -3681,7 +3724,7 @@ const DailyActivityChart = ({
                           );
 
                           // Nap label: only in Day view + tall enough + not active
-                          if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && hPx >= 26) {
+                          if (sleepType === 'day' && legendOn.nap && !isActive && effectiveViewMode === 'day' && hPx >= 26) {
                             out.push(
                               React.createElement('div', {
                                 key: `${day0}-sleep-label-${idx}`,
@@ -3697,7 +3740,7 @@ const DailyActivityChart = ({
                           }
 
                           // Active indicator (day view only; keep quiet)
-                          if (isActive && effectiveViewMode === 'day') {
+                          if (isActive && effectiveViewMode === 'day' && (sleepType === 'night' ? legendOn.sleep : legendOn.nap)) {
                             out.push(
                               React.createElement('div', {
                                 key: `${day0}-sleep-active-${idx}`,
@@ -3708,7 +3751,7 @@ const DailyActivityChart = ({
                                   border: '1px solid rgba(79,70,229,0.2)',
                                   zIndex: 15
                                 },
-                              }, '🌙 Active')
+                              }, ' Active')
                             );
                           }
 
@@ -3716,7 +3759,7 @@ const DailyActivityChart = ({
                         }).flat(),
 
                         // Feed ticks
-                        dayFeeds.map((ev, idx) => {
+                        legendOn.feed ? dayFeeds.map((ev, idx) => {
                           const topPx = yPx(ev.s, day0);
                           return React.createElement('div', {
                             key: `${day0}-feed-${idx}`,
@@ -3732,7 +3775,7 @@ const DailyActivityChart = ({
                               zIndex: 20
                             }
                           });
-                        })
+                        }) : null
                       )
                     );
                   })
