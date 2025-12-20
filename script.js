@@ -3318,6 +3318,9 @@ const DailyActivityChart = ({
     const mins = Number(hour) * 60;
     return PAD_T + (mins / (24 * 60)) * PLOT_H;
   }, [PAD_T, PLOT_H]);
+  // Fixed label box height so all time labels align consistently to gridlines
+  // (avoids font-metric differences like "Noon" vs "6 PM")
+  const GUTTER_LABEL_H = 16;
   const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
   const nowY = yPxFromPct(nowPct);
   // Clamp “now” so pill/line never render outside the plot (prevents running off-card)
@@ -3548,12 +3551,14 @@ const DailyActivityChart = ({
                       key: `ylab-${h.i}`,
                       className: 'absolute right-2 text-right',
                       style: {
-                        // Align the *center* of the label to the 1px gridline position.
-                        // (Gridlines are 1px; visually they sit best when labels are offset by 0.5px.)
-                        top: `${tickY(h.i) - 0.5}px`,
-                        transform: 'translateY(-50%)',
-                        lineHeight: 1,
-                        whiteSpace: 'nowrap'
+                        // Align the CENTER of a fixed-height label box to the gridline
+                        top: `${tickY(h.i) - (GUTTER_LABEL_H / 2)}px`,
+                        height: `${GUTTER_LABEL_H}px`,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'flex-end',
+                        whiteSpace: 'nowrap',
+                        lineHeight: 1
                       }
                     }, renderGutterTime(h.label))
                   ),
