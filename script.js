@@ -3016,610 +3016,675 @@ const _avg = (arr) => {
 // Feeds = short horizontal ticks at feed start time
 // Uses app's indigo color scheme: bg=#E0E7FF, accent=#4F46E5, soft=#EEF2FF
 // =====================================================
-const DailyActivityChart = ({
-  viewMode = 'day', // 'day' | 'week' | 'month'
-  feedings = [],
-  sleepSessions = [],
-  sleepSettings = null
-}) => {
-  // ========================================
-  // ACTOGRAM: "Apple Health" polish + bulletproofing
-  // ========================================
-  // Turn on locally if you need it, but keep it off for production.
-  const DEBUG_ACTOGRAM = false;
-  const dlog = (...args) => { try { if (DEBUG_ACTOGRAM) console.log('[ACTOGRAM]', ...args); } catch {} };
+const DailyActivityChart = ({ kidId, familyId }) => {
+  const [viewMode, setViewMode] = useState('day');
+  const [currentDate, setCurrentDate] = useState(new Date());   // day/week anchor
+  const [currentMonth, setCurrentMonth] = useState(new Date()); // month view anchor
+  const [feedings, setFeedings] = useState([]);
+  const [sleepSessions, setSleepSessions] = useState([]);
 
-  // Apple Health-ish styling constants (local to this component)
-  const TT = {
-    cardH: 420,           // KEEP CONSISTENT across day/week/month
-    headerH: 52,          // day strip header row height
-    axisW: 52,            // quiet gutter
-    gridMajor: 'rgba(17,24,39,0.08)',
-    gridMinor: 'rgba(17,24,39,0.04)',
-    axisTextClass: 'text-[12px] font-medium text-gray-500',
-    nowGreen: '#22C55E',
-    // Event colors (match legend)
-    sleepNight: 'rgba(79,70,229,0.72)', // indigo
-    sleepDay:   'rgba(96,165,250,0.72)', // blue
-    feedPink:   '#EC4899',
+  const HOURS = Array.from({ length: 25 }, (_, i) => i);
+
+  useEffect(() => {
+    loadData();
+    // Data is global for the kid; view/date changes do not require re-fetching.
+  }, [kidId, familyId]);
+
+  const loadData = async () => {
+    if (!kidId) return;
+    try {
+      const allFeedings = await firestoreStorage.getAllFeedings();
+      const allSleep = await firestoreStorage.getAllSleepSessions();
+      setFeedings(allFeedings || []);
+      setSleepSessions(allSleep || []);
+    } catch (error) {
+      console.error('Error loading activity data:', error);
+    }
   };
 
-  // Safe default handling without mutation
-  const effectiveViewMode = viewMode || 'day';
-  const days = effectiveViewMode === 'day' ? 1 : 7; // week/month: 7-day rolling window
-  const [offsetDays, setOffsetDays] = React.useState(0); // 0 = week/day ending today
-  const stepDays = 7; // nav always moves week-over-week for consistency
+  const navigateDay = (direction) => {
+    const next = new Date(currentDate);
+    next.setDate(next.getDate() + direction);
+    setCurrentDate(next);
+  };
 
-  const clampOffset = (n) => Math.max(0, Math.floor(Number(n) || 0));
-  const pageBack = () => setOffsetDays((n) => clampOffset(n + stepDays));
-  const pageFwd = () => setOffsetDays((n) => clampOffset(n - stepDays));
-  const scrollRef = React.useRef(null);     // single horizontal scroller (header + plot) - MUST be overflow-x-auto
-  const plotScrollRef = React.useRef(null); // day-view vertical scroll container
+  const navigateWeek = (direction) => {
+    const next = new Date(currentDate);
+    next.setDate(next.getDate() + direction * 7);
+    setCurrentDate(next);
+  };
 
-  // Apple-style current time (axis-owned, not column-owned)
-  const nowMs = Date.now();
+  const navigateMonth = (direction) => {
+    const next = new Date(currentMonth);
+    next.setMonth(next.getMonth() + direction);
+    setCurrentMonth(next);
+  };
 
-  // Auto-scroll to the most recent day (ONLY on today; do not fight paging)
-  React.useEffect(() => {
-    if (offsetDays !== 0) return;
-    if (effectiveViewMode === 'day') return;
+  const getDaysInMonth = (date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startDayOfWeek = firstDay.getDay();
+    return { year, month, daysInMonth, startDayOfWeek, firstDay, lastDay };
+  };
 
-    const el = scrollRef.current;
-    if (!el) return;
+  const getWeekDays = (date) => {
+    const days = [];
+    const startOfWeek = new Date(date);
+    startOfWeek.setHours(0, 0, 0, 0);
+    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      days.push(d);
+    }
+    return days;
+  };
 
-    let raf1 = 0;
-    let raf2 = 0;
-    let t1 = 0;
-    const scrollToRight = () => {
-      try {
-        // scrollWidth includes the visible area; subtract clientWidth to land at max scroll
-        el.scrollLeft = Math.max(0, el.scrollWidth - el.clientWidth);
-      } catch {}
-    };
+  const getActivitiesForDay = (date) => {
+    const dayStart = new Date(date);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date);
+    dayEnd.setHours(23, 59, 59, 999);
 
-    raf1 = requestAnimationFrame(() => {
-      scrollToRight();
-      raf2 = requestAnimationFrame(() => {
-        scrollToRight();
-        t1 = setTimeout(scrollToRight, 50);
-      });
+    const dayFeedings = (feedings || []).filter((f) =>
+      f && typeof f.timestamp === 'number' && f.timestamp >= dayStart.getTime() && f.timestamp <= dayEnd.getTime()
+    );
+
+    const daySleep = (sleepSessions || []).filter((s) => {
+      if (!s) return false;
+      const start = s.startTime;
+      const end = s.endTime || null;
+      if (typeof start !== 'number') return false;
+      if (!end || typeof end !== 'number') return false;
+      return start <= dayEnd.getTime() && end >= dayStart.getTime();
     });
 
-    return () => {
-      try { if (raf1) cancelAnimationFrame(raf1); } catch {}
-      try { if (raf2) cancelAnimationFrame(raf2); } catch {}
-      try { if (t1) clearTimeout(t1); } catch {}
+    return { feedings: dayFeedings, sleep: daySleep };
+  };
+
+  const getPositionStyle = (timestamp) => {
+    const dt = new Date(timestamp);
+    const hour = dt.getHours();
+    const minute = dt.getMinutes();
+    const topPercent = ((hour + minute / 60) / 24) * 100;
+    return {
+      position: 'absolute',
+      top: `${topPercent}%`,
+      left: '0',
+      right: '0'
     };
-  }, [effectiveViewMode, offsetDays]);
+  };
 
-  // Day view: auto-scroll vertically to current time (only on today)
-  React.useEffect(() => {
-    if (effectiveViewMode !== 'day') return;
-    if (offsetDays !== 0) return;
+  const getSleepPositionStyle = (session, dayStart, dayEnd) => {
+    const effectiveStart = Math.max(session.startTime, dayStart);
+    const effectiveEnd = Math.min(session.endTime || Date.now(), dayEnd);
 
-    const el = plotScrollRef.current;
-    if (!el) return;
+    const startDate = new Date(effectiveStart);
+    const endDate = new Date(effectiveEnd);
+
+    const startHour = startDate.getHours() + startDate.getMinutes() / 60;
+    const endHour = endDate.getHours() + endDate.getMinutes() / 60;
+
+    const topPercent = (startHour / 24) * 100;
+    const heightPercent = ((endHour - startHour) / 24) * 100;
+
+    const isStart = session.startTime >= dayStart;
+    const isEnd = (session.endTime || Date.now()) <= dayEnd;
+    const isDaySleep = session.sleepType === 'day' || session.isDaySleep;
+
+    return {
+      position: 'absolute',
+      top: `${topPercent}%`,
+      left: '0',
+      right: '0',
+      height: `${heightPercent}%`,
+      backgroundColor: isDaySleep ? '#93C5FD' : '#A78BFA',
+      ...(isStart ? { borderTopLeftRadius: '6px', borderTopRightRadius: '6px' } : null),
+      ...(isEnd ? { borderBottomLeftRadius: '6px', borderBottomRightRadius: '6px' } : null)
+    };
+  };
+
+  const renderTimeLabels = (opts = {}) => {
+    const {
+      compact = false, // month view uses fewer labels
+      rightPad = 8
+    } = opts;
+
+    const labelHours = compact ? [0, 6, 12, 18] : HOURS;
+
+    return React.createElement(
+      'div',
+      { className: 'relative', style: { paddingRight: `${rightPad}px` } }, // FIX #6
+      labelHours.map((hour) =>
+        React.createElement(
+          'div',
+          {
+            key: `hour-${hour}`,
+            className: 'text-xs text-gray-400 text-right',
+            style: {
+              position: 'absolute',
+              top: `${(hour / 24) * 100}%`,
+              right: `${rightPad}px`,
+              transform: 'translateY(-50%)',
+              whiteSpace: 'nowrap',
+              paddingRight: '4px'
+            }
+          },
+          compact
+            ? (hour === 0 ? '12a' : hour === 12 ? '12p' : hour < 12 ? `${hour}a` : `${hour - 12}p`)
+            : (hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : `${hour - 12} PM`)
+        )
+      )
+    );
+  };
+
+  const renderDayView = () => {
+    const day = new Date(currentDate);
+    day.setHours(0, 0, 0, 0);
+    const dayStart = new Date(day);
+    const dayEnd = new Date(day);
+    dayEnd.setHours(23, 59, 59, 999);
+
+    const { feedings: dayFeedings, sleep: daySleep } = getActivitiesForDay(day);
 
     const now = new Date();
-    const mins = now.getHours() * 60 + now.getMinutes();
-    const pct = mins / (24 * 60);
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+    const currentLinePosition = (currentHour / 24) * 100;
 
-    requestAnimationFrame(() => {
-      try {
-        const target = (el.scrollHeight * pct) - (el.clientHeight * 0.40);
-        el.scrollTop = Math.max(0, target);
-      } catch {}
-    });
-  }, [effectiveViewMode, offsetDays]);
+    const dayOfWeek = day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+    const dayOfMonth = day.getDate();
 
-  const toMs = React.useCallback((t) => {
-    if (!t) return null;
-    // Normalize numeric timestamps:
-    // - If stored as Unix seconds (10 digits-ish), convert to ms.
-    // - If already ms (13 digits-ish), keep as-is.
-    if (typeof t === 'number') {
-      // 2025 epoch ms ~ 1.7e12. Anything below 1e11 is definitely not ms.
-      if (t > 0 && t < 100000000000) return t * 1000; // seconds -> ms
-      return t; // already ms
-    }
-    if (t?.toMillis) return t.toMillis(); // Firestore Timestamp
-    // Handle numeric strings like "1702780000"
-    if (typeof t === 'string' && /^[0-9]+$/.test(t)) {
-      const n = Number(t);
-      if (!Number.isFinite(n)) return null;
-      if (n > 0 && n < 100000000000) return n * 1000;
-      return n;
-    }
-    const d = (t instanceof Date) ? t : new Date(t);
-    const ms = d.getTime();
-    return Number.isFinite(ms) ? ms : null;
-  }, []);
-
-  const today = new Date();
-  const today0 = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const nowMsLocal = nowMs;
-
-  dlog('viewMode', effectiveViewMode, 'days', days, 'offsetDays', offsetDays);
-
-  // End day for the visible range
-  const endDay0 = today0 - clampOffset(offsetDays) * 86400000;
-
-  const dayStarts = React.useMemo(() => {
-    const out = [];
-    for (let i = days - 1; i >= 0; i--) out.push(endDay0 - i * 86400000);
-    return out;
-  }, [days, endDay0]);
-
-  const hasToday = React.useMemo(() => dayStarts.includes(today0), [dayStarts, today0]);
-  const showNow = hasToday && effectiveViewMode !== 'month';
-  const nowMinutes = React.useMemo(() => {
-    const d = new Date(nowMs);
-    return d.getHours() * 60 + d.getMinutes();
-  }, [nowMs]);
-  const nowPct = (nowMinutes / (24 * 60)) * 100;
-  const nowLabel = React.useMemo(() => new Date(nowMs).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit'
-  }), [nowMs]);
-
-  // Window: midnight to midnight (24 hours)
-  const windowStartMs = (day0) => day0;
-  const windowEndMs = (day0) => day0 + 86400000; // +24 hours
-
-  // Feedings are stored as point-in-time events (typically { ounces, timestamp }).
-  // Use toMs() so we correctly handle Firestore Timestamps, numbers (ms), Dates, and ISO strings.
-  const feeds = React.useMemo(() => {
-    const raw = Array.isArray(feedings) ? feedings : [];
-    const out = [];
-    for (const f of raw) {
-      const s = toMs(f?.timestamp ?? f?.startTime ?? f?.time ?? f?.startAt ?? f?.start);
-      if (s) out.push({ s });
-    }
-    return out;
-  }, [feedings, toMs]);
-
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-  const yPct = (tMs, day0) => {
-    const ws = windowStartMs(day0);
-    const we = windowEndMs(day0);
-    const x = clamp(tMs, ws, we);
-    return ((x - ws) / (we - ws)) * 100;
-  };
-
-  const sleeps = React.useMemo(() => {
-    const raw = Array.isArray(sleepSessions) ? sleepSessions : [];
-    const out = [];
-    for (const s of raw) {
-      const start = toMs(s?.startTime ?? s?.startAt ?? s?.start);
-      const end = toMs(s?.endTime ?? s?.endAt ?? s?.end);
-      // Include active sessions (missing end), and completed sessions (need end)
-      if (start && (end || s?.isActive)) out.push({ ...s, s: start, e: end || null });
-    }
-    return out;
-  }, [sleepSessions, toMs]);
-
-  dlog('parsed feeds', feeds.length, 'parsed sleeps', sleeps.length);
-
-  // Classify sleep as day/night based on start time
-  const _sleepTypeForSession = (session) => {
-    if (!session || !session.s) return 'night';
-    if (session.sleepType === 'day' || session.sleepType === 'night') return session.sleepType;
-    if (typeof session.isDaySleep === 'boolean') return session.isDaySleep ? 'day' : 'night';
-
-    const start = session.s;
-    const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
-    const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
-
-    const mins = (() => {
-      try {
-        const d = new Date(start);
-        return d.getHours() * 60 + d.getMinutes();
-      } catch {
-        return 0;
-      }
-    })();
-
-    const within = dayStart <= dayEnd
-      ? (mins >= dayStart && mins <= dayEnd)
-      : (mins >= dayStart || mins <= dayEnd);
-    return within ? 'day' : 'night';
-  };
-
-  // Apple-ish ticks: major every 6 hours; minor every 3 hours; show "Noon" at 12 PM
-  const majorTicks = React.useMemo(() => [0, 6, 12, 18, 24], []);
-  const minorTicks = React.useMemo(() => [3, 9, 15, 21], []);
-  const hourLabels = React.useMemo(() => ([
-    { i: 0, label: '12 AM' },
-    { i: 6, label: '6 AM' },
-    { i: 12, label: 'Noon' },
-    { i: 18, label: '6 PM' },
-    { i: 24, label: '12 AM' }
-  ]), []);
-
-  // Keep the chart area visually consistent across day/week/month.
-  // We keep card height fixed (TT.cardH) and use one plot height for all modes.
-  const PLOT_H = 300;
-
-  // Bucket feeds by dayStart for O(1) lookup per column
-  const feedsByDay = React.useMemo(() => {
-    const map = new Map();
-    for (const day0 of dayStarts) map.set(day0, []);
-    for (const ev of feeds) {
-      // Determine which visible day bucket this feed belongs to
-      for (const day0 of dayStarts) {
-        const ws = windowStartMs(day0);
-        const we = windowEndMs(day0);
-        if (ev.s >= ws && ev.s < we) {
-          map.get(day0).push(ev);
-          break;
-        }
-      }
-    }
-    return map;
-  }, [feeds, dayStarts]);
-
-  // Bucket sleeps by dayStart (include overlaps)
-  const sleepsByDay = React.useMemo(() => {
-    const map = new Map();
-    for (const day0 of dayStarts) map.set(day0, []);
-    for (const ev of sleeps) {
-      for (const day0 of dayStarts) {
-        const ws = windowStartMs(day0);
-        const we = windowEndMs(day0);
-        if (ev.isActive) {
-          // Active sleep: show if it started before window ends
-          if (ev.s < we) map.get(day0).push(ev);
-        } else if (ev.e) {
-          // Completed sleep: show if overlap
-          if ((ev.s < we) && (ev.e > ws)) map.get(day0).push(ev);
-        }
-      }
-    }
-    return map;
-  }, [sleeps, dayStarts]);
-
-  return React.createElement(
-    'div',
-    null,
-    React.createElement(
+    return React.createElement(
       'div',
-      {
-        className: 'bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col',
-        style: {
-          height: TT.cardH
-        }
-      },
-
-      // Month navigation row (no toggle inside card)
+      { className: 'relative bg-gray-50 rounded-xl', style: { minHeight: '500px' } }, // FIX #4
       React.createElement(
         'div',
-        { className: 'px-4 pt-4 pb-2 flex items-center justify-between' },
-        React.createElement(
-          'button',
-          {
-            type: 'button',
-            onClick: pageBack,
-            className: 'p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition'
-          },
-          React.createElement(ChevronLeft, { className: 'w-5 h-5' })
-        ),
-        React.createElement(
-          'div',
-          { className: 'text-[16px] font-semibold text-gray-900' },
-          // Use the middle day for the month label (matches mock behavior)
-          new Date(dayStarts[Math.floor(dayStarts.length / 2)]).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-        ),
-        React.createElement(
-          'button',
-          {
-            type: 'button',
-            onClick: pageFwd,
-            disabled: offsetDays <= 0,
-            className: `p-2 rounded-lg transition ${offsetDays <= 0 ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
-          },
-          React.createElement(ChevronRight, { className: 'w-5 h-5' })
-        )
-      ),
+        { className: 'grid', style: { gridTemplateColumns: '60px 1fr', position: 'relative' } },
+        // Time labels
+        renderTimeLabels({ compact: false, rightPad: 8 }),
 
-      // Legend - ABOVE the calendar
-      React.createElement(
-        'div',
-        { className: 'px-4 pb-3 pt-2' },
+        // Activity column
         React.createElement(
           'div',
-          { className: 'flex items-center justify-center gap-5 text-[12px] text-gray-700' },
-          React.createElement('div', { className: 'flex items-center gap-2' },
-            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: 'rgba(79,70,229,0.72)' } }),
-            'Sleep'
+          { className: 'relative' },
+          // Header (FIX #5)
+          React.createElement(
+            'div',
+            {
+              className: 'sticky top-0 z-10 bg-gray-50 pb-2 mb-2 border-b border-gray-200',
+              style: { marginLeft: '12px', marginRight: '12px' }
+            },
+            React.createElement(
+              'div',
+              { className: 'text-center text-sm font-semibold text-gray-700', style: { paddingTop: '8px', paddingBottom: '8px' } },
+              `${dayOfWeek} ${dayOfMonth}`
+            )
           ),
-          React.createElement('div', { className: 'flex items-center gap-2' },
-            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: '#60A5FA' } }),
-            'Nap'
+
+          // Grid lines
+          React.createElement(
+            'div',
+            { className: 'absolute inset-0', style: { pointerEvents: 'none', marginTop: '44px' } },
+            HOURS.map((hour) =>
+              React.createElement('div', {
+                key: `grid-${hour}`,
+                className: 'border-t border-gray-200',
+                style: {
+                  position: 'absolute',
+                  top: `${(hour / 24) * 100}%`,
+                  left: '12px',
+                  right: '12px'
+                }
+              })
+            )
           ),
-          React.createElement('div', { className: 'flex items-center gap-2' },
-            React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: '#F43F5E' } }),
-            'Feed'
+
+          // Activities container
+          React.createElement(
+            'div',
+            { className: 'relative', style: { height: '100%', marginTop: '44px', paddingLeft: '12px', paddingRight: '12px' } },
+            // Sleep blocks
+            (daySleep || []).map((session, idx) =>
+              React.createElement('div', {
+                key: `sleep-${idx}`,
+                style: getSleepPositionStyle(session, dayStart.getTime(), dayEnd.getTime())
+              })
+            ),
+
+            // Feeding markers
+            (dayFeedings || []).map((feeding, idx) =>
+              React.createElement('div', {
+                key: `feeding-${idx}`,
+                style: {
+                  ...getPositionStyle(feeding.timestamp),
+                  height: '3px',
+                  backgroundColor: '#FB7185',
+                  zIndex: 2
+                }
+              })
+            ),
+
+            // Current time line (FIX #1: full width of activity container)
+            React.createElement('div', {
+              style: {
+                position: 'absolute',
+                top: `${currentLinePosition}%`,
+                left: '0',
+                right: '0',
+                height: '2px',
+                backgroundColor: '#10B981',
+                zIndex: 3
+              }
+            }),
+
+            // Current time pill (FIX #2: attached, single line)
+            React.createElement(
+              'div',
+              {
+                style: {
+                  position: 'absolute',
+                  top: `${currentLinePosition}%`,
+                  left: '0',
+                  transform: 'translateY(-50%)',
+                  backgroundColor: '#10B981',
+                  color: 'white',
+                  padding: '4px 12px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  zIndex: 4,
+                  whiteSpace: 'nowrap'
+                }
+              },
+              now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+            )
           )
         )
-      ),
+      )
+    );
+  };
 
-      // Scrollable chart area
+  const renderWeekView = () => {
+    const weekDays = getWeekDays(currentDate);
+    const now = new Date();
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+    const currentLinePosition = (currentHour / 24) * 100;
+
+    return React.createElement(
+      'div',
+      { className: 'relative bg-gray-50 rounded-xl overflow-x-auto', style: { minHeight: '500px' } }, // FIX #4
       React.createElement(
         'div',
         {
-          className: 'px-4 pb-2 flex-1 overflow-hidden',
-          style: { overscrollBehavior: 'contain' },
-          ref: plotScrollRef
+          className: 'grid',
+          style: {
+            gridTemplateColumns: `60px repeat(7, minmax(80px, 1fr))`,
+            position: 'relative',
+            minWidth: '700px'
+          }
         },
-        React.createElement(
-          'div',
-          { className: 'flex w-full' },
+        // Time labels
+        renderTimeLabels({ compact: false, rightPad: 8 }),
 
-          // LEFT: fixed time axis
-          React.createElement(
+        // Day columns
+        weekDays.map((day, dayIdx) => {
+          const dayStart = new Date(day);
+          dayStart.setHours(0, 0, 0, 0);
+          const dayEnd = new Date(day);
+          dayEnd.setHours(23, 59, 59, 999);
+
+          const { feedings: dayFeedings, sleep: daySleep } = getActivitiesForDay(day);
+
+          const isToday = day.toDateString() === now.toDateString();
+          const dayOfWeek = day.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+          const dayOfMonth = day.getDate();
+
+          return React.createElement(
             'div',
-            { className: 'w-14 shrink-0 border-r border-gray-200 bg-white pr-2 relative' },
-
-            // Header spacer MUST match header height on the right
-            React.createElement('div', { className: 'h-[52px] border-b border-gray-100' }),
-
+            { key: `day-${dayIdx}`, className: 'relative border-l border-gray-200' },
+            // Column header
             React.createElement(
               'div',
-              { className: 'relative bg-white', style: { height: PLOT_H + 12, paddingBottom: 4 } },
-
-              // Time labels (Apple-style, calm)
-              hourLabels.map((h) =>
-                React.createElement('div', {
-                  key: h.i,
-                  className: 'absolute right-0 text-right text-[12px] font-medium text-gray-500',
-                  style: {
-                    top: `${(h.i / 24) * 100}%`,
-                    transform: 'translateY(-50%)',
-                    zIndex: 10,
-                    lineHeight: 1,
-                    whiteSpace: 'nowrap'
-                  }
-                }, h.label)
-              ),
-
-              // Current time pill (axis-owned)
-              showNow && React.createElement(
-                'div',
-                {
-                  className: 'absolute right-0 bg-green-500 text-white text-[11px] font-semibold px-2 py-[2px] rounded-full',
-                  style: {
-                    top: `${nowPct}%`,
-                    transform: 'translateY(-50%)',
-                    zIndex: 20
-                  }
-                },
-                nowLabel
-              )
-            )
-          ),
-
-          // RIGHT: SINGLE horizontal scroller containing BOTH header + plot columns
-          React.createElement(
-            'div',
-            // IMPORTANT: this is the ACTUAL horizontal scroll container
-            { className: 'flex-1 min-w-0 border-l border-gray-200 overflow-x-auto', ref: scrollRef },
-            React.createElement(
-              'div',
-              // IMPORTANT: Fill card width so week/month grids expand (prevents “squished calendar” + blank right gap)
-              { className: 'w-full', style: { minWidth: '100%' } },
-
-              // HEADER ROW (inside the same scroller)
+              {
+                className: `sticky top-0 z-10 pb-2 mb-2 border-b border-gray-200 ${isToday ? 'bg-indigo-50' : 'bg-gray-50'}`,
+                style: { paddingLeft: '4px', paddingRight: '4px' }
+              },
               React.createElement(
                 'div',
-                {
-                  className: 'grid w-full border-b border-gray-100',
-                  style: {
-                    width: '100%',
-                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(44px, 1fr))`
-                  }
-                },
-                dayStarts.map((day0) => {
-                  const d = new Date(day0);
-                  const isToday = day0 === today0;
-                  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-                  const dayNum = d.getDate();
-                  return React.createElement(
-                    'div',
-                    {
-                      key: `strip-${day0}`,
-                      className: 'text-center border-r border-gray-100 last:border-r-0'
-                    },
-                    React.createElement(
-                      'div',
-                      { className: `py-2 h-[52px] flex flex-col justify-center ${isToday ? 'bg-indigo-50 rounded-lg' : ''}` },
-                      React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400' }, dayName),
-                      React.createElement(
-                        'div',
-                        { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
-                        String(dayNum)
-                      )
-                    )
-                  );
+                { className: 'text-center', style: { paddingTop: '4px', paddingBottom: '4px' } },
+                React.createElement('div', { className: `text-xs font-medium ${isToday ? 'text-indigo-600' : 'text-gray-500'}` }, dayOfWeek),
+                React.createElement('div', { className: `text-lg font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-800'}` }, dayOfMonth)
+              )
+            ),
+
+            // Grid lines
+            React.createElement(
+              'div',
+              { className: 'absolute inset-0', style: { pointerEvents: 'none', marginTop: '60px' } },
+              HOURS.map((hour) =>
+                React.createElement('div', {
+                  key: `grid-${dayIdx}-${hour}`,
+                  className: 'border-t border-gray-200',
+                  style: { position: 'absolute', top: `${(hour / 24) * 100}%`, left: '0', right: '0' }
+                })
+              )
+            ),
+
+            // Activities
+            React.createElement(
+              'div',
+              { className: 'relative', style: { height: '100%', marginTop: '60px', paddingLeft: '4px', paddingRight: '4px' } },
+              (daySleep || []).map((session, idx) =>
+                React.createElement('div', {
+                  key: `sleep-${dayIdx}-${idx}`,
+                  style: getSleepPositionStyle(session, dayStart.getTime(), dayEnd.getTime())
                 })
               ),
+              (dayFeedings || []).map((feeding, idx) =>
+                React.createElement('div', {
+                  key: `feeding-${dayIdx}-${idx}`,
+                  style: { ...getPositionStyle(feeding.timestamp), height: '3px', backgroundColor: '#FB7185', zIndex: 2 }
+                })
+              ),
+              // Current time indicator (today only) - FIX #1 + FIX #2 (pill inside column)
+              isToday &&
+                React.createElement(
+                  React.Fragment,
+                  null,
+                  React.createElement('div', {
+                    style: {
+                      position: 'absolute',
+                      top: `${currentLinePosition}%`,
+                      left: '0',
+                      right: '0',
+                      height: '2px',
+                      backgroundColor: '#10B981',
+                      zIndex: 3
+                    }
+                  }),
+                  React.createElement(
+                    'div',
+                    {
+                      style: {
+                        position: 'absolute',
+                        top: `${currentLinePosition}%`,
+                        left: '0',
+                        transform: 'translateY(-50%)',
+                        backgroundColor: '#10B981',
+                        color: 'white',
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        zIndex: 4,
+                        whiteSpace: 'nowrap'
+                      }
+                    },
+                    now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                  )
+                )
+            )
+          );
+        })
+      )
+    );
+  };
 
-              // COLUMNS ROW (plot columns under the header, same geometry)
+  const renderMonthView = () => {
+    const { year, month, daysInMonth, startDayOfWeek } = getDaysInMonth(currentMonth);
+    const weeks = [];
+    let currentWeek = new Array(startDayOfWeek).fill(null);
+    for (let day = 1; day <= daysInMonth; day++) {
+      currentWeek.push(day);
+      if (currentWeek.length === 7) {
+        weeks.push(currentWeek);
+        currentWeek = [];
+      }
+    }
+    if (currentWeek.length > 0) {
+      while (currentWeek.length < 7) currentWeek.push(null);
+      weeks.push(currentWeek);
+    }
+
+    const now = new Date();
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+    const currentLinePosition = (currentHour / 24) * 100;
+
+    return React.createElement(
+      'div',
+      { className: 'relative bg-gray-50 rounded-xl overflow-x-auto', style: { minHeight: '500px' } }, // FIX #4
+      React.createElement(
+        'div',
+        {
+          className: 'grid',
+          style: {
+            gridTemplateColumns: `60px repeat(7, minmax(60px, 1fr))`,
+            position: 'relative',
+            minWidth: '600px'
+          }
+        },
+        // Time labels (compact)
+        renderTimeLabels({ compact: true, rightPad: 8 }),
+
+        // Day columns
+        [0, 1, 2, 3, 4, 5, 6].map((dow) => {
+          const dayName = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][dow];
+          return React.createElement(
+            'div',
+            { key: `dow-${dow}`, className: 'relative border-l border-gray-200' },
+            // Day header
+            React.createElement(
+              'div',
+              { className: 'sticky top-0 z-10 bg-gray-50 pb-1 border-b border-gray-200', style: { paddingLeft: '2px', paddingRight: '2px' } },
               React.createElement(
                 'div',
-                { className: 'relative', style: { height: PLOT_H + 12 } },
-                showNow && React.createElement('div', {
-                  className: 'pointer-events-none absolute inset-x-0',
+                { className: 'text-center text-xs font-medium text-gray-500', style: { paddingTop: '4px', paddingBottom: '4px' } },
+                dayName
+              )
+            ),
+
+            // Grid lines
+            React.createElement(
+              'div',
+              { className: 'absolute inset-0', style: { pointerEvents: 'none', marginTop: '32px' } },
+              [0, 6, 12, 18].map((h) =>
+                React.createElement('div', {
+                  key: `grid-${dow}-${h}`,
+                  className: 'border-t border-gray-200',
+                  style: { position: 'absolute', top: `${(h / 24) * 100}%`, left: '0', right: '0' }
+                })
+              )
+            ),
+
+            // Days stacked by week
+            weeks.map((week, weekIdx) => {
+              const dayNum = week[dow];
+              if (!dayNum) return null;
+              const date = new Date(year, month, dayNum);
+              const dayStart = new Date(date);
+              dayStart.setHours(0, 0, 0, 0);
+              const dayEnd = new Date(date);
+              dayEnd.setHours(23, 59, 59, 999);
+
+              const { feedings: dayFeedings, sleep: daySleep } = getActivitiesForDay(date);
+              const isToday = date.toDateString() === now.toDateString();
+
+              return React.createElement(
+                'div',
+                {
+                  key: `day-${weekIdx}-${dow}`,
+                  className: 'relative',
                   style: {
-                    top: `${nowPct}%`,
-                    transform: 'translateY(-50%)',
-                    height: 2,
-                    background: TT.nowGreen,
-                    zIndex: 25
+                    height: '100%',
+                    marginTop: weekIdx === 0 ? '32px' : '0',
+                    paddingLeft: '2px',
+                    paddingRight: '2px'
                   }
-                }),
+                },
                 React.createElement(
                   'div',
                   {
-                    className: 'grid w-full',
+                    className: `text-xs font-semibold mb-1 ${isToday ? 'text-indigo-600' : 'text-gray-700'}`,
                     style: {
-                      width: '100%',
-                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(44px, 1fr))`,
-                      height: '100%'
+                      position: 'sticky',
+                      top: '36px',
+                      zIndex: 5,
+                      backgroundColor: 'rgba(249, 250, 251, 0.95)',
+                      padding: '2px 4px',
+                      borderRadius: '4px'
                     }
                   },
-                  dayStarts.map((day0) => {
-                    const ws = windowStartMs(day0);
-                    const we = windowEndMs(day0);
-                    const isToday = day0 === today0;
+                  dayNum
+                ),
 
-                    const daySleeps = sleepsByDay.get(day0) || [];
-                    const dayFeeds = feedsByDay.get(day0) || [];
+                (daySleep || []).map((session, idx) =>
+                  React.createElement('div', {
+                    key: `sleep-${weekIdx}-${dow}-${idx}`,
+                    style: getSleepPositionStyle(session, dayStart.getTime(), dayEnd.getTime())
+                  })
+                ),
 
-                    return React.createElement(
+                (dayFeedings || []).map((feeding, idx) =>
+                  React.createElement('div', {
+                    key: `feeding-${weekIdx}-${dow}-${idx}`,
+                    style: { ...getPositionStyle(feeding.timestamp), height: '2px', backgroundColor: '#FB7185', zIndex: 2 }
+                  })
+                ),
+
+                // Current time indicator on today (FIX #1 + FIX #2)
+                isToday &&
+                  React.createElement(
+                    React.Fragment,
+                    null,
+                    React.createElement('div', {
+                      style: {
+                        position: 'absolute',
+                        top: `${currentLinePosition}%`,
+                        left: '0',
+                        right: '0',
+                        height: '2px',
+                        backgroundColor: '#10B981',
+                        zIndex: 3
+                      }
+                    }),
+                    React.createElement(
                       'div',
                       {
-                        key: day0,
-                        className: `border-r border-gray-100 last:border-r-0 ${isToday ? 'bg-indigo-50/30' : ''}`
+                        style: {
+                          position: 'absolute',
+                          top: `${currentLinePosition}%`,
+                          left: '0',
+                          transform: 'translateY(-50%)',
+                          backgroundColor: '#10B981',
+                          color: 'white',
+                          padding: '3px 10px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          zIndex: 4,
+                          whiteSpace: 'nowrap'
+                        }
                       },
+                      now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+                    )
+                  )
+              );
+            })
+          );
+        })
+      )
+    );
+  };
 
-                      // Plot area with sleep blocks and feed ticks
-                      React.createElement(
-                        'div',
-                        {
-                          className: 'relative',
-                          style: {
-                            height: '100%'
-                          }
-                        },
+  // Header label for month (driven by currentMonth, always pageable)
+  const monthHeaderLabel = currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
-                        // Plot gridlines (subtle, Apple-ish) behind events
-                        minorTicks.map((i) =>
-                          React.createElement('div', {
-                            key: `${day0}-pmin-${i}`,
-                            className: 'absolute left-0 right-0',
-                            style: {
-                              top: `${(i / 24) * 100}%`,
-                              height: 1,
-                              background: TT.gridMinor,
-                              zIndex: 1,
-                              pointerEvents: 'none'
-                            }
-                          })
-                        ),
-                        majorTicks.map((i) =>
-                          React.createElement('div', {
-                            key: `${day0}-pmaj-${i}`,
-                            className: 'absolute left-0 right-0',
-                            style: {
-                              top: `${(i / 24) * 100}%`,
-                              height: 1,
-                              background: TT.gridMajor,
-                              zIndex: 2,
-                              pointerEvents: 'none'
-                            }
-                          })
-                        ),
+  return React.createElement(
+    'div',
+    { className: 'space-y-4' },
 
-                        // Sleep blocks (WIDE - spanning most of column)
-                        daySleeps.map((ev, idx) => {
-                          const sleepType = _sleepTypeForSession(ev);
-                          const isActive = ev.isActive;
-                          // FIX: `now` was undefined; use nowMsLocal for active sessions
-                          const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
+    // Header with navigation (FIX #3: unbounded paging)
+    React.createElement(
+      'div',
+      { className: 'flex items-center justify-between' },
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            if (viewMode === 'month') navigateMonth(-1);
+            else if (viewMode === 'week') navigateWeek(-1);
+            else navigateDay(-1);
+          },
+          className: 'p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition'
+        },
+        React.createElement(ChevronLeft, { className: 'w-5 h-5' })
+      ),
+      React.createElement('h3', { className: 'text-lg font-semibold text-gray-800' }, monthHeaderLabel),
+      React.createElement(
+        'button',
+        {
+          onClick: () => {
+            if (viewMode === 'month') navigateMonth(1);
+            else if (viewMode === 'week') navigateWeek(1);
+            else navigateDay(1);
+          },
+          className: 'p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition'
+        },
+        React.createElement(ChevronRight, { className: 'w-5 h-5' })
+      )
+    ),
 
-                          const top = yPct(ev.s, day0);
-                          const bottom = yPct(endTime, day0);
-                          const h = Math.max(1, bottom - top);
+    // Legend
+    React.createElement(
+      'div',
+      { className: 'flex justify-center gap-6 text-sm' },
+      React.createElement(
+        'div',
+        { className: 'flex items-center gap-2' },
+        React.createElement('div', { className: 'w-4 h-4 rounded', style: { backgroundColor: '#A78BFA' } }),
+        React.createElement('span', { className: 'text-gray-600' }, 'Sleep')
+      ),
+      React.createElement(
+        'div',
+        { className: 'flex items-center gap-2' },
+        React.createElement('div', { className: 'w-4 h-4 rounded', style: { backgroundColor: '#93C5FD' } }),
+        React.createElement('span', { className: 'text-gray-600' }, 'Nap')
+      ),
+      React.createElement(
+        'div',
+        { className: 'flex items-center gap-2' },
+        React.createElement('div', { className: 'w-4 h-1 rounded', style: { backgroundColor: '#FB7185' } }),
+        React.createElement('span', { className: 'text-gray-600' }, 'Feed')
+      )
+    ),
 
-                          // Sleep colors: Apple-ish translucency
-                          const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
+    // Chart container (FIX #4)
+    React.createElement(
+      'div',
+      { className: 'bg-white rounded-2xl shadow-lg overflow-hidden', style: { position: 'relative', minHeight: '500px' } },
+      viewMode === 'day' && renderDayView(),
+      viewMode === 'week' && renderWeekView(),
+      viewMode === 'month' && renderMonthView()
+    ),
 
-                          const leftMargin = effectiveViewMode === 'day' ? 8 : 4;
-                          const rightMargin = effectiveViewMode === 'day' ? 8 : 4;
-
-                          // IMPORTANT: Render as ABSOLUTE directly inside the plot area (which is `relative` and has height).
-                          // Do NOT wrap in a `position: relative` div, or % top/height can collapse.
-                          const out = [];
-
-                          out.push(
-                            React.createElement('div', {
-                              key: `${day0}-sleep-block-${idx}`,
-                              className: 'absolute rounded-lg',
-                              style: {
-                                top: `${top}%`,
-                                height: `${h}%`,
-                                left: `${leftMargin}px`,
-                                right: `${rightMargin}px`,
-                                background: bgColor,
-                                // softer border to reduce "ink"
-                                border: '1px solid rgba(255,255,255,0.25)',
-                                boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
-                                zIndex: 10 // Above grid, below feeds/now
-                              }
-                            })
-                          );
-
-                          // Nap labels are visually noisy; only show in DAY view, and only when blocks are tall enough
-                          if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && h >= 6) {
-                            out.push(
-                              React.createElement('div', {
-                                key: `${day0}-sleep-label-${idx}`,
-                                className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                                style: {
-                                  top: `${Math.max(0, top - 2)}%`,
-                                  color: '#3B82F6',
-                                  border: '1px solid rgba(59,130,246,0.2)',
-                                  zIndex: 15
-                                },
-                              }, effectiveViewMode === 'day' ? 'Nap' : 'N') // FIXED: use effectiveViewMode
-                            );
-                          }
-
-                          // Active sleep indicator
-                          if (isActive) {
-                            out.push(
-                              React.createElement('div', {
-                                key: `${day0}-sleep-active-${idx}`,
-                                className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                                style: {
-                                  top: `${Math.min(95, bottom + 1)}%`,
-                                  color: '#4F46E5',
-                                  border: '1px solid rgba(79,70,229,0.2)',
-                                  zIndex: 15
-                                },
-                              }, effectiveViewMode === 'day' ? '🌙 Active' : '🌙') // FIXED: use effectiveViewMode
-                            );
-                          }
-
-                          return out;
-                        }).flat(),
-
-                        // Feed ticks (HORIZONTAL LINES at feed time)
-                        dayFeeds.map((ev, idx) => {
-                          const top = yPct(ev.s, day0);
-
-                          return React.createElement('div', {
-                            key: `${day0}-feed-${idx}`,
-                            className: 'absolute',
-                            style: {
-                              top: `${top}%`,
-                              left: effectiveViewMode === 'day' ? '8px' : '6px',
-                              right: effectiveViewMode === 'day' ? '8px' : '6px',
-                              height: '2px', // slightly slimmer (less ink)
-                              background: TT.feedPink,
-                              transform: 'translateY(-50%)',
-                              borderRadius: '2px', // Slight rounding
-                              zIndex: 20 // Above sleep blocks and grid
-                            }
-                          });
-                        })
-                      )
-                    );
-                  })
-                )
-              )
-            )
-          )
+    // View mode toggles
+    React.createElement(
+      'div',
+      { className: 'flex justify-center gap-2' },
+      ['day', 'week', 'month'].map((mode) =>
+        React.createElement(
+          'button',
+          {
+            key: mode,
+            onClick: () => setViewMode(mode),
+            className: `px-6 py-2 rounded-xl font-medium transition ${
+              viewMode === mode ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'
+            }`
+          },
+          mode.charAt(0).toUpperCase() + mode.slice(1)
         )
       )
     )
@@ -4058,10 +4123,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" }
     }, "Daily Activity"),
     React.createElement(DailyActivityChart, {
-      viewMode: timeframe, // day | week | month drives the actogram
-      feedings: allFeedings,
-      sleepSessions: sleepSessions,
-      sleepSettings: sleepSettings
+      kidId: kidId,
+      familyId: familyId
     }),
 
     // Day/Week/Month toggle (BELOW actogram, applies to everything)
