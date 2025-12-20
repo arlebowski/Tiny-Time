@@ -3239,6 +3239,14 @@ const DailyActivityChart = ({
   // Keep the chart area visually consistent across day/week/month.
   // We keep card height fixed (TT.cardH) and use one plot height for all modes.
   const PLOT_H = 300;
+  const PAD_T = 10;
+  const PAD_B = 10;
+  const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
+  const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
+  const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
+  const nowY = yPxFromPct(nowPct);
+  const COL_W = effectiveViewMode === 'day' ? null : 54;
+  const contentWidth = effectiveViewMode === 'day' ? '100%' : `${days * COL_W}px`;
 
   // Bucket feeds by dayStart for O(1) lookup per column
   const feedsByDay = React.useMemo(() => {
@@ -3365,7 +3373,7 @@ const DailyActivityChart = ({
 
             React.createElement(
               'div',
-              { className: 'relative bg-white', style: { height: PLOT_H + 12, paddingBottom: 4 } },
+              { className: 'relative bg-white', style: { height: PLOT_TOTAL_H, paddingBottom: 4 } },
 
               // Time labels (Apple-style, calm)
               hourLabels.map((h) =>
@@ -3373,7 +3381,7 @@ const DailyActivityChart = ({
                   key: h.i,
                   className: 'absolute right-0 text-right text-[12px] font-medium text-gray-500',
                   style: {
-                    top: `${(h.i / 24) * 100}%`,
+                    top: `${PAD_T + ((h.i * 60) / (24 * 60)) * PLOT_H}px`,
                     transform: 'translateY(-50%)',
                     zIndex: 10,
                     lineHeight: 1,
@@ -3386,9 +3394,9 @@ const DailyActivityChart = ({
               showNow && React.createElement(
                 'div',
                 {
-                  className: 'absolute right-0 bg-green-500 text-white text-[11px] font-semibold px-2 py-[2px] rounded-full',
+                  className: 'absolute -left-2 bg-green-500 text-white text-[11px] font-semibold px-2 py-[2px] rounded-full whitespace-nowrap leading-none',
                   style: {
-                    top: `${nowPct}%`,
+                    top: `${nowY}px`,
                     transform: 'translateY(-50%)',
                     zIndex: 20
                   }
@@ -3402,11 +3410,11 @@ const DailyActivityChart = ({
           React.createElement(
             'div',
             // IMPORTANT: this is the ACTUAL horizontal scroll container
-            { className: 'flex-1 min-w-0 border-l border-gray-200 overflow-x-auto', ref: scrollRef },
+            { className: 'flex-1 min-w-0 border-l border-gray-200 overflow-x-auto', ref: scrollRef, style: { WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', scrollbarGutter: 'stable' } },
             React.createElement(
               'div',
               // IMPORTANT: Fill card width so week/month grids expand (prevents “squished calendar” + blank right gap)
-              { className: 'w-full', style: { minWidth: '100%' } },
+              { className: 'w-fit', style: { width: contentWidth, minWidth: contentWidth } },
 
               // HEADER ROW (inside the same scroller)
               React.createElement(
@@ -3414,8 +3422,8 @@ const DailyActivityChart = ({
                 {
                   className: 'grid w-full border-b border-gray-100',
                   style: {
-                    width: '100%',
-                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(44px, 1fr))`
+                    width: contentWidth,
+                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, ${COL_W}px)`
                   }
                 },
                 dayStarts.map((day0) => {
@@ -3423,6 +3431,7 @@ const DailyActivityChart = ({
                   const isToday = day0 === today0;
                   const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
                   const dayNum = d.getDate();
+                  const daySub = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                   return React.createElement(
                     'div',
                     {
@@ -3436,7 +3445,7 @@ const DailyActivityChart = ({
                       React.createElement(
                         'div',
                         { className: `text-[16px] font-semibold ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
-                        String(dayNum)
+                        effectiveViewMode === 'day' ? daySub : String(dayNum)
                       )
                     )
                   );
@@ -3446,11 +3455,11 @@ const DailyActivityChart = ({
               // COLUMNS ROW (plot columns under the header, same geometry)
               React.createElement(
                 'div',
-                { className: 'relative', style: { height: PLOT_H + 12 } },
+                { className: 'relative', style: { height: PLOT_TOTAL_H, width: contentWidth } },
                 showNow && React.createElement('div', {
                   className: 'pointer-events-none absolute inset-x-0',
                   style: {
-                    top: `${nowPct}%`,
+                    top: `${nowY}px`,
                     transform: 'translateY(-50%)',
                     height: 2,
                     background: TT.nowGreen,
@@ -3462,8 +3471,8 @@ const DailyActivityChart = ({
                   {
                     className: 'grid w-full',
                     style: {
-                      width: '100%',
-                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(44px, 1fr))`,
+                      width: contentWidth,
+                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, ${COL_W}px)`,
                       height: '100%'
                     }
                   },
@@ -3498,7 +3507,7 @@ const DailyActivityChart = ({
                             key: `${day0}-pmin-${i}`,
                             className: 'absolute left-0 right-0',
                             style: {
-                              top: `${(i / 24) * 100}%`,
+                              top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
                               height: 1,
                               background: TT.gridMinor,
                               zIndex: 1,
@@ -3511,7 +3520,7 @@ const DailyActivityChart = ({
                             key: `${day0}-pmaj-${i}`,
                             className: 'absolute left-0 right-0',
                             style: {
-                              top: `${(i / 24) * 100}%`,
+                              top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
                               height: 1,
                               background: TT.gridMajor,
                               zIndex: 2,
@@ -3527,9 +3536,11 @@ const DailyActivityChart = ({
                           // FIX: `now` was undefined; use nowMsLocal for active sessions
                           const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
 
-                          const top = yPct(ev.s, day0);
-                          const bottom = yPct(endTime, day0);
-                          const h = Math.max(1, bottom - top);
+                          const topPct = yPct(ev.s, day0);
+                          const bottomPct = yPct(endTime, day0);
+                          const topPx = yPxFromPct(topPct);
+                          const bottomPx = yPxFromPct(bottomPct);
+                          const hPx = Math.max(1, bottomPx - topPx);
 
                           // Sleep colors: Apple-ish translucency
                           const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
@@ -3546,8 +3557,8 @@ const DailyActivityChart = ({
                               key: `${day0}-sleep-block-${idx}`,
                               className: 'absolute rounded-lg',
                               style: {
-                                top: `${top}%`,
-                                height: `${h}%`,
+                                top: `${topPx}px`,
+                                height: `${hPx}px`,
                                 left: `${leftMargin}px`,
                                 right: `${rightMargin}px`,
                                 background: bgColor,
@@ -3560,13 +3571,13 @@ const DailyActivityChart = ({
                           );
 
                           // Nap labels are visually noisy; only show in DAY view, and only when blocks are tall enough
-                          if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && h >= 6) {
+                          if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && hPx >= 24) {
                             out.push(
                               React.createElement('div', {
                                 key: `${day0}-sleep-label-${idx}`,
                                 className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
                                 style: {
-                                  top: `${Math.max(0, top - 2)}%`,
+                                  top: `${Math.max(0, topPx - 6)}px`,
                                   color: '#3B82F6',
                                   border: '1px solid rgba(59,130,246,0.2)',
                                   zIndex: 15
@@ -3582,7 +3593,7 @@ const DailyActivityChart = ({
                                 key: `${day0}-sleep-active-${idx}`,
                                 className: 'absolute left-2 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
                                 style: {
-                                  top: `${Math.min(95, bottom + 1)}%`,
+                                  top: `${Math.min(PLOT_TOTAL_H - 8, bottomPx + 6)}px`,
                                   color: '#4F46E5',
                                   border: '1px solid rgba(79,70,229,0.2)',
                                   zIndex: 15
@@ -3596,13 +3607,13 @@ const DailyActivityChart = ({
 
                         // Feed ticks (HORIZONTAL LINES at feed time)
                         dayFeeds.map((ev, idx) => {
-                          const top = yPct(ev.s, day0);
+                          const topPx = yPx(ev.s, day0);
 
                           return React.createElement('div', {
                             key: `${day0}-feed-${idx}`,
                             className: 'absolute',
                             style: {
-                              top: `${top}%`,
+                              top: `${topPx}px`,
                               left: effectiveViewMode === 'day' ? '8px' : '6px',
                               right: effectiveViewMode === 'day' ? '8px' : '6px',
                               height: '2px', // slightly slimmer (less ink)
