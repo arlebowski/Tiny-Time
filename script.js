@@ -3393,10 +3393,7 @@ const DailyActivityChart = ({
                   className: 'grid w-full border-b border-gray-100',
                   style: {
                     width: '100%',
-                    gridTemplateColumns:
-                      effectiveViewMode === 'day'
-                        ? '1fr'
-                        : `repeat(${days}, minmax(44px, 1fr))`
+                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(44px, 1fr))`
                   }
                 },
                 dayStarts.map((day0) => {
@@ -3444,10 +3441,7 @@ const DailyActivityChart = ({
                     className: 'grid w-full',
                     style: {
                       width: '100%',
-                      gridTemplateColumns:
-                        effectiveViewMode === 'day'
-                          ? '1fr'
-                          : `repeat(${days}, minmax(44px, 1fr))`,
+                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(44px, 1fr))`,
                       height: '100%'
                     }
                   },
