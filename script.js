@@ -3413,7 +3413,7 @@ const DailyActivityChart = ({
             React.createElement(
               'div',
               // IMPORTANT: Fill card width so week/month grids expand (prevents “squished calendar” + blank right gap)
-              { className: 'w-fit', style: { width: contentWidth, minWidth: contentWidth } },
+              { className: 'w-full', style: { width: contentWidth, minWidth: '100%' } },
 
               // HEADER ROW (inside the same scroller)
               React.createElement(
@@ -3423,7 +3423,7 @@ const DailyActivityChart = ({
                   className: 'grid w-full border-b border-gray-200',
                   style: {
                     width: contentWidth,
-                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, ${COL_W}px)`
+                    gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(${COL_W}px, 1fr))`
                   }
                 },
                 dayStarts.map((day0) => {
@@ -3473,7 +3473,7 @@ const DailyActivityChart = ({
                     className: 'grid w-full',
                     style: {
                       width: contentWidth,
-                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, ${COL_W}px)`,
+                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(${COL_W}px, 1fr))`,
                       height: '100%'
                     }
                   },
