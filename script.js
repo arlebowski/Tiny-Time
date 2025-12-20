@@ -3238,13 +3238,18 @@ const DailyActivityChart = ({
 
   // Keep the chart area visually consistent across day/week/month.
   // We keep card height fixed (TT.cardH) and use one plot height for all modes.
-  const PLOT_H = 300;
+  // IMPORTANT: Must fit 12a -> 12a with NO vertical scroll inside the fixed card height.
+  // This is tuned so: nav + legend + sticky header + plot fits within TT.cardH.
+  // If you change TT.cardH/headerH/paddings elsewhere, adjust this first.
+  const PLOT_H = 240;
   const PAD_T = 10;
   const PAD_B = 10;
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
   const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
   const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
   const nowY = yPxFromPct(nowPct);
+  // Clamp “now” so pill/line never render outside the plot (prevents running off-card)
+  const nowYClamped = clamp(nowY, 10, PLOT_TOTAL_H - 10);
   const COL_W = effectiveViewMode === 'day' ? null : 54;
   const contentWidth = effectiveViewMode === 'day' ? '100%' : `${days * COL_W}px`;
 
@@ -3358,7 +3363,8 @@ const DailyActivityChart = ({
         React.createElement(
           'div',
           {
-            className: 'w-full h-full overflow-auto rounded-xl',
+            // NO SCROLL: everything must fit on the card (24h + 7 days)
+            className: 'w-full h-full overflow-hidden rounded-xl',
             style: {
               WebkitOverflowScrolling: 'touch',
               overscrollBehavior: 'contain',
@@ -3377,7 +3383,9 @@ const DailyActivityChart = ({
             {
               className: 'min-w-full',
               style: {
-                minWidth: effectiveViewMode === 'day' ? '100%' : `${TT.axisW + (days * COL_W)}px`
+                // NO HORIZONTAL SCROLL: force the 7 columns to fit the available card width
+                minWidth: '100%',
+                width: '100%'
               }
             },
 
@@ -3393,7 +3401,8 @@ const DailyActivityChart = ({
                   background: 'rgba(255,255,255,0.98)',
                   backdropFilter: 'saturate(180%) blur(10px)',
                   borderBottom: '1px solid rgba(17,24,39,0.10)',
-                  gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(${COL_W}px, 1fr))`}`
+                  // NO HORIZONTAL SCROLL: columns are equal fractions
+                  gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`
                 }
               },
               // Axis header spacer
@@ -3435,7 +3444,7 @@ const DailyActivityChart = ({
               {
                 className: 'grid relative',
                 style: {
-                  gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(${COL_W}px, 1fr))`}`,
+                  gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`,
                   height: PLOT_TOTAL_H
                 }
               },
@@ -3479,7 +3488,7 @@ const DailyActivityChart = ({
                       {
                         className: 'absolute bg-green-500 text-white text-[11px] font-semibold px-2 py-[2px] rounded-full whitespace-nowrap leading-none',
                         style: {
-                          top: `${nowY}px`,
+                          top: `${nowYClamped}px`,
                           right: 8,
                           transform: 'translateY(-50%)',
                           zIndex: 50
@@ -3490,7 +3499,7 @@ const DailyActivityChart = ({
                     React.createElement('div', {
                       className: 'absolute',
                       style: {
-                        top: `${nowY}px`,
+                        top: `${nowYClamped}px`,
                         right: -2,
                         width: 12,
                         height: 2,
@@ -3550,7 +3559,7 @@ const DailyActivityChart = ({
                 showNow && React.createElement('div', {
                   className: 'pointer-events-none absolute left-0 right-0',
                   style: {
-                    top: `${nowY}px`,
+                    top: `${nowYClamped}px`,
                     transform: 'translateY(-50%)',
                     height: 2,
                     background: TT.nowGreen,
@@ -3564,7 +3573,7 @@ const DailyActivityChart = ({
                   {
                     className: 'grid h-full',
                     style: {
-                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, minmax(${COL_W}px, 1fr))`,
+                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`,
                       height: '100%'
                     }
                   },
