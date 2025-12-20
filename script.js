@@ -3642,78 +3642,81 @@ const DailyActivityChart = ({
                         'div',
                         { className: 'relative', style: { height: '100%', zIndex: 10 } },
 
-                        // Sleep blocks (wide, clean)
-                        daySleeps.map((ev, idx) => {
-                          const sleepType = _sleepTypeForSession(ev);
-                          if (sleepType === 'night' && !legendOn.sleep) return null;
-                          if (sleepType === 'day' && !legendOn.nap) return null;
-                          const isActive = ev.isActive;
-                          const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
+                        // Sleep blocks (wide, clean) - build a single flat children array (more reliable on iOS)
+                        (() => {
+                          const children = [];
+                          for (let idx = 0; idx < daySleeps.length; idx++) {
+                            const ev = daySleeps[idx];
+                            const sleepType = _sleepTypeForSession(ev);
+                            const allow = (sleepType === 'night') ? legendOn.sleep : legendOn.nap;
+                            if (!allow) continue;
 
-                          const topPct = yPct(ev.s, day0);
-                          const bottomPct = yPct(endTime, day0);
-                          const topPx = yPxFromPct(topPct);
-                          const bottomPx = yPxFromPct(bottomPct);
-                          const hPx = Math.max(1, bottomPx - topPx);
+                            const isActive = ev.isActive;
+                            const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
 
-                          const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
+                            const topPct = yPct(ev.s, day0);
+                            const bottomPct = yPct(endTime, day0);
+                            const topPx = yPxFromPct(topPct);
+                            const bottomPx = yPxFromPct(bottomPct);
+                            const hPx = Math.max(1, bottomPx - topPx);
 
-                          const leftMargin = effectiveViewMode === 'day' ? 10 : 6;
-                          const rightMargin = effectiveViewMode === 'day' ? 10 : 6;
+                            const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
+                            const leftMargin = effectiveViewMode === 'day' ? 10 : 6;
+                            const rightMargin = effectiveViewMode === 'day' ? 10 : 6;
 
-                          const out = [];
+                            const baseKey = ev?.id || `${day0}-${ev.s}-${ev.e || 'active'}-${idx}`;
 
-                          out.push(
-                            React.createElement('div', {
-                              key: `${day0}-sleep-block-${idx}`,
-                              className: 'absolute rounded-lg',
-                              style: {
-                                top: `${topPx}px`,
-                                height: `${hPx}px`,
-                                left: `${leftMargin}px`,
-                                right: `${rightMargin}px`,
-                                background: bgColor,
-                                border: '1px solid rgba(255,255,255,0.25)',
-                                boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
-                                zIndex: 10
-                              }
-                            })
-                          );
-
-                          // Nap label: only in Day view + tall enough + not active
-                          if (sleepType === 'day' && legendOn.nap && !isActive && effectiveViewMode === 'day' && hPx >= 26) {
-                            out.push(
+                            children.push(
                               React.createElement('div', {
-                                key: `${day0}-sleep-label-${idx}`,
-                                className: 'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                                key: `sleep-block-${baseKey}`,
+                                className: 'absolute rounded-lg',
                                 style: {
-                                  top: `${Math.max(0, topPx - 7)}px`,
-                                  color: '#3B82F6',
-                                  border: '1px solid rgba(59,130,246,0.2)',
-                                  zIndex: 15
-                                },
-                              }, 'Nap')
+                                  top: `${topPx}px`,
+                                  height: `${hPx}px`,
+                                  left: `${leftMargin}px`,
+                                  right: `${rightMargin}px`,
+                                  background: bgColor,
+                                  border: '1px solid rgba(255,255,255,0.25)',
+                                  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
+                                  zIndex: 10
+                                }
+                              })
                             );
-                          }
 
-                          // Active indicator (day view only; keep quiet)
-                          if (isActive && effectiveViewMode === 'day' && (sleepType === 'night' ? legendOn.sleep : legendOn.nap)) {
-                            out.push(
-                              React.createElement('div', {
-                                key: `${day0}-sleep-active-${idx}`,
-                                className: 'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                                style: {
-                                  top: `${Math.min(PLOT_TOTAL_H - 8, bottomPx + 6)}px`,
-                                  color: '#4F46E5',
-                                  border: '1px solid rgba(79,70,229,0.2)',
-                                  zIndex: 15
-                                },
-                              }, ' Active')
-                            );
-                          }
+                            // Nap label: only in Day view + tall enough + not active
+                            if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && hPx >= 26) {
+                              children.push(
+                                React.createElement('div', {
+                                  key: `sleep-label-${baseKey}`,
+                                  className: 'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                                  style: {
+                                    top: `${Math.max(0, topPx - 7)}px`,
+                                    color: '#3B82F6',
+                                    border: '1px solid rgba(59,130,246,0.2)',
+                                    zIndex: 15
+                                  }
+                                }, 'Nap')
+                              );
+                            }
 
-                          return out;
-                        }).flat(),
+                            // Active indicator (day view only; keep quiet)
+                            if (isActive && effectiveViewMode === 'day') {
+                              children.push(
+                                React.createElement('div', {
+                                  key: `sleep-active-${baseKey}`,
+                                  className: 'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                                  style: {
+                                    top: `${Math.min(PLOT_TOTAL_H - 8, bottomPx + 6)}px`,
+                                    color: '#4F46E5',
+                                    border: '1px solid rgba(79,70,229,0.2)',
+                                    zIndex: 15
+                                  }
+                                }, ' Active')
+                              );
+                            }
+                          }
+                          return children;
+                        })(),
 
                         // Feed ticks
                         legendOn.feed ? dayFeeds.map((ev, idx) => {
