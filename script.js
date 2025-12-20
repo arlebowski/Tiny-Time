@@ -23,9 +23,19 @@ const db = firebase.firestore();
 // ---------------------------
 // ANALYTICS
 // ---------------------------
-const analytics = firebase.analytics();
+// Some environments (ad blockers, strict browsers, offline/local dev) can block
+// the analytics bundle, which will throw at initialization and prevent the app
+// from rendering. Guard the setup so the app still boots even if analytics
+// isn’t available.
+let analytics = null;
+try {
+  analytics = firebase.analytics();
+} catch (e) {
+  console.warn("Analytics unavailable; continuing without analytics", e);
+}
 
 const logEvent = (eventName, params) => {
+  if (!analytics || typeof analytics.logEvent !== 'function') return;
   try {
     analytics.logEvent(eventName, params);
   } catch (e) {
