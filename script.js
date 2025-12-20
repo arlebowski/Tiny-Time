@@ -3500,13 +3500,7 @@ const DailyActivityChart = ({
                       'div',
                       {
                         className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50' : ''}`,
-                        style: isToday
-                          ? {
-                              borderRadius: 12,           // softer rounded-rect, not a pill
-                              paddingTop: 6,
-                              paddingBottom: 6
-                            }
-                          : { overflow: 'hidden' }
+                        style: isToday ? { borderRadius: 12 } : { overflow: 'hidden' }
                       },
                       React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' }, dayName),
                       React.createElement(
@@ -3565,23 +3559,24 @@ const DailyActivityChart = ({
                     }, renderGutterTime(h.label))
                   ),
 
-                  // Now indicator: dot sits exactly on the grid boundary (end/start of the now line)
-                  showNow && React.createElement('div', {
-                    className: 'absolute pointer-events-none',
-                    style: {
-                      top: `${nowYClamped}px`,
-                      // Axis column width is TT.axisW; place dot on the boundary at the very right edge of the gutter.
-                      left: `${TT.axisW - 3}px`,
-                      width: 6,
-                      height: 6,
-                      background: TT.nowGreen,
-                      transform: 'translateY(-50%)',
-                      borderRadius: 999,
-                      zIndex: 60
-                    }
-                  })
+                  // (Dot moved to the body-row container so it can perfectly cap the now line)
                 )
               ),
+
+              // BODY ROW "NOW" DOT: sits on the gutter/grid boundary and caps the now line
+              showNow && React.createElement('div', {
+                className: 'absolute pointer-events-none',
+                style: {
+                  top: `${nowYClamped}px`,
+                  left: `${TT.axisW}px`,          // exact boundary between gutter and grid
+                  width: 6,
+                  height: 6,
+                  background: TT.nowGreen,
+                  transform: 'translate(-50%, -50%)',
+                  borderRadius: 999,
+                  zIndex: 60
+                }
+              }),
 
               // DAY COLUMNS WRAPPER (relative so gridlines + now line span fully)
               React.createElement(
@@ -3624,13 +3619,13 @@ const DailyActivityChart = ({
                   )
                 ),
 
-                // NOW LINE (grid-owned): draw ONLY across the grid columns (not under the gutter)
+                // NOW LINE: spans the FULL grid width and connects to the dot at the boundary
                 showNow && React.createElement('div', {
                   className: 'pointer-events-none absolute',
                   style: {
                     top: `${nowYClamped}px`,
-                    left: `${TT.axisW}px`,
-                    right: 0,
+                    left: 0,     // wrapper already starts AFTER the gutter (gridColumn: 2)
+                    right: 0,    // extend to the end of the calendar
                     height: 2,
                     background: TT.nowGreen,
                     transform: 'translateY(-50%)',
