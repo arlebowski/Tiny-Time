@@ -3346,7 +3346,8 @@ const DailyActivityChart = ({
       'div',
       {
         className: 'bg-white rounded-2xl shadow-lg overflow-hidden flex flex-col',
-        style: { height: TT.cardH }
+        // Use a min-height so the legend is never clipped if padding/fonts run a bit tall.
+        style: { minHeight: TT.cardH }
       },
 
       // Month navigation row (no toggle inside card)
