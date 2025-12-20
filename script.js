@@ -3225,9 +3225,8 @@ const DailyActivityChart = ({
     return within ? 'day' : 'night';
   };
 
-  // Apple-ish ticks: major every 6 hours; minor every 3 hours; show "Noon" at 12 PM
-  const majorTicks = React.useMemo(() => [0, 6, 12, 18, 24], []);
-  const minorTicks = React.useMemo(() => [3, 9, 15, 21], []);
+  // Apple Calendar-like ticks: every 3 hours; show "Noon" at 12 PM
+  const gridTicks = React.useMemo(() => [0, 3, 6, 9, 12, 15, 18, 21, 24], []);
   const hourLabels = React.useMemo(() => ([
     { i: 0, label: '12 AM' },
     { i: 6, label: '6 AM' },
@@ -3366,14 +3365,14 @@ const DailyActivityChart = ({
           // LEFT: fixed time axis
           React.createElement(
             'div',
-            { className: 'w-14 shrink-0 border-r border-gray-200 bg-white pr-2 relative' },
+            { className: 'w-14 shrink-0 bg-white pr-2 relative' },
 
             // Header spacer MUST match header height on the right
-            React.createElement('div', { className: 'h-[52px] border-b border-gray-100' }),
+            React.createElement('div', { className: 'h-[52px] border-b border-gray-200' }),
 
             React.createElement(
               'div',
-              { className: 'relative bg-white', style: { height: PLOT_TOTAL_H, paddingBottom: 4 } },
+              { className: 'relative bg-white overflow-visible', style: { height: PLOT_TOTAL_H, paddingBottom: 4 } },
 
               // Time labels (Apple-style, calm)
               hourLabels.map((h) =>
@@ -3410,7 +3409,7 @@ const DailyActivityChart = ({
           React.createElement(
             'div',
             // IMPORTANT: this is the ACTUAL horizontal scroll container
-            { className: 'flex-1 min-w-0 border-l border-gray-200 overflow-x-auto', ref: scrollRef, style: { WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', scrollbarGutter: 'stable' } },
+            { className: 'flex-1 min-w-0 overflow-x-auto', ref: scrollRef, style: { WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain', scrollbarGutter: 'stable' } },
             React.createElement(
               'div',
               // IMPORTANT: Fill card width so week/month grids expand (prevents “squished calendar” + blank right gap)
@@ -3420,7 +3419,8 @@ const DailyActivityChart = ({
               React.createElement(
                 'div',
                 {
-                  className: 'grid w-full border-b border-gray-100',
+                  // keep ONE subtle divider between date strip and calendar body
+                  className: 'grid w-full border-b border-gray-200',
                   style: {
                     width: contentWidth,
                     gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, ${COL_W}px)`
@@ -3431,6 +3431,7 @@ const DailyActivityChart = ({
                   const isToday = day0 === today0;
                   const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
                   const dayNum = d.getDate();
+                  // Day view must show weekday + date (e.g. "FRI" + "Dec 19")
                   const daySub = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                   return React.createElement(
                     'div',
@@ -3502,27 +3503,14 @@ const DailyActivityChart = ({
                         },
 
                         // Plot gridlines (subtle, Apple-ish) behind events
-                        minorTicks.map((i) =>
+                        gridTicks.map((i) =>
                           React.createElement('div', {
-                            key: `${day0}-pmin-${i}`,
+                            key: `${day0}-pgrid-${i}`,
                             className: 'absolute left-0 right-0',
                             style: {
                               top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
                               height: 1,
-                              background: TT.gridMinor,
-                              zIndex: 1,
-                              pointerEvents: 'none'
-                            }
-                          })
-                        ),
-                        majorTicks.map((i) =>
-                          React.createElement('div', {
-                            key: `${day0}-pmaj-${i}`,
-                            className: 'absolute left-0 right-0',
-                            style: {
-                              top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
-                              height: 1,
-                              background: TT.gridMajor,
+                              background: 'rgba(0,0,0,0.08)',
                               zIndex: 2,
                               pointerEvents: 'none'
                             }
