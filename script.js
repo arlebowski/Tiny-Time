@@ -3429,7 +3429,8 @@ const DailyActivityChart = ({
                   zIndex: 40,
                   background: 'rgba(255,255,255,0.98)',
                   backdropFilter: 'saturate(180%) blur(10px)',
-                  borderBottom: '1px solid rgba(17,24,39,0.10)',
+                  // Remove this separator so the 12 AM gridline becomes the single top separator.
+                  borderBottom: 'none',
                   // NO HORIZONTAL SCROLL: columns are equal fractions
                   gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`
                 }
@@ -3508,21 +3509,37 @@ const DailyActivityChart = ({
                     }, renderGutterTime(h.label))
                   ),
 
-                  // Now indicator (axis-owned): dot only (less clutter than a time pill)
+                  // Now indicator (axis-owned): dot + connector stub so it feels attached to the now line
                   showNow && React.createElement(
                     React.Fragment,
                     null,
+                    // Small green stub that reaches into the grid area
                     React.createElement('div', {
                       className: 'absolute',
                       style: {
                         top: `${nowYClamped}px`,
-                        right: 10,
+                        right: -3,
+                        width: 14,
+                        height: 2,
+                        background: TT.nowGreen,
+                        transform: 'translateY(-50%)',
+                        borderRadius: 2,
+                        zIndex: 55,
+                        pointerEvents: 'none'
+                      }
+                    }),
+                    React.createElement('div', {
+                      className: 'absolute',
+                      style: {
+                        top: `${nowYClamped}px`,
+                        // Straddle the gutter/grid boundary so the dot is "attached" to the now line
+                        right: -3,
                         width: 6,
                         height: 6,
                         background: TT.nowGreen,
                         transform: 'translateY(-50%)',
                         borderRadius: 999,
-                        zIndex: 49,
+                        zIndex: 60,
                         pointerEvents: 'none'
                       }
                     })
@@ -3546,26 +3563,30 @@ const DailyActivityChart = ({
                   'div',
                   { className: 'pointer-events-none absolute inset-0', style: { zIndex: 1 } },
                   // Major lines
-                  majorTicks.filter((i) => i !== 0).map((i) =>
+                  majorTicks.map((i) =>
                     React.createElement('div', {
                       key: `maj-${i}`,
                       className: 'absolute left-0 right-0',
                       style: {
                         top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
                         height: 1,
-                        background: TT.gridMajor
+                        background: TT.gridMajor,
+                        // Center the line on the tick so it aligns with the centered gutter label
+                        transform: 'translateY(-50%)'
                       }
                     })
                   ),
                   // Minor lines (every 3h)
-                  minorTicks.filter((i) => i !== 0).map((i) =>
+                  minorTicks.map((i) =>
                     React.createElement('div', {
                       key: `min-${i}`,
                       className: 'absolute left-0 right-0',
                       style: {
                         top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H}px`,
                         height: 1,
-                        background: TT.gridMinor
+                        background: TT.gridMinor,
+                        // Center the line on the tick so it aligns with the centered gutter label
+                        transform: 'translateY(-50%)'
                       }
                     })
                   )
