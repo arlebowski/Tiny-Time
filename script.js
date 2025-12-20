@@ -3263,8 +3263,9 @@ const DailyActivityChart = ({
 
   // Match "Daily volume" style: black number + smaller grey AM/PM (and show "Noon" as Noon)
   const renderGutterTime = React.useCallback((label) => {
-    // Keep Noon as "Noon"
-    if (label === 'Noon') {
+    const raw = String(label || '');
+    // Force 12 PM to show as "Noon" (handles either 'Noon' or '12 PM')
+    if (raw === 'Noon' || raw === '12 PM') {
       return React.createElement(
         'span',
         { className: 'inline-flex items-baseline' },
@@ -3276,7 +3277,7 @@ const DailyActivityChart = ({
       );
     }
 
-    const parts = String(label).split(' ');
+    const parts = raw.split(' ');
     const num = parts[0] || '';
     const mer = (parts[1] || '').toUpperCase();
 
@@ -3311,6 +3312,12 @@ const DailyActivityChart = ({
   const PAD_B = 14; // give the bottom "12 AM" label a few extra px so it never clips
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
   const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
+  // Exact tick Y used throughout the chart (mins from 0..1440)
+  // NOTE: We do NOT change the gridlines here; we only use this to align labels precisely.
+  const tickY = React.useCallback((hour) => {
+    const mins = Number(hour) * 60;
+    return PAD_T + (mins / (24 * 60)) * PLOT_H;
+  }, [PAD_T, PLOT_H]);
   const yPx = (tMs, day0) => yPxFromPct(yPct(tMs, day0));
   const nowY = yPxFromPct(nowPct);
   // Clamp “now” so pill/line never render outside the plot (prevents running off-card)
@@ -3541,7 +3548,9 @@ const DailyActivityChart = ({
                       key: `ylab-${h.i}`,
                       className: 'absolute right-2 text-right',
                       style: {
-                        top: `${PAD_T + ((h.i * 60) / (24 * 60)) * PLOT_H}px`,
+                        // Align the *center* of the label to the 1px gridline position.
+                        // (Gridlines are 1px; visually they sit best when labels are offset by 0.5px.)
+                        top: `${tickY(h.i) - 0.5}px`,
                         transform: 'translateY(-50%)',
                         lineHeight: 1,
                         whiteSpace: 'nowrap'
