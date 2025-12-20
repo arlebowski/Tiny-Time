@@ -3379,49 +3379,6 @@ const DailyActivityChart = ({
         )
       ),
 
-      // Legend (calm, centered)
-      React.createElement(
-        'div',
-        { className: 'px-4 pb-3 pt-2' },
-        React.createElement(
-          'div',
-          { className: 'flex items-center justify-center gap-5 text-[12px] text-gray-700' },
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: () => toggleLegend('sleep'),
-              'aria-pressed': !!legendOn.sleep,
-              className: legendBtnClass(!!legendOn.sleep)
-            },
-            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: TT.sleepNight } }),
-            'Sleep'
-          ),
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: () => toggleLegend('nap'),
-              'aria-pressed': !!legendOn.nap,
-              className: legendBtnClass(!!legendOn.nap)
-            },
-            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: TT.sleepDay } }),
-            'Nap'
-          ),
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: () => toggleLegend('feed'),
-              'aria-pressed': !!legendOn.feed,
-              className: legendBtnClass(!!legendOn.feed)
-            },
-            React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: TT.feedPink } }),
-            'Feed'
-          )
-        )
-      ),
-
       // Scrollable time-grid (ONE scroll container; header + gutter are sticky)
       React.createElement(
         'div',
@@ -3783,10 +3740,54 @@ const DailyActivityChart = ({
               )
             )
           )
+        ),
+
+      // Legend (MOVED BELOW the chart; wrap-safe so it cannot squish the grid)
+      React.createElement(
+        'div',
+        { className: 'px-4 pt-2 pb-4 w-full' },
+        React.createElement(
+          'div',
+          {
+            className: 'w-full flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px] text-gray-700'
+          },
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => toggleLegend('sleep'),
+              'aria-pressed': !!legendOn.sleep,
+              className: legendBtnClass(!!legendOn.sleep)
+            },
+            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: TT.sleepNight } }),
+            'Sleep'
+          ),
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => toggleLegend('nap'),
+              'aria-pressed': !!legendOn.nap,
+              className: legendBtnClass(!!legendOn.nap)
+            },
+            React.createElement('span', { className: 'inline-block w-[10px] h-[10px] rounded-sm', style: { background: TT.sleepDay } }),
+            'Nap'
+          ),
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => toggleLegend('feed'),
+              'aria-pressed': !!legendOn.feed,
+              className: legendBtnClass(!!legendOn.feed)
+            },
+            React.createElement('span', { className: 'inline-block w-[12px] h-[3px] rounded-sm', style: { background: TT.feedPink } }),
+            'Feed'
+          )
         )
       )
     )
-  );
+  ));
 };
 
 const AnalyticsTab = ({ user, kidId, familyId }) => {
