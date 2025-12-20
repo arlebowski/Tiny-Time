@@ -3331,7 +3331,7 @@ const DailyActivityChart = ({
         },
         React.createElement(
           'div',
-          { className: 'flex' },
+          { className: 'flex w-full' },
 
           // LEFT: fixed time axis
           React.createElement(
