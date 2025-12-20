@@ -3236,6 +3236,35 @@ const DailyActivityChart = ({
     { i: 24, label: '12 AM' }
   ]), []);
 
+  // Match "Daily volume" style: bold-ish black number + smaller grey AM/PM
+  const renderGutterTime = React.useCallback((label) => {
+    // Normalize "Noon" to 12 PM for consistent styling
+    const normalized = (label === 'Noon') ? '12 PM' : label;
+    const parts = String(normalized).split(' ');
+    const num = parts[0] || '';
+    const mer = (parts[1] || '').toUpperCase();
+
+    // If something unexpected comes through, fall back to plain text
+    if (!num) return React.createElement('span', null, label);
+
+    return React.createElement(
+      'span',
+      { className: 'inline-flex items-baseline gap-1' },
+      React.createElement(
+        'span',
+        { className: 'text-[12px] font-semibold text-gray-900 leading-none' },
+        num
+      ),
+      mer
+        ? React.createElement(
+            'span',
+            { className: 'text-[10px] font-medium text-gray-400 leading-none' },
+            mer
+          )
+        : null
+    );
+  }, []);
+
   // Keep the chart area visually consistent across day/week/month.
   // We keep card height fixed (TT.cardH) and use one plot height for all modes.
   // IMPORTANT: Must fit 12a -> 12a with NO vertical scroll inside the fixed card height.
@@ -3469,43 +3498,30 @@ const DailyActivityChart = ({
                   hourLabels.map((h) =>
                     React.createElement('div', {
                       key: `ylab-${h.i}`,
-                      className: 'absolute right-2 text-right text-[12px] font-medium text-gray-500',
+                      className: 'absolute right-2 text-right',
                       style: {
                         top: `${PAD_T + ((h.i * 60) / (24 * 60)) * PLOT_H}px`,
                         transform: 'translateY(-50%)',
                         lineHeight: 1,
                         whiteSpace: 'nowrap'
                       }
-                    }, h.label)
+                    }, renderGutterTime(h.label))
                   ),
 
-                  // Now pill (axis-owned) + tiny connector so it feels attached to the line
+                  // Now indicator (axis-owned): dot only (less clutter than a time pill)
                   showNow && React.createElement(
                     React.Fragment,
                     null,
-                    React.createElement(
-                      'div',
-                      {
-                        className: 'absolute bg-green-500 text-white text-[11px] font-semibold px-2 py-[2px] rounded-full whitespace-nowrap leading-none',
-                        style: {
-                          top: `${nowYClamped}px`,
-                          right: 8,
-                          transform: 'translateY(-50%)',
-                          zIndex: 50
-                        }
-                      },
-                      nowLabel
-                    ),
                     React.createElement('div', {
                       className: 'absolute',
                       style: {
                         top: `${nowYClamped}px`,
-                        right: -2,
-                        width: 12,
-                        height: 2,
+                        right: 10,
+                        width: 6,
+                        height: 6,
                         background: TT.nowGreen,
                         transform: 'translateY(-50%)',
-                        borderRadius: 2,
+                        borderRadius: 999,
                         zIndex: 49,
                         pointerEvents: 'none'
                       }
@@ -3530,7 +3546,7 @@ const DailyActivityChart = ({
                   'div',
                   { className: 'pointer-events-none absolute inset-0', style: { zIndex: 1 } },
                   // Major lines
-                  majorTicks.map((i) =>
+                  majorTicks.filter((i) => i !== 0).map((i) =>
                     React.createElement('div', {
                       key: `maj-${i}`,
                       className: 'absolute left-0 right-0',
@@ -3542,7 +3558,7 @@ const DailyActivityChart = ({
                     })
                   ),
                   // Minor lines (every 3h)
-                  minorTicks.map((i) =>
+                  minorTicks.filter((i) => i !== 0).map((i) =>
                     React.createElement('div', {
                       key: `min-${i}`,
                       className: 'absolute left-0 right-0',
