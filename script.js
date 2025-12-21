@@ -4044,6 +4044,93 @@ const DailyActivityChart = ({
   ));
 };
 
+// ========================================
+// FULLSCREEN MODAL (for Analytics highlights)
+// - iOS-friendly: fixed overlay + safe-area padding
+// - Swipe-right to go back (close)
+// ========================================
+const FullscreenModal = ({ title, onClose, children }) => {
+  const startRef = React.useRef(null);
+
+  const onTouchStart = (e) => {
+    try {
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      startRef.current = { x: t.clientX, y: t.clientY, ts: Date.now() };
+    } catch {}
+  };
+
+  const onTouchMove = () => {
+    // no-op: decide on end
+  };
+
+  const onTouchEnd = (e) => {
+    try {
+      const s = startRef.current;
+      startRef.current = null;
+      if (!s) return;
+
+      const t = (e.changedTouches && e.changedTouches[0]) || null;
+      if (!t) return;
+
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+      const dt = Date.now() - (s.ts || 0);
+
+      // Deliberate horizontal swipe-right
+      if (dx > 90 && Math.abs(dy) < 50 && dt < 600) {
+        if (typeof onClose === 'function') onClose();
+      }
+    } catch {}
+  };
+
+  return React.createElement(
+    'div',
+    {
+      className: 'fixed inset-0 z-50 bg-white',
+      style: { WebkitOverflowScrolling: 'touch' },
+      onTouchStart,
+      onTouchMove,
+      onTouchEnd
+    },
+    // Header
+    React.createElement(
+      'div',
+      {
+        className: 'sticky top-0 z-10 bg-white border-b border-gray-100',
+        style: { paddingTop: 'env(safe-area-inset-top)' }
+      },
+      React.createElement(
+        'div',
+        { className: 'h-12 px-4 flex items-center gap-2' },
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: onClose,
+            className: 'p-2 -ml-2 rounded-lg hover:bg-gray-50 active:bg-gray-100'
+          },
+          React.createElement(ChevronLeft, { className: 'w-5 h-5 text-indigo-600' })
+        ),
+        React.createElement(
+          'div',
+          { className: 'text-[16px] font-semibold text-gray-900' },
+          title || ''
+        )
+      )
+    ),
+    // Body
+    React.createElement(
+      'div',
+      {
+        className: 'px-4 py-4',
+        style: { paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }
+      },
+      children
+    )
+  );
+};
+
 const AnalyticsTab = ({ user, kidId, familyId }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -4502,8 +4589,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         ),
         React.createElement(
           'div',
-          { className: 'text-indigo-600 text-sm font-medium' },
-          'View'
+          { className: 'p-2 -mr-2 rounded-lg transition text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100' },
+          React.createElement(ChevronRight, { className: 'w-5 h-5' })
         )
       ),
 
@@ -4531,8 +4618,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         ),
         React.createElement(
           'div',
-          { className: 'text-indigo-600 text-sm font-medium' },
-          'View'
+          { className: 'p-2 -mr-2 rounded-lg transition text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100' },
+          React.createElement(ChevronRight, { className: 'w-5 h-5' })
         )
       ),
 
@@ -4560,8 +4647,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         ),
         React.createElement(
           'div',
-          { className: 'text-indigo-600 text-sm font-medium' },
-          'View'
+          { className: 'p-2 -mr-2 rounded-lg transition text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100' },
+          React.createElement(ChevronRight, { className: 'w-5 h-5' })
         )
       )
     ),
