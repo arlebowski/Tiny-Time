@@ -4252,15 +4252,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       className: "section-title",
       style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" }
     }, "Daily Activity"),
-    React.createElement(DailyActivityChart, {
-      viewMode: timeframe, // day | week | month drives the actogram
-      feedings: allFeedings,
-      sleepSessions: sleepSessions,
-      sleepSettings: sleepSettings
-    }),
 
-    // Day/Week/Month toggle (BELOW actogram, applies to everything)
-
+    // Day/Week/Month toggle (ABOVE actogram, applies to everything)
     React.createElement(
       'div',
       { className: 'flex justify-center' },
@@ -4294,6 +4287,14 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         )
       )
     ),
+
+    React.createElement(DailyActivityChart, {
+      viewMode: timeframe, // day | week | month drives the actogram
+      feedings: allFeedings,
+      sleepSessions: sleepSessions,
+      sleepSettings: sleepSettings
+    }),
+
     // ---- Feeding stats header (should be BELOW day/week/month picker)
     React.createElement('div', { className: "section-title", style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" } }, "Feeding stats"),
 
