@@ -3786,7 +3786,7 @@ const DailyActivityChart = ({
       // Legend (below chart; push down into any leftover card whitespace)
       React.createElement(
         'div',
-        { className: 'pl-2 pr-4 pt-2 pb-4 w-full mt-auto' },
+        { className: 'pl-2 pr-4 pt-1 pb-2 w-full mt-auto' },
         React.createElement(
           'div',
           {
