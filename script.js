@@ -3041,7 +3041,7 @@ const DailyActivityChart = ({
 
   // Apple Health-ish styling constants (local to this component)
   const TT = {
-    cardH: 436,           // taller (noticeable). grows downward; top/left remain locked
+    cardH: 464,           // taller (noticeable). grows downward; top/left remain locked
     headerH: 48,          // slightly tighter header for better chart breathing room
     axisW: 48,            // quiet gutter
     gridMajor: 'rgba(17,24,39,0.08)',
@@ -3310,7 +3310,7 @@ const DailyActivityChart = ({
   // Give the top 12 AM label box extra headroom (prevents clipping in Day view),
   // while keeping the overall chart height identical.
   const PAD_T = 14;
-  const PLOT_H = 232; // +28px: more vertical breathing room for the grid itself
+  const PLOT_H = 260; // +28px: more vertical breathing room for the grid itself
   const PAD_B = 14; // give the bottom "12 AM" label a few extra px so it never clips
   const PLOT_TOTAL_H = PLOT_H + PAD_T + PAD_B;
   const yPxFromPct = (pct) => PAD_T + (pct / 100) * PLOT_H;
