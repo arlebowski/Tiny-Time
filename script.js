@@ -3490,7 +3490,8 @@ const DailyActivityChart = ({
                 dayStarts.map((day0) => {
                   const d = new Date(day0);
                   const isToday = day0 === today0;
-                  const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                  const dayNameShort = d.toLocaleDateString('en-US', { weekday: 'short' }); // "Sat"
+                  const dayName = dayNameShort.toUpperCase(); // "SAT" (used for week/month)
                   const dayNum = d.getDate();
                   const daySub = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
@@ -3507,12 +3508,30 @@ const DailyActivityChart = ({
                         className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50' : ''}`,
                         style: isToday ? { borderRadius: 12 } : { overflow: 'hidden' }
                       },
-                      React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' }, dayName),
-                      React.createElement(
-                        'div',
-                        { className: `mt-[2px] text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
-                        effectiveViewMode === 'day' ? daySub : String(dayNum)
-                      )
+                      effectiveViewMode === 'day'
+                        ? React.createElement(
+                            'div',
+                            {
+                              className: `text-[16px] font-semibold leading-none ${
+                                isToday ? 'text-indigo-600' : 'text-gray-900'
+                              }`
+                            },
+                            `${dayNameShort} ${dayNum}`
+                          )
+                        : React.createElement(
+                            React.Fragment,
+                            null,
+                            React.createElement(
+                              'div',
+                              { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' },
+                              dayName
+                            ),
+                            React.createElement(
+                              'div',
+                              { className: `mt-[2px] text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
+                              String(dayNum)
+                            )
+                          )
                     )
                   );
                 })
