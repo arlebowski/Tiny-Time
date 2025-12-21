@@ -3725,21 +3725,7 @@ const DailyActivityChart = ({
                               })
                             );
 
-                            // Nap label: only in Day view + tall enough + not active
-                            if (sleepType === 'day' && !isActive && effectiveViewMode === 'day' && hPx >= 26) {
-                              children.push(
-                                React.createElement('div', {
-                                  key: `sleep-label-${baseKey}`,
-                                  className: 'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                                  style: {
-                                    top: `${Math.max(0, topPx - 7)}px`,
-                                    color: '#3B82F6',
-                                    border: '1px solid rgba(59,130,246,0.2)',
-                                    zIndex: 15
-                                  }
-                                }, 'Nap')
-                              );
-                            }
+                            // Nap labels removed (legend + toggles are enough; reduces clutter)
 
                             // Active indicator (day view only; keep quiet)
                             if (isActive && effectiveViewMode === 'day') {
@@ -3787,10 +3773,10 @@ const DailyActivityChart = ({
           )
         ),
 
-      // Legend (MOVED BELOW the chart; wrap-safe so it cannot squish the grid)
+      // Legend (below chart; push down into any leftover card whitespace)
       React.createElement(
         'div',
-        { className: 'px-4 pt-2 pb-4 w-full' },
+        { className: 'px-4 pt-2 pb-4 w-full mt-auto' },
         React.createElement(
           'div',
           {
