@@ -4280,11 +4280,11 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       )
     ),
 
-    // "Daily Activity" header
+    // "Daily Activity" header (match Tracker tab header hierarchy)
     React.createElement(
-      'div',
-      { className: 'mb-3' },
-      React.createElement('div', { className: 'text-[22px] font-bold text-gray-900' }, 'Daily Activity')
+      'h2',
+      { className: 'text-lg font-semibold text-gray-800 mb-3' },
+      'Daily Activity'
     ),
 
     React.createElement(DailyActivityChart, {
@@ -4294,8 +4294,13 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       sleepSettings: sleepSettings
     }),
 
-    // ---- Feeding stats header (should be BELOW day/week/month picker)
-    React.createElement('div', { className: "section-title", style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" } }, "Feeding stats"),
+    // ---- Feeding stats header
+    // Add a little top margin so it doesn't crash into the Daily Activity card above.
+    React.createElement(
+      'h2',
+      { className: 'text-lg font-semibold text-gray-800 mt-6 mb-3' },
+      'Feeding stats'
+    ),
 
     React.createElement(
       'div',
@@ -4533,9 +4538,9 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
 
     // ---- Sleep stats header
     React.createElement(
-      "div",
-      { className: "section-title", style: { fontWeight: 700, fontSize: 18, margin: "18px 0 10px" } },
-      "Sleep stats"
+      'h2',
+      { className: 'text-lg font-semibold text-gray-800 mt-6 mb-3' },
+      'Sleep stats'
     ),
 
     // 4 cards styled exactly like Feeding stats cards
