@@ -4324,7 +4324,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           {
             key: stat.label,
             className:
-              'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center'
+              'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start justify-center text-left'
           },
           React.createElement(
             'div',
@@ -4338,7 +4338,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
             'div',
             {
               className:
-                'text-2xl font-bold text-indigo-600'
+                'text-3xl font-semibold text-indigo-600'
             },
             stat.value,
             React.createElement(
@@ -4369,7 +4369,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         'div',
         {
           className:
-            'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center'
+            'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start justify-center text-left'
         },
         React.createElement(
           'div',
@@ -4383,7 +4383,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           'div',
           {
             className:
-              'text-2xl font-bold text-indigo-600'
+              'text-3xl font-semibold text-indigo-600'
           },
           stats.avgFeedingsPerDay.toFixed(1)
         ),
@@ -4400,7 +4400,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         'div',
         {
           className:
-            'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center'
+            'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start justify-center text-left'
         },
         React.createElement(
           'div',
@@ -4414,7 +4414,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           'div',
           {
             className:
-              'text-2xl font-bold text-indigo-600'
+              'text-3xl font-semibold text-indigo-600'
           },
           formatInterval(stats.avgInterval)
         ),
@@ -4559,11 +4559,11 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       { className: "grid grid-cols-2 gap-4" },
       React.createElement(
         "div",
-        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start justify-center text-left" },
         React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Total Sleep"),
         React.createElement(
           "div",
-          { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+          { className: "flex items-baseline gap-1 text-3xl font-semibold text-indigo-600" },
           Number(sleepCards.avgTotal || 0).toFixed(1),
           React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
         ),
@@ -4571,11 +4571,11 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       ),
       React.createElement(
         "div",
-        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start justify-center text-left" },
         React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Day Sleep"),
         React.createElement(
           "div",
-          { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+          { className: "flex items-baseline gap-1 text-3xl font-semibold text-indigo-600" },
           Number(sleepCards.avgDay || 0).toFixed(1),
           React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
         ),
@@ -4583,11 +4583,11 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       ),
       React.createElement(
         "div",
-        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start justify-center text-left" },
         React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Night Sleep"),
         React.createElement(
           "div",
-          { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+          { className: "flex items-baseline gap-1 text-3xl font-semibold text-indigo-600" },
           Number(sleepCards.avgNight || 0).toFixed(1),
           React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
         ),
@@ -4595,11 +4595,11 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       ),
       React.createElement(
         "div",
-        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+        { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-start justify-center text-left" },
         React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Sleeps / Day"),
         React.createElement(
           "div",
-          { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+          { className: "flex items-baseline gap-1 text-3xl font-semibold text-indigo-600" },
           Number(sleepCards.avgSleeps || 0).toFixed(1)
         ),
         React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
