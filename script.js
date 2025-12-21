@@ -3043,7 +3043,7 @@ const DailyActivityChart = ({
   const TT = {
     cardH: 464,           // restored taller card height (post-revert). grows downward; top/left remain locked
     headerH: 48,          // slightly tighter header for better chart breathing room
-    axisW: 48,            // quiet gutter
+    axisW: 44,            // quiet gutter
     gridMajor: 'rgba(17,24,39,0.08)',
     gridMinor: 'rgba(17,24,39,0.04)',
     axisTextClass: 'text-[12px] font-medium text-gray-500',
