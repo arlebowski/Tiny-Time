@@ -3535,458 +3535,464 @@ const DailyActivityChart = ({
           React.createElement(
             'div',
             { className: 'min-w-full', style: { minWidth: '100%', width: '100%' } },
-
-            // ======================
-            // MONTH SUMMARY CALENDAR
-            // ======================
-            isMonthView ? React.createElement(
-              React.Fragment,
-              null,
-              // Header row: weekday labels (no gutter divider, calm)
-              React.createElement(
-                'div',
-                {
-                  className: 'grid',
-                  style: {
-                    position: 'sticky',
-                    top: 0,
-                    zIndex: 40,
-                    background: 'rgba(255,255,255,0.98)',
-                    backdropFilter: 'saturate(180%) blur(10px)',
-                    borderBottom: 'none',
-                    height: TT.headerH,
-                    maxHeight: TT.headerH,
-                    overflow: 'hidden',
-                    gridTemplateColumns: `${TT.axisW}px repeat(7, 1fr)`
-                  }
-                },
-                React.createElement('div', { style: { height: TT.headerH } }),
-                React.createElement(
-                  'div',
-                  {
-                    className: 'grid',
-                    style: {
-                      gridColumn: '2 / span 7',
-                      gridTemplateColumns: 'repeat(7, 1fr)',
-                      height: TT.headerH,
-                      maxHeight: TT.headerH
-                    }
-                  },
-                  ['SUN','MON','TUE','WED','THU','FRI','SAT'].map((d) =>
-                    React.createElement(
-                      'div',
-                      { key: d, className: 'text-center flex items-center justify-center' },
-                      React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' }, d)
-                    )
-                  )
-                )
-              ),
-
-              // Body row: 7x6 grid (breathable)
-              React.createElement(
-                'div',
-                {
-                  className: 'grid relative',
-                  style: {
-                    gridTemplateColumns: `${TT.axisW}px repeat(7, 1fr)`,
-                    height: PLOT_TOTAL_H,
-                    overflow: 'hidden'
-                  }
-                },
-                // quiet gutter spacer to align with other modes
-                React.createElement('div', { className: 'relative', style: { background: 'rgba(255,255,255,0.98)' } }),
-
-                React.createElement(
-                  'div',
-                  {
-                    className: 'grid h-full',
-                    style: {
-                      gridColumn: '2 / span 7',
-                      gridTemplateColumns: 'repeat(7, 1fr)',
-                      gridTemplateRows: 'repeat(6, 1fr)',
-                      gap: 6,
-                      padding: 6
-                    }
-                  },
-                  monthGridDays.map(({ day0, inMonth }) => {
-                    const key = _dateKeyLocal(day0);
-                    const isTodayCell = day0 === today0;
-                    const oz = feedOzByDayKey.get(key) || 0;
-                    const sleepHrs = Number(sleepHrsByDayKey?.[key]?.totalHrs || 0);
-
-                    // If out-of-month, render an empty muted cell to preserve breathing.
-                    if (!inMonth) {
-                      return React.createElement('div', {
-                        key: `mcell-${day0}`,
-                        className: 'rounded-lg',
-                        style: { background: 'rgba(17,24,39,0.02)' }
-                      });
-                    }
-
-                    const ozText = fmtOz0(oz);
-                    const hrsText = fmtHrs1Short(sleepHrs);
-
-                    return React.createElement(
-                      'div',
-                      {
-                        key: `mcell-${day0}`,
-                        className: 'rounded-xl',
-                        style: {
-                          background: isTodayCell ? 'rgba(79,70,229,0.08)' : 'rgba(255,255,255,1)',
-                          border: '1px solid rgba(17,24,39,0.06)',
-                          padding: 10,
-                          overflow: 'hidden'
-                        }
-                      },
-                      React.createElement(
-                        'div',
-                        { className: 'text-[11px] font-medium text-gray-500 leading-none' },
-                        String(new Date(day0).getDate())
-                      ),
-                      ozText ? React.createElement(
-                        'div',
-                        { className: 'mt-2 text-[13px] font-semibold leading-tight', style: { color: TT.feedPink } },
-                        ozText
-                      ) : null,
-                      hrsText ? React.createElement(
-                        'div',
-                        { className: 'mt-1 text-[13px] font-medium leading-tight', style: { color: '#4F46E5' } },
-                        hrsText
-                      ) : null
-                    );
-                  })
-                )
-              )
-            ) : (
-              // ======================
-              // DAY/WEEK ACTOGRAM (UNCHANGED)
-              // ======================
-              React.createElement(
-                React.Fragment,
-                null,
-                // Sticky header row (day strip)
-                React.createElement(
-                  'div',
-                  {
-                    className: 'grid',
-                    style: {
-                      position: 'sticky',
-                      top: 0,
-                      zIndex: 40,
-                      background: 'rgba(255,255,255,0.98)',
-                      backdropFilter: 'saturate(180%) blur(10px)',
-                      borderBottom: 'none',
-                      height: TT.headerH,
-                      maxHeight: TT.headerH,
-                      overflow: 'hidden',
-                      gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`
-                    }
-                  },
-                  React.createElement('div', { style: { height: TT.headerH } }),
+            isMonthView
+              ? React.createElement(
+                  React.Fragment,
+                  null,
+                  // Header row: weekday labels (no gutter divider, calm)
                   React.createElement(
                     'div',
                     {
                       className: 'grid',
                       style: {
-                        gridColumn: `2 / span ${effectiveViewMode === 'day' ? 1 : days}`,
-                        gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`,
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 40,
+                        background: 'rgba(255,255,255,0.98)',
+                        backdropFilter: 'saturate(180%) blur(10px)',
+                        borderBottom: 'none',
                         height: TT.headerH,
-                        maxHeight: TT.headerH
+                        maxHeight: TT.headerH,
+                        overflow: 'hidden',
+                        gridTemplateColumns: `${TT.axisW}px repeat(7, 1fr)`
                       }
                     },
-                    dayStarts.map((day0) => {
-                      const d = new Date(day0);
-                      const isToday = day0 === today0;
-                      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
-                      const dayNum = d.getDate();
-
-                      return React.createElement(
-                        'div',
-                        {
-                          key: `strip-${day0}`,
-                          className: 'text-center',
-                          style: { height: TT.headerH, maxHeight: TT.headerH }
-                        },
-                        React.createElement(
-                          'div',
-                          {
-                            className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50' : ''}`,
-                            style: isToday ? { borderRadius: 12 } : { overflow: 'hidden' }
-                          },
-                          React.createElement(
-                            React.Fragment,
-                            null,
-                            React.createElement(
-                              'div',
-                              { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' },
-                              dayName
-                            ),
-                            React.createElement(
-                              'div',
-                              { className: `mt-[2px] text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
-                              String(dayNum)
-                            )
-                          )
-                        )
-                      );
-                    })
-                  )
-                ),
-
-                // Body row: axis + day columns share ONE coordinate system (existing actogram)
-                React.createElement(
-                  'div',
-                  {
-                    className: 'grid relative',
-                    style: {
-                      gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`,
-                      height: PLOT_TOTAL_H,
-                      overflow: 'hidden'
-                    }
-                  },
-
-              // AXIS COLUMN (sticky-left, no divider line)
-              React.createElement(
-                'div',
-                {
-                  className: 'relative',
-                  style: {
-                    position: 'sticky',
-                    left: 0,
-                    zIndex: 30,
-                    background: 'rgba(255,255,255,0.98)'
-                  }
-                },
-
-                // Time labels (calm, Apple-like)
-                React.createElement(
-                  'div',
-                  { className: 'relative', style: { height: PLOT_TOTAL_H } },
-                  hourLabels.map((h) =>
-                    React.createElement('div', {
-                      key: `ylab-${h.i}`,
-                      className: 'absolute right-1 text-right',
-                      style: {
-                        // Align the CENTER of a fixed-height label box to the gridline
-                        top: `${tickY(h.i) - (GUTTER_LABEL_H / 2)}px`,
-                        height: `${GUTTER_LABEL_H}px`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'flex-end',
-                        whiteSpace: 'nowrap',
-                        lineHeight: 1
-                      }
-                    }, renderGutterTime(h.label))
-                  ),
-
-                  // (Dot moved to the body-row container so it can perfectly cap the now line)
-                )
-              ),
-
-              // BODY ROW "NOW" DOT: sits on the gutter/grid boundary and caps the now line
-              showNow && React.createElement('div', {
-                className: 'absolute pointer-events-none',
-                style: {
-                  top: `${nowYClamped}px`,
-                  left: `${TT.axisW}px`,          // exact boundary between gutter and grid
-                  width: 6,
-                  height: 6,
-                  background: TT.nowGreen,
-                  transform: 'translate(-50%, -50%)',
-                  borderRadius: 999,
-                  zIndex: 60
-                }
-              }),
-
-              // DAY COLUMNS WRAPPER (relative so gridlines + now line span fully)
-              React.createElement(
-                'div',
-                {
-                  className: 'relative',
-                  style: {
-                    gridColumn: `2 / span ${effectiveViewMode === 'day' ? 1 : days}`,
-                    height: '100%'
-                  }
-                },
-
-                // Global horizontal gridlines (draw ONCE across all columns)
-                React.createElement(
-                  'div',
-                  { className: 'pointer-events-none absolute inset-0', style: { zIndex: 1 } },
-                  // Major lines (align line center to tick: y - 0.5)
-                  majorTicks.map((i) =>
-                    React.createElement('div', {
-                      key: `maj-${i}`,
-                      className: 'absolute left-0 right-0',
-                      style: {
-                        top: `${(PAD_T + ((i * 60) / (24 * 60)) * PLOT_H) - 0.5}px`,
-                        height: 1,
-                        background: TT.gridMajor
-                      }
-                    })
-                  ),
-                  // Minor lines (every 3h) (align line center to tick: y - 0.5)
-                  minorTicks.map((i) =>
-                    React.createElement('div', {
-                      key: `min-${i}`,
-                      className: 'absolute left-0 right-0',
-                      style: {
-                        top: `${(PAD_T + ((i * 60) / (24 * 60)) * PLOT_H) - 0.5}px`,
-                        height: 1,
-                        background: TT.gridMinor
-                      }
-                    })
-                  )
-                ),
-
-                // NOW LINE: spans the FULL grid width and connects to the dot at the boundary
-                showNow && React.createElement('div', {
-                  className: 'pointer-events-none absolute',
-                  style: {
-                    top: `${nowYClamped}px`,
-                    left: 0,     // wrapper already starts AFTER the gutter (gridColumn: 2)
-                    right: 0,    // extend to the end of the calendar
-                    height: 2,
-                    background: TT.nowGreen,
-                    transform: 'translateY(-50%)',
-                    zIndex: 25
-                  }
-                }),
-
-                // Day columns
-                React.createElement(
-                  'div',
-                  {
-                    className: 'grid h-full',
-                    style: {
-                      gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`,
-                      height: '100%'
-                    }
-                  },
-                  dayStarts.map((day0) => {
-                    const isToday = day0 === today0;
-                    const daySleeps = sleepsByDay.get(day0) || [];
-                    const dayFeeds = feedsByDay.get(day0) || [];
-
-                    return React.createElement(
+                    React.createElement('div', { style: { height: TT.headerH } }),
+                    React.createElement(
                       'div',
                       {
-                        key: day0,
-                        className: '',
+                        className: 'grid',
                         style: {
-                          position: 'relative',
-                          height: '100%',
-                          // No gutter divider; keep only ultra-subtle column separators
-                          borderRight: 'none'
+                          gridColumn: '2 / span 7',
+                          gridTemplateColumns: 'repeat(7, 1fr)',
+                          height: TT.headerH,
+                          maxHeight: TT.headerH
+                        }
+                      },
+                      ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((d) =>
+                        React.createElement(
+                          'div',
+                          { key: d, className: 'text-center flex items-center justify-center' },
+                          React.createElement('div', { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' }, d)
+                        )
+                      )
+                    )
+                  ),
+
+                  // Body row: 7x6 grid (breathable)
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'grid relative',
+                      style: {
+                        gridTemplateColumns: `${TT.axisW}px repeat(7, 1fr)`,
+                        height: PLOT_TOTAL_H,
+                        overflow: 'hidden'
+                      }
+                    },
+                    // quiet gutter spacer to align with other modes
+                    React.createElement('div', { className: 'relative', style: { background: 'rgba(255,255,255,0.98)' } }),
+
+                    React.createElement(
+                      'div',
+                      {
+                        className: 'grid h-full',
+                        style: {
+                          gridColumn: '2 / span 7',
+                          gridTemplateColumns: 'repeat(7, 1fr)',
+                          gridTemplateRows: 'repeat(6, 1fr)',
+                          gap: 6,
+                          padding: 6
+                        }
+                      },
+                      monthGridDays.map(({ day0, inMonth }) => {
+                        const key = _dateKeyLocal(day0);
+                        const isTodayCell = day0 === today0;
+                        const oz = feedOzByDayKey.get(key) || 0;
+                        const sleepHrs = Number(sleepHrsByDayKey?.[key]?.totalHrs || 0);
+
+                        // If out-of-month, render an empty muted cell to preserve breathing.
+                        if (!inMonth) {
+                          return React.createElement('div', {
+                            key: `mcell-${day0}`,
+                            className: 'rounded-lg',
+                            style: { background: 'rgba(17,24,39,0.02)' }
+                          });
+                        }
+
+                        const ozText = fmtOz0(oz);
+                        const hrsText = fmtHrs1Short(sleepHrs);
+
+                        return React.createElement(
+                          'div',
+                          {
+                            key: `mcell-${day0}`,
+                            className: 'rounded-xl',
+                            style: {
+                              background: isTodayCell ? 'rgba(79,70,229,0.08)' : 'rgba(255,255,255,1)',
+                              border: '1px solid rgba(17,24,39,0.06)',
+                              padding: 10,
+                              overflow: 'hidden'
+                            }
+                          },
+                          React.createElement(
+                            'div',
+                            { className: 'text-[11px] font-medium text-gray-500 leading-none' },
+                            String(new Date(day0).getDate())
+                          ),
+                          ozText
+                            ? React.createElement(
+                                'div',
+                                { className: 'mt-2 text-[13px] font-semibold leading-tight', style: { color: TT.feedPink } },
+                                ozText
+                              )
+                            : null,
+                          hrsText
+                            ? React.createElement(
+                                'div',
+                                { className: 'mt-1 text-[13px] font-medium leading-tight', style: { color: '#4F46E5' } },
+                                hrsText
+                              )
+                            : null
+                        );
+                      })
+                    )
+                  )
+                )
+              : React.createElement(
+                  React.Fragment,
+                  null,
+                  // Sticky header row (day strip)
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'grid',
+                      style: {
+                        position: 'sticky',
+                        top: 0,
+                        zIndex: 40,
+                        background: 'rgba(255,255,255,0.98)',
+                        backdropFilter: 'saturate(180%) blur(10px)',
+                        borderBottom: 'none',
+                        height: TT.headerH,
+                        maxHeight: TT.headerH,
+                        overflow: 'hidden',
+                        gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`
+                      }
+                    },
+                    React.createElement('div', { style: { height: TT.headerH } }),
+                    React.createElement(
+                      'div',
+                      {
+                        className: 'grid',
+                        style: {
+                          gridColumn: `2 / span ${effectiveViewMode === 'day' ? 1 : days}`,
+                          gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`,
+                          height: TT.headerH,
+                          maxHeight: TT.headerH
+                        }
+                      },
+                      dayStarts.map((day0) => {
+                        const d = new Date(day0);
+                        const isToday = day0 === today0;
+                        const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
+                        const dayNum = d.getDate();
+
+                        return React.createElement(
+                          'div',
+                          {
+                            key: `strip-${day0}`,
+                            className: 'text-center',
+                            style: { height: TT.headerH, maxHeight: TT.headerH }
+                          },
+                          React.createElement(
+                            'div',
+                            {
+                              className: `h-full flex flex-col justify-center ${isToday ? 'bg-indigo-50' : ''}`,
+                              style: isToday ? { borderRadius: 12 } : { overflow: 'hidden' }
+                            },
+                            React.createElement(
+                              React.Fragment,
+                              null,
+                              React.createElement(
+                                'div',
+                                { className: 'text-[11px] font-medium tracking-[0.5px] text-gray-400 leading-none' },
+                                dayName
+                              ),
+                              React.createElement(
+                                'div',
+                                { className: `mt-[2px] text-[16px] font-semibold leading-none ${isToday ? 'text-indigo-600' : 'text-gray-900'}` },
+                                String(dayNum)
+                              )
+                            )
+                          )
+                        );
+                      })
+                    )
+                  ),
+
+                  // Body row: axis + day columns share ONE coordinate system (existing actogram)
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'grid relative',
+                      style: {
+                        gridTemplateColumns: `${TT.axisW}px ${effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`}`,
+                        height: PLOT_TOTAL_H,
+                        overflow: 'hidden'
+                      }
+                    },
+
+                    // AXIS COLUMN (sticky-left, no divider line)
+                    React.createElement(
+                      'div',
+                      {
+                        className: 'relative',
+                        style: {
+                          position: 'sticky',
+                          left: 0,
+                          zIndex: 30,
+                          background: 'rgba(255,255,255,0.98)'
                         }
                       },
 
-                      // Sleep blocks + feed ticks
+                      // Time labels (calm, Apple-like)
                       React.createElement(
                         'div',
-                        { className: 'relative', style: { height: '100%', zIndex: 10 } },
+                        { className: 'relative', style: { height: PLOT_TOTAL_H } },
+                        hourLabels.map((h) =>
+                          React.createElement(
+                            'div',
+                            {
+                              key: `ylab-${h.i}`,
+                              className: 'absolute right-1 text-right',
+                              style: {
+                                // Align the CENTER of a fixed-height label box to the gridline
+                                top: `${tickY(h.i) - GUTTER_LABEL_H / 2}px`,
+                                height: `${GUTTER_LABEL_H}px`,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'flex-end',
+                                whiteSpace: 'nowrap',
+                                lineHeight: 1
+                              }
+                            },
+                            renderGutterTime(h.label)
+                          )
+                        )
+                      )
+                    ),
 
-                        // Today shading: ONLY the 24h grid area (from 12 AM line to 12 AM line)
-                        isToday && React.createElement('div', {
-                          className: 'absolute left-0 right-0 pointer-events-none',
+                    // BODY ROW "NOW" DOT: sits on the gutter/grid boundary and caps the now line
+                    showNow &&
+                      React.createElement('div', {
+                        className: 'absolute pointer-events-none',
+                        style: {
+                          top: `${nowYClamped}px`,
+                          left: `${TT.axisW}px`, // exact boundary between gutter and grid
+                          width: 6,
+                          height: 6,
+                          background: TT.nowGreen,
+                          transform: 'translate(-50%, -50%)',
+                          borderRadius: 999,
+                          zIndex: 60
+                        }
+                      }),
+
+                    // DAY COLUMNS WRAPPER (relative so gridlines + now line span fully)
+                    React.createElement(
+                      'div',
+                      {
+                        className: 'relative',
+                        style: {
+                          gridColumn: `2 / span ${effectiveViewMode === 'day' ? 1 : days}`,
+                          height: '100%'
+                        }
+                      },
+
+                      // Global horizontal gridlines (draw ONCE across all columns)
+                      React.createElement(
+                        'div',
+                        { className: 'pointer-events-none absolute inset-0', style: { zIndex: 1 } },
+                        // Major lines (align line center to tick: y - 0.5)
+                        majorTicks.map((i) =>
+                          React.createElement('div', {
+                            key: `maj-${i}`,
+                            className: 'absolute left-0 right-0',
+                            style: {
+                              top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H - 0.5}px`,
+                              height: 1,
+                              background: TT.gridMajor
+                            }
+                          })
+                        ),
+                        // Minor lines (every 3h) (align line center to tick: y - 0.5)
+                        minorTicks.map((i) =>
+                          React.createElement('div', {
+                            key: `min-${i}`,
+                            className: 'absolute left-0 right-0',
+                            style: {
+                              top: `${PAD_T + ((i * 60) / (24 * 60)) * PLOT_H - 0.5}px`,
+                              height: 1,
+                              background: TT.gridMinor
+                            }
+                          })
+                        )
+                      ),
+
+                      // NOW LINE: spans the FULL grid width and connects to the dot at the boundary
+                      showNow &&
+                        React.createElement('div', {
+                          className: 'pointer-events-none absolute',
                           style: {
-                            top: `${PAD_T}px`,
-                            height: `${PLOT_H}px`,
-                            background: 'rgba(79,70,229,0.06)',
-                            borderRadius: 8,
-                            zIndex: 0
+                            top: `${nowYClamped}px`,
+                            left: 0, // wrapper already starts AFTER the gutter (gridColumn: 2)
+                            right: 0, // extend to the end of the calendar
+                            height: 2,
+                            background: TT.nowGreen,
+                            transform: 'translateY(-50%)',
+                            zIndex: 25
                           }
                         }),
 
-                        // Sleep blocks (wide, clean) - build a single flat children array (more reliable on iOS)
-                        (() => {
-                          const children = [];
-                          for (let idx = 0; idx < daySleeps.length; idx++) {
-                            const ev = daySleeps[idx];
-                            const sleepType = _sleepTypeForSession(ev);
-                            const allow = (sleepType === 'night') ? legendOn.sleep : legendOn.nap;
-                            if (!allow) continue;
-
-                            const isActive = ev.isActive;
-                            const endTime = isActive ? nowMsLocal : (ev.e || nowMsLocal);
-
-                            const topPct = yPct(ev.s, day0);
-                            const bottomPct = yPct(endTime, day0);
-                            const topPx = yPxFromPct(topPct);
-                            const bottomPx = yPxFromPct(bottomPct);
-                            const hPx = Math.max(1, bottomPx - topPx);
-
-                            const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
-                            const leftMargin = effectiveViewMode === 'day' ? 10 : 6;
-                            const rightMargin = effectiveViewMode === 'day' ? 10 : 6;
-
-                            const baseKey = ev?.id || `${day0}-${ev.s}-${ev.e || 'active'}-${idx}`;
-
-                            children.push(
-                              React.createElement('div', {
-                                key: `sleep-block-${baseKey}`,
-                                className: 'absolute rounded-lg',
-                                style: {
-                                  top: `${topPx}px`,
-                                  height: `${hPx}px`,
-                                  left: `${leftMargin}px`,
-                                  right: `${rightMargin}px`,
-                                  background: bgColor,
-                                  border: '1px solid rgba(255,255,255,0.25)',
-                                  boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
-                                  zIndex: 10
-                                }
-                              })
-                            );
-
-                            // Nap labels removed (legend + toggles are enough; reduces clutter)
-
-                            // Active indicator (day view only; keep quiet)
-                            if (isActive && effectiveViewMode === 'day') {
-                              children.push(
-                                React.createElement('div', {
-                                  key: `sleep-active-${baseKey}`,
-                                  className: 'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
-                                  style: {
-                                    top: `${Math.min(PLOT_TOTAL_H - 8, bottomPx + 6)}px`,
-                                    color: '#4F46E5',
-                                    border: '1px solid rgba(79,70,229,0.2)',
-                                    zIndex: 15
-                                  }
-                                }, ' Active')
-                              );
-                            }
+                      // Day columns
+                      React.createElement(
+                        'div',
+                        {
+                          className: 'grid h-full',
+                          style: {
+                            gridTemplateColumns: effectiveViewMode === 'day' ? '1fr' : `repeat(${days}, 1fr)`,
+                            height: '100%'
                           }
-                          return children;
-                        })(),
+                        },
+                        dayStarts.map((day0) => {
+                          const isToday = day0 === today0;
+                          const daySleeps = sleepsByDay.get(day0) || [];
+                          const dayFeeds = feedsByDay.get(day0) || [];
 
-                        // Feed ticks
-                        legendOn.feed ? dayFeeds.map((ev, idx) => {
-                          const topPx = yPx(ev.s, day0);
-                          return React.createElement('div', {
-                            key: `${day0}-feed-${idx}`,
-                            className: 'absolute',
-                            style: {
-                              top: `${topPx}px`,
-                              left: effectiveViewMode === 'day' ? '10px' : '8px',
-                              right: effectiveViewMode === 'day' ? '10px' : '8px',
-                              height: '2px',
-                              background: TT.feedPink,
-                              transform: 'translateY(-50%)',
-                              borderRadius: '2px',
-                              zIndex: 20
-                            }
-                          });
-                        }) : null
+                          return React.createElement(
+                            'div',
+                            {
+                              key: day0,
+                              className: '',
+                              style: {
+                                position: 'relative',
+                                height: '100%',
+                                // No gutter divider; keep only ultra-subtle column separators
+                                borderRight: 'none'
+                              }
+                            },
+
+                            // Sleep blocks + feed ticks
+                            React.createElement(
+                              'div',
+                              { className: 'relative', style: { height: '100%', zIndex: 10 } },
+
+                              // Today shading: ONLY the 24h grid area (from 12 AM line to 12 AM line)
+                              isToday &&
+                                React.createElement('div', {
+                                  className: 'absolute left-0 right-0 pointer-events-none',
+                                  style: {
+                                    top: `${PAD_T}px`,
+                                    height: `${PLOT_H}px`,
+                                    background: 'rgba(79,70,229,0.06)',
+                                    borderRadius: 8,
+                                    zIndex: 0
+                                  }
+                                }),
+
+                              // Sleep blocks (wide, clean) - build a single flat children array (more reliable on iOS)
+                              (() => {
+                                const children = [];
+                                for (let idx = 0; idx < daySleeps.length; idx++) {
+                                  const ev = daySleeps[idx];
+                                  const sleepType = _sleepTypeForSession(ev);
+                                  const allow = sleepType === 'night' ? legendOn.sleep : legendOn.nap;
+                                  if (!allow) continue;
+
+                                  const isActive = ev.isActive;
+                                  const endTime = isActive ? nowMsLocal : ev.e || nowMsLocal;
+
+                                  const topPct = yPct(ev.s, day0);
+                                  const bottomPct = yPct(endTime, day0);
+                                  const topPx = yPxFromPct(topPct);
+                                  const bottomPx = yPxFromPct(bottomPct);
+                                  const hPx = Math.max(1, bottomPx - topPx);
+
+                                  const bgColor = sleepType === 'night' ? TT.sleepNight : TT.sleepDay;
+                                  const leftMargin = effectiveViewMode === 'day' ? 10 : 6;
+                                  const rightMargin = effectiveViewMode === 'day' ? 10 : 6;
+
+                                  const baseKey = ev?.id || `${day0}-${ev.s}-${ev.e || 'active'}-${idx}`;
+
+                                  children.push(
+                                    React.createElement('div', {
+                                      key: `sleep-block-${baseKey}`,
+                                      className: 'absolute rounded-lg',
+                                      style: {
+                                        top: `${topPx}px`,
+                                        height: `${hPx}px`,
+                                        left: `${leftMargin}px`,
+                                        right: `${rightMargin}px`,
+                                        background: bgColor,
+                                        border: '1px solid rgba(255,255,255,0.25)',
+                                        boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
+                                        zIndex: 10
+                                      }
+                                    })
+                                  );
+
+                                  // Active indicator (day view only; keep quiet)
+                                  if (isActive && effectiveViewMode === 'day') {
+                                    children.push(
+                                      React.createElement(
+                                        'div',
+                                        {
+                                          key: `sleep-active-${baseKey}`,
+                                          className:
+                                            'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
+                                          style: {
+                                            top: `${Math.min(PLOT_TOTAL_H - 8, bottomPx + 6)}px`,
+                                            color: '#4F46E5',
+                                            border: '1px solid rgba(79,70,229,0.2)',
+                                            zIndex: 15
+                                          }
+                                        },
+                                        ' Active'
+                                      )
+                                    );
+                                  }
+                                }
+                                return children;
+                              })(),
+
+                              // Feed ticks
+                              legendOn.feed
+                                ? dayFeeds.map((ev, idx) => {
+                                    const topPx = yPx(ev.s, day0);
+                                    return React.createElement('div', {
+                                      key: `${day0}-feed-${idx}`,
+                                      className: 'absolute',
+                                      style: {
+                                        top: `${topPx}px`,
+                                        left: effectiveViewMode === 'day' ? '10px' : '8px',
+                                        right: effectiveViewMode === 'day' ? '10px' : '8px',
+                                        height: '2px',
+                                        background: TT.feedPink,
+                                        transform: 'translateY(-50%)',
+                                        borderRadius: '2px',
+                                        zIndex: 20
+                                      }
+                                    });
+                                  })
+                                : null
+                            )
+                          );
+                        })
                       )
-                    );
-                  })
+                    )
+                  )
                 )
-              )
-            )
-                )
-              )
-            )
           )
         ),
 
