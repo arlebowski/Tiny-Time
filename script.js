@@ -5299,7 +5299,7 @@ const handleInvite = async () => {
       React.createElement(
         "div",
         null,
-        React.createElement("div", { className: "text-base font-semibold text-gray-800" }, "Day sleep window"),
+        React.createElement("div", { className: "text-sm font-semibold text-gray-800" }, "Day sleep window"),
         React.createElement(
           "div",
           { className: "text-sm text-gray-500 mt-1" },
@@ -5996,7 +5996,7 @@ const handleInvite = async () => {
       ),
 
       sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t border-gray-100" },
-        React.createElement('div', { className: "text-sm font-semibold text-gray-800 mb-2" }, 'Sleep settings'),
+        React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Sleep settings'),
         React.createElement( 'div', { className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3', onClick: isEditingSleepTarget ? undefined : () => { setIsEditingSleepTarget(true); } },
           React.createElement('div', { className: "flex items-center" },
             React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Daily sleep target (hrs)'),
@@ -6049,7 +6049,7 @@ const handleInvite = async () => {
           { className: 'flex items-center justify-between mb-3' },
           React.createElement(
             'span',
-            { className: 'text-sm font-semibold text-gray-800' },
+            { className: 'text-base font-semibold text-gray-800' },
             'App Color'
           ),
           React.createElement(
