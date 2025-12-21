@@ -3073,7 +3073,10 @@ const DailyActivityChart = ({
   const effectiveViewMode = viewMode || 'day';
   const days = effectiveViewMode === 'day' ? 1 : 7; // week/month: 7-day rolling window
   const [offsetDays, setOffsetDays] = React.useState(0); // 0 = week/day ending today
-  const stepDays = 7; // nav always moves week-over-week for consistency
+  // Nav step:
+  // - Day view should page 1 day at a time
+  // - Week/Month should page 7 days at a time
+  const stepDays = effectiveViewMode === 'day' ? 1 : 7;
 
   const clampOffset = (n) => Math.max(0, Math.floor(Number(n) || 0));
   const pageBack = () => setOffsetDays((n) => clampOffset(n + stepDays));
