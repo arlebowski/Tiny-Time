@@ -3043,7 +3043,7 @@ const DailyActivityChart = ({
   const TT = {
     cardH: 464,           // taller (noticeable). grows downward; top/left remain locked
     headerH: 48,          // slightly tighter header for better chart breathing room
-    axisW: 52,            // quiet gutter
+    axisW: 48,            // quiet gutter
     gridMajor: 'rgba(17,24,39,0.08)',
     gridMinor: 'rgba(17,24,39,0.04)',
     axisTextClass: 'text-[12px] font-medium text-gray-500',
@@ -3551,7 +3551,7 @@ const DailyActivityChart = ({
                   hourLabels.map((h) =>
                     React.createElement('div', {
                       key: `ylab-${h.i}`,
-                      className: 'absolute right-2 text-right',
+                      className: 'absolute right-1 text-right',
                       style: {
                         // Align the CENTER of a fixed-height label box to the gridline
                         top: `${tickY(h.i) - (GUTTER_LABEL_H / 2)}px`,
