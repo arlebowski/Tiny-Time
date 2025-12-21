@@ -3414,7 +3414,7 @@ const DailyActivityChart = ({
         {
           // IMPORTANT: Do NOT let the chart consume all remaining height (or the bottom legend gets clipped).
           // Give it an explicit height so the legend below always has room inside the fixed-height card.
-          className: 'px-4 pb-3 flex-none',
+          className: 'px-3 pb-3 flex-none',
           style: {
             overscrollBehavior: 'contain',
             height: TT.headerH + PLOT_TOTAL_H + 6
@@ -3776,7 +3776,7 @@ const DailyActivityChart = ({
       // Legend (below chart; push down into any leftover card whitespace)
       React.createElement(
         'div',
-        { className: 'px-4 pt-2 pb-4 w-full mt-auto' },
+        { className: 'px-3 pt-2 pb-4 w-full mt-auto' },
         React.createElement(
           'div',
           {
