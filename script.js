@@ -4247,27 +4247,19 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     'div',
     { className: 'space-y-4' },
 
-    // Section title OUTSIDE the card (matches your preference)
-    React.createElement('div', {
-      className: "section-title",
-      style: { fontWeight: 700, fontSize: 18, margin: "4px 0 10px" }
-    }, "Daily Activity"),
-
-    // Day/Week/Month toggle (ABOVE actogram, applies to everything)
+    // View mode toggle (page-level, ABOVE section)
     React.createElement(
       'div',
-      { className: 'flex justify-center' },
+      { className: 'mt-4 mb-2 flex justify-center' },
       React.createElement(
         'div',
-        {
-          className:
-            'inline-flex gap-0.5 bg-gray-100/50 rounded-lg p-0.5'
-        },
+        { className: 'inline-flex bg-white/70 rounded-xl p-1 shadow-sm' },
         ['day', 'week', 'month'].map(range =>
           React.createElement(
             'button',
             {
               key: range,
+              type: 'button',
               onClick: () => {
                 setTimeframe(range);
                 if (window.trackTabSelected) {
@@ -4276,16 +4268,23 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                   );
                 }
               },
-              className: `px-4 py-1.5 rounded-md text-xs font-medium transition ${
+              className: `px-4 py-1.5 text-[13px] font-medium rounded-lg transition ${
                 timeframe === range
-                  ? 'bg-white text-indigo-600 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
+                  ? 'bg-white text-indigo-600 shadow'
+                  : 'text-gray-500'
               }`
             },
             range.charAt(0).toUpperCase() + range.slice(1)
           )
         )
       )
+    ),
+
+    // "Daily Activity" header
+    React.createElement(
+      'div',
+      { className: 'mb-3' },
+      React.createElement('div', { className: 'text-[22px] font-bold text-gray-900' }, 'Daily Activity')
     ),
 
     React.createElement(DailyActivityChart, {
