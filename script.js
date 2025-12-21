@@ -4048,6 +4048,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('day');
+  const [activeModal, setActiveModal] = useState(null);
   const [sleepSessions, setSleepSessions] = useState([]);
   const [sleepSettings, setSleepSettings] = useState(null);
   const sleepHistoryScrollRef = React.useRef(null);
@@ -4469,6 +4470,137 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
   return React.createElement(
     'div',
     { className: 'space-y-4' },
+
+    // =====================================================
+    // PHASE 1: HIGHLIGHTS (ADD ONLY — DO NOT TOUCH BELOW)
+    // =====================================================
+    React.createElement(
+      'div',
+      { className: 'space-y-3' },
+
+      // Daily Activity highlight
+      React.createElement(
+        'div',
+        {
+          className:
+            'bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between cursor-pointer',
+          onClick: () => setActiveModal('activity')
+        },
+        React.createElement(
+          'div',
+          null,
+          React.createElement(
+            'div',
+            { className: 'text-sm font-semibold text-gray-900' },
+            'Daily Activity'
+          ),
+          React.createElement(
+            'div',
+            { className: 'text-xs text-gray-500 mt-0.5' },
+            'Timing and rhythm across the day'
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'text-indigo-600 text-sm font-medium' },
+          'View'
+        )
+      ),
+
+      // Feeding highlight
+      React.createElement(
+        'div',
+        {
+          className:
+            'bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between cursor-pointer',
+          onClick: () => setActiveModal('feeding')
+        },
+        React.createElement(
+          'div',
+          null,
+          React.createElement(
+            'div',
+            { className: 'text-sm font-semibold text-gray-900' },
+            'Feeding'
+          ),
+          React.createElement(
+            'div',
+            { className: 'text-xs text-gray-500 mt-0.5' },
+            'Average intake and frequency'
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'text-indigo-600 text-sm font-medium' },
+          'View'
+        )
+      ),
+
+      // Sleep highlight
+      React.createElement(
+        'div',
+        {
+          className:
+            'bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between cursor-pointer',
+          onClick: () => setActiveModal('sleep')
+        },
+        React.createElement(
+          'div',
+          null,
+          React.createElement(
+            'div',
+            { className: 'text-sm font-semibold text-gray-900' },
+            'Sleep'
+          ),
+          React.createElement(
+            'div',
+            { className: 'text-xs text-gray-500 mt-0.5' },
+            'Daily totals and patterns'
+          )
+        ),
+        React.createElement(
+          'div',
+          { className: 'text-indigo-600 text-sm font-medium' },
+          'View'
+        )
+      )
+    ),
+
+    // ---------------------------
+    // PLACEHOLDER MODALS (EMPTY)
+    // ---------------------------
+    activeModal === 'activity' &&
+      React.createElement(
+        FullscreenModal,
+        { title: 'Daily Activity', onClose: () => setActiveModal(null) },
+        React.createElement(
+          'div',
+          { className: 'text-gray-500 text-sm' },
+          'Daily Activity details coming next.'
+        )
+      ),
+
+    activeModal === 'feeding' &&
+      React.createElement(
+        FullscreenModal,
+        { title: 'Feeding', onClose: () => setActiveModal(null) },
+        React.createElement(
+          'div',
+          { className: 'text-gray-500 text-sm' },
+          'Feeding details coming next.'
+        )
+      ),
+
+    activeModal === 'sleep' &&
+      React.createElement(
+        FullscreenModal,
+        { title: 'Sleep', onClose: () => setActiveModal(null) },
+        React.createElement(
+          'div',
+          { className: 'text-gray-500 text-sm' },
+          'Sleep details coming next.'
+        )
+      ),
 
     // View mode toggle (page-level, ABOVE section)
     React.createElement(
