@@ -1,4 +1,49 @@
 // ========================================
+// ANALYTICS: SHARED TIMEFRAME TOGGLE (D/W/M)
+// - Single source of truth for styling across Analytics page + modals
+// - Matches Apple-ish segmented control feel
+// - Less “pill-like” inner button radius
+// ========================================
+const TimeframeToggle = ({ value, onChange, className = '' }) => {
+  const items = [
+    { key: 'day', label: 'D' },
+    { key: 'week', label: 'W' },
+    { key: 'month', label: 'M' }
+  ];
+
+  return React.createElement(
+    'div',
+    { className: `flex justify-center ${className}`.trim() },
+    React.createElement(
+      'div',
+      {
+        // Outer segmented track
+        className:
+          'inline-flex bg-gray-100 rounded-2xl p-1 shadow-sm'
+      },
+      items.map((it) =>
+        React.createElement(
+          'button',
+          {
+            key: it.key,
+            type: 'button',
+            onClick: () => { try { onChange(it.key); } catch {} },
+            'aria-pressed': value === it.key,
+            // Inner segments: slightly rounded (not pill)
+            className: `px-4 py-1.5 text-[13px] font-medium rounded-md transition ${
+              value === it.key
+                ? 'bg-white text-indigo-600 shadow'
+                : 'text-gray-500 hover:bg-black/5 active:bg-black/10'
+            }`
+          },
+          it.label
+        )
+      )
+    )
+  );
+};
+
+// ========================================
 // RECOVERY UI (used when signed-in bootstrap fails)
 // ========================================
 const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
@@ -5052,17 +5097,10 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(SegmentedControl, {
+          React.createElement(TimeframeToggle, {
             value: timeframe,
             onChange: (v) => setTimeframe(v),
-            // Day / Week / Month
-            options: [
-              { key: 'day', label: 'Day' },
-              { key: 'week', label: 'Week' },
-              { key: 'month', label: 'Month' }
-            ],
-            bg: (function () { try { return getComputedStyle(document.body).backgroundColor || '#F2F2F7'; } catch { return '#F2F2F7'; } })(),
-            ariaLabel: 'Daily Activity range'
+            className: 'mt-1 mb-3'
           }),
           React.createElement(
             'div',
@@ -5085,16 +5123,10 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(SegmentedControl, {
+          React.createElement(TimeframeToggle, {
             value: timeframe,
             onChange: (v) => setTimeframe(v),
-            options: [
-              { key: 'day', label: 'D' },
-              { key: 'week', label: 'W' },
-              { key: 'month', label: 'M' }
-            ],
-            bg: (function () { try { return getComputedStyle(document.body).backgroundColor || '#F2F2F7'; } catch { return '#F2F2F7'; } })(),
-            ariaLabel: 'Feeding range'
+            className: 'mt-1 mb-3'
           }),
           React.createElement(
             'div',
@@ -5232,16 +5264,10 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(SegmentedControl, {
+          React.createElement(TimeframeToggle, {
             value: timeframe,
             onChange: (v) => setTimeframe(v),
-            options: [
-              { key: 'day', label: 'D' },
-              { key: 'week', label: 'W' },
-              { key: 'month', label: 'M' }
-            ],
-            bg: (function () { try { return getComputedStyle(document.body).backgroundColor || '#F2F2F7'; } catch { return '#F2F2F7'; } })(),
-            ariaLabel: 'Sleep range'
+            className: 'mt-1 mb-3'
           }),
           React.createElement(
             'div',
@@ -5377,29 +5403,16 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       'Daily Activity'
     ),
 
-    // View toggle (centered, full labels; same segmented style as Tracker tab)
-    // NOTE: Keep this *below* the subpage header (not inside the nav row) to avoid cramped header layout.
-    React.createElement('div', { className: "px-4 pt-3 pb-2" },
-      React.createElement('div', { className: "flex justify-center" },
-        React.createElement('div', { className: "w-full max-w-[360px]" },
-          React.createElement(SegmentedToggle, {
-            value: timeframe,
-            compact: false, // distribute evenly within the pill
-            options: [
-              { label: 'Day', value: 'day' },
-              { label: 'Week', value: 'week' },
-              { label: 'Month', value: 'month' }
-            ],
-            onChange: (v) => {
-              setTimeframe(v);
-              if (window.trackTabSelected) {
-                window.trackTabSelected(`analytics_${v}`);
-              }
-            }
-          })
-        )
-      )
-    ),
+    React.createElement(TimeframeToggle, {
+      value: timeframe,
+      onChange: (v) => {
+        setTimeframe(v);
+        if (window.trackTabSelected) {
+          try { window.trackTabSelected(`analytics_${v}`); } catch {}
+        }
+      },
+      className: 'mt-4 mb-2'
+    }),
 
     // If you have any subpages that only support Day/Week (e.g. actogram),
     // use THIS (centered + evenly distributed, with full labels).
