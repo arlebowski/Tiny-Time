@@ -1,4 +1,42 @@
 // ========================================
+// RECOVERY UI (used when signed-in bootstrap fails)
+// ========================================
+const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
+  return React.createElement(
+    'div',
+    { className: 'min-h-screen w-full flex items-center justify-center bg-[#F2F2F7] px-4 py-10' },
+    React.createElement(
+      'div',
+      { className: 'w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-5' },
+      React.createElement('div', { className: 'text-[18px] font-semibold text-gray-900 mb-2' }, title || 'Couldn’t load Tiny Tracker'),
+      React.createElement('div', { className: 'text-[14px] text-gray-700 leading-relaxed mb-4' },
+        message || 'We’re having trouble loading your data. This can happen if your connection is spotty or the app is temporarily out of sync.'
+      ),
+      React.createElement(
+        'div',
+        { className: 'flex gap-3' },
+        React.createElement(
+          'button',
+          {
+            className: 'flex-1 h-11 rounded-xl bg-[#4F46E5] text-white font-medium',
+            onClick: onRetry
+          },
+          'Retry'
+        ),
+        React.createElement(
+          'button',
+          {
+            className: 'flex-1 h-11 rounded-xl bg-gray-100 text-gray-900 font-medium',
+            onClick: onSignOut
+          },
+          'Sign out'
+        )
+      )
+    )
+  );
+};
+
+// ========================================
 // TINY TRACKER - PART 1
 // Config, Auth, Family-Based Firestore Layer + AI Functions
 // ========================================
@@ -737,6 +775,7 @@ const App = () => {
   const [kidId, setKidId] = useState(null);
 
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [loadIssue, setLoadIssue] = useState(null);
 
   // ----------------------------------------------------
   // KID SWITCH (multi-kid)
@@ -761,11 +800,13 @@ const App = () => {
         setKidId(null);
         setFamilyId(null);
         setNeedsSetup(false);
+        setLoadIssue(null);
         setLoading(false);
         return;
       }
 
       setUser(u);
+      setLoadIssue(null);
 
       const urlParams = new URLSearchParams(window.location.search);
       const inviteCode = urlParams.get("invite");
@@ -782,32 +823,40 @@ const App = () => {
         const famSnap = await db
           .collection("families")
           .where("members", "array-contains", u.uid)
-          .limit(1)
           .get();
 
         let resolvedFamilyId = null;
         let resolvedKidId = null;
+        let foundAnyKidsAcrossFamilies = false;
 
         if (!famSnap.empty) {
-          resolvedFamilyId = famSnap.docs[0].id;
-          const familyData = famSnap.docs[0].data();
+          // Scan ALL families and select the first one that actually has kids.
+          // This avoids Firestore's arbitrary ordering returning an "empty" family first,
+          // which used to incorrectly force onboarding.
+          for (const famDoc of famSnap.docs) {
+            const fid = famDoc.id;
+            const familyData = famDoc.data() || {};
 
-          //
-          // 3️⃣ Look up kids inside this family
-          //
-          const kidSnap = await db
-            .collection("families")
-            .doc(resolvedFamilyId)
-            .collection("kids")
-            .get();
+            const kidSnap = await db
+              .collection("families")
+              .doc(fid)
+              .collection("kids")
+              .get();
 
-          if (!kidSnap.empty) {
-            // prefer primaryKidId if present
+            if (kidSnap.empty) continue;
+
+            foundAnyKidsAcrossFamilies = true;
+
+            // Prefer a valid primaryKidId, otherwise pick first kid
             if (familyData.primaryKidId) {
-              resolvedKidId = familyData.primaryKidId;
+              const primaryKid = kidSnap.docs.find((k) => k.id === familyData.primaryKidId);
+              resolvedKidId = primaryKid ? familyData.primaryKidId : kidSnap.docs[0].id;
             } else {
               resolvedKidId = kidSnap.docs[0].id;
             }
+
+            resolvedFamilyId = fid;
+            break;
           }
         }
 
@@ -827,12 +876,30 @@ const App = () => {
         }
 
         //
-        // 5️⃣ If no family OR no kid in the family → onboarding needed
+        // 5️⃣ Onboarding rules:
+        // - Show onboarding ONLY when user has ZERO kids across ALL their families.
+        // - If we believe kids exist but still can't resolve a kid, show Recovery (not onboarding).
         //
         if (!resolvedFamilyId || !resolvedKidId) {
-          setNeedsSetup(true);
+          // If there are truly no kids anywhere, onboarding is appropriate.
+          if (!foundAnyKidsAcrossFamilies) {
+            setNeedsSetup(true);
+            setFamilyId(null);
+            setKidId(null);
+            setLoading(false);
+            return;
+          }
+
+          // Kids exist somewhere but we couldn't resolve. This is a load/race/offline issue.
+          // Do NOT show onboarding (it looks like "start over"). Show Recovery instead.
+          setNeedsSetup(false);
           setFamilyId(null);
           setKidId(null);
+          setLoadIssue({
+            title: "Couldn’t load your babies",
+            message:
+              "You’re signed in, but we couldn’t load your existing babies. Tap Retry. If this keeps happening, Sign out and sign back in.",
+          });
           setLoading(false);
           return;
         }
@@ -847,6 +914,15 @@ const App = () => {
 
       } catch (err) {
         console.error("Setup error:", err);
+        // Signed-in bootstrap failed. Never throw user into onboarding here.
+        setNeedsSetup(false);
+        setFamilyId(null);
+        setKidId(null);
+        setLoadIssue({
+          title: "Couldn’t load Tiny Tracker",
+          message:
+            "We hit an error while loading your account data. Tap Retry. If it keeps happening, Sign out and sign back in.",
+        });
       }
 
       setLoading(false);
@@ -882,6 +958,22 @@ const App = () => {
   // ----------------------------------------------------
   if (!user) {
     return React.createElement(LoginScreen);
+  }
+
+  // If signed in but bootstrap failed, show recovery instead of onboarding.
+  if (loadIssue && user) {
+    return React.createElement(TinyRecoveryScreen, {
+      title: loadIssue.title,
+      message: loadIssue.message,
+      onRetry: () => {
+        try { setLoadIssue(null); } catch {}
+        // Simple + reliable on mobile Safari
+        window.location.reload();
+      },
+      onSignOut: async () => {
+        try { await auth.signOut(); } catch {}
+      },
+    });
   }
 
   // ----------------------------------------------------
