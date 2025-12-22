@@ -13,13 +13,14 @@ const TimeframeToggle = ({ value, onChange, className = '' }) => {
 
   return React.createElement(
     'div',
-    { className: `flex justify-center ${className}`.trim() },
+    // Full-width so the control spans the card width (respecting parent padding/margins)
+    { className: `w-full ${className}`.trim() },
     React.createElement(
       'div',
       {
-        // Outer segmented track
-        className:
-          'inline-flex bg-gray-100 rounded-2xl p-1 shadow-sm'
+        // Track: restore prior style so it shows on grey backgrounds
+        // Radius must match selected segment radius
+        className: 'w-full grid grid-cols-3 bg-white/70 rounded-xl p-1 shadow-sm'
       },
       items.map((it) =>
         React.createElement(
@@ -29,8 +30,8 @@ const TimeframeToggle = ({ value, onChange, className = '' }) => {
             type: 'button',
             onClick: () => { try { onChange(it.key); } catch {} },
             'aria-pressed': value === it.key,
-            // Inner segments: slightly rounded (not pill)
-            className: `px-4 py-1.5 text-[13px] font-medium rounded-md transition ${
+            // Segments: fill equally, center label, radius matches track
+            className: `w-full px-4 py-1.5 text-[13px] font-medium rounded-xl transition flex items-center justify-center ${
               value === it.key
                 ? 'bg-white text-indigo-600 shadow'
                 : 'text-gray-500 hover:bg-black/5 active:bg-black/10'
