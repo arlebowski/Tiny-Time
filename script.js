@@ -4174,13 +4174,13 @@ const FullscreenModal = ({ title, onClose, children }) => {
     {
       // Overlay: fixed + NOT scrollable (important for iOS)
       className: 'fixed inset-0 z-50',
-      style: { backgroundColor: bg }
+      style: { backgroundColor: bg, overflow: 'hidden' }
     },
     // Sliding SHEET: full viewport height; this is what we translate during swipe
     React.createElement(
       'div',
       {
-        className: 'w-full min-h-0',
+        className: 'w-full min-h-0 relative',
         style: {
           height: '100dvh',
           minHeight: '100vh',
@@ -4190,11 +4190,16 @@ const FullscreenModal = ({ title, onClose, children }) => {
           display: 'flex',
           flexDirection: 'column',
           backgroundColor: bg
-        },
+        }
+      },
+      // Left-edge swipe zone (captures iOS back swipe without hijacking scrolling)
+      React.createElement('div', {
+        className: 'absolute left-0 top-0 bottom-0 z-50',
+        style: { width: 24, background: 'transparent', touchAction: 'none' },
         onTouchStart,
         onTouchMove,
         onTouchEnd
-      },
+      }),
       // Header: fixed height; whole row is tappable back
       React.createElement(
         'div',
@@ -4230,7 +4235,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
           style: {
             WebkitOverflowScrolling: 'touch',
             paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
-            touchAction: 'pan-y'
+            overscrollBehavior: 'contain'
           }
         },
         React.createElement(
