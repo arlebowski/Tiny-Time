@@ -3888,7 +3888,8 @@ const DailyActivityChart = ({
                           background: TT.nowGreen,
                           transform: 'translate(-50%, -50%)',
                           borderRadius: 999,
-                          zIndex: 60
+                          // Keep above chart content but BELOW fullscreen overlays / persistent nav
+                          zIndex: 18
                         }
                       }),
 
@@ -3944,7 +3945,8 @@ const DailyActivityChart = ({
                             height: 2,
                             background: TT.nowGreen,
                             transform: 'translateY(-50%)',
-                            zIndex: 25
+                            // Below the dot, above gridlines
+                            zIndex: 16
                           }
                         }),
 
@@ -4148,7 +4150,10 @@ const FullscreenModal = ({ title, onClose, children }) => {
   const [dragging, setDragging] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
   const bodyRef = React.useRef(null);
-  const scrollYRef = React.useRef(0);
+  const restoreRef = React.useRef(null);
+
+  // Keep bottom tab bar visible (your app uses ~80px bottom padding)
+  const TAB_BAR_H = 80;
 
   // Match app background by reading what MainApp already applies to <body>
   const bg = React.useMemo(() => {
@@ -4160,48 +4165,45 @@ const FullscreenModal = ({ title, onClose, children }) => {
     }
   }, []);
 
-  // iOS: lock background scroll while modal is mounted
+  // Lock underlying document scrolling while modal is open (prevents “page behind modal” scroll)
   React.useEffect(() => {
     try {
       const docEl = document.documentElement;
       const body = document.body;
-      scrollYRef.current = window.scrollY || docEl.scrollTop || 0;
+      const scrollY = window.scrollY || 0;
 
-      const prev = {
+      restoreRef.current = {
+        scrollY,
         docOverflow: docEl.style.overflow,
         bodyOverflow: body.style.overflow,
         bodyPosition: body.style.position,
         bodyTop: body.style.top,
-        bodyLeft: body.style.left,
-        bodyRight: body.style.right,
         bodyWidth: body.style.width
       };
 
-      // Freeze body at current scroll position
       docEl.style.overflow = 'hidden';
       body.style.overflow = 'hidden';
+      // iOS: position fixed prevents rubber-band scroll of the underlying page
       body.style.position = 'fixed';
-      body.style.top = `-${scrollYRef.current}px`;
-      body.style.left = '0';
-      body.style.right = '0';
+      body.style.top = `-${scrollY}px`;
       body.style.width = '100%';
+    } catch {}
 
-      return () => {
-        try {
-          docEl.style.overflow = prev.docOverflow;
-          body.style.overflow = prev.bodyOverflow;
-          body.style.position = prev.bodyPosition;
-          body.style.top = prev.bodyTop;
-          body.style.left = prev.bodyLeft;
-          body.style.right = prev.bodyRight;
-          body.style.width = prev.bodyWidth;
-          // Restore scroll position
-          window.scrollTo(0, scrollYRef.current || 0);
-        } catch {}
-      };
-    } catch {
-      return () => {};
-    }
+    return () => {
+      try {
+        const docEl = document.documentElement;
+        const body = document.body;
+        const prev = restoreRef.current;
+        if (prev) {
+          docEl.style.overflow = prev.docOverflow || '';
+          body.style.overflow = prev.bodyOverflow || '';
+          body.style.position = prev.bodyPosition || '';
+          body.style.top = prev.bodyTop || '';
+          body.style.width = prev.bodyWidth || '';
+          window.scrollTo(0, prev.scrollY || 0);
+        }
+      } catch {}
+    };
   }, []);
 
   const closeAnimated = React.useCallback(() => {
@@ -4310,19 +4312,23 @@ const FullscreenModal = ({ title, onClose, children }) => {
   return React.createElement(
     'div',
     {
-      // Overlay: fixed + NOT scrollable (important for iOS)
-      // IMPORTANT: Must sit above sticky headers, charts, and the bottom tab bar.
-      // Use a very high z-index + isolation to win all stacking contexts.
-      className: 'fixed inset-0 z-[9999]',
-      style: { backgroundColor: bg, overflow: 'hidden', touchAction: 'none', isolation: 'isolate' }
+      // Overlay: fixed, sized to leave the bottom tab bar visible
+      className: 'fixed left-0 right-0 top-0 z-50',
+      style: {
+        backgroundColor: bg,
+        bottom: `${TAB_BAR_H}px`,
+        display: 'flex',
+        flexDirection: 'column'
+      }
     },
     // Sliding SHEET: full viewport height; this is what we translate during swipe
     React.createElement(
       'div',
       {
-        className: 'w-full min-h-0 relative',
+        className: 'w-full min-h-0',
         style: {
-          height: '100svh',
+          // Own the overlay’s height (which already excludes the tab bar)
+          height: '100%',
           transform: `translateX(${dragX}px)`,
           transition: dragging ? 'none' : 'transform 220ms ease',
           willChange: 'transform',
@@ -4344,14 +4350,16 @@ const FullscreenModal = ({ title, onClose, children }) => {
         'div',
         {
           className: 'flex-none border-b border-gray-100',
-          style: { paddingTop: 'env(safe-area-inset-top)' }
+          // IMPORTANT: explicit background so underlying page never “peeks through”
+          style: { paddingTop: 'env(safe-area-inset-top)', backgroundColor: bg }
         },
         React.createElement(
           'button',
           {
             type: 'button',
             onClick: () => { try { if (typeof onClose === 'function') onClose(); } catch {} },
-            className: 'w-full h-12 px-4 flex items-center gap-2 text-left'
+            className: 'w-full h-12 px-4 flex items-center gap-2 text-left',
+            style: { backgroundColor: bg }
           },
           React.createElement(
             'span',
@@ -4374,7 +4382,6 @@ const FullscreenModal = ({ title, onClose, children }) => {
           style: {
             WebkitOverflowScrolling: 'touch',
             paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
-            overscrollBehavior: 'contain',
             touchAction: 'pan-y'
           }
         },
