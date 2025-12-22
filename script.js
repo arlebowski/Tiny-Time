@@ -83,28 +83,39 @@ const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
 };
 
 // ========================================
-// UI HELPERS: Segmented toggle (Tracker-style)
+// UI HELPERS: Segmented toggle (Apple-ish)
 // ========================================
 // Matches the Tracker tab segmented control style, but can be compact (fit-content) for 2 options.
 const SegmentedToggle = ({ value, options, onChange, compact = true }) => {
-  // Keep this identical-ish to Tracker tab segmented control:
-  // - soft gray rail
-  // - rounded pill
-  // - subtle border so it reads correctly on tinted backgrounds
+  // Apple Health vibe:
+  // - slimmer rail
+  // - translucent background that picks up theme tint
+  // - subtle blur
+  // - light border
+  //
+  // NOTE: Tailwind opacity syntax (bg-white/xx) is supported in most setups.
+  // We also add an inline style fallback below.
   const wrapCls = compact
-    ? "inline-flex bg-gray-100 rounded-xl p-1 border border-gray-200"
-    : "inline-flex w-full bg-gray-100 rounded-xl p-1 border border-gray-200";
+    ? "inline-flex rounded-xl px-1 py-[3px] border border-white/40 backdrop-blur-md"
+    : "inline-flex w-full rounded-xl px-1 py-[3px] border border-white/40 backdrop-blur-md";
 
-  const btnBase = "rounded-lg transition text-sm font-semibold";
-  const btnOn   = "bg-white shadow text-gray-900";
-  const btnOff  = "text-gray-600";
+  // Fallback for environments without bg-white/xx or backdrop utilities
+  const wrapStyle = {
+    background: "rgba(255,255,255,0.42)",
+    WebkitBackdropFilter: "blur(10px)",
+    backdropFilter: "blur(10px)"
+  };
 
-  // Compact: buttons size to content (px padding). Non-compact: flex-1 fills.
-  const btnSize = compact ? "px-4 py-2" : "flex-1 py-2";
+  const btnBase = "rounded-lg transition text-[13px] font-semibold";
+  const btnOn   = "shadow-sm text-gray-900";
+  const btnOff  = "text-gray-700";
+
+  // Slimmer buttons to match Apple
+  const btnSize = compact ? "px-3 py-[6px]" : "flex-1 py-[6px]";
 
   return React.createElement(
     'div',
-    { className: wrapCls },
+    { className: wrapCls, style: wrapStyle },
     (options || []).map((opt) =>
       React.createElement(
         'button',
@@ -116,7 +127,15 @@ const SegmentedToggle = ({ value, options, onChange, compact = true }) => {
             btnBase + " " + btnSize + " " + (value === opt.value ? btnOn : btnOff),
           'aria-pressed': value === opt.value
         },
-        opt.label
+        // Active segment background slightly translucent so tint still shows through
+        React.createElement(
+          'span',
+          {
+            className: "block w-full rounded-lg",
+            style: value === opt.value ? { background: "rgba(255,255,255,0.78)" } : undefined
+          },
+          opt.label
+        )
       )
     )
   );
@@ -5404,16 +5423,25 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       'Daily Activity'
     ),
 
-    React.createElement(TimeframeToggle, {
-      value: timeframe,
-      onChange: (v) => {
-        setTimeframe(v);
-        if (window.trackTabSelected) {
-          try { window.trackTabSelected(`analytics_${v}`); } catch {}
+    // View toggle (Apple-like): slim, translucent, spaced from header,
+    // and aligned to the same left/right margins as the cards below.
+    React.createElement('div', { className: "mx-4 mt-4 mb-3" },
+      React.createElement(SegmentedToggle, {
+        value: timeframe,
+        compact: false, // distribute evenly across the pill width
+        options: [
+          { label: 'Day', value: 'day' },
+          { label: 'Week', value: 'week' },
+          { label: 'Month', value: 'month' }
+        ],
+        onChange: (v) => {
+          setTimeframe(v);
+          if (window.trackTabSelected) {
+            try { window.trackTabSelected(`analytics_${v}`); } catch {}
+          }
         }
-      },
-      className: 'mt-4 mb-2'
-    }),
+      })
+    ),
 
     // If you have any subpages that only support Day/Week (e.g. actogram),
     // use THIS (centered + evenly distributed, with full labels).
