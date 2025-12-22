@@ -41,9 +41,13 @@ const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
 // ========================================
 // Matches the Tracker tab segmented control style, but can be compact (fit-content) for 2 options.
 const SegmentedToggle = ({ value, options, onChange, compact = true }) => {
+  // Keep this identical-ish to Tracker tab segmented control:
+  // - soft gray rail
+  // - rounded pill
+  // - subtle border so it reads correctly on tinted backgrounds
   const wrapCls = compact
-    ? "inline-flex bg-gray-100 rounded-xl p-1"
-    : "inline-flex w-full bg-gray-100 rounded-xl p-1";
+    ? "inline-flex bg-gray-100 rounded-xl p-1 border border-gray-200"
+    : "inline-flex w-full bg-gray-100 rounded-xl p-1 border border-gray-200";
 
   const btnBase = "rounded-lg transition text-sm font-semibold";
   const btnOn   = "bg-white shadow text-gray-900";
@@ -5373,43 +5377,60 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       'Daily Activity'
     ),
 
-    // View toggle (Tracker-style, compact; sits under the header like Apple Health)
+    // View toggle (centered, full labels; same segmented style as Tracker tab)
+    // NOTE: Keep this *below* the subpage header (not inside the nav row) to avoid cramped header layout.
     React.createElement('div', { className: "px-4 pt-3 pb-2" },
-      React.createElement('div', { className: "flex justify-start" },
-        React.createElement(SegmentedToggle, {
-          value: timeframe,
-          compact: true,
-          options: [
-            { label: 'D', value: 'day' },
-            { label: 'W', value: 'week' },
-            { label: 'M', value: 'month' }
-          ],
-          onChange: (v) => {
-            setTimeframe(v);
-            if (window.trackTabSelected) {
-              window.trackTabSelected(`analytics_${v}`);
+      React.createElement('div', { className: "flex justify-center" },
+        React.createElement('div', { className: "w-full max-w-[360px]" },
+          React.createElement(SegmentedToggle, {
+            value: timeframe,
+            compact: false, // distribute evenly within the pill
+            options: [
+              { label: 'Day', value: 'day' },
+              { label: 'Week', value: 'week' },
+              { label: 'Month', value: 'month' }
+            ],
+            onChange: (v) => {
+              setTimeframe(v);
+              if (window.trackTabSelected) {
+                window.trackTabSelected(`analytics_${v}`);
+              }
             }
-          }
-        })
+          })
+        )
       )
     ),
 
     // If you have any subpages that only support Day/Week (e.g. actogram),
-    // use this version so the control remains compact and not "bolted on":
+    // use THIS (centered + evenly distributed, with full labels).
     //
     // React.createElement('div', { className: "px-4 pt-3 pb-2" },
-    //   React.createElement('div', { className: "flex justify-start" },
-    //     React.createElement(SegmentedToggle, {
-    //       value: timeframe,
-    //       compact: true,
-    //       options: [
-    //         { label: 'D', value: 'day' },
-    //         { label: 'W', value: 'week' }
-    //       ],
-    //       onChange: (v) => setTimeframe(v)
-    //     })
+    //   React.createElement('div', { className: "flex justify-center" },
+    //     React.createElement('div', { className: "w-full max-w-[260px]" },
+    //       React.createElement(SegmentedToggle, {
+    //         value: timeframe,
+    //         compact: false,
+    //         options: [
+    //           { label: 'Day', value: 'day' },
+    //           { label: 'Week', value: 'week' }
+    //         ],
+    //         onChange: (v) => setTimeframe(v)
+    //       })
+    //     )
     //   )
     // ),
+
+/* CODEX INSTRUCTIONS:
+1) In script.js, find the SegmentedToggle helper and apply the border class additions.
+2) In the Analytics subpage(s), find the view toggle block currently rendering D/W(/M) and:
+   - wrap it in a centered container with max-w (360px for 3 options, ~260px for 2)
+   - switch labels from D/W/M to Day/Week/Month
+   - set compact:false so the segments distribute evenly
+3) Verify on iOS Safari:
+   - segmented control is centered
+   - labels read Day/Week(/Month)
+   - pill width feels intentional (not full-bleed)
+*/
 
     React.createElement(DailyActivityChart, {
       viewMode: timeframe, // day | week | month drives the actogram
