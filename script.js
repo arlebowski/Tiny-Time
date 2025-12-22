@@ -37,6 +37,42 @@ const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
 };
 
 // ========================================
+// UI HELPERS: Segmented toggle (Tracker-style)
+// ========================================
+// Matches the Tracker tab segmented control style, but can be compact (fit-content) for 2 options.
+const SegmentedToggle = ({ value, options, onChange, compact = true }) => {
+  const wrapCls = compact
+    ? "inline-flex bg-gray-100 rounded-xl p-1"
+    : "inline-flex w-full bg-gray-100 rounded-xl p-1";
+
+  const btnBase = "rounded-lg transition text-sm font-semibold";
+  const btnOn   = "bg-white shadow text-gray-900";
+  const btnOff  = "text-gray-600";
+
+  // Compact: buttons size to content (px padding). Non-compact: flex-1 fills.
+  const btnSize = compact ? "px-4 py-2" : "flex-1 py-2";
+
+  return React.createElement(
+    'div',
+    { className: wrapCls },
+    (options || []).map((opt) =>
+      React.createElement(
+        'button',
+        {
+          key: opt.value,
+          type: 'button',
+          onClick: () => onChange && onChange(opt.value),
+          className:
+            btnBase + " " + btnSize + " " + (value === opt.value ? btnOn : btnOff),
+          'aria-pressed': value === opt.value
+        },
+        opt.label
+      )
+    )
+  );
+};
+
+// ========================================
 // TINY TRACKER - PART 1
 // Config, Auth, Family-Based Firestore Layer + AI Functions
 // ========================================
@@ -5329,45 +5365,50 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         )
       ),
 
-    // View mode toggle (page-level, ABOVE section)
-    React.createElement(
-      'div',
-      { className: 'mt-4 mb-2 flex justify-center' },
-      React.createElement(
-        'div',
-        { className: 'inline-flex bg-white/70 rounded-xl p-1 shadow-sm' },
-        ['day', 'week', 'month'].map(range =>
-          React.createElement(
-            'button',
-            {
-              key: range,
-              type: 'button',
-              onClick: () => {
-                setTimeframe(range);
-                if (window.trackTabSelected) {
-                  window.trackTabSelected(
-                    `analytics_${range}`
-                  );
-                }
-              },
-              className: `px-4 py-1.5 text-[13px] font-medium rounded-lg transition ${
-                timeframe === range
-                  ? 'bg-white text-indigo-600 shadow'
-                  : 'text-gray-500'
-              }`
-            },
-            range.charAt(0).toUpperCase() + range.slice(1)
-          )
-        )
-      )
-    ),
-
     // "Daily Activity" header (match Tracker tab header hierarchy)
     React.createElement(
       'h2',
-      { className: 'text-lg font-semibold text-gray-800 mb-3' },
+      { className: 'text-lg font-semibold text-gray-800 px-4 mt-4 mb-1' },
       'Daily Activity'
     ),
+
+    // View toggle (Tracker-style, compact; sits under the header like Apple Health)
+    React.createElement('div', { className: "px-4 pt-3 pb-2" },
+      React.createElement('div', { className: "flex justify-start" },
+        React.createElement(SegmentedToggle, {
+          value: timeframe,
+          compact: true,
+          options: [
+            { label: 'D', value: 'day' },
+            { label: 'W', value: 'week' },
+            { label: 'M', value: 'month' }
+          ],
+          onChange: (v) => {
+            setTimeframe(v);
+            if (window.trackTabSelected) {
+              window.trackTabSelected(`analytics_${v}`);
+            }
+          }
+        })
+      )
+    ),
+
+    // If you have any subpages that only support Day/Week (e.g. actogram),
+    // use this version so the control remains compact and not "bolted on":
+    //
+    // React.createElement('div', { className: "px-4 pt-3 pb-2" },
+    //   React.createElement('div', { className: "flex justify-start" },
+    //     React.createElement(SegmentedToggle, {
+    //       value: timeframe,
+    //       compact: true,
+    //       options: [
+    //         { label: 'D', value: 'day' },
+    //         { label: 'W', value: 'week' }
+    //       ],
+    //       onChange: (v) => setTimeframe(v)
+    //     })
+    //   )
+    // ),
 
     React.createElement(DailyActivityChart, {
       viewMode: timeframe, // day | week | month drives the actogram
