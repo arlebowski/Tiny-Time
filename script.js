@@ -4054,6 +4054,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
   const [dragX, setDragX] = React.useState(0);
   const [dragging, setDragging] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
+  const bodyRef = React.useRef(null);
 
   // Match app background by reading what MainApp already applies to <body>
   const bg = React.useMemo(() => {
@@ -4117,7 +4118,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
         return;
       }
 
-      // Prevent the browser from treating it as horizontal scroll
+      // Prevent horizontal scroll; keep vertical scrolling working in body
       try { e.preventDefault(); } catch {}
 
       const w = Math.max(320, (typeof window !== 'undefined' ? window.innerWidth : 375));
@@ -4171,38 +4172,35 @@ const FullscreenModal = ({ title, onClose, children }) => {
   return React.createElement(
     'div',
     {
-      // IMPORTANT: Make modal scrollable (fixes clipped content + weird partial scrolling)
-      className: 'fixed inset-0 z-50 overflow-y-auto',
-      style: {
-        backgroundColor: bg,
-        WebkitOverflowScrolling: 'touch',
-        // Ensure edge-swipe is allowed while still permitting vertical scroll
-        touchAction: 'pan-y'
-      },
-      onTouchStart,
-      onTouchMove,
-      onTouchEnd
+      // Overlay: fixed + NOT scrollable (important for iOS)
+      className: 'fixed inset-0 z-50',
+      style: { backgroundColor: bg }
     },
-    // Sliding sheet (animates during swipe)
+    // Sliding SHEET: full viewport height; this is what we translate during swipe
     React.createElement(
       'div',
       {
-        className: 'min-h-full',
+        className: 'w-full',
         style: {
+          height: '100dvh',
+          minHeight: '100vh',
           transform: `translateX(${dragX}px)`,
           transition: dragging ? 'none' : 'transform 220ms ease',
-          willChange: 'transform'
-        }
+          willChange: 'transform',
+          display: 'flex',
+          flexDirection: 'column',
+          backgroundColor: bg
+        },
+        onTouchStart,
+        onTouchMove,
+        onTouchEnd
       },
-      // Header (tappable whole row to go back)
+      // Header: fixed height; whole row is tappable back
       React.createElement(
         'div',
         {
-          className: 'sticky top-0 z-10 border-b border-gray-100',
-          style: {
-            backgroundColor: bg,
-            paddingTop: 'env(safe-area-inset-top)'
-          }
+          className: 'flex-none border-b border-gray-100',
+          style: { paddingTop: 'env(safe-area-inset-top)' }
         },
         React.createElement(
           'button',
@@ -4223,14 +4221,23 @@ const FullscreenModal = ({ title, onClose, children }) => {
           )
         )
       ),
-      // Body
+      // Body: ONLY scroll container (fixes clipped cards + weird scroll indicator)
       React.createElement(
         'div',
         {
-          className: 'px-4 py-4',
-          style: { paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }
+          ref: bodyRef,
+          className: 'flex-1 overflow-y-auto',
+          style: {
+            WebkitOverflowScrolling: 'touch',
+            paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
+            touchAction: 'pan-y'
+          }
         },
-        children
+        React.createElement(
+          'div',
+          { className: 'px-4 py-4' },
+          children
+        )
       )
     )
   );
