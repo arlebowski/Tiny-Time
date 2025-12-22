@@ -4209,7 +4209,7 @@ const SegmentedControl = ({
         {
           role: 'tablist',
           'aria-label': ariaLabel,
-          className: 'w-full rounded-[14px] p-1 shadow-sm',
+          className: 'w-full max-w-[460px] mx-auto rounded-[14px] p-1 shadow-sm flex items-center justify-between',
           style: {
             background: 'rgba(0,0,0,0.06)',
             backdropFilter: 'saturate(180%) blur(10px)',
@@ -4226,7 +4226,7 @@ const SegmentedControl = ({
               role: 'tab',
               'aria-selected': selected,
               onClick: () => { try { if (typeof onChange === 'function') onChange(opt.key); } catch {} },
-              className: 'px-3 py-2 text-[13px] font-semibold rounded-[12px] transition flex-1',
+              className: 'px-3 py-2 text-[13px] font-semibold rounded-[12px] transition flex-1 text-center',
               style: {
                 background: selected ? 'rgba(255,255,255,0.92)' : 'transparent',
                 color: selected ? '#4F46E5' : 'rgba(17,24,39,0.55)',
@@ -5051,10 +5051,11 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           React.createElement(SegmentedControl, {
             value: timeframe,
             onChange: (v) => setTimeframe(v),
-            // Actogram for now: D + W only (M later if you want)
+            // Day / Week / Month
             options: [
-              { key: 'day', label: 'D' },
-              { key: 'week', label: 'W' }
+              { key: 'day', label: 'Day' },
+              { key: 'week', label: 'Week' },
+              { key: 'month', label: 'Month' }
             ],
             bg: (function () { try { return getComputedStyle(document.body).backgroundColor || '#F2F2F7'; } catch { return '#F2F2F7'; } })(),
             ariaLabel: 'Daily Activity range'
