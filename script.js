@@ -4047,86 +4047,191 @@ const DailyActivityChart = ({
 // ========================================
 // FULLSCREEN MODAL (for Analytics highlights)
 // - iOS-friendly: fixed overlay + safe-area padding
-// - Swipe-right to go back (close)
+// - Swipe-right to go back (close) with animation (edge swipe)
 // ========================================
 const FullscreenModal = ({ title, onClose, children }) => {
   const startRef = React.useRef(null);
+  const [dragX, setDragX] = React.useState(0);
+  const [dragging, setDragging] = React.useState(false);
+  const [closing, setClosing] = React.useState(false);
+
+  // Match app background by reading what MainApp already applies to <body>
+  const bg = React.useMemo(() => {
+    try {
+      const c = getComputedStyle(document.body).backgroundColor;
+      return c || '#F2F2F7';
+    } catch {
+      return '#F2F2F7';
+    }
+  }, []);
+
+  const closeAnimated = React.useCallback(() => {
+    if (closing) return;
+    setClosing(true);
+    try {
+      const w = Math.max(320, (typeof window !== 'undefined' ? window.innerWidth : 375));
+      setDragging(false);
+      setDragX(w);
+      setTimeout(() => {
+        try { if (typeof onClose === 'function') onClose(); } catch {}
+      }, 220);
+    } catch {
+      try { if (typeof onClose === 'function') onClose(); } catch {}
+    }
+  }, [closing, onClose]);
 
   const onTouchStart = (e) => {
     try {
       const t = e.touches && e.touches[0];
       if (!t) return;
-      startRef.current = { x: t.clientX, y: t.clientY, ts: Date.now() };
+      // Only allow swipe-back if gesture begins near the left edge (iOS back gesture)
+      const EDGE_PX = 24;
+      const edgeOK = t.clientX <= EDGE_PX;
+      startRef.current = { x: t.clientX, y: t.clientY, ts: Date.now(), edgeOK };
+      if (edgeOK) {
+        setDragging(true);
+        setDragX(0);
+      }
     } catch {}
   };
 
-  const onTouchMove = () => {
-    // no-op: decide on end
+  const onTouchMove = (e) => {
+    try {
+      const s = startRef.current;
+      if (!s || !s.edgeOK) return;
+      const t = e.touches && e.touches[0];
+      if (!t) return;
+      const dx = t.clientX - s.x;
+      const dy = t.clientY - s.y;
+
+      // If user is clearly scrolling vertically, cancel the swipe gesture
+      if (Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx)) {
+        setDragging(false);
+        setDragX(0);
+        startRef.current = null;
+        return;
+      }
+
+      if (dx <= 0) {
+        setDragX(0);
+        return;
+      }
+
+      // Prevent the browser from treating it as horizontal scroll
+      try { e.preventDefault(); } catch {}
+
+      const w = Math.max(320, (typeof window !== 'undefined' ? window.innerWidth : 375));
+      const clamped = Math.max(0, Math.min(dx, w));
+      setDragX(clamped);
+    } catch {}
   };
 
   const onTouchEnd = (e) => {
     try {
       const s = startRef.current;
       startRef.current = null;
-      if (!s) return;
+      if (!s || !s.edgeOK) {
+        setDragging(false);
+        setDragX(0);
+        return;
+      }
 
       const t = (e.changedTouches && e.changedTouches[0]) || null;
-      if (!t) return;
+      if (!t) {
+        setDragging(false);
+        setDragX(0);
+        return;
+      }
 
       const dx = t.clientX - s.x;
       const dy = t.clientY - s.y;
       const dt = Date.now() - (s.ts || 0);
 
-      // Deliberate horizontal swipe-right
-      if (dx > 90 && Math.abs(dy) < 50 && dt < 600) {
-        if (typeof onClose === 'function') onClose();
+      // Complete if it was a deliberate right swipe
+      const w = Math.max(320, (typeof window !== 'undefined' ? window.innerWidth : 375));
+      const shouldClose =
+        dx > Math.min(120, w * 0.33) &&
+        Math.abs(dy) < 60 &&
+        dt < 900;
+
+      setDragging(false);
+
+      if (shouldClose) {
+        closeAnimated();
+      } else {
+        // snap back
+        setDragX(0);
       }
-    } catch {}
+    } catch {
+      setDragging(false);
+      setDragX(0);
+    }
   };
 
   return React.createElement(
     'div',
     {
-      className: 'fixed inset-0 z-50 bg-white',
-      style: { WebkitOverflowScrolling: 'touch' },
+      // IMPORTANT: Make modal scrollable (fixes clipped content + weird partial scrolling)
+      className: 'fixed inset-0 z-50 overflow-y-auto',
+      style: {
+        backgroundColor: bg,
+        WebkitOverflowScrolling: 'touch',
+        // Ensure edge-swipe is allowed while still permitting vertical scroll
+        touchAction: 'pan-y'
+      },
       onTouchStart,
       onTouchMove,
       onTouchEnd
     },
-    // Header
+    // Sliding sheet (animates during swipe)
     React.createElement(
       'div',
       {
-        className: 'sticky top-0 z-10 bg-white border-b border-gray-100',
-        style: { paddingTop: 'env(safe-area-inset-top)' }
+        className: 'min-h-full',
+        style: {
+          transform: `translateX(${dragX}px)`,
+          transition: dragging ? 'none' : 'transform 220ms ease',
+          willChange: 'transform'
+        }
       },
+      // Header (tappable whole row to go back)
       React.createElement(
         'div',
-        { className: 'h-12 px-4 flex items-center gap-2' },
+        {
+          className: 'sticky top-0 z-10 border-b border-gray-100',
+          style: {
+            backgroundColor: bg,
+            paddingTop: 'env(safe-area-inset-top)'
+          }
+        },
         React.createElement(
           'button',
           {
             type: 'button',
-            onClick: onClose,
-            className: 'p-2 -ml-2 rounded-lg hover:bg-gray-50 active:bg-gray-100'
+            onClick: () => { try { if (typeof onClose === 'function') onClose(); } catch {} },
+            className: 'w-full h-12 px-4 flex items-center gap-2 text-left'
           },
-          React.createElement(ChevronLeft, { className: 'w-5 h-5 text-indigo-600' })
-        ),
-        React.createElement(
-          'div',
-          { className: 'text-[16px] font-semibold text-gray-900' },
-          title || ''
+          React.createElement(
+            'span',
+            { className: 'p-2 -ml-2 rounded-lg hover:bg-black/5 active:bg-black/10' },
+            React.createElement(ChevronLeft, { className: 'w-5 h-5 text-indigo-600' })
+          ),
+          React.createElement(
+            'div',
+            { className: 'text-[16px] font-semibold text-gray-900' },
+            title || ''
+          )
         )
+      ),
+      // Body
+      React.createElement(
+        'div',
+        {
+          className: 'px-4 py-4',
+          style: { paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }
+        },
+        children
       )
-    ),
-    // Body
-    React.createElement(
-      'div',
-      {
-        className: 'px-4 py-4',
-        style: { paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }
-      },
-      children
     )
   );
 };
