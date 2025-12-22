@@ -4140,6 +4140,72 @@ const DailyActivityChart = ({
 };
 
 // ========================================
+// SEGMENTED CONTROL (Apple Health-ish)
+// - Sits just below the modal header
+// - Uses a neutral translucent track so it doesn't feel "bolted on" over themed backgrounds
+// ========================================
+const SegmentedControl = ({
+  value,
+  options = [], // [{ key:'day', label:'D' }, ...]
+  onChange,
+  bg = '#F2F2F7',
+  ariaLabel = 'Time range'
+}) => {
+  const safeOpts = Array.isArray(options) ? options.filter(Boolean) : [];
+  if (safeOpts.length <= 1) return null;
+
+  return React.createElement(
+    'div',
+    {
+      className: 'w-full',
+      style: {
+        position: 'sticky',
+        top: 0,
+        zIndex: 10,
+        backgroundColor: bg
+      }
+    },
+    React.createElement(
+      'div',
+      { className: 'px-4 pt-3 pb-2' },
+      React.createElement(
+        'div',
+        {
+          role: 'tablist',
+          'aria-label': ariaLabel,
+          className: 'w-full rounded-[14px] p-1 shadow-sm',
+          style: {
+            background: 'rgba(0,0,0,0.06)',
+            backdropFilter: 'saturate(180%) blur(10px)',
+            WebkitBackdropFilter: 'saturate(180%) blur(10px)'
+          }
+        },
+        safeOpts.map((opt) => {
+          const selected = value === opt.key;
+          return React.createElement(
+            'button',
+            {
+              key: opt.key,
+              type: 'button',
+              role: 'tab',
+              'aria-selected': selected,
+              onClick: () => { try { if (typeof onChange === 'function') onChange(opt.key); } catch {} },
+              className: 'px-3 py-2 text-[13px] font-semibold rounded-[12px] transition flex-1',
+              style: {
+                background: selected ? 'rgba(255,255,255,0.92)' : 'transparent',
+                color: selected ? '#4F46E5' : 'rgba(17,24,39,0.55)',
+                boxShadow: selected ? '0 1px 6px rgba(0,0,0,0.10)' : 'none'
+              }
+            },
+            opt.label
+          );
+        })
+      )
+    )
+  );
+};
+
+// ========================================
 // FULLSCREEN MODAL (for Analytics highlights)
 // - iOS-friendly: fixed overlay + safe-area padding
 // - Swipe-right to go back (close) with animation (edge swipe)
@@ -4385,11 +4451,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
             touchAction: 'pan-y'
           }
         },
-        React.createElement(
-          'div',
-          { className: 'px-4 py-4' },
-          children
-        )
+        children
       )
     )
   );
@@ -4947,191 +5009,178 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       React.createElement(
         FullscreenModal,
         { title: 'Daily Activity', onClose: () => setActiveModal(null) },
-        // Reuse the existing timeframe toggle styling (same as page)
         React.createElement(
-          'div',
-          { className: 'mt-1 mb-3 flex justify-center' },
+          React.Fragment,
+          null,
+          React.createElement(SegmentedControl, {
+            value: timeframe,
+            onChange: (v) => setTimeframe(v),
+            // Actogram for now: D + W only (M later if you want)
+            options: [
+              { key: 'day', label: 'D' },
+              { key: 'week', label: 'W' }
+            ],
+            bg: (function () { try { return getComputedStyle(document.body).backgroundColor || '#F2F2F7'; } catch { return '#F2F2F7'; } })(),
+            ariaLabel: 'Daily Activity range'
+          }),
           React.createElement(
             'div',
-            { className: 'inline-flex bg-white/70 rounded-xl p-1 shadow-sm' },
-            ['day', 'week', 'month'].map(range =>
-              React.createElement(
-                'button',
-                {
-                  key: `act-${range}`,
-                  type: 'button',
-                  onClick: () => setTimeframe(range),
-                  className: `px-4 py-1.5 text-[13px] font-medium rounded-lg transition ${
-                    timeframe === range
-                      ? 'bg-white text-indigo-600 shadow'
-                      : 'text-gray-500'
-                  }`
-                },
-                range.charAt(0).toUpperCase() + range.slice(1)
-              )
-            )
+            { className: 'px-4 pb-4' },
+            React.createElement(DailyActivityChart, {
+              viewMode: timeframe,
+              feedings: allFeedings,
+              sleepSessions: sleepSessions,
+              sleepSettings: sleepSettings,
+              suppressNow: false
+            })
           )
-        ),
-        React.createElement(DailyActivityChart, {
-          viewMode: timeframe,
-          feedings: allFeedings,
-          sleepSessions: sleepSessions,
-          sleepSettings: sleepSettings,
-          suppressNow: false
-        })
+        )
       ),
 
     activeModal === 'feeding' &&
       React.createElement(
         FullscreenModal,
         { title: 'Feeding', onClose: () => setActiveModal(null) },
-        // Reuse the existing timeframe toggle styling (same as page)
         React.createElement(
-          'div',
-          { className: 'mt-1 mb-3 flex justify-center' },
+          React.Fragment,
+          null,
+          React.createElement(SegmentedControl, {
+            value: timeframe,
+            onChange: (v) => setTimeframe(v),
+            options: [
+              { key: 'day', label: 'D' },
+              { key: 'week', label: 'W' },
+              { key: 'month', label: 'M' }
+            ],
+            bg: (function () { try { return getComputedStyle(document.body).backgroundColor || '#F2F2F7'; } catch { return '#F2F2F7'; } })(),
+            ariaLabel: 'Feeding range'
+          }),
           React.createElement(
             'div',
-            { className: 'inline-flex bg-white/70 rounded-xl p-1 shadow-sm' },
-            ['day', 'week', 'month'].map(range =>
-              React.createElement(
-                'button',
-                {
-                  key: `feed-${range}`,
-                  type: 'button',
-                  onClick: () => setTimeframe(range),
-                  className: `px-4 py-1.5 text-[13px] font-medium rounded-lg transition ${
-                    timeframe === range
-                      ? 'bg-white text-indigo-600 shadow'
-                      : 'text-gray-500'
-                  }`
-                },
-                range.charAt(0).toUpperCase() + range.slice(1)
-              )
-            )
-          )
-        ),
-
-        // Feeding stat cards (same as existing page section)
-        React.createElement(
-          'div',
-          { className: 'grid grid-cols-2 gap-4' },
-          [
-            { label: 'Oz / Feed', value: stats.avgVolumePerFeed.toFixed(1) },
-            { label: 'Oz / Day', value: stats.avgVolumePerDay.toFixed(1) }
-          ].map(stat =>
+            { className: 'px-4 pb-4' },
+            // Feeding stat cards (same as existing page section)
             React.createElement(
               'div',
-              {
-                key: `m-${stat.label}`,
-                className:
-                  'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center'
-              },
-              React.createElement(
-                'div',
-                { className: 'text-sm font-medium text-gray-600 mb-2' },
-                stat.label
-              ),
-              React.createElement(
-                'div',
-                { className: 'text-2xl font-bold text-indigo-600' },
-                stat.value,
-                React.createElement(
-                  'span',
-                  { className: 'text-sm font-normal text-gray-400 ml-1' },
-                  'oz'
-                )
-              ),
-              React.createElement(
-                'div',
-                { className: 'text-xs text-gray-400 mt-1' },
-                stats.labelText
-              )
-            )
-          )
-        ),
-
-        React.createElement(
-          'div',
-          { className: 'grid grid-cols-2 gap-4 mt-4' },
-          React.createElement(
-            'div',
-            { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
-            React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Feedings / Day'),
-            React.createElement('div', { className: 'text-2xl font-bold text-indigo-600' }, stats.avgFeedingsPerDay.toFixed(1)),
-            React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
-          ),
-          React.createElement(
-            'div',
-            { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
-            React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Time Between Feeds'),
-            React.createElement('div', { className: 'text-2xl font-bold text-indigo-600' }, formatInterval(stats.avgInterval)),
-            React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
-          )
-        ),
-
-        // Volume History (modal-scoped scroll ref)
-        React.createElement(
-          'div',
-          { className: 'bg-white rounded-2xl shadow-lg p-6 mt-4' },
-          React.createElement(
-            'div',
-            { className: 'text-sm font-medium text-gray-600 mb-2.5 text-center' },
-            'Volume History'
-          ),
-          stats.chartData.length > 0
-            ? React.createElement(
-                'div',
-                { className: 'relative' },
+              { className: 'grid grid-cols-2 gap-4' },
+              [
+                { label: 'Oz / Feed', value: stats.avgVolumePerFeed.toFixed(1) },
+                { label: 'Oz / Day', value: stats.avgVolumePerDay.toFixed(1) }
+              ].map(stat =>
                 React.createElement(
                   'div',
                   {
-                    ref: modalChartScrollRef,
-                    className: 'overflow-x-auto overflow-y-hidden -mx-6 px-6',
-                    style: { scrollBehavior: 'smooth' }
+                    key: `m-${stat.label}`,
+                    className:
+                      'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center'
                   },
                   React.createElement(
                     'div',
-                    {
-                      className: 'flex gap-6 pb-2',
-                      style: {
-                        minWidth:
-                          stats.chartData.length > 4
-                            ? `${stats.chartData.length * 80}px`
-                            : '100%'
-                      }
-                    },
-                    stats.chartData.map(item =>
-                      React.createElement(
-                        'div',
-                        { key: `m-${item.date}`, className: 'flex flex-col items-center gap-2 flex-shrink-0' },
-                        React.createElement(
-                          'div',
-                          { className: 'flex flex-col justify-end items-center', style: { height: '180px', width: '60px' } },
-                          React.createElement(
-                            'div',
-                            {
-                              className: 'w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
-                              style: {
-                                height: `${(item.volume / maxVolume) * 160}px`,
-                                minHeight: '30px'
-                              }
-                            },
-                            React.createElement(
-                              'div',
-                              { className: 'text-white font-semibold' },
-                              React.createElement('span', { className: 'text-xs' }, item.volume),
-                              React.createElement('span', { className: 'text-[10px] opacity-70 ml-0.5' }, 'oz')
-                            )
-                          )
-                        ),
-                        React.createElement('div', { className: 'text-xs text-gray-600 font-medium' }, item.date),
-                        React.createElement('div', { className: 'text-xs text-gray-400' }, `${item.count} feeds`)
-                      )
+                    { className: 'text-sm font-medium text-gray-600 mb-2' },
+                    stat.label
+                  ),
+                  React.createElement(
+                    'div',
+                    { className: 'text-2xl font-bold text-indigo-600' },
+                    stat.value,
+                    React.createElement(
+                      'span',
+                      { className: 'text-sm font-normal text-gray-400 ml-1' },
+                      'oz'
                     )
+                  ),
+                  React.createElement(
+                    'div',
+                    { className: 'text-xs text-gray-400 mt-1' },
+                    stats.labelText
                   )
                 )
               )
-            : React.createElement('div', { className: 'text-center text-gray-400 py-8' }, 'No data to display')
+            ),
+
+            React.createElement(
+              'div',
+              { className: 'grid grid-cols-2 gap-4 mt-4' },
+              React.createElement(
+                'div',
+                { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
+                React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Feedings / Day'),
+                React.createElement('div', { className: 'text-2xl font-bold text-indigo-600' }, stats.avgFeedingsPerDay.toFixed(1)),
+                React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
+              ),
+              React.createElement(
+                'div',
+                { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
+                React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Time Between Feeds'),
+                React.createElement('div', { className: 'text-2xl font-bold text-indigo-600' }, formatInterval(stats.avgInterval)),
+                React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
+              )
+            ),
+
+            // Volume History (modal-scoped scroll ref)
+            React.createElement(
+              'div',
+              { className: 'bg-white rounded-2xl shadow-lg p-6 mt-4' },
+              React.createElement(
+                'div',
+                { className: 'text-sm font-medium text-gray-600 mb-2.5 text-center' },
+                'Volume History'
+              ),
+              stats.chartData.length > 0
+                ? React.createElement(
+                    'div',
+                    { className: 'relative' },
+                    React.createElement(
+                      'div',
+                      {
+                        ref: modalChartScrollRef,
+                        className: 'overflow-x-auto overflow-y-hidden -mx-6 px-6',
+                        style: { scrollBehavior: 'smooth' }
+                      },
+                      React.createElement(
+                        'div',
+                        {
+                          className: 'flex gap-6 pb-2',
+                          style: {
+                            minWidth:
+                              stats.chartData.length > 4
+                                ? `${stats.chartData.length * 80}px`
+                                : '100%'
+                          }
+                        },
+                        stats.chartData.map(item =>
+                          React.createElement(
+                            'div',
+                            { key: `m-${item.date}`, className: 'flex flex-col items-center gap-2 flex-shrink-0' },
+                            React.createElement(
+                              'div',
+                              { className: 'flex flex-col justify-end items-center', style: { height: '180px', width: '60px' } },
+                              React.createElement(
+                                'div',
+                                {
+                                  className: 'w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                                  style: {
+                                    height: `${(item.volume / maxVolume) * 160}px`,
+                                    minHeight: '30px'
+                                  }
+                                },
+                                React.createElement(
+                                  'div',
+                                  { className: 'text-white font-semibold' },
+                                  React.createElement('span', { className: 'text-xs' }, item.volume),
+                                  React.createElement('span', { className: 'text-[10px] opacity-70 ml-0.5' }, 'oz')
+                                )
+                              )
+                            ),
+                            React.createElement('div', { className: 'text-xs text-gray-600 font-medium' }, item.date),
+                            React.createElement('div', { className: 'text-xs text-gray-400' }, `${item.count} feeds`)
+                          )
+                        )
+                      )
+                    )
+                  )
+                : React.createElement('div', { className: 'text-center text-gray-400 py-8' }, 'No data to display')
+            )
+          )
         )
       ),
 
@@ -5139,151 +5188,144 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       React.createElement(
         FullscreenModal,
         { title: 'Sleep', onClose: () => setActiveModal(null) },
-        // Reuse the existing timeframe toggle styling (same as page)
         React.createElement(
-          'div',
-          { className: 'mt-1 mb-3 flex justify-center' },
+          React.Fragment,
+          null,
+          React.createElement(SegmentedControl, {
+            value: timeframe,
+            onChange: (v) => setTimeframe(v),
+            options: [
+              { key: 'day', label: 'D' },
+              { key: 'week', label: 'W' },
+              { key: 'month', label: 'M' }
+            ],
+            bg: (function () { try { return getComputedStyle(document.body).backgroundColor || '#F2F2F7'; } catch { return '#F2F2F7'; } })(),
+            ariaLabel: 'Sleep range'
+          }),
           React.createElement(
             'div',
-            { className: 'inline-flex bg-white/70 rounded-xl p-1 shadow-sm' },
-            ['day', 'week', 'month'].map(range =>
+            { className: 'px-4 pb-4' },
+            // Sleep stat cards (same as existing section)
+            React.createElement(
+              "div",
+              { className: "grid grid-cols-2 gap-4" },
               React.createElement(
-                'button',
-                {
-                  key: `slp-${range}`,
-                  type: 'button',
-                  onClick: () => setTimeframe(range),
-                  className: `px-4 py-1.5 text-[13px] font-medium rounded-lg transition ${
-                    timeframe === range
-                      ? 'bg-white text-indigo-600 shadow'
-                      : 'text-gray-500'
-                  }`
-                },
-                range.charAt(0).toUpperCase() + range.slice(1)
-              )
-            )
-          )
-        ),
-
-        // Sleep stat cards (same as existing section)
-        React.createElement(
-          "div",
-          { className: "grid grid-cols-2 gap-4" },
-          React.createElement(
-            "div",
-            { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
-            React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Total Sleep"),
-            React.createElement(
-              "div",
-              { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
-              Number(sleepCards.avgTotal || 0).toFixed(1),
-              React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
-            ),
-            React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
-          ),
-          React.createElement(
-            "div",
-            { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
-            React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Day Sleep"),
-            React.createElement(
-              "div",
-              { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
-              Number(sleepCards.avgDay || 0).toFixed(1),
-              React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
-            ),
-            React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
-          ),
-          React.createElement(
-            "div",
-            { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
-            React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Night Sleep"),
-            React.createElement(
-              "div",
-              { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
-              Number(sleepCards.avgNight || 0).toFixed(1),
-              React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
-            ),
-            React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
-          ),
-          React.createElement(
-            "div",
-            { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
-            React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Sleeps / Day"),
-            React.createElement(
-              "div",
-              { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
-              Number(sleepCards.avgSleeps || 0).toFixed(1)
-            ),
-            React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
-          )
-        ),
-
-        // Sleep history (modal-scoped scroll ref)
-        React.createElement(
-          "div",
-          { className: "bg-white rounded-2xl shadow-lg p-6 mt-4" },
-          React.createElement(
-            "div",
-            { className: "text-sm font-medium text-gray-600 mb-2.5 text-center" },
-            "Sleep history"
-          ),
-          sleepBuckets.length > 0
-            ? React.createElement(
                 "div",
-                { className: "relative" },
+                { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+                React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Total Sleep"),
                 React.createElement(
                   "div",
-                  {
-                    ref: modalSleepHistoryScrollRef,
-                    className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
-                    style: { scrollBehavior: "smooth" }
-                  },
-                  React.createElement(
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  Number(sleepCards.avgTotal || 0).toFixed(1),
+                  React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
+                ),
+                React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
+              ),
+              React.createElement(
+                "div",
+                { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+                React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Day Sleep"),
+                React.createElement(
+                  "div",
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  Number(sleepCards.avgDay || 0).toFixed(1),
+                  React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
+                ),
+                React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
+              ),
+              React.createElement(
+                "div",
+                { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+                React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Night Sleep"),
+                React.createElement(
+                  "div",
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  Number(sleepCards.avgNight || 0).toFixed(1),
+                  React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
+                ),
+                React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
+              ),
+              React.createElement(
+                "div",
+                { className: "bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center" },
+                React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Sleeps / Day"),
+                React.createElement(
+                  "div",
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  Number(sleepCards.avgSleeps || 0).toFixed(1)
+                ),
+                React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
+              )
+            ),
+
+            // Sleep history (modal-scoped scroll ref)
+            React.createElement(
+              "div",
+              { className: "bg-white rounded-2xl shadow-lg p-6 mt-4" },
+              React.createElement(
+                "div",
+                { className: "text-sm font-medium text-gray-600 mb-2.5 text-center" },
+                "Sleep history"
+              ),
+              sleepBuckets.length > 0
+                ? React.createElement(
                     "div",
-                    {
-                      className: "flex gap-6 pb-2",
-                      style: {
-                        minWidth:
-                          sleepBuckets.length > 4
-                            ? `${sleepBuckets.length * 80}px`
-                            : "100%"
-                      }
-                    },
-                    sleepBuckets.map((b) =>
+                    { className: "relative" },
+                    React.createElement(
+                      "div",
+                      {
+                        ref: modalSleepHistoryScrollRef,
+                        className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
+                        style: { scrollBehavior: "smooth" }
+                      },
                       React.createElement(
                         "div",
-                        { key: `m-${b.key}`, className: "flex flex-col items-center gap-2 flex-shrink-0" },
-                        React.createElement(
-                          "div",
-                          { className: "flex flex-col justify-end items-center", style: { height: "180px", width: "60px" } },
+                        {
+                          className: "flex gap-6 pb-2",
+                          style: {
+                            minWidth:
+                              sleepBuckets.length > 4
+                                ? `${sleepBuckets.length * 80}px`
+                                : "100%"
+                          }
+                        },
+                        sleepBuckets.map((b) =>
                           React.createElement(
                             "div",
-                            {
-                              className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
-                              style: {
-                                height: `${
-                                  (Number(b.totalHrs || 0) /
-                                    Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1)) * 160
-                                }px`,
-                                minHeight: "30px"
-                              }
-                            },
+                            { key: `m-${b.key}`, className: "flex flex-col items-center gap-2 flex-shrink-0" },
                             React.createElement(
                               "div",
-                              { className: "text-white font-semibold" },
-                              React.createElement("span", { className: "text-xs" }, Number(b.totalHrs || 0).toFixed(1)),
-                              React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
-                            )
+                              { className: "flex flex-col justify-end items-center", style: { height: "180px", width: "60px" } },
+                              React.createElement(
+                                "div",
+                                {
+                                  className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
+                                  style: {
+                                    height: `${
+                                      (Number(b.totalHrs || 0) /
+                                        Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1)) * 160
+                                    }px`,
+                                    minHeight: "30px"
+                                  }
+                                },
+                                React.createElement(
+                                  "div",
+                                  { className: "text-white font-semibold" },
+                                  React.createElement("span", { className: "text-xs" }, Number(b.totalHrs || 0).toFixed(1)),
+                                  React.createElement("span", { className: "text-[10px] opacity-70 ml-0.5" }, "h")
+                                )
+                              )
+                            ),
+                            React.createElement("div", { className: "text-xs text-gray-600 font-medium" }, b.label),
+                            React.createElement("div", { className: "text-xs text-gray-400" }, `${b.count || 0} sleeps`)
                           )
-                        ),
-                        React.createElement("div", { className: "text-xs text-gray-600 font-medium" }, b.label),
-                        React.createElement("div", { className: "text-xs text-gray-400" }, `${b.count || 0} sleeps`)
+                        )
                       )
                     )
                   )
-                )
-              )
-            : React.createElement("div", { className: "text-center text-gray-400 py-8" }, "No data to display")
+                : React.createElement("div", { className: "text-center text-gray-400 py-8" }, "No data to display")
+            )
+          )
         )
       ),
 
