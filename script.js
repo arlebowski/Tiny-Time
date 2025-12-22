@@ -3030,7 +3030,8 @@ const DailyActivityChart = ({
   viewMode = 'day', // 'day' | 'week' | 'month'
   feedings = [],
   sleepSessions = [],
-  sleepSettings = null
+  sleepSettings = null,
+  suppressNow = false
 }) => {
   // ========================================
   // ACTOGRAM: "Apple Health" polish + bulletproofing
@@ -3203,7 +3204,7 @@ const DailyActivityChart = ({
   }, [days, endDay0]);
 
   const hasToday = React.useMemo(() => dayStarts.includes(today0), [dayStarts, today0]);
-  const showNow = hasToday && effectiveViewMode !== 'month';
+  const showNow = hasToday && effectiveViewMode !== 'month' && !suppressNow;
   const nowMinutes = React.useMemo(() => {
     const d = new Date(nowMs);
     return d.getHours() * 60 + d.getMinutes();
@@ -4218,8 +4219,10 @@ const FullscreenModal = ({ title, onClose, children }) => {
     'div',
     {
       // Overlay: fixed + NOT scrollable (important for iOS)
-      className: 'fixed inset-0 z-50',
-      style: { backgroundColor: bg, overflow: 'hidden', touchAction: 'none' }
+      // IMPORTANT: Must sit above sticky headers, charts, and the bottom tab bar.
+      // Use a very high z-index + isolation to win all stacking contexts.
+      className: 'fixed inset-0 z-[9999]',
+      style: { backgroundColor: bg, overflow: 'hidden', touchAction: 'none', isolation: 'isolate' }
     },
     // Sliding SHEET: full viewport height; this is what we translate during swipe
     React.createElement(
@@ -4874,7 +4877,8 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           viewMode: timeframe,
           feedings: allFeedings,
           sleepSessions: sleepSessions,
-          sleepSettings: sleepSettings
+          sleepSettings: sleepSettings,
+          suppressNow: false
         })
       ),
 
@@ -5228,7 +5232,9 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       viewMode: timeframe, // day | week | month drives the actogram
       feedings: allFeedings,
       sleepSessions: sleepSessions,
-      sleepSettings: sleepSettings
+      sleepSettings: sleepSettings,
+      // When any modal is open, suppress the underlay "now" dot/line so it can’t bleed through.
+      suppressNow: !!activeModal
     }),
 
     // ---- Feeding stats header
