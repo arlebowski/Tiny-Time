@@ -4055,6 +4055,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
   const [dragging, setDragging] = React.useState(false);
   const [closing, setClosing] = React.useState(false);
   const bodyRef = React.useRef(null);
+  const scrollYRef = React.useRef(0);
 
   // Match app background by reading what MainApp already applies to <body>
   const bg = React.useMemo(() => {
@@ -4063,6 +4064,50 @@ const FullscreenModal = ({ title, onClose, children }) => {
       return c || '#F2F2F7';
     } catch {
       return '#F2F2F7';
+    }
+  }, []);
+
+  // iOS: lock background scroll while modal is mounted
+  React.useEffect(() => {
+    try {
+      const docEl = document.documentElement;
+      const body = document.body;
+      scrollYRef.current = window.scrollY || docEl.scrollTop || 0;
+
+      const prev = {
+        docOverflow: docEl.style.overflow,
+        bodyOverflow: body.style.overflow,
+        bodyPosition: body.style.position,
+        bodyTop: body.style.top,
+        bodyLeft: body.style.left,
+        bodyRight: body.style.right,
+        bodyWidth: body.style.width
+      };
+
+      // Freeze body at current scroll position
+      docEl.style.overflow = 'hidden';
+      body.style.overflow = 'hidden';
+      body.style.position = 'fixed';
+      body.style.top = `-${scrollYRef.current}px`;
+      body.style.left = '0';
+      body.style.right = '0';
+      body.style.width = '100%';
+
+      return () => {
+        try {
+          docEl.style.overflow = prev.docOverflow;
+          body.style.overflow = prev.bodyOverflow;
+          body.style.position = prev.bodyPosition;
+          body.style.top = prev.bodyTop;
+          body.style.left = prev.bodyLeft;
+          body.style.right = prev.bodyRight;
+          body.style.width = prev.bodyWidth;
+          // Restore scroll position
+          window.scrollTo(0, scrollYRef.current || 0);
+        } catch {}
+      };
+    } catch {
+      return () => {};
     }
   }, []);
 
@@ -4174,7 +4219,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
     {
       // Overlay: fixed + NOT scrollable (important for iOS)
       className: 'fixed inset-0 z-50',
-      style: { backgroundColor: bg, overflow: 'hidden' }
+      style: { backgroundColor: bg, overflow: 'hidden', touchAction: 'none' }
     },
     // Sliding SHEET: full viewport height; this is what we translate during swipe
     React.createElement(
@@ -4182,8 +4227,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
       {
         className: 'w-full min-h-0 relative',
         style: {
-          height: '100dvh',
-          minHeight: '100vh',
+          height: '100svh',
           transform: `translateX(${dragX}px)`,
           transition: dragging ? 'none' : 'transform 220ms ease',
           willChange: 'transform',
@@ -4235,7 +4279,8 @@ const FullscreenModal = ({ title, onClose, children }) => {
           style: {
             WebkitOverflowScrolling: 'touch',
             paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
-            overscrollBehavior: 'contain'
+            overscrollBehavior: 'contain',
+            touchAction: 'pan-y'
           }
         },
         React.createElement(
