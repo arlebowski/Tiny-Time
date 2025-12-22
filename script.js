@@ -4180,7 +4180,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
     React.createElement(
       'div',
       {
-        className: 'w-full',
+        className: 'w-full min-h-0',
         style: {
           height: '100dvh',
           minHeight: '100vh',
@@ -4226,7 +4226,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
         'div',
         {
           ref: bodyRef,
-          className: 'flex-1 overflow-y-auto',
+          className: 'flex-1 min-h-0 overflow-y-auto',
           style: {
             WebkitOverflowScrolling: 'touch',
             paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)',
