@@ -5117,11 +5117,33 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(TimeframeToggle, {
-            value: timeframe,
-            onChange: (v) => setTimeframe(v),
-            className: 'mt-1 mb-3'
-          }),
+          React.createElement(
+            'div',
+            { className: 'mt-3 mb-4 w-full' },
+            React.createElement(
+              'div',
+              {
+                className:
+                  'w-full flex bg-white/35 rounded-xl p-1 shadow-sm backdrop-blur-md'
+              },
+              ['day', 'week'].map(range =>
+                React.createElement(
+                  'button',
+                  {
+                    key: `act-${range}`,
+                    type: 'button',
+                    onClick: () => setTimeframe(range),
+                    className: `flex-1 min-w-0 px-3 py-1 text-[13px] font-medium rounded-lg transition text-center ${
+                      timeframe === range
+                        ? 'bg-white text-indigo-600 shadow'
+                        : 'text-gray-600'
+                    }`
+                  },
+                  range.charAt(0).toUpperCase() + range.slice(1)
+                )
+              )
+            )
+          ),
           React.createElement(
             'div',
             { className: 'px-4 pb-4' },
@@ -5143,11 +5165,33 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(TimeframeToggle, {
-            value: timeframe,
-            onChange: (v) => setTimeframe(v),
-            className: 'mt-1 mb-3'
-          }),
+          React.createElement(
+            'div',
+            { className: 'mt-3 mb-4 w-full' },
+            React.createElement(
+              'div',
+              {
+                className:
+                  'w-full flex bg-white/35 rounded-xl p-1 shadow-sm backdrop-blur-md'
+              },
+              ['day', 'week', 'month'].map(range =>
+                React.createElement(
+                  'button',
+                  {
+                    key: `feed-${range}`,
+                    type: 'button',
+                    onClick: () => setTimeframe(range),
+                    className: `flex-1 min-w-0 px-3 py-1 text-[13px] font-medium rounded-lg transition text-center ${
+                      timeframe === range
+                        ? 'bg-white text-indigo-600 shadow'
+                        : 'text-gray-600'
+                    }`
+                  },
+                  range.charAt(0).toUpperCase() + range.slice(1)
+                )
+              )
+            )
+          ),
           React.createElement(
             'div',
             { className: 'px-4 pb-4' },
@@ -5284,11 +5328,33 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(TimeframeToggle, {
-            value: timeframe,
-            onChange: (v) => setTimeframe(v),
-            className: 'mt-1 mb-3'
-          }),
+          React.createElement(
+            'div',
+            { className: 'mt-3 mb-4 w-full' },
+            React.createElement(
+              'div',
+              {
+                className:
+                  'w-full flex bg-white/35 rounded-xl p-1 shadow-sm backdrop-blur-md'
+              },
+              ['day', 'week', 'month'].map(range =>
+                React.createElement(
+                  'button',
+                  {
+                    key: `slp-${range}`,
+                    type: 'button',
+                    onClick: () => setTimeframe(range),
+                    className: `flex-1 min-w-0 px-3 py-1 text-[13px] font-medium rounded-lg transition text-center ${
+                      timeframe === range
+                        ? 'bg-white text-indigo-600 shadow'
+                        : 'text-gray-600'
+                    }`
+                  },
+                  range.charAt(0).toUpperCase() + range.slice(1)
+                )
+              )
+            )
+          ),
           React.createElement(
             'div',
             { className: 'px-4 pb-4' },
