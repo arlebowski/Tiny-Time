@@ -4245,67 +4245,57 @@ const DailyActivityChart = ({
 };
 
 // ========================================
-// SEGMENTED CONTROL (Apple Health-ish)
-// - Sits just below the modal header
-// - Uses a neutral translucent track so it doesn't feel "bolted on" over themed backgrounds
+// SHARED SUBPAGE SEGMENTED TOGGLE (matches Part 4 style)
+// - Full-width, card-aligned
+// - Apple Health–like height
+// - Used ONLY on Analytics subpages (modals)
 // ========================================
-const SegmentedControl = ({
+const AnalyticsSubpageToggle = ({
   value,
-  options = [], // [{ key:'day', label:'D' }, ...]
+  options = [], // [{ key, label, mapsTo }]
   onChange,
-  bg = '#F2F2F7',
   ariaLabel = 'Time range'
 }) => {
-  const safeOpts = Array.isArray(options) ? options.filter(Boolean) : [];
-  if (safeOpts.length <= 1) return null;
+  const opts = Array.isArray(options) ? options.filter(Boolean) : [];
+  if (opts.length <= 1) return null;
 
   return React.createElement(
     'div',
     {
-      className: 'w-full',
-      style: {
-        position: 'sticky',
-        top: 0,
-        zIndex: 10,
-        backgroundColor: bg
-      }
+      className: 'px-4 pt-3 pb-2'
     },
     React.createElement(
       'div',
-      { className: 'px-4 pt-3 pb-2' },
-      React.createElement(
-        'div',
-        {
-          role: 'tablist',
-          'aria-label': ariaLabel,
-          className: 'w-full max-w-[460px] mx-auto rounded-[14px] p-1 shadow-sm flex items-center justify-between',
-          style: {
-            background: 'rgba(0,0,0,0.06)',
-            backdropFilter: 'saturate(180%) blur(10px)',
-            WebkitBackdropFilter: 'saturate(180%) blur(10px)'
-          }
-        },
-        safeOpts.map((opt) => {
-          const selected = value === opt.key;
-          return React.createElement(
-            'button',
-            {
-              key: opt.key,
-              type: 'button',
-              role: 'tab',
-              'aria-selected': selected,
-              onClick: () => { try { if (typeof onChange === 'function') onChange(opt.key); } catch {} },
-              className: 'px-3 py-2 text-[13px] font-semibold rounded-[12px] transition flex-1 text-center',
-              style: {
-                background: selected ? 'rgba(255,255,255,0.92)' : 'transparent',
-                color: selected ? '#4F46E5' : 'rgba(17,24,39,0.55)',
-                boxShadow: selected ? '0 1px 6px rgba(0,0,0,0.10)' : 'none'
-              }
+      {
+        role: 'tablist',
+        'aria-label': ariaLabel,
+        className: 'w-full bg-gray-100 rounded-xl p-1 flex'
+      },
+      opts.map((opt) => {
+        const selected = value === opt.key;
+        return React.createElement(
+          'button',
+          {
+            key: opt.key,
+            type: 'button',
+            role: 'tab',
+            'aria-selected': selected,
+            onClick: () => {
+              try {
+                if (typeof onChange === 'function') {
+                  onChange(opt.mapsTo || opt.key);
+                }
+              } catch {}
             },
-            opt.label
-          );
-        })
-      )
+            className:
+              'flex-1 py-2 rounded-lg text-[13px] font-semibold transition ' +
+              (selected
+                ? 'bg-white shadow text-gray-900'
+                : 'text-gray-600')
+          },
+          opt.label
+        );
+      })
     )
   );
 };
@@ -5117,33 +5107,16 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(
-            'div',
-            { className: 'mt-3 mb-4 w-full' },
-            React.createElement(
-              'div',
-              {
-                className:
-                  'w-full flex bg-white/35 rounded-xl p-1 shadow-sm backdrop-blur-md'
-              },
-              ['day', 'week'].map(range =>
-                React.createElement(
-                  'button',
-                  {
-                    key: `act-${range}`,
-                    type: 'button',
-                    onClick: () => setTimeframe(range),
-                    className: `flex-1 min-w-0 px-3 py-1 text-[13px] font-medium rounded-lg transition text-center ${
-                      timeframe === range
-                        ? 'bg-white text-indigo-600 shadow'
-                        : 'text-gray-600'
-                    }`
-                  },
-                  range.charAt(0).toUpperCase() + range.slice(1)
-                )
-              )
-            )
-          ),
+          React.createElement(AnalyticsSubpageToggle, {
+            value: timeframe,
+            onChange: (v) => setTimeframe(v),
+            options: [
+              { key: 'day', label: 'D', mapsTo: 'day' },
+              { key: '3d', label: '3D', mapsTo: 'week' }, // placeholder
+              { key: 'week', label: 'W', mapsTo: 'week' }
+            ],
+            ariaLabel: 'Daily Activity range'
+          }),
           React.createElement(
             'div',
             { className: 'px-4 pb-4' },
@@ -5165,33 +5138,16 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(
-            'div',
-            { className: 'mt-3 mb-4 w-full' },
-            React.createElement(
-              'div',
-              {
-                className:
-                  'w-full flex bg-white/35 rounded-xl p-1 shadow-sm backdrop-blur-md'
-              },
-              ['day', 'week', 'month'].map(range =>
-                React.createElement(
-                  'button',
-                  {
-                    key: `feed-${range}`,
-                    type: 'button',
-                    onClick: () => setTimeframe(range),
-                    className: `flex-1 min-w-0 px-3 py-1 text-[13px] font-medium rounded-lg transition text-center ${
-                      timeframe === range
-                        ? 'bg-white text-indigo-600 shadow'
-                        : 'text-gray-600'
-                    }`
-                  },
-                  range.charAt(0).toUpperCase() + range.slice(1)
-                )
-              )
-            )
-          ),
+          React.createElement(AnalyticsSubpageToggle, {
+            value: timeframe,
+            onChange: (v) => setTimeframe(v),
+            options: [
+              { key: 'day', label: 'D' },
+              { key: 'week', label: 'W' },
+              { key: 'month', label: 'M' }
+            ],
+            ariaLabel: 'Feeding range'
+          }),
           React.createElement(
             'div',
             { className: 'px-4 pb-4' },
@@ -5328,33 +5284,16 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         React.createElement(
           React.Fragment,
           null,
-          React.createElement(
-            'div',
-            { className: 'mt-3 mb-4 w-full' },
-            React.createElement(
-              'div',
-              {
-                className:
-                  'w-full flex bg-white/35 rounded-xl p-1 shadow-sm backdrop-blur-md'
-              },
-              ['day', 'week', 'month'].map(range =>
-                React.createElement(
-                  'button',
-                  {
-                    key: `slp-${range}`,
-                    type: 'button',
-                    onClick: () => setTimeframe(range),
-                    className: `flex-1 min-w-0 px-3 py-1 text-[13px] font-medium rounded-lg transition text-center ${
-                      timeframe === range
-                        ? 'bg-white text-indigo-600 shadow'
-                        : 'text-gray-600'
-                    }`
-                  },
-                  range.charAt(0).toUpperCase() + range.slice(1)
-                )
-              )
-            )
-          ),
+          React.createElement(AnalyticsSubpageToggle, {
+            value: timeframe,
+            onChange: (v) => setTimeframe(v),
+            options: [
+              { key: 'day', label: 'D' },
+              { key: 'week', label: 'W' },
+              { key: 'month', label: 'M' }
+            ],
+            ariaLabel: 'Sleep range'
+          }),
           React.createElement(
             'div',
             { className: 'px-4 pb-4' },
