@@ -4269,10 +4269,13 @@ const AnalyticsSubpageToggle = ({
       {
         role: 'tablist',
         'aria-label': ariaLabel,
-        className: 'w-full bg-gray-100 rounded-xl p-1 flex'
+        className: 'w-full rounded-xl p-1 flex bg-[#e3e4e8] dark:bg-[#24252a]'
       },
-      opts.map((opt) => {
+      opts.map((opt, index) => {
         const selected = value === opt.key;
+        const isFirst = index === 0;
+        const prevSelected = index > 0 && value === opts[index - 1]?.key;
+        const showDivider = !isFirst && !selected && !prevSelected;
         return React.createElement(
           'button',
           {
@@ -4290,8 +4293,9 @@ const AnalyticsSubpageToggle = ({
             className:
               'flex-1 py-2 rounded-lg text-[13px] font-semibold transition ' +
               (selected
-                ? 'bg-white shadow text-gray-900'
-                : 'text-gray-600')
+                ? 'bg-white shadow-sm text-gray-900'
+                : 'text-gray-600') +
+              (showDivider ? ' border-l border-gray-200/40 dark:border-white/15' : '')
           },
           opt.label
         );
