@@ -2032,7 +2032,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         'div',
         { className: "px-4" },
         activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId, familyId }),
-        activeTab === 'analytics' && React.createElement(AnalyticsTab, { user, kidId, familyId }),
+        activeTab === 'analytics' && React.createElement(AnalyticsTab, { user, kidId, familyId, themeKey }),
         activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId, familyId, themeKey }),
         activeTab === 'family' && React.createElement(FamilyTab, {
           user,
@@ -4254,10 +4254,25 @@ const AnalyticsSubpageToggle = ({
   value,
   options = [], // [{ key, label, mapsTo }]
   onChange,
-  ariaLabel = 'Time range'
+  ariaLabel = 'Time range',
+  themeKey = 'indigo'
 }) => {
   const opts = Array.isArray(options) ? options.filter(Boolean) : [];
   if (opts.length <= 1) return null;
+
+  const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
+  const hexToRgba = (hex, alpha) => {
+    if (!hex) return `rgba(79,70,229,${alpha})`;
+    const cleaned = hex.replace('#', '').trim();
+    if (cleaned.length !== 6) return `rgba(79,70,229,${alpha})`;
+    const num = parseInt(cleaned, 16);
+    if (Number.isNaN(num)) return `rgba(79,70,229,${alpha})`;
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
+  const tintBackground = hexToRgba(theme.accent, 0.08);
 
   return React.createElement(
     'div',
@@ -4269,7 +4284,8 @@ const AnalyticsSubpageToggle = ({
       {
         role: 'tablist',
         'aria-label': ariaLabel,
-        className: 'w-full bg-gray-100 rounded-xl p-1 flex'
+        className: 'w-full rounded-xl p-1 flex',
+        style: { backgroundColor: tintBackground }
       },
       opts.map((opt) => {
         const selected = value === opt.key;
@@ -4552,7 +4568,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
   );
 };
 
-const AnalyticsTab = ({ user, kidId, familyId }) => {
+const AnalyticsTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('day');
@@ -5110,6 +5126,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           React.createElement(AnalyticsSubpageToggle, {
             value: timeframe,
             onChange: (v) => setTimeframe(v),
+            themeKey,
             options: [
               { key: 'day', label: 'D', mapsTo: 'day' },
               { key: '3d', label: '3D', mapsTo: 'week' }, // placeholder
@@ -5141,6 +5158,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           React.createElement(AnalyticsSubpageToggle, {
             value: timeframe,
             onChange: (v) => setTimeframe(v),
+            themeKey,
             options: [
               { key: 'day', label: 'D' },
               { key: 'week', label: 'W' },
@@ -5287,6 +5305,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           React.createElement(AnalyticsSubpageToggle, {
             value: timeframe,
             onChange: (v) => setTimeframe(v),
+            themeKey,
             options: [
               { key: 'day', label: 'D' },
               { key: 'week', label: 'W' },
