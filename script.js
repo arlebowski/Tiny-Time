@@ -4269,7 +4269,7 @@ const AnalyticsSubpageToggle = ({
       {
         role: 'tablist',
         'aria-label': ariaLabel,
-        className: 'w-full rounded-xl py-[3px] px-1 flex bg-black/5 dark:bg-white/10'
+        className: 'w-full rounded-xl p-1 flex bg-black/5 dark:bg-white/10'
       },
       opts.map((opt, index) => {
         const selected = value === opt.key;
