@@ -4576,6 +4576,65 @@ const FullscreenModal = ({ title, onClose, children }) => {
   );
 };
 
+// =====================================================
+// HIGHLIGHT CARD COMPONENT
+// Reusable container for Analytics highlight cards
+// =====================================================
+const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children }) => {
+  return React.createElement(
+    'div',
+    {
+      className: 'bg-white rounded-2xl shadow-lg p-6 cursor-pointer',
+      onClick: onClick
+    },
+    // Header: icon + label left, chevron right
+    React.createElement(
+      'div',
+      { className: 'flex items-center justify-between mb-3' },
+      React.createElement(
+        'div',
+        { className: 'flex items-center gap-2' },
+        React.createElement(Icon, {
+          className: 'w-5 h-5',
+          style: { color: categoryColor }
+        }),
+        React.createElement(
+          'span',
+          {
+            className: 'text-sm font-semibold',
+            style: { color: categoryColor }
+          },
+          label
+        )
+      ),
+      React.createElement(ChevronRight, { className: 'w-5 h-5 text-gray-400' })
+    ),
+    // Insight Text: 2 lines, bold, clamped
+    React.createElement(
+      'div',
+      { className: 'mb-3' },
+      React.createElement(
+        'div',
+        { className: 'text-sm font-bold text-gray-900 leading-tight insight-text-clamp' },
+        insightText[0] || ''
+      ),
+      insightText[1] && React.createElement(
+        'div',
+        { className: 'text-sm font-bold text-gray-900 leading-tight insight-text-clamp mt-1' },
+        insightText[1]
+      )
+    ),
+    // Divider
+    React.createElement('div', { className: 'border-t border-gray-100 mb-3' }),
+    // Mini Viz Area: clipped, matches existing chart container height (180px)
+    React.createElement(
+      'div',
+      { className: 'overflow-hidden', style: { height: '180px' } },
+      children
+    )
+  );
+};
+
 const AnalyticsTab = ({ user, kidId, familyId }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -5035,89 +5094,213 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
 
       // Daily Activity highlight
       React.createElement(
-        'div',
+        HighlightCard,
         {
-          className:
-            'bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between cursor-pointer',
+          icon: Kanban,
+          label: 'Daily Activity',
+          insightText: [
+            'Levi has been eating and sleeping like a champ this week!',
+            'Great work, Levi!'
+          ],
+          categoryColor: 'var(--color-daily)',
           onClick: () => setActiveModal('activity')
         },
-        React.createElement(
-          'div',
-          null,
-          React.createElement(
-            'div',
-            { className: 'text-sm font-semibold text-gray-900' },
-            'Daily Activity'
-          ),
-          React.createElement(
-            'div',
-            { className: 'text-xs text-gray-500 mt-0.5' },
-            'Timing and rhythm across the day'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'p-2 -mr-2 rounded-lg transition text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100' },
-          React.createElement(ChevronRight, { className: 'w-5 h-5' })
-        )
+        React.createElement(DailyActivityChart, {
+          viewMode: 'week',
+          feedings: allFeedings,
+          sleepSessions: sleepSessions,
+          sleepSettings: sleepSettings,
+          suppressNow: false
+        })
       ),
 
       // Feeding highlight
       React.createElement(
-        'div',
+        HighlightCard,
         {
-          className:
-            'bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between cursor-pointer',
+          icon: Milk,
+          label: 'Eating',
+          insightText: [
+            'Levi has been eating a bit less in the last three days.',
+            'But that\'s totally fine!'
+          ],
+          categoryColor: 'var(--color-eating)',
           onClick: () => setActiveModal('feeding')
         },
-        React.createElement(
-          'div',
-          null,
-          React.createElement(
-            'div',
-            { className: 'text-sm font-semibold text-gray-900' },
-            'Feeding'
-          ),
-          React.createElement(
-            'div',
-            { className: 'text-xs text-gray-500 mt-0.5' },
-            'Average intake and frequency'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'p-2 -mr-2 rounded-lg transition text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100' },
-          React.createElement(ChevronRight, { className: 'w-5 h-5' })
-        )
+        stats.chartData.length > 0
+          ? React.createElement(
+              'div',
+              { className: 'relative' },
+              React.createElement(
+                'div',
+                {
+                  className: 'overflow-x-auto overflow-y-hidden -mx-6 px-6',
+                  style: { scrollBehavior: 'smooth' }
+                },
+                React.createElement(
+                  'div',
+                  {
+                    className: 'flex gap-6 pb-2',
+                    style: {
+                      minWidth:
+                        stats.chartData.length > 4
+                          ? `${stats.chartData.length * 80}px`
+                          : '100%'
+                    }
+                  },
+                  stats.chartData.map(item =>
+                    React.createElement(
+                      'div',
+                      {
+                        key: item.date,
+                        className: 'flex flex-col items-center gap-2 flex-shrink-0'
+                      },
+                      React.createElement(
+                        'div',
+                        {
+                          className: 'flex flex-col justify-end items-center',
+                          style: { height: '180px', width: '60px' }
+                        },
+                        React.createElement(
+                          'div',
+                          {
+                            className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                            style: {
+                              height: `${(item.volume / maxVolume) * 160}px`,
+                              minHeight: '30px',
+                              backgroundColor: 'var(--color-eating)'
+                            }
+                          },
+                          React.createElement(
+                            'div',
+                            { className: 'text-white font-semibold' },
+                            React.createElement('span', { className: 'text-xs' }, item.volume),
+                            React.createElement(
+                              'span',
+                              { className: 'text-[10px] opacity-70 ml-0.5' },
+                              'oz'
+                            )
+                          )
+                        )
+                      ),
+                      React.createElement(
+                        'div',
+                        { className: 'text-xs text-gray-600 font-medium' },
+                        item.date
+                      ),
+                      React.createElement(
+                        'div',
+                        { className: 'text-xs text-gray-400' },
+                        `${item.count} feeds`
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          : React.createElement(
+              'div',
+              { className: 'text-center text-gray-400 py-8' },
+              'No data to display'
+            )
       ),
 
       // Sleep highlight
       React.createElement(
-        'div',
+        HighlightCard,
         {
-          className:
-            'bg-white rounded-2xl shadow-lg p-4 flex items-center justify-between cursor-pointer',
+          icon: Moon,
+          label: 'Sleep',
+          insightText: [
+            'Levi is right on track to hit his average sleep today!',
+            ''
+          ],
+          categoryColor: 'var(--color-sleep)',
           onClick: () => setActiveModal('sleep')
         },
-        React.createElement(
-          'div',
-          null,
-          React.createElement(
-            'div',
-            { className: 'text-sm font-semibold text-gray-900' },
-            'Sleep'
-          ),
-          React.createElement(
-            'div',
-            { className: 'text-xs text-gray-500 mt-0.5' },
-            'Daily totals and patterns'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'p-2 -mr-2 rounded-lg transition text-indigo-600 hover:bg-indigo-50 active:bg-indigo-100' },
-          React.createElement(ChevronRight, { className: 'w-5 h-5' })
-        )
+        sleepBuckets.length > 0
+          ? React.createElement(
+              'div',
+              { className: 'relative' },
+              React.createElement(
+                'div',
+                {
+                  className: 'overflow-x-auto overflow-y-hidden -mx-6 px-6',
+                  style: { scrollBehavior: 'smooth' }
+                },
+                React.createElement(
+                  'div',
+                  {
+                    className: 'flex gap-6 pb-2',
+                    style: {
+                      minWidth:
+                        sleepBuckets.length > 4
+                          ? `${sleepBuckets.length * 80}px`
+                          : '100%'
+                    }
+                  },
+                  sleepBuckets.map(b =>
+                    React.createElement(
+                      'div',
+                      {
+                        key: b.key,
+                        className: 'flex flex-col items-center gap-2 flex-shrink-0'
+                      },
+                      React.createElement(
+                        'div',
+                        {
+                          className: 'flex flex-col justify-end items-center',
+                          style: { height: '180px', width: '60px' }
+                        },
+                        React.createElement(
+                          'div',
+                          {
+                            className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                            style: {
+                              height: `${
+                                (Number(b.totalHrs || 0) /
+                                  Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1)) * 160
+                              }px`,
+                              minHeight: '30px',
+                              backgroundColor: 'var(--color-sleep)'
+                            }
+                          },
+                          React.createElement(
+                            'div',
+                            { className: 'text-white font-semibold' },
+                            React.createElement(
+                              'span',
+                              { className: 'text-xs' },
+                              Number(b.totalHrs || 0).toFixed(1)
+                            ),
+                            React.createElement(
+                              'span',
+                              { className: 'text-[10px] opacity-70 ml-0.5' },
+                              'h'
+                            )
+                          )
+                        )
+                      ),
+                      React.createElement(
+                        'div',
+                        { className: 'text-xs text-gray-600 font-medium' },
+                        b.label
+                      ),
+                      React.createElement(
+                        'div',
+                        { className: 'text-xs text-gray-400' },
+                        `${b.count || 0} sleeps`
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          : React.createElement(
+              'div',
+              { className: 'text-center text-gray-400 py-8' },
+              'No data to display'
+            )
       )
     ),
 
@@ -7699,6 +7882,25 @@ const ChevronLeft = (props) => React.createElement('svg', { ...props, xmlns: "ht
 // Chevron right
 const ChevronRight = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "m9 18 6-6-6-6" })
+);
+
+// Lucide-style Milk icon (for Eating/Feeding)
+const Milk = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M8 2h8" }),
+  React.createElement('path', { d: "M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2" }),
+  React.createElement('path', { d: "M7 15a6.47 6.47 0 0 1 5 0 6.47 6.47 0 0 0 5 0" })
+);
+
+// Lucide-style Kanban icon (for Daily Activity)
+const Kanban = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M6 5v11" }),
+  React.createElement('path', { d: "M12 5v6" }),
+  React.createElement('path', { d: "M18 5v14" })
+);
+
+// Lucide-style Moon icon (for Sleep)
+const Moon = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
 );
 
 // Clock icon
