@@ -71,6 +71,7 @@
       pointer-events: none;
       background: transparent;
       -webkit-appearance: none;
+      appearance: none;
     }
     .day-sleep-slider input[type="range"]::-webkit-slider-thumb {
       pointer-events: auto;
@@ -154,6 +155,22 @@
       justify-content: center;
       gap: 10px;
       box-sizing: border-box;
+    }
+
+    /* Category accent colors for Analytics highlight cards */
+    :root {
+      --color-daily: #3B82F6;
+      --color-sleep: #4F46E5;
+      --color-eating: #EC4899;
+    }
+
+    /* 2-line clamp for insight text */
+    .insight-text-clamp {
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
   </style>
 </head>
