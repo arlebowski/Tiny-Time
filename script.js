@@ -4269,7 +4269,7 @@ const AnalyticsSubpageToggle = ({
       {
         role: 'tablist',
         'aria-label': ariaLabel,
-        className: 'w-full rounded-lg p-[3px] flex bg-black/5 dark:bg-white/10'
+        className: 'w-full flex h-[30px] p-[2px] rounded-[8px] bg-black/5 dark:bg-white/10'
       },
       opts.flatMap((opt, index) => {
         const selected = value === opt.key;
@@ -4286,7 +4286,7 @@ const AnalyticsSubpageToggle = ({
               'div',
               {
                 key: `divider-${index}`,
-                className: 'w-[1px] my-[3px] bg-gray-400/30 dark:bg-gray-300/25'
+                className: 'w-[1px] my-[2px] bg-gray-400/30 dark:bg-gray-300/25'
               }
             )
           );
@@ -4309,7 +4309,7 @@ const AnalyticsSubpageToggle = ({
                 } catch {}
               },
               className:
-                'flex-1 py-[3px] rounded-md text-[12px] font-medium transition ' +
+                'flex-1 h-[26px] flex items-center justify-center rounded-[6px] text-[12px] leading-[14px] font-medium transition ' +
                 (selected
                   ? 'bg-white shadow-sm text-gray-900'
                   : 'text-gray-600')
