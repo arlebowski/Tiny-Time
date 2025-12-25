@@ -4609,27 +4609,23 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
       ),
       React.createElement(ChevronRight, { className: 'w-5 h-5 text-gray-400' })
     ),
-    // Insight Text: 2 lines, bold, clamped
+    // Insight Text: single block, bold, clamped to 2 lines
     React.createElement(
       'div',
       { className: 'mb-3' },
       React.createElement(
         'div',
         { className: 'text-sm font-bold text-gray-900 leading-tight insight-text-clamp' },
-        insightText[0] || ''
-      ),
-      insightText[1] && React.createElement(
-        'div',
-        { className: 'text-sm font-bold text-gray-900 leading-tight insight-text-clamp mt-1' },
-        insightText[1]
+        insightText.join(' ')
       )
     ),
     // Divider
     React.createElement('div', { className: 'border-t border-gray-100 mb-3' }),
     // Mini Viz Area: clipped, matches existing chart container height (180px)
+    // Non-interactive: pointer-events none to prevent chart interactions
     React.createElement(
       'div',
-      { className: 'overflow-hidden', style: { height: '180px' } },
+      { className: 'overflow-hidden', style: { height: '180px', pointerEvents: 'none' } },
       children
     )
   );
@@ -4822,6 +4818,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
 
   const generateChartData = (feedings, range) => {
     const grouped = {};
+    const dateMap = new Map(); // Store original timestamp for sorting
     feedings.forEach(f => {
       const date = new Date(f.timestamp);
       let key;
@@ -4840,15 +4837,29 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       } else {
         key = date.toLocaleDateString('en-US', { month: 'short' });
       }
-      if (!grouped[key])
+      if (!grouped[key]) {
         grouped[key] = { date: key, volume: 0, count: 0 };
+        // Store the earliest timestamp for this key for sorting
+        dateMap.set(key, date.getTime());
+      }
       grouped[key].volume += f.ounces;
       grouped[key].count += 1;
+      // Update to most recent timestamp for this key
+      if (date.getTime() > dateMap.get(key)) {
+        dateMap.set(key, date.getTime());
+      }
     });
-    // Oldest on left, newest on right
-    return Object.values(grouped).map(item => ({
+    // Sort by date (oldest on left, newest on right)
+    const sorted = Object.values(grouped).map(item => ({
       date: item.date,
       volume: parseFloat(item.volume.toFixed(1)),
+      count: item.count,
+      _sortKey: dateMap.get(item.date)
+    })).sort((a, b) => a._sortKey - b._sortKey);
+    // Remove sort key before returning
+    return sorted.map(item => ({
+      date: item.date,
+      volume: item.volume,
       count: item.count
     }));
   };
@@ -5105,13 +5116,27 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           categoryColor: 'var(--color-daily)',
           onClick: () => setActiveModal('activity')
         },
-        React.createElement(DailyActivityChart, {
-          viewMode: 'week',
-          feedings: allFeedings,
-          sleepSessions: sleepSessions,
-          sleepSettings: sleepSettings,
-          suppressNow: false
-        })
+        // Clip top to hide month header, show only day-of-week + date row and blocks
+        React.createElement(
+          'div',
+          { className: 'overflow-hidden', style: { height: '180px', width: '100%' } },
+          React.createElement(
+            'div',
+            { 
+              style: { 
+                transform: 'translateX(-44px) translateY(-56px)',
+                width: 'calc(100% + 44px)'
+              } 
+            },
+            React.createElement(DailyActivityChart, {
+              viewMode: 'week',
+              feedings: allFeedings,
+              sleepSessions: sleepSessions,
+              sleepSettings: sleepSettings,
+              suppressNow: false
+            })
+          )
+        )
       ),
 
       // Feeding highlight
@@ -5128,76 +5153,80 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           onClick: () => setActiveModal('feeding')
         },
         stats.chartData.length > 0
-          ? React.createElement(
-              'div',
-              { className: 'relative' },
-              React.createElement(
+          ? (() => {
+              const todayDateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              return React.createElement(
                 'div',
-                {
-                  className: 'overflow-x-auto overflow-y-hidden -mx-6 px-6',
-                  style: { scrollBehavior: 'smooth' }
-                },
+                { className: 'relative overflow-hidden -mx-6', style: { width: 'calc(100% + 48px)' } },
                 React.createElement(
                   'div',
                   {
-                    className: 'flex gap-6 pb-2',
-                    style: {
-                      minWidth:
-                        stats.chartData.length > 4
-                          ? `${stats.chartData.length * 80}px`
-                          : '100%'
-                    }
+                    className: 'overflow-x-hidden overflow-y-visible px-6'
                   },
-                  stats.chartData.map(item =>
-                    React.createElement(
-                      'div',
-                      {
-                        key: item.date,
-                        className: 'flex flex-col items-center gap-2 flex-shrink-0'
-                      },
-                      React.createElement(
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'inline-flex gap-6 pb-2',
+                      style: {
+                        width: 'max-content',
+                        marginLeft: 'auto'
+                      }
+                    },
+                    stats.chartData.map((item, idx) => {
+                      const isHighlighted = idx === stats.chartData.length - 1;
+                      return React.createElement(
                         'div',
                         {
-                          className: 'flex flex-col justify-end items-center',
-                          style: { height: '180px', width: '60px' }
+                          key: item.date,
+                          className: 'flex flex-col items-center gap-2 flex-shrink-0'
                         },
                         React.createElement(
                           'div',
                           {
-                            className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
-                            style: {
-                              height: `${(item.volume / maxVolume) * 160}px`,
-                              minHeight: '30px',
-                              backgroundColor: 'var(--color-eating)'
-                            }
+                            className: 'flex flex-col justify-end items-center',
+                            style: { height: '148px', width: '60px' }
                           },
                           React.createElement(
                             'div',
-                            { className: 'text-white font-semibold' },
-                            React.createElement('span', { className: 'text-xs' }, item.volume),
+                            {
+                              className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                              style: {
+                                height: `${(item.volume / maxVolume) * 128}px`,
+                                minHeight: '30px',
+                                backgroundColor: isHighlighted ? 'var(--color-eating)' : '#9CA3AF'
+                              }
+                            },
                             React.createElement(
-                              'span',
-                              { className: 'text-[10px] opacity-70 ml-0.5' },
-                              'oz'
+                              'div',
+                              { 
+                                className: 'font-semibold',
+                                style: { color: isHighlighted ? '#FFFFFF' : '#FFFFFF' }
+                              },
+                              React.createElement('span', { className: 'text-xs' }, item.volume),
+                              React.createElement(
+                                'span',
+                                { className: 'text-[10px] opacity-70 ml-0.5' },
+                                'oz'
+                              )
                             )
                           )
+                        ),
+                        React.createElement(
+                          'div',
+                          { className: 'text-xs text-gray-500 font-medium' },
+                          item.date
+                        ),
+                        React.createElement(
+                          'div',
+                          { className: 'text-xs text-gray-400' },
+                          `${item.count} feeds`
                         )
-                      ),
-                      React.createElement(
-                        'div',
-                        { className: 'text-xs text-gray-600 font-medium' },
-                        item.date
-                      ),
-                      React.createElement(
-                        'div',
-                        { className: 'text-xs text-gray-400' },
-                        `${item.count} feeds`
-                      )
-                    )
+                      );
+                    })
                   )
                 )
-              )
-            )
+              );
+            })()
           : React.createElement(
               'div',
               { className: 'text-center text-gray-400 py-8' },
@@ -5219,83 +5248,85 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           onClick: () => setActiveModal('sleep')
         },
         sleepBuckets.length > 0
-          ? React.createElement(
-              'div',
-              { className: 'relative' },
-              React.createElement(
+          ? (() => {
+              const todayDateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const maxHrs = Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1);
+              return React.createElement(
                 'div',
-                {
-                  className: 'overflow-x-auto overflow-y-hidden -mx-6 px-6',
-                  style: { scrollBehavior: 'smooth' }
-                },
+                { className: 'relative overflow-hidden -mx-6', style: { width: 'calc(100% + 48px)' } },
                 React.createElement(
                   'div',
                   {
-                    className: 'flex gap-6 pb-2',
-                    style: {
-                      minWidth:
-                        sleepBuckets.length > 4
-                          ? `${sleepBuckets.length * 80}px`
-                          : '100%'
-                    }
+                    className: 'overflow-x-hidden overflow-y-visible px-6'
                   },
-                  sleepBuckets.map(b =>
-                    React.createElement(
-                      'div',
-                      {
-                        key: b.key,
-                        className: 'flex flex-col items-center gap-2 flex-shrink-0'
-                      },
-                      React.createElement(
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'inline-flex gap-6 pb-2',
+                      style: {
+                        width: 'max-content',
+                        marginLeft: 'auto'
+                      }
+                    },
+                    sleepBuckets.map((b, idx) => {
+                      const isHighlighted = idx === sleepBuckets.length - 1;
+                      return React.createElement(
                         'div',
                         {
-                          className: 'flex flex-col justify-end items-center',
-                          style: { height: '180px', width: '60px' }
+                          key: b.key,
+                          className: 'flex flex-col items-center gap-2 flex-shrink-0'
                         },
                         React.createElement(
                           'div',
                           {
-                            className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
-                            style: {
-                              height: `${
-                                (Number(b.totalHrs || 0) /
-                                  Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1)) * 160
-                              }px`,
-                              minHeight: '30px',
-                              backgroundColor: 'var(--color-sleep)'
-                            }
+                            className: 'flex flex-col justify-end items-center',
+                            style: { height: '148px', width: '60px' }
                           },
                           React.createElement(
                             'div',
-                            { className: 'text-white font-semibold' },
+                            {
+                              className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                              style: {
+                                height: `${(Number(b.totalHrs || 0) / maxHrs) * 128}px`,
+                                minHeight: '30px',
+                                backgroundColor: isHighlighted ? 'var(--color-sleep)' : '#9CA3AF'
+                              }
+                            },
                             React.createElement(
-                              'span',
-                              { className: 'text-xs' },
-                              Number(b.totalHrs || 0).toFixed(1)
-                            ),
-                            React.createElement(
-                              'span',
-                              { className: 'text-[10px] opacity-70 ml-0.5' },
-                              'h'
+                              'div',
+                              { 
+                                className: 'font-semibold',
+                                style: { color: isHighlighted ? '#FFFFFF' : '#FFFFFF' }
+                              },
+                              React.createElement(
+                                'span',
+                                { className: 'text-xs' },
+                                Number(b.totalHrs || 0).toFixed(1)
+                              ),
+                              React.createElement(
+                                'span',
+                                { className: 'text-[10px] opacity-70 ml-0.5' },
+                                'h'
+                              )
                             )
                           )
+                        ),
+                        React.createElement(
+                          'div',
+                          { className: 'text-xs text-gray-500 font-medium' },
+                          b.label
+                        ),
+                        React.createElement(
+                          'div',
+                          { className: 'text-xs text-gray-400' },
+                          `${b.count || 0} sleeps`
                         )
-                      ),
-                      React.createElement(
-                        'div',
-                        { className: 'text-xs text-gray-600 font-medium' },
-                        b.label
-                      ),
-                      React.createElement(
-                        'div',
-                        { className: 'text-xs text-gray-400' },
-                        `${b.count || 0} sleeps`
-                      )
-                    )
+                      );
+                    })
                   )
                 )
-              )
-            )
+              );
+            })()
           : React.createElement(
               'div',
               { className: 'text-center text-gray-400 py-8' },
