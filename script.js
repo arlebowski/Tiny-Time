@@ -4580,89 +4580,6 @@ const FullscreenModal = ({ title, onClose, children }) => {
 // HIGHLIGHT CARD COMPONENT
 // Reusable container for Analytics highlight cards
 // =====================================================
-// =====================================================
-// HIGHLIGHT MINI VIZ VIEWPORT (Highlight cards only)
-// - Fixed-height viewport (180px default)
-// - Inner horizontal scroller (scrollbar visually hidden)
-// - Programmatically pinned to the RIGHT (latest bucket fully visible)
-// - Non-interactive (no user scrolling)
-// =====================================================
-let __ttHighlightMiniVizStyleInjected = false;
-const _ensureHighlightMiniVizStyles = () => {
-  try {
-    if (__ttHighlightMiniVizStyleInjected) return;
-    __ttHighlightMiniVizStyleInjected = true;
-    const style = document.createElement('style');
-    style.textContent = `
-      .tt-hide-scrollbar{scrollbar-width:none;-ms-overflow-style:none}
-      .tt-hide-scrollbar::-webkit-scrollbar{display:none}
-    `;
-    document.head.appendChild(style);
-  } catch {}
-};
-
-const HighlightMiniVizViewport = ({ height = 180, children }) => {
-  const scrollerRef = React.useRef(null);
-
-  React.useEffect(() => {
-    _ensureHighlightMiniVizStyles();
-  }, []);
-
-  const childCount = React.Children.count(children);
-
-  // Pin to the right on mount + whenever the child count changes.
-  React.useLayoutEffect(() => {
-    const el = scrollerRef.current;
-    if (!el) return;
-
-    const pinRight = () => {
-      try {
-        el.scrollLeft = el.scrollWidth;
-      } catch {}
-    };
-
-    // Run a few times to survive layout/paint order quirks.
-    pinRight();
-    const r1 = requestAnimationFrame(pinRight);
-    const r2 = requestAnimationFrame(pinRight);
-    const t1 = setTimeout(pinRight, 0);
-
-    return () => {
-      try { cancelAnimationFrame(r1); } catch {}
-      try { cancelAnimationFrame(r2); } catch {}
-      try { clearTimeout(t1); } catch {}
-    };
-  }, [childCount]);
-
-  // NOTE: HighlightCard has 24px padding. We full-bleed by 24px on each side (-mx-6)
-  // and then re-add inner padding so bars align to the card edges.
-  return React.createElement(
-    'div',
-    {
-      className: 'relative overflow-hidden -mx-6',
-      style: { height: `${height}px`, width: 'calc(100% + 48px)' }
-    },
-    React.createElement(
-      'div',
-      {
-        ref: scrollerRef,
-        className: 'tt-hide-scrollbar overflow-x-auto overflow-y-visible',
-        style: {
-          height: `${height}px`,
-          paddingLeft: 24,
-          paddingRight: 32, // extra right padding so the last value pill doesn’t kiss the edge
-          WebkitOverflowScrolling: 'touch',
-          overscrollBehavior: 'contain',
-          // Disable all user interaction/scrolling while still allowing programmatic scrollLeft.
-          pointerEvents: 'none',
-          touchAction: 'none'
-        }
-      },
-      children
-    )
-  );
-};
-
 const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children }) => {
   return React.createElement(
     'div',
@@ -4704,11 +4621,11 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
     ),
     // Divider
     React.createElement('div', { className: 'border-t border-gray-100 mb-3' }),
-    // Mini Viz Area: fixed height (180px). Any clipping/scroll pinning is handled
-    // by HighlightMiniVizViewport (used only by highlight mini-viz).
+    // Mini Viz Area: clipped, matches existing chart container height (180px)
+    // Non-interactive: pointer-events none to prevent chart interactions
     React.createElement(
       'div',
-      { style: { height: '180px' } },
+      { className: 'overflow-hidden', style: { height: '180px', pointerEvents: 'none' } },
       children
     )
   );
@@ -5237,18 +5154,26 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         },
         stats.chartData.length > 0
           ? (() => {
-              const items = (stats.chartData || []).filter(Boolean);
+              const todayDateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
               return React.createElement(
-                HighlightMiniVizViewport,
-                { height: 180 },
+                'div',
+                { className: 'relative overflow-hidden -mx-6', style: { width: 'calc(100% + 48px)' } },
                 React.createElement(
                   'div',
                   {
-                    className: 'inline-flex gap-6 pb-2',
-                    style: { width: 'max-content' }
+                    className: 'overflow-x-hidden overflow-y-visible px-6'
                   },
-                  items.map((item, idx) => {
-                      const isHighlighted = idx === items.length - 1;
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'inline-flex gap-6 pb-2',
+                      style: {
+                        width: 'max-content',
+                        marginLeft: 'auto'
+                      }
+                    },
+                    stats.chartData.map((item, idx) => {
+                      const isHighlighted = idx === stats.chartData.length - 1;
                       return React.createElement(
                         'div',
                         {
@@ -5324,19 +5249,27 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         },
         sleepBuckets.length > 0
           ? (() => {
-              const buckets = (sleepBuckets || []).filter(Boolean);
-              const maxHrs = Math.max(...buckets.map(x => x.totalHrs || 0), 1);
+              const todayDateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              const maxHrs = Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1);
               return React.createElement(
-                HighlightMiniVizViewport,
-                { height: 180 },
+                'div',
+                { className: 'relative overflow-hidden -mx-6', style: { width: 'calc(100% + 48px)' } },
                 React.createElement(
                   'div',
                   {
-                    className: 'inline-flex gap-6 pb-2',
-                    style: { width: 'max-content' }
+                    className: 'overflow-x-hidden overflow-y-visible px-6'
                   },
-                  buckets.map((b, idx) => {
-                      const isHighlighted = idx === buckets.length - 1;
+                  React.createElement(
+                    'div',
+                    {
+                      className: 'inline-flex gap-6 pb-2',
+                      style: {
+                        width: 'max-content',
+                        marginLeft: 'auto'
+                      }
+                    },
+                    sleepBuckets.map((b, idx) => {
+                      const isHighlighted = idx === sleepBuckets.length - 1;
                       return React.createElement(
                         'div',
                         {
