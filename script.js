@@ -5248,57 +5248,56 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                     style: { width: 'max-content' }
                   },
                   items.map((item, idx) => {
-                      const isHighlighted = idx === items.length - 1;
-                      return React.createElement(
+                    const isHighlighted = idx === items.length - 1;
+                    return React.createElement(
+                      'div',
+                      {
+                        key: item.date,
+                        className: 'flex flex-col items-center gap-2 flex-shrink-0'
+                      },
+                      React.createElement(
                         'div',
                         {
-                          key: item.date,
-                          className: 'flex flex-col items-center gap-2 flex-shrink-0'
+                          className: 'flex flex-col justify-end items-center',
+                          style: { height: '148px', width: '60px' }
                         },
                         React.createElement(
                           'div',
                           {
-                            className: 'flex flex-col justify-end items-center',
-                            style: { height: '148px', width: '60px' }
+                            className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                            style: {
+                              height: `${(item.volume / maxVolume) * 128}px`,
+                              minHeight: '30px',
+                              backgroundColor: isHighlighted ? 'var(--color-eating)' : '#9CA3AF'
+                            }
                           },
                           React.createElement(
                             'div',
-                            {
-                              className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
-                              style: {
-                                height: `${(item.volume / maxVolume) * 128}px`,
-                                minHeight: '30px',
-                                backgroundColor: isHighlighted ? 'var(--color-eating)' : '#9CA3AF'
-                              }
+                            { 
+                              className: 'font-semibold',
+                              style: { color: isHighlighted ? '#FFFFFF' : '#FFFFFF' }
                             },
+                            React.createElement('span', { className: 'text-xs' }, item.volume),
                             React.createElement(
-                              'div',
-                              { 
-                                className: 'font-semibold',
-                                style: { color: isHighlighted ? '#FFFFFF' : '#FFFFFF' }
-                              },
-                              React.createElement('span', { className: 'text-xs' }, item.volume),
-                              React.createElement(
-                                'span',
-                                { className: 'text-[10px] opacity-70 ml-0.5' },
-                                'oz'
-                              )
+                              'span',
+                              { className: 'text-[10px] opacity-70 ml-0.5' },
+                              'oz'
                             )
                           )
-                        ),
-                        React.createElement(
-                          'div',
-                          { className: 'text-xs text-gray-500 font-medium' },
-                          item.date
-                        ),
-                        React.createElement(
-                          'div',
-                          { className: 'text-xs text-gray-400' },
-                          `${item.count} feeds`
                         )
-                      );
-                    })
-                  )
+                      ),
+                      React.createElement(
+                        'div',
+                        { className: 'text-xs text-gray-500 font-medium' },
+                        item.date
+                      ),
+                      React.createElement(
+                        'div',
+                        { className: 'text-xs text-gray-400' },
+                        `${item.count} feeds`
+                      )
+                    );
+                  })
                 )
               );
             })()
