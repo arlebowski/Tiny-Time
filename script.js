@@ -2030,7 +2030,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       // ---------------- PAGE CONTENT ----------------
       React.createElement(
         'div',
-        { className: "px-4" },
+        { className: "px-4 pb-5" },
         activeTab === 'tracker' && React.createElement(TrackerTab, { user, kidId, familyId }),
         activeTab === 'analytics' && React.createElement(AnalyticsTab, { user, kidId, familyId }),
         activeTab === 'chat' && React.createElement(AIChatTab, { user, kidId, familyId, themeKey }),
