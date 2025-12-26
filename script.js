@@ -4665,37 +4665,82 @@ const HighlightMiniVizViewport = ({ height = 180, children }) => {
 };
 
 // Sleep Chart Component - matches SleepCard.tsx design
-const SleepChart = () => {
-  // Mock data matching the SleepCard.tsx design
-  const data = [
-    { day: "F", hours: 10.5 },
-    { day: "Sa", hours: 12.0 },
-    { day: "Su", hours: 13.5 },
-    { day: "M", hours: 14.0 },
-    { day: "Tu", hours: 14.5 },
-    { day: "W", hours: 14.0 },
-    { day: "Th", hours: 16.5 },
-  ];
+const SleepChart = ({ data = [], average = 0 }) => {
+  // Convert date to day of week abbreviation
+  const getDayAbbrev = (date) => {
+    const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const abbrevs = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
+    return abbrevs[day];
+  };
   
-  const averageSleep = 14.2;
-  const maxHours = Math.max(...data.map(d => d.hours), averageSleep);
+  // Get today's date key for highlighting
+  const todayKey = _dateKeyLocal(Date.now());
+  
+  // Process data: map to chart format (data should already have 7 days, oldest to newest)
+  const chartData = data.map((entry, index) => {
+    const hours = entry.totalHrs || 0;
+    const dayAbbrev = entry.date ? getDayAbbrev(entry.date) : '';
+    const isToday = entry.key === todayKey;
+    return {
+      day: dayAbbrev,
+      hours: hours,
+      isHighlighted: isToday,
+      isToday: isToday
+    };
+  });
+  
+  // Ensure we have exactly 7 days (data should already be 7, but handle edge cases)
+  if (chartData.length === 0) {
+    // No data: create 7 empty days
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      chartData.push({
+        day: getDayAbbrev(d),
+        hours: 0,
+        isHighlighted: false,
+        isToday: i === 0
+      });
+    }
+  } else if (chartData.length < 7) {
+    // Pad missing days with zeros (shouldn't happen, but handle gracefully)
+    const now = new Date();
+    while (chartData.length < 7) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - (7 - chartData.length - 1));
+      chartData.push({
+        day: getDayAbbrev(d),
+        hours: 0,
+        isHighlighted: false,
+        isToday: chartData.length === 6 // Last one added is today
+      });
+    }
+  }
+  
+  // Calculate max hours for scaling (include average in max calculation)
+  const maxHours = Math.max(
+    ...chartData.map(d => d.hours),
+    average,
+    1 // Minimum of 1 to avoid division by zero
+  );
+  
   const chartHeight = 130; // Increased from 100 to make bars taller
   const barWidth = 32;
   const barGap = 16; // gap between bars
   const chartWidth = barWidth + barGap; // per bar area
-  const barSpacing = 0; // bars start at the left of each segment
-  const totalWidth = (data.length - 1) * chartWidth + barWidth;
+  const totalWidth = (chartData.length - 1) * chartWidth + barWidth;
   
   // Calculate bar heights and positions
-  const bars = data.map((entry, index) => {
+  const bars = chartData.map((entry, index) => {
     const x = index * chartWidth;
     const height = (entry.hours / maxHours) * chartHeight;
     const y = chartHeight - height;
-    return { ...entry, x, y, height, isHighlighted: entry.day === 'Th' };
+    return { ...entry, x, y, height };
   });
   
-  // Reference line position
-  const refLineY = chartHeight - (averageSleep / maxHours) * chartHeight;
+  // Reference line position (average sleep)
+  const refLineY = chartHeight - (average / maxHours) * chartHeight;
   
   // Animation state
   const [isVisible, setIsVisible] = useState(false);
@@ -4755,7 +4800,7 @@ const SleepChart = () => {
         React.createElement(
           'span',
           { className: 'text-[2.25rem] font-bold text-indigo-700 leading-none' },
-          averageSleep.toFixed(1)
+          average.toFixed(1)
         ),
         React.createElement(
           'span',
@@ -4800,7 +4845,7 @@ const SleepChart = () => {
               y: isVisible ? bar.y : chartHeight, // Start at bottom, animate to position
               width: barWidth,
               height: isVisible ? bar.height : 0, // Start with 0 height, animate to full height
-              fill: bar.isHighlighted ? '#4f46e5' : '#e5e7eb',
+              fill: bar.isToday ? '#4f46e5' : '#e5e7eb',
               rx: 6,
               ry: 6,
               style: {
@@ -5347,6 +5392,59 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     };
   }, [timeframe, sleepBuckets]);
 
+  // Chart data: Always last 7 days (regardless of timeframe)
+  const sleepChartData = useMemo(() => {
+    const now = new Date();
+    const makeDayKey = (d) => _dateKeyLocal(d.getTime());
+    const dataByDay = sleepByDay || {};
+    
+    // Get last 7 days (6 days ago to today)
+    const keys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      keys.push(makeDayKey(d));
+    }
+    
+    return keys.map(k => {
+      const date = (() => {
+        const parts = String(k || '').split('-');
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        const d = Number(parts[2]);
+        if (!y || !m || !d) return new Date();
+        return new Date(y, m - 1, d);
+      })();
+      
+      return {
+        key: k,
+        date: date,
+        totalHrs: (dataByDay[k]?.totalHrs || 0),
+        ...(dataByDay[k] || {})
+      };
+    });
+  }, [sleepByDay]);
+
+  // Calculate 7-day average with same logic as sleepCards
+  const sleepChartAverage = useMemo(() => {
+    const bucketsWithData = sleepChartData.filter(d => (d.totalHrs || 0) > 0 || (d.count || 0) > 0).length;
+    const excludeToday = bucketsWithData > 7;
+    const todayKey = _dateKeyLocal(Date.now());
+    const lastBucketIsToday = sleepChartData.length > 0 && sleepChartData[sleepChartData.length - 1]?.key === todayKey;
+    
+    let daysToAverage = sleepChartData;
+    if (excludeToday && lastBucketIsToday) {
+      // Exclude today: take first 6 days (remove last one which is today)
+      daysToAverage = sleepChartData.slice(0, -1);
+    } else {
+      // Include today: take all 7 days
+      daysToAverage = sleepChartData;
+    }
+    
+    const totalHrs = daysToAverage.reduce((sum, d) => sum + (d.totalHrs || 0), 0);
+    return daysToAverage.length > 0 ? totalHrs / daysToAverage.length : 0;
+  }, [sleepChartData]);
+
   if (loading) {
     return React.createElement(
       'div',
@@ -5524,7 +5622,10 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           categoryColor: 'var(--color-sleep)',
           onClick: () => setActiveModal('sleep')
         },
-        React.createElement(SleepChart)
+        React.createElement(SleepChart, {
+          data: sleepChartData,
+          average: sleepChartAverage
+        })
       )
     ),
 
