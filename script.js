@@ -5298,12 +5298,46 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
 
     const label = timeframe === 'day' ? '3-day avg' : (timeframe === 'week' ? '7-day avg' : '30-day avg');
     const windowN = timeframe === 'day' ? 3 : (timeframe === 'week' ? 7 : 30);
-    const tail = (arr) => arr.slice(Math.max(0, arr.length - Math.min(windowN, arr.length)));
+    
+    // Count buckets with actual sleep data
+    const bucketsWithData = vals.filter(v => (v.totalHrs || 0) > 0 || (v.count || 0) > 0).length;
+    
+    // Determine if we should exclude today/current period
+    // If we have > windowN days/buckets of data, exclude today/current period
+    // If we have <= windowN days/buckets of data, include today/current period
+    const excludeToday = bucketsWithData > windowN;
+    
+    // Get today's date key
+    const todayKey = _dateKeyLocal(Date.now());
+    
+    // Check if last bucket includes today
+    // For 'day': check if key matches today
+    // For 'week'/'month': assume last bucket includes today if it's the most recent period
+    const lastBucketIsToday = timeframe === 'day' 
+      ? (vals.length > 0 && vals[vals.length - 1]?.key === todayKey)
+      : (vals.length > 0); // For week/month, last bucket is always current period
+    
+    // Select buckets to average
+    let bucketsToAverage;
+    if (excludeToday && lastBucketIsToday && vals.length > windowN) {
+      // Exclude today: take last N+1 items, remove the last one (today)
+      bucketsToAverage = vals.slice(-windowN - 1, -1);
+    } else {
+      // Include today: take last N items (or all if fewer than N)
+      bucketsToAverage = vals.slice(-windowN);
+    }
+    
+    // Extract values and calculate averages
+    const totalsToAvg = bucketsToAverage.map(v => v.totalHrs || 0);
+    const daysToAvg = bucketsToAverage.map(v => v.dayHrs || 0);
+    const nightsToAvg = bucketsToAverage.map(v => v.nightHrs || 0);
+    const countsToAvg = bucketsToAverage.map(v => v.count || 0);
 
-    const avgTotal = _avg(tail(totals));
-    const avgDay = _avg(tail(days));
-    const avgNight = _avg(tail(nights));
-    const avgSleeps = _avg(tail(counts));
+    const avgTotal = _avg(totalsToAvg);
+    const avgDay = _avg(daysToAvg);
+    const avgNight = _avg(nightsToAvg);
+    const avgSleeps = _avg(countsToAvg);
+    
     return {
       label,
       avgTotal,
