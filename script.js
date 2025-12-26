@@ -5008,20 +5008,20 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       labelText = '30-day avg';
     }
 
-    // Global 3-day bootstrap rule:
-    // - If we have <= 3 distinct days of data, include today in the window.
-    // - Once we have > 3 distinct days of data, all windows use only completed days (exclude today).
-    const bootstrap = allUniqueDays <= 3;
+    // Per-timeframe bootstrap rule:
+    // - If we have > numDays distinct days of data, exclude today (use only completed days)
+    // - If we have <= numDays distinct days of data, include today
+    const excludeToday = allUniqueDays > numDays;
 
     let periodStart, periodEnd;
-    if (bootstrap) {
-      // Include today: last `numDays` days up through the end of today
-      periodEnd = todayStart + MS_PER_DAY; // end of today
-      periodStart = periodEnd - numDays * MS_PER_DAY;
-    } else {
+    if (excludeToday) {
       // Exclude today: last `numDays` full days before today
       periodEnd = todayStart; // start of today (exclusive upper bound)
       periodStart = todayStart - numDays * MS_PER_DAY;
+    } else {
+      // Include today: last `numDays` days up through the end of today
+      periodEnd = todayStart + MS_PER_DAY; // end of today
+      periodStart = periodEnd - numDays * MS_PER_DAY;
     }
 
     const recentFeedings = feedings.filter(
