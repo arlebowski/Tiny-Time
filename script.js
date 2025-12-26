@@ -4877,6 +4877,219 @@ const SleepChart = ({ data = [], average = 0 }) => {
   );
 };
 
+// Feeding Chart Component - duplicate of SleepChart design
+const FeedingChart = ({ data = [], average = 0 }) => {
+  // Convert date to day of week abbreviation
+  const getDayAbbrev = (date) => {
+    const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+    const abbrevs = ['Su', 'M', 'Tu', 'W', 'Th', 'F', 'Sa'];
+    return abbrevs[day];
+  };
+  
+  // Get today's date key for highlighting
+  const todayKey = _dateKeyLocal(Date.now());
+  
+  // Process data: map to chart format (data should already have 7 days, oldest to newest)
+  const chartData = data.map((entry, index) => {
+    const volume = entry.volume || 0;
+    const dayAbbrev = entry.date ? getDayAbbrev(entry.date) : '';
+    const isToday = entry.key === todayKey;
+    return {
+      day: dayAbbrev,
+      volume: volume,
+      isHighlighted: isToday,
+      isToday: isToday
+    };
+  });
+  
+  // Ensure we have exactly 7 days (data should already be 7, but handle edge cases)
+  if (chartData.length === 0) {
+    // No data: create 7 empty days
+    const now = new Date();
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      chartData.push({
+        day: getDayAbbrev(d),
+        hours: 0,
+        isHighlighted: false,
+        isToday: i === 0
+      });
+    }
+  } else if (chartData.length < 7) {
+    // Pad missing days with zeros (shouldn't happen, but handle gracefully)
+    const now = new Date();
+    while (chartData.length < 7) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - (7 - chartData.length - 1));
+      chartData.push({
+        day: getDayAbbrev(d),
+        volume: 0,
+        isHighlighted: false,
+        isToday: chartData.length === 6 // Last one added is today
+      });
+    }
+  }
+  
+  // Calculate max volume for scaling (include average in max calculation)
+  const maxVolume = Math.max(
+    ...chartData.map(d => d.volume),
+    average,
+    1 // Minimum of 1 to avoid division by zero
+  );
+  
+  const chartHeight = 130; // Increased from 100 to make bars taller
+  const barWidth = 32;
+  const barGap = 16; // gap between bars
+  const chartWidth = barWidth + barGap; // per bar area
+  const totalWidth = (chartData.length - 1) * chartWidth + barWidth;
+  
+  // Calculate bar heights and positions
+  const bars = chartData.map((entry, index) => {
+    const x = index * chartWidth;
+    const height = (entry.volume / maxVolume) * chartHeight;
+    const y = chartHeight - height;
+    return { ...entry, x, y, height };
+  });
+  
+  // Reference line position (average intake)
+  const refLineY = chartHeight - (average / maxVolume) * chartHeight;
+  
+  // Animation state
+  const [isVisible, setIsVisible] = useState(false);
+  const chartRef = React.useRef(null);
+  
+  // Intersection Observer to detect when card scrolls into view
+  useEffect(() => {
+    // Check if IntersectionObserver is available
+    if (typeof IntersectionObserver === 'undefined') {
+      // Fallback: animate immediately if IntersectionObserver not available
+      setIsVisible(true);
+      return;
+    }
+    
+    const element = chartRef.current;
+    if (!element) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !isVisible) {
+            setIsVisible(true);
+          }
+        });
+      },
+      {
+        threshold: 0.2, // Trigger when 20% of the element is visible
+        rootMargin: '0px'
+      }
+    );
+    
+    observer.observe(element);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVisible]);
+  
+  return React.createElement(
+    'div',
+    { 
+      className: 'flex flex-col h-full justify-between',
+      ref: chartRef
+    },
+    // Average Intake section
+    React.createElement(
+      'div',
+      { className: 'flex flex-col mb-1' },
+      React.createElement(
+        'span',
+        { className: 'text-xs font-medium text-gray-400 tracking-wider mb-1' },
+        'Average intake'
+      ),
+      React.createElement(
+        'div',
+        { className: 'flex items-baseline space-x-1' },
+        React.createElement(
+          'span',
+          { className: 'text-[2.25rem] font-bold text-pink-600 leading-none' },
+          average.toFixed(1)
+        ),
+        React.createElement(
+          'span',
+          { className: 'text-sm font-medium text-gray-400' },
+          'oz'
+        )
+      )
+    ),
+    // Chart section
+    React.createElement(
+      'div',
+      { className: 'w-full mt-2 -mx-1 relative', style: { height: '150px' } },
+      React.createElement(
+        'svg',
+        {
+          width: '100%',
+          height: '100%',
+          viewBox: `0 0 ${totalWidth} ${chartHeight + 25}`,
+          preserveAspectRatio: 'xMidYMax meet',
+          style: { overflow: 'visible' }
+        },
+        // Bars with animation
+        bars.map((bar, index) =>
+          React.createElement(
+            'rect',
+            {
+              key: `bar-${index}`,
+              x: bar.x,
+              y: isVisible ? bar.y : chartHeight, // Start at bottom, animate to position
+              width: barWidth,
+              height: isVisible ? bar.height : 0, // Start with 0 height, animate to full height
+              fill: bar.isToday ? '#EC4899' : '#e5e7eb',
+              rx: 6,
+              ry: 6,
+              style: {
+                transition: 'height 0.6s ease-out, y 0.6s ease-out',
+                transitionDelay: `${index * 0.05}s`
+              }
+            }
+          )
+        ),
+        // Day labels
+        bars.map((bar, index) =>
+          React.createElement(
+            'text',
+            {
+              key: `label-${index}`,
+              x: bar.x + barWidth / 2,
+              y: chartHeight + 18,
+              textAnchor: 'middle',
+              fill: '#9ca3af',
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+            },
+            bar.day
+          )
+        ),
+        // Reference line (rendered after bars so it appears on top)
+        React.createElement(
+          'line',
+          {
+            x1: 0,
+            y1: refLineY,
+            x2: totalWidth,
+            y2: refLineY,
+            stroke: '#EC4899',
+            strokeWidth: 3,
+            opacity: 0.85
+          }
+        )
+      )
+    )
+  );
+};
+
 const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children }) => {
   return React.createElement(
     'div',
@@ -5445,6 +5658,75 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     return daysToAverage.length > 0 ? totalHrs / daysToAverage.length : 0;
   }, [sleepChartData]);
 
+  // Aggregate feedings by day (similar to aggregateSleepByDay)
+  const feedingByDay = useMemo(() => {
+    const map = {}; // dateKey -> { volume, count }
+    (allFeedings || []).forEach((f) => {
+      const timestamp = Number(f?.timestamp);
+      if (!Number.isFinite(timestamp)) return;
+      const key = _dateKeyLocal(timestamp);
+      const ounces = Number(f?.ounces || 0);
+      if (!map[key]) map[key] = { volume: 0, count: 0 };
+      map[key].volume += ounces;
+      map[key].count += 1;
+    });
+    return map;
+  }, [allFeedings]);
+
+  // Chart data: Always last 7 days (regardless of timeframe)
+  const feedingChartData = useMemo(() => {
+    const now = new Date();
+    const makeDayKey = (d) => _dateKeyLocal(d.getTime());
+    const dataByDay = feedingByDay || {};
+    
+    // Get last 7 days (6 days ago to today)
+    const keys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      keys.push(makeDayKey(d));
+    }
+    
+    return keys.map(k => {
+      const date = (() => {
+        const parts = String(k || '').split('-');
+        const y = Number(parts[0]);
+        const m = Number(parts[1]);
+        const d = Number(parts[2]);
+        if (!y || !m || !d) return new Date();
+        return new Date(y, m - 1, d);
+      })();
+      
+      return {
+        key: k,
+        date: date,
+        volume: (dataByDay[k]?.volume || 0),
+        count: (dataByDay[k]?.count || 0),
+        ...(dataByDay[k] || {})
+      };
+    });
+  }, [feedingByDay]);
+
+  // Calculate 7-day average with same logic as sleepCards
+  const feedingChartAverage = useMemo(() => {
+    const bucketsWithData = feedingChartData.filter(d => (d.volume || 0) > 0 || (d.count || 0) > 0).length;
+    const excludeToday = bucketsWithData > 7;
+    const todayKey = _dateKeyLocal(Date.now());
+    const lastBucketIsToday = feedingChartData.length > 0 && feedingChartData[feedingChartData.length - 1]?.key === todayKey;
+    
+    let daysToAverage = feedingChartData;
+    if (excludeToday && lastBucketIsToday) {
+      // Exclude today: take first 6 days (remove last one which is today)
+      daysToAverage = feedingChartData.slice(0, -1);
+    } else {
+      // Include today: take all 7 days
+      daysToAverage = feedingChartData;
+    }
+    
+    const totalVolume = daysToAverage.reduce((sum, d) => sum + (d.volume || 0), 0);
+    return daysToAverage.length > 0 ? totalVolume / daysToAverage.length : 0;
+  }, [feedingChartData]);
+
   if (loading) {
     return React.createElement(
       'div',
@@ -5536,77 +5818,10 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           categoryColor: 'var(--color-eating)',
           onClick: () => setActiveModal('feeding')
         },
-        stats.chartData.length > 0
-          ? (() => {
-              const items = (stats.chartData || []).filter(Boolean);
-              return React.createElement(
-                HighlightMiniVizViewport,
-                { height: 180 },
-                React.createElement(
-                  'div',
-                  {
-                    className: 'inline-flex gap-6 pb-2',
-                    style: { width: 'max-content' }
-                  },
-                  items.map((item, idx) => {
-                      const isHighlighted = idx === items.length - 1;
-                      return React.createElement(
-                        'div',
-                        {
-                          key: item.date,
-                          className: 'flex flex-col items-center gap-2 flex-shrink-0'
-                        },
-                        React.createElement(
-                          'div',
-                          {
-                            className: 'flex flex-col justify-end items-center',
-                            style: { height: '148px', width: '60px' }
-                          },
-                          React.createElement(
-                            'div',
-                            {
-                              className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
-                              style: {
-                                height: `${(item.volume / maxVolume) * 128}px`,
-                                minHeight: '30px',
-                                backgroundColor: isHighlighted ? 'var(--color-eating)' : '#9CA3AF'
-                              }
-                            },
-                            React.createElement(
-                              'div',
-                              { 
-                                className: 'font-semibold',
-                                style: { color: isHighlighted ? '#FFFFFF' : '#FFFFFF' }
-                              },
-                              React.createElement('span', { className: 'text-xs' }, item.volume),
-                              React.createElement(
-                                'span',
-                                { className: 'text-[10px] opacity-70 ml-0.5' },
-                                'oz'
-                              )
-                            )
-                          )
-                        ),
-                        React.createElement(
-                          'div',
-                          { className: 'text-xs text-gray-500 font-medium' },
-                          item.date
-                        ),
-                        React.createElement(
-                          'div',
-                          { className: 'text-xs text-gray-400' },
-                          `${item.count} feeds`
-                        )
-                      );
-                    })
-                )
-              );
-            })()
-          : React.createElement(
-              'div',
-              { className: 'text-center text-gray-400 py-8' },
-              'No data to display'
-            )
+        React.createElement(FeedingChart, {
+          data: feedingChartData,
+          average: feedingChartAverage
+        })
       ),
 
       // Sleep highlight
