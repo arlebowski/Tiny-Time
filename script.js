@@ -4918,11 +4918,11 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
     ),
     // Divider
     React.createElement('div', { className: 'border-t border-gray-100 mb-3' }),
-    // Mini Viz Area: fixed height (220px). Any clipping/scroll pinning is handled
+    // Mini Viz Area: fixed height (240px). Any clipping/scroll pinning is handled
     // by HighlightMiniVizViewport (used only by highlight mini-viz).
     React.createElement(
       'div',
-      { style: { height: '220px' } },
+      { style: { height: '240px' } },
       children
     )
   );
