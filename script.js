@@ -4822,19 +4822,6 @@ const SleepChart = ({ data = [], average = 0 }) => {
           preserveAspectRatio: 'xMidYMax meet',
           style: { overflow: 'visible' }
         },
-        // Reference line
-        React.createElement(
-          'line',
-          {
-            x1: 0,
-            y1: refLineY,
-            x2: totalWidth,
-            y2: refLineY,
-            stroke: '#6366f1',
-            strokeWidth: 2,
-            opacity: 0.8
-          }
-        ),
         // Bars with animation
         bars.map((bar, index) =>
           React.createElement(
@@ -4871,6 +4858,19 @@ const SleepChart = ({ data = [], average = 0 }) => {
             },
             bar.day
           )
+        ),
+        // Reference line (rendered after bars so it appears on top)
+        React.createElement(
+          'line',
+          {
+            x1: 0,
+            y1: refLineY,
+            x2: totalWidth,
+            y2: refLineY,
+            stroke: '#6366f1',
+            strokeWidth: 3,
+            opacity: 0.85
+          }
         )
       )
     )
