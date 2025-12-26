@@ -4697,9 +4697,49 @@ const SleepChart = () => {
   // Reference line position
   const refLineY = chartHeight - (averageSleep / maxHours) * chartHeight;
   
+  // Animation state
+  const [isVisible, setIsVisible] = useState(false);
+  const chartRef = React.useRef(null);
+  
+  // Intersection Observer to detect when card scrolls into view
+  useEffect(() => {
+    // Check if IntersectionObserver is available
+    if (typeof IntersectionObserver === 'undefined') {
+      // Fallback: animate immediately if IntersectionObserver not available
+      setIsVisible(true);
+      return;
+    }
+    
+    const element = chartRef.current;
+    if (!element) return;
+    
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting && !isVisible) {
+            setIsVisible(true);
+          }
+        });
+      },
+      {
+        threshold: 0.2, // Trigger when 20% of the element is visible
+        rootMargin: '0px'
+      }
+    );
+    
+    observer.observe(element);
+    
+    return () => {
+      observer.disconnect();
+    };
+  }, [isVisible]);
+  
   return React.createElement(
     'div',
-    { className: 'flex flex-col h-full justify-between' },
+    { 
+      className: 'flex flex-col h-full justify-between',
+      ref: chartRef
+    },
     // Average Sleep section
     React.createElement(
       'div',
@@ -4750,19 +4790,23 @@ const SleepChart = () => {
             opacity: 0.8
           }
         ),
-        // Bars
+        // Bars with animation
         bars.map((bar, index) =>
           React.createElement(
             'rect',
             {
               key: `bar-${index}`,
               x: bar.x,
-              y: bar.y,
+              y: isVisible ? bar.y : chartHeight, // Start at bottom, animate to position
               width: barWidth,
-              height: bar.height,
+              height: isVisible ? bar.height : 0, // Start with 0 height, animate to full height
               fill: bar.isHighlighted ? '#4f46e5' : '#e5e7eb',
               rx: 6,
-              ry: 6
+              ry: 6,
+              style: {
+                transition: 'height 0.6s ease-out, y 0.6s ease-out',
+                transitionDelay: `${index * 0.05}s`
+              }
             }
           )
         ),
