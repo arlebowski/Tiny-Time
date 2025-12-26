@@ -4664,6 +4664,130 @@ const HighlightMiniVizViewport = ({ height = 180, children }) => {
   );
 };
 
+// Sleep Chart Component - matches SleepCard.tsx design
+const SleepChart = () => {
+  // Mock data matching the SleepCard.tsx design
+  const data = [
+    { day: "F", hours: 10.5 },
+    { day: "Sa", hours: 12.0 },
+    { day: "Su", hours: 13.5 },
+    { day: "M", hours: 14.0 },
+    { day: "Tu", hours: 14.5 },
+    { day: "W", hours: 14.0 },
+    { day: "Th", hours: 16.5 },
+  ];
+  
+  const averageSleep = 14.2;
+  const maxHours = Math.max(...data.map(d => d.hours), averageSleep);
+  const chartHeight = 130; // Increased from 100 to make bars taller
+  const barWidth = 32;
+  const barGap = 16; // gap between bars
+  const chartWidth = barWidth + barGap; // per bar area
+  const barSpacing = 0; // bars start at the left of each segment
+  const totalWidth = (data.length - 1) * chartWidth + barWidth;
+  
+  // Calculate bar heights and positions
+  const bars = data.map((entry, index) => {
+    const x = index * chartWidth;
+    const height = (entry.hours / maxHours) * chartHeight;
+    const y = chartHeight - height;
+    return { ...entry, x, y, height, isHighlighted: entry.day === 'Th' };
+  });
+  
+  // Reference line position
+  const refLineY = chartHeight - (averageSleep / maxHours) * chartHeight;
+  
+  return React.createElement(
+    'div',
+    { className: 'flex flex-col h-full justify-between' },
+    // Average Sleep section
+    React.createElement(
+      'div',
+      { className: 'flex flex-col mb-1' },
+      React.createElement(
+        'span',
+        { className: 'text-xs font-medium text-gray-400 tracking-wider mb-1' },
+        'Average sleep'
+      ),
+      React.createElement(
+        'div',
+        { className: 'flex items-baseline space-x-1' },
+        React.createElement(
+          'span',
+          { className: 'text-[2.25rem] font-bold text-indigo-700 leading-none' },
+          averageSleep.toFixed(1)
+        ),
+        React.createElement(
+          'span',
+          { className: 'text-sm font-medium text-gray-400' },
+          'hrs'
+        )
+      )
+    ),
+    // Chart section
+    React.createElement(
+      'div',
+      { className: 'w-full mt-2 -mx-1 relative', style: { height: '150px' } },
+      React.createElement(
+        'svg',
+        {
+          width: '100%',
+          height: '100%',
+          viewBox: `0 0 ${totalWidth} ${chartHeight + 25}`,
+          preserveAspectRatio: 'xMidYMax meet',
+          style: { overflow: 'visible' }
+        },
+        // Reference line
+        React.createElement(
+          'line',
+          {
+            x1: 0,
+            y1: refLineY,
+            x2: totalWidth,
+            y2: refLineY,
+            stroke: '#6366f1',
+            strokeWidth: 2,
+            opacity: 0.8
+          }
+        ),
+        // Bars
+        bars.map((bar, index) =>
+          React.createElement(
+            'rect',
+            {
+              key: `bar-${index}`,
+              x: bar.x,
+              y: bar.y,
+              width: barWidth,
+              height: bar.height,
+              fill: bar.isHighlighted ? '#4f46e5' : '#e5e7eb',
+              rx: 6,
+              ry: 6
+            }
+          )
+        ),
+        // Day labels
+        bars.map((bar, index) =>
+          React.createElement(
+            'text',
+            {
+              key: `label-${index}`,
+              x: bar.x + barWidth / 2,
+              y: chartHeight + 18,
+              textAnchor: 'middle',
+              fill: '#9ca3af',
+              fontSize: 12,
+              fontWeight: 500,
+              fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+            },
+            bar.day
+          )
+        )
+      )
+    )
+  );
+};
+
 const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children }) => {
   return React.createElement(
     'div',
@@ -4699,17 +4823,17 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
       { className: 'mb-3' },
       React.createElement(
         'div',
-        { className: 'text-sm font-bold text-gray-900 leading-tight insight-text-clamp' },
+        { className: 'text-base font-bold text-gray-900 leading-tight insight-text-clamp' },
         insightText.join(' ')
       )
     ),
     // Divider
     React.createElement('div', { className: 'border-t border-gray-100 mb-3' }),
-    // Mini Viz Area: fixed height (180px). Any clipping/scroll pinning is handled
+    // Mini Viz Area: fixed height (220px). Any clipping/scroll pinning is handled
     // by HighlightMiniVizViewport (used only by highlight mini-viz).
     React.createElement(
       'div',
-      { style: { height: '180px' } },
+      { style: { height: '220px' } },
       children
     )
   );
@@ -5316,88 +5440,13 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           icon: Moon,
           label: 'Sleep',
           insightText: [
-            'Levi is right on track to hit his average sleep today!',
+            'Levi has been sleeping great this week!',
             ''
           ],
           categoryColor: 'var(--color-sleep)',
           onClick: () => setActiveModal('sleep')
         },
-        sleepBuckets.length > 0
-          ? (() => {
-              const buckets = (sleepBuckets || []).filter(Boolean);
-              const maxHrs = Math.max(...buckets.map(x => x.totalHrs || 0), 1);
-              return React.createElement(
-                HighlightMiniVizViewport,
-                { height: 180 },
-                React.createElement(
-                  'div',
-                  {
-                    className: 'inline-flex gap-6 pb-2',
-                    style: { width: 'max-content' }
-                  },
-                  buckets.map((b, idx) => {
-                      const isHighlighted = idx === buckets.length - 1;
-                      return React.createElement(
-                        'div',
-                        {
-                          key: b.key,
-                          className: 'flex flex-col items-center gap-2 flex-shrink-0'
-                        },
-                        React.createElement(
-                          'div',
-                          {
-                            className: 'flex flex-col justify-end items-center',
-                            style: { height: '148px', width: '60px' }
-                          },
-                          React.createElement(
-                            'div',
-                            {
-                              className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
-                              style: {
-                                height: `${(Number(b.totalHrs || 0) / maxHrs) * 128}px`,
-                                minHeight: '30px',
-                                backgroundColor: isHighlighted ? 'var(--color-sleep)' : '#9CA3AF'
-                              }
-                            },
-                            React.createElement(
-                              'div',
-                              { 
-                                className: 'font-semibold',
-                                style: { color: isHighlighted ? '#FFFFFF' : '#FFFFFF' }
-                              },
-                              React.createElement(
-                                'span',
-                                { className: 'text-xs' },
-                                Number(b.totalHrs || 0).toFixed(1)
-                              ),
-                              React.createElement(
-                                'span',
-                                { className: 'text-[10px] opacity-70 ml-0.5' },
-                                'h'
-                              )
-                            )
-                          )
-                        ),
-                        React.createElement(
-                          'div',
-                          { className: 'text-xs text-gray-500 font-medium' },
-                          b.label
-                        ),
-                        React.createElement(
-                          'div',
-                          { className: 'text-xs text-gray-400' },
-                          `${b.count || 0} sleeps`
-                        )
-                      );
-                    })
-                )
-              );
-            })()
-          : React.createElement(
-              'div',
-              { className: 'text-center text-gray-400 py-8' },
-              'No data to display'
-            )
+        React.createElement(SleepChart)
       )
     ),
 
