@@ -2105,6 +2105,46 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 };
 
 // ========================================
+// UI PRIMITIVES
+// Shared components for consistent UI
+// ========================================
+
+const TTCard = ({ variant = "default", className = "", onClick, children }) => {
+  const baseClasses = "bg-white rounded-2xl";
+  
+  const variantClasses = {
+    default: "shadow-lg p-6",
+    soft: "shadow-sm p-6",
+    inset: "shadow-sm overflow-hidden flex flex-col", // No padding for chart-like content
+    pressable: "shadow-lg p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg"
+  };
+  
+  const combinedClassName = `${baseClasses} ${variantClasses[variant]} ${className}`.trim();
+  
+  // Keyboard support for clickable cards
+  const handleKeyDown = (e) => {
+    if (onClick && (e.key === 'Enter' || e.key === ' ')) {
+      if (e.key === ' ') {
+        e.preventDefault(); // Prevent page scroll
+      }
+      onClick(e);
+    }
+  };
+  
+  const props = {
+    className: combinedClassName,
+    ...(onClick && {
+      onClick: onClick,
+      onKeyDown: handleKeyDown,
+      role: 'button',
+      tabIndex: 0
+    })
+  };
+  
+  return React.createElement('div', props, children);
+};
+
+// ========================================
 // TINY TRACKER - PART 4  
 // Tracker Tab - Main Feeding Interface
 // ========================================
@@ -8007,6 +8047,8 @@ const handleInvite = async () => {
 // ========================================
 
 const SettingsTab = ({ user, kidId }) => {
+  const [showUILab, setShowUILab] = useState(false);
+
   const handleShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
     const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
@@ -8063,6 +8105,661 @@ const SettingsTab = ({ user, kidId }) => {
     }
   };
 
+  // UI Lab page
+  if (showUILab) {
+
+    return React.createElement('div', { className: "space-y-4" },
+      // Back button header
+      React.createElement('div', { className: "flex items-center gap-3 mb-4" },
+        React.createElement('button', {
+          onClick: () => setShowUILab(false),
+          className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+        },
+          React.createElement(ChevronLeft, { className: "w-5 h-5" })
+        ),
+        React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
+      ),
+
+      // Title and subtitle
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('h2', { className: "text-2xl font-bold text-gray-900 mb-2" }, 'UI Lab'),
+        React.createElement('p', { className: "text-sm text-gray-600" }, 'Design playground for standard components')
+      ),
+
+      // Buttons section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Buttons'),
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "text-sm text-gray-500" }, 'Placeholder for button components')
+        )
+      ),
+
+      // Cards section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Cards'),
+        React.createElement('div', { className: "space-y-4" },
+          // Default variant
+          React.createElement(TTCard, { variant: "default" },
+            React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Default Card'),
+            React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Standard card with shadow-lg and padding. Most common variant.'),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: TrackerTab, AnalyticsTab stat/empty-state cards, FamilyTab, SettingsTab')
+          ),
+          
+          // Soft variant
+          React.createElement(TTCard, { variant: "soft" },
+            React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Soft Card'),
+            React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Subtle shadow (shadow-sm) for lower emphasis.'),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Today card')
+          ),
+          
+          // Inset variant
+          React.createElement(TTCard, { variant: "inset", className: "h-32" },
+            React.createElement('div', { className: "p-4" },
+              React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Inset Card'),
+              React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'For chart-like content. No default padding, shadow-sm, overflow-hidden.'),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Daily Activity Chart container')
+            )
+          ),
+          
+          // Pressable variant
+          React.createElement(TTCard, { 
+            variant: "pressable",
+            onClick: () => alert('Card clicked!')
+          },
+            React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Pressable Card'),
+            React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Interactive card with hover/active states. Click or press Enter/Space.'),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: (none yet; candidate for highlight tiles)')
+          )
+        )
+      ),
+
+      // Card Formats (Canonical) section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Card Formats (Canonical)'),
+        React.createElement('div', { className: "space-y-6" },
+          
+          // Format 1: Today Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '1. Today Card'),
+            React.createElement(TTCard, { variant: "soft" },
+              React.createElement('div', { className: "flex items-center justify-between mb-8" },
+                React.createElement('button', {
+                  className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
+                }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
+                React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Today'),
+                React.createElement('button', {
+                  className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
+                }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
+              ),
+              React.createElement('div', { className: "mb-8" },
+                React.createElement('div', { className: "flex items-center justify-between mb-2" },
+                  React.createElement('div', { className: "text-sm font-medium text-gray-600" }, "Feeding"),
+                  React.createElement('div', { className: "text-xs text-gray-400" }, "Last fed at 8:02 am (4.0 oz)")
+                ),
+                React.createElement('div', { className: "relative w-full h-5 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
+                  React.createElement('div', {
+                    className: "absolute left-0 top-0 h-full rounded-2xl",
+                    style: { width: '35%', background: '#EB4899' }
+                  })
+                ),
+                React.createElement('div', { className: "flex items-baseline justify-between" },
+                  React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#EB4899' } },
+                    '8.0 ',
+                    React.createElement('span', { className: "text-base font-normal text-gray-500" }, 'of 23.8 oz')
+                  )
+                )
+              ),
+              React.createElement('div', {},
+                React.createElement('div', { className: "flex items-center justify-between mb-2" },
+                  React.createElement('div', { className: "text-sm font-medium text-gray-600" }, "Sleep"),
+                  React.createElement('div', { className: "text-xs text-gray-400" }, "Last slept at 10:15 pm (2.5 hrs)")
+                ),
+                React.createElement('div', { className: "relative w-full h-5 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
+                  React.createElement('div', {
+                    className: "absolute left-0 top-0 h-full rounded-2xl",
+                    style: { width: '42%', background: '#4F47E6' }
+                  })
+                ),
+                React.createElement('div', { className: "flex items-baseline justify-between" },
+                  React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#4F47E6' } },
+                    '10.1 ',
+                    React.createElement('span', { className: "text-base font-normal text-gray-500" }, 'of 24.0 hrs')
+                  )
+                )
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab')
+          ),
+
+          // Format 2: Input Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '2. Input Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('div', { className: "mt-3 mb-4 inline-flex w-full bg-gray-100 rounded-xl p-1" },
+                React.createElement('button', {
+                  className: "flex-1 py-2 rounded-lg bg-white shadow text-gray-900 font-semibold"
+                }, 'Feed'),
+                React.createElement('button', {
+                  className: "flex-1 py-2 rounded-lg text-gray-600"
+                }, 'Sleep')
+              ),
+              React.createElement('div', { className: "space-y-3" },
+                React.createElement('div', { className: "flex gap-3 min-w-0" },
+                  React.createElement('input', {
+                    type: "number",
+                    placeholder: "Ounces",
+                    className: "min-w-0 flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
+                  }),
+                  React.createElement('button', {
+                    className: "shrink-0 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600"
+                  }, React.createElement(Clock, { className: "w-5 h-5" }))
+                ),
+                React.createElement('button', {
+                  className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
+                },
+                  React.createElement(Plus, { className: "w-5 h-5" }),
+                  'Add Feeding'
+                )
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab')
+          ),
+
+          // Format 3: Log Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '3. Log Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings · 2'),
+              React.createElement('div', { className: "space-y-3" },
+                React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
+                  React.createElement('div', { className: "flex items-center gap-3" },
+                    React.createElement('div', { 
+                      className: "bg-indigo-100 rounded-full flex items-center justify-center",
+                      style: { width: '48px', height: '48px' }
+                    },
+                      React.createElement(Milk, { className: "w-6 h-6 text-indigo-600" })
+                    ),
+                    React.createElement('div', null,
+                      React.createElement('div', { className: "font-semibold text-gray-800" }, '4.0 oz'),
+                      React.createElement('div', { className: "text-sm text-gray-500" }, '8:02 AM')
+                    )
+                  ),
+                  React.createElement('div', { className: "flex gap-2" },
+                    React.createElement('button', { className: "text-indigo-600 hover:text-indigo-700 transition" },
+                      React.createElement(Edit2, { className: "w-5 h-5" })
+                    ),
+                    React.createElement('button', { className: "text-red-400 hover:text-red-600 transition" },
+                      React.createElement(X, { className: "w-5 h-5" })
+                    )
+                  )
+                ),
+                React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
+                  React.createElement('div', { className: "flex items-center gap-3" },
+                    React.createElement('div', { 
+                      className: "bg-indigo-100 rounded-full flex items-center justify-center",
+                      style: { width: '48px', height: '48px' }
+                    },
+                      React.createElement(Milk, { className: "w-6 h-6 text-indigo-600" })
+                    ),
+                    React.createElement('div', null,
+                      React.createElement('div', { className: "font-semibold text-gray-800" }, '3.5 oz'),
+                      React.createElement('div', { className: "text-sm text-gray-500" }, '4:09 AM')
+                    )
+                  ),
+                  React.createElement('div', { className: "flex gap-2" },
+                    React.createElement('button', { className: "text-indigo-600 hover:text-indigo-700 transition" },
+                      React.createElement(Edit2, { className: "w-5 h-5" })
+                    ),
+                    React.createElement('button', { className: "text-red-400 hover:text-red-600 transition" },
+                      React.createElement(X, { className: "w-5 h-5" })
+                    )
+                  )
+                )
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab, FamilyTab'),
+            
+            // Format 3a: Log Card (Empty State)
+            React.createElement('div', { className: "mt-4" },
+              React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '3a. Log Card (Empty State)'),
+              React.createElement(TTCard, { variant: "default" },
+                React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings · 0'),
+                React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
+              ),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab')
+            )
+          ),
+
+          // Format 4: Stat Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '4. Stat Card'),
+            React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+              React.createElement(TTCard, { variant: "default", className: "flex flex-col items-center justify-center text-center" },
+                React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Oz / Feed'),
+                React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
+                  '3.6',
+                  React.createElement('span', { className: "text-sm font-normal text-gray-400 ml-1" }, 'oz')
+                ),
+                React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, '3-day avg')
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab (2-up grid layout)')
+          ),
+
+          // Format 5: Highlight Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '5. Highlight Card'),
+            React.createElement(TTCard, { variant: "pressable" },
+              React.createElement('div', { className: "flex items-center justify-between mb-3" },
+                React.createElement('div', { className: "flex items-center gap-2" },
+                  React.createElement(Milk, { className: "w-5 h-5", style: { color: '#EC4899' } }),
+                  React.createElement('span', { className: "text-sm font-semibold", style: { color: '#EC4899' } }, 'Eating')
+                ),
+                React.createElement(ChevronRight, { className: "w-5 h-5 text-gray-400" })
+              ),
+              React.createElement('div', { className: "mb-3" },
+                React.createElement('div', { className: "text-base font-bold text-gray-900 leading-tight" }, 
+                  'Levi has been eating a bit less in the last three days. But that\'s totally fine!'
+                )
+              ),
+              React.createElement('div', { className: "border-t border-gray-100 mb-3" }),
+              // Visualization placeholder - structurally represents chart/actogram
+              React.createElement('div', { 
+                style: { height: '240px' }, 
+                className: "bg-gray-50 rounded overflow-hidden relative"
+              },
+                // Grid lines to suggest chart structure
+                React.createElement('div', { className: "absolute inset-0 flex flex-col justify-between py-4" },
+                  React.createElement('div', { className: "border-t border-gray-200" }),
+                  React.createElement('div', { className: "border-t border-gray-200" }),
+                  React.createElement('div', { className: "border-t border-gray-200" }),
+                  React.createElement('div', { className: "border-t border-gray-200" })
+                ),
+                // Placeholder bars/elements to suggest data visualization
+                React.createElement('div', { className: "absolute inset-0 flex items-end justify-center gap-2 px-6 py-4" },
+                  React.createElement('div', { className: "w-8 bg-gray-300 rounded-t", style: { height: '60%' } }),
+                  React.createElement('div', { className: "w-8 bg-gray-300 rounded-t", style: { height: '80%' } }),
+                  React.createElement('div', { className: "w-8 bg-gray-300 rounded-t", style: { height: '45%' } }),
+                  React.createElement('div', { className: "w-8 bg-gray-300 rounded-t", style: { height: '70%' } }),
+                  React.createElement('div', { className: "w-8 bg-gray-300 rounded-t", style: { height: '90%' } }),
+                  React.createElement('div', { className: "w-8 bg-gray-300 rounded-t", style: { height: '55%' } }),
+                  React.createElement('div', { className: "w-8 bg-gray-300 rounded-t", style: { height: '75%' } })
+                )
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab')
+          ),
+
+          // Format 6: Chart Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '6. Chart Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2.5 text-center" }, 'Volume History'),
+              React.createElement('div', { className: "relative" },
+                React.createElement('div', {
+                  className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
+                  style: { scrollBehavior: 'smooth' }
+                },
+                  React.createElement('div', {
+                    className: "flex gap-6 pb-2",
+                    style: { minWidth: '560px' }
+                  },
+                    // Static placeholder bars with fixed heights
+                    React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                      React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                        React.createElement('div', {
+                          className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
+                          style: { height: '140px', minHeight: '30px' }
+                        },
+                          React.createElement('div', { className: "text-white font-semibold" },
+                            React.createElement('span', { className: "text-xs" }, '18.5'),
+                            React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                          )
+                        )
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, 'Dec 15'),
+                      React.createElement('div', { className: "text-xs text-gray-400" }, '5 feeds')
+                    ),
+                    React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                      React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                        React.createElement('div', {
+                          className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
+                          style: { height: '120px', minHeight: '30px' }
+                        },
+                          React.createElement('div', { className: "text-white font-semibold" },
+                            React.createElement('span', { className: "text-xs" }, '15.8'),
+                            React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                          )
+                        )
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, 'Dec 16'),
+                      React.createElement('div', { className: "text-xs text-gray-400" }, '4 feeds')
+                    ),
+                    React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                      React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                        React.createElement('div', {
+                          className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
+                          style: { height: '160px', minHeight: '30px' }
+                        },
+                          React.createElement('div', { className: "text-white font-semibold" },
+                            React.createElement('span', { className: "text-xs" }, '21.2'),
+                            React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                          )
+                        )
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, 'Dec 17'),
+                      React.createElement('div', { className: "text-xs text-gray-400" }, '6 feeds')
+                    ),
+                    React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                      React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                        React.createElement('div', {
+                          className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
+                          style: { height: '100px', minHeight: '30px' }
+                        },
+                          React.createElement('div', { className: "text-white font-semibold" },
+                            React.createElement('span', { className: "text-xs" }, '12.5'),
+                            React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                          )
+                        )
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, 'Dec 18'),
+                      React.createElement('div', { className: "text-xs text-gray-400" }, '3 feeds')
+                    ),
+                    React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                      React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                        React.createElement('div', {
+                          className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
+                          style: { height: '150px', minHeight: '30px' }
+                        },
+                          React.createElement('div', { className: "text-white font-semibold" },
+                            React.createElement('span', { className: "text-xs" }, '19.3'),
+                            React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                          )
+                        )
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, 'Dec 19'),
+                      React.createElement('div', { className: "text-xs text-gray-400" }, '5 feeds')
+                    ),
+                    React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                      React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                        React.createElement('div', {
+                          className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
+                          style: { height: '130px', minHeight: '30px' }
+                        },
+                          React.createElement('div', { className: "text-white font-semibold" },
+                            React.createElement('span', { className: "text-xs" }, '16.7'),
+                            React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                          )
+                        )
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, 'Dec 20'),
+                      React.createElement('div', { className: "text-xs text-gray-400" }, '4 feeds')
+                    ),
+                    React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
+                      React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
+                        React.createElement('div', {
+                          className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
+                          style: { height: '170px', minHeight: '30px' }
+                        },
+                          React.createElement('div', { className: "text-white font-semibold" },
+                            React.createElement('span', { className: "text-xs" }, '20.1'),
+                            React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
+                          )
+                        )
+                      ),
+                      React.createElement('div', { className: "text-xs text-gray-600 font-medium" }, 'Dec 21'),
+                      React.createElement('div', { className: "text-xs text-gray-400" }, '6 feeds')
+                    )
+                  )
+                )
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab')
+          ),
+
+          // Format 7: Actogram Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '7. Actogram Card'),
+            React.createElement(TTCard, { variant: "inset", style: { height: '464px' } },
+              React.createElement('div', { className: "px-4 pt-4 pb-2 flex items-center justify-between" },
+                React.createElement('button', { className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition" },
+                  React.createElement(ChevronLeft, { className: "w-5 h-5" })
+                ),
+                React.createElement('div', { className: "text-[16px] font-semibold text-gray-900" }, 'December 2024'),
+                React.createElement('button', { className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition" },
+                  React.createElement(ChevronRight, { className: "w-5 h-5" })
+                )
+              ),
+              // Static actogram placeholder
+              React.createElement('div', { className: "flex-1 flex flex-col p-4" },
+                // Time axis labels (left side)
+                React.createElement('div', { className: "flex flex-1" },
+                  React.createElement('div', { className: "w-12 flex flex-col justify-between text-xs text-gray-500 pr-2" },
+                    React.createElement('div', null, '12 AM'),
+                    React.createElement('div', null, '6 AM'),
+                    React.createElement('div', null, '12 PM'),
+                    React.createElement('div', null, '6 PM'),
+                    React.createElement('div', null, '12 AM')
+                  ),
+                  // Chart area with static blocks
+                  React.createElement('div', { className: "flex-1 flex gap-1" },
+                    // Day columns
+                    React.createElement('div', { className: "flex-1 flex flex-col gap-1" },
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '40px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '30px' } }),
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '50px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '35px' } })
+                    ),
+                    React.createElement('div', { className: "flex-1 flex flex-col gap-1" },
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '45px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '25px' } }),
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '55px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '30px' } })
+                    ),
+                    React.createElement('div', { className: "flex-1 flex flex-col gap-1" },
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '35px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '40px' } }),
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '48px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '28px' } })
+                    ),
+                    React.createElement('div', { className: "flex-1 flex flex-col gap-1" },
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '42px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '32px' } }),
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '52px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '33px' } })
+                    ),
+                    React.createElement('div', { className: "flex-1 flex flex-col gap-1" },
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '38px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '36px' } }),
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '50px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '31px' } })
+                    ),
+                    React.createElement('div', { className: "flex-1 flex flex-col gap-1" },
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '44px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '29px' } }),
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '54px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '35px' } })
+                    ),
+                    React.createElement('div', { className: "flex-1 flex flex-col gap-1" },
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '40px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '34px' } }),
+                      React.createElement('div', { className: "flex-1 bg-indigo-200 rounded", style: { minHeight: '49px' } }),
+                      React.createElement('div', { className: "flex-1 bg-blue-200 rounded", style: { minHeight: '32px' } })
+                    )
+                  )
+                )
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab, Daily Activity Chart')
+          ),
+
+          // Format 8: Settings/Form Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '8. Settings/Form Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
+              React.createElement('div', { className: "flex items-start gap-4 mb-6" },
+                React.createElement('div', { className: "w-24 h-24 rounded-full bg-indigo-100 flex items-center justify-center relative" },
+                  React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" }),
+                  React.createElement('div', {
+                    className: "absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-white"
+                  },
+                    React.createElement(Camera, { className: "w-4 h-4 text-white" })
+                  )
+                ),
+                React.createElement('div', { className: "flex-1 space-y-2" },
+                  React.createElement('div', { className: "text-lg font-semibold text-gray-800" }, 'Levi'),
+                  React.createElement('div', { className: "text-sm text-gray-600" }, '2 months old'),
+                  React.createElement('div', { className: "text-xs text-gray-500" }, 'Owner: You')
+                )
+              ),
+              React.createElement('div', { className: "space-y-3" },
+                React.createElement('div', { className: "flex items-center justify-between" },
+                  React.createElement('div', { className: "text-sm text-gray-600" }, 'Birth date: 10/21/2025'),
+                  React.createElement('button', { className: "text-indigo-600" },
+                    React.createElement(Edit2, { className: "w-5 h-5" })
+                  )
+                ),
+                React.createElement('div', { className: "flex items-center justify-between" },
+                  React.createElement('div', { className: "text-sm text-gray-600" }, 'Current weight: 9.5 lbs'),
+                  React.createElement('button', { className: "text-indigo-600" },
+                    React.createElement(Edit2, { className: "w-5 h-5" })
+                  )
+                )
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: FamilyTab (Baby Info, Sleep settings)')
+          ),
+
+          // Format 9: Selection List Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '9. Selection List Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('div', { className: "flex items-center justify-between mb-3" },
+                React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Kids'),
+                React.createElement('button', { className: "text-sm font-medium text-indigo-600 hover:text-indigo-700" }, '+ Add Child')
+              ),
+              React.createElement('div', { className: "space-y-2" },
+                React.createElement('button', {
+                  className: "w-full px-4 py-3 rounded-xl border border-indigo-500 bg-indigo-50 text-gray-900 flex items-center justify-between text-sm"
+                },
+                  React.createElement('span', { className: "font-medium" }, 'Levi'),
+                  React.createElement('span', { className: "text-xs font-semibold text-indigo-600" }, 'Active')
+                ),
+                React.createElement('button', {
+                  className: "w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 text-gray-700 flex items-center justify-between text-sm"
+                },
+                  React.createElement('span', { className: "font-medium" }, 'Emma')
+                )
+              ),
+              React.createElement('p', { className: "mt-3 text-xs text-gray-500" }, 
+                'Active kid controls what you see in Tracker, Analytics, and AI Chat.'
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: FamilyTab (Kids card)')
+          ),
+
+          // Format 10: Member List Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '10. Member List Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Family Members'),
+              React.createElement('div', { className: "space-y-3 mb-4" },
+                React.createElement('div', { className: "flex items-center gap-3 p-3 bg-gray-50 rounded-xl" },
+                  React.createElement('div', { className: "w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold" }, 'A'),
+                  React.createElement('div', { className: "flex-1 min-w-0" },
+                    React.createElement('div', { className: "text-sm font-medium text-gray-800 truncate" }, 'Adam Lebowski'),
+                    React.createElement('div', { className: "text-xs text-gray-500 truncate" }, 'adam@example.com')
+                  )
+                ),
+                React.createElement('div', { className: "flex items-center gap-3 p-3 bg-gray-50 rounded-xl" },
+                  React.createElement('div', { className: "w-12 h-12 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 font-semibold" }, 'M'),
+                  React.createElement('div', { className: "flex-1 min-w-0" },
+                    React.createElement('div', { className: "text-sm font-medium text-gray-800 truncate" }, 'Marlene Bernstein'),
+                    React.createElement('div', { className: "text-xs text-gray-500 truncate" }, 'mar@example.com')
+                  ),
+                  React.createElement('button', { className: "text-xs text-red-500 font-medium hover:text-red-600" }, 'Remove')
+                )
+              ),
+              React.createElement('button', {
+                className: "w-full bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2 py-3"
+              },
+                React.createElement(UserPlus, { className: "w-5 h-5" }),
+                '+ Invite Partner'
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: FamilyTab (Family Members)')
+          ),
+
+          // Format 11: Account Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '11. Account Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Account'),
+              React.createElement('div', { className: "space-y-3" },
+                React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg" },
+                  React.createElement('div', null,
+                    React.createElement('div', { className: "text-sm font-medium text-gray-800" }, 'Adam Lebowski'),
+                    React.createElement('div', { className: "text-xs text-gray-500" }, 'adam@example.com')
+                  ),
+                  React.createElement('div', { className: "w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold" }, 'A')
+                ),
+                React.createElement('button', {
+                  className: "w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold hover:bg-red-100 transition"
+                }, 'Sign Out'),
+                React.createElement('button', {
+                  className: "w-full bg-red-600 text-white py-3 rounded-xl font-semibold hover:bg-red-700 transition"
+                }, 'Delete My Account')
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: SettingsTab')
+          ),
+
+          // Format 12: Share Card
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '12. Share Card'),
+            React.createElement(TTCard, { variant: "default" },
+              React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Share & Support'),
+              React.createElement('button', {
+                className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-xl font-semibold hover:bg-indigo-100 transition flex items-center justify-center gap-2"
+              },
+                React.createElement(ShareIcon, { className: "w-5 h-5" }),
+                'Share Tiny Tracker'
+              ),
+              React.createElement('p', { className: "text-xs text-gray-500 mt-2 text-center" }, 
+                'Tell other parents about Tiny Tracker!'
+              )
+            ),
+            React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: SettingsTab')
+          )
+
+        )
+      ),
+
+      // Toggles section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Toggles'),
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "text-sm text-gray-500" }, 'Placeholder for toggle components')
+        )
+      ),
+
+      // Pills section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Pills'),
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "text-sm text-gray-500" }, 'Placeholder for pill components')
+        )
+      )
+    );
+  }
+
+  // Main Settings page
   return React.createElement('div', { className: "space-y-4" },
 
     // Share & Support Card
@@ -8113,13 +8810,13 @@ const SettingsTab = ({ user, kidId }) => {
       )
     ),
 
-    // Info Card
+    // Internal Card (formerly About)
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'About'),
-      React.createElement('div', { className: "space-y-2 text-sm text-gray-600" },
-        React.createElement('p', null, 'Tiny Tracker helps you track your baby\'s feeding journey with ease.'),
-        React.createElement('p', null, '💡 Tip: Baby settings like weight and target are in the Family tab!')
-      )
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Internal'),
+      React.createElement('button', {
+        onClick: () => setShowUILab(true),
+        className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-xl font-semibold hover:bg-indigo-100 transition"
+      }, 'UI Lab')
     )
   );
 };
