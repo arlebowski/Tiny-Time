@@ -2132,6 +2132,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [loading, setLoading] = useState(true);
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [logMode, setLogMode] = useState('feeding');
+  const [cardVisible, setCardVisible] = useState(false);
 
   // Consistent icon-button styling for edit actions (✓ / ✕) — match Family tab
   const TRACKER_ICON_BTN_BASE =
@@ -2408,6 +2409,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     loadSleepSessions();
   }, [kidId, activeSleep, currentDate]);
 
+  useEffect(() => {
+    setTimeout(() => setCardVisible(true), 100);
+  }, []);
+
   const loadSleepSessions = async () => {
     try {
       const sessions = await firestoreStorage.getSleepSessionsLastNDays(8);
@@ -2657,6 +2662,53 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const formatTime12Hour = (date) => {
+    if (!date || !(date instanceof Date)) return '';
+    return date.toLocaleTimeString('en-US', { 
+      hour: 'numeric', 
+      minute: '2-digit',
+      hour12: true 
+    }).toLowerCase();
+  };
+
+  const getLastFeeding = () => {
+    if (!feedings || feedings.length === 0) return null;
+    return feedings[0];
+  };
+
+  const getLastSleep = () => {
+    if (!sleepSessions || sleepSessions.length === 0) return null;
+    // Filter out active sessions (those without endTime or with isActive flag)
+    const completed = sleepSessions.filter(s => s.endTime && !s.isActive);
+    return completed.length > 0 ? completed[0] : null;
+  };
+
+  const calculateSleepDurationMinutes = (session) => {
+    if (!session || !session.startTime || !session.endTime) return 0;
+    const _normalizeSleepIntervalForUI = (startMs, endMs, nowMs = Date.now()) => {
+      let sMs = Number(startMs);
+      let eMs = Number(endMs);
+      if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+      if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+      if (eMs < sMs) sMs -= 86400000;
+      if (eMs < sMs) return null;
+      return { startMs: sMs, endMs: eMs };
+    };
+    const norm = _normalizeSleepIntervalForUI(session.startTime, session.endTime);
+    const ns = norm ? norm.startMs : session.startTime;
+    const ne = norm ? norm.endMs : session.endTime;
+    const durMs = Math.max(0, (ne || 0) - (ns || 0));
+    return Math.round(durMs / 60000);
+  };
+
+  const formatSleepDuration = (minutes) => {
+    if (!minutes || minutes < 0) return '0m';
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remainingMins = minutes % 60;
+    return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
+  };
+
   const totalConsumed = feedings.reduce((sum, f) => sum + f.ounces, 0);
   const targetOunces = babyWeight ? babyWeight * multiplier : 0;
   const remaining = Math.max(0, targetOunces - totalConsumed);
@@ -2707,6 +2759,17 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     );
   }
 
+  // Calculate data for new card
+  const lastFeeding = getLastFeeding();
+  const lastFeedingTime = lastFeeding ? new Date(lastFeeding.timestamp) : new Date();
+  const lastFeedingAmount = lastFeeding ? lastFeeding.ounces : 0;
+  const lastSleep = getLastSleep();
+  const lastSleepTime = lastSleep ? new Date(lastSleep.startTime) : new Date();
+  const lastSleepDuration = lastSleep ? calculateSleepDurationMinutes(lastSleep) : 0;
+  const isCurrentlySleeping = !!activeSleep;
+  const feedingPercent = targetOunces > 0 ? Math.min(100, (totalConsumed / targetOunces) * 100) : 0;
+  // sleepPercent is already calculated above (line 2712)
+
   return React.createElement('div', { className: "space-y-4" },
     // Today Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
@@ -2741,6 +2804,91 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         deltaLabel: sleepDeltaLabel,
         deltaIsGood: sleepDeltaIsGood
       })
+    ),
+
+    // Today Card (duplicate for editing - new design)
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-6" },
+      // Date Navigation
+      React.createElement('div', { className: "flex items-center justify-between mb-8" },
+        React.createElement('button', {
+          onClick: goToPreviousDay,
+          className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
+        }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
+        React.createElement('button', {
+          onClick: goToNextDay,
+          disabled: isToday(),
+          className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-400 hover:bg-indigo-50'}`
+        }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
+      ),
+
+      // Feeding Progress
+      React.createElement('div', { className: "mb-8" },
+        React.createElement('div', { className: "flex items-center justify-between mb-2" },
+          React.createElement('div', { className: "text-sm font-medium text-gray-600" }, "Feeding"),
+          React.createElement('div', { className: "text-xs text-gray-400" },
+            lastFeeding 
+              ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${lastFeedingAmount.toFixed(1)} oz)`
+              : "No feedings yet"
+          )
+        ),
+        
+        // Progress Bar
+        React.createElement('div', { className: "relative w-full h-5 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
+          React.createElement('div', {
+            className: "absolute left-0 top-0 h-full rounded-2xl transition-all duration-700 ease-out",
+            style: {
+              width: cardVisible ? `${Math.min(100, feedingPercent)}%` : '0%',
+              background: '#EB4899'
+            }
+          })
+        ),
+
+        // Stats
+        React.createElement('div', { className: "flex items-baseline justify-between" },
+          React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#EB4899' } },
+            `${totalConsumed.toFixed(1)} `,
+            React.createElement('span', { className: "text-base font-normal text-gray-500" },
+              `of ${targetOunces.toFixed(1)} oz`
+            )
+          )
+        )
+      ),
+
+      // Sleep Progress
+      React.createElement('div', {},
+        React.createElement('div', { className: "flex items-center justify-between mb-2" },
+          React.createElement('div', { className: "text-sm font-medium text-gray-600" }, "Sleep"),
+          React.createElement('div', { className: "text-xs text-gray-400" },
+            isCurrentlySleeping
+              ? `Sleeping now (${formatSleepDuration(Math.floor(sleepElapsedMs / 60000))})`
+              : lastSleep
+                ? `Last slept at ${formatTime12Hour(lastSleepTime)} (${formatSleepDuration(lastSleepDuration)})`
+                : "No sleep sessions yet"
+          )
+        ),
+        
+        // Progress Bar
+        React.createElement('div', { className: "relative w-full h-5 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
+          React.createElement('div', {
+            className: "absolute left-0 top-0 h-full rounded-2xl transition-all duration-700 ease-out",
+            style: {
+              width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
+              background: '#4F47E6'
+            }
+          })
+        ),
+
+        // Stats
+        React.createElement('div', { className: "flex items-baseline justify-between" },
+          React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#4F47E6' } },
+            `${sleepTotalHours.toFixed(1)} `,
+            React.createElement('span', { className: "text-base font-normal text-gray-500" },
+              `of ${sleepTargetHours.toFixed(1)} hrs`
+            )
+          )
+        )
+      )
     ),
     
     // Log Feeding Card
