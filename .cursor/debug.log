@@ -237,3 +237,6 @@
 {"location":"script.js:2414","message":"cardRefCallback called","data":{"hasElement":true,"elementTag":"DIV"},"timestamp":1766824495405,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"A"}
 {"location":"script.js:2426","message":"Initial visibility check","data":{"rectTop":80,"rectBottom":256,"windowHeight":844,"isVisible":true},"timestamp":1766824495411,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B"}
 {"location":"script.js:2430","message":"Element is visible, setting cardVisible to true","data":{},"timestamp":1766824495412,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B"}
+{"location":"script.js:2414","message":"cardRefCallback called","data":{"hasElement":true,"elementTag":"DIV"},"timestamp":1766824502184,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"A"}
+{"location":"script.js:2426","message":"Initial visibility check","data":{"rectTop":80,"rectBottom":256,"windowHeight":844,"isVisible":true},"timestamp":1766824502187,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B"}
+{"location":"script.js:2430","message":"Element is visible, setting cardVisible to true","data":{},"timestamp":1766824502188,"sessionId":"debug-session","runId":"post-fix","hypothesisId":"B"}
