@@ -8007,6 +8007,8 @@ const handleInvite = async () => {
 // ========================================
 
 const SettingsTab = ({ user, kidId }) => {
+  const [showUILab, setShowUILab] = useState(false);
+
   const handleShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
     const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
@@ -8063,6 +8065,65 @@ const SettingsTab = ({ user, kidId }) => {
     }
   };
 
+  // UI Lab page
+  if (showUILab) {
+    return React.createElement('div', { className: "space-y-4" },
+      // Back button header
+      React.createElement('div', { className: "flex items-center gap-3 mb-4" },
+        React.createElement('button', {
+          onClick: () => setShowUILab(false),
+          className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+        },
+          React.createElement(ChevronLeft, { className: "w-5 h-5" })
+        ),
+        React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
+      ),
+
+      // Title and subtitle
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('h2', { className: "text-2xl font-bold text-gray-900 mb-2" }, 'UI Lab'),
+        React.createElement('p', { className: "text-sm text-gray-600" }, 'Design playground for standard components')
+      ),
+
+      // Buttons section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Buttons'),
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "text-sm text-gray-500" }, 'Placeholder for button components')
+        )
+      ),
+
+      // Cards section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Cards'),
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "text-sm text-gray-500" }, 'Placeholder for card components')
+        )
+      ),
+
+      // Toggles section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Toggles'),
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "text-sm text-gray-500" }, 'Placeholder for toggle components')
+        )
+      ),
+
+      // Pills section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Pills'),
+        React.createElement('div', { className: "space-y-3" },
+          React.createElement('div', { className: "text-sm text-gray-500" }, 'Placeholder for pill components')
+        )
+      )
+    );
+  }
+
+  // Main Settings page
   return React.createElement('div', { className: "space-y-4" },
 
     // Share & Support Card
@@ -8113,13 +8174,13 @@ const SettingsTab = ({ user, kidId }) => {
       )
     ),
 
-    // Info Card
+    // Internal Card (formerly About)
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'About'),
-      React.createElement('div', { className: "space-y-2 text-sm text-gray-600" },
-        React.createElement('p', null, 'Tiny Tracker helps you track your baby\'s feeding journey with ease.'),
-        React.createElement('p', null, '💡 Tip: Baby settings like weight and target are in the Family tab!')
-      )
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Internal'),
+      React.createElement('button', {
+        onClick: () => setShowUILab(true),
+        className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-xl font-semibold hover:bg-indigo-100 transition"
+      }, 'UI Lab')
     )
   );
 };
