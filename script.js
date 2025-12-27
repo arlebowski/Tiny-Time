@@ -2133,6 +2133,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [logMode, setLogMode] = useState('feeding');
   const [cardVisible, setCardVisible] = useState(false);
+  const cardRef = React.useRef(null);
 
   // Consistent icon-button styling for edit actions (✓ / ✕) — match Family tab
   const TRACKER_ICON_BTN_BASE =
@@ -2409,9 +2410,83 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     loadSleepSessions();
   }, [kidId, activeSleep, currentDate]);
 
-  useEffect(() => {
-    setTimeout(() => setCardVisible(true), 100);
+  // Intersection Observer to detect when card scrolls into view (matches analytics page animation)
+  // Use callback ref to set up observer when element is attached to DOM
+  const cardRefCallback = React.useCallback((element) => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2414',message:'cardRefCallback called',data:{hasElement:!!element,elementTag:element?.tagName},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
+    
+    if (!element) {
+      cardRef.current = null;
+      return;
+    }
+    
+    cardRef.current = element;
+    
+    // Check if IntersectionObserver is available
+    if (typeof IntersectionObserver === 'undefined') {
+      // Fallback: animate immediately if IntersectionObserver not available
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2418',message:'IntersectionObserver unavailable, setting visible',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
+      // #endregion
+      setCardVisible(true);
+      return;
+    }
+    
+    // Check if element is already visible (in case it's visible on mount)
+    const checkInitialVisibility = () => {
+      const rect = element.getBoundingClientRect();
+      const isVisible = rect.top < window.innerHeight * 0.8 && rect.bottom > 0;
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2426',message:'Initial visibility check',data:{rectTop:rect.top,rectBottom:rect.bottom,windowHeight:window.innerHeight,isVisible:isVisible},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
+      // #endregion
+      if (isVisible) {
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2430',message:'Element is visible, setting cardVisible to true',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
+        setCardVisible(true);
+        return true;
+      }
+      return false;
+    };
+    
+    // If already visible, animate immediately
+    if (checkInitialVisibility()) {
+      return;
+    }
+    
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2441',message:'Creating IntersectionObserver',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'C'})}).catch(()=>{});
+    // #endregion
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2443',message:'IntersectionObserver callback fired',data:{isIntersecting:entry.isIntersecting,intersectionRatio:entry.intersectionRatio},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'C'})}).catch(()=>{});
+          // #endregion
+          if (entry.isIntersecting) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2445',message:'Setting cardVisible to true from observer',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+            setCardVisible(true);
+            observer.disconnect(); // Disconnect after first trigger
+          }
+        });
+      },
+      {
+        threshold: 0.2, // Trigger when 20% of the element is visible
+        rootMargin: '0px'
+      }
+    );
+    
+    observer.observe(element);
+    
+    // Store observer cleanup on element for later cleanup if needed
+    element._observer = observer;
   }, []);
+
+  // Log render state after DOM updates (moved after calculations to avoid TDZ issues)
 
   const loadSleepSessions = async () => {
     try {
@@ -2768,46 +2843,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const lastSleepDuration = lastSleep ? calculateSleepDurationMinutes(lastSleep) : 0;
   const isCurrentlySleeping = !!activeSleep;
   const feedingPercent = targetOunces > 0 ? Math.min(100, (totalConsumed / targetOunces) * 100) : 0;
-  // sleepPercent is already calculated above (line 2712)
+  // sleepPercent is already calculated above (line 2795)
 
   return React.createElement('div', { className: "space-y-4" },
-    // Today Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('div', { className: "flex items-center justify-between mb-4" },
-        React.createElement('button', {
-          onClick: goToPreviousDay,
-          className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-        }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
-        React.createElement('button', {
-          onClick: goToNextDay,
-          disabled: isToday(),
-          className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
-        }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
-      ),
-
-      // Stacked progress bars (current Today-card design)
-      React.createElement(ProgressBarRow, {
-        label: "Feeding",
-        value: Number(totalConsumed.toFixed(1)),
-        target: Number(targetOunces.toFixed(1)),
-        unit: "oz",
-        deltaLabel: feedingDeltaLabel,
-        deltaIsGood: feedingDeltaIsGood
-      }),
-
-      React.createElement(ProgressBarRow, {
-        label: "Sleep",
-        value: Number(sleepTotalHours.toFixed(1)),
-        target: Number(sleepTargetHours.toFixed(1)),
-        unit: "hrs",
-        deltaLabel: sleepDeltaLabel,
-        deltaIsGood: sleepDeltaIsGood
-      })
-    ),
-
     // Today Card (duplicate for editing - new design)
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-6" },
+    React.createElement('div', { ref: cardRefCallback, className: "bg-white rounded-2xl shadow-sm p-6" },
       // Date Navigation
       React.createElement('div', { className: "flex items-center justify-between mb-8" },
         React.createElement('button', {
@@ -2836,10 +2876,12 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         // Progress Bar
         React.createElement('div', { className: "relative w-full h-5 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
           React.createElement('div', {
-            className: "absolute left-0 top-0 h-full rounded-2xl transition-all duration-700 ease-out",
+            className: "absolute left-0 top-0 h-full rounded-2xl",
             style: {
               width: cardVisible ? `${Math.min(100, feedingPercent)}%` : '0%',
-              background: '#EB4899'
+              background: '#EB4899',
+              transition: 'width 0.6s ease-out',
+              transitionDelay: '0s'
             }
           })
         ),
@@ -2871,10 +2913,12 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         // Progress Bar
         React.createElement('div', { className: "relative w-full h-5 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
           React.createElement('div', {
-            className: "absolute left-0 top-0 h-full rounded-2xl transition-all duration-700 ease-out",
+            className: "absolute left-0 top-0 h-full rounded-2xl",
             style: {
               width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
-              background: '#4F47E6'
+              background: '#4F47E6',
+              transition: 'width 0.6s ease-out',
+              transitionDelay: '0.05s'
             }
           })
         ),
@@ -3255,6 +3299,41 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             )
           )
         )
+    ),
+
+    // Today Card (original - moved to bottom for testing)
+    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
+      React.createElement('div', { className: "flex items-center justify-between mb-4" },
+        React.createElement('button', {
+          onClick: goToPreviousDay,
+          className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+        }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
+        React.createElement('button', {
+          onClick: goToNextDay,
+          disabled: isToday(),
+          className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-600 hover:bg-indigo-50'}`
+        }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
+      ),
+
+      // Stacked progress bars (current Today-card design)
+      React.createElement(ProgressBarRow, {
+        label: "Feeding",
+        value: Number(totalConsumed.toFixed(1)),
+        target: Number(targetOunces.toFixed(1)),
+        unit: "oz",
+        deltaLabel: feedingDeltaLabel,
+        deltaIsGood: feedingDeltaIsGood
+      }),
+
+      React.createElement(ProgressBarRow, {
+        label: "Sleep",
+        value: Number(sleepTotalHours.toFixed(1)),
+        target: Number(sleepTargetHours.toFixed(1)),
+        unit: "hrs",
+        deltaLabel: sleepDeltaLabel,
+        deltaIsGood: sleepDeltaIsGood
+      })
     )
   );
 };
