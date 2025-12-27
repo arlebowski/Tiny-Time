@@ -2413,10 +2413,6 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   // Intersection Observer to detect when card scrolls into view (matches analytics page animation)
   // Use callback ref to set up observer when element is attached to DOM
   const cardRefCallback = React.useCallback((element) => {
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2414',message:'cardRefCallback called',data:{hasElement:!!element,elementTag:element?.tagName},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     if (!element) {
       cardRef.current = null;
       return;
@@ -2427,9 +2423,6 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     // Check if IntersectionObserver is available
     if (typeof IntersectionObserver === 'undefined') {
       // Fallback: animate immediately if IntersectionObserver not available
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2418',message:'IntersectionObserver unavailable, setting visible',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'A'})}).catch(()=>{});
-      // #endregion
       setCardVisible(true);
       return;
     }
@@ -2438,13 +2431,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const checkInitialVisibility = () => {
       const rect = element.getBoundingClientRect();
       const isVisible = rect.top < window.innerHeight * 0.8 && rect.bottom > 0;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2426',message:'Initial visibility check',data:{rectTop:rect.top,rectBottom:rect.bottom,windowHeight:window.innerHeight,isVisible:isVisible},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       if (isVisible) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2430',message:'Element is visible, setting cardVisible to true',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
         setCardVisible(true);
         return true;
       }
@@ -2456,19 +2443,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       return;
     }
     
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2441',message:'Creating IntersectionObserver',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'C'})}).catch(()=>{});
-    // #endregion
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2443',message:'IntersectionObserver callback fired',data:{isIntersecting:entry.isIntersecting,intersectionRatio:entry.intersectionRatio},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'C'})}).catch(()=>{});
-          // #endregion
           if (entry.isIntersecting) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/72d0d44f-0f04-4487-a7e0-7afeda0a3aa0',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'script.js:2445',message:'Setting cardVisible to true from observer',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'post-fix',hypothesisId:'C'})}).catch(()=>{});
-            // #endregion
             setCardVisible(true);
             observer.disconnect(); // Disconnect after first trigger
           }
@@ -2975,10 +2953,15 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         React.createElement('div', { className: "flex gap-3 min-w-0" },
           React.createElement('input', {
             type: "number",
+            inputMode: "decimal",
             step: "0.25",
             placeholder: "Ounces",
             value: ounces,
-            onChange: (e) => setOunces(e.target.value),
+            onChange: (e) => {
+              // Only allow numbers and decimal point
+              const value = e.target.value.replace(/[^0-9.]/g, '');
+              setOunces(value);
+            },
             onKeyPress: (e) => e.key === 'Enter' && !showCustomTime && handleAddFeeding(),
             className: "min-w-0 flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400"
           }),
@@ -3253,9 +3236,14 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                       React.createElement('div', { className: "feedingAmountField relative w-full min-w-0" },
                         React.createElement('input', {
                           type: "number",
+                          inputMode: "decimal",
                           step: "0.25",
                           value: editOunces,
-                          onChange: (e) => setEditOunces(e.target.value),
+                          onChange: (e) => {
+                            // Only allow numbers and decimal point
+                            const value = e.target.value.replace(/[^0-9.]/g, '');
+                            setEditOunces(value);
+                          },
                           placeholder: "Ounces",
                           className: "feedingAmountInput w-full h-11 min-w-0 appearance-none bg-white px-3 pr-10 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
                         }),
