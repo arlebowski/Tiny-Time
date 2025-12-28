@@ -9438,7 +9438,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { variant: "default" },
               React.createElement('div', { className: "space-y-6" },
                 // Feeding progress
-                React.createElement('div', null,
+                React.createElement('div', { className: "mt-5" },
                   React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-1" }, 'Feeding'),
                   React.createElement('div', { className: "relative w-full h-4 bg-gray-200 rounded-full overflow-hidden" },
                     React.createElement('div', {
@@ -9458,7 +9458,7 @@ const SettingsTab = ({ user, kidId }) => {
                   )
                 ),
                 // Sleep progress
-                React.createElement('div', null,
+                React.createElement('div', { className: "mt-5" },
                   React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-1" }, 'Sleep'),
                   React.createElement('div', { className: "relative w-full h-4 bg-gray-200 rounded-full overflow-hidden" },
                     React.createElement('div', {
@@ -9478,7 +9478,7 @@ const SettingsTab = ({ user, kidId }) => {
                   )
                 ),
                 // Complete progress
-                React.createElement('div', null,
+                React.createElement('div', { className: "mt-5" },
                   React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-1" }, 'Complete'),
                   React.createElement('div', { className: "relative w-full h-4 bg-gray-200 rounded-full overflow-hidden" },
                     React.createElement('div', {
