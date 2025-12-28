@@ -8132,7 +8132,7 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement('div', { className: "mb-6" },
         React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
         React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Icons'),
-        React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+        React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
           React.createElement('div', { className: "grid grid-cols-4 gap-4" },
             React.createElement('div', { className: "flex flex-col items-center gap-2" },
               React.createElement(Edit2, { className: "w-6 h-6 text-indigo-600" }),
@@ -8223,7 +8223,7 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement('div', { className: "mb-6" },
         React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
         React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Text Hierarchies'),
-        React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+        React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
           React.createElement('div', { className: "space-y-6" },
             // Headings
             React.createElement('div', null,
@@ -8388,7 +8388,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "space-y-6" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Tracker Edit Actions'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "grid grid-cols-2 gap-3" },
                 React.createElement('button', {
                   type: 'button',
@@ -8414,7 +8414,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Text Input
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Text Input'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Default'),
@@ -8457,7 +8457,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Number Input
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Number Input'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Ounces'),
@@ -8493,7 +8493,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Email & Password
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Email & Password'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Email'),
@@ -8521,7 +8521,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Time & Date Inputs
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Time & Date Inputs'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Time'),
@@ -8547,7 +8547,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Tappable Text Input Row
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Tappable Text Input Row'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-3" },
                 // Display state
                 React.createElement('div', {
@@ -8601,7 +8601,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Textarea
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Textarea (Auto-growing)'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', {
                 className: 'flex items-center gap-2 bg-white rounded-xl px-3 py-1.5 border border-gray-200',
                 style: { boxShadow: '0 0 0 3px #EEF2FF' }
@@ -8638,14 +8638,14 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Cards'),
         React.createElement('div', { className: "space-y-4" },
           // Default variant
-          React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+          React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
             React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Default Card'),
             React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Standard card with shadow-sm and padding. Most common variant.'),
             React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: TrackerTab, AnalyticsTab stat/empty-state cards, FamilyTab, SettingsTab')
           ),
           
           // Inset variant
-          React.createElement('div', { className: "bg-white rounded-xl shadow-sm overflow-hidden flex flex-col h-32" },
+          React.createElement(TTCard, { variant: "inset", className: "rounded-xl", style: { height: '128px' } },
             React.createElement('div', { className: "p-4" },
               React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Inset Card'),
               React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'For chart-like content. No default padding, shadow-sm, overflow-hidden.'),
@@ -8654,8 +8654,9 @@ const SettingsTab = ({ user, kidId }) => {
           ),
           
           // Pressable variant
-          React.createElement('div', { 
-            className: "bg-white rounded-xl shadow-sm p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg",
+          React.createElement(TTCard, { 
+            variant: "pressable",
+            className: "rounded-xl",
             onClick: () => alert('Card clicked!')
           },
             React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Pressable Card'),
@@ -8674,7 +8675,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 1: Today Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '1. Today Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center justify-between mb-8" },
                 React.createElement('button', {
                   className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
@@ -8727,7 +8728,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 2: Input Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '2. Input Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "mt-3 mb-4 inline-flex w-full bg-gray-100 rounded-xl p-1" },
                 React.createElement('button', {
                   className: "flex-1 py-2 rounded-lg bg-white shadow text-gray-900 font-semibold"
@@ -8761,7 +8762,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 3: Log Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '3. Log Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings · 2'),
               React.createElement('div', { className: "space-y-3" },
                 React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-lg" },
@@ -8815,7 +8816,7 @@ const SettingsTab = ({ user, kidId }) => {
             // Format 3a: Log Card (Empty State)
             React.createElement('div', { className: "mt-4" },
               React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '3a. Log Card (Empty State)'),
-              React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+              React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
                 React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings · 0'),
                 React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
               ),
@@ -8827,7 +8828,7 @@ const SettingsTab = ({ user, kidId }) => {
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '4. Stat Card'),
             React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-              React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6 flex flex-col items-center justify-center text-center" },
+              React.createElement(TTCard, { variant: "default", className: "rounded-xl flex flex-col items-center justify-center text-center" },
                 React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Oz / Feed'),
                 React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
                   '3.6',
@@ -8842,8 +8843,9 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 5: Highlight Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '5. Highlight Card'),
-            React.createElement('div', { 
-              className: "bg-white rounded-xl shadow-sm p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg"
+            React.createElement(TTCard, { 
+              variant: "pressable",
+              className: "rounded-xl"
             },
               React.createElement('div', { className: "flex items-center justify-between mb-3" },
                 React.createElement('div', { className: "flex items-center gap-2" },
@@ -8888,7 +8890,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 6: Chart Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '6. Chart Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2.5 text-center" }, 'Volume History'),
               React.createElement('div', { className: "relative" },
                 React.createElement('div', {
@@ -9015,7 +9017,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 7: Actogram Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '7. Actogram Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm overflow-hidden flex flex-col", style: { height: '464px' } },
+            React.createElement(TTCard, { variant: "inset", className: "rounded-xl", style: { height: '464px' } },
               React.createElement('div', { className: "px-4 pt-4 pb-2 flex items-center justify-between" },
                 React.createElement('button', { className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition" },
                   React.createElement(ChevronLeft, { className: "w-5 h-5" })
@@ -9091,7 +9093,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 8: Settings/Form Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '8. Settings/Form Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Baby Info'),
               React.createElement('div', { className: "flex items-start gap-4 mb-6" },
                 React.createElement('div', { className: "w-24 h-24 rounded-full bg-indigo-100 flex items-center justify-center relative" },
@@ -9129,7 +9131,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 9: Selection List Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '9. Selection List Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center justify-between mb-3" },
                 React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Kids'),
                 React.createElement('button', { className: "text-sm font-medium text-indigo-600 hover:text-indigo-700" }, '+ Add Child')
@@ -9157,7 +9159,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 10: Member List Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '10. Member List Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Family Members'),
               React.createElement('div', { className: "space-y-3 mb-4" },
                 React.createElement('div', { className: "flex items-center gap-3 p-3 bg-gray-50 rounded-lg" },
@@ -9189,7 +9191,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 11: Account Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '11. Account Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Account'),
               React.createElement('div', { className: "space-y-3" },
                 React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg" },
@@ -9213,7 +9215,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 12: Share Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '12. Share Card'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Share & Support'),
               React.createElement('button', {
                 className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-lg font-semibold hover:bg-indigo-100 transition flex items-center justify-center gap-2"
@@ -9240,7 +9242,7 @@ const SettingsTab = ({ user, kidId }) => {
           // TimeframeToggle (D/W/M)
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Timeframe Toggle (D/W/M)'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement(TimeframeToggle, {
                 value: 'week',
                 onChange: () => {},
@@ -9253,7 +9255,7 @@ const SettingsTab = ({ user, kidId }) => {
           // SegmentedToggle (Compact)
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Segmented Toggle (Compact)'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex flex-wrap gap-4 items-center" },
                 React.createElement(SegmentedToggle, {
                   value: 'feeding',
@@ -9282,7 +9284,7 @@ const SettingsTab = ({ user, kidId }) => {
           // AnalyticsSubpageToggle (Full Width - used on subpages)
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Analytics Subpage Toggle (Full Width)'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement(AnalyticsSubpageToggle, {
                 value: 'day',
                 options: [
@@ -9308,7 +9310,7 @@ const SettingsTab = ({ user, kidId }) => {
           
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Sleep Timer Display'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 // Start/End time inputs (2-column grid)
                 React.createElement('div', { className: "grid grid-cols-2 gap-4 text-center" },
@@ -9349,7 +9351,7 @@ const SettingsTab = ({ user, kidId }) => {
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Stat Cards (2-up Grid)'),
             React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-              React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6 flex flex-col items-center justify-center text-center" },
+              React.createElement(TTCard, { variant: "default", className: "rounded-xl flex flex-col items-center justify-center text-center" },
                 React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Oz / Feed'),
                 React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
                   '3.6',
@@ -9357,7 +9359,7 @@ const SettingsTab = ({ user, kidId }) => {
                 ),
                 React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, '3-day avg')
               ),
-              React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6 flex flex-col items-center justify-center text-center" },
+              React.createElement(TTCard, { variant: "default", className: "rounded-xl flex flex-col items-center justify-center text-center" },
                 React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Feeds / Day'),
                 React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
                   '5.2',
@@ -9365,7 +9367,7 @@ const SettingsTab = ({ user, kidId }) => {
                 ),
                 React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, '7-day avg')
               ),
-              React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6 flex flex-col items-center justify-center text-center" },
+              React.createElement(TTCard, { variant: "default", className: "rounded-xl flex flex-col items-center justify-center text-center" },
                 React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Sleep / Day'),
                 React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
                   '14.5',
@@ -9373,7 +9375,7 @@ const SettingsTab = ({ user, kidId }) => {
                 ),
                 React.createElement('div', { className: "text-xs text-gray-400 mt-1" }, '7-day avg')
               ),
-              React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6 flex flex-col items-center justify-center text-center" },
+              React.createElement(TTCard, { variant: "default", className: "rounded-xl flex flex-col items-center justify-center text-center" },
                 React.createElement('div', { className: "text-sm font-medium text-gray-600 mb-2" }, 'Night Sleep'),
                 React.createElement('div', { className: "text-2xl font-bold text-indigo-600" },
                   '11.2',
@@ -9388,8 +9390,9 @@ const SettingsTab = ({ user, kidId }) => {
           // Highlight Card (simplified)
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Highlight Card'),
-            React.createElement('div', { 
-              className: "bg-white rounded-xl shadow-sm p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg"
+            React.createElement(TTCard, { 
+              variant: "pressable",
+              className: "rounded-xl"
             },
               React.createElement('div', { className: "flex items-center justify-between mb-3" },
                 React.createElement('div', { className: "flex items-center gap-2" },
@@ -9439,7 +9442,7 @@ const SettingsTab = ({ user, kidId }) => {
           
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Progress Bar Row'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-6" },
                 // Feeding progress
                 React.createElement('div', { className: "mt-5" },
@@ -9515,7 +9518,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "space-y-6" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Message Bubbles'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 // User message
                 React.createElement('div', { className: "flex justify-end" },
@@ -9542,7 +9545,7 @@ const SettingsTab = ({ user, kidId }) => {
           ),
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Circular Send Button'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center justify-center gap-4" },
                 React.createElement('button', {
                   className: "w-8 h-8 rounded-full flex items-center justify-center transition",
@@ -9571,7 +9574,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "space-y-6" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Bottom Navigation Tab'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center justify-around py-3" },
                 React.createElement('button', {
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
@@ -9622,7 +9625,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "space-y-6" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Initial Circle Avatar'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center gap-4" },
                 React.createElement('div', {
                   className: "w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold"
@@ -9647,7 +9650,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "space-y-6" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Color Swatch Selector'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center gap-3" },
                 React.createElement('button', {
                   className: "w-9 h-9 rounded-full border-2 border-indigo-600 flex items-center justify-center",
@@ -9688,7 +9691,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "space-y-6" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Info Dot'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center gap-4" },
                 React.createElement('div', { className: "flex items-center gap-2" },
                   React.createElement('span', { className: "text-xs font-medium text-gray-500" }, 'Target multiplier (oz/lb)'),
@@ -9711,7 +9714,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "space-y-6" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Loading Spinner'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center justify-center py-8" },
                 React.createElement('div', {
                   className: "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"
@@ -9722,7 +9725,7 @@ const SettingsTab = ({ user, kidId }) => {
           ),
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Empty State'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Feedings · 0'),
               React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
             ),
@@ -9730,7 +9733,7 @@ const SettingsTab = ({ user, kidId }) => {
           ),
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Error Message'),
-            React.createElement('div', { className: "bg-white rounded-xl shadow-sm p-6" },
+            React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "bg-red-50 border border-red-200 rounded-lg p-4" },
                 React.createElement('div', { className: "text-sm font-medium text-red-800 mb-1" }, 'Error'),
                 React.createElement('div', { className: "text-sm text-red-700" }, 'Something went wrong. Please try again.')
