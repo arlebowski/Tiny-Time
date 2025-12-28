@@ -2113,10 +2113,9 @@ const TTCard = ({ variant = "default", className = "", onClick, children }) => {
   const baseClasses = "bg-white rounded-2xl";
   
   const variantClasses = {
-    default: "shadow-lg p-6",
-    soft: "shadow-sm p-6",
+    default: "shadow-sm p-6",
     inset: "shadow-sm overflow-hidden flex flex-col", // No padding for chart-like content
-    pressable: "shadow-lg p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg"
+    pressable: "shadow-sm p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg"
   };
   
   const combinedClassName = `${baseClasses} ${variantClasses[variant]} ${className}`.trim();
@@ -8143,15 +8142,8 @@ const SettingsTab = ({ user, kidId }) => {
           // Default variant
           React.createElement(TTCard, { variant: "default" },
             React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Default Card'),
-            React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Standard card with shadow-lg and padding. Most common variant.'),
+            React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Standard card with shadow-sm and padding. Most common variant.'),
             React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: TrackerTab, AnalyticsTab stat/empty-state cards, FamilyTab, SettingsTab')
-          ),
-          
-          // Soft variant
-          React.createElement(TTCard, { variant: "soft" },
-            React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Soft Card'),
-            React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Subtle shadow (shadow-sm) for lower emphasis.'),
-            React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Today card')
           ),
           
           // Inset variant
@@ -8184,7 +8176,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Format 1: Today Card
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, '1. Today Card'),
-            React.createElement(TTCard, { variant: "soft" },
+            React.createElement(TTCard, { variant: "default" },
               React.createElement('div', { className: "flex items-center justify-between mb-8" },
                 React.createElement('button', {
                   className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
