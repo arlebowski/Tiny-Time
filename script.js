@@ -3329,6 +3329,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     ),
 
     // Today Card (original - moved to bottom for testing)
+    // COMMENTED OUT - Old design kept for reference
+    /*
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
       React.createElement('div', { className: "flex items-center justify-between mb-4" },
         React.createElement('button', {
@@ -3362,6 +3364,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         deltaIsGood: sleepDeltaIsGood
       })
     )
+    */
   );
 };
 
@@ -8216,6 +8219,57 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used throughout the app for actions, navigation, and visual indicators')
       ),
 
+      // Text Hierarchies section
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Text Hierarchies'),
+        React.createElement(TTCard, { variant: "default" },
+          React.createElement('div', { className: "space-y-6" },
+            // Headings
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Headings'),
+              React.createElement('div', { className: "space-y-3" },
+                React.createElement('h1', { className: "text-3xl font-bold text-gray-800 handwriting" }, 'Tiny Tracker'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: LoginScreen (app title)'),
+                React.createElement('h2', { className: "text-2xl font-bold text-gray-800" }, 'Heading 2xl'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: BabySetupScreen (page title)'),
+                React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Heading lg'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Card titles, section headers'),
+                React.createElement('h3', { className: "text-base font-semibold text-gray-800" }, 'Heading base'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Subsection headers')
+              )
+            ),
+            // Body Text
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Body Text'),
+              React.createElement('div', { className: "space-y-3" },
+                React.createElement('div', { className: "text-base font-normal text-gray-900" }, 'Body text (base)'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Card content, descriptions'),
+                React.createElement('div', { className: "text-sm font-normal text-gray-600" }, 'Body text (sm)'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Labels, secondary text'),
+                React.createElement('div', { className: "text-xs font-normal text-gray-500" }, 'Body text (xs)'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Metadata, timestamps, helper text')
+              )
+            ),
+            // Emphasis
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Emphasis'),
+              React.createElement('div', { className: "space-y-3" },
+                React.createElement('div', { className: "text-4xl font-semibold text-indigo-600" }, '45:23'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Timer display, large numbers'),
+                React.createElement('div', { className: "text-2xl font-semibold text-gray-800" }, '25.0 oz'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Progress values, key metrics'),
+                React.createElement('div', { className: "text-base font-semibold text-gray-900" }, 'Semibold text'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Important labels, values'),
+                React.createElement('div', { className: "text-sm font-medium text-gray-600" }, 'Medium text'),
+                React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: Field labels, secondary emphasis')
+              )
+            )
+          )
+        ),
+        React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Typography system used throughout the app')
+      ),
+
       // Buttons section
       React.createElement('div', { className: "mb-6" },
         React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
@@ -8253,11 +8307,8 @@ const SettingsTab = ({ user, kidId }) => {
                   className: "bg-gray-100 text-gray-600 py-3 px-6 rounded-xl font-semibold hover:bg-gray-200 transition"
                 }, 'Secondary Button'),
                 React.createElement('button', {
-                  className: "bg-gray-100 text-gray-600 py-3 px-6 rounded-xl font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-2"
-                },
-                  React.createElement(Clock, { className: "w-5 h-5" }),
-                  'With Icon'
-                ),
+                  className: "bg-gray-100 text-gray-600 py-3 px-6 rounded-xl font-semibold hover:bg-gray-200 transition flex items-center justify-center"
+                }, React.createElement(Clock, { className: "w-5 h-5" })),
                 React.createElement('button', {
                   className: "bg-gray-100 text-gray-600 py-3 px-6 rounded-xl font-semibold opacity-50 cursor-not-allowed",
                   disabled: true
@@ -8559,8 +8610,13 @@ const SettingsTab = ({ user, kidId }) => {
                   placeholder: 'Message',
                   rows: 1,
                   className: 'flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px]',
-                  style: { maxHeight: '100px', minHeight: '24px' },
-                  defaultValue: 'Sample message text'
+                  style: { maxHeight: '100px' },
+                  defaultValue: 'Sample message text',
+                  onChange: (e) => {
+                    const el = e.target;
+                    el.style.height = 'auto';
+                    el.style.height = el.scrollHeight + 'px';
+                  }
                 }),
                 React.createElement('button', {
                   className: 'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition',
@@ -9221,21 +9277,21 @@ const SettingsTab = ({ user, kidId }) => {
             )
           ),
 
-          // SegmentedToggle (Full Width)
+          // AnalyticsSubpageToggle (Full Width - used on subpages)
           React.createElement('div', null,
-            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Segmented Toggle (Full Width)'),
+            React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Analytics Subpage Toggle (Full Width)'),
             React.createElement(TTCard, { variant: "default" },
-              React.createElement(SegmentedToggle, {
+              React.createElement(AnalyticsSubpageToggle, {
                 value: 'day',
                 options: [
-                  { value: 'day', label: 'Day' },
-                  { value: 'week', label: 'Week' },
-                  { value: 'month', label: 'Month' }
+                  { key: 'day', label: 'Day', mapsTo: 'day' },
+                  { key: 'week', label: 'Week', mapsTo: 'week' },
+                  { key: 'month', label: 'Month', mapsTo: 'month' }
                 ],
                 onChange: () => {},
-                compact: false
+                ariaLabel: 'Time range'
               }),
-              React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab subpages')
+              React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab subpages (modals)')
             )
           )
 
@@ -9252,36 +9308,27 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement('div', { className: "text-sm font-semibold text-gray-700 mb-3" }, 'Sleep Timer Display'),
             React.createElement(TTCard, { variant: "default" },
               React.createElement('div', { className: "space-y-4" },
-                // Timer display (MM:SS format)
-                React.createElement('div', { className: "text-center" },
-                  React.createElement('div', { className: "text-4xl font-semibold text-indigo-600 mb-2" }, '45:23'),
-                  React.createElement('div', { className: "text-sm text-gray-500" }, 'Elapsed time')
-                ),
-                // Timer display (H:MM:SS format)
-                React.createElement('div', { className: "text-center border-t border-gray-100 pt-4" },
-                  React.createElement('div', { className: "text-4xl font-semibold text-indigo-600 mb-2" }, '1:23:45'),
-                  React.createElement('div', { className: "text-sm text-gray-500" }, 'Elapsed time (> 1 hour)')
-                ),
-                // Timer with start/end times
-                React.createElement('div', { className: "border-t border-gray-100 pt-4" },
-                  React.createElement('div', { className: "flex items-center justify-between mb-4" },
-                    React.createElement('div', { className: "text-center flex-1" },
-                      React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, 'Start'),
-                      React.createElement('div', { className: "text-lg font-semibold text-gray-800" }, '10:15 PM')
-                    ),
-                    React.createElement('div', { className: "text-center flex-1" },
-                      React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, 'Elapsed'),
-                      React.createElement('div', { className: "text-2xl font-semibold text-indigo-600" }, '45:23')
-                    ),
-                    React.createElement('div', { className: "text-center flex-1" },
-                      React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, 'End'),
-                      React.createElement('div', { className: "text-lg font-semibold text-gray-800" }, '--:--')
-                    )
+                // Start/End time inputs (2-column grid)
+                React.createElement('div', { className: "grid grid-cols-2 gap-4 text-center" },
+                  React.createElement('div', null,
+                    React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'Start'),
+                    React.createElement('div', {
+                      className: "inline-block px-3 py-2 rounded-lg bg-gray-50 text-indigo-600 font-semibold text-lg"
+                    }, '10:15 PM')
                   ),
-                  React.createElement('button', {
-                    className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition"
-                  }, 'End Sleep')
-                )
+                  React.createElement('div', null,
+                    React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'End'),
+                    React.createElement('div', {
+                      className: "inline-block px-3 py-2 rounded-lg bg-gray-50 text-indigo-600 font-semibold text-lg"
+                    }, '--:--')
+                  )
+                ),
+                // Large elapsed time display
+                React.createElement('div', { className: "text-center text-4xl font-semibold my-2" }, '45:23'),
+                // End Sleep button
+                React.createElement('button', {
+                  className: "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold"
+                }, 'End Sleep')
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab (Sleep logging)')
@@ -9535,6 +9582,27 @@ const SettingsTab = ({ user, kidId }) => {
                 },
                   React.createElement(TrendingUp, { className: "w-6 h-6" }),
                   React.createElement('span', { className: "text-xs font-medium" }, 'Analytics')
+                ),
+                React.createElement('button', {
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: '#9CA3AF' }
+                },
+                  React.createElement(MessageCircle, { className: "w-6 h-6" }),
+                  React.createElement('span', { className: "text-xs font-medium" }, 'AI Chat')
+                ),
+                React.createElement('button', {
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: '#9CA3AF' }
+                },
+                  React.createElement(Users, { className: "w-6 h-6" }),
+                  React.createElement('span', { className: "text-xs font-medium" }, 'Family')
+                ),
+                React.createElement('button', {
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: '#9CA3AF' }
+                },
+                  React.createElement(Menu, { className: "w-6 h-6" }),
+                  React.createElement('span', { className: "text-xs font-medium" }, 'Settings')
                 )
               )
             ),
