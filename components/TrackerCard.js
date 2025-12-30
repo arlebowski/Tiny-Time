@@ -1,104 +1,207 @@
-import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+// TrackerCard Component (UI Lab version)
+// Copied from inline implementation in script.js
 
-export function TrackerCard({
-  mode = 'feeding',          // 'feeding' | 'sleep'
-  feedingPercent = 66,
-  sleepPercent = 40,
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const cardVisible = true; // keep true so the bar animates in like production
+// Icon components (needed before script.js loads)
+const ChevronDown = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('polyline', { points: "6 9 12 15 18 9" })
+);
 
-  const percent = mode === 'feeding' ? feedingPercent : sleepPercent;
-  const barColor = mode === 'feeding' ? '#EB4899' : '#4F47E6';
+const ChevronUp = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('polyline', { points: "18 15 12 9 6 15" })
+);
 
-  return (
-    <div className="rounded-2xl bg-white p-5 shadow-md">
-      {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <div className="h-6 w-6 rounded bg-black/10" />
-        <div className="text-base font-semibold">Header</div>
-      </div>
-
-      {/* Big stat */}
-      <div className="flex items-baseline gap-1 mb-2">
-        <div className="text-[40px] leading-none font-bold">30</div>
-        <div className="text-[16px] leading-none text-gray-500">of 25.5 oz</div>
-      </div>
-
-      {/* PRODUCTION Progress Bar (reused) */}
-      <div className="relative w-full h-6 bg-gray-100 rounded-2xl overflow-hidden mb-1">
-        <div
-          className="absolute left-0 top-0 h-full rounded-2xl"
-          style={{
-            width: cardVisible ? `${Math.min(100, percent)}%` : '0%',
-            background: barColor,
-            transition: 'width 0.6s ease-out',
-            transitionDelay: mode === 'sleep' ? '0.05s' : '0s',
-          }}
-        />
-      </div>
-
-      {/* Dots + meta */}
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex gap-1.5 pl-1">
-          {[0,1,2,3,4].map(i => (
-            <div key={i} className="h-3.5 w-3.5 rounded-full bg-gray-500" />
-          ))}
-        </div>
-        <div className="text-[16px] leading-none text-gray-500">
-          Last slept at 4:02pm (90.9 hrs)
-        </div>
-      </div>
-
-      <div className="border-t border-gray-100 my-4" />
-
-      {/* Timeline toggle */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex w-full items-center justify-between text-gray-500"
-      >
-        <span>Timeline</span>
-        {expanded ? <ChevronUp /> : <ChevronDown />}
-      </button>
-
-      {/* Expanded content */}
-      {expanded && (
-        <div className="mt-4 space-y-4">
-          <TimelineItem />
-          <TimelineItem withNote />
-        </div>
-      )}
-    </div>
-  );
+// Ensure zZz animation styles are injected
+function ensureZzzStyles() {
+  if (document.getElementById('tt-zzz-anim')) return;
+  const style = document.createElement('style');
+  style.id = 'tt-zzz-anim';
+  style.textContent = `
+    @keyframes ttZzzFloat {
+      0%, 100% { transform: translateY(0); opacity: 0.75; }
+      50% { transform: translateY(-2px); opacity: 1; }
+    }
+    .tt-zzz {
+      display: inline-block;
+      animation: ttZzzFloat 1.6s ease-in-out infinite;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
-function TimelineItem({ withNote }) {
-  return (
-    <div className="rounded-xl bg-gray-50 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-3">
-          <div className="h-6 w-6 rounded bg-black/10" />
-          <div>
-            <div className="font-semibold">4oz</div>
-            <div className="text-sm text-gray-500">8:27pm</div>
-          </div>
-        </div>
-        <ChevronDown className="rotate-[-90deg]" />
-      </div>
-
-      {withNote && (
-        <>
-          <div className="italic text-sm text-gray-600 mb-3">
-            Note: kid didn't burp dammit!
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            {[0,1,2,3].map(i => (
-              <div key={i} className="aspect-square rounded-lg bg-gray-300" />
-            ))}
-          </div>
-        </>
-      )}
-    </div>
+const TimelineItem = ({ withNote }) => {
+  return React.createElement(
+    'div',
+    { className: "rounded-xl bg-gray-50 p-4" },
+    React.createElement(
+      'div',
+      { className: "flex items-center justify-between mb-2" },
+      React.createElement(
+        'div',
+        { className: "flex items-center gap-3" },
+        React.createElement('div', { className: "h-6 w-6 rounded bg-black/10" }),
+        React.createElement(
+          'div',
+          null,
+          React.createElement('div', { className: "font-semibold" }, '4oz'),
+          React.createElement('div', { className: "text-sm text-gray-500" }, '8:27pm')
+        )
+      ),
+      React.createElement(ChevronDown, { className: "rotate-[-90deg]" })
+    ),
+    withNote && React.createElement(
+      React.Fragment,
+      null,
+      React.createElement(
+        'div',
+        { className: "italic text-sm text-gray-600 mb-3" },
+        'Note: kid didn\'t burp dammit!'
+      ),
+      React.createElement(
+        'div',
+        { className: "grid grid-cols-2 gap-2" },
+        [0, 1, 2, 3].map(i =>
+          React.createElement(
+            'div',
+            {
+              key: i,
+              className: "aspect-square rounded-lg bg-gray-300"
+            }
+          )
+        )
+      )
+    )
   );
+};
+
+const TrackerCard = ({ mode = 'sleep' }) => {
+  ensureZzzStyles();
+  const [expanded, setExpanded] = React.useState(false);
+  const [cardVisible, setCardVisible] = React.useState(false);
+
+  // Animation trigger - set visible after mount
+  React.useEffect(() => {
+    setCardVisible(true);
+  }, []);
+
+  // Inject a calm zZz keyframe animation (UI Lab version - unique to avoid conflicts)
+  React.useEffect(() => {
+    try {
+      if (document.getElementById('tt-zzz-ui-lab-style')) return;
+      const s = document.createElement('style');
+      s.id = 'tt-zzz-ui-lab-style';
+      s.textContent = `@keyframes ttZzzUILab{0%{opacity:1;transform:translateY(4px)}30%{opacity:1;transform:translateY(0px)}70%{opacity:1;transform:translateY(-4px)}100%{opacity:0;transform:translateY(-8px)}}`;
+      document.head.appendChild(s);
+    } catch (e) {
+      // non-fatal
+    }
+  }, []);
+
+  // Demo percent for animation (66% = 2/3)
+  const demoPercent = 66;
+  
+  // Status text based on mode for Timeline row
+  const timelineStatusText = mode === 'feeding' 
+    ? 'Last fed 4:02pm'
+    : React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('span', { className: "text-gray-900 font-semibold" }, '1h 20m'),
+        React.createElement('span', { className: "text-gray-900 font-light" },
+          ' ',
+          React.createElement('span', { className: "tt-zzz" }, 'zZz')
+        )
+      );
+
+  const timelineLabel = mode === 'feeding'
+    ? `Timeline • ${timelineStatusText}`
+    : React.createElement(
+        React.Fragment,
+        null,
+        'Timeline • ',
+        timelineStatusText
+      );
+
+  return React.createElement(
+    'div',
+    { className: "rounded-2xl bg-white p-5 shadow-md" },
+    React.createElement(
+      'div',
+      { className: "flex items-center gap-3 mb-4" },
+      React.createElement('div', { className: "h-6 w-6 rounded bg-black/10" }),
+      React.createElement('div', { className: "text-base font-semibold" }, 'Header')
+    ),
+    React.createElement(
+      'div',
+      { className: "flex items-baseline gap-1 mb-2" },
+      React.createElement('div', { className: "text-[40px] leading-none font-bold" }, '30'),
+      React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none text-gray-500" }, 'of 25.5 oz')
+    ),
+    
+    // Animated Progress Bar (production-style)
+    React.createElement('div', { className: "relative w-full h-6 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
+      React.createElement('div', {
+        className: "absolute left-0 top-0 h-full rounded-2xl",
+        style: {
+          width: cardVisible ? `${Math.min(100, demoPercent)}%` : '0%',
+          background: '#757575',
+          transition: 'width 0.6s ease-out',
+          transitionDelay: '0s'
+        }
+      })
+    ),
+    React.createElement(
+      'div',
+      { className: "flex gap-1.5 pl-1" },
+      [0, 1, 2, 3, 4].map(i =>
+        React.createElement('div', { key: i, className: "h-3.5 w-3.5 rounded-full bg-gray-500" })
+      )
+    ),
+    React.createElement('div', { className: "border-t border-gray-100 my-4" }),
+    React.createElement(
+      'button',
+      {
+        onClick: () => setExpanded(!expanded),
+        className: "flex w-full items-center justify-between text-gray-500"
+      },
+      React.createElement('span', null, timelineLabel),
+      expanded ? React.createElement(ChevronUp) : React.createElement(ChevronDown)
+    ),
+    expanded && React.createElement(
+      'div',
+      { className: "mt-4 space-y-4" },
+      React.createElement(TimelineItem),
+      React.createElement(TimelineItem, { withNote: true })
+    )
+  );
+};
+
+// Make available globally for script.js
+if (typeof window !== 'undefined') {
+  window.TrackerCard = TrackerCard;
 }
