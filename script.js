@@ -2853,22 +2853,22 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   // sleepPercent is already calculated above (line 2795)
 
   return React.createElement('div', { className: "space-y-4" },
+    // Date Navigation (moved outside Today Card)
+    React.createElement('div', { className: "flex items-center justify-between mb-4" },
+      React.createElement('button', {
+        onClick: goToPreviousDay,
+        className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
+      }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
+      React.createElement('button', {
+        onClick: goToNextDay,
+        disabled: isToday(),
+        className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-400 hover:bg-indigo-50'}`
+      }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
+    ),
+
     // Today Card (duplicate for editing - new design)
     React.createElement('div', { ref: cardRefCallback, className: "bg-white rounded-2xl shadow-sm p-6" },
-      // Date Navigation
-      React.createElement('div', { className: "flex items-center justify-between mb-8" },
-        React.createElement('button', {
-          onClick: goToPreviousDay,
-          className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
-        }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, formatDate(currentDate)),
-        React.createElement('button', {
-          onClick: goToNextDay,
-          disabled: isToday(),
-          className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-400 hover:bg-indigo-50'}`
-        }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
-      ),
-
       // Feeding Progress
       React.createElement('div', { className: "mb-8" },
         React.createElement('div', { className: "flex items-center justify-between mb-2" },
