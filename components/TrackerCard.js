@@ -73,7 +73,9 @@ function ensureZzzStyles() {
   document.head.appendChild(style);
 }
 
-const TimelineItem = ({ withNote }) => {
+const TimelineItem = ({ withNote, mode = 'sleep' }) => {
+  const isSleep = mode === 'sleep';
+  
   return React.createElement(
     'div',
     { className: "rounded-xl bg-gray-50 p-4" },
@@ -87,8 +89,12 @@ const TimelineItem = ({ withNote }) => {
         React.createElement(
           'div',
           null,
-          React.createElement('div', { className: "font-semibold" }, '4oz'),
-          React.createElement('div', { className: "text-sm text-gray-500" }, '8:27pm')
+          React.createElement('div', { className: "font-semibold" }, 
+            isSleep ? '2h 20m' : '4oz'
+          ),
+          React.createElement('div', { className: "text-sm text-gray-500" }, 
+            isSleep ? '6:07pm – 8:27pm' : '8:27pm'
+          )
         )
       ),
       React.createElement(ChevronDown, { className: "rotate-[-90deg]" })
@@ -99,7 +105,7 @@ const TimelineItem = ({ withNote }) => {
       React.createElement(
         'div',
         { className: "italic text-sm text-gray-600 mb-3" },
-        'Note: kid didn\'t burp dammit!'
+        isSleep ? 'Note: had to hold him forever' : 'Note: kid didn\'t burp dammit!'
       ),
       React.createElement(
         'div',
@@ -182,8 +188,12 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     React.createElement(
       'div',
       { className: "flex items-baseline gap-1 mb-2" },
-      React.createElement('div', { className: "text-[40px] leading-none font-bold" }, '30'),
-      React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none text-gray-500" }, 'of 25.5 oz')
+      React.createElement('div', { className: "text-[40px] leading-none font-bold" }, 
+        mode === 'sleep' ? '14.5' : '22.5'
+      ),
+      React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none text-gray-500" }, 
+        mode === 'sleep' ? 'of 14.5 hrs' : 'of 25.5 oz'
+      )
     ),
     
     // Animated Progress Bar (production-style)
@@ -218,8 +228,8 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     expanded && React.createElement(
       'div',
       { className: "mt-4 space-y-4" },
-      React.createElement(TimelineItem),
-      React.createElement(TimelineItem, { withNote: true })
+      React.createElement(TimelineItem, { mode }),
+      React.createElement(TimelineItem, { withNote: true, mode })
     )
   );
 };
