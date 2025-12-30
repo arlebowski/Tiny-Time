@@ -36,20 +36,39 @@ const ChevronUp = (props) => React.createElement(
   React.createElement('polyline', { points: "18 15 12 9 6 15" })
 );
 
+// Expose icons globally so script.js can use them
+if (typeof window !== 'undefined') {
+  window.ChevronDown = ChevronDown;
+  window.ChevronUp = ChevronUp;
+}
+
 // Ensure zZz animation styles are injected
 function ensureZzzStyles() {
   if (document.getElementById('tt-zzz-anim')) return;
   const style = document.createElement('style');
   style.id = 'tt-zzz-anim';
   style.textContent = `
-    @keyframes ttZzzFloat {
-      0%, 100% { transform: translateY(0); opacity: 0.75; }
-      50% { transform: translateY(-2px); opacity: 1; }
+    @keyframes floatingZs {
+      0% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
+      50% {
+        transform: translateY(-4px) scale(1.1);
+        opacity: 0.7;
+      }
+      100% {
+        transform: translateY(-8px) scale(1);
+        opacity: 0;
+      }
     }
-    .tt-zzz {
+    .zzz {
       display: inline-block;
-      animation: ttZzzFloat 1.6s ease-in-out infinite;
+      animation: floatingZs 2s ease-in-out infinite;
     }
+    .zzz :nth-child(1) { animation-delay: 0s; }
+    .zzz :nth-child(2) { animation-delay: 0.3s; }
+    .zzz :nth-child(3) { animation-delay: 0.6s; }
   `;
   document.head.appendChild(style);
 }
@@ -134,7 +153,11 @@ const TrackerCard = ({ mode = 'sleep' }) => {
         React.createElement('span', { className: "text-gray-900 font-semibold" }, '1h 20m'),
         React.createElement('span', { className: "text-gray-900 font-light" },
           ' ',
-          React.createElement('span', { className: "tt-zzz" }, 'zZz')
+          React.createElement('span', { className: "zzz" },
+            React.createElement('span', null, 'z'),
+            React.createElement('span', null, 'Z'),
+            React.createElement('span', null, 'z')
+          )
         )
       );
 
