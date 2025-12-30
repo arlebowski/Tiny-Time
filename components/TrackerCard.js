@@ -21,13 +21,13 @@ export function TrackerCard({
       </div>
 
       {/* Big stat */}
-      <div className="flex items-baseline gap-2 mb-4">
-        <div className="text-5xl font-bold">30</div>
-        <div className="text-lg text-gray-500">of 25.5 oz</div>
+      <div className="flex items-baseline gap-1 mb-2">
+        <div className="text-[40px] leading-none font-bold">30</div>
+        <div className="text-[16px] leading-none text-gray-500">of 25.5 oz</div>
       </div>
 
       {/* PRODUCTION Progress Bar (reused) */}
-      <div className="relative w-full h-5 bg-gray-100 rounded-2xl overflow-hidden mb-2">
+      <div className="relative w-full h-6 bg-gray-100 rounded-2xl overflow-hidden mb-1">
         <div
           className="absolute left-0 top-0 h-full rounded-2xl"
           style={{
@@ -40,13 +40,13 @@ export function TrackerCard({
       </div>
 
       {/* Dots + meta */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex gap-2">
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex gap-1.5 pl-1">
           {[0,1,2,3,4].map(i => (
-            <div key={i} className="h-3 w-3 rounded-full bg-gray-500" />
+            <div key={i} className="h-3.5 w-3.5 rounded-full bg-gray-500" />
           ))}
         </div>
-        <div className="text-sm text-gray-500">
+        <div className="text-[16px] leading-none text-gray-500">
           Last slept at 4:02pm (90.9 hrs)
         </div>
       </div>
