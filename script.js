@@ -2184,7 +2184,11 @@ const TTCard = ({ variant = "default", className = "", onClick, children }) => {
 // ========================================
 // TrackerCard Component
 // ========================================
+// NOTE: TrackerCard has been moved to components/TrackerCard.js
+// It is loaded via script tag in index.html and available as window.TrackerCard
+// The inline version below is commented out to maintain a single source of truth
 
+/*
 const TimelineItem = ({ withNote }) => {
   return React.createElement(
     'div',
@@ -2331,6 +2335,10 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     )
   );
 };
+*/
+
+// Use TrackerCard from sidecar file
+const TrackerCard = window.TrackerCard;
 
 // ========================================
 // TINY TRACKER - PART 4  
