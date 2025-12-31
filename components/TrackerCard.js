@@ -368,158 +368,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return `${day} ${hours}:${mins} ${ampm}`;
   };
 
-  // Helper function to convert HH:MM time string to timestamp for a specific date
-  const _hhmmToMsForDate = (hhmm, baseDate) => {
-    if (!hhmm || typeof hhmm !== 'string' || hhmm.indexOf(':') === -1) return null;
-    const parts = hhmm.split(':');
-    const hh = parseInt(parts[0], 10);
-    const mm = parseInt(parts[1], 10);
-    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
-    const d = new Date(baseDate || Date.now());
-    d.setHours(hh);
-    d.setMinutes(mm);
-    d.setSeconds(0);
-    d.setMilliseconds(0);
-    return d.getTime();
-  };
-
-  // Smart date logic: If time is >3 hours in future, assume it's from yesterday
-  // This handles cases like: it's 1:00 AM, user picks 11:00 PM → means yesterday 11:00 PM
-  const _hhmmToMsNearNowSmart = (hhmm, nowMs = Date.now(), futureCutoffHours = 3) => {
-    const ms = _hhmmToMsForDate(hhmm, nowMs);
-    if (!ms) return null;
-    const cutoff = futureCutoffHours * 3600000;
-    return (ms > (nowMs + cutoff)) ? (ms - 86400000) : ms;
-  };
-
   // Input Field Row Component
   const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false }) => {
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
     const inputRef = React.useRef(null);
-    
-    // Shared function to open the time picker with smart date logic
-    const openDateTimePicker = () => {
-      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
-        const input = document.createElement('input');
-        input.type = 'time'; // Use time-only picker for compact UI
-        
-        // Get the exact position of the visible field
-        const fieldElement = inputRef.current;
-        if (!fieldElement) return; // Safety check
-        
-        const fieldRect = fieldElement.getBoundingClientRect();
-        
-        // Position the hidden input at the exact same location as the visible field
-        // This makes the picker appear to come directly from the field
-        input.style.position = 'fixed';
-        input.style.opacity = '0';
-        input.style.width = `${fieldRect.width}px`;
-        input.style.height = `${fieldRect.height}px`;
-        input.style.top = `${fieldRect.top + window.scrollY}px`;
-        input.style.left = `${fieldRect.left + window.scrollX}px`;
-        input.style.pointerEvents = 'none';
-        input.style.zIndex = '-1';
-        
-        // Set initial time value from rawValue (ISO string) if available
-        if (rawValue) {
-          const date = new Date(rawValue);
-          // Check if the date is valid before formatting
-          if (!isNaN(date.getTime())) {
-            const hours = String(date.getHours()).padStart(2, '0');
-            const minutes = String(date.getMinutes()).padStart(2, '0');
-            input.value = `${hours}:${minutes}`;
-          } else {
-            input.value = '';
-          }
-        } else {
-          input.value = '';
-        }
-        
-        // Store current scroll position to prevent scrolling
-        const scrollY = window.scrollY;
-        const scrollX = window.scrollX;
-        
-        // Lock scroll position function
-        const lockScroll = () => {
-          window.scrollTo(scrollX, scrollY);
-        };
-        
-        // Continuously restore scroll position while picker is open
-        const scrollLockInterval = setInterval(lockScroll, 10);
-        
-        // Cleanup function to clear interval and restore scrolling
-        const cleanup = () => {
-          clearInterval(scrollLockInterval);
-          // Remove input from DOM
-          setTimeout(() => {
-            if (input.parentNode) {
-              input.parentNode.removeChild(input);
-            }
-          }, 100);
-        };
-        
-        // Store the onChange handler
-        const handleChange = (e) => {
-          if (onChange && e.target.value) {
-            // e.target.value is in HH:MM format (e.g., "14:30")
-            // Use smart date logic to convert to full timestamp
-            const timestamp = _hhmmToMsNearNowSmart(e.target.value);
-            if (timestamp) {
-              // Convert timestamp to ISO string for onChange handler
-              onChange(new Date(timestamp).toISOString());
-            }
-          }
-          cleanup(); // Clear lock when value changes
-        };
-        
-        // Set up onChange handler
-        input.onchange = handleChange;
-        
-        // Also cleanup on blur (picker closed without selection)
-        input.addEventListener('blur', cleanup, { once: true });
-        
-        // Safety timeout to ensure cleanup
-        const safetyTimeout = setTimeout(cleanup, 5000);
-        
-        // Override onChange to clear safety timeout
-        const originalOnChange = input.onchange;
-        input.onchange = (e) => {
-          clearTimeout(safetyTimeout);
-          if (originalOnChange) originalOnChange(e);
-        };
-        
-        // Add to DOM before interacting
-        document.body.appendChild(input);
-        
-        // Try modern API first (works on desktop Chrome/Edge)
-        if (typeof input.showPicker === 'function') {
-          try {
-            const pickerPromise = input.showPicker();
-            // Check if it returns a Promise before calling catch
-            if (pickerPromise && typeof pickerPromise.catch === 'function') {
-              pickerPromise.catch(() => {
-                // Fallback to focus/click if showPicker fails
-                input.focus();
-                input.click();
-              });
-            } else {
-              // If showPicker doesn't return a Promise, just use fallback
-              input.focus();
-              input.click();
-            }
-          } catch (e) {
-            // If showPicker throws, use fallback
-            input.focus();
-            input.click();
-          }
-        } else {
-          // Fallback for browsers without showPicker
-          input.focus();
-          input.click();
-        }
-      }
-    };
+    const timeAnchorRef = React.useRef(null);
     
     const handleRowClick = (e) => {
       // Don't focus if clicking the icon button (it has its own handler)
@@ -528,8 +382,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
       // For datetime fields, open the picker when clicking the row
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
-        e.preventDefault(); // Prevent any default scroll behavior
-        openDateTimePicker();
+        e.preventDefault();
+        if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
+          window.TT.ui.openAnchoredTimePicker({
+            anchorEl: timeAnchorRef.current,
+            rawValue,
+            onChange
+          });
+        }
       } else if (inputRef.current) {
         // For other types, focus the input
         inputRef.current.focus();
@@ -537,10 +397,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     };
     
     const handleIconClick = (e) => {
-      e.stopPropagation(); // Prevent row click handler
-      e.preventDefault(); // Prevent any default scroll behavior
+      e.stopPropagation();
+      e.preventDefault();
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
-        openDateTimePicker();
+        if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
+          window.TT.ui.openAnchoredTimePicker({
+            anchorEl: timeAnchorRef.current,
+            rawValue,
+            onChange
+          });
+        }
       } else {
         // For non-datetime types, focus the input
         if (inputRef.current) {
@@ -579,7 +445,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             )
           : React.createElement('input',
               {
-                ref: inputRef,
+                ref: type === 'datetime' ? timeAnchorRef : inputRef,
                 type: type === 'datetime' ? 'text' : type,
                 inputMode: type === 'number' ? 'decimal' : undefined,
                 step: type === 'number' ? '0.25' : undefined,
