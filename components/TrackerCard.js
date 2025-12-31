@@ -374,16 +374,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
     const inputRef = React.useRef(null);
-    const [isPressed, setIsPressed] = React.useState(false);
     
     const handleRowClick = (e) => {
       // Don't focus if clicking the icon button (it has its own handler)
       if (e.target.closest('button')) {
         return;
       }
-      // Flash effect - brief visual feedback
-      setIsPressed(true);
-      setTimeout(() => setIsPressed(false), 150);
       // Focus the input when clicking anywhere on the row
       if (inputRef.current && type !== 'datetime') {
         inputRef.current.focus();
@@ -392,9 +388,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     const handleIconClick = (e) => {
       e.stopPropagation(); // Prevent row click handler
-      // Flash effect for icon click too
-      setIsPressed(true);
-      setTimeout(() => setIsPressed(false), 150);
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         const input = document.createElement('input');
         input.type = 'datetime-local';
@@ -430,7 +423,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: `flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer transition-all duration-150 ${isPressed ? 'bg-gray-100 rounded-2xl -mx-2 px-2' : ''}`,
+        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-2 active:px-2 transition-all duration-150",
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
@@ -513,7 +506,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Back button (optional, can be removed if not needed)
       React.createElement('div', { className: "flex items-start gap-1.5 mb-6" },
         React.createElement('button', {
-          className: "pl-0 pr-1 pt-1 pb-1 text-gray-600 hover:bg-gray-50 rounded-2xl transition mt-0.5 -ml-0.5"
+          onClick: () => console.log('Back clicked'),
+          className: "pl-0 pr-1 pt-1 pb-1 text-gray-600 hover:bg-gray-50 active:bg-gray-100 rounded-2xl transition-colors duration-100 mt-0.5 -ml-0.5"
         }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
         React.createElement('div', { className: "flex-1" },
           React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, ''),
@@ -584,7 +578,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center",
+            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
             style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
@@ -595,7 +589,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Save Button
       React.createElement('button', {
         onClick: handleSave,
-        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3"
+        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3 active:opacity-80 transition-opacity duration-100"
       },
         React.createElement(CheckIcon, { className: "w-5 h-5" }),
         'Save'
@@ -604,7 +598,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 text-center font-medium"
+        className: "w-full text-red-600 py-2 text-center font-medium active:opacity-70 transition-opacity duration-100"
       }, 'Delete'),
 
       // Full-size photo modal
@@ -684,7 +678,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Back button (optional)
       React.createElement('div', { className: "flex items-start gap-1.5 mb-5" },
         React.createElement('button', {
-          className: "pl-0 pr-1 pt-1 pb-1 text-gray-600 hover:bg-gray-50 rounded-2xl transition mt-0.5 -ml-0.5"
+          onClick: () => console.log('Back clicked'),
+          className: "pl-0 pr-1 pt-1 pb-1 text-gray-600 hover:bg-gray-50 active:bg-gray-100 rounded-2xl transition-colors duration-100 mt-0.5 -ml-0.5"
         }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
         React.createElement('div', { className: "flex-1" },
           React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, ''),
@@ -767,7 +762,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center",
+            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
             style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
@@ -778,7 +773,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Save Button
       React.createElement('button', {
         onClick: handleSave,
-        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3"
+        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3 active:opacity-80 transition-opacity duration-100"
       },
         React.createElement(CheckIcon, { className: "w-5 h-5" }),
         'Save'
@@ -787,7 +782,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 text-center font-medium"
+        className: "w-full text-red-600 py-2 text-center font-medium active:opacity-70 transition-opacity duration-100"
       }, 'Delete'),
 
       // Full-size photo modal
