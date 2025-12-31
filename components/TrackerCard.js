@@ -373,14 +373,64 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue }) => {
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
+    const inputRef = React.useRef(null);
+    
+    const handleRowClick = (e) => {
+      // Don't focus if clicking the icon button (it has its own handler)
+      if (e.target.closest('button')) {
+        return;
+      }
+      // Focus the input when clicking anywhere on the row
+      if (inputRef.current && type !== 'datetime') {
+        inputRef.current.focus();
+      }
+    };
+    
+    const handleIconClick = (e) => {
+      e.stopPropagation(); // Prevent row click handler
+      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+        const input = document.createElement('input');
+        input.type = 'datetime-local';
+        if (rawValue) {
+          const date = new Date(rawValue);
+          // Check if the date is valid before calling toISOString()
+          if (!isNaN(date.getTime())) {
+            input.value = date.toISOString().slice(0, 16);
+          } else {
+            input.value = '';
+          }
+        } else {
+          input.value = '';
+        }
+        input.onchange = (e) => {
+          if (onChange && e.target.value) {
+            const newDate = new Date(e.target.value);
+            // Check for validity before calling toISOString()
+            if (!isNaN(newDate.getTime())) {
+              onChange(newDate.toISOString());
+            }
+          }
+        };
+        input.click();
+      } else {
+        // For non-datetime types, focus the input
+        if (inputRef.current) {
+          inputRef.current.focus();
+        }
+      }
+    };
     
     return React.createElement(
       'div',
-      { className: "flex items-center justify-between py-3 border-b border-gray-100" },
+      { 
+        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer",
+        onClick: handleRowClick
+      },
       React.createElement('div', { className: "flex-1" },
         React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, label),
         React.createElement('input',
           {
+            ref: inputRef,
             type: type === 'datetime' ? 'text' : type,
             inputMode: type === 'number' ? 'decimal' : undefined,
             step: type === 'number' ? '0.25' : undefined,
@@ -404,33 +454,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
       icon && React.createElement('button', {
-        onClick: () => {
-          if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
-            const input = document.createElement('input');
-            input.type = 'datetime-local';
-            if (rawValue) {
-              const date = new Date(rawValue);
-              // Check if the date is valid before calling toISOString()
-              if (!isNaN(date.getTime())) {
-                input.value = date.toISOString().slice(0, 16);
-              } else {
-                input.value = '';
-              }
-            } else {
-              input.value = '';
-            }
-            input.onchange = (e) => {
-              if (onChange && e.target.value) {
-                const newDate = new Date(e.target.value);
-                // Check for validity before calling toISOString()
-                if (!isNaN(newDate.getTime())) {
-                  onChange(newDate.toISOString());
-                }
-              }
-            };
-            input.click();
-          }
-        },
+        onClick: handleIconClick,
         className: "ml-4 text-black"
       }, icon)
     );
