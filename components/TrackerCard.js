@@ -368,17 +368,41 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return `${day} ${hours}:${mins} ${ampm}`;
   };
 
+  // Helper function to convert HH:MM time string to timestamp for a specific date
+  const _hhmmToMsForDate = (hhmm, baseDate) => {
+    if (!hhmm || typeof hhmm !== 'string' || hhmm.indexOf(':') === -1) return null;
+    const parts = hhmm.split(':');
+    const hh = parseInt(parts[0], 10);
+    const mm = parseInt(parts[1], 10);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    const d = new Date(baseDate || Date.now());
+    d.setHours(hh);
+    d.setMinutes(mm);
+    d.setSeconds(0);
+    d.setMilliseconds(0);
+    return d.getTime();
+  };
+
+  // Smart date logic: If time is >3 hours in future, assume it's from yesterday
+  // This handles cases like: it's 1:00 AM, user picks 11:00 PM → means yesterday 11:00 PM
+  const _hhmmToMsNearNowSmart = (hhmm, nowMs = Date.now(), futureCutoffHours = 3) => {
+    const ms = _hhmmToMsForDate(hhmm, nowMs);
+    if (!ms) return null;
+    const cutoff = futureCutoffHours * 3600000;
+    return (ms > (nowMs + cutoff)) ? (ms - 86400000) : ms;
+  };
+
   // Input Field Row Component
   const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue }) => {
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
     const inputRef = React.useRef(null);
     
-    // Shared function to open the datetime picker
+    // Shared function to open the time picker with smart date logic
     const openDateTimePicker = () => {
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         const input = document.createElement('input');
-        input.type = 'datetime-local';
+        input.type = 'time'; // Use time-only picker for compact UI
         
         // Style for desktop compatibility - needs to be in viewport but can be tiny/transparent
         input.style.position = 'fixed';
@@ -390,11 +414,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         input.style.pointerEvents = 'none';
         input.style.zIndex = '-1';
         
+        // Set initial time value from rawValue (ISO string) if available
         if (rawValue) {
           const date = new Date(rawValue);
-          // Check if the date is valid before calling toISOString()
+          // Check if the date is valid before formatting
           if (!isNaN(date.getTime())) {
-            input.value = date.toISOString().slice(0, 16);
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            input.value = `${hours}:${minutes}`;
           } else {
             input.value = '';
           }
@@ -404,10 +431,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         
         input.onchange = (e) => {
           if (onChange && e.target.value) {
-            const newDate = new Date(e.target.value);
-            // Check for validity before calling toISOString()
-            if (!isNaN(newDate.getTime())) {
-              onChange(newDate.toISOString());
+            // e.target.value is in HH:MM format (e.g., "14:30")
+            // Use smart date logic to convert to full timestamp
+            const timestamp = _hhmmToMsNearNowSmart(e.target.value);
+            if (timestamp) {
+              // Convert timestamp to ISO string for onChange handler
+              onChange(new Date(timestamp).toISOString());
             }
           }
           // Clean up: remove input from DOM after picker closes
