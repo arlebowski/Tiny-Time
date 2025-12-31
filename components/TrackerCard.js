@@ -370,7 +370,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               }
             },
             placeholder: placeholder,
-            className: "text-base font-semibold text-black w-full outline-none",
+            className: "text-base font-normal text-black w-full outline-none",
             style: { background: 'transparent' },
             readOnly: type === 'datetime'
           }
@@ -456,7 +456,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('button', {
           className: "p-2 text-gray-600 hover:bg-gray-50 rounded-2xl transition"
         }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Feed Detail')
+        React.createElement('h2', { className: "text-base font-semibold text-gray-800" }, 'Feed Detail')
       ),
 
       // Ounces
@@ -590,18 +590,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('button', {
           className: "p-2 text-gray-600 hover:bg-gray-50 rounded-2xl transition"
         }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
-        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Sleep Detail')
+        React.createElement('h2', { className: "text-base font-semibold text-gray-800" }, 'Sleep Detail')
       ),
 
       // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
-        React.createElement('div', { className: "text-4xl font-bold text-black" },
+        React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" },
           React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-xl text-gray-500 font-normal ml-1" }, 'h'),
+          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'h'),
           React.createElement('span', { className: "ml-2" }, `${String(duration.minutes).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-xl text-gray-500 font-normal ml-1" }, 'm'),
+          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'm'),
           React.createElement('span', { className: "ml-2" }, `${String(duration.seconds).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-xl text-gray-500 font-normal ml-1" }, 's')
+          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 's')
         )
       ),
 
