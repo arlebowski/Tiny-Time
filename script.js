@@ -639,25 +639,39 @@ const firestoreStorage = {
   // - { id, ...data } when active
   subscribeActiveSleep(callback) {
     if (typeof callback !== "function") throw new Error("Missing callback");
+    
+    // Guard: Don't create listener if storage isn't initialized
+    if (!this.currentFamilyId || !this.currentKidId) {
+      // Return a no-op unsubscribe function
+      callback(null);
+      return () => {};
+    }
 
-    return this._kidRef()
-      .collection("sleepSessions")
-      .where("isActive", "==", true)
-      .limit(1)
-      .onSnapshot(
-        (snap) => {
-          if (snap.empty) {
+    try {
+      return this._kidRef()
+        .collection("sleepSessions")
+        .where("isActive", "==", true)
+        .limit(1)
+        .onSnapshot(
+          (snap) => {
+            if (snap.empty) {
+              callback(null);
+              return;
+            }
+            const d = snap.docs[0];
+            callback({ id: d.id, ...d.data() });
+          },
+          (err) => {
+            console.error("Active sleep subscription error:", err);
             callback(null);
-            return;
           }
-          const d = snap.docs[0];
-          callback({ id: d.id, ...d.data() });
-        },
-        (err) => {
-          console.error("Active sleep subscription error:", err);
-          callback(null);
-        }
-      );
+        );
+    } catch (err) {
+      // If _kidRef() throws or listener creation fails, return no-op unsubscribe
+      console.warn("Could not create active sleep listener:", err);
+      callback(null);
+      return () => {};
+    }
   },
 
   async getSleepSessionsLastNDays(days) {
@@ -8118,9 +8132,161 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('p', { className: "text-sm text-gray-600" }, 'Design playground for standard components')
       ),
 
+      // Design Palette Section
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-6 mb-6" },
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Design Palette'),
+        
+        // Colors
+        React.createElement('div', { className: "mb-6" },
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Colors'),
+          React.createElement('div', { className: "grid grid-cols-2 md:grid-cols-4 gap-3" },
+            // Background colors
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "h-12 rounded-2xl bg-white border border-gray-200" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-white')
+            ),
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "h-12 rounded-2xl bg-gray-50" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-50')
+            ),
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "h-12 rounded-2xl bg-gray-100" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-100')
+            ),
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "h-12 rounded-2xl bg-gray-500" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-500')
+            ),
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "h-12 rounded-2xl bg-black" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-black')
+            )
+          ),
+          // Text colors
+          React.createElement('div', { className: "mt-4 space-y-2" },
+            React.createElement('div', { className: "text-xs text-black" }, 'text-black'),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'text-gray-500'),
+            React.createElement('div', { className: "text-xs text-gray-800" }, 'text-gray-800'),
+            React.createElement('div', { className: "text-xs text-white" }, 'text-white'),
+            React.createElement('div', { className: "text-xs text-red-600" }, 'text-red-600')
+          )
+        ),
+
+        // Text Hierarchy
+        React.createElement('div', { className: "mb-6" },
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Text Hierarchy'),
+          React.createElement('div', { className: "space-y-3" },
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" }, '40px Bold'),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Display number')
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-lg font-semibold text-gray-800" }, '18px Semibold'),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Section headers')
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-base font-semibold text-black" }, '16px Semibold'),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Card headers, labels')
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-base font-light text-black" }, '16px Light'),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Secondary text')
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-sm text-gray-500" }, '14px Regular'),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Body text, notes')
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-xs text-gray-500" }, '12px Regular'),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Labels, metadata')
+            )
+          )
+        ),
+
+        // Corner Radii
+        React.createElement('div', { className: "mb-6" },
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Corner Radii'),
+          React.createElement('div', { className: "flex items-end gap-4" },
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "w-16 h-16 rounded-2xl bg-gray-100" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'rounded-2xl (16px)')
+            ),
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "w-16 h-16 rounded-full bg-gray-100" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'rounded-full')
+            )
+          )
+        ),
+
+        // Spacing
+        React.createElement('div', { className: "mb-6" },
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Spacing'),
+          React.createElement('div', { className: "space-y-2" },
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-2 h-2 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-1 (4px)' )
+            ),
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-3 h-3 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-1.5 (6px)' )
+            ),
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-4 h-4 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-2 (8px)' )
+            ),
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-6 h-6 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-3 (12px)' )
+            ),
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-8 h-8 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-2 (8px)' )
+            ),
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-12 h-12 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-3 (12px)' )
+            ),
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-16 h-16 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-4 (16px)' )
+            ),
+            React.createElement('div', { className: "flex items-center gap-3" },
+              React.createElement('div', { className: "w-20 h-20 rounded-full bg-gray-400" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-5 (20px)' )
+            )
+          )
+        ),
+
+        // Shadows
+        React.createElement('div', { className: "mb-6" },
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Shadows'),
+          React.createElement('div', { className: "flex gap-4" },
+            React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "w-20 h-20 rounded-2xl bg-white shadow-sm" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'shadow-sm')
+            )
+          )
+        ),
+
+        // Borders
+        React.createElement('div', null,
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Borders'),
+          React.createElement('div', { className: "space-y-2" },
+            React.createElement('div', { className: "h-12 rounded-2xl border border-gray-100 bg-white" }),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'border-gray-100'),
+            React.createElement('div', { className: "h-12 rounded-2xl border border-gray-200 bg-white" }),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'border-gray-200')
+          )
+        )
+      ),
+
       // TrackerCard previews
       React.createElement(window.TrackerCard, { mode: 'feeding' }),
       React.createElement(window.TrackerCard, { mode: 'sleep' }),
+
+      // Detail Sheet previews
+      window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet),
+      window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet),
 
       // Icons section
       React.createElement('div', { className: "mb-6" },

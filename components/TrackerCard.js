@@ -36,10 +36,107 @@ const ChevronUp = (props) => React.createElement(
   React.createElement('polyline', { points: "18 15 12 9 6 15" })
 );
 
+// Additional icons for detail sheets
+const EditIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('path', { d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }),
+  React.createElement('path', { d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" })
+);
+
+const CalendarIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('rect', { x: "3", y: "4", width: "18", height: "18", rx: "2", ry: "2" }),
+  React.createElement('line', { x1: "16", y1: "2", x2: "16", y2: "6" }),
+  React.createElement('line', { x1: "8", y1: "2", x2: "8", y2: "6" }),
+  React.createElement('line', { x1: "3", y1: "10", x2: "21", y2: "10" })
+);
+
+const PlusIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('line', { x1: "12", y1: "5", x2: "12", y2: "19" }),
+  React.createElement('line', { x1: "5", y1: "12", x2: "19", y2: "12" })
+);
+
+const CheckIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('polyline', { points: "20 6 9 17 4 12" })
+);
+
+const ClockIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
+  React.createElement('polyline', { points: "12 6 12 12 16 14" })
+);
+
 // Expose icons globally so script.js can use them
 if (typeof window !== 'undefined') {
   window.ChevronDown = ChevronDown;
   window.ChevronUp = ChevronUp;
+  window.EditIcon = EditIcon;
+  window.CalendarIcon = CalendarIcon;
+  window.PlusIcon = PlusIcon;
+  window.CheckIcon = CheckIcon;
+  window.ClockIcon = ClockIcon;
 }
 
 // Ensure zZz animation styles are injected
@@ -78,18 +175,18 @@ const TimelineItem = ({ withNote, mode = 'sleep' }) => {
   
   return React.createElement(
     'div',
-    { className: "rounded-xl bg-gray-50 p-4" },
+    { className: "rounded-2xl bg-gray-50 p-4" },
     React.createElement(
       'div',
       { className: "flex items-center justify-between mb-2" },
       React.createElement(
         'div',
         { className: "flex items-center gap-3" },
-        React.createElement('div', { className: "h-6 w-6 rounded bg-black/10" }),
+        React.createElement('div', { className: "h-6 w-6 rounded-2xl bg-gray-100" }),
         React.createElement(
           'div',
           null,
-          React.createElement('div', { className: "font-semibold" }, 
+          React.createElement('div', { className: "font-semibold text-gray-500" }, 
             isSleep ? '2h 20m' : '4oz'
           ),
           React.createElement('div', { className: "text-sm text-gray-500" }, 
@@ -97,14 +194,14 @@ const TimelineItem = ({ withNote, mode = 'sleep' }) => {
           )
         )
       ),
-      React.createElement(ChevronDown, { className: "rotate-[-90deg]" })
+      React.createElement(ChevronDown, { className: "rotate-[-90deg] text-gray-500" })
     ),
     withNote && React.createElement(
       React.Fragment,
       null,
       React.createElement(
         'div',
-        { className: "italic text-sm text-gray-600 mb-3" },
+        { className: "italic text-sm text-gray-500 mb-3" },
         isSleep ? 'Note: had to hold him forever' : 'Note: kid didn\'t burp dammit!'
       ),
       React.createElement(
@@ -115,7 +212,7 @@ const TimelineItem = ({ withNote, mode = 'sleep' }) => {
             'div',
             {
               key: i,
-              className: "aspect-square rounded-lg bg-gray-300"
+              className: "aspect-square rounded-2xl bg-gray-100"
             }
           )
         )
@@ -156,8 +253,8 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     : React.createElement(
         React.Fragment,
         null,
-        React.createElement('span', { className: "text-gray-900 font-semibold" }, '1h 20m'),
-        React.createElement('span', { className: "text-gray-900 font-light" },
+        React.createElement('span', { className: "text-black font-semibold" }, '1h 20m'),
+        React.createElement('span', { className: "text-black font-light" },
           ' ',
           React.createElement('span', { className: "zzz" },
             React.createElement('span', null, 'z'),
@@ -178,11 +275,11 @@ const TrackerCard = ({ mode = 'sleep' }) => {
 
   return React.createElement(
     'div',
-    { className: "rounded-2xl bg-white p-5 shadow-md" },
+    { className: "rounded-2xl bg-white p-5 shadow-sm" },
     React.createElement(
       'div',
       { className: "flex items-center gap-3 mb-4" },
-      React.createElement('div', { className: "h-6 w-6 rounded bg-black/10" }),
+      React.createElement('div', { className: "h-6 w-6 rounded-2xl bg-gray-100" }),
       React.createElement('div', { className: "text-base font-semibold" }, 'Header')
     ),
     React.createElement(
@@ -199,10 +296,9 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     // Animated Progress Bar (production-style)
     React.createElement('div', { className: "relative w-full h-6 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
       React.createElement('div', {
-        className: "absolute left-0 top-0 h-full rounded-2xl",
+        className: "absolute left-0 top-0 h-full rounded-2xl bg-gray-500",
         style: {
           width: cardVisible ? `${Math.min(100, demoPercent)}%` : '0%',
-          background: '#757575',
           transition: 'width 0.6s ease-out',
           transitionDelay: '0s'
         }
@@ -233,6 +329,360 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     )
   );
 };
+
+// Detail Sheet Components
+// Guard to prevent redeclaration
+if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
+  
+  // Helper function to format date/time for display
+  const formatDateTime = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const day = d.getDate();
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const mins = minutes < 10 ? '0' + minutes : minutes;
+    return `${month} ${day} @ ${hours}:${mins}${ampm}`;
+  };
+
+  // Input Field Row Component
+  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue }) => {
+    // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
+    const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
+    
+    return React.createElement(
+      'div',
+      { className: "flex items-center justify-between py-3 border-b border-gray-100" },
+      React.createElement('div', { className: "flex-1" },
+        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, label),
+        React.createElement('input',
+          {
+            type: type === 'datetime' ? 'text' : type,
+            value: displayValue || '',
+            onChange: (e) => {
+              if (type !== 'datetime' && onChange) {
+                onChange(e.target.value);
+              }
+            },
+            placeholder: placeholder,
+            className: "text-base font-semibold text-black w-full outline-none",
+            style: { background: 'transparent' },
+            readOnly: type === 'datetime'
+          }
+        )
+      ),
+      icon && React.createElement('button', {
+        onClick: () => {
+          if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+            const input = document.createElement('input');
+            input.type = 'datetime-local';
+            if (rawValue) {
+              const date = new Date(rawValue);
+              // Check if the date is valid before calling toISOString()
+              if (!isNaN(date.getTime())) {
+                input.value = date.toISOString().slice(0, 16);
+              } else {
+                input.value = '';
+              }
+            } else {
+              input.value = '';
+            }
+            input.onchange = (e) => {
+              if (onChange && e.target.value) {
+                const newDate = new Date(e.target.value);
+                // Check for validity before calling toISOString()
+                if (!isNaN(newDate.getTime())) {
+                  onChange(newDate.toISOString());
+                }
+              }
+            };
+            input.click();
+          }
+        },
+        className: "ml-4 text-black"
+      }, icon)
+    );
+  };
+
+  // TTFeedDetailSheet Component
+  const TTFeedDetailSheet = () => {
+    const [ounces, setOunces] = React.useState('6');
+    const [dateTime, setDateTime] = React.useState(new Date().toISOString());
+    const [notes, setNotes] = React.useState("kid didn't burp dammit!");
+    const [photos, setPhotos] = React.useState([null, null, null, null]);
+
+    const handleSave = () => {
+      console.log('Feed save:', { ounces, dateTime, notes, photos });
+      // UI-only, no production behavior
+    };
+
+    const handleDelete = () => {
+      console.log('Feed delete');
+      // UI-only, no production behavior
+    };
+
+    const handleAddPhoto = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const emptyIndex = photos.findIndex(p => p === null);
+            if (emptyIndex !== -1) {
+              const newPhotos = [...photos];
+              newPhotos[emptyIndex] = event.target.result;
+              setPhotos(newPhotos);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      input.click();
+    };
+
+    return React.createElement(
+      'div',
+      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      // Back button (optional, can be removed if not needed)
+      React.createElement('div', { className: "flex items-center gap-3 mb-6" },
+        React.createElement('button', {
+          className: "p-2 text-gray-600 hover:bg-gray-50 rounded-2xl transition"
+        }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Feed Detail')
+      ),
+
+      // Ounces
+      React.createElement(InputRow, {
+        label: 'Ounces',
+        value: ounces,
+        onChange: setOunces,
+        icon: React.createElement(EditIcon),
+        type: 'number',
+        placeholder: '0'
+      }),
+
+      // Date & Time
+      React.createElement(InputRow, {
+        label: 'Date & Time',
+        value: formatDateTime(dateTime), // This won't be used for datetime type
+        rawValue: dateTime, // Pass the raw ISO string
+        onChange: setDateTime,
+        icon: React.createElement(CalendarIcon),
+        type: 'datetime'
+      }),
+
+      // Notes
+      React.createElement(InputRow, {
+        label: 'Notes',
+        value: notes,
+        onChange: setNotes,
+        icon: React.createElement(EditIcon),
+        type: 'text',
+        placeholder: 'Add a note...'
+      }),
+
+      // Photos
+      React.createElement('div', { className: "py-3 border-b border-gray-100" },
+        React.createElement('div', { className: "flex items-center justify-between mb-3" },
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos'),
+          React.createElement('button', {
+            onClick: handleAddPhoto,
+            className: "text-black"
+          }, React.createElement(PlusIcon))
+        ),
+        React.createElement('div', { className: "grid grid-cols-4 gap-2" },
+          photos.map((photo, i) =>
+            React.createElement('div', {
+              key: i,
+              onClick: () => handleAddPhoto(),
+              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden",
+              style: { cursor: 'pointer' }
+            },
+              photo
+                ? React.createElement('img', { src: photo, alt: `Photo ${i + 1}`, className: "w-full h-full object-cover" })
+                : React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+            )
+          )
+        )
+      ),
+
+      // Save Button
+      React.createElement('button', {
+        onClick: handleSave,
+        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3"
+      },
+        React.createElement(CheckIcon, { className: "w-5 h-5" }),
+        'Save'
+      ),
+
+      // Delete Button
+      React.createElement('button', {
+        onClick: handleDelete,
+        className: "w-full text-red-600 py-2 text-center font-medium"
+      }, 'Delete')
+    );
+  };
+
+  // TTSleepDetailSheet Component
+  const TTSleepDetailSheet = () => {
+    const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
+    const [endTime, setEndTime] = React.useState(new Date().toISOString());
+    const [notes, setNotes] = React.useState("kid didn't burp dammit!");
+    const [photos, setPhotos] = React.useState([null, null, null, null]);
+
+    // Calculate duration
+    const calculateDuration = () => {
+      if (!startTime || !endTime) return { hours: 0, minutes: 0, seconds: 0 };
+      const diff = new Date(endTime) - new Date(startTime);
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      return { hours, minutes, seconds };
+    };
+
+    const duration = calculateDuration();
+
+    const handleSave = () => {
+      console.log('Sleep save:', { startTime, endTime, notes, photos, duration });
+      // UI-only, no production behavior
+    };
+
+    const handleDelete = () => {
+      console.log('Sleep delete');
+      // UI-only, no production behavior
+    };
+
+    const handleAddPhoto = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const emptyIndex = photos.findIndex(p => p === null);
+            if (emptyIndex !== -1) {
+              const newPhotos = [...photos];
+              newPhotos[emptyIndex] = event.target.result;
+              setPhotos(newPhotos);
+            }
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      input.click();
+    };
+
+    return React.createElement(
+      'div',
+      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      // Back button (optional)
+      React.createElement('div', { className: "flex items-center gap-3 mb-6" },
+        React.createElement('button', {
+          className: "p-2 text-gray-600 hover:bg-gray-50 rounded-2xl transition"
+        }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
+        React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Sleep Detail')
+      ),
+
+      // Timer Display
+      React.createElement('div', { className: "text-center mb-6" },
+        React.createElement('div', { className: "text-4xl font-bold text-black" },
+          React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
+          React.createElement('span', { className: "text-xl text-gray-500 font-normal ml-1" }, 'h'),
+          React.createElement('span', { className: "ml-2" }, `${String(duration.minutes).padStart(2, '0')}`),
+          React.createElement('span', { className: "text-xl text-gray-500 font-normal ml-1" }, 'm'),
+          React.createElement('span', { className: "ml-2" }, `${String(duration.seconds).padStart(2, '0')}`),
+          React.createElement('span', { className: "text-xl text-gray-500 font-normal ml-1" }, 's')
+        )
+      ),
+
+      // Start time
+      React.createElement(InputRow, {
+        label: 'Start time',
+        value: formatDateTime(startTime), // This won't be used for datetime type
+        rawValue: startTime, // Pass the raw ISO string
+        onChange: setStartTime,
+        icon: React.createElement(ClockIcon),
+        type: 'datetime'
+      }),
+
+      // End time
+      React.createElement(InputRow, {
+        label: 'End time',
+        value: formatDateTime(endTime), // This won't be used for datetime type
+        rawValue: endTime, // Pass the raw ISO string
+        onChange: setEndTime,
+        icon: React.createElement(ClockIcon),
+        type: 'datetime'
+      }),
+
+      // Notes
+      React.createElement(InputRow, {
+        label: 'Notes',
+        value: notes,
+        onChange: setNotes,
+        icon: React.createElement(EditIcon),
+        type: 'text',
+        placeholder: 'Add a note...'
+      }),
+
+      // Photos
+      React.createElement('div', { className: "py-3 border-b border-gray-100" },
+        React.createElement('div', { className: "flex items-center justify-between mb-3" },
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos'),
+          React.createElement('button', {
+            onClick: handleAddPhoto,
+            className: "text-black"
+          }, React.createElement(PlusIcon))
+        ),
+        React.createElement('div', { className: "grid grid-cols-4 gap-2" },
+          photos.map((photo, i) =>
+            React.createElement('div', {
+              key: i,
+              onClick: () => handleAddPhoto(),
+              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden",
+              style: { cursor: 'pointer' }
+            },
+              photo
+                ? React.createElement('img', { src: photo, alt: `Photo ${i + 1}`, className: "w-full h-full object-cover" })
+                : React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+            )
+          )
+        )
+      ),
+
+      // Save Button
+      React.createElement('button', {
+        onClick: handleSave,
+        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3"
+      },
+        React.createElement(CheckIcon, { className: "w-5 h-5" }),
+        'Save'
+      ),
+
+      // Delete Button
+      React.createElement('button', {
+        onClick: handleDelete,
+        className: "w-full text-red-600 py-2 text-center font-medium"
+      }, 'Delete')
+    );
+  };
+
+  // Expose components globally
+  if (typeof window !== 'undefined') {
+    window.TTFeedDetailSheet = TTFeedDetailSheet;
+    window.TTSleepDetailSheet = TTSleepDetailSheet;
+  }
+}
 
 // Make available globally for script.js
 if (typeof window !== 'undefined') {
