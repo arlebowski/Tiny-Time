@@ -450,6 +450,19 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Add to DOM before interacting
         document.body.appendChild(input);
         
+        // Store current scroll position to prevent scrolling
+        const scrollY = window.scrollY;
+        const scrollX = window.scrollX;
+        
+        // Prevent scroll when focusing
+        const preventScroll = (e) => {
+          e.preventDefault();
+          // Restore scroll position immediately
+          window.scrollTo(scrollX, scrollY);
+        };
+        
+        input.addEventListener('focus', preventScroll, { once: true });
+        
         // Try modern API first (works on desktop Chrome/Edge)
         if (typeof input.showPicker === 'function') {
           try {
@@ -459,21 +472,37 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               pickerPromise.catch(() => {
                 // Fallback to focus/click if showPicker fails
                 input.focus();
+                // Restore scroll position after focus
+                setTimeout(() => {
+                  window.scrollTo(scrollX, scrollY);
+                }, 0);
                 input.click();
               });
             } else {
               // If showPicker doesn't return a Promise, just use fallback
               input.focus();
+              // Restore scroll position after focus
+              setTimeout(() => {
+                window.scrollTo(scrollX, scrollY);
+              }, 0);
               input.click();
             }
           } catch (e) {
             // If showPicker throws, use fallback
             input.focus();
+            // Restore scroll position after focus
+            setTimeout(() => {
+              window.scrollTo(scrollX, scrollY);
+            }, 0);
             input.click();
           }
         } else {
           // Fallback for browsers without showPicker
           input.focus();
+          // Restore scroll position after focus
+          setTimeout(() => {
+            window.scrollTo(scrollX, scrollY);
+          }, 0);
           input.click();
         }
       }
@@ -486,6 +515,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
       // For datetime fields, open the picker when clicking the row
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+        e.preventDefault(); // Prevent any default scroll behavior
         openDateTimePicker();
       } else if (inputRef.current) {
         // For other types, focus the input
@@ -495,6 +525,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     const handleIconClick = (e) => {
       e.stopPropagation(); // Prevent row click handler
+      e.preventDefault(); // Prevent any default scroll behavior
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         openDateTimePicker();
       } else {
