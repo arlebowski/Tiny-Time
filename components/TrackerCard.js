@@ -128,6 +128,24 @@ const ClockIcon = (props) => React.createElement(
   React.createElement('polyline', { points: "12 6 12 12 16 14" })
 );
 
+const XIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "2",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('path', { d: "M18 6 6 18" }),
+  React.createElement('path', { d: "m6 6 12 12" })
+);
+
 // Expose icons globally so script.js can use them
 if (typeof window !== 'undefined') {
   window.ChevronDown = ChevronDown;
@@ -137,6 +155,7 @@ if (typeof window !== 'undefined') {
   window.PlusIcon = PlusIcon;
   window.CheckIcon = CheckIcon;
   window.ClockIcon = ClockIcon;
+  window.XIcon = XIcon;
 }
 
 // Ensure zZz animation styles are injected
@@ -414,7 +433,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [ounces, setOunces] = React.useState('6');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState("kid didn't burp dammit!");
-    const [photos, setPhotos] = React.useState([null, null, null, null]);
+    const [photos, setPhotos] = React.useState([]);
+    const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
 
     const handleSave = () => {
       console.log('Feed save:', { ounces, dateTime, notes, photos });
@@ -435,17 +455,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            const emptyIndex = photos.findIndex(p => p === null);
-            if (emptyIndex !== -1) {
-              const newPhotos = [...photos];
-              newPhotos[emptyIndex] = event.target.result;
-              setPhotos(newPhotos);
-            }
+            setPhotos([...photos, event.target.result]);
           };
           reader.readAsDataURL(file);
         }
       };
       input.click();
+    };
+
+    const handleRemovePhoto = (index) => {
+      const newPhotos = photos.filter((_, i) => i !== index);
+      setPhotos(newPhotos);
     };
 
     return React.createElement(
@@ -497,18 +517,38 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('div', { className: "mb-3" },
           React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
-        React.createElement('div', { className: "grid grid-cols-4 gap-2" },
+        React.createElement('div', { className: "flex gap-2" },
+          // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
-              onClick: () => handleAddPhoto(),
-              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden",
-              style: { cursor: 'pointer' }
+              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
+              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
-              photo
-                ? React.createElement('img', { src: photo, alt: `Photo ${i + 1}`, className: "w-full h-full object-cover" })
-                : React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+              React.createElement('img', { 
+                src: photo, 
+                alt: `Photo ${i + 1}`, 
+                className: "w-full h-full object-cover rounded-2xl",
+                onClick: () => setFullSizePhoto(photo)
+              }),
+              React.createElement('button', {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  handleRemovePhoto(i);
+                },
+                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
+              },
+                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
+              )
             )
+          ),
+          // Render placeholder (only one, always at the end)
+          React.createElement('div', {
+            onClick: handleAddPhoto,
+            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center",
+            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+          },
+            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
           )
         )
       ),
@@ -526,7 +566,24 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       React.createElement('button', {
         onClick: handleDelete,
         className: "w-full text-red-600 py-2 text-center font-medium"
-      }, 'Delete')
+      }, 'Delete'),
+
+      // Full-size photo modal
+      fullSizePhoto && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', {
+          onClick: () => setFullSizePhoto(null),
+          className: "fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+        },
+          React.createElement('img', {
+            src: fullSizePhoto,
+            alt: "Full size photo",
+            className: "max-w-full max-h-full object-contain",
+            onClick: (e) => e.stopPropagation()
+          })
+        )
+      )
     );
   };
 
@@ -535,7 +592,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
     const [endTime, setEndTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState("kid didn't burp dammit!");
-    const [photos, setPhotos] = React.useState([null, null, null, null]);
+    const [photos, setPhotos] = React.useState([]);
+    const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
 
     // Calculate duration
     const calculateDuration = () => {
@@ -568,17 +626,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            const emptyIndex = photos.findIndex(p => p === null);
-            if (emptyIndex !== -1) {
-              const newPhotos = [...photos];
-              newPhotos[emptyIndex] = event.target.result;
-              setPhotos(newPhotos);
-            }
+            setPhotos([...photos, event.target.result]);
           };
           reader.readAsDataURL(file);
         }
       };
       input.click();
+    };
+
+    const handleRemovePhoto = (index) => {
+      const newPhotos = photos.filter((_, i) => i !== index);
+      setPhotos(newPhotos);
     };
 
     return React.createElement(
@@ -642,18 +700,38 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('div', { className: "mb-3" },
           React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
-        React.createElement('div', { className: "grid grid-cols-4 gap-2" },
+        React.createElement('div', { className: "flex gap-2" },
+          // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
-              onClick: () => handleAddPhoto(),
-              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center overflow-hidden",
-              style: { cursor: 'pointer' }
+              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
+              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
-              photo
-                ? React.createElement('img', { src: photo, alt: `Photo ${i + 1}`, className: "w-full h-full object-cover" })
-                : React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+              React.createElement('img', { 
+                src: photo, 
+                alt: `Photo ${i + 1}`, 
+                className: "w-full h-full object-cover rounded-2xl",
+                onClick: () => setFullSizePhoto(photo)
+              }),
+              React.createElement('button', {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  handleRemovePhoto(i);
+                },
+                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
+              },
+                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
+              )
             )
+          ),
+          // Render placeholder (only one, always at the end)
+          React.createElement('div', {
+            onClick: handleAddPhoto,
+            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center",
+            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+          },
+            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
           )
         )
       ),
@@ -671,7 +749,24 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       React.createElement('button', {
         onClick: handleDelete,
         className: "w-full text-red-600 py-2 text-center font-medium"
-      }, 'Delete')
+      }, 'Delete'),
+
+      // Full-size photo modal
+      fullSizePhoto && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', {
+          onClick: () => setFullSizePhoto(null),
+          className: "fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+        },
+          React.createElement('img', {
+            src: fullSizePhoto,
+            alt: "Full size photo",
+            className: "max-w-full max-h-full object-contain",
+            onClick: (e) => e.stopPropagation()
+          })
+        )
+      )
     );
   };
 
