@@ -8054,6 +8054,18 @@ const handleInvite = async () => {
 
 const SettingsTab = ({ user, kidId }) => {
   const [showUILab, setShowUILab] = useState(false);
+  
+  // Bottom sheet state for EditableRow (UI Lab only)
+  const [editorState, setEditorState] = useState({
+    isOpen: false,
+    type: null, // 'datetime' | 'notes'
+    initialValue: null,
+    onSave: null
+  });
+
+  // Example values for EditableRow (UI Lab only)
+  const [exampleStartTime, setExampleStartTime] = useState(null);
+  const [exampleNotes, setExampleNotes] = useState('');
 
   const handleShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
@@ -8109,6 +8121,168 @@ const SettingsTab = ({ user, kidId }) => {
       console.error("Account deletion failed:", err);
       alert("Something went wrong deleting your account. Please try again.");
     }
+  };
+
+  // Helper function to format date/time for display (UI Lab)
+  const formatDateTime = (date) => {
+    if (!date) return '';
+    const d = new Date(date);
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = months[d.getMonth()];
+    const day = d.getDate();
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const mins = minutes < 10 ? '0' + minutes : minutes;
+    return `${month} ${day} @ ${hours}:${mins}${ampm}`;
+  };
+
+  // Open editor function (UI Lab)
+  const openEditor = ({ type, initialValue, onSave }) => {
+    setEditorState({
+      isOpen: true,
+      type,
+      initialValue,
+      onSave
+    });
+    // Lock body scroll
+    document.body.style.overflow = 'hidden';
+  };
+
+  // Close editor function (UI Lab)
+  const closeEditor = () => {
+    setEditorState({
+      isOpen: false,
+      type: null,
+      initialValue: null,
+      onSave: null
+    });
+    // Unlock body scroll
+    document.body.style.overflow = '';
+  };
+
+  // Cleanup: restore body scroll when UI Lab closes
+  React.useEffect(() => {
+    if (!showUILab) {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showUILab]);
+
+  // Auto-focus textarea when notes editor opens
+  React.useEffect(() => {
+    if (editorState.isOpen && editorState.type === 'notes') {
+      // Small delay to ensure DOM is ready
+      setTimeout(() => {
+        const textarea = document.getElementById('tt-editor-notes-input');
+        if (textarea) {
+          textarea.focus();
+        }
+      }, 100);
+    }
+  }, [editorState.isOpen, editorState.type]);
+
+  // Handle editor save (UI Lab)
+  const handleEditorSave = (value) => {
+    if (editorState.onSave) {
+      editorState.onSave(value);
+    }
+    closeEditor();
+  };
+
+  // EditableRow Component (UI Lab only)
+  const EditableRow = ({ label, value, placeholder, onPress }) => {
+    const displayValue = value || '';
+    const showPlaceholder = !value;
+    
+    return React.createElement(
+      'div',
+      {
+        onClick: onPress,
+        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-50 transition-colors"
+      },
+      React.createElement('div', { className: "flex-1" },
+        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, label),
+        React.createElement('div', {
+          className: showPlaceholder 
+            ? "text-base font-semibold text-gray-400" 
+            : "text-base font-semibold text-black"
+        }, showPlaceholder ? placeholder : displayValue)
+      ),
+      React.createElement(ChevronRight, { className: "w-5 h-5 text-gray-400" })
+    );
+  };
+
+  // TTBottomSheet Component (UI Lab only)
+  const TTBottomSheet = ({ isOpen, title, onDone, children }) => {
+    const sheetRef = React.useRef(null);
+
+    React.useEffect(() => {
+      if (isOpen && sheetRef.current) {
+        // Start from off-screen, then animate in
+        sheetRef.current.style.transform = 'translateY(100%)';
+        requestAnimationFrame(() => {
+          if (sheetRef.current) {
+            sheetRef.current.style.transform = 'translateY(0)';
+          }
+        });
+      } else if (!isOpen && sheetRef.current) {
+        sheetRef.current.style.transform = 'translateY(100%)';
+      }
+    }, [isOpen]);
+
+    if (!isOpen) return null;
+
+    return React.createElement(
+      React.Fragment,
+      null,
+      // Backdrop
+      React.createElement('div', {
+        className: "fixed inset-0 bg-black bg-opacity-40 z-50",
+        style: {
+          opacity: isOpen ? 1 : 0,
+          transition: 'opacity 220ms ease'
+        }
+      }),
+      // Bottom Sheet
+      React.createElement('div', {
+        ref: sheetRef,
+        className: "fixed left-0 right-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl",
+        style: {
+          transform: 'translateY(100%)',
+          transition: 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+          willChange: 'transform',
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+          maxHeight: '90vh',
+          display: 'flex',
+          flexDirection: 'column'
+        }
+      },
+        // Header
+        React.createElement('div', {
+          className: "flex items-center justify-between px-6 py-4 border-b border-gray-100"
+        },
+          React.createElement('h2', {
+            className: "text-lg font-semibold text-gray-800"
+          }, title),
+          React.createElement('button', {
+            onClick: onDone,
+            className: "text-base font-semibold text-indigo-600 active:opacity-70"
+          }, 'Done')
+        ),
+        // Content
+        React.createElement('div', {
+          className: "flex-1 overflow-y-auto px-6 py-4",
+          style: {
+            WebkitOverflowScrolling: 'touch'
+          }
+        }, children)
+      )
+    );
   };
 
   // UI Lab page
@@ -8181,16 +8355,16 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Display number')
             ),
             React.createElement('div', null,
-              React.createElement('div', { className: "text-lg font-semibold text-gray-800" }, '18px Semibold'),
-              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Section headers')
-            ),
-            React.createElement('div', null,
               React.createElement('div', { className: "text-base font-semibold text-black" }, '16px Semibold'),
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Card headers, labels')
             ),
             React.createElement('div', null,
               React.createElement('div', { className: "text-base font-light text-black" }, '16px Light'),
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Secondary text')
+            ),
+            React.createElement('div', null,
+              React.createElement('div', { className: "text-base text-black" }, '16px Regular'),
+              React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Body text')
             ),
             React.createElement('div', null,
               React.createElement('div', { className: "text-sm text-gray-500" }, '14px Regular'),
@@ -9915,6 +10089,57 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement('span', { className: "px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-600" }, 'Complete'),
             React.createElement('span', { className: "px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600" }, 'Error')
           )
+        )
+      ),
+
+      // Shared Bottom Sheet for EditableRow
+      React.createElement(TTBottomSheet, {
+        isOpen: editorState.isOpen,
+        title: editorState.type === 'datetime' ? 'Date & Time' : editorState.type === 'notes' ? 'Notes' : 'Edit',
+        onDone: () => {
+          if (editorState.type === 'datetime') {
+            const input = document.getElementById('tt-editor-datetime-input');
+            if (input && input.value) {
+              const date = new Date(input.value);
+              if (!isNaN(date.getTime())) {
+                handleEditorSave(date.toISOString());
+              } else {
+                closeEditor();
+              }
+            } else {
+              closeEditor();
+            }
+          } else if (editorState.type === 'notes') {
+            const textarea = document.getElementById('tt-editor-notes-input');
+            if (textarea) {
+              handleEditorSave(textarea.value);
+            } else {
+              closeEditor();
+            }
+          } else {
+            closeEditor();
+          }
+        }
+      },
+        editorState.type === 'datetime' && React.createElement('div', { className: "space-y-4" },
+          React.createElement('input', {
+            id: 'tt-editor-datetime-input',
+            type: 'datetime-local',
+            defaultValue: editorState.initialValue ? new Date(editorState.initialValue).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
+            className: "w-full px-4 py-3 text-base border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-indigo-400",
+            style: { fontSize: '16px' } // Prevent zoom on iOS
+          })
+        ),
+        editorState.type === 'notes' && React.createElement('div', { className: "space-y-4" },
+          React.createElement('textarea', {
+            id: 'tt-editor-notes-input',
+            defaultValue: editorState.initialValue || '',
+            placeholder: 'Add notes...',
+            rows: 6,
+            className: "w-full px-4 py-3 text-base border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-indigo-400 resize-none",
+            style: { fontSize: '16px' }, // Prevent zoom on iOS
+            autoFocus: true
+          })
         )
       )
     );
