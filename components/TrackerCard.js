@@ -374,12 +374,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
     const inputRef = React.useRef(null);
+    const [isPressed, setIsPressed] = React.useState(false);
     
     const handleRowClick = (e) => {
       // Don't focus if clicking the icon button (it has its own handler)
       if (e.target.closest('button')) {
         return;
       }
+      // Flash effect - brief visual feedback
+      setIsPressed(true);
+      setTimeout(() => setIsPressed(false), 150);
       // Focus the input when clicking anywhere on the row
       if (inputRef.current && type !== 'datetime') {
         inputRef.current.focus();
@@ -388,6 +392,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     const handleIconClick = (e) => {
       e.stopPropagation(); // Prevent row click handler
+      // Flash effect for icon click too
+      setIsPressed(true);
+      setTimeout(() => setIsPressed(false), 150);
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         const input = document.createElement('input');
         input.type = 'datetime-local';
@@ -423,7 +430,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer",
+        className: `flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer transition-all duration-150 ${isPressed ? 'bg-gray-100 rounded-2xl -mx-2 px-2' : ''}`,
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
