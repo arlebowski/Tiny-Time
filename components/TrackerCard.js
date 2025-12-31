@@ -374,22 +374,22 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
     const inputRef = React.useRef(null);
     
-    const handleRowClick = (e) => {
-      // Don't focus if clicking the icon button (it has its own handler)
-      if (e.target.closest('button')) {
-        return;
-      }
-      // Focus the input when clicking anywhere on the row
-      if (inputRef.current && type !== 'datetime') {
-        inputRef.current.focus();
-      }
-    };
-    
-    const handleIconClick = (e) => {
-      e.stopPropagation(); // Prevent row click handler
+    // Shared function to open the datetime picker
+    const openDateTimePicker = () => {
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         const input = document.createElement('input');
         input.type = 'datetime-local';
+        
+        // Style for desktop compatibility - needs to be in viewport but can be tiny/transparent
+        input.style.position = 'fixed';
+        input.style.opacity = '0';
+        input.style.width = '1px';
+        input.style.height = '1px';
+        input.style.top = '0';
+        input.style.left = '0';
+        input.style.pointerEvents = 'none';
+        input.style.zIndex = '-1';
+        
         if (rawValue) {
           const date = new Date(rawValue);
           // Check if the date is valid before calling toISOString()
@@ -401,6 +401,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         } else {
           input.value = '';
         }
+        
         input.onchange = (e) => {
           if (onChange && e.target.value) {
             const newDate = new Date(e.target.value);
@@ -409,8 +410,64 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               onChange(newDate.toISOString());
             }
           }
+          // Clean up: remove input from DOM after picker closes
+          setTimeout(() => {
+            if (input.parentNode) {
+              input.parentNode.removeChild(input);
+            }
+          }, 100);
         };
-        input.click();
+        
+        // Add to DOM before interacting
+        document.body.appendChild(input);
+        
+        // Try modern API first (works on desktop Chrome/Edge)
+        if (typeof input.showPicker === 'function') {
+          try {
+            const pickerPromise = input.showPicker();
+            // Check if it returns a Promise before calling catch
+            if (pickerPromise && typeof pickerPromise.catch === 'function') {
+              pickerPromise.catch(() => {
+                // Fallback to focus/click if showPicker fails
+                input.focus();
+                input.click();
+              });
+            } else {
+              // If showPicker doesn't return a Promise, just use fallback
+              input.focus();
+              input.click();
+            }
+          } catch (e) {
+            // If showPicker throws, use fallback
+            input.focus();
+            input.click();
+          }
+        } else {
+          // Fallback for browsers without showPicker
+          input.focus();
+          input.click();
+        }
+      }
+    };
+    
+    const handleRowClick = (e) => {
+      // Don't focus if clicking the icon button (it has its own handler)
+      if (e.target.closest('button')) {
+        return;
+      }
+      // For datetime fields, open the picker when clicking the row
+      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+        openDateTimePicker();
+      } else if (inputRef.current) {
+        // For other types, focus the input
+        inputRef.current.focus();
+      }
+    };
+    
+    const handleIconClick = (e) => {
+      e.stopPropagation(); // Prevent row click handler
+      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+        openDateTimePicker();
       } else {
         // For non-datetime types, focus the input
         if (inputRef.current) {
@@ -427,30 +484,50 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       },
       React.createElement('div', { className: "flex-1" },
         React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, label),
-        React.createElement('input',
-          {
-            ref: inputRef,
-            type: type === 'datetime' ? 'text' : type,
-            inputMode: type === 'number' ? 'decimal' : undefined,
-            step: type === 'number' ? '0.25' : undefined,
-            value: displayValue || '',
-            onChange: (e) => {
-              if (type !== 'datetime' && onChange) {
-                if (type === 'number') {
-                  // Only allow numbers and decimal point
-                  const value = e.target.value.replace(/[^0-9.]/g, '');
-                  onChange(value);
-                } else {
-                  onChange(e.target.value);
-                }
+        type === 'text' 
+          ? React.createElement('textarea',
+              {
+                ref: inputRef,
+                value: displayValue || '',
+                onChange: (e) => {
+                  if (onChange) {
+                    onChange(e.target.value);
+                    // Auto-growing height logic (same as AI chat tab)
+                    const el = e.target;
+                    el.style.height = 'auto';
+                    el.style.height = el.scrollHeight + 'px';
+                  }
+                },
+                placeholder: placeholder,
+                rows: 1,
+                className: "text-base font-normal text-black w-full outline-none resize-none",
+                style: { background: 'transparent', maxHeight: '4.5rem', overflowY: 'auto' }
               }
-            },
-            placeholder: placeholder,
-            className: "text-base font-normal text-black w-full outline-none",
-            style: { background: 'transparent' },
-            readOnly: type === 'datetime'
-          }
-        )
+            )
+          : React.createElement('input',
+              {
+                ref: inputRef,
+                type: type === 'datetime' ? 'text' : type,
+                inputMode: type === 'number' ? 'decimal' : undefined,
+                step: type === 'number' ? '0.25' : undefined,
+                value: displayValue || '',
+                onChange: (e) => {
+                  if (type !== 'datetime' && onChange) {
+                    if (type === 'number') {
+                      // Only allow numbers and decimal point
+                      const value = e.target.value.replace(/[^0-9.]/g, '');
+                      onChange(value);
+                    } else {
+                      onChange(e.target.value);
+                    }
+                  }
+                },
+                placeholder: placeholder,
+                className: "text-base font-normal text-black w-full outline-none",
+                style: { background: 'transparent' },
+                readOnly: type === 'datetime'
+              }
+            )
       ),
       icon && React.createElement('button', {
         onClick: handleIconClick,
@@ -530,7 +607,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         value: formatDateTime(dateTime), // This won't be used for datetime type
         rawValue: dateTime, // Pass the raw ISO string
         onChange: setDateTime,
-        icon: React.createElement(CalendarIcon),
+        icon: React.createElement(ClockIcon),
         type: 'datetime'
       }),
 
