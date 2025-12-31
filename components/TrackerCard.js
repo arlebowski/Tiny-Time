@@ -404,13 +404,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const input = document.createElement('input');
         input.type = 'time'; // Use time-only picker for compact UI
         
-        // Style for desktop compatibility - needs to be in viewport but can be tiny/transparent
+        // Style for desktop compatibility - position at viewport center to prevent scroll
         input.style.position = 'fixed';
         input.style.opacity = '0';
         input.style.width = '1px';
         input.style.height = '1px';
-        input.style.top = '0';
-        input.style.left = '0';
+        // Position at center of viewport instead of top-left
+        input.style.top = '50%';
+        input.style.left = '50%';
+        input.style.transform = 'translate(-50%, -50%)';
         input.style.pointerEvents = 'none';
         input.style.zIndex = '-1';
         
@@ -429,7 +431,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           input.value = '';
         }
         
-        input.onchange = (e) => {
+        // Store the onChange handler before we modify it
+        const handleChange = (e) => {
           if (onChange && e.target.value) {
             // e.target.value is in HH:MM format (e.g., "14:30")
             // Use smart date logic to convert to full timestamp
@@ -439,12 +442,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               onChange(new Date(timestamp).toISOString());
             }
           }
-          // Clean up: remove input from DOM after picker closes
-          setTimeout(() => {
-            if (input.parentNode) {
-              input.parentNode.removeChild(input);
-            }
-          }, 100);
         };
         
         // Add to DOM before interacting
@@ -454,14 +451,45 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const scrollY = window.scrollY;
         const scrollX = window.scrollX;
         
-        // Prevent scroll when focusing
-        const preventScroll = (e) => {
-          e.preventDefault();
-          // Restore scroll position immediately
+        // Lock scroll position function
+        const lockScroll = () => {
           window.scrollTo(scrollX, scrollY);
         };
         
-        input.addEventListener('focus', preventScroll, { once: true });
+        // Continuously restore scroll position while picker is open
+        const scrollLockInterval = setInterval(lockScroll, 10);
+        
+        // Set up onChange handler that also clears the scroll lock
+        input.onchange = (e) => {
+          clearInterval(scrollLockInterval);
+          handleChange(e);
+          // Clean up: remove input from DOM after picker closes
+          setTimeout(() => {
+            if (input.parentNode) {
+              input.parentNode.removeChild(input);
+            }
+          }, 100);
+        };
+        
+        // Prevent scroll when focusing - use scrollIntoView with preventScroll
+        input.addEventListener('focus', (e) => {
+          // Use scrollIntoView with options that prevent scrolling
+          if (input.scrollIntoView) {
+            try {
+              input.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+            } catch (err) {
+              // Fallback if behavior: 'instant' is not supported
+              input.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+          }
+          // Also restore scroll position
+          lockScroll();
+        }, { once: true });
+        
+        // Also clear interval when input is removed (safety timeout)
+        setTimeout(() => {
+          clearInterval(scrollLockInterval);
+        }, 5000);
         
         // Try modern API first (works on desktop Chrome/Edge)
         if (typeof input.showPicker === 'function') {
@@ -472,37 +500,21 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               pickerPromise.catch(() => {
                 // Fallback to focus/click if showPicker fails
                 input.focus();
-                // Restore scroll position after focus
-                setTimeout(() => {
-                  window.scrollTo(scrollX, scrollY);
-                }, 0);
                 input.click();
               });
             } else {
               // If showPicker doesn't return a Promise, just use fallback
               input.focus();
-              // Restore scroll position after focus
-              setTimeout(() => {
-                window.scrollTo(scrollX, scrollY);
-              }, 0);
               input.click();
             }
           } catch (e) {
             // If showPicker throws, use fallback
             input.focus();
-            // Restore scroll position after focus
-            setTimeout(() => {
-              window.scrollTo(scrollX, scrollY);
-            }, 0);
             input.click();
           }
         } else {
           // Fallback for browsers without showPicker
           input.focus();
-          // Restore scroll position after focus
-          setTimeout(() => {
-            window.scrollTo(scrollX, scrollY);
-          }, 0);
           input.click();
         }
       }
