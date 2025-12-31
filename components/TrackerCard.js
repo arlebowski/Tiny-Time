@@ -357,16 +357,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   const formatDateTime = (date) => {
     if (!date) return '';
     const d = new Date(date);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const month = months[d.getMonth()];
-    const day = d.getDate();
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const day = days[d.getDay()];
     let hours = d.getHours();
     const minutes = d.getMinutes();
     const ampm = hours >= 12 ? 'pm' : 'am';
     hours = hours % 12;
     hours = hours ? hours : 12;
     const mins = minutes < 10 ? '0' + minutes : minutes;
-    return `${month} ${day} @ ${hours}:${mins}${ampm}`;
+    return `${day} ${hours}:${mins} ${ampm}`;
   };
 
   // Input Field Row Component
