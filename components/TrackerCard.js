@@ -404,15 +404,20 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const input = document.createElement('input');
         input.type = 'time'; // Use time-only picker for compact UI
         
-        // Style for desktop compatibility - position at viewport center to prevent scroll
+        // Get the exact position of the visible field
+        const fieldElement = inputRef.current;
+        if (!fieldElement) return; // Safety check
+        
+        const fieldRect = fieldElement.getBoundingClientRect();
+        
+        // Position the hidden input at the exact same location as the visible field
+        // This makes the picker appear to come directly from the field
         input.style.position = 'fixed';
         input.style.opacity = '0';
-        input.style.width = '1px';
-        input.style.height = '1px';
-        // Position at center of viewport instead of top-left
-        input.style.top = '50%';
-        input.style.left = '50%';
-        input.style.transform = 'translate(-50%, -50%)';
+        input.style.width = `${fieldRect.width}px`;
+        input.style.height = `${fieldRect.height}px`;
+        input.style.top = `${fieldRect.top + window.scrollY}px`;
+        input.style.left = `${fieldRect.left + window.scrollX}px`;
         input.style.pointerEvents = 'none';
         input.style.zIndex = '-1';
         
@@ -431,22 +436,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           input.value = '';
         }
         
-        // Store the onChange handler before we modify it
-        const handleChange = (e) => {
-          if (onChange && e.target.value) {
-            // e.target.value is in HH:MM format (e.g., "14:30")
-            // Use smart date logic to convert to full timestamp
-            const timestamp = _hhmmToMsNearNowSmart(e.target.value);
-            if (timestamp) {
-              // Convert timestamp to ISO string for onChange handler
-              onChange(new Date(timestamp).toISOString());
-            }
-          }
-        };
-        
-        // Add to DOM before interacting
-        document.body.appendChild(input);
-        
         // Store current scroll position to prevent scrolling
         const scrollY = window.scrollY;
         const scrollX = window.scrollX;
@@ -459,11 +448,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Continuously restore scroll position while picker is open
         const scrollLockInterval = setInterval(lockScroll, 10);
         
-        // Set up onChange handler that also clears the scroll lock
-        input.onchange = (e) => {
+        // Cleanup function to clear interval and restore scrolling
+        const cleanup = () => {
           clearInterval(scrollLockInterval);
-          handleChange(e);
-          // Clean up: remove input from DOM after picker closes
+          // Remove input from DOM
           setTimeout(() => {
             if (input.parentNode) {
               input.parentNode.removeChild(input);
@@ -471,25 +459,38 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           }, 100);
         };
         
-        // Prevent scroll when focusing - use scrollIntoView with preventScroll
-        input.addEventListener('focus', (e) => {
-          // Use scrollIntoView with options that prevent scrolling
-          if (input.scrollIntoView) {
-            try {
-              input.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
-            } catch (err) {
-              // Fallback if behavior: 'instant' is not supported
-              input.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        // Store the onChange handler
+        const handleChange = (e) => {
+          if (onChange && e.target.value) {
+            // e.target.value is in HH:MM format (e.g., "14:30")
+            // Use smart date logic to convert to full timestamp
+            const timestamp = _hhmmToMsNearNowSmart(e.target.value);
+            if (timestamp) {
+              // Convert timestamp to ISO string for onChange handler
+              onChange(new Date(timestamp).toISOString());
             }
           }
-          // Also restore scroll position
-          lockScroll();
-        }, { once: true });
+          cleanup(); // Clear lock when value changes
+        };
         
-        // Also clear interval when input is removed (safety timeout)
-        setTimeout(() => {
-          clearInterval(scrollLockInterval);
-        }, 5000);
+        // Set up onChange handler
+        input.onchange = handleChange;
+        
+        // Also cleanup on blur (picker closed without selection)
+        input.addEventListener('blur', cleanup, { once: true });
+        
+        // Safety timeout to ensure cleanup
+        const safetyTimeout = setTimeout(cleanup, 5000);
+        
+        // Override onChange to clear safety timeout
+        const originalOnChange = input.onchange;
+        input.onchange = (e) => {
+          clearTimeout(safetyTimeout);
+          if (originalOnChange) originalOnChange(e);
+        };
+        
+        // Add to DOM before interacting
+        document.body.appendChild(input);
         
         // Try modern API first (works on desktop Chrome/Edge)
         if (typeof input.showPicker === 'function') {
