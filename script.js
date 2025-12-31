@@ -8133,64 +8133,51 @@ const SettingsTab = ({ user, kidId }) => {
       ),
 
       // Design Palette Section
-      React.createElement('div', { className: "bg-white rounded-2xl shadow-md p-6 mb-6" },
+      React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-6 mb-6" },
         React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Design Palette'),
         
         // Colors
         React.createElement('div', { className: "mb-6" },
-          React.createElement('h4', { className: "text-base font-semibold text-gray-900 mb-3" }, 'Colors'),
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Colors'),
           React.createElement('div', { className: "grid grid-cols-2 md:grid-cols-4 gap-3" },
             // Background colors
             React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg bg-white border border-gray-200" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'bg-white')
+              React.createElement('div', { className: "h-12 rounded-2xl bg-white border border-gray-200" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-white')
             ),
             React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg bg-gray-50" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'bg-gray-50')
+              React.createElement('div', { className: "h-12 rounded-2xl bg-gray-50" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-50')
             ),
             React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg bg-gray-100" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'bg-gray-100')
+              React.createElement('div', { className: "h-12 rounded-2xl bg-gray-100" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-100')
             ),
             React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg bg-gray-300" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'bg-gray-300')
+              React.createElement('div', { className: "h-12 rounded-2xl bg-gray-500" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-500')
             ),
             React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg bg-gray-500" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'bg-gray-500')
-            ),
-            React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg bg-black" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'bg-black')
-            ),
-            React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg bg-black/10" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'bg-black/10')
-            ),
-            React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "h-12 rounded-lg", style: { background: '#757575' } }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, '#757575')
+              React.createElement('div', { className: "h-12 rounded-2xl bg-black" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-black')
             )
           ),
           // Text colors
           React.createElement('div', { className: "mt-4 space-y-2" },
+            React.createElement('div', { className: "text-xs text-black" }, 'text-black'),
             React.createElement('div', { className: "text-xs text-gray-500" }, 'text-gray-500'),
-            React.createElement('div', { className: "text-xs text-gray-600" }, 'text-gray-600'),
             React.createElement('div', { className: "text-xs text-gray-800" }, 'text-gray-800'),
-            React.createElement('div', { className: "text-xs text-gray-900" }, 'text-gray-900'),
-            React.createElement('div', { className: "text-xs text-red-600" }, 'text-red-600'),
-            React.createElement('div', { className: "text-xs text-indigo-600" }, 'text-indigo-600')
+            React.createElement('div', { className: "text-xs text-white" }, 'text-white'),
+            React.createElement('div', { className: "text-xs text-red-600" }, 'text-red-600')
           )
         ),
 
         // Text Hierarchy
         React.createElement('div', { className: "mb-6" },
-          React.createElement('h4', { className: "text-base font-semibold text-gray-900 mb-3" }, 'Text Hierarchy'),
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Text Hierarchy'),
           React.createElement('div', { className: "space-y-3" },
             React.createElement('div', null,
-              React.createElement('div', { className: "text-[40px] leading-none font-bold text-gray-900" }, '40px Bold'),
+              React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" }, '40px Bold'),
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Display number')
             ),
             React.createElement('div', null,
@@ -8198,15 +8185,15 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Section headers')
             ),
             React.createElement('div', null,
-              React.createElement('div', { className: "text-base font-semibold text-gray-900" }, '16px Semibold'),
+              React.createElement('div', { className: "text-base font-semibold text-black" }, '16px Semibold'),
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Card headers, labels')
             ),
             React.createElement('div', null,
-              React.createElement('div', { className: "text-base font-light text-gray-900" }, '16px Light'),
+              React.createElement('div', { className: "text-base font-light text-black" }, '16px Light'),
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Secondary text')
             ),
             React.createElement('div', null,
-              React.createElement('div', { className: "text-sm text-gray-600" }, '14px Regular'),
+              React.createElement('div', { className: "text-sm text-gray-500" }, '14px Regular'),
               React.createElement('div', { className: "text-xs text-gray-500 mt-1" }, 'Body text, notes')
             ),
             React.createElement('div', null,
@@ -8218,89 +8205,77 @@ const SettingsTab = ({ user, kidId }) => {
 
         // Corner Radii
         React.createElement('div', { className: "mb-6" },
-          React.createElement('h4', { className: "text-base font-semibold text-gray-900 mb-3" }, 'Corner Radii'),
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Corner Radii'),
           React.createElement('div', { className: "flex items-end gap-4" },
             React.createElement('div', { className: "space-y-1" },
               React.createElement('div', { className: "w-16 h-16 rounded-2xl bg-gray-100" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'rounded-2xl (16px)')
-            ),
-            React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "w-16 h-16 rounded-xl bg-gray-100" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'rounded-xl (12px)')
-            ),
-            React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "w-16 h-16 rounded-lg bg-gray-100" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'rounded-lg (8px)')
-            ),
-            React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "w-16 h-16 rounded bg-gray-100" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'rounded (4px)')
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'rounded-2xl (16px)')
             ),
             React.createElement('div', { className: "space-y-1" },
               React.createElement('div', { className: "w-16 h-16 rounded-full bg-gray-100" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'rounded-full')
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'rounded-full')
             )
           )
         ),
 
         // Spacing
         React.createElement('div', { className: "mb-6" },
-          React.createElement('h4', { className: "text-base font-semibold text-gray-900 mb-3" }, 'Spacing'),
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Spacing'),
           React.createElement('div', { className: "space-y-2" },
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-2 h-2 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'gap-1 (4px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-1 (4px)' )
             ),
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-3 h-3 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'gap-1.5 (6px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-1.5 (6px)' )
             ),
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-4 h-4 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'gap-2 (8px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-2 (8px)' )
             ),
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-6 h-6 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'gap-3 (12px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'gap-3 (12px)' )
             ),
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-8 h-8 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'p-2 (8px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-2 (8px)' )
             ),
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-12 h-12 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'p-3 (12px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-3 (12px)' )
             ),
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-16 h-16 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'p-4 (16px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-4 (16px)' )
             ),
             React.createElement('div', { className: "flex items-center gap-3" },
               React.createElement('div', { className: "w-20 h-20 rounded-full bg-gray-400" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'p-5 (20px)' )
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'p-5 (20px)' )
             )
           )
         ),
 
         // Shadows
         React.createElement('div', { className: "mb-6" },
-          React.createElement('h4', { className: "text-base font-semibold text-gray-900 mb-3" }, 'Shadows'),
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Shadows'),
           React.createElement('div', { className: "flex gap-4" },
             React.createElement('div', { className: "space-y-1" },
-              React.createElement('div', { className: "w-20 h-20 rounded-lg bg-white shadow-md" }),
-              React.createElement('div', { className: "text-xs text-gray-600" }, 'shadow-md')
+              React.createElement('div', { className: "w-20 h-20 rounded-2xl bg-white shadow-sm" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'shadow-sm')
             )
           )
         ),
 
         // Borders
         React.createElement('div', null,
-          React.createElement('h4', { className: "text-base font-semibold text-gray-900 mb-3" }, 'Borders'),
+          React.createElement('h4', { className: "text-base font-semibold text-black mb-3" }, 'Borders'),
           React.createElement('div', { className: "space-y-2" },
-            React.createElement('div', { className: "h-12 rounded-lg border border-gray-100 bg-white" }),
-            React.createElement('div', { className: "text-xs text-gray-600" }, 'border-gray-100'),
-            React.createElement('div', { className: "h-12 rounded-lg border border-gray-200 bg-white" }),
-            React.createElement('div', { className: "text-xs text-gray-600" }, 'border-gray-200')
+            React.createElement('div', { className: "h-12 rounded-2xl border border-gray-100 bg-white" }),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'border-gray-100'),
+            React.createElement('div', { className: "h-12 rounded-2xl border border-gray-200 bg-white" }),
+            React.createElement('div', { className: "text-xs text-gray-500" }, 'border-gray-200')
           )
         )
       ),
