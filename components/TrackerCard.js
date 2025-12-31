@@ -393,7 +393,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // Input Field Row Component
-  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue }) => {
+  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false }) => {
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
     const inputRef = React.useRef(null);
@@ -595,7 +595,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                   }
                 },
                 placeholder: placeholder,
-                className: "text-base font-normal text-black w-full outline-none",
+                className: `text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : 'text-black'}`,
                 style: { background: 'transparent' },
                 readOnly: type === 'datetime'
               }
@@ -775,20 +775,39 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [notes, setNotes] = React.useState("kid didn't burp dammit!");
     const [photos, setPhotos] = React.useState([]);
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
+    const [lastValidDuration, setLastValidDuration] = React.useState({ hours: 2, minutes: 0, seconds: 0 });
 
-    // Calculate duration
+    // Calculate duration with validation
     const calculateDuration = () => {
       if (!startTime || !endTime) return { hours: 0, minutes: 0, seconds: 0 };
-      const diff = new Date(endTime) - new Date(startTime);
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      const diff = end - start;
+      
+      // If end is before start, return null to indicate invalid
+      if (diff < 0) {
+        return null; // Invalid - end before start
+      }
+      
       const hours = Math.floor(diff / (1000 * 60 * 60));
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((diff % (1000 * 60)) / 1000);
       return { hours, minutes, seconds };
     };
 
-    const duration = calculateDuration();
+    const durationResult = calculateDuration();
+    const isValid = durationResult !== null;
+    const duration = isValid ? durationResult : lastValidDuration;
+    
+    // Update last valid duration when valid
+    React.useEffect(() => {
+      if (isValid) {
+        setLastValidDuration(duration);
+      }
+    }, [isValid, duration.hours, duration.minutes, duration.seconds]);
 
     const handleSave = () => {
+      if (!isValid) return; // Don't save if invalid
       console.log('Sleep save:', { startTime, endTime, notes, photos, duration });
       // UI-only, no production behavior
     };
@@ -864,7 +883,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         rawValue: endTime, // Pass the raw ISO string
         onChange: setEndTime,
         icon: React.createElement(ClockIcon),
-        type: 'datetime'
+        type: 'datetime',
+        invalid: !isValid // Pass invalid flag when end time is before start time
       }),
 
       // Notes
@@ -921,7 +941,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Save Button
       React.createElement('button', {
         onClick: handleSave,
-        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3 active:opacity-80 transition-opacity duration-100"
+        disabled: !isValid,
+        className: `w-full rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3 transition-opacity duration-100 ${
+          isValid 
+            ? 'bg-black text-white active:opacity-80' 
+            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+        }`
       },
         React.createElement(CheckIcon, { className: "w-5 h-5" }),
         'Save'
