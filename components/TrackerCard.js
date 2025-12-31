@@ -494,12 +494,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Photos
       React.createElement('div', { className: "py-3 border-b border-gray-100" },
-        React.createElement('div', { className: "flex items-center justify-between mb-3" },
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos'),
-          React.createElement('button', {
-            onClick: handleAddPhoto,
-            className: "text-black"
-          }, React.createElement(PlusIcon))
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
         React.createElement('div', { className: "grid grid-cols-4 gap-2" },
           photos.map((photo, i) =>
@@ -589,7 +585,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       'div',
       { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
       // Back button (optional)
-      React.createElement('div', { className: "flex items-start gap-1.5 mb-6" },
+      React.createElement('div', { className: "flex items-start gap-1.5 mb-5" },
         React.createElement('button', {
           className: "pl-0 pr-1 pt-1 pb-1 text-gray-600 hover:bg-gray-50 rounded-2xl transition mt-0.5 -ml-0.5"
         }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
@@ -600,7 +596,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Timer Display
-      React.createElement('div', { className: "text-center mb-6" },
+      React.createElement('div', { className: "text-center -mt-2 mb-6" },
         React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" },
           React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
           React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'h'),
@@ -643,12 +639,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Photos
       React.createElement('div', { className: "py-3 border-b border-gray-100" },
-        React.createElement('div', { className: "flex items-center justify-between mb-3" },
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos'),
-          React.createElement('button', {
-            onClick: handleAddPhoto,
-            className: "text-black"
-          }, React.createElement(PlusIcon))
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
         React.createElement('div', { className: "grid grid-cols-4 gap-2" },
           photos.map((photo, i) =>
