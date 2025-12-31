@@ -382,10 +382,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('input',
           {
             type: type === 'datetime' ? 'text' : type,
+            inputMode: type === 'number' ? 'decimal' : undefined,
+            step: type === 'number' ? '0.25' : undefined,
             value: displayValue || '',
             onChange: (e) => {
               if (type !== 'datetime' && onChange) {
-                onChange(e.target.value);
+                if (type === 'number') {
+                  // Only allow numbers and decimal point
+                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  onChange(value);
+                } else {
+                  onChange(e.target.value);
+                }
               }
             },
             placeholder: placeholder,
