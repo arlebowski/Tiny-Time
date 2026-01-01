@@ -476,7 +476,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTFeedDetailSheet Component
-  const TTFeedDetailSheet = () => {
+  const TTFeedDetailSheet = ({ onClose }) => {
     const [ounces, setOunces] = React.useState('6');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState("kid didn't burp dammit!");
@@ -515,19 +515,33 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setPhotos(newPhotos);
     };
 
+    const handleClose = () => {
+      if (onClose) {
+        onClose();
+      } else {
+        console.log('Close clicked');
+      }
+    };
+
     return React.createElement(
       'div',
       { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
-      // Back button (optional, can be removed if not needed)
-      React.createElement('div', { className: "flex items-start gap-1.5 mb-6" },
+      // Header: [X] [Feeding] [Save]
+      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
+        // X button (close)
         React.createElement('button', {
-          onClick: () => console.log('Back clicked'),
-          className: "pl-0 pr-1 pt-1 pb-1 text-gray-600 hover:bg-gray-50 active:bg-gray-100 rounded-2xl transition-colors duration-100 mt-0.5 -ml-0.5"
-        }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
-        React.createElement('div', { className: "flex-1" },
-          React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, ''),
-          React.createElement('h2', { className: "text-base font-normal text-gray-800" }, 'Back')
-        )
+          onClick: handleClose,
+          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+        
+        // Centered title
+        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feeding'),
+        
+        // Save button
+        React.createElement('button', {
+          onClick: handleSave,
+          className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
+        }, 'Save')
       ),
 
       // Ounces
@@ -601,19 +615,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Save Button
-      React.createElement('button', {
-        onClick: handleSave,
-        className: "w-full bg-black text-white rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3 active:opacity-80 transition-opacity duration-100"
-      },
-        React.createElement(CheckIcon, { className: "w-5 h-5" }),
-        'Save'
-      ),
-
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 text-center font-medium active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100"
       }, 'Delete'),
 
       // Full-size photo modal
@@ -636,7 +641,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTSleepDetailSheet Component
-  const TTSleepDetailSheet = () => {
+  const TTSleepDetailSheet = ({ onClose }) => {
     const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
     const [endTime, setEndTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState("kid didn't burp dammit!");
@@ -706,19 +711,38 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setPhotos(newPhotos);
     };
 
+    const handleClose = () => {
+      if (onClose) {
+        onClose();
+      } else {
+        console.log('Close clicked');
+      }
+    };
+
     return React.createElement(
       'div',
       { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
-      // Back button (optional)
-      React.createElement('div', { className: "flex items-start gap-1.5 mb-5" },
+      // Header: [X] [Sleep] [Save]
+      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
+        // X button (close)
         React.createElement('button', {
-          onClick: () => console.log('Back clicked'),
-          className: "pl-0 pr-1 pt-1 pb-1 text-gray-600 hover:bg-gray-50 active:bg-gray-100 rounded-2xl transition-colors duration-100 mt-0.5 -ml-0.5"
-        }, React.createElement(ChevronDown, { className: "w-5 h-5 rotate-90" })),
-        React.createElement('div', { className: "flex-1" },
-          React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, ''),
-          React.createElement('h2', { className: "text-base font-normal text-gray-800" }, 'Back')
-        )
+          onClick: handleClose,
+          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+        
+        // Centered title
+        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Sleep'),
+        
+        // Save button
+        React.createElement('button', {
+          onClick: handleSave,
+          disabled: !isValid,
+          className: `text-base font-normal transition-opacity ${
+            isValid 
+              ? 'text-white hover:opacity-70 active:opacity-50' 
+              : 'text-gray-400 cursor-not-allowed'
+          }`
+        }, 'Save')
       ),
 
       // Timer Display
@@ -805,24 +829,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Save Button
-      React.createElement('button', {
-        onClick: handleSave,
-        disabled: !isValid,
-        className: `w-full rounded-2xl py-4 px-6 flex items-center justify-center gap-2 font-semibold mt-6 mb-3 transition-opacity duration-100 ${
-          isValid 
-            ? 'bg-black text-white active:opacity-80' 
-            : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-        }`
-      },
-        React.createElement(CheckIcon, { className: "w-5 h-5" }),
-        'Save'
-      ),
-
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 text-center font-medium active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100"
       }, 'Delete'),
 
       // Full-size photo modal
