@@ -360,6 +360,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const contentRef = React.useRef(null);
     const [sheetHeight, setSheetHeight] = React.useState('auto');
     const [present, setPresent] = React.useState(false); // Controls rendering
+    const [keyboardOffset, setKeyboardOffset] = React.useState(0);
+    const scrollYRef = React.useRef(0);
     
     // Drag state
     const [isDragging, setIsDragging] = React.useState(false);
@@ -377,12 +379,43 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Lock/unlock body scroll while present
     React.useEffect(() => {
       if (!present) return;
-      const prevOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
+      // iOS Safari/PWA: overflow:hidden is not a reliable scroll lock once the keyboard shows.
+      // Use position:fixed lock pattern to prevent the underlying page from scrolling.
+      const body = document.body;
+      const prev = {
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
+        overflow: body.style.overflow,
+      };
+      scrollYRef.current = window.scrollY || window.pageYOffset || 0;
+      body.style.position = 'fixed';
+      body.style.top = `-${scrollYRef.current}px`;
+      body.style.left = '0';
+      body.style.right = '0';
+      body.style.width = '100%';
+      body.style.overflow = 'hidden';
       return () => {
-        document.body.style.overflow = prevOverflow || '';
+        body.style.position = prev.position || '';
+        body.style.top = prev.top || '';
+        body.style.left = prev.left || '';
+        body.style.right = prev.right || '';
+        body.style.width = prev.width || '';
+        body.style.overflow = prev.overflow || '';
+        window.scrollTo(0, scrollYRef.current || 0);
       };
     }, [present]);
+
+    // Compute keyboard offset (px) from visualViewport.
+    // In iOS PWA, documentElement.clientHeight is often more stable than window.innerHeight.
+    const computeKeyboardOffset = React.useCallback(() => {
+      const vv = window.visualViewport;
+      if (!vv) return 0;
+      const layoutH = document.documentElement?.clientHeight || window.innerHeight;
+      return Math.max(0, layoutH - vv.height - vv.offsetTop);
+    }, []);
 
     // Measure content and set dynamic height
     React.useEffect(() => {
@@ -392,7 +425,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             const contentHeight = contentRef.current.scrollHeight; // Already includes py-6 padding
             // Use visualViewport if available (more accurate for mobile keyboards)
             const vv = window.visualViewport;
-            const viewportHeight = vv ? vv.height : window.innerHeight;
+            const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
+            const viewportHeight = vv ? vv.height : fallbackH;
             const headerHeight = 56; // Approximate header height (py-4 = 16px top + 16px bottom + ~24px content)
             const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
             const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
@@ -413,10 +447,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     React.useEffect(() => {
       if (!present || !isOpen || !sheetRef.current) return;
       // Set combined transition so height changes animate smoothly
-      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out';
+      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
     }, [isOpen, present]);
 
-    // Listen to visualViewport resize for keyboard changes
+    // Listen to visualViewport resize/scroll for keyboard changes (PWA-safe)
     React.useEffect(() => {
       if (!present || !isOpen) return;
       
@@ -424,6 +458,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       if (!vv) return;
       
       const handleResize = () => {
+        // Smoothly raise/lower the sheet above the keyboard.
+        setKeyboardOffset(computeKeyboardOffset());
         if (contentRef.current && sheetRef.current) {
           const contentHeight = contentRef.current.scrollHeight;
           const viewportHeight = vv.height;
@@ -435,8 +471,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       };
       
       vv.addEventListener('resize', handleResize);
-      return () => vv.removeEventListener('resize', handleResize);
-    }, [isOpen, present]);
+      vv.addEventListener('scroll', handleResize);
+      // Initial sync (covers keyboard already open / first focus)
+      handleResize();
+      return () => {
+        vv.removeEventListener('resize', handleResize);
+        vv.removeEventListener('scroll', handleResize);
+      };
+    }, [isOpen, present, computeKeyboardOffset]);
 
     // Animation: Open and Close
     React.useEffect(() => {
@@ -452,7 +494,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         requestAnimationFrame(() => {
           if (sheetRef.current && backdropRef.current) {
             // Combine transform and height transitions
-            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out';
+            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
             sheetRef.current.style.transform = 'translateY(0)';
             backdropRef.current.style.transition = 'opacity 250ms ease-out';
             backdropRef.current.style.opacity = '0.4';
@@ -465,7 +507,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         requestAnimationFrame(() => {
           if (sheetRef.current && backdropRef.current) {
             // Combine transform and height transitions
-            sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out';
+            sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
             sheetRef.current.style.transform = 'translateY(100%)';
             backdropRef.current.style.transition = 'opacity 200ms ease-in';
             backdropRef.current.style.opacity = '0';
@@ -480,7 +522,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     }, [isOpen, present]);
 
     // Drag handlers
+    // NOTE: When the keyboard is open, dragging feels glitchy on iOS PWAs.
+    // Disable drag-to-dismiss while a field is focused / keyboard is up.
+    const canDrag = () => {
+      if (keyboardOffset > 0) return false;
+      const ae = document.activeElement;
+      if (!ae) return true;
+      const tag = (ae.tagName || '').toUpperCase();
+      return !(tag === 'INPUT' || tag === 'TEXTAREA' || ae.isContentEditable);
+    };
+
     const handleTouchStart = (e) => {
+      if (!canDrag()) return;
       if (!sheetRef.current) return;
       const touch = e.touches[0];
       setIsDragging(true);
@@ -492,6 +545,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     };
 
     const handleTouchMove = (e) => {
+      if (!canDrag()) return;
       if (!isDragging || !sheetRef.current || !backdropRef.current) return;
       e.preventDefault();
       const touch = e.touches[0];
@@ -510,6 +564,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     };
 
     const handleTouchEnd = () => {
+      if (!canDrag()) return;
       if (!isDragging || !sheetRef.current || !backdropRef.current) return;
       
       const deltaY = dragCurrentY - dragStartY;
@@ -522,7 +577,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       
       setIsDragging(false);
       // Restore both transitions
-      sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out';
+      sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
       backdropRef.current.style.transition = 'opacity 200ms ease-in';
       
       // Dismiss if past threshold or fast velocity
@@ -568,19 +623,23 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         onTouchStart: handleTouchStart,
         onTouchMove: handleTouchMove,
         onTouchEnd: handleTouchEnd,
-        style: {
-          transform: 'translateY(100%)',
-          willChange: 'transform',
-          paddingBottom: 'env(safe-area-inset-bottom, 0)',
-          maxHeight: '90vh',
-          height: sheetHeight,
-          // Transition is set dynamically in useEffect to combine transform and height
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',
-          touchAction: 'pan-y'
-        }
-      },
+          style: {
+            transform: 'translateY(100%)',
+            willChange: 'transform',
+            paddingBottom: 'env(safe-area-inset-bottom, 0)',
+            // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
+            maxHeight: '100%',
+            height: sheetHeight,
+            // When keyboard is open, lift the whole sheet above it (smoothly via transition).
+            bottom: `${keyboardOffset}px`,
+            // Transition is set dynamically in useEffect to combine transform and height
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            touchAction: 'pan-y',
+            overscrollBehavior: 'contain'
+          }
+        },
         // Header (part of HalfSheet chrome)
         React.createElement('div', {
           className: "bg-black rounded-t-2xl px-6 py-4 flex items-center justify-between flex-none"
@@ -603,7 +662,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           className: "flex-1 overflow-y-auto px-6 py-6",
           style: {
             WebkitOverflowScrolling: 'touch',
-            minHeight: 0
+            minHeight: 0,
+            overscrollBehavior: 'contain'
           }
         }, children)
       )
@@ -1009,7 +1069,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       null,
 
       // Timer Display
-      React.createElement('div', { className: "text-center -mt-2 mb-6" },
+      React.createElement('div', { className: "text-center mb-6" },
         React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" },
           React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
           React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'h'),
