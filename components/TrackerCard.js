@@ -207,12 +207,12 @@ function ensureZzzStyles() {
   document.head.appendChild(style);
 }
 
-const TimelineItem = ({ withNote, mode = 'sleep' }) => {
+const TimelineItem = ({ withNote, mode = 'sleep', isLast = false }) => {
   const isSleep = mode === 'sleep';
   
   return React.createElement(
     'div',
-    { className: "rounded-2xl bg-gray-50 p-4" },
+    { className: `p-4 ${!isLast ? 'border-b border-gray-100' : ''}` },
     React.createElement(
       'div',
       { className: "flex items-center justify-between mb-2" },
@@ -360,9 +360,9 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     ),
     expanded && React.createElement(
       'div',
-      { className: "mt-4 space-y-4" },
-      React.createElement(TimelineItem, { mode }),
-      React.createElement(TimelineItem, { withNote: true, mode })
+      { className: "mt-4 border-t border-gray-100" },
+      React.createElement(TimelineItem, { mode, isLast: false }),
+      React.createElement(TimelineItem, { withNote: true, mode, isLast: true })
     )
   );
 };
@@ -666,72 +666,83 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Only render if present
     if (!present) return null;
 
-    return React.createElement(
-      React.Fragment,
-      null,
-      // Backdrop
-      React.createElement('div', {
-        ref: backdropRef,
-        className: "fixed inset-0 bg-black z-40",
-        onClick: () => { if (onClose && !isDragging) onClose(); },
-        style: { opacity: 0 }
-      }),
-      // Sheet Panel
-      React.createElement('div', {
-        ref: sheetRef,
-        className: "fixed left-0 right-0 bottom-0 z-[60] bg-white shadow-2xl",
-        onClick: (e) => e.stopPropagation(),
-        onTouchStart: handleTouchStart,
-        onTouchMove: handleTouchMove,
-        onTouchEnd: handleTouchEnd,
-          style: {
-            transform: 'translateY(100%)',
-            willChange: 'transform',
-            paddingBottom: 'env(safe-area-inset-bottom, 0)',
-            // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
-            maxHeight: '100%',
-            height: sheetHeight,
-            // When keyboard is open, lift the whole sheet above it (smoothly via transition).
-            bottom: `${keyboardOffset}px`,
-            // Transition is set dynamically in useEffect to combine transform and height
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            touchAction: 'pan-y',
-            overscrollBehavior: 'contain',
-            borderTopLeftRadius: '20px',
-            borderTopRightRadius: '20px'
-          }
-        },
-        // Header (part of HalfSheet chrome)
+    // Use portal to render to document.body, bypassing any transformed ancestors
+    // This ensures position: fixed works relative to the viewport, not a transformed parent
+    return ReactDOM.createPortal(
+      React.createElement(
+        React.Fragment,
+        null,
+        // Backdrop
         React.createElement('div', {
-          ref: headerRef,
-          className: "bg-black px-6 py-5 flex items-center justify-between flex-none",
-          style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
-        },
-          // X button (close)
-          React.createElement('button', {
-            onClick: onClose,
-            className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-          }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
-          
-          // Centered title
-          React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
-          
-          // Right action (Save button)
-          rightAction || React.createElement('div', { className: "w-6" })
-        ),
-        // Body area (scrollable)
-        React.createElement('div', {
-          ref: contentRef,
-          className: "flex-1 overflow-y-auto px-6 pt-8 pb-[42px]",
-          style: {
-            WebkitOverflowScrolling: 'touch',
-            minHeight: 0,
-            overscrollBehavior: 'contain'
+          ref: backdropRef,
+          className: "fixed inset-0 bg-black z-[100]",
+          onClick: () => { if (onClose && !isDragging) onClose(); },
+          style: { 
+            opacity: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
           }
-        }, children)
-      )
+        }),
+        // Sheet Panel
+        React.createElement('div', {
+          ref: sheetRef,
+          className: "fixed left-0 right-0 bottom-0 z-[101] bg-white shadow-2xl",
+          onClick: (e) => e.stopPropagation(),
+          onTouchStart: handleTouchStart,
+          onTouchMove: handleTouchMove,
+          onTouchEnd: handleTouchEnd,
+            style: {
+              transform: 'translateY(100%)',
+              willChange: 'transform',
+              paddingBottom: 'env(safe-area-inset-bottom, 0)',
+              // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
+              maxHeight: '100%',
+              height: sheetHeight,
+              // When keyboard is open, lift the whole sheet above it (smoothly via transition).
+              bottom: `${keyboardOffset}px`,
+              // Transition is set dynamically in useEffect to combine transform and height
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              touchAction: 'pan-y',
+              overscrollBehavior: 'contain',
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px'
+            }
+          },
+          // Header (part of HalfSheet chrome)
+          React.createElement('div', {
+            ref: headerRef,
+            className: "bg-black px-6 py-5 flex items-center justify-between flex-none",
+            style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
+          },
+            // X button (close)
+            React.createElement('button', {
+              onClick: onClose,
+              className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+            }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+            
+            // Centered title
+            React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
+            
+            // Right action (Save button)
+            rightAction || React.createElement('div', { className: "w-6" })
+          ),
+          // Body area (scrollable)
+          React.createElement('div', {
+            ref: contentRef,
+            className: "flex-1 overflow-y-auto px-6 pt-8 pb-[42px]",
+            style: {
+              WebkitOverflowScrolling: 'touch',
+              minHeight: 0,
+              overscrollBehavior: 'contain'
+            }
+          }, children)
+        )
+      ),
+      document.body
     );
   };
 
@@ -800,7 +811,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between py-3 border-b border-gray-200 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
+        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
@@ -996,7 +1007,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         null,
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[60] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
         },
           React.createElement('img', {
             src: fullSizePhoto,
@@ -1232,7 +1243,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         null,
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[60] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
         },
           React.createElement('img', {
             src: fullSizePhoto,
