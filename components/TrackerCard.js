@@ -353,6 +353,227 @@ const TrackerCard = ({ mode = 'sleep' }) => {
 // Guard to prevent redeclaration
 if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
   
+  // HalfSheet wrapper component (UI Lab only)
+  const HalfSheet = ({ isOpen, onClose, title, rightAction, children }) => {
+    const sheetRef = React.useRef(null);
+    const backdropRef = React.useRef(null);
+    const contentRef = React.useRef(null);
+    const [sheetHeight, setSheetHeight] = React.useState('auto');
+    const [present, setPresent] = React.useState(false); // Controls rendering
+    
+    // Drag state
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [dragStartY, setDragStartY] = React.useState(0);
+    const [dragCurrentY, setDragCurrentY] = React.useState(0);
+    const [dragStartTime, setDragStartTime] = React.useState(0);
+
+    // Set present when isOpen becomes true
+    React.useEffect(() => {
+      if (isOpen) {
+        setPresent(true);
+      }
+    }, [isOpen]);
+
+    // Lock/unlock body scroll while present
+    React.useEffect(() => {
+      if (!present) return;
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prevOverflow || '';
+      };
+    }, [present]);
+
+    // Measure content and set dynamic height
+    React.useEffect(() => {
+      if (isOpen && present && contentRef.current && sheetRef.current) {
+        const measureHeight = () => {
+          if (contentRef.current && sheetRef.current) {
+            const contentHeight = contentRef.current.scrollHeight; // Already includes py-6 padding
+            const viewportHeight = window.innerHeight;
+            const headerHeight = 56; // Approximate header height (py-4 = 16px top + 16px bottom + ~24px content)
+            const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
+            const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
+            setSheetHeight(`${maxHeight}px`);
+          }
+        };
+
+        // Measure after render with multiple attempts
+        requestAnimationFrame(() => {
+          measureHeight();
+          setTimeout(measureHeight, 50);
+          setTimeout(measureHeight, 200); // Extra delay for async content
+        });
+      }
+    }, [isOpen, present, children]);
+
+    // Animation: Open and Close
+    React.useEffect(() => {
+      if (!present || !sheetRef.current || !backdropRef.current) return;
+      
+      if (isOpen) {
+        // Open animation
+        sheetRef.current.style.transition = 'none';
+        sheetRef.current.style.transform = 'translateY(100%)';
+        backdropRef.current.style.transition = 'none';
+        backdropRef.current.style.opacity = '0';
+        
+        requestAnimationFrame(() => {
+          if (sheetRef.current && backdropRef.current) {
+            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1)';
+            sheetRef.current.style.transform = 'translateY(0)';
+            backdropRef.current.style.transition = 'opacity 250ms ease-out';
+            backdropRef.current.style.opacity = '0.4';
+          }
+        });
+      } else {
+        // Close animation
+        void sheetRef.current.offsetHeight; // Force reflow
+        
+        requestAnimationFrame(() => {
+          if (sheetRef.current && backdropRef.current) {
+            sheetRef.current.style.transition = 'transform 200ms ease-in';
+            sheetRef.current.style.transform = 'translateY(100%)';
+            backdropRef.current.style.transition = 'opacity 200ms ease-in';
+            backdropRef.current.style.opacity = '0';
+          }
+        });
+        
+        // Unmount after animation completes
+        setTimeout(() => {
+          setPresent(false);
+        }, 200);
+      }
+    }, [isOpen, present]);
+
+    // Drag handlers
+    const handleTouchStart = (e) => {
+      if (!sheetRef.current) return;
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStartY(touch.clientY);
+      setDragCurrentY(touch.clientY);
+      setDragStartTime(Date.now());
+      sheetRef.current.style.transition = 'none'; // No easing while dragging
+    };
+
+    const handleTouchMove = (e) => {
+      if (!isDragging || !sheetRef.current || !backdropRef.current) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - dragStartY;
+      
+      // Only allow downward drag
+      if (deltaY > 0) {
+        setDragCurrentY(touch.clientY);
+        sheetRef.current.style.transform = `translateY(${deltaY}px)`;
+        
+        // Reduce backdrop opacity as you drag down
+        const maxDrag = 300; // Max drag distance for full fade
+        const backdropOpacity = Math.max(0, 0.4 - (deltaY / maxDrag) * 0.4);
+        backdropRef.current.style.opacity = backdropOpacity.toString();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (!isDragging || !sheetRef.current || !backdropRef.current) return;
+      
+      const deltaY = dragCurrentY - dragStartY;
+      const dragDuration = Date.now() - dragStartTime;
+      const velocity = deltaY / dragDuration; // pixels per ms
+      const threshold = 0.3; // 30% of sheet height
+      const sheetHeightPx = sheetRef.current.offsetHeight;
+      const dismissThreshold = sheetHeightPx * threshold;
+      const velocityThreshold = 0.5; // pixels per ms
+      
+      setIsDragging(false);
+      sheetRef.current.style.transition = 'transform 200ms ease-in';
+      backdropRef.current.style.transition = 'opacity 200ms ease-in';
+      
+      // Dismiss if past threshold or fast velocity
+      if (deltaY > dismissThreshold || velocity > velocityThreshold) {
+        if (onClose) onClose();
+      } else {
+        // Snap back
+        sheetRef.current.style.transform = 'translateY(0)';
+        backdropRef.current.style.opacity = '0.4';
+      }
+    };
+
+    // Escape closes
+    React.useEffect(() => {
+      if (!present || !isOpen) return;
+      const onKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          if (onClose) onClose();
+        }
+      };
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, present, onClose]);
+
+    // Only render if present
+    if (!present) return null;
+
+    return React.createElement(
+      React.Fragment,
+      null,
+      // Backdrop
+      React.createElement('div', {
+        ref: backdropRef,
+        className: "fixed inset-0 bg-black z-40",
+        onClick: () => { if (onClose && !isDragging) onClose(); },
+        style: { opacity: 0 }
+      }),
+      // Sheet Panel
+      React.createElement('div', {
+        ref: sheetRef,
+        className: "fixed left-0 right-0 bottom-0 z-[60] bg-white rounded-t-2xl shadow-2xl",
+        onClick: (e) => e.stopPropagation(),
+        onTouchStart: handleTouchStart,
+        onTouchMove: handleTouchMove,
+        onTouchEnd: handleTouchEnd,
+        style: {
+          transform: 'translateY(100%)',
+          willChange: 'transform',
+          paddingBottom: 'env(safe-area-inset-bottom, 0)',
+          maxHeight: '90vh',
+          height: sheetHeight,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          touchAction: 'pan-y'
+        }
+      },
+        // Header (part of HalfSheet chrome)
+        React.createElement('div', {
+          className: "bg-black rounded-t-2xl px-6 py-4 flex items-center justify-between flex-none"
+        },
+          // X button (close)
+          React.createElement('button', {
+            onClick: onClose,
+            className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+          }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+          
+          // Centered title
+          React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
+          
+          // Right action (Save button)
+          rightAction || React.createElement('div', { className: "w-6" })
+        ),
+        // Body area (scrollable)
+        React.createElement('div', {
+          ref: contentRef,
+          className: "flex-1 overflow-y-auto px-6 py-6",
+          style: {
+            WebkitOverflowScrolling: 'touch',
+            minHeight: 0
+          }
+        }, children)
+      )
+    );
+  };
+
   // Helper function to format date/time for display
   const formatDateTime = (date) => {
     if (!date) return '';
@@ -476,7 +697,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTFeedDetailSheet Component
-  const TTFeedDetailSheet = ({ onClose }) => {
+  const TTFeedDetailSheet = ({ isOpen, onClose }) => {
     const [ounces, setOunces] = React.useState('6');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState("kid didn't burp dammit!");
@@ -486,6 +707,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleSave = () => {
       console.log('Feed save:', { ounces, dateTime, notes, photos });
       // UI-only, no production behavior
+      handleClose(); // Close the sheet after saving
     };
 
     const handleDelete = () => {
@@ -523,26 +745,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     };
 
-    return React.createElement(
-      'div',
-      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
-      // Header: [X] [Feeding] [Save]
-      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
-        // X button (close)
-        React.createElement('button', {
-          onClick: handleClose,
-          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
-        
-        // Centered title
-        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feeding'),
-        
-        // Save button
-        React.createElement('button', {
-          onClick: handleSave,
-          className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, 'Save')
-      ),
+    // Body content (used in both static and overlay modes)
+    const bodyContent = React.createElement(
+      React.Fragment,
+      null,
 
       // Ounces
       React.createElement(InputRow, {
@@ -627,7 +833,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         null,
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black bg-opacity-75 z-[60] flex items-center justify-center p-4"
         },
           React.createElement('img', {
             src: fullSizePhoto,
@@ -638,10 +844,51 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       )
     );
+
+    // If overlay mode (isOpen provided), wrap in HalfSheet
+    if (isOpen !== undefined) {
+      return React.createElement(
+        HalfSheet,
+        {
+          isOpen: isOpen || false,
+          onClose: handleClose,
+          title: 'Feeding',
+          rightAction: React.createElement('button', {
+            onClick: handleSave,
+            className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
+          }, 'Save')
+        },
+        bodyContent
+      );
+    }
+
+    // Static preview mode (for UI Lab inline display)
+    return React.createElement(
+      'div',
+      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      // Header: [X] [Feeding] [Save]
+      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
+        // X button (close)
+        React.createElement('button', {
+          onClick: handleClose,
+          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+        
+        // Centered title
+        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feeding'),
+        
+        // Save button
+        React.createElement('button', {
+          onClick: handleSave,
+          className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
+        }, 'Save')
+      ),
+      bodyContent
+    );
   };
 
   // TTSleepDetailSheet Component
-  const TTSleepDetailSheet = ({ onClose }) => {
+  const TTSleepDetailSheet = ({ isOpen, onClose }) => {
     const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
     const [endTime, setEndTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState("kid didn't burp dammit!");
@@ -682,6 +929,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       if (!isValid) return; // Don't save if invalid
       console.log('Sleep save:', { startTime, endTime, notes, photos, duration });
       // UI-only, no production behavior
+      handleClose(); // Close the sheet after saving
     };
 
     const handleDelete = () => {
@@ -719,31 +967,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     };
 
-    return React.createElement(
-      'div',
-      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
-      // Header: [X] [Sleep] [Save]
-      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
-        // X button (close)
-        React.createElement('button', {
-          onClick: handleClose,
-          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
-        
-        // Centered title
-        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Sleep'),
-        
-        // Save button
-        React.createElement('button', {
-          onClick: handleSave,
-          disabled: !isValid,
-          className: `text-base font-normal transition-opacity ${
-            isValid 
-              ? 'text-white hover:opacity-70 active:opacity-50' 
-              : 'text-gray-400 cursor-not-allowed'
-          }`
-        }, 'Save')
-      ),
+    // Body content (used in both static and overlay modes)
+    const bodyContent = React.createElement(
+      React.Fragment,
+      null,
 
       // Timer Display
       React.createElement('div', { className: "text-center -mt-2 mb-6" },
@@ -841,7 +1068,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         null,
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black bg-opacity-75 z-[60] flex items-center justify-center p-4"
         },
           React.createElement('img', {
             src: fullSizePhoto,
@@ -851,6 +1078,57 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           })
         )
       )
+    );
+
+    // If overlay mode (isOpen provided), wrap in HalfSheet
+    if (isOpen !== undefined) {
+      return React.createElement(
+        HalfSheet,
+        {
+          isOpen: isOpen || false,
+          onClose: handleClose,
+          title: 'Sleep',
+          rightAction: React.createElement('button', {
+            onClick: handleSave,
+            disabled: !isValid,
+            className: `text-base font-normal transition-opacity ${
+              isValid 
+                ? 'text-white hover:opacity-70 active:opacity-50' 
+                : 'text-gray-400 cursor-not-allowed'
+            }`
+          }, 'Save')
+        },
+        bodyContent
+      );
+    }
+
+    // Static preview mode (for UI Lab inline display)
+    return React.createElement(
+      'div',
+      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      // Header: [X] [Sleep] [Save]
+      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
+        // X button (close)
+        React.createElement('button', {
+          onClick: handleClose,
+          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+        
+        // Centered title
+        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Sleep'),
+        
+        // Save button
+        React.createElement('button', {
+          onClick: handleSave,
+          disabled: !isValid,
+          className: `text-base font-normal transition-opacity ${
+            isValid 
+              ? 'text-white hover:opacity-70 active:opacity-50' 
+              : 'text-gray-400 cursor-not-allowed'
+          }`
+        }, 'Save')
+      ),
+      bodyContent
     );
   };
 

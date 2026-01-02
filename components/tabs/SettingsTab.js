@@ -5,6 +5,8 @@
 
 const SettingsTab = ({ user, kidId }) => {
   const [showUILab, setShowUILab] = useState(false);
+  const [showFeedSheet, setShowFeedSheet] = useState(false);
+  const [showSleepSheet, setShowSleepSheet] = useState(false);
   
   // Bottom sheet state for EditableRow (UI Lab only)
   const [editorState, setEditorState] = useState({
@@ -409,9 +411,40 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement(window.TrackerCard, { mode: 'feeding' }),
       React.createElement(window.TrackerCard, { mode: 'sleep' }),
 
-      // Detail Sheet previews
-      window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet),
-      window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet),
+      // Detail Sheet previews with launch buttons
+      React.createElement('div', { className: "border-t border-gray-100 pt-6" }),
+      React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'Detail Sheets'),
+      React.createElement('div', { className: "space-y-4" },
+        // Feed Detail Sheet
+        React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-4" },
+          React.createElement('button', {
+            onClick: () => setShowFeedSheet(true),
+            className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
+          }, 'Open Feed Sheet'),
+          // Static preview (unchanged)
+          window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet)
+        ),
+        
+        // Sleep Detail Sheet
+        React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-4" },
+          React.createElement('button', {
+            onClick: () => setShowSleepSheet(true),
+            className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
+          }, 'Open Sleep Sheet'),
+          // Static preview (unchanged)
+          window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet)
+        )
+      ),
+
+      // Overlay half sheets (conditionally rendered)
+      window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
+        isOpen: showFeedSheet,
+        onClose: () => setShowFeedSheet(false)
+      }),
+      window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
+        isOpen: showSleepSheet,
+        onClose: () => setShowSleepSheet(false)
+      }),
 
       // Icons section
       React.createElement('div', { className: "mb-6" },
