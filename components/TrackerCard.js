@@ -55,6 +55,23 @@ const EditIcon = (props) => React.createElement(
   React.createElement('path', { d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" })
 );
 
+const PenIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "16",
+    height: "16",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.25",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
+);
+
 const CalendarIcon = (props) => React.createElement(
   'svg',
   {
@@ -156,6 +173,7 @@ if (typeof window !== 'undefined') {
   window.CheckIcon = CheckIcon;
   window.ClockIcon = ClockIcon;
   window.XIcon = XIcon;
+  window.PenIcon = PenIcon;
 }
 
 // Ensure zZz animation styles are injected
@@ -429,7 +447,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             const viewportHeight = vv ? vv.height : fallbackH;
             const headerHeight = 60; // Approximate header height (py-5 = 20px top + 20px bottom + ~20px content)
             const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
-            const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
+            // If content fits within 90% of viewport, use exact height to prevent scrolling
+            // Otherwise, cap at 90% to leave some space at top
+            const maxHeight = totalNeeded <= viewportHeight * 0.9 
+              ? totalNeeded 
+              : Math.min(viewportHeight * 0.9, totalNeeded);
             setSheetHeight(`${maxHeight}px`);
           }
         };
@@ -465,7 +487,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           const viewportHeight = vv.height;
           const headerHeight = 60;
           const totalNeeded = contentHeight + headerHeight;
-          const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
+          // If content fits within 90% of viewport, use exact height to prevent scrolling
+          // Otherwise, cap at 90% to leave some space at top
+          const maxHeight = totalNeeded <= viewportHeight * 0.9 
+            ? totalNeeded 
+            : Math.min(viewportHeight * 0.9, totalNeeded);
           setSheetHeight(`${maxHeight}px`);
         }
       };
@@ -738,7 +764,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
+        className: "flex items-center justify-between py-3 border-b border-gray-200 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
@@ -790,7 +816,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
       icon && React.createElement('button', {
         onClick: handleIconClick,
-        className: "ml-4 text-black"
+        className: "ml-4",
+        style: { marginLeft: '17px' } // ml-4 (16px) + 1px inward = 17px
       }, icon)
     );
   };
@@ -854,7 +881,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         label: 'Ounces',
         value: ounces,
         onChange: setOunces,
-        icon: React.createElement(EditIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'number',
         placeholder: '0'
       }),
@@ -865,7 +892,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         value: formatDateTime(dateTime), // This won't be used for datetime type
         rawValue: dateTime, // Pass the raw ISO string
         onChange: setDateTime,
-        icon: React.createElement(ClockIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'datetime'
       }),
 
@@ -874,13 +901,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         label: 'Notes',
         value: notes,
         onChange: setNotes,
-        icon: React.createElement(EditIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'text',
         placeholder: 'Add a note...'
       }),
 
       // Photos
-      React.createElement('div', { className: "py-3 border-b border-gray-100" },
+      React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
           React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
@@ -923,7 +950,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 mt-2.5 text-center font-normal active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
+        style: { marginTop: '30px' } // 50% more: (12px photos bottom + 16px previous margin) * 1.5 = 42px total, minus 12px photos = 30px
       }, 'Delete'),
 
       // Full-size photo modal
@@ -1089,7 +1117,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         value: formatDateTime(startTime), // This won't be used for datetime type
         rawValue: startTime, // Pass the raw ISO string
         onChange: setStartTime,
-        icon: React.createElement(ClockIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'datetime'
       }),
 
@@ -1099,7 +1127,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         value: formatDateTime(endTime), // This won't be used for datetime type
         rawValue: endTime, // Pass the raw ISO string
         onChange: setEndTime,
-        icon: React.createElement(ClockIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'datetime',
         invalid: !isValid // Pass invalid flag when end time is before start time
       }),
@@ -1109,13 +1137,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         label: 'Notes',
         value: notes,
         onChange: setNotes,
-        icon: React.createElement(EditIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'text',
         placeholder: 'Add a note...'
       }),
 
       // Photos
-      React.createElement('div', { className: "py-3 border-b border-gray-100" },
+      React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
           React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
@@ -1158,7 +1186,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 mt-2.5 text-center font-normal active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
+        style: { marginTop: '30px' } // 50% more: (12px photos bottom + 16px previous margin) * 1.5 = 42px total, minus 12px photos = 30px
       }, 'Delete'),
 
       // Full-size photo modal
