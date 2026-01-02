@@ -55,6 +55,23 @@ const EditIcon = (props) => React.createElement(
   React.createElement('path', { d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" })
 );
 
+const PenIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    width: "20",
+    height: "20",
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: "1.25",
+    strokeLinecap: "round",
+    strokeLinejoin: "round",
+  },
+  React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
+);
+
 const CalendarIcon = (props) => React.createElement(
   'svg',
   {
@@ -156,6 +173,7 @@ if (typeof window !== 'undefined') {
   window.CheckIcon = CheckIcon;
   window.ClockIcon = ClockIcon;
   window.XIcon = XIcon;
+  window.PenIcon = PenIcon;
 }
 
 // Ensure zZz animation styles are injected
@@ -790,7 +808,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
       icon && React.createElement('button', {
         onClick: handleIconClick,
-        className: "ml-4 text-black"
+        className: "ml-4"
       }, icon)
     );
   };
@@ -854,7 +872,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         label: 'Ounces',
         value: ounces,
         onChange: setOunces,
-        icon: React.createElement(EditIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'number',
         placeholder: '0'
       }),
@@ -865,7 +883,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         value: formatDateTime(dateTime), // This won't be used for datetime type
         rawValue: dateTime, // Pass the raw ISO string
         onChange: setDateTime,
-        icon: React.createElement(ClockIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'datetime'
       }),
 
@@ -874,7 +892,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         label: 'Notes',
         value: notes,
         onChange: setNotes,
-        icon: React.createElement(EditIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'text',
         placeholder: 'Add a note...'
       }),
@@ -1089,7 +1107,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         value: formatDateTime(startTime), // This won't be used for datetime type
         rawValue: startTime, // Pass the raw ISO string
         onChange: setStartTime,
-        icon: React.createElement(ClockIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'datetime'
       }),
 
@@ -1099,7 +1117,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         value: formatDateTime(endTime), // This won't be used for datetime type
         rawValue: endTime, // Pass the raw ISO string
         onChange: setEndTime,
-        icon: React.createElement(ClockIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'datetime',
         invalid: !isValid // Pass invalid flag when end time is before start time
       }),
@@ -1109,7 +1127,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         label: 'Notes',
         value: notes,
         onChange: setNotes,
-        icon: React.createElement(EditIcon),
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
         type: 'text',
         placeholder: 'Add a note...'
       }),
