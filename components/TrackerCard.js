@@ -390,7 +390,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const measureHeight = () => {
           if (contentRef.current && sheetRef.current) {
             const contentHeight = contentRef.current.scrollHeight; // Already includes py-6 padding
-            const viewportHeight = window.innerHeight;
+            // Use visualViewport if available (more accurate for mobile keyboards)
+            const vv = window.visualViewport;
+            const viewportHeight = vv ? vv.height : window.innerHeight;
             const headerHeight = 56; // Approximate header height (py-4 = 16px top + 16px bottom + ~24px content)
             const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
             const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
@@ -406,6 +408,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         });
       }
     }, [isOpen, present, children]);
+
+    // Listen to visualViewport resize for keyboard changes
+    React.useEffect(() => {
+      if (!present || !isOpen) return;
+      
+      const vv = window.visualViewport;
+      if (!vv) return;
+      
+      const handleResize = () => {
+        if (contentRef.current && sheetRef.current) {
+          const contentHeight = contentRef.current.scrollHeight;
+          const viewportHeight = vv.height;
+          const headerHeight = 56;
+          const totalNeeded = contentHeight + headerHeight;
+          const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
+          setSheetHeight(`${maxHeight}px`);
+        }
+      };
+      
+      vv.addEventListener('resize', handleResize);
+      return () => vv.removeEventListener('resize', handleResize);
+    }, [isOpen, present]);
 
     // Animation: Open and Close
     React.useEffect(() => {
@@ -539,6 +563,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           paddingBottom: 'env(safe-area-inset-bottom, 0)',
           maxHeight: '90vh',
           height: sheetHeight,
+          transition: 'height 200ms ease-out', // Smooth height transition for keyboard
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
