@@ -104,6 +104,7 @@
 
     let rafId = null;
     let alive = true;
+    let pickedValue = null; // Store the picked value
 
     const lockScroll = () => {
       if (!alive) return;
@@ -127,17 +128,20 @@
       try { document.body.removeChild(input); } catch {}
     };
 
+    // Store value on change, but don't call onChange yet
     input.onchange = (e) => {
-      const picked = e.target?.value; // "HH:MM"
-      cleanup();
-      if (!picked) return;
-
-      // Use smart logic for new entries, preserve date for edits
-      const nextIso = applyPickedHHMMSmart(rawValue, picked);
-      if (nextIso) onChange(nextIso);
+      pickedValue = e.target?.value; // Store "HH:MM" but don't apply yet
     };
 
-    input.onblur = () => cleanup();
+    // Only call onChange when picker is dismissed (user pressed Done or Cancel)
+    input.onblur = () => {
+      cleanup();
+      if (pickedValue) {
+        // Use smart logic for new entries, preserve date for edits
+        const nextIso = applyPickedHHMMSmart(rawValue, pickedValue);
+        if (nextIso) onChange(nextIso);
+      }
+    };
 
     document.body.appendChild(input);
 
