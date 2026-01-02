@@ -422,12 +422,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       if (isOpen && present && contentRef.current && sheetRef.current) {
         const measureHeight = () => {
           if (contentRef.current && sheetRef.current) {
-            const contentHeight = contentRef.current.scrollHeight; // Already includes py-6 padding
+            const contentHeight = contentRef.current.scrollHeight; // Already includes py-8 padding
             // Use visualViewport if available (more accurate for mobile keyboards)
             const vv = window.visualViewport;
             const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
             const viewportHeight = vv ? vv.height : fallbackH;
-            const headerHeight = 56; // Approximate header height (py-4 = 16px top + 16px bottom + ~24px content)
+            const headerHeight = 60; // Approximate header height (py-5 = 20px top + 20px bottom + ~20px content)
             const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
             const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
             setSheetHeight(`${maxHeight}px`);
@@ -463,7 +463,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         if (contentRef.current && sheetRef.current) {
           const contentHeight = contentRef.current.scrollHeight;
           const viewportHeight = vv.height;
-          const headerHeight = 56;
+          const headerHeight = 60;
           const totalNeeded = contentHeight + headerHeight;
           const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
           setSheetHeight(`${maxHeight}px`);
@@ -618,7 +618,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Sheet Panel
       React.createElement('div', {
         ref: sheetRef,
-        className: "fixed left-0 right-0 bottom-0 z-[60] bg-white rounded-t-2xl shadow-2xl",
+        className: "fixed left-0 right-0 bottom-0 z-[60] bg-white shadow-2xl",
         onClick: (e) => e.stopPropagation(),
         onTouchStart: handleTouchStart,
         onTouchMove: handleTouchMove,
@@ -637,12 +637,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             flexDirection: 'column',
             overflow: 'hidden',
             touchAction: 'pan-y',
-            overscrollBehavior: 'contain'
+            overscrollBehavior: 'contain',
+            borderTopLeftRadius: '20px',
+            borderTopRightRadius: '20px'
           }
         },
         // Header (part of HalfSheet chrome)
         React.createElement('div', {
-          className: "bg-black rounded-t-2xl px-6 py-4 flex items-center justify-between flex-none"
+          className: "bg-black px-6 py-5 flex items-center justify-between flex-none",
+          style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
         },
           // X button (close)
           React.createElement('button', {
@@ -659,7 +662,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Body area (scrollable)
         React.createElement('div', {
           ref: contentRef,
-          className: "flex-1 overflow-y-auto px-6 py-6",
+          className: "flex-1 overflow-y-auto px-6 py-8",
           style: {
             WebkitOverflowScrolling: 'touch',
             minHeight: 0,
@@ -920,7 +923,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 mt-2.5 text-center font-normal active:opacity-70 transition-opacity duration-100"
       }, 'Delete'),
 
       // Full-size photo modal
@@ -1155,7 +1158,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 mt-2.5 text-center font-normal active:opacity-70 transition-opacity duration-100"
       }, 'Delete'),
 
       // Full-size photo modal
