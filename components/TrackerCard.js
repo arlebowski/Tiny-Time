@@ -369,7 +369,7 @@ const TrackerCard = ({ mode = 'sleep' }) => {
 
 // Detail Sheet Components
 // Guard to prevent redeclaration
-if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
+if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet && !window.TTInputHalfSheet) {
   
   // Helper function to format date/time for display
   const formatDateTime = (date) => {
@@ -932,10 +932,485 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     );
   };
 
+  // HeaderSegmentedToggle Component (for dark headers)
+  // Based on SegmentedToggle but adapted for black header background
+  const HeaderSegmentedToggle = ({ value, options, onChange }) => {
+    const btnBase = "rounded-lg transition text-[13px] font-semibold";
+    const btnOn = "bg-white text-gray-900 shadow-sm";
+    const btnOff = "bg-transparent text-white/80";
+    const btnSize = "px-3 py-[6px]";
+
+    return React.createElement(
+      'div',
+      { className: "inline-flex rounded-xl px-1 py-[3px] bg-white/20" },
+      (options || []).map((opt) =>
+        React.createElement(
+          'button',
+          {
+            key: opt.value,
+            type: 'button',
+            onClick: () => onChange && onChange(opt.value),
+            className: btnBase + " " + btnSize + " " + (value === opt.value ? btnOn : btnOff),
+            'aria-pressed': value === opt.value
+          },
+          opt.label
+        )
+      )
+    );
+  };
+
+  // TTInputHalfSheet Component
+  const TTInputHalfSheet = ({ isOpen, onClose }) => {
+    const [mode, setMode] = React.useState('feeding'); // 'feeding' | 'sleep'
+    
+    // Feeding state
+    const [ounces, setOunces] = React.useState('');
+    const [feedingDateTime, setFeedingDateTime] = React.useState(new Date().toISOString());
+    const [feedingNotes, setFeedingNotes] = React.useState('');
+    
+    // Sleep state
+    const [startTime, setStartTime] = React.useState(new Date().toISOString());
+    const [endTime, setEndTime] = React.useState(new Date().toISOString());
+    const [sleepNotes, setSleepNotes] = React.useState('');
+    
+    // Shared photos state
+    const [photos, setPhotos] = React.useState([]);
+    const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
+    
+    // Refs for measuring both content heights
+    const feedingContentRef = React.useRef(null);
+    const sleepContentRef = React.useRef(null);
+    const [resolvedSheetHeight, setResolvedSheetHeight] = React.useState(null);
+    
+    // Photo handling functions
+    const handleAddPhoto = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            setPhotos([...photos, event.target.result]);
+          };
+          reader.readAsDataURL(file);
+        }
+      };
+      input.click();
+    };
+
+    const handleRemovePhoto = (index) => {
+      const newPhotos = photos.filter((_, i) => i !== index);
+      setPhotos(newPhotos);
+    };
+    
+    // Calculate duration for sleep mode
+    const calculateDuration = () => {
+      if (!startTime || !endTime) return { hours: 0, minutes: 0, seconds: 0 };
+      const start = new Date(startTime);
+      const end = new Date(endTime);
+      const diff = end - start;
+      
+      // If end is before start, return null to indicate invalid
+      if (diff < 0) {
+        return null; // Invalid - end before start
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      return { hours, minutes, seconds };
+    };
+    
+    const durationResult = calculateDuration();
+    const isSleepValid = durationResult !== null;
+    const duration = isSleepValid ? durationResult : { hours: 0, minutes: 0, seconds: 0 };
+    
+    const handleClose = () => {
+      if (onClose) {
+        onClose();
+      } else {
+        console.log('Close clicked');
+      }
+    };
+
+    // Validation
+    const isValid = () => {
+      if (mode === 'feeding') {
+        const amount = parseFloat(ounces);
+        return amount > 0;
+      } else {
+        return isSleepValid;
+      }
+    };
+
+    const handleSave = () => {
+      if (!isValid()) return; // Don't save if invalid
+      
+      if (mode === 'feeding') {
+        console.log('Feeding save:', { 
+          ounces: parseFloat(ounces), 
+          dateTime: feedingDateTime, 
+          notes: feedingNotes,
+          photos
+        });
+      } else {
+        console.log('Sleep save:', { 
+          startTime, 
+          endTime, 
+          notes: sleepNotes, 
+          duration,
+          photos
+        });
+      }
+      // TODO: Implement actual save logic
+      handleClose();
+    };
+
+    // Helper function to render feeding content
+    const renderFeedingContent = () => React.createElement(
+      React.Fragment,
+      null,
+      // Ounces
+      React.createElement(InputRow, {
+        label: 'Ounces',
+        value: ounces,
+        onChange: setOunces,
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+        type: 'number',
+        placeholder: '0'
+      }),
+
+      // Date & Time
+      React.createElement(InputRow, {
+        label: 'Date & Time',
+        value: formatDateTime(feedingDateTime),
+        rawValue: feedingDateTime,
+        onChange: setFeedingDateTime,
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+        type: 'datetime'
+      }),
+
+      // Notes
+      React.createElement(InputRow, {
+        label: 'Notes',
+        value: feedingNotes,
+        onChange: setFeedingNotes,
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+        type: 'text',
+        placeholder: 'Add a note...'
+      }),
+
+      // Photos
+      React.createElement('div', { className: "py-3" },
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
+        ),
+        React.createElement('div', { className: "flex gap-2" },
+          // Render photos
+          photos.map((photo, i) =>
+            React.createElement('div', {
+              key: i,
+              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
+              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            },
+              React.createElement('img', { 
+                src: photo, 
+                alt: `Photo ${i + 1}`, 
+                className: "w-full h-full object-cover rounded-2xl",
+                onClick: () => setFullSizePhoto(photo)
+              }),
+              React.createElement('button', {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  handleRemovePhoto(i);
+                },
+                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
+              },
+                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
+              )
+            )
+          ),
+          // Render placeholder (only one, always at the end)
+          React.createElement('div', {
+            onClick: handleAddPhoto,
+            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+          },
+            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+          )
+        )
+      )
+    );
+
+    // Helper function to render sleep content
+    const renderSleepContent = () => React.createElement(
+      React.Fragment,
+      null,
+      // Duration Display
+      React.createElement('div', { className: "text-center mb-6" },
+        React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" },
+          React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
+          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'h'),
+          React.createElement('span', { className: "ml-2" }, `${String(duration.minutes).padStart(2, '0')}`),
+          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'm'),
+          React.createElement('span', { className: "ml-2" }, `${String(duration.seconds).padStart(2, '0')}`),
+          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 's')
+        )
+      ),
+
+      // Start time
+      React.createElement(InputRow, {
+        label: 'Start time',
+        value: formatDateTime(startTime),
+        rawValue: startTime,
+        onChange: setStartTime,
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+        type: 'datetime'
+      }),
+
+      // End time
+      React.createElement(InputRow, {
+        label: 'End time',
+        value: formatDateTime(endTime),
+        rawValue: endTime,
+        onChange: setEndTime,
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+        type: 'datetime',
+        invalid: !isSleepValid
+      }),
+
+      // Notes
+      React.createElement(InputRow, {
+        label: 'Notes',
+        value: sleepNotes,
+        onChange: setSleepNotes,
+        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+        type: 'text',
+        placeholder: 'Add a note...'
+      }),
+
+      // Photos
+      React.createElement('div', { className: "py-3" },
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
+        ),
+        React.createElement('div', { className: "flex gap-2" },
+          // Render photos
+          photos.map((photo, i) =>
+            React.createElement('div', {
+              key: i,
+              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
+              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            },
+              React.createElement('img', { 
+                src: photo, 
+                alt: `Photo ${i + 1}`, 
+                className: "w-full h-full object-cover rounded-2xl",
+                onClick: () => setFullSizePhoto(photo)
+              }),
+              React.createElement('button', {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  handleRemovePhoto(i);
+                },
+                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
+              },
+                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
+              )
+            )
+          ),
+          // Render placeholder (only one, always at the end)
+          React.createElement('div', {
+            onClick: handleAddPhoto,
+            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+          },
+            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+          )
+        )
+      )
+    );
+
+    // Measure both contents when sheet opens to determine max height
+    React.useEffect(() => {
+      if (!isOpen) {
+        setResolvedSheetHeight(null);
+        return;
+      }
+
+      const measureBoth = () => {
+        if (feedingContentRef.current && sleepContentRef.current) {
+          // Measure content heights (scrollHeight includes all content)
+          const feedingHeight = feedingContentRef.current.scrollHeight;
+          const sleepHeight = sleepContentRef.current.scrollHeight;
+          const maxContentHeight = Math.max(feedingHeight, sleepHeight);
+          
+          // Get viewport height for capping
+          const vv = window.visualViewport;
+          const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
+          const viewportHeight = vv ? vv.height : fallbackH;
+          
+          // Calculate total height: content + header (60px) + content padding
+          // TTHalfSheet adds px-6 pt-8 pb-[42px] to content area
+          // pt-8 = 32px, pb-[42px] = 42px, total = 74px
+          const headerHeight = 60; // Fixed header height
+          const contentPadding = 74; // pt-8 (32px) + pb-[42px] (42px)
+          
+          const totalNeeded = maxContentHeight + contentPadding + headerHeight;
+          
+          // Cap at 90% of viewport (same as TTHalfSheet logic)
+          const maxHeight = totalNeeded <= viewportHeight * 0.9 
+            ? totalNeeded 
+            : Math.min(viewportHeight * 0.9, totalNeeded);
+          
+          setResolvedSheetHeight(`${maxHeight}px`);
+        }
+      };
+
+      // Measure after render with multiple attempts
+      requestAnimationFrame(() => {
+        measureBoth();
+        setTimeout(measureBoth, 50);
+        setTimeout(measureBoth, 200); // Extra delay for async content
+      });
+    }, [isOpen, ounces, feedingNotes, photos, startTime, endTime, sleepNotes]);
+
+    // Body content - render both for measurement, show one based on mode
+    const bodyContent = React.createElement(
+      React.Fragment,
+      null,
+      // Wrapper to ensure proper clipping of absolutely positioned children
+      React.createElement('div', {
+        style: { position: 'relative', overflow: 'hidden', width: '100%' }
+      },
+        // Feeding content (hidden when not active, but rendered for measurement)
+        React.createElement('div', {
+          ref: feedingContentRef,
+          style: mode === 'feeding' ? {
+            position: 'relative',
+            opacity: 1
+          } : { 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+            zIndex: -1,
+            height: 'auto',
+            overflow: 'hidden'
+          }
+        }, renderFeedingContent()),
+        
+        // Sleep content (hidden when not active, but rendered for measurement)
+        React.createElement('div', {
+          ref: sleepContentRef,
+          style: mode === 'sleep' ? {
+            position: 'relative',
+            opacity: 1
+          } : { 
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            opacity: 0,
+            pointerEvents: 'none',
+            zIndex: -1,
+            height: 'auto',
+            overflow: 'hidden'
+          }
+        }, renderSleepContent())
+      ),
+
+      // Full-size photo modal (shared for both modes)
+      fullSizePhoto && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', {
+          onClick: () => setFullSizePhoto(null),
+          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+        },
+          React.createElement('img', {
+            src: fullSizePhoto,
+            alt: "Full size photo",
+            className: "max-w-full max-h-full object-contain",
+            onClick: (e) => e.stopPropagation()
+          })
+        )
+      )
+    );
+
+    // If overlay mode (isOpen provided), wrap in HalfSheet
+    if (isOpen !== undefined) {
+      return React.createElement(
+        window.TTHalfSheet,
+        {
+          isOpen: isOpen || false,
+          onClose: handleClose,
+          fixedHeight: resolvedSheetHeight,
+          titleElement: React.createElement(HeaderSegmentedToggle, {
+            value: mode,
+            options: [
+              { value: 'feeding', label: 'Feed' },
+              { value: 'sleep', label: 'Sleep' }
+            ],
+            onChange: setMode
+          }),
+          rightAction: React.createElement('button', {
+            onClick: handleSave,
+            disabled: !isValid(),
+            className: `text-base font-normal transition-opacity ${
+              isValid() 
+                ? 'text-white hover:opacity-70 active:opacity-50' 
+                : 'text-gray-400 cursor-not-allowed'
+            }`
+          }, 'Save')
+        },
+        bodyContent
+      );
+    }
+
+    // Static preview mode (for UI Lab inline display)
+    return React.createElement(
+      'div',
+      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      // Header: [X] [Toggle] [Save] - fixed 60px height
+      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 h-[60px] mb-6 flex items-center justify-between" },
+        React.createElement('button', {
+          onClick: handleClose,
+          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+        React.createElement('div', { className: "flex-1 flex justify-center" },
+          React.createElement(HeaderSegmentedToggle, {
+            value: mode,
+            options: [
+              { value: 'feeding', label: 'Feed' },
+              { value: 'sleep', label: 'Sleep' }
+            ],
+            onChange: setMode
+          })
+        ),
+        React.createElement('button', {
+          onClick: handleSave,
+          disabled: !isValid(),
+          className: `text-base font-normal transition-opacity ${
+            isValid() 
+              ? 'text-white hover:opacity-70 active:opacity-50' 
+              : 'text-gray-400 cursor-not-allowed'
+          }`
+        }, 'Save')
+      ),
+      bodyContent
+    );
+  };
+
   // Expose components globally
   if (typeof window !== 'undefined') {
     window.TTFeedDetailSheet = TTFeedDetailSheet;
     window.TTSleepDetailSheet = TTSleepDetailSheet;
+    window.TTInputHalfSheet = TTInputHalfSheet;
   }
 }
 
