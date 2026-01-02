@@ -409,6 +409,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     }, [isOpen, present, children]);
 
+    // Ensure transition is set when sheet is open (for keyboard adjustments)
+    React.useEffect(() => {
+      if (!present || !isOpen || !sheetRef.current) return;
+      // Set combined transition so height changes animate smoothly
+      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out';
+    }, [isOpen, present]);
+
     // Listen to visualViewport resize for keyboard changes
     React.useEffect(() => {
       if (!present || !isOpen) return;
@@ -444,7 +451,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         
         requestAnimationFrame(() => {
           if (sheetRef.current && backdropRef.current) {
-            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1)';
+            // Combine transform and height transitions
+            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out';
             sheetRef.current.style.transform = 'translateY(0)';
             backdropRef.current.style.transition = 'opacity 250ms ease-out';
             backdropRef.current.style.opacity = '0.4';
@@ -456,7 +464,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         
         requestAnimationFrame(() => {
           if (sheetRef.current && backdropRef.current) {
-            sheetRef.current.style.transition = 'transform 200ms ease-in';
+            // Combine transform and height transitions
+            sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out';
             sheetRef.current.style.transform = 'translateY(100%)';
             backdropRef.current.style.transition = 'opacity 200ms ease-in';
             backdropRef.current.style.opacity = '0';
@@ -478,7 +487,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setDragStartY(touch.clientY);
       setDragCurrentY(touch.clientY);
       setDragStartTime(Date.now());
-      sheetRef.current.style.transition = 'none'; // No easing while dragging
+      // Only disable transform transition, keep height transition
+      sheetRef.current.style.transition = 'height 200ms ease-out';
     };
 
     const handleTouchMove = (e) => {
@@ -511,7 +521,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       const velocityThreshold = 0.5; // pixels per ms
       
       setIsDragging(false);
-      sheetRef.current.style.transition = 'transform 200ms ease-in';
+      // Restore both transitions
+      sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out';
       backdropRef.current.style.transition = 'opacity 200ms ease-in';
       
       // Dismiss if past threshold or fast velocity
@@ -563,7 +574,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           paddingBottom: 'env(safe-area-inset-bottom, 0)',
           maxHeight: '90vh',
           height: sheetHeight,
-          transition: 'height 200ms ease-out', // Smooth height transition for keyboard
+          // Transition is set dynamically in useEffect to combine transform and height
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
