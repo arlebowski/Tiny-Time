@@ -60,8 +60,8 @@ const PenIcon = (props) => React.createElement(
   {
     ...props,
     xmlns: "http://www.w3.org/2000/svg",
-    width: "20",
-    height: "20",
+    width: "16",
+    height: "16",
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
@@ -447,7 +447,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             const viewportHeight = vv ? vv.height : fallbackH;
             const headerHeight = 60; // Approximate header height (py-5 = 20px top + 20px bottom + ~20px content)
             const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
-            const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
+            // If content fits within 90% of viewport, use exact height to prevent scrolling
+            // Otherwise, cap at 90% to leave some space at top
+            const maxHeight = totalNeeded <= viewportHeight * 0.9 
+              ? totalNeeded 
+              : Math.min(viewportHeight * 0.9, totalNeeded);
             setSheetHeight(`${maxHeight}px`);
           }
         };
@@ -483,7 +487,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           const viewportHeight = vv.height;
           const headerHeight = 60;
           const totalNeeded = contentHeight + headerHeight;
-          const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
+          // If content fits within 90% of viewport, use exact height to prevent scrolling
+          // Otherwise, cap at 90% to leave some space at top
+          const maxHeight = totalNeeded <= viewportHeight * 0.9 
+            ? totalNeeded 
+            : Math.min(viewportHeight * 0.9, totalNeeded);
           setSheetHeight(`${maxHeight}px`);
         }
       };
@@ -756,7 +764,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
+        className: "flex items-center justify-between py-3 border-b border-gray-200 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
@@ -808,7 +816,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
       icon && React.createElement('button', {
         onClick: handleIconClick,
-        className: "ml-4"
+        className: "ml-4",
+        style: { marginLeft: '17px' } // ml-4 (16px) + 1px inward = 17px
       }, icon)
     );
   };
@@ -898,7 +907,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }),
 
       // Photos
-      React.createElement('div', { className: "py-3 border-b border-gray-100" },
+      React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
           React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
@@ -941,7 +950,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 mt-2.5 text-center font-normal active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
+        style: { marginTop: '30px' } // 50% more: (12px photos bottom + 16px previous margin) * 1.5 = 42px total, minus 12px photos = 30px
       }, 'Delete'),
 
       // Full-size photo modal
@@ -1133,7 +1143,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }),
 
       // Photos
-      React.createElement('div', { className: "py-3 border-b border-gray-100" },
+      React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
           React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
         ),
@@ -1176,7 +1186,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Delete Button
       React.createElement('button', {
         onClick: handleDelete,
-        className: "w-full text-red-600 py-2 mt-2.5 text-center font-normal active:opacity-70 transition-opacity duration-100"
+        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
+        style: { marginTop: '30px' } // 50% more: (12px photos bottom + 16px previous margin) * 1.5 = 42px total, minus 12px photos = 30px
       }, 'Delete'),
 
       // Full-size photo modal
