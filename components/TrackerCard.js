@@ -375,6 +375,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   const HalfSheet = ({ isOpen, onClose, title, rightAction, children }) => {
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
+    const headerRef = React.useRef(null);
     const contentRef = React.useRef(null);
     const [sheetHeight, setSheetHeight] = React.useState('auto');
     const [present, setPresent] = React.useState(false); // Controls rendering
@@ -439,14 +440,31 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     React.useEffect(() => {
       if (isOpen && present && contentRef.current && sheetRef.current) {
         const measureHeight = () => {
-          if (contentRef.current && sheetRef.current) {
+          if (contentRef.current && sheetRef.current && headerRef.current) {
             const contentHeight = contentRef.current.scrollHeight; // Already includes py-8 padding
             // Use visualViewport if available (more accurate for mobile keyboards)
             const vv = window.visualViewport;
             const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
             const viewportHeight = vv ? vv.height : fallbackH;
-            const headerHeight = 60; // Approximate header height (py-5 = 20px top + 20px bottom + ~20px content)
-            const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
+            
+            // Measure actual header height instead of hardcoding
+            const headerHeight = headerRef.current.offsetHeight;
+            
+            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
+            let bottomPad = 0;
+            try {
+              const cs = window.getComputedStyle(sheetRef.current);
+              const pb = cs.paddingBottom;
+              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
+              if (pb && pb.includes('px')) {
+                bottomPad = parseFloat(pb) || 0;
+              }
+            } catch (e) {
+              // Fallback to 0 if measurement fails
+              bottomPad = 0;
+            }
+            
+            const totalNeeded = contentHeight + headerHeight + bottomPad;
             // If content fits within 90% of viewport, use exact height to prevent scrolling
             // Otherwise, cap at 90% to leave some space at top
             const maxHeight = totalNeeded <= viewportHeight * 0.9 
@@ -482,11 +500,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       const handleResize = () => {
         // Smoothly raise/lower the sheet above the keyboard.
         setKeyboardOffset(computeKeyboardOffset());
-        if (contentRef.current && sheetRef.current) {
+        if (contentRef.current && sheetRef.current && headerRef.current) {
           const contentHeight = contentRef.current.scrollHeight;
           const viewportHeight = vv.height;
-          const headerHeight = 60;
-          const totalNeeded = contentHeight + headerHeight;
+          
+          // Measure actual header height instead of hardcoding
+          const headerHeight = headerRef.current.offsetHeight;
+          
+          // Get safe-area-inset-bottom - try to read computed style, fallback to 0
+          let bottomPad = 0;
+          try {
+            const cs = window.getComputedStyle(sheetRef.current);
+            const pb = cs.paddingBottom;
+            // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
+            if (pb && pb.includes('px')) {
+              bottomPad = parseFloat(pb) || 0;
+            }
+          } catch (e) {
+            // Fallback to 0 if measurement fails
+            bottomPad = 0;
+          }
+          
+          const totalNeeded = contentHeight + headerHeight + bottomPad;
           // If content fits within 90% of viewport, use exact height to prevent scrolling
           // Otherwise, cap at 90% to leave some space at top
           const maxHeight = totalNeeded <= viewportHeight * 0.9 
@@ -670,6 +705,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         },
         // Header (part of HalfSheet chrome)
         React.createElement('div', {
+          ref: headerRef,
           className: "bg-black px-6 py-5 flex items-center justify-between flex-none",
           style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
         },
@@ -688,7 +724,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Body area (scrollable)
         React.createElement('div', {
           ref: contentRef,
-          className: "flex-1 overflow-y-auto px-6 py-8",
+          className: "flex-1 overflow-y-auto px-6 pt-8 pb-[42px]",
           style: {
             WebkitOverflowScrolling: 'touch',
             minHeight: 0,
