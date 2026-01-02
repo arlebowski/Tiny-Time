@@ -281,6 +281,10 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-100')
             ),
             React.createElement('div', { className: "space-y-1" },
+              React.createElement('div', { className: "h-12 rounded-2xl bg-gray-200" }),
+              React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-200')
+            ),
+            React.createElement('div', { className: "space-y-1" },
               React.createElement('div', { className: "h-12 rounded-2xl bg-gray-500" }),
               React.createElement('div', { className: "text-xs text-gray-500" }, 'bg-gray-500')
             ),
