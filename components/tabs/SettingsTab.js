@@ -7,6 +7,7 @@ const SettingsTab = ({ user, kidId }) => {
   const [showUILab, setShowUILab] = useState(false);
   const [showFeedSheet, setShowFeedSheet] = useState(false);
   const [showSleepSheet, setShowSleepSheet] = useState(false);
+  const [showInputSheet, setShowInputSheet] = useState(false);
   
   // Bottom sheet state for EditableRow (UI Lab only)
   const [editorState, setEditorState] = useState({
@@ -440,6 +441,20 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
+      // Input Half Sheet section
+      React.createElement('div', { className: "border-t border-gray-100 pt-6" }),
+      React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'Input Half Sheet'),
+      React.createElement('div', { className: "space-y-4" },
+        React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-4" },
+          React.createElement('button', {
+            onClick: () => setShowInputSheet(true),
+            className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
+          }, 'Open Input Sheet'),
+          // Static preview
+          window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet)
+        )
+      ),
+
       // Overlay half sheets (conditionally rendered)
       window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
         isOpen: showFeedSheet,
@@ -448,6 +463,11 @@ const SettingsTab = ({ user, kidId }) => {
       window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
         isOpen: showSleepSheet,
         onClose: () => setShowSleepSheet(false)
+      }),
+      // Overlay input half sheet
+      window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
+        isOpen: showInputSheet,
+        onClose: () => setShowInputSheet(false)
       }),
 
       // Icons section

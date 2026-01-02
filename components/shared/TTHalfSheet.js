@@ -4,7 +4,7 @@
 // Guard to prevent redeclaration
 if (typeof window !== 'undefined' && !window.TTHalfSheet) {
   
-  const TTHalfSheet = ({ isOpen, onClose, title, rightAction, children }) => {
+  const TTHalfSheet = ({ isOpen, onClose, title, titleElement, rightAction, children, contentKey, fixedHeight }) => {
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
     const headerRef = React.useRef(null);
@@ -98,6 +98,13 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
 
     // Measure content and set dynamic height
     React.useEffect(() => {
+      // If fixedHeight is provided, use it and skip dynamic measurement
+      if (fixedHeight && isOpen && present && sheetRef.current) {
+        setSheetHeight(fixedHeight);
+        return;
+      }
+      
+      // Otherwise, use existing dynamic measurement logic
       if (isOpen && present && contentRef.current && sheetRef.current) {
         const measureHeight = () => {
           if (contentRef.current && sheetRef.current && headerRef.current) {
@@ -141,7 +148,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
           setTimeout(measureHeight, 200); // Extra delay for async content
         });
       }
-    }, [isOpen, present, children]);
+    }, [isOpen, present, children, contentKey, fixedHeight]);
 
     // Ensure transition is set when sheet is open (for keyboard adjustments)
     React.useEffect(() => {
@@ -392,10 +399,10 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
               borderTopRightRadius: '20px'
             }
           },
-          // Header (part of HalfSheet chrome)
+          // Header (part of HalfSheet chrome) - fixed 60px height
           React.createElement('div', {
             ref: headerRef,
-            className: "bg-black px-6 py-5 flex items-center justify-between flex-none",
+            className: "bg-black px-6 h-[60px] flex items-center justify-between flex-none",
             style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
           },
             // X button (close)
@@ -404,8 +411,12 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
               className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
             }, React.createElement(window.XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
             
-            // Centered title
-            React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
+            // Centered title or custom title element
+            titleElement ? (
+              React.createElement('div', { className: "flex-1 flex justify-center" }, titleElement)
+            ) : (
+              React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || '')
+            ),
             
             // Right action (Save button)
             rightAction || React.createElement('div', { className: "w-6" })
