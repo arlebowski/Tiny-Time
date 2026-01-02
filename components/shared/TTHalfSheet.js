@@ -361,18 +361,10 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
         // Backdrop
         React.createElement('div', {
           ref: backdropRef,
-          className: "fixed bg-black z-[100]",
+          className: "fixed inset-0 bg-black z-[100]",
           onClick: () => { if (onClose && !isDragging) onClose(); },
           style: { 
-            opacity: 0,
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            width: '100vw',
-            height: '100vh',
-            margin: 0,
-            padding: 0
+            opacity: 0
           }
         }),
         // Sheet Panel
