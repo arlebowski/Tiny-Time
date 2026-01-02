@@ -351,6 +351,7 @@ const TrackerCard = ({ mode = 'sleep' }) => {
 
 // Detail Sheet Components
 // Guard to prevent redeclaration
+// NOTE: UI Lab HalfSheet improvements: smooth keyboard open/close on iOS via visualViewport offset
 if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
   
   // HalfSheet wrapper component (UI Lab only)
@@ -358,8 +359,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
     const contentRef = React.useRef(null);
+    const innerRef = React.useRef(null);
     const [sheetHeight, setSheetHeight] = React.useState('auto');
     const [present, setPresent] = React.useState(false); // Controls rendering
+    const [keyboardOffset, setKeyboardOffset] = React.useState(0);
     
     // Drag state
     const [isDragging, setIsDragging] = React.useState(false);
@@ -384,6 +387,31 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       };
     }, [present]);
 
+    // Apply keyboard offset smoothly (separate from open/close transform)
+    React.useEffect(() => {
+      if (!present || !isOpen || !innerRef.current) return;
+      // Keep this transition stable so visualViewport-driven shifts animate smoothly.
+      innerRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1)';
+    }, [present, isOpen]);
+
+    React.useEffect(() => {
+      if (!present || !isOpen || !innerRef.current) return;
+      // Move the sheet content up by the keyboard height (iOS visual viewport).
+      // This avoids the "snap back" when the keyboard closes.
+      innerRef.current.style.transform = `translateY(${-keyboardOffset}px)`;
+    }, [present, isOpen, keyboardOffset]);
+
+    // Calculate initial keyboard offset when sheet opens
+    React.useEffect(() => {
+      if (!present || !isOpen) return;
+      
+      const vv = window.visualViewport;
+      if (vv) {
+        const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        setKeyboardOffset(kb);
+      }
+    }, [isOpen, present]);
+
     // Measure content and set dynamic height
     React.useEffect(() => {
       if (isOpen && present && contentRef.current && sheetRef.current) {
@@ -393,6 +421,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             // Use visualViewport if available (more accurate for mobile keyboards)
             const vv = window.visualViewport;
             const viewportHeight = vv ? vv.height : window.innerHeight;
+            const vvOffsetTop = vv ? vv.offsetTop : 0;
+            // Keyboard height approximation: layout viewport minus visual viewport (minus offsetTop)
+            const kb = vv ? Math.max(0, window.innerHeight - vv.height - vvOffsetTop) : 0;
+            setKeyboardOffset(kb);
             const headerHeight = 56; // Approximate header height (py-4 = 16px top + 16px bottom + ~24px content)
             const totalNeeded = contentHeight + headerHeight; // contentHeight already includes padding
             const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
@@ -427,6 +459,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         if (contentRef.current && sheetRef.current) {
           const contentHeight = contentRef.current.scrollHeight;
           const viewportHeight = vv.height;
+          const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+          setKeyboardOffset(kb);
           const headerHeight = 56;
           const totalNeeded = contentHeight + headerHeight;
           const maxHeight = Math.min(viewportHeight * 0.9, totalNeeded);
@@ -435,7 +469,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       };
       
       vv.addEventListener('resize', handleResize);
-      return () => vv.removeEventListener('resize', handleResize);
+      vv.addEventListener('scroll', handleResize);
+      return () => {
+        vv.removeEventListener('resize', handleResize);
+        vv.removeEventListener('scroll', handleResize);
+      };
     }, [isOpen, present]);
 
     // Animation: Open and Close
@@ -572,7 +610,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             transform: 'translateY(100%)',
             willChange: 'transform',
             paddingBottom: 'env(safe-area-inset-bottom, 0)',
-            maxHeight: '90vh',
+            // Avoid vh snapping on iOS when the keyboard opens/closes.
+            maxHeight: '100%',
             height: sheetHeight,
             // Transition is set dynamically in useEffect to combine transform and height
             display: 'flex',
@@ -581,31 +620,43 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             touchAction: 'pan-y'
           }
         },
-        // Header (part of HalfSheet chrome)
+        // Inner wrapper: this is what we shift up/down with the keyboard smoothly.
         React.createElement('div', {
-          className: "bg-black rounded-t-2xl px-6 py-4 flex items-center justify-between flex-none"
-        },
-          // X button (close)
-          React.createElement('button', {
-            onClick: onClose,
-            className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-          }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
-          
-          // Centered title
-          React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
-          
-          // Right action (Save button)
-          rightAction || React.createElement('div', { className: "w-6" })
-        ),
-        // Body area (scrollable)
-        React.createElement('div', {
-          ref: contentRef,
-          className: "flex-1 overflow-y-auto px-6 py-6",
+          ref: innerRef,
           style: {
-            WebkitOverflowScrolling: 'touch',
-            minHeight: 0
+            transform: 'translateY(0)',
+            willChange: 'transform',
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%'
           }
-        }, children)
+        },
+          // Header (part of HalfSheet chrome)
+          React.createElement('div', {
+            className: "bg-black rounded-t-2xl px-6 py-4 flex items-center justify-between flex-none"
+          },
+            // X button (close)
+            React.createElement('button', {
+              onClick: onClose,
+              className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+            }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+            
+            // Centered title
+            React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
+            
+            // Right action (Save button)
+            rightAction || React.createElement('div', { className: "w-6" })
+          ),
+          // Body area (scrollable)
+          React.createElement('div', {
+            ref: contentRef,
+            className: "flex-1 overflow-y-auto px-6 py-6",
+            style: {
+              WebkitOverflowScrolling: 'touch',
+              minHeight: 0
+            }
+          }, children)
+        )
       )
     );
   };
