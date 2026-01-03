@@ -1407,6 +1407,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const sleepContentRef = React.useRef(null);
     const [resolvedSheetHeight, setResolvedSheetHeight] = React.useState(null);
     
+    // Reserve space so the bottom CTA button stays in the same visual spot across modes
+    const CTA_SPACER_PX = 86; // button height (py-3 = 12px top + 12px bottom + text line height ~20px) + mt-4 (16px) + padding
+    
     const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
       if (!startMs) return null;
       return (startMs > nowMs + 3 * 3600000) ? (startMs - 86400000) : startMs;
@@ -1760,14 +1763,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Spacer to match Timer Display height in sleep mode (text-[40px] + mb-6 ≈ 90px)
-      React.createElement('div', { style: { height: '90px' } }),
-
-      // Add Feed button
-      React.createElement('button', {
-        onClick: handleAddFeeding,
-        className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition mt-4"
-      }, 'Add Feed')
+      // Reserve space for sticky footer CTA
+      React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
     );
 
     // Helper function to render sleep content
@@ -1886,13 +1883,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Primary CTA Button (Start Sleep / End Sleep / Hidden)
-      // Show "Start Sleep" in IDLE, IDLE_WITH_TIMES, and COMPLETED
-      // Show "Stop Sleep" in RUNNING
-      (sleepState === 'idle' || sleepState === 'running' || isIdleWithTimes || sleepState === 'completed') && React.createElement('button', {
-        onClick: sleepState === 'running' ? handleEndSleep : handleStartSleep,
-        className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition mt-4"
-      }, sleepState === 'running' ? 'End Sleep' : 'Start Sleep')
+      // Reserve space for sticky footer CTA
+      React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
       );
     };
 
@@ -1985,6 +1977,22 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             overflow: 'hidden'
           }
         }, renderSleepContent())
+      ),
+
+      // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)
+      React.createElement('div', {
+        className: "sticky bottom-0 left-0 right-0 bg-white pt-3 pb-1",
+        style: { zIndex: 10 }
+      },
+        mode === 'feeding'
+          ? React.createElement('button', {
+              onClick: handleAddFeeding,
+              className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition"
+            }, 'Add Feed')
+          : (sleepState === 'idle' || sleepState === 'running' || isIdleWithTimes || sleepState === 'completed') && React.createElement('button', {
+              onClick: sleepState === 'running' ? handleEndSleep : handleStartSleep,
+              className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition"
+            }, sleepState === 'running' ? 'End Sleep' : 'Start Sleep')
       ),
 
       // Full-size photo modal (shared for both modes)
