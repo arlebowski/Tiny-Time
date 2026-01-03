@@ -207,12 +207,12 @@ function ensureZzzStyles() {
   document.head.appendChild(style);
 }
 
-const TimelineItem = ({ withNote, mode = 'sleep', isLast = false }) => {
+const TimelineItem = ({ withNote, mode = 'sleep' }) => {
   const isSleep = mode === 'sleep';
   
   return React.createElement(
     'div',
-    { className: `p-4 ${!isLast ? 'border-b border-gray-100' : ''}` },
+    { className: "rounded-2xl bg-gray-50 p-4" },
     React.createElement(
       'div',
       { className: "flex items-center justify-between mb-2" },
@@ -360,17 +360,392 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     ),
     expanded && React.createElement(
       'div',
-      { className: "mt-4 border-t border-gray-100" },
-      React.createElement(TimelineItem, { mode, isLast: false }),
-      React.createElement(TimelineItem, { withNote: true, mode, isLast: true })
+      { className: "mt-4 space-y-4" },
+      React.createElement(TimelineItem, { mode }),
+      React.createElement(TimelineItem, { withNote: true, mode })
     )
   );
 };
 
 // Detail Sheet Components
 // Guard to prevent redeclaration
-if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet && !window.TTInputHalfSheet) {
+if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
   
+  // HalfSheet wrapper component (UI Lab only)
+  const HalfSheet = ({ isOpen, onClose, title, rightAction, children }) => {
+    const sheetRef = React.useRef(null);
+    const backdropRef = React.useRef(null);
+    const headerRef = React.useRef(null);
+    const contentRef = React.useRef(null);
+    const [sheetHeight, setSheetHeight] = React.useState('auto');
+    const [present, setPresent] = React.useState(false); // Controls rendering
+    const [keyboardOffset, setKeyboardOffset] = React.useState(0);
+    const scrollYRef = React.useRef(0);
+    
+    // Drag state
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [dragStartY, setDragStartY] = React.useState(0);
+    const [dragCurrentY, setDragCurrentY] = React.useState(0);
+    const [dragStartTime, setDragStartTime] = React.useState(0);
+
+    // Set present when isOpen becomes true
+    React.useEffect(() => {
+      if (isOpen) {
+        setPresent(true);
+      }
+    }, [isOpen]);
+
+    // Lock/unlock body scroll while present
+    React.useEffect(() => {
+      if (!present) return;
+      // iOS Safari/PWA: overflow:hidden is not a reliable scroll lock once the keyboard shows.
+      // Use position:fixed lock pattern to prevent the underlying page from scrolling.
+      const body = document.body;
+      const prev = {
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
+        overflow: body.style.overflow,
+      };
+      scrollYRef.current = window.scrollY || window.pageYOffset || 0;
+      body.style.position = 'fixed';
+      body.style.top = `-${scrollYRef.current}px`;
+      body.style.left = '0';
+      body.style.right = '0';
+      body.style.width = '100%';
+      body.style.overflow = 'hidden';
+      return () => {
+        body.style.position = prev.position || '';
+        body.style.top = prev.top || '';
+        body.style.left = prev.left || '';
+        body.style.right = prev.right || '';
+        body.style.width = prev.width || '';
+        body.style.overflow = prev.overflow || '';
+        window.scrollTo(0, scrollYRef.current || 0);
+      };
+    }, [present]);
+
+    // Compute keyboard offset (px) from visualViewport.
+    // In iOS PWA, documentElement.clientHeight is often more stable than window.innerHeight.
+    const computeKeyboardOffset = React.useCallback(() => {
+      const vv = window.visualViewport;
+      if (!vv) return 0;
+      const layoutH = document.documentElement?.clientHeight || window.innerHeight;
+      return Math.max(0, layoutH - vv.height - vv.offsetTop);
+    }, []);
+
+    // Measure content and set dynamic height
+    React.useEffect(() => {
+      if (isOpen && present && contentRef.current && sheetRef.current) {
+        const measureHeight = () => {
+          if (contentRef.current && sheetRef.current && headerRef.current) {
+            const contentHeight = contentRef.current.scrollHeight; // Already includes py-8 padding
+            // Use visualViewport if available (more accurate for mobile keyboards)
+            const vv = window.visualViewport;
+            const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
+            const viewportHeight = vv ? vv.height : fallbackH;
+            
+            // Measure actual header height instead of hardcoding
+            const headerHeight = headerRef.current.offsetHeight;
+            
+            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
+            let bottomPad = 0;
+            try {
+              const cs = window.getComputedStyle(sheetRef.current);
+              const pb = cs.paddingBottom;
+              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
+              if (pb && pb.includes('px')) {
+                bottomPad = parseFloat(pb) || 0;
+              }
+            } catch (e) {
+              // Fallback to 0 if measurement fails
+              bottomPad = 0;
+            }
+            
+            const totalNeeded = contentHeight + headerHeight + bottomPad;
+            // If content fits within 90% of viewport, use exact height to prevent scrolling
+            // Otherwise, cap at 90% to leave some space at top
+            const maxHeight = totalNeeded <= viewportHeight * 0.9 
+              ? totalNeeded 
+              : Math.min(viewportHeight * 0.9, totalNeeded);
+            setSheetHeight(`${maxHeight}px`);
+          }
+        };
+
+        // Measure after render with multiple attempts
+        requestAnimationFrame(() => {
+          measureHeight();
+          setTimeout(measureHeight, 50);
+          setTimeout(measureHeight, 200); // Extra delay for async content
+        });
+      }
+    }, [isOpen, present, children]);
+
+    // Ensure transition is set when sheet is open (for keyboard adjustments)
+    React.useEffect(() => {
+      if (!present || !isOpen || !sheetRef.current) return;
+      // Set combined transition so height changes animate smoothly
+      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
+    }, [isOpen, present]);
+
+    // Listen to visualViewport resize/scroll for keyboard changes (PWA-safe)
+    React.useEffect(() => {
+      if (!present || !isOpen) return;
+      
+      const vv = window.visualViewport;
+      if (!vv) return;
+      
+      const handleResize = () => {
+        // Smoothly raise/lower the sheet above the keyboard.
+        setKeyboardOffset(computeKeyboardOffset());
+        if (contentRef.current && sheetRef.current && headerRef.current) {
+          const contentHeight = contentRef.current.scrollHeight;
+          const viewportHeight = vv.height;
+          
+          // Measure actual header height instead of hardcoding
+          const headerHeight = headerRef.current.offsetHeight;
+          
+          // Get safe-area-inset-bottom - try to read computed style, fallback to 0
+          let bottomPad = 0;
+          try {
+            const cs = window.getComputedStyle(sheetRef.current);
+            const pb = cs.paddingBottom;
+            // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
+            if (pb && pb.includes('px')) {
+              bottomPad = parseFloat(pb) || 0;
+            }
+          } catch (e) {
+            // Fallback to 0 if measurement fails
+            bottomPad = 0;
+          }
+          
+          const totalNeeded = contentHeight + headerHeight + bottomPad;
+          // If content fits within 90% of viewport, use exact height to prevent scrolling
+          // Otherwise, cap at 90% to leave some space at top
+          const maxHeight = totalNeeded <= viewportHeight * 0.9 
+            ? totalNeeded 
+            : Math.min(viewportHeight * 0.9, totalNeeded);
+          setSheetHeight(`${maxHeight}px`);
+        }
+      };
+      
+      vv.addEventListener('resize', handleResize);
+      vv.addEventListener('scroll', handleResize);
+      // Initial sync (covers keyboard already open / first focus)
+      handleResize();
+      return () => {
+        vv.removeEventListener('resize', handleResize);
+        vv.removeEventListener('scroll', handleResize);
+      };
+    }, [isOpen, present, computeKeyboardOffset]);
+
+    // Animation: Open and Close
+    React.useEffect(() => {
+      if (!present || !sheetRef.current || !backdropRef.current) return;
+      
+      if (isOpen) {
+        // Open animation
+        sheetRef.current.style.transition = 'none';
+        sheetRef.current.style.transform = 'translateY(100%)';
+        backdropRef.current.style.transition = 'none';
+        backdropRef.current.style.opacity = '0';
+        
+        requestAnimationFrame(() => {
+          if (sheetRef.current && backdropRef.current) {
+            // Combine transform and height transitions
+            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
+            sheetRef.current.style.transform = 'translateY(0)';
+            backdropRef.current.style.transition = 'opacity 250ms ease-out';
+            backdropRef.current.style.opacity = '0.4';
+          }
+        });
+      } else {
+        // Close animation
+        void sheetRef.current.offsetHeight; // Force reflow
+        
+        requestAnimationFrame(() => {
+          if (sheetRef.current && backdropRef.current) {
+            // Combine transform and height transitions
+            sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
+            sheetRef.current.style.transform = 'translateY(100%)';
+            backdropRef.current.style.transition = 'opacity 200ms ease-in';
+            backdropRef.current.style.opacity = '0';
+          }
+        });
+        
+        // Unmount after animation completes
+        setTimeout(() => {
+          setPresent(false);
+        }, 200);
+      }
+    }, [isOpen, present]);
+
+    // Drag handlers
+    // NOTE: When the keyboard is open, dragging feels glitchy on iOS PWAs.
+    // Disable drag-to-dismiss while a field is focused / keyboard is up.
+    const canDrag = () => {
+      if (keyboardOffset > 0) return false;
+      const ae = document.activeElement;
+      if (!ae) return true;
+      const tag = (ae.tagName || '').toUpperCase();
+      return !(tag === 'INPUT' || tag === 'TEXTAREA' || ae.isContentEditable);
+    };
+
+    const handleTouchStart = (e) => {
+      if (!canDrag()) return;
+      if (!sheetRef.current) return;
+      const touch = e.touches[0];
+      setIsDragging(true);
+      setDragStartY(touch.clientY);
+      setDragCurrentY(touch.clientY);
+      setDragStartTime(Date.now());
+      // Only disable transform transition, keep height transition
+      sheetRef.current.style.transition = 'height 200ms ease-out';
+    };
+
+    const handleTouchMove = (e) => {
+      if (!canDrag()) return;
+      if (!isDragging || !sheetRef.current || !backdropRef.current) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - dragStartY;
+      
+      // Only allow downward drag
+      if (deltaY > 0) {
+        setDragCurrentY(touch.clientY);
+        sheetRef.current.style.transform = `translateY(${deltaY}px)`;
+        
+        // Reduce backdrop opacity as you drag down
+        const maxDrag = 300; // Max drag distance for full fade
+        const backdropOpacity = Math.max(0, 0.4 - (deltaY / maxDrag) * 0.4);
+        backdropRef.current.style.opacity = backdropOpacity.toString();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      if (!canDrag()) return;
+      if (!isDragging || !sheetRef.current || !backdropRef.current) return;
+      
+      const deltaY = dragCurrentY - dragStartY;
+      const dragDuration = Date.now() - dragStartTime;
+      const velocity = deltaY / dragDuration; // pixels per ms
+      const threshold = 0.3; // 30% of sheet height
+      const sheetHeightPx = sheetRef.current.offsetHeight;
+      const dismissThreshold = sheetHeightPx * threshold;
+      const velocityThreshold = 0.5; // pixels per ms
+      
+      setIsDragging(false);
+      // Restore both transitions
+      sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
+      backdropRef.current.style.transition = 'opacity 200ms ease-in';
+      
+      // Dismiss if past threshold or fast velocity
+      if (deltaY > dismissThreshold || velocity > velocityThreshold) {
+        if (onClose) onClose();
+      } else {
+        // Snap back
+        sheetRef.current.style.transform = 'translateY(0)';
+        backdropRef.current.style.opacity = '0.4';
+      }
+    };
+
+    // Escape closes
+    React.useEffect(() => {
+      if (!present || !isOpen) return;
+      const onKeyDown = (e) => {
+        if (e.key === 'Escape') {
+          if (onClose) onClose();
+        }
+      };
+      window.addEventListener('keydown', onKeyDown);
+      return () => window.removeEventListener('keydown', onKeyDown);
+    }, [isOpen, present, onClose]);
+
+    // Only render if present
+    if (!present) return null;
+
+    // Use portal to render to document.body, bypassing any transformed ancestors
+    // This ensures position: fixed works relative to the viewport, not a transformed parent
+    return ReactDOM.createPortal(
+      React.createElement(
+        React.Fragment,
+        null,
+        // Backdrop
+        React.createElement('div', {
+          ref: backdropRef,
+          className: "fixed inset-0 bg-black z-[100]",
+          onClick: () => { if (onClose && !isDragging) onClose(); },
+          style: { 
+            opacity: 0,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0
+          }
+        }),
+        // Sheet Panel
+        React.createElement('div', {
+          ref: sheetRef,
+          className: "fixed left-0 right-0 bottom-0 z-[101] bg-white shadow-2xl",
+          onClick: (e) => e.stopPropagation(),
+          onTouchStart: handleTouchStart,
+          onTouchMove: handleTouchMove,
+          onTouchEnd: handleTouchEnd,
+            style: {
+              transform: 'translateY(100%)',
+              willChange: 'transform',
+              paddingBottom: 'env(safe-area-inset-bottom, 0)',
+              // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
+              maxHeight: '100%',
+              height: sheetHeight,
+              // When keyboard is open, lift the whole sheet above it (smoothly via transition).
+              bottom: `${keyboardOffset}px`,
+              // Transition is set dynamically in useEffect to combine transform and height
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+              touchAction: 'pan-y',
+              overscrollBehavior: 'contain',
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px'
+            }
+          },
+          // Header (part of HalfSheet chrome)
+          React.createElement('div', {
+            ref: headerRef,
+            className: "bg-black px-6 py-5 flex items-center justify-between flex-none",
+            style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
+          },
+            // X button (close)
+            React.createElement('button', {
+              onClick: onClose,
+              className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+            }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+            
+            // Centered title
+            React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
+            
+            // Right action (Save button)
+            rightAction || React.createElement('div', { className: "w-6" })
+          ),
+          // Body area (scrollable)
+          React.createElement('div', {
+            ref: contentRef,
+            className: "flex-1 overflow-y-auto px-6 pt-8 pb-[42px]",
+            style: {
+              WebkitOverflowScrolling: 'touch',
+              minHeight: 0,
+              overscrollBehavior: 'contain'
+            }
+          }, children)
+        )
+      ),
+      document.body
+    );
+  };
+
   // Helper function to format date/time for display
   const formatDateTime = (date) => {
     if (!date) return '';
@@ -436,7 +811,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
+        className: "flex items-center justify-between py-3 border-b border-gray-200 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
@@ -647,7 +1022,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
       return React.createElement(
-        window.TTHalfSheet,
+        HalfSheet,
         {
           isOpen: isOpen || false,
           onClose: handleClose,
@@ -883,7 +1258,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
       return React.createElement(
-        window.TTHalfSheet,
+        HalfSheet,
         {
           isOpen: isOpen || false,
           onClose: handleClose,
@@ -961,7 +1336,53 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
   // TTInputHalfSheet Component
   const TTInputHalfSheet = ({ isOpen, onClose }) => {
-    const [mode, setMode] = React.useState('feeding'); // 'feeding' | 'sleep'
+    // Check localStorage for active sleep on mount to determine initial mode
+    const getInitialMode = () => {
+      try {
+        const activeSleep = localStorage.getItem('tt_active_sleep');
+        if (activeSleep) {
+          const parsed = JSON.parse(activeSleep);
+          if (parsed.startTime) {
+            return 'sleep';
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+      return 'feeding';
+    };
+    
+    const getInitialSleepState = () => {
+      try {
+        const activeSleep = localStorage.getItem('tt_active_sleep');
+        if (activeSleep) {
+          const parsed = JSON.parse(activeSleep);
+          if (parsed.startTime && !parsed.endTime) {
+            return 'running';
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+      return 'idle';
+    };
+    
+    const getInitialStartTime = () => {
+      try {
+        const activeSleep = localStorage.getItem('tt_active_sleep');
+        if (activeSleep) {
+          const parsed = JSON.parse(activeSleep);
+          if (parsed.startTime) {
+            return parsed.startTime;
+          }
+        }
+      } catch (e) {
+        // Ignore errors
+      }
+      return null;
+    };
+    
+    const [mode, setMode] = React.useState(getInitialMode()); // 'feeding' | 'sleep'
     
     // Feeding state
     const [ounces, setOunces] = React.useState('');
@@ -969,9 +1390,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [feedingNotes, setFeedingNotes] = React.useState('');
     
     // Sleep state
-    const [startTime, setStartTime] = React.useState(new Date().toISOString());
-    const [endTime, setEndTime] = React.useState(new Date().toISOString());
+    const [sleepState, setSleepState] = React.useState(getInitialSleepState()); // 'idle' | 'idle_with_times' | 'running' | 'completed'
+    const [startTime, setStartTime] = React.useState(getInitialStartTime()); // ISO string
+    const [endTime, setEndTime] = React.useState(null); // ISO string
     const [sleepNotes, setSleepNotes] = React.useState('');
+    const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
+    const sleepIntervalRef = React.useRef(null);
+    const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
     
     // Shared photos state
     const [photos, setPhotos] = React.useState([]);
@@ -981,6 +1406,79 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const feedingContentRef = React.useRef(null);
     const sleepContentRef = React.useRef(null);
     const [resolvedSheetHeight, setResolvedSheetHeight] = React.useState(null);
+    
+    const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
+      if (!startMs) return null;
+      return (startMs > nowMs + 3 * 3600000) ? (startMs - 86400000) : startMs;
+    };
+    
+    // Persist running state to localStorage
+    React.useEffect(() => {
+      if (sleepState === 'running' && startTime) {
+        try {
+          localStorage.setItem('tt_active_sleep', JSON.stringify({
+            startTime: startTime,
+            endTime: null
+          }));
+        } catch (e) {
+          // Ignore errors
+        }
+      } else {
+        try {
+          localStorage.removeItem('tt_active_sleep');
+        } catch (e) {
+          // Ignore errors
+        }
+      }
+    }, [sleepState, startTime]);
+    
+    // Update timer when sleepState is 'running' (timer continues even when sheet closes)
+    React.useEffect(() => {
+      if (sleepIntervalRef.current) {
+        clearInterval(sleepIntervalRef.current);
+        sleepIntervalRef.current = null;
+      }
+
+      if (sleepState !== 'running' || !startTime) {
+        if (sleepState !== 'running') {
+          setSleepElapsedMs(0);
+        }
+        return;
+      }
+
+      const startMs = new Date(startTime).getTime();
+      const start = _normalizeSleepStartMs(startMs);
+      if (!start) { 
+        setSleepElapsedMs(0); 
+        return; 
+      }
+      
+      const tick = () => setSleepElapsedMs(Date.now() - start);
+      tick(); // Update immediately - this is the key for snappy response!
+      sleepIntervalRef.current = setInterval(tick, 1000);
+
+      return () => {
+        if (sleepIntervalRef.current) {
+          clearInterval(sleepIntervalRef.current);
+          sleepIntervalRef.current = null;
+        }
+      };
+    }, [sleepState, startTime]);
+    
+    // Auto-populate start time when toggle switches to Sleep
+    React.useEffect(() => {
+      if (mode === 'sleep') {
+        // If in idle state with no start time, populate it
+        if (!startTime && sleepState === 'idle') {
+          setStartTime(new Date().toISOString());
+        }
+        // If not running and not idle_with_times (both times entered), clear end time
+        const hasBothTimes = startTime && endTime;
+        if (sleepState === 'idle' && !hasBothTimes) {
+          setEndTime(null);
+        }
+      }
+    }, [mode, sleepState, startTime, endTime]);
     
     // Photo handling functions
     const handleAddPhoto = () => {
@@ -1027,11 +1525,115 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const isSleepValid = durationResult !== null;
     const duration = isSleepValid ? durationResult : { hours: 0, minutes: 0, seconds: 0 };
     
+    // Determine if we're in idle_with_times state (both times entered but not running/completed)
+    const isIdleWithTimes = sleepState === 'idle' && startTime && endTime;
+    
+    // Handle close with state-based logic
     const handleClose = () => {
-      if (onClose) {
-        onClose();
+      if (mode === 'feeding') {
+        // Feeding mode: always close immediately
+        if (onClose) onClose();
+        return;
+      }
+      
+      // Sleep mode: state-based dismissal
+      if (sleepState === 'idle' && !isIdleWithTimes) {
+        // IDLE (no times): Close immediately
+        if (onClose) onClose();
+      } else if (sleepState === 'running') {
+        // RUNNING: Close sheet, timer continues in background
+        if (onClose) onClose();
+      } else if (sleepState === 'completed' || isIdleWithTimes) {
+        // COMPLETED or IDLE_WITH_TIMES: Show confirmation dialog
+        setShowDeleteConfirm(true);
+      }
+    };
+    
+    // Handle delete confirmation
+    const handleDeleteConfirm = () => {
+      // Reset to IDLE and close
+      setSleepState('idle');
+      setStartTime(null);
+      setEndTime(null);
+      setSleepNotes('');
+      setPhotos([]);
+      setSleepElapsedMs(0);
+      setShowDeleteConfirm(false);
+      if (onClose) onClose();
+    };
+    
+    // Handle delete cancel
+    const handleDeleteCancel = () => {
+      setShowDeleteConfirm(false);
+    };
+
+    // Handle add feeding (standalone mode - no Firestore)
+    const handleAddFeeding = () => {
+      const amount = parseFloat(ounces);
+      if (!amount || amount <= 0) return;
+      
+      // Log for standalone mode
+      console.log('Feeding added:', { 
+        ounces: amount, 
+        dateTime: feedingDateTime, 
+        notes: feedingNotes,
+        photos 
+      });
+      
+      // Reset form
+      setOunces('');
+      setFeedingNotes('');
+      setPhotos([]);
+      setFeedingDateTime(new Date().toISOString());
+      if (onClose) onClose();
+    };
+
+    // Handle start sleep: IDLE/IDLE_WITH_TIMES/COMPLETED → RUNNING
+    const handleStartSleep = () => {
+      if (sleepState === 'completed') {
+        // COMPLETED → RUNNING: Keep existing start time, clear end time
+        setEndTime(null);
+        setSleepState('running');
       } else {
-        console.log('Close clicked');
+        // IDLE/IDLE_WITH_TIMES → RUNNING: Update start time to now, clear end time
+        const now = new Date().toISOString();
+        setStartTime(now);
+        setEndTime(null);
+        setSleepState('running');
+      }
+      // Timer will start via useEffect when sleepState becomes 'running'
+    };
+
+    // Handle end sleep: RUNNING → COMPLETED
+    const handleEndSleep = () => {
+      if (sleepState !== 'running') return;
+      const now = new Date().toISOString();
+      setEndTime(now);
+      setSleepState('completed');
+      // Timer will stop via useEffect when sleepState becomes 'completed'
+    };
+    
+    // Handle start time change
+    const handleStartTimeChange = (newStartTime) => {
+      if (sleepState === 'running') {
+        // RUNNING: Recalculate elapsed time from new start time, timer continues
+        setStartTime(newStartTime);
+        // Timer will recalculate via useEffect dependency on startTime
+      } else {
+        // Other states: Just update start time
+        setStartTime(newStartTime);
+      }
+    };
+    
+    // Handle end time change
+    const handleEndTimeChange = (newEndTime) => {
+      if (sleepState === 'running') {
+        // RUNNING: Editing end time stops timer and enters idle_with_times
+        setEndTime(newEndTime);
+        setSleepState('idle'); // Will become idle_with_times if startTime exists
+      } else {
+        // Other states: Just update end time
+        setEndTime(newEndTime);
       }
     };
 
@@ -1041,7 +1643,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const amount = parseFloat(ounces);
         return amount > 0;
       } else {
-        return isSleepValid;
+        // Sleep: valid in COMPLETED state or IDLE_WITH_TIMES with valid duration
+        return (sleepState === 'completed' || isIdleWithTimes) && isSleepValid;
       }
     };
 
@@ -1055,7 +1658,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           notes: feedingNotes,
           photos
         });
+        // Reset form
+        setOunces('');
+        setFeedingNotes('');
+        setPhotos([]);
+        setFeedingDateTime(new Date().toISOString());
       } else {
+        // Sleep: saveable in COMPLETED or IDLE_WITH_TIMES state
+        if (sleepState !== 'completed' && !isIdleWithTimes) return;
         console.log('Sleep save:', { 
           startTime, 
           endTime, 
@@ -1063,9 +1673,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           duration,
           photos
         });
+        // Reset to IDLE and close
+        setSleepState('idle');
+        setStartTime(null);
+        setEndTime(null);
+        setSleepNotes('');
+        setPhotos([]);
+        setSleepElapsedMs(0);
       }
-      // TODO: Implement actual save logic
-      handleClose();
+      // Auto-close after save
+      if (onClose) onClose();
     };
 
     // Helper function to render feeding content
@@ -1141,45 +1758,79 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
           )
         )
-      )
+      ),
+
+      // Add Feed button (same position for consistency)
+      React.createElement('button', {
+        onClick: handleAddFeeding,
+        className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition mt-4"
+      }, 'Add Feed')
     );
 
     // Helper function to render sleep content
-    const renderSleepContent = () => React.createElement(
-      React.Fragment,
-      null,
-      // Duration Display
-      React.createElement('div', { className: "text-center mb-6" },
-        React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" },
-          React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'h'),
-          React.createElement('span', { className: "ml-2" }, `${String(duration.minutes).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'm'),
-          React.createElement('span', { className: "ml-2" }, `${String(duration.seconds).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 's')
-        )
-      ),
+    const renderSleepContent = () => {
+      // Calculate timer display: elapsed time when RUNNING, duration when COMPLETED/IDLE
+      let hours, minutes, seconds;
+      if (sleepState === 'running') {
+        // Show elapsed time from timer
+        hours = Math.floor(sleepElapsedMs / 3600000);
+        minutes = Math.floor((sleepElapsedMs % 3600000) / 60000);
+        seconds = Math.floor((sleepElapsedMs % 60000) / 1000);
+      } else {
+        // Show calculated duration
+        hours = duration.hours;
+        minutes = duration.minutes;
+        seconds = duration.seconds;
+      }
+      
+      // Time fields are always editable (even in RUNNING state)
+      // Show icon always
+      const timeIcon = React.createElement(PenIcon, { className: "text-gray-500" });
+      
+      return React.createElement(
+        React.Fragment,
+        null,
+        // Timer Display
+        React.createElement('div', { className: "text-center mb-6" },
+          React.createElement('div', { className: "text-[40px] leading-none font-bold text-black flex items-end justify-center" },
+            React.createElement(React.Fragment, null,
+              // Only show hours if > 0
+              hours > 0 && React.createElement(React.Fragment, null,
+                React.createElement('span', null, `${hours}`),
+                React.createElement('span', { className: "text-base text-gray-500 font-light ml-1" }, 'h'),
+                React.createElement('span', { className: "ml-2" })
+              ),
+              // Minutes: single/double digit when no hours, always 2 digits when hours present
+              React.createElement('span', null, hours > 0 ? `${String(minutes).padStart(2, '0')}` : `${minutes}`),
+              React.createElement('span', { className: "text-base text-gray-500 font-light ml-1" }, 'm'),
+              React.createElement('span', { className: "ml-2" }, `${String(seconds).padStart(2, '0')}`),
+              React.createElement('span', { className: "text-base text-gray-500 font-light ml-1" }, 's')
+            )
+          )
+        ),
 
-      // Start time
-      React.createElement(InputRow, {
-        label: 'Start time',
-        value: formatDateTime(startTime),
-        rawValue: startTime,
-        onChange: setStartTime,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'datetime'
-      }),
+        // Start time
+        React.createElement(InputRow, {
+          label: 'Start time',
+          value: startTime ? formatDateTime(startTime) : '--:--',
+          rawValue: startTime,
+          onChange: handleStartTimeChange,
+          icon: timeIcon,
+          type: 'datetime',
+          readOnly: false // Always editable
+        }),
 
-      // End time
-      React.createElement(InputRow, {
-        label: 'End time',
-        value: formatDateTime(endTime),
-        rawValue: endTime,
-        onChange: setEndTime,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'datetime',
-        invalid: !isSleepValid
-      }),
+        // End time
+        React.createElement(InputRow, {
+          label: 'End time',
+          value: endTime ? formatDateTime(endTime) : 'Add',
+          rawValue: endTime,
+          onChange: handleEndTimeChange,
+          icon: timeIcon,
+          type: 'datetime',
+          readOnly: false, // Always editable
+          invalid: !isSleepValid && (sleepState === 'completed' || isIdleWithTimes)
+        }),
 
       // Notes
       React.createElement(InputRow, {
@@ -1230,8 +1881,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
           )
         )
-      )
-    );
+      ),
+
+      // Primary CTA Button (Start Sleep / End Sleep / Hidden)
+      // Show "Start Sleep" in IDLE, IDLE_WITH_TIMES, and COMPLETED
+      // Show "Stop Sleep" in RUNNING
+      (sleepState === 'idle' || sleepState === 'running' || isIdleWithTimes || sleepState === 'completed') && React.createElement('button', {
+        onClick: sleepState === 'running' ? handleEndSleep : handleStartSleep,
+        className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition mt-4"
+      }, sleepState === 'running' ? 'End Sleep' : 'Start Sleep')
+      );
+    };
 
     // Measure both contents when sheet opens to determine max height
     React.useEffect(() => {
@@ -1275,7 +1935,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setTimeout(measureBoth, 50);
         setTimeout(measureBoth, 200); // Extra delay for async content
       });
-    }, [isOpen, ounces, feedingNotes, photos, startTime, endTime, sleepNotes]);
+    }, [isOpen, ounces, feedingNotes, photos, startTime, endTime, sleepNotes, sleepState]);
 
     // Body content - render both for measurement, show one based on mode
     const bodyContent = React.createElement(
@@ -1339,6 +1999,33 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             onClick: (e) => e.stopPropagation()
           })
         )
+      ),
+      
+      // Delete confirmation dialog (simplified)
+      showDeleteConfirm && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', {
+          onClick: handleDeleteCancel,
+          className: "fixed inset-0 bg-black bg-opacity-50 z-[103] flex items-center justify-center p-4"
+        },
+          React.createElement('div', {
+            onClick: (e) => e.stopPropagation(),
+            className: "bg-white rounded-2xl p-4 max-w-xs w-full"
+          },
+            React.createElement('div', { className: "text-base font-semibold text-black mb-4 text-center" }, 'Delete entry?'),
+            React.createElement('div', { className: "flex gap-3" },
+              React.createElement('button', {
+                onClick: handleDeleteCancel,
+                className: "flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition text-sm"
+              }, 'Cancel'),
+              React.createElement('button', {
+                onClick: handleDeleteConfirm,
+                className: "flex-1 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-gray-900 transition text-sm"
+              }, 'Delete')
+            )
+          )
+        )
       )
     );
 
@@ -1358,7 +2045,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             ],
             onChange: setMode
           }),
-          rightAction: React.createElement('button', {
+          rightAction: (mode === 'feeding' || (mode === 'sleep' && (sleepState === 'completed' || isIdleWithTimes))) ? React.createElement('button', {
             onClick: handleSave,
             disabled: !isValid(),
             className: `text-base font-normal transition-opacity ${
@@ -1366,7 +2053,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 ? 'text-white hover:opacity-70 active:opacity-50' 
                 : 'text-gray-400 cursor-not-allowed'
             }`
-          }, 'Save')
+          }, 'Save') : null
         },
         bodyContent
       );
@@ -1392,7 +2079,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             onChange: setMode
           })
         ),
-        React.createElement('button', {
+        (mode === 'feeding' || (mode === 'sleep' && (sleepState === 'completed' || isIdleWithTimes))) ? React.createElement('button', {
           onClick: handleSave,
           disabled: !isValid(),
           className: `text-base font-normal transition-opacity ${
@@ -1400,7 +2087,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               ? 'text-white hover:opacity-70 active:opacity-50' 
               : 'text-gray-400 cursor-not-allowed'
           }`
-        }, 'Save')
+        }, 'Save') : React.createElement('div', { className: "w-6" })
       ),
       bodyContent
     );
