@@ -1760,7 +1760,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Add Feed button (same position for consistency)
+      // Spacer to match Timer Display height in sleep mode (text-[40px] + mb-6 ≈ 90px)
+      React.createElement('div', { style: { height: '90px' } }),
+
+      // Add Feed button
       React.createElement('button', {
         onClick: handleAddFeeding,
         className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition mt-4"
