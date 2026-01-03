@@ -212,7 +212,7 @@ const TimelineItem = ({ withNote, mode = 'sleep' }) => {
   
   return React.createElement(
     'div',
-    { className: "rounded-2xl bg-gray-50 p-4" },
+    { className: "rounded-2xl bg-gray-50 p-4 cursor-pointer active:bg-gray-100 transition-colors duration-150" },
     React.createElement(
       'div',
       { className: "flex items-center justify-between mb-2" },
@@ -811,7 +811,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between py-3 border-b border-gray-200 cursor-pointer active:bg-gray-100 active:rounded-2xl active:-mx-3 active:px-3 transition-all duration-150",
+        className: "flex items-center justify-between rounded-2xl bg-gray-50 p-4 cursor-pointer active:bg-gray-100 transition-colors duration-150 mb-2",
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
@@ -923,35 +923,38 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       React.Fragment,
       null,
 
-      // Ounces
-      React.createElement(InputRow, {
-        label: 'Ounces',
-        value: ounces,
-        onChange: setOunces,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'number',
-        placeholder: '0'
-      }),
+      // Input rows wrapped in spacing container
+      React.createElement('div', { className: "space-y-2" },
+        // Ounces
+        React.createElement(InputRow, {
+          label: 'Ounces',
+          value: ounces,
+          onChange: setOunces,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'number',
+          placeholder: '0'
+        }),
 
-      // Date & Time
-      React.createElement(InputRow, {
-        label: 'Date & Time',
-        value: formatDateTime(dateTime), // This won't be used for datetime type
-        rawValue: dateTime, // Pass the raw ISO string
-        onChange: setDateTime,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'datetime'
-      }),
+        // Date & Time
+        React.createElement(InputRow, {
+          label: 'Date & Time',
+          value: formatDateTime(dateTime), // This won't be used for datetime type
+          rawValue: dateTime, // Pass the raw ISO string
+          onChange: setDateTime,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'datetime'
+        }),
 
-      // Notes
-      React.createElement(InputRow, {
-        label: 'Notes',
-        value: notes,
-        onChange: setNotes,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'text',
-        placeholder: 'Add a note...'
-      }),
+        // Notes
+        React.createElement(InputRow, {
+          label: 'Notes',
+          value: notes,
+          onChange: setNotes,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'text',
+          placeholder: 'Add a note...'
+        })
+      ),
 
       // Photos
       React.createElement('div', { className: "py-3" },
@@ -986,7 +989,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
             style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
@@ -1158,36 +1161,39 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Start time
-      React.createElement(InputRow, {
-        label: 'Start time',
-        value: formatDateTime(startTime), // This won't be used for datetime type
-        rawValue: startTime, // Pass the raw ISO string
-        onChange: setStartTime,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'datetime'
-      }),
+      // Input rows wrapped in spacing container
+      React.createElement('div', { className: "space-y-2" },
+        // Start time
+        React.createElement(InputRow, {
+          label: 'Start time',
+          value: formatDateTime(startTime), // This won't be used for datetime type
+          rawValue: startTime, // Pass the raw ISO string
+          onChange: setStartTime,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'datetime'
+        }),
 
-      // End time
-      React.createElement(InputRow, {
-        label: 'End time',
-        value: formatDateTime(endTime), // This won't be used for datetime type
-        rawValue: endTime, // Pass the raw ISO string
-        onChange: setEndTime,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'datetime',
-        invalid: !isValid // Pass invalid flag when end time is before start time
-      }),
+        // End time
+        React.createElement(InputRow, {
+          label: 'End time',
+          value: formatDateTime(endTime), // This won't be used for datetime type
+          rawValue: endTime, // Pass the raw ISO string
+          onChange: setEndTime,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'datetime',
+          invalid: !isValid // Pass invalid flag when end time is before start time
+        }),
 
-      // Notes
-      React.createElement(InputRow, {
-        label: 'Notes',
-        value: notes,
-        onChange: setNotes,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'text',
-        placeholder: 'Add a note...'
-      }),
+        // Notes
+        React.createElement(InputRow, {
+          label: 'Notes',
+          value: notes,
+          onChange: setNotes,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'text',
+          placeholder: 'Add a note...'
+        })
+      ),
 
       // Photos
       React.createElement('div', { className: "py-3" },
@@ -1222,7 +1228,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
             style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
@@ -1692,35 +1698,38 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const renderFeedingContent = () => React.createElement(
       React.Fragment,
       null,
-      // Ounces
-      React.createElement(InputRow, {
-        label: 'Ounces',
-        value: ounces,
-        onChange: setOunces,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'number',
-        placeholder: '0'
-      }),
+      // Input rows wrapped in spacing container
+      React.createElement('div', { className: "space-y-2" },
+        // Ounces
+        React.createElement(InputRow, {
+          label: 'Ounces',
+          value: ounces,
+          onChange: setOunces,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'number',
+          placeholder: '0'
+        }),
 
-      // Date & Time
-      React.createElement(InputRow, {
-        label: 'Date & Time',
-        value: formatDateTime(feedingDateTime),
-        rawValue: feedingDateTime,
-        onChange: setFeedingDateTime,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'datetime'
-      }),
+        // Date & Time
+        React.createElement(InputRow, {
+          label: 'Date & Time',
+          value: formatDateTime(feedingDateTime),
+          rawValue: feedingDateTime,
+          onChange: setFeedingDateTime,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'datetime'
+        }),
 
-      // Notes
-      React.createElement(InputRow, {
-        label: 'Notes',
-        value: feedingNotes,
-        onChange: setFeedingNotes,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'text',
-        placeholder: 'Add a note...'
-      }),
+        // Notes
+        React.createElement(InputRow, {
+          label: 'Notes',
+          value: feedingNotes,
+          onChange: setFeedingNotes,
+          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          type: 'text',
+          placeholder: 'Add a note...'
+        })
+      ),
 
       // Photos
       React.createElement('div', { className: "py-3" },
@@ -1755,7 +1764,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
             style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
@@ -1809,38 +1818,41 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           )
         ),
 
-        // Start time
-        React.createElement(InputRow, {
-          label: 'Start time',
-          value: startTime ? formatDateTime(startTime) : '--:--',
-          rawValue: startTime,
-          onChange: handleStartTimeChange,
-          icon: timeIcon,
-          type: 'datetime',
-          readOnly: false // Always editable
-        }),
+        // Input rows wrapped in spacing container
+        React.createElement('div', { className: "space-y-2" },
+          // Start time
+          React.createElement(InputRow, {
+            label: 'Start time',
+            value: startTime ? formatDateTime(startTime) : '--:--',
+            rawValue: startTime,
+            onChange: handleStartTimeChange,
+            icon: timeIcon,
+            type: 'datetime',
+            readOnly: false // Always editable
+          }),
 
-        // End time
-        React.createElement(InputRow, {
-          label: 'End time',
-          value: endTime ? formatDateTime(endTime) : 'Add',
-          rawValue: endTime,
-          onChange: handleEndTimeChange,
-          icon: timeIcon,
-          type: 'datetime',
-          readOnly: false, // Always editable
-          invalid: !isSleepValid && (sleepState === 'completed' || isIdleWithTimes)
-        }),
+          // End time
+          React.createElement(InputRow, {
+            label: 'End time',
+            value: endTime ? formatDateTime(endTime) : 'Add',
+            rawValue: endTime,
+            onChange: handleEndTimeChange,
+            icon: timeIcon,
+            type: 'datetime',
+            readOnly: false, // Always editable
+            invalid: !isSleepValid && (sleepState === 'completed' || isIdleWithTimes)
+          }),
 
-      // Notes
-      React.createElement(InputRow, {
-        label: 'Notes',
-        value: sleepNotes,
-        onChange: setSleepNotes,
-        icon: React.createElement(PenIcon, { className: "text-gray-500" }),
-        type: 'text',
-        placeholder: 'Add a note...'
-      }),
+          // Notes
+          React.createElement(InputRow, {
+            label: 'Notes',
+            value: sleepNotes,
+            onChange: setSleepNotes,
+            icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+            type: 'text',
+            placeholder: 'Add a note...'
+          })
+        ),
 
       // Photos
       React.createElement('div', { className: "py-3" },
@@ -1875,7 +1887,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
             style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
             React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
