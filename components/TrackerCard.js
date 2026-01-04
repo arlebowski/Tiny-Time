@@ -382,7 +382,14 @@ const TrackerCard = ({ mode = 'sleep' }) => {
         })
       )
     ),
-    React.createElement('div', { className: "border-t border-gray-100 my-4" }),
+    React.createElement('div', { 
+      className: "border-t my-4",
+      style: { 
+        borderColor: document.documentElement.classList.contains('dark') 
+          ? 'rgba(255,255,255,0.06)'  // More subtle in dark mode
+          : 'rgb(243, 244, 246)'  // border-gray-100 equivalent for light mode
+      }
+    }),
     React.createElement(
       'button',
       {
