@@ -21,6 +21,44 @@ const SettingsTab = ({ user, kidId }) => {
   const [exampleStartTime, setExampleStartTime] = useState(null);
   const [exampleNotes, setExampleNotes] = useState('');
 
+  // Appearance state
+  const [appearance, setAppearance] = useState(() => {
+    if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
+      return window.TT.appearance.get();
+    }
+    return { darkMode: false, background: "health-gray", feedAccent: "#d45d5c", sleepAccent: "#4a8ac2" };
+  });
+  const [showFeedPalette, setShowFeedPalette] = useState(false);
+  const [showSleepPalette, setShowSleepPalette] = useState(false);
+
+  // Sync appearance state with TT.appearance
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
+      const current = window.TT.appearance.get();
+      setAppearance(current);
+    }
+  }, []);
+
+  // Color palettes
+  const FEED_PALETTE = [
+    '#d45d5c', '#e07a5f', '#f2a65a', '#c8553d', '#b23a48', '#9b2915',
+    '#d16ba5', '#ff6f91', '#ff9671', '#ffc75f', '#f9f871', '#c34a36'
+  ];
+
+  const SLEEP_PALETTE = [
+    '#4a8ac2', '#3a86ff', '#2d6a4f', '#40916c', '#577590', '#277da1',
+    '#5e60ce', '#6930c3', '#7400b8', '#00b4d8', '#48cae4', '#4d908e'
+  ];
+
+  // Handle appearance changes
+  const handleAppearanceChange = async (partial) => {
+    if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
+      await window.TT.appearance.set(partial);
+      // Refresh local state
+      setAppearance(window.TT.appearance.get());
+    }
+  };
+
   const handleShareApp = async () => {
     const url = window.location.origin + window.location.pathname;
     const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
@@ -2155,6 +2193,138 @@ const SettingsTab = ({ user, kidId }) => {
 
   // Main Settings page
   return React.createElement('div', { className: "space-y-4" },
+
+    // Appearance Card
+    React.createElement(TTCard, { variant: "default" },
+      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Appearance'),
+      React.createElement('div', { className: "space-y-6" },
+
+        // Dark Mode Toggle
+        React.createElement('div', { className: "flex items-center justify-between" },
+          React.createElement('span', { className: "text-base font-medium text-gray-800" }, 'Dark Mode'),
+          React.createElement('button', {
+            type: 'button',
+            onClick: async () => {
+              await handleAppearanceChange({ darkMode: !appearance.darkMode });
+            },
+            'aria-pressed': appearance.darkMode,
+            className: `relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
+              appearance.darkMode ? 'bg-indigo-600' : 'bg-gray-300'
+            }`,
+            role: 'switch'
+          },
+            React.createElement('span', {
+              className: `inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                appearance.darkMode ? 'translate-x-6' : 'translate-x-1'
+              }`
+            })
+          )
+        ),
+
+        // Background Theme Selector
+        React.createElement('div', null,
+          React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Background Theme'),
+          React.createElement('div', { className: "flex gap-3" },
+            React.createElement('button', {
+              type: 'button',
+              onClick: async () => {
+                await handleAppearanceChange({ background: "health-gray" });
+              },
+              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition ${
+                appearance.background === "health-gray"
+                  ? 'border-2 border-gray-400 bg-gray-100 text-gray-900'
+                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`
+            }, 'Health Gray'),
+            React.createElement('button', {
+              type: 'button',
+              onClick: async () => {
+                await handleAppearanceChange({ background: "eggshell" });
+              },
+              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition ${
+                appearance.background === "eggshell"
+                  ? 'border-2 border-gray-400 bg-gray-100 text-gray-900'
+                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
+              }`
+            }, 'Eggshell')
+          )
+        ),
+
+        // Feed Accent Picker
+        React.createElement('div', null,
+          React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Feed Accent'),
+          React.createElement('div', { className: "flex items-center gap-3" },
+            React.createElement('div', {
+              className: "w-10 h-10 rounded-full border-2 border-gray-300",
+              style: { backgroundColor: appearance.feedAccent }
+            }),
+            React.createElement('button', {
+              type: 'button',
+              onClick: () => setShowFeedPalette(!showFeedPalette),
+              className: "flex-1 py-2 px-4 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition text-sm font-medium"
+            }, 'Change')
+          ),
+          showFeedPalette && React.createElement('div', { className: "mt-4 p-4 bg-gray-50 rounded-xl" },
+            React.createElement('div', { className: "grid grid-cols-4 gap-3" },
+              FEED_PALETTE.map((color) =>
+                React.createElement('button', {
+                  key: color,
+                  type: 'button',
+                  onClick: async () => {
+                    await handleAppearanceChange({ feedAccent: color });
+                    setShowFeedPalette(false);
+                  },
+                  className: `w-11 h-11 rounded-full border-2 transition ${
+                    appearance.feedAccent === color
+                      ? 'border-gray-400 shadow-sm'
+                      : 'border-gray-200 hover:scale-110'
+                  }`,
+                  style: { backgroundColor: color },
+                  title: color
+                })
+              )
+            )
+          )
+        ),
+
+        // Sleep Accent Picker
+        React.createElement('div', null,
+          React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Sleep Accent'),
+          React.createElement('div', { className: "flex items-center gap-3" },
+            React.createElement('div', {
+              className: "w-10 h-10 rounded-full border-2 border-gray-300",
+              style: { backgroundColor: appearance.sleepAccent }
+            }),
+            React.createElement('button', {
+              type: 'button',
+              onClick: () => setShowSleepPalette(!showSleepPalette),
+              className: "flex-1 py-2 px-4 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition text-sm font-medium"
+            }, 'Change')
+          ),
+          showSleepPalette && React.createElement('div', { className: "mt-4 p-4 bg-gray-50 rounded-xl" },
+            React.createElement('div', { className: "grid grid-cols-4 gap-3" },
+              SLEEP_PALETTE.map((color) =>
+                React.createElement('button', {
+                  key: color,
+                  type: 'button',
+                  onClick: async () => {
+                    await handleAppearanceChange({ sleepAccent: color });
+                    setShowSleepPalette(false);
+                  },
+                  className: `w-11 h-11 rounded-full border-2 transition ${
+                    appearance.sleepAccent === color
+                      ? 'border-gray-400 shadow-sm'
+                      : 'border-gray-200 hover:scale-110'
+                  }`,
+                  style: { backgroundColor: color },
+                  title: color
+                })
+              )
+            )
+          )
+        )
+      )
+    ),
 
     // Share & Support Card
     React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },

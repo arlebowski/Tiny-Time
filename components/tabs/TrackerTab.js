@@ -751,7 +751,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             className: "absolute left-0 top-0 h-full rounded-2xl",
             style: {
               width: cardVisible ? `${Math.min(100, feedingPercent)}%` : '0%',
-              background: '#EB4899',
+              background: 'var(--tt-feed)',
               transition: 'width 0.6s ease-out',
               transitionDelay: '0s'
             }
@@ -760,7 +760,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
         // Stats
         React.createElement('div', { className: "flex items-baseline justify-between" },
-          React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#EB4899' } },
+          React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-feed)' } },
             `${totalConsumed.toFixed(1)} `,
             React.createElement('span', { className: "text-base font-normal text-gray-500" },
               `of ${targetOunces.toFixed(1)} oz`
@@ -788,7 +788,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             className: "absolute left-0 top-0 h-full rounded-2xl",
             style: {
               width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
-              background: '#4F47E6',
+              background: 'var(--tt-sleep)',
               transition: 'width 0.6s ease-out',
               transitionDelay: '0.05s'
             }
@@ -797,7 +797,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
         // Stats
         React.createElement('div', { className: "flex items-baseline justify-between" },
-          React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#4F47E6' } },
+          React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-sleep)' } },
             `${sleepTotalHours.toFixed(1)} `,
             React.createElement('span', { className: "text-base font-normal text-gray-500" },
               `of ${sleepTargetHours.toFixed(1)} hrs`
@@ -1349,6 +1349,14 @@ const DailyActivityChart = ({
   const DEBUG_ACTOGRAM = false;
   const dlog = (...args) => { try { if (DEBUG_ACTOGRAM) console.log('[ACTOGRAM]', ...args); } catch {} };
 
+  // Helper to get computed CSS variable values
+  const getComputedColor = (cssVar) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return '#000000'; // fallback
+    }
+    return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#000000';
+  };
+
   // Apple Health-ish styling constants (local to this component)
   const TT = {
     cardH: 464,           // restored taller card height (post-revert). grows downward; top/left remain locked
@@ -1358,10 +1366,10 @@ const DailyActivityChart = ({
     gridMinor: 'rgba(17,24,39,0.04)',
     axisTextClass: 'text-[12px] font-medium text-gray-500',
     nowGreen: '#22C55E',
-    // Event colors (match legend)
-    sleepNight: 'rgba(79,70,229,0.72)', // indigo
-    sleepDay:   'rgba(96,165,250,0.72)', // blue
-    feedPink:   '#EC4899',
+    // Event colors - computed from CSS variables
+    sleepNight: getComputedColor('--tt-sleep'),
+    sleepDay: getComputedColor('--tt-sleep-soft'),
+    feedPink: getComputedColor('--tt-feed'),
   };
 
   // Tappable legend toggles (guard: don't allow "all off")
@@ -2247,6 +2255,7 @@ const DailyActivityChart = ({
                                         left: `${leftMargin}px`,
                                         right: `${rightMargin}px`,
                                         background: bgColor,
+                                        opacity: 0.72,
                                         border: '1px solid rgba(255,255,255,0.25)',
                                         boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.02)',
                                         zIndex: 10
@@ -2778,6 +2787,16 @@ const HighlightMiniVizViewport = ({ height = 180, children }) => {
 
 // Sleep Chart Component - matches SleepCard.tsx design
 const SleepChart = ({ data = [], average = 0 }) => {
+  // Helper to get computed CSS variable values
+  const getComputedColor = (cssVar) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return '#4a8ac2'; // fallback to default sleep
+    }
+    return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#4a8ac2';
+  };
+
+  const sleepColor = getComputedColor('--tt-sleep');
+
   // Convert date to day of week abbreviation
   const getDayAbbrev = (date) => {
     const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -2944,7 +2963,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
               y: isVisible ? bar.y : chartHeight, // Start at bottom, animate to position
               width: barWidth,
               height: isVisible ? bar.height : 0, // Start with 0 height, animate to full height
-              fill: bar.isToday ? '#4f46e5' : '#e5e7eb',
+              fill: bar.isToday ? sleepColor : '#e5e7eb',
               rx: 6,
               ry: 6,
               style: {
@@ -2979,7 +2998,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
             y1: refLineY,
             x2: totalWidth,
             y2: refLineY,
-            stroke: '#6366f1',
+            stroke: sleepColor,
             strokeWidth: 3,
             opacity: 0.85
           }
@@ -2991,6 +3010,16 @@ const SleepChart = ({ data = [], average = 0 }) => {
 
 // Feeding Chart Component - duplicate of SleepChart design
 const FeedingChart = ({ data = [], average = 0 }) => {
+  // Helper to get computed CSS variable values
+  const getComputedColor = (cssVar) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return '#d45d5c'; // fallback to default feed
+    }
+    return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#d45d5c';
+  };
+
+  const feedColor = getComputedColor('--tt-feed');
+
   // Convert date to day of week abbreviation
   const getDayAbbrev = (date) => {
     const day = date.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
@@ -3157,7 +3186,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
               y: isVisible ? bar.y : chartHeight, // Start at bottom, animate to position
               width: barWidth,
               height: isVisible ? bar.height : 0, // Start with 0 height, animate to full height
-              fill: bar.isToday ? '#EC4899' : '#e5e7eb',
+              fill: bar.isToday ? feedColor : '#e5e7eb',
               rx: 6,
               ry: 6,
               style: {
@@ -3192,7 +3221,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
             y1: refLineY,
             x2: totalWidth,
             y2: refLineY,
-            stroke: '#EC4899',
+            stroke: feedColor,
             strokeWidth: 3,
             opacity: 0.85
           }

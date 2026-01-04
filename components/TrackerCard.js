@@ -312,17 +312,29 @@ const TrackerCard = ({ mode = 'sleep' }) => {
 
   return React.createElement(
     'div',
-    { className: "rounded-2xl bg-white p-5 shadow-sm" },
+    { 
+      className: "rounded-2xl p-5 shadow-sm",
+      style: {
+        backgroundColor: "var(--tt-card-bg)",
+        borderColor: "var(--tt-card-border)"
+      }
+    },
     React.createElement(
       'div',
       { className: "flex items-center gap-3 mb-4" },
       React.createElement('div', { className: "h-6 w-6 rounded-2xl bg-gray-100" }),
-      React.createElement('div', { className: "text-base font-semibold" }, 'Header')
+      React.createElement('div', { 
+        className: "text-base font-semibold",
+        style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+      }, 'Header')
     ),
     React.createElement(
       'div',
       { className: "flex items-baseline gap-1 mb-2" },
-      React.createElement('div', { className: "text-[40px] leading-none font-bold" }, 
+      React.createElement('div', { 
+        className: "text-[40px] leading-none font-bold",
+        style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+      }, 
         mode === 'sleep' ? '14.5' : '22.5'
       ),
       React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none text-gray-500" }, 
@@ -333,9 +345,10 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     // Animated Progress Bar (production-style)
     React.createElement('div', { className: "relative w-full h-6 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
       React.createElement('div', {
-        className: "absolute left-0 top-0 h-full rounded-2xl bg-gray-500",
+        className: "absolute left-0 top-0 h-full rounded-2xl",
         style: {
           width: cardVisible ? `${Math.min(100, demoPercent)}%` : '0%',
+          backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
           transition: 'width 0.6s ease-out',
           transitionDelay: '0s'
         }
@@ -345,7 +358,11 @@ const TrackerCard = ({ mode = 'sleep' }) => {
       'div',
       { className: "flex gap-1.5 pl-1" },
       [0, 1, 2, 3, 4].map(i =>
-        React.createElement('div', { key: i, className: "h-3.5 w-3.5 rounded-full bg-gray-500" })
+        React.createElement('div', { 
+          key: i, 
+          className: "h-3.5 w-3.5 rounded-full",
+          style: { backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+        })
       )
     ),
     React.createElement('div', { className: "border-t border-gray-100 my-4" }),
@@ -372,7 +389,7 @@ const TrackerCard = ({ mode = 'sleep' }) => {
 if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
   
   // HalfSheet wrapper component (UI Lab only)
-  const HalfSheet = ({ isOpen, onClose, title, rightAction, children }) => {
+  const HalfSheet = ({ isOpen, onClose, title, rightAction, children, accentColor }) => {
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
     const headerRef = React.useRef(null);
@@ -688,7 +705,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Sheet Panel
         React.createElement('div', {
           ref: sheetRef,
-          className: "fixed left-0 right-0 bottom-0 z-[101] bg-white shadow-2xl",
+          className: "fixed left-0 right-0 bottom-0 z-[101] shadow-2xl",
+          style: {
+            backgroundColor: "var(--tt-card-bg)"
+          },
           onClick: (e) => e.stopPropagation(),
           onTouchStart: handleTouchStart,
           onTouchMove: handleTouchMove,
@@ -715,8 +735,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Header (part of HalfSheet chrome)
           React.createElement('div', {
             ref: headerRef,
-            className: "bg-black px-6 py-5 flex items-center justify-between flex-none",
-            style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
+            className: accentColor ? "" : "bg-black",
+            style: { 
+              backgroundColor: accentColor || '#000000',
+              borderTopLeftRadius: '20px', 
+              borderTopRightRadius: '20px',
+              padding: '1.25rem 1.5rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0
+            }
           },
             // X button (close)
             React.createElement('button', {
@@ -1030,6 +1059,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           isOpen: isOpen || false,
           onClose: handleClose,
           title: 'Feeding',
+          accentColor: 'var(--tt-feed)',
           rightAction: React.createElement('button', {
             onClick: handleSave,
             className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
@@ -1042,7 +1072,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Static preview mode (for UI Lab inline display)
     return React.createElement(
       'div',
-      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      { 
+        className: "rounded-2xl shadow-sm p-6 space-y-0",
+        style: {
+          backgroundColor: "var(--tt-card-bg)",
+          borderColor: "var(--tt-card-border)"
+        }
+      },
       // Header: [X] [Feeding] [Save]
       React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
         // X button (close)
@@ -1269,6 +1305,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           isOpen: isOpen || false,
           onClose: handleClose,
           title: 'Sleep',
+          accentColor: 'var(--tt-sleep)',
           rightAction: React.createElement('button', {
             onClick: handleSave,
             disabled: !isValid,
@@ -1286,7 +1323,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Static preview mode (for UI Lab inline display)
     return React.createElement(
       'div',
-      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      { 
+        className: "rounded-2xl shadow-sm p-6 space-y-0",
+        style: {
+          backgroundColor: "var(--tt-card-bg)",
+          borderColor: "var(--tt-card-border)"
+        }
+      },
       // Header: [X] [Sleep] [Save]
       React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
         // X button (close)
@@ -1999,11 +2042,29 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         mode === 'feeding'
           ? React.createElement('button', {
               onClick: handleAddFeeding,
-              className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition"
+              className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+              style: {
+                backgroundColor: 'var(--tt-feed)'
+              },
+              onMouseEnter: (e) => {
+                e.target.style.backgroundColor = 'var(--tt-feed-strong)';
+              },
+              onMouseLeave: (e) => {
+                e.target.style.backgroundColor = 'var(--tt-feed)';
+              }
             }, 'Add Feed')
           : (sleepState === 'idle' || sleepState === 'running' || isIdleWithTimes || sleepState === 'completed') && React.createElement('button', {
               onClick: sleepState === 'running' ? handleEndSleep : handleStartSleep,
-              className: "w-full bg-black text-white py-3 rounded-2xl font-semibold hover:bg-gray-900 transition"
+              className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+              style: {
+                backgroundColor: 'var(--tt-sleep)'
+              },
+              onMouseEnter: (e) => {
+                e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+              },
+              onMouseLeave: (e) => {
+                e.target.style.backgroundColor = 'var(--tt-sleep)';
+              }
             }, sleepState === 'running' ? 'End Sleep' : 'Start Sleep')
       ),
 
@@ -2060,6 +2121,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           isOpen: isOpen || false,
           onClose: handleClose,
           fixedHeight: resolvedSheetHeight,
+          accentColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
           titleElement: React.createElement(HeaderSegmentedToggle, {
             value: mode,
             options: [
@@ -2085,7 +2147,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Static preview mode (for UI Lab inline display)
     return React.createElement(
       'div',
-      { className: "bg-white rounded-2xl shadow-sm p-6 space-y-0" },
+      { 
+        className: "rounded-2xl shadow-sm p-6 space-y-0",
+        style: {
+          backgroundColor: "var(--tt-card-bg)",
+          borderColor: "var(--tt-card-border)"
+        }
+      },
       // Header: [X] [Toggle] [Save] - fixed 60px height
       React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 h-[60px] mb-6 flex items-center justify-between" },
         React.createElement('button', {

@@ -1,5 +1,5 @@
 const TTCard = ({ variant = "default", className = "", onClick, children }) => {
-  const baseClasses = "bg-white rounded-2xl";
+  const baseClasses = "rounded-2xl";
   
   const variantClasses = {
     default: "shadow-sm p-6",
@@ -21,6 +21,10 @@ const TTCard = ({ variant = "default", className = "", onClick, children }) => {
   
   const props = {
     className: combinedClassName,
+    style: {
+      backgroundColor: "var(--tt-card-bg)",
+      borderColor: "var(--tt-card-border)"
+    },
     ...(onClick && {
       onClick: onClick,
       onKeyDown: handleKeyDown,

@@ -756,7 +756,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                   ),
                   React.createElement(
                     'div',
-                    { className: 'text-2xl font-bold text-indigo-600' },
+                    { className: 'text-2xl font-bold', style: { color: 'var(--tt-feed)' } },
                     stat.value,
                     React.createElement(
                       'span',
@@ -780,14 +780,14 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                 'div',
                 { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
                 React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Feedings / Day'),
-                React.createElement('div', { className: 'text-2xl font-bold text-indigo-600' }, stats.avgFeedingsPerDay.toFixed(1)),
+                React.createElement('div', { className: 'text-2xl font-bold', style: { color: 'var(--tt-feed)' } }, stats.avgFeedingsPerDay.toFixed(1)),
                 React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
               ),
               React.createElement(
                 'div',
                 { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
                 React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Time Between Feeds'),
-                React.createElement('div', { className: 'text-2xl font-bold text-indigo-600' }, formatInterval(stats.avgInterval)),
+                React.createElement('div', { className: 'text-2xl font-bold', style: { color: 'var(--tt-feed)' } }, formatInterval(stats.avgInterval)),
                 React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
               )
             ),
@@ -833,8 +833,9 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                               React.createElement(
                                 'div',
                                 {
-                                  className: 'w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                                  className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
                                   style: {
+                                    backgroundColor: 'var(--tt-feed)',
                                     height: `${(item.volume / maxVolume) * 160}px`,
                                     minHeight: '30px'
                                   }
@@ -890,7 +891,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                 React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Total Sleep"),
                 React.createElement(
                   "div",
-                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
                   Number(sleepCards.avgTotal || 0).toFixed(1),
                   React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
                 ),
@@ -902,7 +903,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                 React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Day Sleep"),
                 React.createElement(
                   "div",
-                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
                   Number(sleepCards.avgDay || 0).toFixed(1),
                   React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
                 ),
@@ -914,7 +915,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                 React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Night Sleep"),
                 React.createElement(
                   "div",
-                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
                   Number(sleepCards.avgNight || 0).toFixed(1),
                   React.createElement("span", { className: "text-sm font-normal text-gray-400" }, "hrs")
                 ),
@@ -926,7 +927,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                 React.createElement("div", { className: "text-sm font-medium text-gray-600 mb-2" }, "Sleeps / Day"),
                 React.createElement(
                   "div",
-                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold text-indigo-600" },
+                  { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
                   Number(sleepCards.avgSleeps || 0).toFixed(1)
                 ),
                 React.createElement("div", { className: "text-xs text-gray-400 mt-1" }, sleepCards.label)
@@ -974,8 +975,9 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                               React.createElement(
                                 "div",
                                 {
-                                  className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
+                                  className: "w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
                                   style: {
+                                    backgroundColor: 'var(--tt-sleep)',
                                     height: `${
                                       (Number(b.totalHrs || 0) /
                                         Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1)) * 160
