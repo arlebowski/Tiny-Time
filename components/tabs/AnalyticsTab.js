@@ -590,7 +590,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       { className: 'flex items-center justify-center py-12' },
       React.createElement(
         'div',
-        { className: 'text-gray-600' },
+        { style: { color: 'var(--tt-text-secondary)' } },
         'Loading analytics...'
       )
     );
@@ -599,12 +599,15 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
   if (allFeedings.length === 0) {
     return React.createElement(
       'div',
-      { className: 'bg-white rounded-2xl shadow-lg p-6' },
+      { 
+        className: 'rounded-2xl shadow-lg p-6',
+        style: { backgroundColor: 'var(--tt-card-bg)' }
+      },
       React.createElement(
         'div',
         {
-          className:
-            'text-center text-gray-400 py-8'
+          className: 'text-center py-8',
+          style: { color: 'var(--tt-text-tertiary)' }
         },
         'No feeding data yet. Start logging feedings to see analytics!'
       )
@@ -747,11 +750,14 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                   {
                     key: `m-${stat.label}`,
                     className:
-                      'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center'
+                      'rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center'
                   },
                   React.createElement(
                     'div',
-                    { className: 'text-sm font-medium text-gray-600 mb-2' },
+                    { 
+                      className: 'text-sm font-medium mb-2',
+                      style: { color: 'var(--tt-text-secondary)' }
+                    },
                     stat.label
                   ),
                   React.createElement(
@@ -760,13 +766,19 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                     stat.value,
                     React.createElement(
                       'span',
-                      { className: 'text-sm font-normal text-gray-400 ml-1' },
+                      { 
+                        className: 'text-sm font-normal ml-1',
+                        style: { color: 'var(--tt-text-tertiary)' }
+                      },
                       'oz'
                     )
                   ),
                   React.createElement(
                     'div',
-                    { className: 'text-xs text-gray-400 mt-1' },
+                    { 
+                      className: 'text-xs mt-1',
+                      style: { color: 'var(--tt-text-tertiary)' }
+                    },
                     stats.labelText
                   )
                 )
@@ -778,14 +790,20 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
               { className: 'grid grid-cols-2 gap-4 mt-4' },
               React.createElement(
                 'div',
-                { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
+                { 
+                  className: 'rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center',
+                  style: { backgroundColor: 'var(--tt-card-bg)' }
+                },
                 React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Feedings / Day'),
                 React.createElement('div', { className: 'text-2xl font-bold', style: { color: 'var(--tt-feed)' } }, stats.avgFeedingsPerDay.toFixed(1)),
                 React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
               ),
               React.createElement(
                 'div',
-                { className: 'bg-white rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center' },
+                { 
+                  className: 'rounded-2xl shadow-lg p-6 flex flex-col items-center justify-center text-center',
+                  style: { backgroundColor: 'var(--tt-card-bg)' }
+                },
                 React.createElement('div', { className: 'text-sm font-medium text-gray-600 mb-2' }, 'Time Between Feeds'),
                 React.createElement('div', { className: 'text-2xl font-bold', style: { color: 'var(--tt-feed)' } }, formatInterval(stats.avgInterval)),
                 React.createElement('div', { className: 'text-xs text-gray-400 mt-1' }, stats.labelText)
@@ -795,10 +813,16 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
             // Volume History (modal-scoped scroll ref)
             React.createElement(
               'div',
-              { className: 'bg-white rounded-2xl shadow-lg p-6 mt-4' },
+              { 
+                className: 'rounded-2xl shadow-lg p-6 mt-4',
+                style: { backgroundColor: 'var(--tt-card-bg)' }
+              },
               React.createElement(
                 'div',
-                { className: 'text-sm font-medium text-gray-600 mb-2.5 text-center' },
+                { 
+                  className: 'text-sm font-medium mb-2.5 text-center',
+                  style: { color: 'var(--tt-text-secondary)' }
+                },
                 'Volume History'
               ),
               stats.chartData.length > 0
@@ -848,14 +872,23 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
                                 )
                               )
                             ),
-                            React.createElement('div', { className: 'text-xs text-gray-600 font-medium' }, item.date),
-                            React.createElement('div', { className: 'text-xs text-gray-400' }, `${item.count} feeds`)
+                            React.createElement('div', { 
+                              className: 'text-xs font-medium',
+                              style: { color: 'var(--tt-text-secondary)' }
+                            }, item.date),
+                            React.createElement('div', { 
+                              className: 'text-xs',
+                              style: { color: 'var(--tt-text-tertiary)' }
+                            }, `${item.count} feeds`)
                           )
                         )
                       )
                     )
                   )
-                : React.createElement('div', { className: 'text-center text-gray-400 py-8' }, 'No data to display')
+                : React.createElement('div', { 
+                    className: 'text-center py-8',
+                    style: { color: 'var(--tt-text-tertiary)' }
+                  }, 'No data to display')
             )
           )
         )

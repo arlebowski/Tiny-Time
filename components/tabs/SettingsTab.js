@@ -2196,12 +2196,12 @@ const SettingsTab = ({ user, kidId }) => {
 
     // Appearance Card
     React.createElement(TTCard, { variant: "default" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Appearance'),
+      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Appearance'),
       React.createElement('div', { className: "space-y-6" },
 
         // Dark Mode Toggle
         React.createElement('div', { className: "flex items-center justify-between" },
-          React.createElement('span', { className: "text-base font-medium text-gray-800" }, 'Dark Mode'),
+          React.createElement('span', { className: "text-base font-medium", style: { color: 'var(--tt-text-primary)' } }, 'Dark Mode'),
           React.createElement('button', {
             type: 'button',
             onClick: async () => {
@@ -2209,7 +2209,7 @@ const SettingsTab = ({ user, kidId }) => {
             },
             'aria-pressed': appearance.darkMode,
             className: `relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-              appearance.darkMode ? 'bg-indigo-600' : 'bg-gray-300'
+              appearance.darkMode ? 'bg-gray-400' : 'bg-gray-300'
             }`,
             role: 'switch'
           },
@@ -2223,48 +2223,60 @@ const SettingsTab = ({ user, kidId }) => {
 
         // Background Theme Selector
         React.createElement('div', null,
-          React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Background Theme'),
+          React.createElement('div', { className: "text-sm font-medium mb-3", style: { color: 'var(--tt-text-secondary)' } }, 'Background Theme'),
           React.createElement('div', { className: "flex gap-3" },
             React.createElement('button', {
               type: 'button',
               onClick: async () => {
                 await handleAppearanceChange({ background: "health-gray" });
               },
-              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition ${
-                appearance.background === "health-gray"
-                  ? 'border-2 border-gray-400 bg-gray-100 text-gray-900'
-                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-              }`
+              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition`,
+              style: {
+                backgroundColor: appearance.background === "health-gray" ? 'var(--tt-card-bg)' : 'var(--tt-card-bg)',
+                borderColor: appearance.background === "health-gray" ? 'var(--tt-card-border)' : 'var(--tt-card-border)',
+                borderWidth: appearance.background === "health-gray" ? '2px' : '1px',
+                color: appearance.background === "health-gray" ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
+              }
             }, 'Health Gray'),
             React.createElement('button', {
               type: 'button',
               onClick: async () => {
                 await handleAppearanceChange({ background: "eggshell" });
               },
-              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition ${
-                appearance.background === "eggshell"
-                  ? 'border-2 border-gray-400 bg-gray-100 text-gray-900'
-                  : 'border border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-              }`
+              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition`,
+              style: {
+                backgroundColor: appearance.background === "eggshell" ? 'var(--tt-card-bg)' : 'var(--tt-card-bg)',
+                borderColor: appearance.background === "eggshell" ? 'var(--tt-card-border)' : 'var(--tt-card-border)',
+                borderWidth: appearance.background === "eggshell" ? '2px' : '1px',
+                color: appearance.background === "eggshell" ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
+              }
             }, 'Eggshell')
           )
         ),
 
         // Feed Accent Picker
         React.createElement('div', null,
-          React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Feed Accent'),
+          React.createElement('div', { className: "text-sm font-medium mb-3", style: { color: 'var(--tt-text-secondary)' } }, 'Feed Accent'),
           React.createElement('div', { className: "flex items-center gap-3" },
             React.createElement('div', {
-              className: "w-10 h-10 rounded-full border-2 border-gray-300",
-              style: { backgroundColor: appearance.feedAccent }
+              className: "w-10 h-10 rounded-full border-2",
+              style: { 
+                backgroundColor: appearance.feedAccent,
+                borderColor: 'var(--tt-card-border)'
+              }
             }),
             React.createElement('button', {
               type: 'button',
               onClick: () => setShowFeedPalette(!showFeedPalette),
-              className: "flex-1 py-2 px-4 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition text-sm font-medium"
+              className: "flex-1 py-2 px-4 rounded-lg border transition text-sm font-medium",
+              style: {
+                backgroundColor: 'var(--tt-card-bg)',
+                borderColor: 'var(--tt-card-border)',
+                color: 'var(--tt-text-secondary)'
+              }
             }, 'Change')
           ),
-          showFeedPalette && React.createElement('div', { className: "mt-4 p-4 bg-gray-50 rounded-xl" },
+          showFeedPalette && React.createElement('div', { className: "mt-4 p-4 rounded-xl", style: { backgroundColor: 'var(--tt-card-bg)' } },
             React.createElement('div', { className: "grid grid-cols-4 gap-3" },
               FEED_PALETTE.map((color) =>
                 React.createElement('button', {
@@ -2275,11 +2287,12 @@ const SettingsTab = ({ user, kidId }) => {
                     setShowFeedPalette(false);
                   },
                   className: `w-11 h-11 rounded-full border-2 transition ${
-                    appearance.feedAccent === color
-                      ? 'border-gray-400 shadow-sm'
-                      : 'border-gray-200 hover:scale-110'
+                    appearance.feedAccent === color ? 'shadow-sm' : 'hover:scale-110'
                   }`,
-                  style: { backgroundColor: color },
+                  style: { 
+                    backgroundColor: color,
+                    borderColor: appearance.feedAccent === color ? 'var(--tt-text-primary)' : 'var(--tt-card-border)'
+                  },
                   title: color
                 })
               )
@@ -2289,19 +2302,27 @@ const SettingsTab = ({ user, kidId }) => {
 
         // Sleep Accent Picker
         React.createElement('div', null,
-          React.createElement('div', { className: "text-sm font-medium text-gray-700 mb-3" }, 'Sleep Accent'),
+          React.createElement('div', { className: "text-sm font-medium mb-3", style: { color: 'var(--tt-text-secondary)' } }, 'Sleep Accent'),
           React.createElement('div', { className: "flex items-center gap-3" },
             React.createElement('div', {
-              className: "w-10 h-10 rounded-full border-2 border-gray-300",
-              style: { backgroundColor: appearance.sleepAccent }
+              className: "w-10 h-10 rounded-full border-2",
+              style: { 
+                backgroundColor: appearance.sleepAccent,
+                borderColor: 'var(--tt-card-border)'
+              }
             }),
             React.createElement('button', {
               type: 'button',
               onClick: () => setShowSleepPalette(!showSleepPalette),
-              className: "flex-1 py-2 px-4 rounded-lg border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 transition text-sm font-medium"
+              className: "flex-1 py-2 px-4 rounded-lg border transition text-sm font-medium",
+              style: {
+                backgroundColor: 'var(--tt-card-bg)',
+                borderColor: 'var(--tt-card-border)',
+                color: 'var(--tt-text-secondary)'
+              }
             }, 'Change')
           ),
-          showSleepPalette && React.createElement('div', { className: "mt-4 p-4 bg-gray-50 rounded-xl" },
+          showSleepPalette && React.createElement('div', { className: "mt-4 p-4 rounded-xl", style: { backgroundColor: 'var(--tt-card-bg)' } },
             React.createElement('div', { className: "grid grid-cols-4 gap-3" },
               SLEEP_PALETTE.map((color) =>
                 React.createElement('button', {
@@ -2312,11 +2333,12 @@ const SettingsTab = ({ user, kidId }) => {
                     setShowSleepPalette(false);
                   },
                   className: `w-11 h-11 rounded-full border-2 transition ${
-                    appearance.sleepAccent === color
-                      ? 'border-gray-400 shadow-sm'
-                      : 'border-gray-200 hover:scale-110'
+                    appearance.sleepAccent === color ? 'shadow-sm' : 'hover:scale-110'
                   }`,
-                  style: { backgroundColor: color },
+                  style: { 
+                    backgroundColor: color,
+                    borderColor: appearance.sleepAccent === color ? 'var(--tt-text-primary)' : 'var(--tt-card-border)'
+                  },
                   title: color
                 })
               )
@@ -2327,30 +2349,34 @@ const SettingsTab = ({ user, kidId }) => {
     ),
 
     // Share & Support Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Share & Support'),
+    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
+      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Share & Support'),
       React.createElement('button', {
         onClick: handleShareApp,
-        className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-xl font-semibold hover:bg-indigo-100 transition flex items-center justify-center gap-2"
+        className: "w-full py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2",
+        style: {
+          backgroundColor: 'var(--tt-feed-soft)',
+          color: 'var(--tt-feed)'
+        }
       },
         React.createElement('span', { className: "text-xl" }, '📱'),
         'Share Tiny Tracker'
       ),
-      React.createElement('p', { className: "text-xs text-gray-500 mt-2 text-center" }, 
+      React.createElement('p', { className: "text-xs mt-2 text-center", style: { color: 'var(--tt-text-secondary)' } }, 
         'Tell other parents about Tiny Tracker!'
       )
     ),
 
     // Account Card
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Account'),
+    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
+      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Account'),
       React.createElement('div', { className: "space-y-3" },
 
         // User Profile Display
-        React.createElement('div', { className: "flex items-center justify-between p-3 bg-gray-50 rounded-lg" },
+        React.createElement('div', { className: "flex items-center justify-between p-3 rounded-lg", style: { backgroundColor: 'var(--tt-card-bg)' } },
           React.createElement('div', null,
-            React.createElement('div', { className: "text-sm font-medium text-gray-800" }, user.displayName || 'User'),
-            React.createElement('div', { className: "text-xs text-gray-500" }, user.email)
+            React.createElement('div', { className: "text-sm font-medium", style: { color: 'var(--tt-text-primary)' } }, user.displayName || 'User'),
+            React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, user.email)
           ),
           user.photoURL &&
             React.createElement('img', {
@@ -2363,23 +2389,35 @@ const SettingsTab = ({ user, kidId }) => {
         // Sign Out Button
         React.createElement('button', {
           onClick: handleSignOut,
-          className: "w-full bg-red-50 text-red-600 py-3 rounded-xl font-semibold hover:bg-red-100 transition"
+          className: "w-full py-3 rounded-xl font-semibold transition",
+          style: {
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            color: '#ef4444'
+          }
         }, 'Sign Out'),
 
         // Delete Account Button (Destructive)
         React.createElement('button', {
           onClick: handleDeleteAccount,
-          className: "w-full bg-red-600 text-white py-3 rounded-xl font-semibold hover:bg-red-700 transition"
+          className: "w-full py-3 rounded-xl font-semibold transition",
+          style: {
+            backgroundColor: '#ef4444',
+            color: 'white'
+          }
         }, 'Delete My Account')
       )
     ),
 
     // Internal Card (formerly About)
-    React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Internal'),
+    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
+      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Internal'),
       React.createElement('button', {
         onClick: () => setShowUILab(true),
-        className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-xl font-semibold hover:bg-indigo-100 transition"
+        className: "w-full py-3 rounded-xl font-semibold transition",
+        style: {
+          backgroundColor: 'var(--tt-feed-soft)',
+          color: 'var(--tt-feed)'
+        }
       }, 'UI Lab')
     )
   );
