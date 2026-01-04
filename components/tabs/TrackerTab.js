@@ -1089,16 +1089,25 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     // -----------------------
     (logMode === 'sleep') && React.createElement(
       'div',
-      { className: "bg-white rounded-2xl shadow-lg p-6 mt-6" },
+      { 
+        className: "rounded-2xl shadow-lg p-6 mt-6",
+        style: { backgroundColor: 'var(--tt-card-bg)' }
+      },
       React.createElement(
         'h2',
-        { className: "text-lg font-semibold text-gray-800 mb-4" },
+        { 
+          className: "text-lg font-semibold mb-4",
+          style: { color: 'var(--tt-text-primary)' }
+        },
         `Sleep · ${sleepSessions.length}`
       ),
       sleepSessions.length === 0
-        ? React.createElement(
+        ?           React.createElement(
             'div',
-            { className: "text-gray-400 text-center py-6" },
+            { 
+              className: "text-center py-6",
+              style: { color: 'var(--tt-text-tertiary)' }
+            },
             'No sleep logged yet'
           )
         : React.createElement(
@@ -1132,48 +1141,84 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                   'div',
                   { key: s.id },
                   editingSleepId === s.id
-                    ? React.createElement('div', { className: "trackerEditCard p-4 bg-indigo-50 rounded-xl" },
+                    ? React.createElement('div', { 
+                        className: "trackerEditCard p-4 rounded-xl",
+                        style: { backgroundColor: 'var(--tt-sleep-soft)' }
+                      },
                         React.createElement('div', { className: "trackerEditBlock space-y-3 w-full max-w-[520px] mx-auto" },
                           React.createElement('div', { className: "trackerEditGrid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 w-full" },
                             React.createElement('div', { className: "editField min-w-0" },
-                              React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'Start'),
+                              React.createElement('div', { 
+                                className: "editFieldLabel text-xs font-semibold mb-1",
+                                style: { color: 'var(--tt-text-secondary)' }
+                              }, 'Start'),
                               React.createElement('input', {
                                 type: 'time',
                                 value: sleepEditStartStr,
                                 onChange: (e) => setSleepEditStartStr(e.target.value),
-                                className: "w-full h-11 min-w-0 appearance-none bg-white px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                                className: "w-full h-11 min-w-0 appearance-none px-3 border-2 rounded-lg focus:outline-none",
+                                style: {
+                                  backgroundColor: 'var(--tt-input-bg)',
+                                  borderColor: 'var(--tt-sleep)',
+                                  color: 'var(--tt-text-primary)'
+                                },
+                                onFocus: (e) => e.target.style.borderColor = 'var(--tt-sleep-strong)',
+                                onBlur: (e) => e.target.style.borderColor = 'var(--tt-sleep)'
                               })
                             ),
                             React.createElement('div', { className: "editField min-w-0" },
-                              React.createElement('div', { className: "editFieldLabel text-xs font-semibold text-gray-500 mb-1" }, 'End'),
+                              React.createElement('div', { 
+                                className: "editFieldLabel text-xs font-semibold mb-1",
+                                style: { color: 'var(--tt-text-secondary)' }
+                              }, 'End'),
                               React.createElement('input', {
                                 type: 'time',
                                 value: sleepEditEndStr,
                                 onChange: (e) => setSleepEditEndStr(e.target.value),
-                                className: "w-full h-11 min-w-0 appearance-none bg-white px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                                className: "w-full h-11 min-w-0 appearance-none px-3 border-2 rounded-lg focus:outline-none",
+                                style: {
+                                  backgroundColor: 'var(--tt-input-bg)',
+                                  borderColor: 'var(--tt-sleep)',
+                                  color: 'var(--tt-text-primary)'
+                                },
+                                onFocus: (e) => e.target.style.borderColor = 'var(--tt-sleep-strong)',
+                                onBlur: (e) => e.target.style.borderColor = 'var(--tt-sleep)'
                               })
                             )
                           ),
                             React.createElement(TrackerEditActions, { onSave: handleSaveSleepEdit, onCancel: handleCancelSleepEdit })
                           )
                         )
-                      : React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-xl" },
+                      : React.createElement('div', { 
+                          className: "flex justify-between items-center p-4 rounded-xl",
+                          style: { backgroundColor: 'var(--tt-input-bg)' }
+                        },
                       React.createElement('div', { className: "flex items-center gap-3" },
                         React.createElement(
                           'div',
                           {
-                            className: "bg-indigo-100 rounded-full flex items-center justify-center",
-                            style: { width: '48px', height: '48px' }
+                            className: "rounded-full flex items-center justify-center",
+                            style: { 
+                              width: '48px', 
+                              height: '48px',
+                              backgroundColor: 'var(--tt-sleep-soft)'
+                            }
                           },
                           React.createElement('span', { className: "text-xl" }, sleepEmoji)
                         ),
                         React.createElement(
                           'div',
                           {},
-                          React.createElement('div', { className: "font-semibold text-gray-800" }, durLabel),
+                          React.createElement('div', { 
+                            className: "font-semibold",
+                            style: { color: 'var(--tt-text-primary)' }
+                          }, durLabel),
                           React.createElement(
                             'div',
-                            { className: "text-sm text-gray-500" },
+                            { 
+                              className: "text-sm",
+                              style: { color: 'var(--tt-text-secondary)' }
+                            },
                             `${startLabel} – ${endLabel}`
                           )
                         )
@@ -1181,7 +1226,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                       React.createElement('div', { className: "flex gap-2" },
                         React.createElement('button', {
                           onClick: () => handleStartEditSleep(s),
-                          className: "text-indigo-600 hover:text-indigo-700 transition"
+                          className: "transition",
+                          style: { color: 'var(--tt-sleep)' }
                         }, React.createElement(Edit2, { className: "w-5 h-5" })),
                         React.createElement('button', {
                           onClick: () => handleDeleteSleepSession(s.id),
@@ -1194,16 +1240,28 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           )
     ),
     // Feedings List
-    (logMode === 'feeding') && React.createElement('div', { className: "bg-white rounded-2xl shadow-lg p-6" },
-      React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, `Feedings · ${feedings.length}`),
+    (logMode === 'feeding') && React.createElement('div', { 
+      className: "rounded-2xl shadow-lg p-6",
+      style: { backgroundColor: 'var(--tt-card-bg)' }
+    },
+      React.createElement('h2', { 
+        className: "text-lg font-semibold mb-4",
+        style: { color: 'var(--tt-text-primary)' }
+      }, `Feedings · ${feedings.length}`),
       feedings.length === 0 ?
-        React.createElement('p', { className: "text-gray-400 text-center py-8" }, 'No feedings logged for this day')
+        React.createElement('p', { 
+          className: "text-center py-8",
+          style: { color: 'var(--tt-text-tertiary)' }
+        }, 'No feedings logged for this day')
       :
         React.createElement('div', { className: "space-y-3" },
           feedings.map((feeding) =>
             React.createElement('div', { key: feeding.id },
               editingFeedingId === feeding.id ?
-                React.createElement('div', { className: "trackerEditCard p-4 bg-indigo-50 rounded-xl" },
+                React.createElement('div', { 
+                  className: "trackerEditCard p-4 rounded-xl",
+                  style: { backgroundColor: 'var(--tt-feed-soft)' }
+                },
                   React.createElement('div', { className: "trackerEditBlock space-y-3 w-full max-w-[520px] mx-auto" },
                     React.createElement('div', { className: "trackerEditGrid grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3 w-full" },
                       React.createElement('div', { className: "feedingAmountField relative w-full min-w-0" },
@@ -1218,38 +1276,69 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                             setEditOunces(value);
                           },
                           placeholder: "Ounces",
-                          className: "feedingAmountInput w-full h-11 min-w-0 appearance-none bg-white px-3 pr-10 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                          className: "feedingAmountInput w-full h-11 min-w-0 appearance-none px-3 pr-10 border-2 rounded-lg focus:outline-none",
+                          style: {
+                            backgroundColor: 'var(--tt-input-bg)',
+                            borderColor: 'var(--tt-feed)',
+                            color: 'var(--tt-text-primary)'
+                          },
+                          onFocus: (e) => e.target.style.borderColor = 'var(--tt-feed-strong)',
+                          onBlur: (e) => e.target.style.borderColor = 'var(--tt-feed)'
                         }),
-                        React.createElement('span', { className: "feedingAmountUnit absolute right-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none" }, 'oz')
+                        React.createElement('span', { 
+                          className: "feedingAmountUnit absolute right-3 top-1/2 -translate-y-1/2 text-sm pointer-events-none",
+                          style: { color: 'var(--tt-text-secondary)' }
+                        }, 'oz')
                       ),
                       React.createElement('input', {
                         type: "time",
                         value: editTime,
                         onChange: (e) => setEditTime(e.target.value),
-                        className: "w-full h-11 min-w-0 appearance-none bg-white px-3 border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500"
+                        className: "w-full h-11 min-w-0 appearance-none px-3 border-2 rounded-lg focus:outline-none",
+                        style: {
+                          backgroundColor: 'var(--tt-input-bg)',
+                          borderColor: 'var(--tt-feed)',
+                          color: 'var(--tt-text-primary)'
+                        },
+                        onFocus: (e) => e.target.style.borderColor = 'var(--tt-feed-strong)',
+                        onBlur: (e) => e.target.style.borderColor = 'var(--tt-feed)'
                       })
                     ),
                     React.createElement(TrackerEditActions, { onSave: handleSaveEdit, onCancel: handleCancelEdit })
                   )
                 )
               :
-                React.createElement('div', { className: "flex justify-between items-center p-4 bg-gray-50 rounded-lg" },
+                React.createElement('div', { 
+                  className: "flex justify-between items-center p-4 rounded-lg",
+                  style: { backgroundColor: 'var(--tt-input-bg)' }
+                },
                   React.createElement('div', { className: "flex items-center gap-3" },
                     React.createElement('div', { 
-                      className: "bg-indigo-100 rounded-full flex items-center justify-center",
-                      style: { width: '48px', height: '48px' }
+                      className: "rounded-full flex items-center justify-center",
+                      style: { 
+                        width: '48px', 
+                        height: '48px',
+                        backgroundColor: 'var(--tt-feed-soft)'
+                      }
                     },
                       React.createElement('span', { className: "text-xl" }, '🍼')
                     ),
                     React.createElement('div', {},
-                      React.createElement('div', { className: "font-semibold text-gray-800" }, `${feeding.ounces} oz`),
-                      React.createElement('div', { className: "text-sm text-gray-500" }, feeding.time)
+                      React.createElement('div', { 
+                        className: "font-semibold",
+                        style: { color: 'var(--tt-text-primary)' }
+                      }, `${feeding.ounces} oz`),
+                      React.createElement('div', { 
+                        className: "text-sm",
+                        style: { color: 'var(--tt-text-secondary)' }
+                      }, feeding.time)
                     )
                   ),
                   React.createElement('div', { className: "flex gap-2" },
                     React.createElement('button', {
                       onClick: () => handleStartEdit(feeding),
-                      className: "text-indigo-600 hover:text-indigo-700 transition"
+                      className: "transition",
+                      style: { color: 'var(--tt-feed)' }
                     }, React.createElement(Edit2, { className: "w-5 h-5" })),
                     React.createElement('button', {
                       onClick: () => handleDeleteFeeding(feeding.id),

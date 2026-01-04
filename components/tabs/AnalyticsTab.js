@@ -649,12 +649,12 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         HighlightCard,
         {
           icon: Milk,
-          label: 'Eating',
+          label: 'Feed',
           insightText: [
             'Levi has been eating a bit less in the last three days.',
             'But that\'s totally fine!'
           ],
-          categoryColor: 'var(--color-eating)',
+          categoryColor: 'var(--tt-feed)',
           onClick: () => setActiveModal('feeding')
         },
         React.createElement(FeedingChart, {
@@ -673,7 +673,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
             'Levi has been sleeping great this week!',
             ''
           ],
-          categoryColor: 'var(--color-sleep)',
+          categoryColor: 'var(--tt-sleep)',
           onClick: () => setActiveModal('sleep')
         },
         React.createElement(SleepChart, {
