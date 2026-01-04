@@ -215,6 +215,295 @@ const ensureUserProfile = async (user, inviteCode = null) => {
   }
 };
 
+// ========================================
+// USER APPEARANCE PREFERENCES (Step 1)
+// ========================================
+
+// Default appearance schema
+const DEFAULT_APPEARANCE = {
+  darkMode: false,
+  background: "health-gray", // allowed: "health-gray" | "eggshell"
+  feedAccent: "#d45d5c",
+  sleepAccent: "#4a8ac2"
+};
+
+// Initialize TT.appearance namespace
+window.TT = window.TT || {};
+window.TT.appearance = (() => {
+  let currentAppearance = { ...DEFAULT_APPEARANCE };
+  let initialized = false;
+  let initializationPromise = null;
+  let lastUid = null; // Track last initialized UID
+
+  // Load appearance from Firestore for a user
+  const loadAppearance = async (uid) => {
+    if (!uid) {
+      currentAppearance = { ...DEFAULT_APPEARANCE };
+      initialized = true;
+      return;
+    }
+
+    try {
+      const userRef = db.collection("users").doc(uid);
+      const snap = await userRef.get();
+      
+      if (snap.exists) {
+        const userData = snap.data();
+        const stored = userData.appearance;
+        
+        if (stored && typeof stored === 'object') {
+          // Merge stored appearance with defaults (handle partial updates)
+          currentAppearance = {
+            darkMode: typeof stored.darkMode === 'boolean' ? stored.darkMode : DEFAULT_APPEARANCE.darkMode,
+            background: (stored.background === "health-gray" || stored.background === "eggshell") 
+              ? stored.background 
+              : DEFAULT_APPEARANCE.background,
+            feedAccent: typeof stored.feedAccent === 'string' ? stored.feedAccent : DEFAULT_APPEARANCE.feedAccent,
+            sleepAccent: typeof stored.sleepAccent === 'string' ? stored.sleepAccent : DEFAULT_APPEARANCE.sleepAccent
+          };
+        } else {
+          // No appearance stored yet - use defaults but don't write yet
+          // (will be written on first set() call)
+          currentAppearance = { ...DEFAULT_APPEARANCE };
+        }
+      } else {
+        // User doc doesn't exist - use defaults
+        currentAppearance = { ...DEFAULT_APPEARANCE };
+      }
+    } catch (error) {
+      console.warn("Failed to load appearance preferences, using defaults:", error);
+      // On read failure, use defaults in memory (don't spam writes)
+      currentAppearance = { ...DEFAULT_APPEARANCE };
+    }
+    
+    initialized = true;
+  };
+
+  // Save appearance to Firestore
+  const saveAppearance = async (uid, appearance) => {
+    if (!uid) {
+      console.warn("Cannot save appearance: no user ID");
+      return;
+    }
+
+    try {
+      const userRef = db.collection("users").doc(uid);
+      await userRef.set({ appearance }, { merge: true });
+    } catch (error) {
+      console.error("Failed to save appearance preferences:", error);
+      throw error;
+    }
+  };
+
+  // Public API
+  return {
+    // Initialize appearance for a user (called on auth state change)
+    init: async (uid) => {
+      // If UID changed (including null), reset state and clear cached promise
+      if (uid !== lastUid) {
+        initializationPromise = null;
+        initialized = false;
+        lastUid = uid;
+      }
+
+      // If we already have a pending promise for this UID, return it
+      if (initializationPromise) {
+        return initializationPromise;
+      }
+
+      // Create new initialization promise
+      initializationPromise = (async () => {
+        await loadAppearance(uid);
+        return currentAppearance;
+      })();
+      
+      return initializationPromise;
+    },
+
+    // Get current appearance object
+    get: () => {
+      if (!initialized) {
+        console.warn("Appearance not initialized yet, returning defaults");
+        return { ...DEFAULT_APPEARANCE };
+      }
+      return { ...currentAppearance };
+    },
+
+    // Set appearance (merges partial updates and persists)
+    set: async (partial) => {
+      if (!partial || typeof partial !== 'object') {
+        console.warn("TT.appearance.set() requires an object");
+        return;
+      }
+
+      const user = auth.currentUser;
+      if (!user || !user.uid) {
+        console.warn("Cannot set appearance: user not authenticated");
+        return;
+      }
+
+      // Merge partial update with current appearance
+      const updated = {
+        ...currentAppearance,
+        ...partial
+      };
+
+      // Validate fields
+      if (typeof updated.darkMode !== 'boolean') {
+        updated.darkMode = DEFAULT_APPEARANCE.darkMode;
+      }
+      if (updated.background !== "health-gray" && updated.background !== "eggshell") {
+        updated.background = DEFAULT_APPEARANCE.background;
+      }
+      if (typeof updated.feedAccent !== 'string' || !updated.feedAccent.startsWith('#')) {
+        updated.feedAccent = DEFAULT_APPEARANCE.feedAccent;
+      }
+      if (typeof updated.sleepAccent !== 'string' || !updated.sleepAccent.startsWith('#')) {
+        updated.sleepAccent = DEFAULT_APPEARANCE.sleepAccent;
+      }
+
+      // Update in-memory state
+      currentAppearance = updated;
+
+      // Apply to DOM immediately (offline-first: update UI even if persist fails)
+      if (typeof window.TT.applyAppearance === 'function') {
+        window.TT.applyAppearance(currentAppearance);
+      }
+
+      // Persist to Firestore
+      try {
+        await saveAppearance(user.uid, currentAppearance);
+      } catch (error) {
+        console.error("Failed to persist appearance update:", error);
+        // Note: We still update in-memory state and DOM even if persist fails
+        // (offline-first approach)
+      }
+    },
+
+    // Reset to defaults (useful for testing/debugging)
+    reset: async () => {
+      const user = auth.currentUser;
+      if (user && user.uid) {
+        currentAppearance = { ...DEFAULT_APPEARANCE };
+        try {
+          await saveAppearance(user.uid, currentAppearance);
+        } catch (error) {
+          console.error("Failed to reset appearance:", error);
+        }
+      }
+    }
+  };
+})();
+
+// ========================================
+// APPLY APPEARANCE TO DOM (Step 2)
+// ========================================
+
+// Helper: Validate hex color format (#RRGGBB)
+const isValidHex = (hex) => {
+  return typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex);
+};
+
+// Helper: Derive soft/strong accent variants from base color
+const deriveAccentVariants = (hex, isDark) => {
+  // Parse hex to RGB
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+
+  // Mix function: mix(color1, color2, ratio) where ratio is 0-1
+  const mix = (c1, c2, ratio) => Math.round(c1 * (1 - ratio) + c2 * ratio);
+
+  // Soft variant
+  const softR = isDark ? mix(r, 0, 0.55) : mix(r, 255, 0.82);
+  const softG = isDark ? mix(g, 0, 0.55) : mix(g, 255, 0.82);
+  const softB = isDark ? mix(b, 0, 0.55) : mix(b, 255, 0.82);
+  const softHex = `#${softR.toString(16).padStart(2, '0')}${softG.toString(16).padStart(2, '0')}${softB.toString(16).padStart(2, '0')}`;
+
+  // Strong variant
+  const strongR = isDark ? mix(r, 255, 0.15) : mix(r, 0, 0.15);
+  const strongG = isDark ? mix(g, 255, 0.15) : mix(g, 0, 0.15);
+  const strongB = isDark ? mix(b, 255, 0.15) : mix(b, 0, 0.15);
+  const strongHex = `#${strongR.toString(16).padStart(2, '0')}${strongG.toString(16).padStart(2, '0')}${strongB.toString(16).padStart(2, '0')}`;
+
+  return { soft: softHex, strong: strongHex };
+};
+
+// Background theme mapping
+const BACKGROUND_THEMES = {
+  light: {
+    "health-gray": {
+      appBg: "#f3f4f6",
+      cardBg: "#ffffff",
+      cardBorder: "rgba(0,0,0,0.08)"
+    },
+    "eggshell": {
+      appBg: "#f6f1e7",
+      cardBg: "#ffffff",
+      cardBorder: "rgba(0,0,0,0.08)"
+    }
+  },
+  dark: {
+    "health-gray": {
+      appBg: "#0b0f14",
+      cardBg: "#121826",
+      cardBorder: "rgba(255,255,255,0.10)"
+    },
+    "eggshell": {
+      appBg: "#0e0c0a",
+      cardBg: "#171411",
+      cardBorder: "rgba(255,255,255,0.10)"
+    }
+  }
+};
+
+// Apply appearance to DOM
+window.TT.applyAppearance = function(appearance) {
+  if (!appearance || typeof appearance !== 'object') {
+    console.warn("applyAppearance: invalid appearance object");
+    return;
+  }
+
+  const { darkMode, background, feedAccent, sleepAccent } = appearance;
+
+  // Toggle dark mode class
+  if (darkMode) {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+
+  // Sanitize accent colors (FIX 1: validate hex format before deriving variants)
+  const sanitizedFeedAccent = isValidHex(feedAccent) ? feedAccent : DEFAULT_APPEARANCE.feedAccent;
+  const sanitizedSleepAccent = isValidHex(sleepAccent) ? sleepAccent : DEFAULT_APPEARANCE.sleepAccent;
+
+  // Get background theme
+  const mode = darkMode ? 'dark' : 'light';
+  const theme = BACKGROUND_THEMES[mode][background] || BACKGROUND_THEMES[mode]["health-gray"]; // FIX 2: mode-aware fallback
+
+  // Set CSS variables on :root
+  const root = document.documentElement;
+
+  // Background/surfaces
+  root.style.setProperty('--tt-app-bg', theme.appBg);
+  root.style.setProperty('--tt-card-bg', theme.cardBg);
+  root.style.setProperty('--tt-card-border', theme.cardBorder);
+
+  // Derive accent variants
+  const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
+  const sleepVariants = deriveAccentVariants(sanitizedSleepAccent, darkMode);
+
+  // Feed accents
+  root.style.setProperty('--tt-feed', sanitizedFeedAccent);
+  root.style.setProperty('--tt-feed-soft', feedVariants.soft);
+  root.style.setProperty('--tt-feed-strong', feedVariants.strong);
+
+  // Sleep accents
+  root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
+  root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
+  root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
+};
+
 const signInWithGoogle = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
   const result = await auth.signInWithPopup(provider);
@@ -921,6 +1210,9 @@ const App = () => {
         setNeedsSetup(false);
         setLoadIssue(null);
         setLoading(false);
+        // Reset appearance to defaults on sign out
+        await window.TT.appearance.init(null);
+        window.TT.applyAppearance(window.TT.appearance.get());
         return;
       }
 
@@ -935,6 +1227,13 @@ const App = () => {
         // 1️⃣ Ensure user profile exists
         //
         await ensureUserProfile(u, inviteCode);
+
+        //
+        // 1.5️⃣ Load user appearance preferences
+        //
+        await window.TT.appearance.init(u.uid);
+        // Apply appearance to DOM
+        window.TT.applyAppearance(window.TT.appearance.get());
 
         //
         // 2️⃣ Look up user's families (new schema)
@@ -1688,12 +1987,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   }, []);
 
   useEffect(() => {
-    // Sync iOS Safari safe-area / browser chrome with active kid theme
+    // Sync iOS Safari safe-area / browser chrome with appearance system
     try {
-      document.body.style.backgroundColor = theme.bg;
-      document.documentElement.style.backgroundColor = theme.bg;
+      document.body.style.backgroundColor = "var(--tt-app-bg)";
+      document.documentElement.style.backgroundColor = "var(--tt-app-bg)";
       if (typeof window.updateMetaThemeColor === 'function') {
-        window.updateMetaThemeColor(theme);
+        window.updateMetaThemeColor();
       }
     } catch (e) {
       // non-fatal
@@ -1840,7 +2139,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     {
       className: "min-h-screen",
       style: {
-        backgroundColor: theme.bg,
+        backgroundColor: "var(--tt-app-bg)",
         paddingBottom: '80px'
       }
     },
@@ -1855,7 +2154,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         'div',
         {
           className: "sticky top-0 z-50",
-          style: { backgroundColor: theme.bg }
+          style: { backgroundColor: "var(--tt-app-bg)" }
         },
         React.createElement(
           'div',
@@ -2065,7 +2364,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
-          backgroundColor: theme.bg,
+          backgroundColor: "var(--tt-app-bg)",
           boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
@@ -2910,9 +3209,10 @@ const ensureMetaThemeTag = () => {
   return meta;
 };
 
-const updateMetaThemeColor = (theme) => {
+const updateMetaThemeColor = () => {
   const meta = ensureMetaThemeTag();
-  const color = (theme && theme.bg) || '#E0E7FF';
+  const appBg = getComputedStyle(document.documentElement).getPropertyValue('--tt-app-bg').trim();
+  const color = appBg || '#f3f4f6'; // fallback to light health-gray
   meta.setAttribute('content', color);
 };
 

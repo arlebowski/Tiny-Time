@@ -4,7 +4,7 @@
 // Guard to prevent redeclaration
 if (typeof window !== 'undefined' && !window.TTHalfSheet) {
   
-  const TTHalfSheet = ({ isOpen, onClose, title, titleElement, rightAction, children, contentKey, fixedHeight }) => {
+  const TTHalfSheet = ({ isOpen, onClose, title, titleElement, rightAction, children, contentKey, fixedHeight, accentColor }) => {
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
     const headerRef = React.useRef(null);
@@ -394,8 +394,18 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
           // Header (part of HalfSheet chrome) - fixed 60px height
           React.createElement('div', {
             ref: headerRef,
-            className: "bg-black px-6 h-[60px] flex items-center justify-between flex-none",
-            style: { borderTopLeftRadius: '20px', borderTopRightRadius: '20px' }
+            className: accentColor ? "" : "bg-black",
+            style: { 
+              backgroundColor: accentColor || '#000000',
+              borderTopLeftRadius: '20px', 
+              borderTopRightRadius: '20px',
+              padding: '0 1.5rem',
+              height: '60px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexShrink: 0
+            }
           },
             // X button (close)
             React.createElement('button', {

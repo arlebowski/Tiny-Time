@@ -183,9 +183,7 @@ const FamilyTab = ({
         };
         setSettings(merged);
 
-        if (onThemeChange && merged.themeKey && merged.themeKey !== themeKey) {
-          onThemeChange(merged.themeKey);
-        }
+        // Note: onThemeChange callback removed - themeKey no longer affects global appearance
       } else {
         const merged = {
           babyWeight: null,
@@ -282,30 +280,6 @@ const FamilyTab = ({
       alert('Failed to create child. Please try again.');
     } finally {
       setSavingChild(false);
-    }
-  };
-
-  // --------------------------------------
-  // Theme handling
-  // --------------------------------------
-
-  const handleThemeSelect = async (newThemeKey) => {
-    if (!newThemeKey || newThemeKey === settings.themeKey) return;
-
-    const updated = {
-      ...settings,
-      themeKey: newThemeKey
-    };
-    setSettings(updated);
-
-    if (onThemeChange) {
-      onThemeChange(newThemeKey);
-    }
-
-    try {
-      await firestoreStorage.saveSettings(updated);
-    } catch (err) {
-      console.error('Error saving theme:', err);
     }
   };
 
@@ -1330,54 +1304,6 @@ const handleInvite = async () => {
           React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "text-indigo-600 font-medium" }, 'Revert to recommended')
         ),
         DaySleepWindowCard
-      ),
-
-      // Theme picker
-      React.createElement(
-        'div',
-        { className: 'mt-6 pt-4 border-t border-gray-100' },
-        React.createElement(
-          'div',
-          { className: 'flex items-center justify-between mb-3' },
-          React.createElement(
-            'span',
-            { className: 'text-base font-semibold text-gray-800' },
-            'App Color'
-          ),
-          React.createElement(
-            'span',
-            { className: 'text-xs text-gray-500' },
-            'Applies to top bar & tabs'
-          )
-        ),
-        React.createElement(
-          'div',
-          { className: 'flex items-center gap-3' },
-          Object.keys(KID_THEMES).map((key) =>
-            React.createElement(
-              'button',
-              {
-                key,
-                type: 'button',
-                onClick: () => handleThemeSelect(key),
-                className:
-                  'w-9 h-9 rounded-full border-2 flex items-center justify-center ' +
-                  (activeThemeKey === key
-                    ? 'border-indigo-600'
-                    : 'border-transparent'),
-                style: {
-                  backgroundColor: KID_THEMES[key].bg
-                }
-              },
-              activeThemeKey === key
-                ? React.createElement('div', {
-                    className: 'w-4 h-4 rounded-full',
-                    style: { backgroundColor: KID_THEMES[key].accent }
-                  })
-                : null
-            )
-          )
-        )
       )
     ),
 
