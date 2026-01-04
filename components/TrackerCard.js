@@ -809,7 +809,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   // Input Field Row Component
   const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false }) => {
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
-    const displayValue = type === 'datetime' ? (rawValue ? formatDateTime(rawValue) : '') : value;
+    // If rawValue is null/empty and placeholder exists, show placeholder as the value
+    const displayValue = type === 'datetime' 
+      ? (rawValue ? formatDateTime(rawValue) : (placeholder || ''))
+      : value;
     const inputRef = React.useRef(null);
     const timeAnchorRef = React.useRef(null);
     
@@ -902,7 +905,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 },
                 placeholder: placeholder,
                 className: `text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
-                style: { background: 'transparent', color: invalid ? undefined : 'var(--tt-text-primary)' },
+                style: { 
+                  background: 'transparent', 
+                  color: invalid 
+                    ? undefined 
+                    : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-secondary)' : 'var(--tt-text-primary)')
+                },
                 readOnly: type === 'datetime'
               }
             )
@@ -981,9 +989,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           placeholder: '0'
         }),
 
-        // Date & Time
+        // Start time
         React.createElement(InputRow, {
-          label: 'Date & Time',
+          label: 'Start time',
           value: formatDateTime(dateTime), // This won't be used for datetime type
           rawValue: dateTime, // Pass the raw ISO string
           onChange: setDateTime,
@@ -1403,7 +1411,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTInputHalfSheet Component
-  const TTInputHalfSheet = ({ isOpen, onClose }) => {
+  const TTInputHalfSheet = ({ isOpen, onClose, kidId }) => {
     // Check localStorage for active sleep on mount to determine initial mode
     const getInitialMode = () => {
       try {
@@ -1550,6 +1558,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }
       }
     }, [mode, sleepState, startTime, endTime]);
+    
+    // Load most recent feed ounces when switching to feeding mode
+    React.useEffect(() => {
+      if (mode === 'feeding' && kidId && !ounces && typeof firestoreStorage !== 'undefined') {
+        const loadMostRecentOunces = async () => {
+          try {
+            const feedings = await firestoreStorage.getFeedingsLastNDays(30);
+            if (feedings && feedings.length > 0) {
+              // Sort by timestamp descending to get most recent
+              const sorted = feedings.sort((a, b) => b.timestamp - a.timestamp);
+              const mostRecent = sorted[0];
+              if (mostRecent && mostRecent.ounces) {
+                setOunces(String(mostRecent.ounces));
+              }
+            }
+          } catch (e) {
+            // Ignore errors
+          }
+        };
+        loadMostRecentOunces();
+      }
+    }, [mode, kidId]);
     
     // Photo handling functions
     const handleAddPhoto = () => {
@@ -1772,9 +1802,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           placeholder: '0'
         }),
 
-        // Date & Time
+        // Start time
         React.createElement(InputRow, {
-          label: 'Date & Time',
+          label: 'Start time',
           value: formatDateTime(feedingDateTime),
           rawValue: feedingDateTime,
           onChange: setFeedingDateTime,
@@ -1896,11 +1926,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // End time
           React.createElement(InputRow, {
             label: 'End time',
-            value: endTime ? formatDateTime(endTime) : 'Add',
+            value: endTime ? formatDateTime(endTime) : 'Add...',
             rawValue: endTime,
             onChange: handleEndTimeChange,
             icon: timeIcon,
             type: 'datetime',
+            placeholder: 'Add...',
             readOnly: false, // Always editable
             invalid: !isSleepValid && (sleepState === 'completed' || isIdleWithTimes)
           }),
@@ -2118,7 +2149,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           React.createElement('div', {
             onClick: (e) => e.stopPropagation(),
             className: "rounded-2xl p-4 max-w-xs w-full",
-            style: { backgroundColor: 'var(--tt-card-bg)' }
+            style: { 
+              backgroundColor: document.documentElement.classList.contains('dark') 
+                ? '#2C2C2E'  // Lighter than card-bg in dark mode
+                : 'var(--tt-card-bg)'
+            }
           },
             React.createElement('div', { className: "text-base font-semibold mb-4 text-center", style: { color: 'var(--tt-text-primary)' } }, 'Delete entry?'),
             React.createElement('div', { className: "flex gap-3" },
@@ -2128,12 +2163,29 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 style: { 
                   borderColor: 'var(--tt-card-border)', 
                   color: 'var(--tt-text-secondary)',
-                  backgroundColor: 'var(--tt-card-bg)'
+                  backgroundColor: document.documentElement.classList.contains('dark') 
+                    ? '#2C2C2E'
+                    : 'var(--tt-card-bg)'
                 }
               }, 'Cancel'),
               React.createElement('button', {
                 onClick: handleDeleteConfirm,
-                className: "flex-1 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-gray-900 transition text-sm"
+                className: "flex-1 py-2.5 rounded-xl text-white font-semibold transition text-sm",
+                style: { 
+                  backgroundColor: document.documentElement.classList.contains('dark') 
+                    ? '#dc2626'  // Red-600 for dark mode
+                    : '#ef4444'  // Red-500 for light mode
+                },
+                onMouseEnter: (e) => {
+                  e.target.style.backgroundColor = document.documentElement.classList.contains('dark')
+                    ? '#b91c1c'  // Red-700 for dark mode hover
+                    : '#dc2626'; // Red-600 for light mode hover
+                },
+                onMouseLeave: (e) => {
+                  e.target.style.backgroundColor = document.documentElement.classList.contains('dark')
+                    ? '#dc2626'
+                    : '#ef4444';
+                }
               }, 'Delete')
             )
           )
