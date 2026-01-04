@@ -209,36 +209,41 @@ function ensureZzzStyles() {
 
 const TimelineItem = ({ withNote, mode = 'sleep' }) => {
   const isSleep = mode === 'sleep';
+  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
+  const timelineBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
   
   return React.createElement(
     'div',
-    { className: "rounded-2xl bg-gray-50 p-4 cursor-pointer active:bg-gray-100 transition-colors duration-150" },
+    { 
+      className: "rounded-2xl p-4 cursor-pointer transition-colors duration-150",
+      style: { backgroundColor: timelineBg }
+    },
     React.createElement(
       'div',
       { className: "flex items-center justify-between mb-2" },
       React.createElement(
         'div',
         { className: "flex items-center gap-3" },
-        React.createElement('div', { className: "h-6 w-6 rounded-2xl bg-gray-100" }),
+        React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
         React.createElement(
           'div',
           null,
-          React.createElement('div', { className: "font-semibold text-gray-500" }, 
+          React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
             isSleep ? '2h 20m' : '4oz'
           ),
-          React.createElement('div', { className: "text-sm text-gray-500" }, 
+          React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
             isSleep ? '6:07pm – 8:27pm' : '8:27pm'
           )
         )
       ),
-      React.createElement(ChevronDown, { className: "rotate-[-90deg] text-gray-500" })
+      React.createElement(ChevronDown, { className: "rotate-[-90deg]", style: { color: 'var(--tt-text-secondary)' } })
     ),
     withNote && React.createElement(
       React.Fragment,
       null,
       React.createElement(
         'div',
-        { className: "italic text-sm text-gray-500 mb-3" },
+        { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
         isSleep ? 'Note: had to hold him forever' : 'Note: kid didn\'t burp dammit!'
       ),
       React.createElement(
@@ -249,7 +254,8 @@ const TimelineItem = ({ withNote, mode = 'sleep' }) => {
             'div',
             {
               key: i,
-              className: "aspect-square rounded-2xl bg-gray-100"
+              className: "aspect-square rounded-2xl",
+              style: { backgroundColor: 'var(--tt-input-bg)' }
             }
           )
         )
@@ -290,8 +296,8 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     : React.createElement(
         React.Fragment,
         null,
-        React.createElement('span', { className: "text-black font-semibold" }, '1h 20m'),
-        React.createElement('span', { className: "text-black font-light" },
+        React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, '1h 20m'),
+        React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
           ' ',
           React.createElement('span', { className: "zzz" },
             React.createElement('span', null, 'z'),
@@ -310,6 +316,11 @@ const TrackerCard = ({ mode = 'sleep' }) => {
         timelineStatusText
       );
 
+  // Get the appropriate icon for the header
+  const HeaderIcon = mode === 'feeding' 
+    ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle1) || null
+    : (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) || null;
+
   return React.createElement(
     'div',
     { 
@@ -322,11 +333,14 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     React.createElement(
       'div',
       { className: "flex items-center gap-3 mb-4" },
-      React.createElement('div', { className: "h-6 w-6 rounded-2xl bg-gray-100" }),
+      HeaderIcon ? React.createElement(HeaderIcon, { 
+        className: "h-6 w-6",
+        style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+      }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
       React.createElement('div', { 
         className: "text-base font-semibold",
         style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-      }, 'Header')
+      }, mode === 'feeding' ? 'Feed' : 'Sleep')
     ),
     React.createElement(
       'div',
@@ -337,13 +351,13 @@ const TrackerCard = ({ mode = 'sleep' }) => {
       }, 
         mode === 'sleep' ? '14.5' : '22.5'
       ),
-      React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none text-gray-500" }, 
+      React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none", style: { color: 'var(--tt-text-secondary)' } }, 
         mode === 'sleep' ? 'of 14.5 hrs' : 'of 25.5 oz'
       )
     ),
     
     // Animated Progress Bar (production-style)
-    React.createElement('div', { className: "relative w-full h-6 bg-gray-100 rounded-2xl overflow-hidden mb-2" },
+    React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-2", style: { backgroundColor: 'var(--tt-input-bg)' } },
       React.createElement('div', {
         className: "absolute left-0 top-0 h-full rounded-2xl",
         style: {
@@ -370,7 +384,8 @@ const TrackerCard = ({ mode = 'sleep' }) => {
       'button',
       {
         onClick: () => setExpanded(!expanded),
-        className: "flex w-full items-center justify-between text-gray-500"
+        className: "flex w-full items-center justify-between",
+        style: { color: 'var(--tt-text-secondary)' }
       },
       React.createElement('span', null, timelineLabel),
       expanded ? React.createElement(ChevronUp) : React.createElement(ChevronDown)
@@ -838,11 +853,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between rounded-2xl bg-gray-50 p-4 cursor-pointer active:bg-gray-100 transition-colors duration-150 mb-2",
+        className: "flex items-center justify-between rounded-2xl p-4 cursor-pointer transition-colors duration-150 mb-2",
+        style: { backgroundColor: 'var(--tt-input-bg)' },
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
-        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, label),
+        React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, label),
         type === 'text' 
           ? React.createElement('textarea',
               {
@@ -859,8 +875,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 },
                 placeholder: placeholder,
                 rows: 1,
-                className: "text-base font-normal text-black w-full outline-none resize-none",
-                style: { background: 'transparent', maxHeight: '4.5rem', overflowY: 'auto' }
+                className: "text-base font-normal w-full outline-none resize-none",
+                style: { background: 'transparent', maxHeight: '4.5rem', overflowY: 'auto', color: 'var(--tt-text-primary)' }
               }
             )
           : React.createElement('input',
@@ -882,8 +898,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                   }
                 },
                 placeholder: placeholder,
-                className: `text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : 'text-black'}`,
-                style: { background: 'transparent' },
+                className: `text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
+                style: { background: 'transparent', color: invalid ? undefined : 'var(--tt-text-primary)' },
                 readOnly: type === 'datetime'
               }
             )
@@ -957,7 +973,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           label: 'Ounces',
           value: ounces,
           onChange: setOunces,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'number',
           placeholder: '0'
         }),
@@ -968,7 +984,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           value: formatDateTime(dateTime), // This won't be used for datetime type
           rawValue: dateTime, // Pass the raw ISO string
           onChange: setDateTime,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime'
         }),
 
@@ -977,7 +993,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           label: 'Notes',
           value: notes,
           onChange: setNotes,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'text',
           placeholder: 'Add a note...'
         })
@@ -986,15 +1002,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos
       React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
         ),
         React.createElement('div', { className: "flex gap-2" },
           // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
-              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
-              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+              className: "aspect-square rounded-2xl border relative",
+              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
               React.createElement('img', { 
                 src: photo, 
@@ -1016,10 +1032,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
-            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+            React.createElement(PlusIcon, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
       ),
@@ -1185,13 +1201,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
-        React.createElement('div', { className: "text-[40px] leading-none font-bold text-black" },
+        React.createElement('div', { className: "text-[40px] leading-none font-bold", style: { color: 'var(--tt-text-primary)' } },
           React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'h'),
+          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
           React.createElement('span', { className: "ml-2" }, `${String(duration.minutes).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 'm'),
+          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
           React.createElement('span', { className: "ml-2" }, `${String(duration.seconds).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base text-gray-500 font-normal ml-1" }, 's')
+          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
         )
       ),
 
@@ -1203,7 +1219,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           value: formatDateTime(startTime), // This won't be used for datetime type
           rawValue: startTime, // Pass the raw ISO string
           onChange: setStartTime,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime'
         }),
 
@@ -1213,7 +1229,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           value: formatDateTime(endTime), // This won't be used for datetime type
           rawValue: endTime, // Pass the raw ISO string
           onChange: setEndTime,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime',
           invalid: !isValid // Pass invalid flag when end time is before start time
         }),
@@ -1223,7 +1239,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           label: 'Notes',
           value: notes,
           onChange: setNotes,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'text',
           placeholder: 'Add a note...'
         })
@@ -1232,15 +1248,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos
       React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
         ),
         React.createElement('div', { className: "flex gap-2" },
           // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
-              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
-              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+              className: "aspect-square rounded-2xl border relative",
+              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
               React.createElement('img', { 
                 src: photo, 
@@ -1262,10 +1278,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
-            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+            React.createElement(PlusIcon, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
       ),
@@ -1310,8 +1326,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             className: `text-base font-normal transition-opacity ${
               isValid 
                 ? 'text-white hover:opacity-70 active:opacity-50' 
-                : 'text-gray-400 cursor-not-allowed'
-            }`
+                : 'cursor-not-allowed'
+            }`,
+            style: !isValid ? { color: 'var(--tt-text-tertiary)' } : undefined
           }, 'Save')
         },
         bodyContent
@@ -1346,8 +1363,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           className: `text-base font-normal transition-opacity ${
             isValid 
               ? 'text-white hover:opacity-70 active:opacity-50' 
-              : 'text-gray-400 cursor-not-allowed'
-          }`
+              : 'cursor-not-allowed'
+          }`,
+          style: !isValid ? { color: 'var(--tt-text-tertiary)' } : undefined
         }, 'Save')
       ),
       bodyContent
@@ -1746,7 +1764,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           label: 'Ounces',
           value: ounces,
           onChange: setOunces,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'number',
           placeholder: '0'
         }),
@@ -1757,7 +1775,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           value: formatDateTime(feedingDateTime),
           rawValue: feedingDateTime,
           onChange: setFeedingDateTime,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime'
         }),
 
@@ -1766,7 +1784,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           label: 'Notes',
           value: feedingNotes,
           onChange: setFeedingNotes,
-          icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'text',
           placeholder: 'Add a note...'
         })
@@ -1775,15 +1793,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos
       React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
         ),
         React.createElement('div', { className: "flex gap-2" },
           // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
-              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
-              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+              className: "aspect-square rounded-2xl border relative",
+              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
               React.createElement('img', { 
                 src: photo, 
@@ -1805,10 +1823,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
-            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+            React.createElement(PlusIcon, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
       ),
@@ -1835,26 +1853,26 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       
       // Time fields are always editable (even in RUNNING state)
       // Show icon always
-      const timeIcon = React.createElement(PenIcon, { className: "text-gray-500" });
+      const timeIcon = React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } });
       
       return React.createElement(
         React.Fragment,
         null,
         // Timer Display
         React.createElement('div', { className: "text-center mb-6" },
-          React.createElement('div', { className: "text-[40px] leading-none font-bold text-black flex items-end justify-center" },
+          React.createElement('div', { className: "text-[40px] leading-none font-bold flex items-end justify-center", style: { color: 'var(--tt-text-primary)' } },
             React.createElement(React.Fragment, null,
               // Only show hours if > 0
               hours > 0 && React.createElement(React.Fragment, null,
                 React.createElement('span', null, `${hours}`),
-                React.createElement('span', { className: "text-base text-gray-500 font-light ml-1" }, 'h'),
+                React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
                 React.createElement('span', { className: "ml-2" })
               ),
               // Minutes: single/double digit when no hours, always 2 digits when hours present
               React.createElement('span', null, hours > 0 ? `${String(minutes).padStart(2, '0')}` : `${minutes}`),
-              React.createElement('span', { className: "text-base text-gray-500 font-light ml-1" }, 'm'),
+              React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
               React.createElement('span', { className: "ml-2" }, `${String(seconds).padStart(2, '0')}`),
-              React.createElement('span', { className: "text-base text-gray-500 font-light ml-1" }, 's')
+              React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
             )
           )
         ),
@@ -1889,7 +1907,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             label: 'Notes',
             value: sleepNotes,
             onChange: setSleepNotes,
-            icon: React.createElement(PenIcon, { className: "text-gray-500" }),
+            icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
             type: 'text',
             placeholder: 'Add a note...'
           })
@@ -1898,15 +1916,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos
       React.createElement('div', { className: "py-3" },
         React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs text-gray-500" }, 'Photos')
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
         ),
         React.createElement('div', { className: "flex gap-2" },
           // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
-              className: "aspect-square rounded-2xl bg-gray-100 border border-gray-200 relative",
-              style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+              className: "aspect-square rounded-2xl border relative",
+              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
               React.createElement('img', { 
                 src: photo, 
@@ -1928,10 +1946,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Render placeholder (only one, always at the end)
           React.createElement('div', {
             onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl bg-gray-50 flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
+            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
           },
-            React.createElement(PlusIcon, { className: "w-6 h-6 text-gray-400" })
+            React.createElement(PlusIcon, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
       ),
@@ -2093,13 +2111,19 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         },
           React.createElement('div', {
             onClick: (e) => e.stopPropagation(),
-            className: "bg-white rounded-2xl p-4 max-w-xs w-full"
+            className: "rounded-2xl p-4 max-w-xs w-full",
+            style: { backgroundColor: 'var(--tt-card-bg)' }
           },
-            React.createElement('div', { className: "text-base font-semibold text-black mb-4 text-center" }, 'Delete entry?'),
+            React.createElement('div', { className: "text-base font-semibold mb-4 text-center", style: { color: 'var(--tt-text-primary)' } }, 'Delete entry?'),
             React.createElement('div', { className: "flex gap-3" },
               React.createElement('button', {
                 onClick: handleDeleteCancel,
-                className: "flex-1 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-semibold hover:bg-gray-50 transition text-sm"
+                className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
+                style: { 
+                  borderColor: 'var(--tt-card-border)', 
+                  color: 'var(--tt-text-secondary)',
+                  backgroundColor: 'var(--tt-card-bg)'
+                }
               }, 'Cancel'),
               React.createElement('button', {
                 onClick: handleDeleteConfirm,
@@ -2134,7 +2158,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             className: `text-base font-normal transition-opacity ${
               isValid() 
                 ? 'text-white hover:opacity-70 active:opacity-50' 
-                : 'text-gray-400 cursor-not-allowed'
+                : 'cursor-not-allowed'
             }`
           }, 'Save') : null
         },
@@ -2174,8 +2198,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           className: `text-base font-normal transition-opacity ${
             isValid() 
               ? 'text-white hover:opacity-70 active:opacity-50' 
-              : 'text-gray-400 cursor-not-allowed'
-          }`
+              : 'cursor-not-allowed'
+          }`,
+          style: !isValid() ? { color: 'var(--tt-text-tertiary)' } : undefined
         }, 'Save') : React.createElement('div', { className: "w-6" })
       ),
       bodyContent
