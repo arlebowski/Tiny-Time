@@ -1333,7 +1333,7 @@ const _avg = (arr) => {
 // X = dates (columns), Y = time of day (rows)
 // Sleep = vertical blocks (start->end) per day column
 // Feeds = short horizontal ticks at feed start time
-// Uses app's indigo color scheme: bg=#E0E7FF, accent=#4F46E5, soft=#EEF2FF
+// Uses CSS variables: --tt-feed, --tt-sleep, --tt-feed-soft, --tt-sleep-soft
 // =====================================================
 const DailyActivityChart = ({
   viewMode = 'day', // 'day' | 'week' | 'month'
@@ -1355,6 +1355,14 @@ const DailyActivityChart = ({
       return '#000000'; // fallback
     }
     return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#000000';
+  };
+
+  // Helper to convert hex to rgba
+  const hexToRgba = (hex, alpha) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
   };
 
   // Apple Health-ish styling constants (local to this component)
@@ -1947,7 +1955,7 @@ const DailyActivityChart = ({
                             key: `mcell-${day0}`,
                             className: 'rounded-xl',
                             style: {
-                              background: isTodayCell ? 'rgba(79,70,229,0.08)' : 'rgba(255,255,255,1)',
+                              background: isTodayCell ? hexToRgba(TT.feedPink, 0.08) : 'rgba(255,255,255,1)',
                               border: '1px solid rgba(17,24,39,0.06)',
                               padding: 10,
                               overflow: 'hidden'
@@ -1968,7 +1976,7 @@ const DailyActivityChart = ({
                           hrsText
                             ? React.createElement(
                                 'div',
-                                { className: 'mt-1 text-[13px] font-medium leading-tight', style: { color: '#4F46E5' } },
+                                { className: 'mt-1 text-[13px] font-medium leading-tight', style: { color: TT.sleepNight } },
                                 hrsText
                               )
                             : null
@@ -2215,7 +2223,7 @@ const DailyActivityChart = ({
                                   style: {
                                     top: `${PAD_T}px`,
                                     height: `${PLOT_H}px`,
-                                    background: 'rgba(79,70,229,0.06)',
+                                    background: hexToRgba(TT.feedPink, 0.06),
                                     borderRadius: 8,
                                     zIndex: 0
                                   }
@@ -2274,8 +2282,8 @@ const DailyActivityChart = ({
                                             'absolute left-3 text-[9px] font-semibold bg-white px-1 py-0.5 rounded shadow-sm',
                                           style: {
                                             top: `${Math.min(PLOT_TOTAL_H - 8, bottomPx + 6)}px`,
-                                            color: '#4F46E5',
-                                            border: '1px solid rgba(79,70,229,0.2)',
+                                            color: TT.sleepNight,
+                                            border: `1px solid ${hexToRgba(TT.sleepNight, 0.2)}`,
                                             zIndex: 15
                                           }
                                         },

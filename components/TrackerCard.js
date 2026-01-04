@@ -706,32 +706,30 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('div', {
           ref: sheetRef,
           className: "fixed left-0 right-0 bottom-0 z-[101] shadow-2xl",
-          style: {
-            backgroundColor: "var(--tt-card-bg)"
-          },
           onClick: (e) => e.stopPropagation(),
           onTouchStart: handleTouchStart,
           onTouchMove: handleTouchMove,
           onTouchEnd: handleTouchEnd,
-            style: {
-              transform: 'translateY(100%)',
-              willChange: 'transform',
-              paddingBottom: 'env(safe-area-inset-bottom, 0)',
-              // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
-              maxHeight: '100%',
-              height: sheetHeight,
-              // When keyboard is open, lift the whole sheet above it (smoothly via transition).
-              bottom: `${keyboardOffset}px`,
-              // Transition is set dynamically in useEffect to combine transform and height
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              touchAction: 'pan-y',
-              overscrollBehavior: 'contain',
-              borderTopLeftRadius: '20px',
-              borderTopRightRadius: '20px'
-            }
-          },
+          style: {
+            backgroundColor: "var(--tt-card-bg)",
+            transform: 'translateY(100%)',
+            willChange: 'transform',
+            paddingBottom: 'env(safe-area-inset-bottom, 0)',
+            // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
+            maxHeight: '100%',
+            height: sheetHeight,
+            // When keyboard is open, lift the whole sheet above it (smoothly via transition).
+            bottom: `${keyboardOffset}px`,
+            // Transition is set dynamically in useEffect to combine transform and height
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            touchAction: 'pan-y',
+            overscrollBehavior: 'contain',
+            borderTopLeftRadius: '20px',
+            borderTopRightRadius: '20px'
+          }
+        },
           // Header (part of HalfSheet chrome)
           React.createElement('div', {
             ref: headerRef,
