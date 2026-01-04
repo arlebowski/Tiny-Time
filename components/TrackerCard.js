@@ -332,10 +332,13 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     },
     React.createElement(
       'div',
-      { className: "flex items-center gap-3 mb-4" },
+      { className: "flex items-center gap-2 mb-4 h-6" },
       HeaderIcon ? React.createElement(HeaderIcon, { 
-        className: "h-6 w-6",
-        style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+        className: "h-[28px] w-[28px]",
+        style: { 
+          color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+          transform: mode === 'feeding' ? 'translateY(-2px)' : 'none'
+        }
       }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
       React.createElement('div', { 
         className: "text-base font-semibold",
@@ -1328,7 +1331,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 ? 'text-white hover:opacity-70 active:opacity-50' 
                 : 'cursor-not-allowed'
             }`,
-            style: !isValid ? { color: 'var(--tt-text-tertiary)' } : undefined
+            style: !isValid ? { color: 'rgba(255,255,255,0.4)' } : undefined
           }, 'Save')
         },
         bodyContent
@@ -2052,8 +2055,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)
       React.createElement('div', {
-        className: "sticky bottom-0 left-0 right-0 bg-white pt-3 pb-1",
-        style: { zIndex: 10 }
+        className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
+        style: { 
+          zIndex: 10,
+          backgroundColor: 'var(--tt-card-bg)'
+        }
       },
         mode === 'feeding'
           ? React.createElement('button', {
@@ -2152,14 +2158,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             ],
             onChange: setMode
           }),
-          rightAction: (mode === 'feeding' || (mode === 'sleep' && (sleepState === 'completed' || isIdleWithTimes))) ? React.createElement('button', {
+          rightAction: (mode === 'sleep' && (sleepState === 'completed' || isIdleWithTimes)) ? React.createElement('button', {
             onClick: handleSave,
             disabled: !isValid(),
             className: `text-base font-normal transition-opacity ${
               isValid() 
                 ? 'text-white hover:opacity-70 active:opacity-50' 
                 : 'cursor-not-allowed'
-            }`
+            }`,
+            style: !isValid() ? { color: 'rgba(255,255,255,0.4)' } : undefined
           }, 'Save') : null
         },
         bodyContent
@@ -2192,7 +2199,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             onChange: setMode
           })
         ),
-        (mode === 'feeding' || (mode === 'sleep' && (sleepState === 'completed' || isIdleWithTimes))) ? React.createElement('button', {
+        (mode === 'sleep' && (sleepState === 'completed' || isIdleWithTimes)) ? React.createElement('button', {
           onClick: handleSave,
           disabled: !isValid(),
           className: `text-base font-normal transition-opacity ${
@@ -2200,7 +2207,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               ? 'text-white hover:opacity-70 active:opacity-50' 
               : 'cursor-not-allowed'
           }`,
-          style: !isValid() ? { color: 'var(--tt-text-tertiary)' } : undefined
+          style: !isValid() ? { color: 'rgba(255,255,255,0.4)' } : undefined
         }, 'Save') : React.createElement('div', { className: "w-6" })
       ),
       bodyContent

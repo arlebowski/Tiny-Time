@@ -2215,7 +2215,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   { className: "flex items-center justify-center mr-2" },
                   React.createElement(Baby, {
                     className: "w-8 h-8",
-                    style: { color: theme.accent }
+                    style: { color: 'var(--tt-feed)' }
                   })
                 ),
                 React.createElement(
