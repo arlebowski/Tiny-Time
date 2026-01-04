@@ -148,7 +148,8 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
           'button',
           {
             onClick: handleClearConversation,
-            className: 'text-[11px] text-gray-500 underline underline-offset-2 hover:text-red-500'
+            className: 'text-[11px] underline underline-offset-2 hover:text-red-500',
+            style: { color: 'var(--tt-text-secondary)' }
           },
           'Clear'
         )
@@ -176,20 +177,20 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
             React.createElement(
               'div',
               {
-                className:
-                  'max-w-[75%] bg-gray-200 rounded-2xl px-4 py-3'
+                className: 'max-w-[75%] rounded-2xl px-4 py-3',
+                style: { backgroundColor: 'var(--tt-input-bg)' }
               },
               React.createElement(
                 'div',
                 {
-                  className:
-                    'font-semibold text-sm text-gray-700 mb-1'
+                  className: 'font-semibold text-sm mb-1',
+                  style: { color: 'var(--tt-text-secondary)' }
                 },
                 'Tiny Tracker'
               ),
               React.createElement(
                 'div',
-                { className: 'text-gray-900' },
+                { style: { color: 'var(--tt-text-primary)' } },
                 "Hi! I can help you understand your baby's feeding patterns. Ask me anything!"
               )
             )
@@ -205,8 +206,8 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
               React.createElement(
                 'div',
                 {
-                  className:
-                    'text-xs text-gray-500 px-2 mb-1'
+                  className: 'text-xs px-2 mb-1',
+                  style: { color: 'var(--tt-text-secondary)' }
                 },
                 'Try asking:'
               ),
@@ -216,8 +217,12 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                   {
                     key: i,
                     onClick: () => setInput(q),
-                    className:
-                      'block w-full text-left px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm text-indigo-600 hover:bg-indigo-50 transition'
+                    className: 'block w-full text-left px-4 py-2 border rounded-xl text-sm transition',
+                    style: {
+                      backgroundColor: 'var(--tt-card-bg)',
+                      borderColor: 'var(--tt-card-border)',
+                      color: 'var(--tt-feed)'
+                    }
                   },
                   q
                 )
@@ -241,21 +246,20 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
           React.createElement(
             'div',
             {
-              className:
-                'max-w-[75%] rounded-2xl px-4 py-3 ' +
-                (message.role === 'user'
-                  ? 'bg-indigo-600 text-white'
-                  : message.error
-                  ? 'bg-red-100 text-red-900'
-                  : 'bg-gray-200 text-gray-900')
+              className: 'max-w-[75%] rounded-2xl px-4 py-3',
+              style: message.role === 'user'
+                ? { backgroundColor: 'var(--tt-feed)', color: 'white' }
+                : message.error
+                ? { backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'rgb(185, 28, 28)' }
+                : { backgroundColor: 'var(--tt-input-bg)', color: 'var(--tt-text-primary)' }
             },
             message.role === 'assistant' &&
               !message.error &&
               React.createElement(
                 'div',
                 {
-                  className:
-                    'font-semibold text-sm text-gray-700 mb-1'
+                  className: 'font-semibold text-sm mb-1',
+                  style: { color: 'var(--tt-text-secondary)' }
                 },
                 'Tiny Tracker'
               ),
@@ -270,11 +274,12 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
             React.createElement(
               'div',
               {
-                className:
-                  'text-[11px] mt-1 ' +
-                  (message.role === 'user'
-                    ? 'text-indigo-200'
-                    : 'text-gray-500')
+                className: 'text-[11px] mt-1',
+                style: { 
+                  color: message.role === 'user'
+                    ? 'rgba(255,255,255,0.7)'
+                    : 'var(--tt-text-secondary)'
+                }
               },
               formatTimestamp(message.timestamp)
             )
@@ -290,26 +295,32 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
           React.createElement(
             'div',
             {
-              className:
-                'bg-gray-200 rounded-2xl px-4 py-3'
+              className: 'rounded-2xl px-4 py-3',
+              style: { backgroundColor: 'var(--tt-input-bg)' }
             },
             React.createElement(
               'div',
               { className: 'flex gap-1' },
               React.createElement('div', {
-                className:
-                  'w-2 h-2 bg-gray-400 rounded-full animate-bounce',
-                style: { animationDelay: '0ms' }
+                className: 'w-2 h-2 rounded-full animate-bounce',
+                style: { 
+                  backgroundColor: 'var(--tt-text-tertiary)',
+                  animationDelay: '0ms' 
+                }
               }),
               React.createElement('div', {
-                className:
-                  'w-2 h-2 bg-gray-400 rounded-full animate-bounce',
-                style: { animationDelay: '150ms' }
+                className: 'w-2 h-2 rounded-full animate-bounce',
+                style: { 
+                  backgroundColor: 'var(--tt-text-tertiary)',
+                  animationDelay: '150ms' 
+                }
               }),
               React.createElement('div', {
-                className:
-                  'w-2 h-2 bg-gray-400 rounded-full animate-bounce',
-                style: { animationDelay: '300ms' }
+                className: 'w-2 h-2 rounded-full animate-bounce',
+                style: { 
+                  backgroundColor: 'var(--tt-text-tertiary)',
+                  animationDelay: '300ms' 
+                }
               })
             )
           )
@@ -328,10 +339,10 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
       React.createElement(
         'div',
         {
-          className:
-            'flex items-center gap-2 bg-white rounded-2xl px-3 py-1.5 border',
+          className: 'flex items-center gap-2 rounded-2xl px-3 py-1.5 border',
           style: {
-            borderColor: inputFocused ? theme.accent : '#e5e7eb',
+            backgroundColor: 'var(--tt-card-bg)',
+            borderColor: inputFocused ? theme.accent : 'var(--tt-card-border)',
             boxShadow: inputFocused ? `0 0 0 3px ${theme.soft || theme.bg}` : 'none'
           }
         },

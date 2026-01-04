@@ -239,6 +239,10 @@ window.TT.appearance = (() => {
   const loadAppearance = async (uid) => {
     if (!uid) {
       currentAppearance = { ...DEFAULT_APPEARANCE };
+      // Clear localStorage cache on sign out
+      try {
+        localStorage.removeItem('tt_appearance_cache');
+      } catch (e) {}
       initialized = true;
       return;
     }
@@ -274,6 +278,13 @@ window.TT.appearance = (() => {
       console.warn("Failed to load appearance preferences, using defaults:", error);
       // On read failure, use defaults in memory (don't spam writes)
       currentAppearance = { ...DEFAULT_APPEARANCE };
+    }
+    
+    // Cache to localStorage for blocking script
+    try {
+      localStorage.setItem('tt_appearance_cache', JSON.stringify(currentAppearance));
+    } catch (e) {
+      // localStorage may be unavailable, non-fatal
     }
     
     initialized = true;
@@ -370,6 +381,13 @@ window.TT.appearance = (() => {
         window.TT.applyAppearance(currentAppearance);
       }
 
+      // Cache to localStorage for blocking script
+      try {
+        localStorage.setItem('tt_appearance_cache', JSON.stringify(currentAppearance));
+      } catch (e) {
+        // localStorage may be unavailable, non-fatal
+      }
+
       // Persist to Firestore
       try {
         await saveAppearance(user.uid, currentAppearance);
@@ -445,13 +463,13 @@ const BACKGROUND_THEMES = {
   },
   dark: {
     "health-gray": {
-      appBg: "#0b0f14",
-      cardBg: "#121826",
+      appBg: "#0F0F10",
+      cardBg: "#1A1A1C",
       cardBorder: "rgba(255,255,255,0.10)"
     },
     "eggshell": {
-      appBg: "#0e0c0a",
-      cardBg: "#171411",
+      appBg: "#0F0F10",
+      cardBg: "#1A1A1C",
       cardBorder: "rgba(255,255,255,0.10)"
     }
   }
@@ -489,6 +507,14 @@ window.TT.applyAppearance = function(appearance) {
   root.style.setProperty('--tt-card-bg', theme.cardBg);
   root.style.setProperty('--tt-card-border', theme.cardBorder);
 
+  // Input field backgrounds
+  root.style.setProperty('--tt-input-bg', darkMode ? '#2C2C2E' : '#f5f5f5');
+
+  // Text colors
+  root.style.setProperty('--tt-text-primary', darkMode ? 'rgba(255,255,255,0.87)' : 'rgba(0,0,0,0.87)');
+  root.style.setProperty('--tt-text-secondary', darkMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)');
+  root.style.setProperty('--tt-text-tertiary', darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)');
+
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
   const sleepVariants = deriveAccentVariants(sanitizedSleepAccent, darkMode);
@@ -502,6 +528,11 @@ window.TT.applyAppearance = function(appearance) {
   root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
   root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
   root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
+
+  // Update meta theme-color for iOS status bar area
+  if (typeof window.updateMetaThemeColor === 'function') {
+    window.updateMetaThemeColor();
+  }
 };
 
 const signInWithGoogle = async () => {
@@ -1356,17 +1387,17 @@ const App = () => {
     return React.createElement(
       "div",
       {
-        className:
-          "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center",
+        className: "min-h-screen flex items-center justify-center",
+        style: { backgroundColor: 'var(--tt-app-bg)' }
       },
       React.createElement(
         "div",
         { className: "text-center" },
         React.createElement("div", {
-          className:
-            "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto mb-4",
+          className: "animate-spin rounded-full h-10 w-10 border-b-2 mx-auto mb-4",
+          style: { borderColor: 'var(--tt-text-primary)' }
         }),
-        React.createElement("div", { className: "text-gray-600" }, "Loading...")
+        React.createElement("div", { style: { color: 'var(--tt-text-secondary)' } }, "Loading...")
       )
     );
   }
@@ -2189,7 +2220,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 ),
                 React.createElement(
                   'span',
-                  { className: "text-2xl font-semibold text-gray-800 handwriting leading-none" },
+                  { 
+                    className: "text-2xl font-semibold handwriting leading-none",
+                    style: { color: 'var(--tt-text-primary)' }
+                  },
                   (activeKid?.name || 'Baby') + "'s Tracker"
                 ),
                 React.createElement(ChevronDown, {

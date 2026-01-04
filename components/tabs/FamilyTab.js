@@ -539,7 +539,9 @@ const handleInvite = async () => {
     return React.createElement(
       'div',
       { className: 'flex items-center justify-center py-12' },
-      React.createElement('div', { className: 'text-gray-600' }, 'Loading...')
+      React.createElement('div', { 
+        style: { color: 'var(--tt-text-secondary)' }
+      }, 'Loading...')
     );
   }
 
@@ -565,14 +567,26 @@ const handleInvite = async () => {
       React.createElement(
         "div",
         null,
-        React.createElement("div", { className: "text-sm font-semibold text-gray-800" }, "Day sleep window"),
+        React.createElement("div", { 
+          className: "text-sm font-semibold",
+          style: { color: 'var(--tt-text-primary)' }
+        }, "Day sleep window"),
         React.createElement(
           "div",
-          { className: "text-sm text-gray-500 mt-1" },
+          { 
+            className: "text-sm mt-1",
+            style: { color: 'var(--tt-text-secondary)' }
+          },
           "Sleep that starts between these times counts as ",
-          React.createElement("span", { className: "font-medium text-gray-700" }, "Day Sleep"),
+          React.createElement("span", { 
+            className: "font-medium",
+            style: { color: 'var(--tt-text-primary)' }
+          }, "Day Sleep"),
           " (naps). Everything else counts as ",
-          React.createElement("span", { className: "font-medium text-gray-700" }, "Night Sleep"),
+          React.createElement("span", { 
+            className: "font-medium",
+            style: { color: 'var(--tt-text-primary)' }
+          }, "Night Sleep"),
           "."
         )
       )
@@ -586,7 +600,11 @@ const handleInvite = async () => {
       React.createElement(
         "div",
         {
-          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 min-w-0 overflow-hidden",
+          className: "rounded-xl border px-4 py-3 min-w-0 overflow-hidden",
+          style: { 
+            borderColor: 'var(--tt-card-border)',
+            backgroundColor: 'var(--tt-input-bg)'
+          },
           onClick: editingDayStart
             ? undefined
             : () => {
@@ -596,7 +614,10 @@ const handleInvite = async () => {
         },
         React.createElement(
           "div",
-          { className: "text-xs font-medium text-gray-500" },
+          { 
+            className: "text-xs font-medium",
+            style: { color: 'var(--tt-text-secondary)' }
+          },
           "Start"
         ),
         editingDayStart
@@ -609,7 +630,12 @@ const handleInvite = async () => {
                 value: tempDayStartInput,
                 onChange: (e) => setTempDayStartInput(e.target.value),
                 // Force the time input to obey the grid width on iOS
-                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none bg-white px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm",
+                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none px-3 py-2 border-2 rounded-lg text-sm",
+                style: {
+                  backgroundColor: 'var(--tt-input-bg)',
+                  borderColor: 'var(--tt-feed)',
+                  color: 'var(--tt-text-primary)'
+                },
                 // iOS Safari: hard-force intrinsic control sizing
                 style: { width: "100%", maxWidth: "100%", minWidth: 0, WebkitAppearance: "none", appearance: "none" }
               }),
@@ -649,11 +675,15 @@ const handleInvite = async () => {
               { className: "flex items-center justify-between mt-1" },
               React.createElement(
                 "div",
-                { className: "text-base font-semibold text-gray-900" },
+                { 
+                  className: "text-base font-semibold",
+                  style: { color: 'var(--tt-text-primary)' }
+                },
                 minutesToLabel(dayStart)
               ),
               React.createElement(Edit2, {
-                className: "w-4 h-4 text-indigo-600"
+                className: "w-4 h-4",
+                style: { color: 'var(--tt-feed)' }
               })
             )
       ),
@@ -662,7 +692,11 @@ const handleInvite = async () => {
       React.createElement(
         "div",
         {
-          className: "rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 min-w-0 overflow-hidden",
+          className: "rounded-xl border px-4 py-3 min-w-0 overflow-hidden",
+          style: { 
+            borderColor: 'var(--tt-card-border)',
+            backgroundColor: 'var(--tt-input-bg)'
+          },
           onClick: editingDayEnd
             ? undefined
             : () => {
@@ -672,7 +706,10 @@ const handleInvite = async () => {
         },
         React.createElement(
           "div",
-          { className: "text-xs font-medium text-gray-500" },
+          { 
+            className: "text-xs font-medium",
+            style: { color: 'var(--tt-text-secondary)' }
+          },
           "End"
         ),
         editingDayEnd
@@ -685,7 +722,12 @@ const handleInvite = async () => {
                 value: tempDayEndInput,
                 onChange: (e) => setTempDayEndInput(e.target.value),
                 // Force the time input to obey the grid width on iOS
-                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none bg-white px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm",
+                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none px-3 py-2 border-2 rounded-lg text-sm",
+                style: {
+                  backgroundColor: 'var(--tt-input-bg)',
+                  borderColor: 'var(--tt-feed)',
+                  color: 'var(--tt-text-primary)'
+                },
                 // iOS Safari: hard-force intrinsic control sizing
                 style: { width: "100%", maxWidth: "100%", minWidth: 0, WebkitAppearance: "none", appearance: "none" }
               }),
@@ -725,11 +767,15 @@ const handleInvite = async () => {
               { className: "flex items-center justify-between mt-1" },
               React.createElement(
                 "div",
-                { className: "text-base font-semibold text-gray-900" },
+                { 
+                  className: "text-base font-semibold",
+                  style: { color: 'var(--tt-text-primary)' }
+                },
                 minutesToLabel(dayEnd)
               ),
               React.createElement(Edit2, {
-                className: "w-4 h-4 text-indigo-600"
+                className: "w-4 h-4",
+                style: { color: 'var(--tt-feed)' }
               })
             )
       )
@@ -740,12 +786,34 @@ const handleInvite = async () => {
       { className: "mt-4" },
       React.createElement(
         "div",
-        { className: "relative h-12 rounded-2xl bg-gray-100 overflow-hidden border border-gray-200 day-sleep-slider" },
+        { 
+          className: "relative h-12 rounded-2xl overflow-hidden border day-sleep-slider",
+          style: {
+            backgroundColor: 'var(--tt-input-bg)',
+            borderColor: 'var(--tt-card-border)'
+          }
+        },
         React.createElement("div", { className: "absolute inset-y-0", style: { left: `${leftPct}%`, width: `${widthPct}%`, background: "rgba(99,102,241,0.25)" } }),
         // left handle visual
-        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${startPct}% - 6px)`, pointerEvents: "none" } }),
+        React.createElement("div", { 
+          className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full shadow-sm border",
+          style: { 
+            left: `calc(${startPct}% - 6px)`,
+            pointerEvents: "none",
+            backgroundColor: 'var(--tt-card-bg)',
+            borderColor: 'var(--tt-card-border)'
+          }
+        }),
         // right handle visual
-        React.createElement("div", { className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-white shadow-sm border border-gray-200", style: { left: `calc(${endPct}% - 6px)`, pointerEvents: "none" } }),
+        React.createElement("div", { 
+          className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full shadow-sm border",
+          style: { 
+            left: `calc(${endPct}% - 6px)`,
+            pointerEvents: "none",
+            backgroundColor: 'var(--tt-card-bg)',
+            borderColor: 'var(--tt-card-border)'
+          }
+        }),
         // two range inputs layered (one controls start, one controls end)
         React.createElement("input", {
           type: "range",
@@ -770,7 +838,10 @@ const handleInvite = async () => {
       ),
       React.createElement(
         "div",
-        { className: "flex justify-between text-xs text-gray-400 mt-2 px-3 select-none" },
+        { 
+          className: "flex justify-between text-xs mt-2 px-3 select-none",
+          style: { color: 'var(--tt-text-tertiary)' }
+        },
         React.createElement("span", null, "6AM"),
         React.createElement("span", null, "9AM"),
         React.createElement("span", null, "12PM"),
@@ -798,13 +869,19 @@ const handleInvite = async () => {
     kids && kids.length > 0 &&
       React.createElement(
         'div',
-        { className: 'bg-white rounded-2xl shadow-lg p-6' },
+        { 
+          className: 'rounded-2xl shadow-lg p-6',
+          style: { backgroundColor: 'var(--tt-card-bg)' }
+        },
         React.createElement(
           'div',
           { className: 'flex items-center justify-between mb-3' },
           React.createElement(
             'h2',
-            { className: 'text-lg font-semibold text-gray-800' },
+            { 
+              className: 'text-lg font-semibold',
+              style: { color: 'var(--tt-text-primary)' }
+            },
             'Kids'
           ),
           React.createElement(
@@ -812,7 +889,8 @@ const handleInvite = async () => {
             {
               type: 'button',
               onClick: () => setShowAddChild(true),
-              className: 'text-sm font-medium text-indigo-600 hover:text-indigo-700'
+              className: 'text-sm font-medium',
+              style: { color: 'var(--tt-feed)' }
             },
             '+ Add Child'
           )
@@ -832,11 +910,18 @@ const handleInvite = async () => {
                     onKidChange(k.id);
                   }
                 },
-                className:
-                  'w-full px-4 py-3 rounded-xl border flex items-center justify-between text-sm ' +
-                  (isCurrent
-                    ? 'border-indigo-500 bg-indigo-50 text-gray-900'
-                    : 'border-gray-200 bg-gray-50 text-gray-700 hover:bg-gray-100')
+                className: 'w-full px-4 py-3 rounded-xl border flex items-center justify-between text-sm',
+                style: isCurrent
+                  ? {
+                      borderColor: 'var(--tt-feed)',
+                      backgroundColor: 'var(--tt-feed-soft)',
+                      color: 'var(--tt-text-primary)'
+                    }
+                  : {
+                      borderColor: 'var(--tt-card-border)',
+                      backgroundColor: 'var(--tt-input-bg)',
+                      color: 'var(--tt-text-secondary)'
+                    }
               },
               React.createElement(
                 'span',
@@ -846,7 +931,10 @@ const handleInvite = async () => {
               isCurrent &&
                 React.createElement(
                   'span',
-                  { className: 'text-xs font-semibold text-indigo-600' },
+                  { 
+                    className: 'text-xs font-semibold',
+                    style: { color: 'var(--tt-feed)' }
+                  },
                   'Active'
                 )
             );
@@ -854,7 +942,10 @@ const handleInvite = async () => {
         ),
         React.createElement(
           'p',
-          { className: 'mt-3 text-xs text-gray-500' },
+          { 
+            className: 'mt-3 text-xs',
+            style: { color: 'var(--tt-text-secondary)' }
+          },
           'Active kid controls what you see in Tracker, Analytics, and AI Chat.'
         )
       ),
@@ -880,7 +971,8 @@ const handleInvite = async () => {
             'div',
             {
               className:
-                'w-24 h-24 rounded-full overflow-hidden bg-gray-100 cursor-pointer hover:opacity-80 transition relative'
+                'w-24 h-24 rounded-full overflow-hidden cursor-pointer hover:opacity-80 transition relative',
+                style: { backgroundColor: 'var(--tt-input-bg)' }
             },
             babyPhotoUrl
               ? React.createElement('img', {
@@ -892,7 +984,8 @@ const handleInvite = async () => {
                   'div',
                   {
                     className:
-                      'w-full h-full flex items-center justify-center bg-indigo-100'
+                      'w-full h-full flex items-center justify-center',
+                      style: { backgroundColor: 'var(--tt-feed-soft)' }
                   },
                   React.createElement(Baby, {
                     className: 'w-12 h-12 text-indigo-600'
@@ -903,7 +996,11 @@ const handleInvite = async () => {
             'div',
             {
               className:
-                'absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-white cursor-pointer',
+                'absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center border-2 cursor-pointer',
+                style: {
+                  backgroundColor: 'var(--tt-feed)',
+                  borderColor: 'var(--tt-card-bg)'
+                },
               onClick: (e) => { e.stopPropagation(); handlePhotoClick(); }
             },
             React.createElement(Camera, { className: 'w-4 h-4 text-white' })
@@ -952,7 +1049,8 @@ const handleInvite = async () => {
                   'h3',
                   {
                     className:
-                      'text-lg font-semibold text-gray-800 truncate'
+                      'text-lg font-semibold truncate',
+                      style: { color: 'var(--tt-text-primary)' }
                   },
                   kidData?.name || 'Baby'
                 ),
@@ -972,7 +1070,10 @@ const handleInvite = async () => {
           // Age
           React.createElement(
             'div',
-            { className: 'text-sm text-gray-500' },
+            { 
+              className: 'text-sm',
+              style: { color: 'var(--tt-text-secondary)' }
+            },
             kidData?.birthDate
               ? (() => {
                   const today = new Date();
@@ -1017,7 +1118,8 @@ const handleInvite = async () => {
                     'button',
                     {
                       onClick: () => setEditingUserName(false),
-                      className: 'ml-1 text-gray-400 hover:text-gray-600'
+                      className: 'ml-1',
+                      style: { color: 'var(--tt-text-tertiary)' }
                     },
                     React.createElement(X, { className: 'w-4 h-4' })
                   )
