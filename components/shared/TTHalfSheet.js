@@ -370,9 +370,10 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
         // Sheet Panel
         React.createElement('div', {
           ref: sheetRef,
-          className: "fixed left-0 right-0 bottom-0 z-[101] bg-white shadow-2xl",
+          className: "fixed left-0 right-0 bottom-0 z-[101] shadow-2xl",
           onClick: (e) => e.stopPropagation(),
             style: {
+              backgroundColor: "var(--tt-card-bg)",
               transform: 'translateY(100%)',
               willChange: 'transform',
               paddingBottom: 'env(safe-area-inset-bottom, 0)',
