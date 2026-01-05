@@ -17,6 +17,14 @@ const SettingsTab = ({ user, kidId }) => {
     }
     return 'new';
   });
+  // Today Card toggle state
+  const [showTodayCard, setShowTodayCard] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_show_today_card');
+      return stored !== null ? stored === 'true' : false;
+    }
+    return false;
+  });
   
   // Production data for UI Lab
   const [feedings, setFeedings] = useState([]);
@@ -505,6 +513,29 @@ const SettingsTab = ({ user, kidId }) => {
             setUiLabMode(value);
             if (typeof window !== 'undefined' && window.localStorage) {
               window.localStorage.setItem('tt_use_new_ui', value === 'new' ? 'true' : 'false');
+              // Force reload to apply changes
+              window.location.reload();
+            }
+          }
+        })
+      ),
+
+      // Today Card Toggle (controls feature flag)
+      React.createElement('div', { className: "mb-4" },
+        React.createElement('label', { 
+          className: "block text-sm font-medium text-gray-700 mb-2" 
+        }, 'Show Today Card'),
+        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+          value: showTodayCard ? 'on' : 'off',
+          options: [
+            { value: 'on', label: 'On' },
+            { value: 'off', label: 'Off' }
+          ],
+          onChange: (value) => {
+            const isOn = value === 'on';
+            setShowTodayCard(isOn);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('tt_show_today_card', isOn ? 'true' : 'false');
               // Force reload to apply changes
               window.location.reload();
             }

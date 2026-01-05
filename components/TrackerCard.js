@@ -315,12 +315,12 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   // Swipe state
   const [swipeOffset, setSwipeOffset] = React.useState(0);
   const [isSwiping, setIsSwiping] = React.useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const touchStartRef = React.useRef({ x: 0, y: 0 });
   const itemRef = React.useRef(null);
   
   const SWIPE_THRESHOLD = 80; // pixels to reveal delete button
-  const DELETE_BUTTON_WIDTH = 80; // width of delete button
+  const DELETE_BUTTON_WIDTH = 80; // base width of delete button (matches Apple Messages)
+  const DELETE_BUTTON_MAX_WIDTH = 100; // elastic max width (~25% more, like Apple)
   
   // Real-time timer state for active sleep
   const [elapsedTime, setElapsedTime] = React.useState(() => {
@@ -475,17 +475,18 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     // Use provided offset or current swipeOffset state
     const currentOffset = finalOffset !== null ? finalOffset : swipeOffset;
     
-    // Full swipe delete (swiped past delete button width)
+    // Full swipe delete (swiped past delete button width) - delete directly
     if (currentOffset < -DELETE_BUTTON_WIDTH * 1.5) {
       // Haptic feedback (if available)
       if (navigator.vibrate) {
         navigator.vibrate(10); // Short vibration
       }
-      // Trigger delete confirmation directly
+      // Delete directly without confirmation
       if (onDelete && entry?.id) {
-        setShowDeleteConfirm(true);
-        // Reset swipe position
+        // Reset swipe position first
         setSwipeOffset(0);
+        // Call delete handler
+        handleDeleteDirect();
       }
     } else if (currentOffset < -SWIPE_THRESHOLD) {
       // Haptic feedback for reveal
@@ -546,12 +547,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     };
   }, [swipeOffset, isSwiping, onDelete, entry]);
   
-  const handleDeleteClick = async () => {
-    if (!entry || !entry.id || !onDelete) return;
-    setShowDeleteConfirm(true);
-  };
-  
-  const handleDeleteConfirm = async () => {
+  const handleDeleteDirect = async () => {
     if (!entry || !entry.id || !onDelete) return;
     
     try {
@@ -567,21 +563,18 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
       } else {
         await firestoreStorage.deleteFeeding(entry.id);
       }
-      setShowDeleteConfirm(false);
+      
+      // Reset swipe position
       setSwipeOffset(0);
+      
+      // Call onDelete callback for data refresh
       if (onDelete) {
         await onDelete();
       }
     } catch (error) {
       console.error('Failed to delete:', error);
       alert('Failed to delete. Please try again.');
-      setShowDeleteConfirm(false);
     }
-  };
-  
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirm(false);
-    setSwipeOffset(0);
   };
   
   // Reset swipe when clicking elsewhere
@@ -612,143 +605,125 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     'div',
     {
       ref: itemRef,
-      className: "relative overflow-hidden",
+      className: "relative overflow-hidden rounded-2xl", // Add rounded-2xl to parent for clipping
       style: { touchAction: 'pan-y' } // Allow vertical scroll, handle horizontal swipe
     },
-    // Swipeable content wrapper
+    // Swipeable content wrapper - container stays fixed, right edge doesn't move
     React.createElement(
       'div',
       { 
-        className: "swipeable-content rounded-2xl p-4 cursor-pointer transition-colors duration-150 tt-tapable",
+        className: "swipeable-content rounded-2xl cursor-pointer transition-colors duration-150 tt-tapable",
         style: {
           backgroundColor: timelineBg,
           position: 'relative',
-          transform: `translateX(${swipeOffset}px) scale(${swipeOffset < -SWIPE_THRESHOLD ? 0.98 : 1})`,
+          // Remove translateX from container - it stays fixed
           transition: isSwiping 
             ? 'none' 
             : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)', // iOS-style spring curve
-          zIndex: 1
+          zIndex: 1,
+          overflow: 'hidden' // Clip delete button when not expanded
         },
         onClick: handleClick
       },
+      // Main content wrapper - translates fully left (like Apple Messages)
       React.createElement(
         'div',
-        { className: "flex items-center justify-between mb-2" },
+        {
+          className: "p-4", // Padding for content
+          style: { 
+            transform: swipeOffset < 0 
+              ? `translateX(${swipeOffset}px)` // Full translation, not capped
+              : 'translateX(0px)',
+            transition: isSwiping 
+              ? 'none' 
+              : 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' // Apple's spring curve
+          }
+        },
         React.createElement(
           'div',
-          { className: "flex items-center gap-3" },
-          getIcon(),
+          { className: "flex items-center justify-between mb-2" },
           React.createElement(
             'div',
-            null,
-            React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
-              primaryText
-            ),
-            React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
-              secondaryText
-            )
-          )
-        ),
-        // Hide chevron when swiped
-        swipeOffset >= -SWIPE_THRESHOLD && React.createElement(ChevronDown, { 
-          className: "rotate-[-90deg]", 
-          style: { color: 'var(--tt-text-secondary)', strokeWidth: '3' } 
-        })
-      ),
-      (hasNote || hasPhotos) && React.createElement(
-        React.Fragment,
-        null,
-        hasNote && React.createElement(
-          'div',
-          { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
-          `Note: ${entry.notes}`
-        ),
-        hasPhotos && React.createElement(
-          'div',
-          { className: "grid grid-cols-2 gap-2" },
-          entry.photoURLs.slice(0, 4).map((photoUrl, i) =>
+            { className: "flex items-center gap-3" },
+            getIcon(),
             React.createElement(
-              'img',
-              {
-                key: i,
-                src: photoUrl,
-                alt: `Photo ${i + 1}`,
-                className: "aspect-square rounded-2xl object-cover",
-                style: { backgroundColor: 'var(--tt-input-bg)' }
-              }
+              'div',
+              null,
+              React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
+                primaryText
+              ),
+              React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
+                secondaryText
+              )
+            )
+          ),
+          // Hide chevron when swiped
+          swipeOffset >= -SWIPE_THRESHOLD && React.createElement(ChevronDown, { 
+            className: "rotate-[-90deg]", 
+            style: { color: 'var(--tt-text-secondary)', strokeWidth: '3' } 
+          })
+        ),
+        (hasNote || hasPhotos) && React.createElement(
+          React.Fragment,
+          null,
+          hasNote && React.createElement(
+            'div',
+            { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
+            `Note: ${entry.notes}`
+          ),
+          hasPhotos && React.createElement(
+            'div',
+            { className: "grid grid-cols-2 gap-2" },
+            entry.photoURLs.slice(0, 4).map((photoUrl, i) =>
+              React.createElement(
+                'img',
+                {
+                  key: i,
+                  src: photoUrl,
+                  alt: `Photo ${i + 1}`,
+                  className: "aspect-square rounded-2xl object-cover",
+                  style: { backgroundColor: 'var(--tt-input-bg)' }
+                }
+              )
             )
           )
         )
-      )
-    ),
-    // Delete button (revealed on swipe)
-    onDelete && React.createElement(
-      'div',
-      {
-        className: "absolute right-0 top-0 bottom-0 flex items-center justify-center",
-        style: {
-          width: `${DELETE_BUTTON_WIDTH}px`,
-          backgroundColor: swipeOffset < -DELETE_BUTTON_WIDTH * 1.2 ? '#dc2626' : '#ef4444', // Darker red when swiping past
-          transform: `translateX(${DELETE_BUTTON_WIDTH + swipeOffset}px) scale(${swipeOffset < -DELETE_BUTTON_WIDTH ? 1.02 : 1})`,
-          transition: isSwiping 
-            ? 'none' 
-            : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1), background-color 0.2s ease, opacity 0.2s ease',
-          zIndex: 0,
-          borderRadius: '0 1rem 1rem 0',
-          opacity: swipeOffset < -10 ? Math.min(1, Math.abs(swipeOffset) / 40) : 0 // Smooth fade in
-        }
-      },
-      React.createElement(
-        'button',
-        {
-          onClick: handleDeleteClick,
-          className: "text-white font-semibold text-sm px-4",
-          style: { touchAction: 'manipulation' }
-        },
-        'Delete'
-      )
-    ),
-    // Confirmation dialog
-    showDeleteConfirm && React.createElement(
-      'div',
-      {
-        className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50",
-        onClick: handleDeleteCancel,
-        style: { zIndex: 9999 }
-      },
-      React.createElement(
+      ),
+      // Delete button - absolutely positioned on right, expands inward from right edge (Apple Messages style)
+      onDelete && React.createElement(
         'div',
         {
-          className: "bg-white dark:bg-gray-800 rounded-2xl p-6 mx-4 max-w-sm w-full",
-          onClick: (e) => e.stopPropagation()
+          className: "absolute right-0 top-0 bottom-0 flex items-center justify-center rounded-r-2xl", // Match rounded corners on right side
+          style: {
+            width: swipeOffset < 0 
+              ? (() => {
+                  const absOffset = Math.abs(swipeOffset);
+                  // Grow to base width quickly, then expand elastically
+                  if (absOffset <= DELETE_BUTTON_WIDTH) {
+                    return `${absOffset}px`; // 1:1 growth to base width
+                  } else {
+                    // Elastic expansion beyond base width (slower growth)
+                    const extra = absOffset - DELETE_BUTTON_WIDTH;
+                    return `${Math.min(DELETE_BUTTON_MAX_WIDTH, DELETE_BUTTON_WIDTH + extra * 0.3)}px`;
+                  }
+                })()
+              : '0px',
+            backgroundColor: '#ef4444',
+            transition: isSwiping 
+              ? 'none' 
+              : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)', // Apple's spring curve
+            opacity: swipeOffset < 0 ? Math.min(1, Math.abs(swipeOffset) / 60) : 0,
+            overflow: 'hidden' // Hide text when width is 0
+          }
         },
-        React.createElement('div', { className: "text-lg font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } },
-          'Delete entry?'
-        ),
-        React.createElement('div', { className: "text-sm mb-6", style: { color: 'var(--tt-text-secondary)' } },
-          'This action cannot be undone.'
-        ),
-        React.createElement('div', { className: "flex gap-3" },
-          React.createElement(
-            'button',
-            {
-              onClick: handleDeleteCancel,
-              className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
-              style: {
-                borderColor: 'var(--tt-card-border)',
-                color: 'var(--tt-text-primary)'
-              }
-            },
-            'Cancel'
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: handleDeleteConfirm,
-              className: "flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
-            },
-            'Delete'
-          )
+        React.createElement(
+          'button',
+          {
+            onClick: handleDeleteDirect,
+            className: "text-white font-semibold text-sm px-4 whitespace-nowrap",
+            style: { touchAction: 'manipulation' }
+          },
+          'Delete'
         )
       )
     )
@@ -908,6 +883,60 @@ const TrackerCard = ({
     }
   }, []);
 
+  // Inject BMW-style charging pulse animation for active sleep progress bar
+  React.useEffect(() => {
+    try {
+      if (document.getElementById('tt-sleep-pulse-style')) return;
+      const s = document.createElement('style');
+      s.id = 'tt-sleep-pulse-style';
+      s.textContent = `
+        @keyframes ttSleepPulse {
+          0% {
+            transform: translateX(-100%) skewX(-20deg);
+            opacity: 0;
+          }
+          50% {
+            opacity: 0.8;
+          }
+          100% {
+            transform: translateX(200%) skewX(-20deg);
+            opacity: 0;
+          }
+        }
+        .tt-sleep-progress-pulse {
+          position: relative;
+          overflow: hidden;
+        }
+        .tt-sleep-progress-pulse::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 50%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.5),
+            transparent
+          );
+          animation: ttSleepPulse 2.5s ease-in-out infinite;
+          border-radius: inherit;
+          pointer-events: none;
+        }
+      `;
+      document.head.appendChild(s);
+    } catch (e) {
+      // non-fatal
+    }
+  }, []);
+
+  // Check if sleep is currently active
+  const isSleepActive = React.useMemo(() => {
+    if (mode !== 'sleep') return false;
+    return localTimelineItems.some(item => item.isActive && item.startTime);
+  }, [mode, localTimelineItems]);
+
   // Calculate current percent from total/target
   const currentPercent = (total !== null && target !== null && target > 0) 
     ? Math.min(100, (total / target) * 100) 
@@ -1052,7 +1081,7 @@ const TrackerCard = ({
     },
     React.createElement(
       'div',
-      { className: "flex items-center gap-2 mb-4 h-6" },
+      { className: "flex items-center gap-2 mb-6 h-6" },
       HeaderIcon ? React.createElement(HeaderIcon, { 
         className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
         style: { 
@@ -1068,7 +1097,7 @@ const TrackerCard = ({
     ),
     React.createElement(
       'div',
-      { className: "flex items-baseline gap-1 mb-2" },
+      { className: "flex items-baseline gap-1 mb-3" },
       React.createElement('div', { 
         className: "text-[40px] leading-none font-bold",
         style: { 
@@ -1087,21 +1116,22 @@ const TrackerCard = ({
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-2", style: { backgroundColor: 'var(--tt-input-bg)' } },
+    React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-3", style: { backgroundColor: 'var(--tt-input-bg)' } },
       React.createElement('div', {
-        className: "absolute left-0 top-0 h-full rounded-2xl",
+        className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
           width: `${calculatedPercent}%`,
           backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
           transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
           transitionDelay: '0s',
-          minWidth: '0%' // Ensure smooth animation to 0
+          minWidth: '0%', // Ensure smooth animation to 0
+          position: 'relative' // Ensure ::after pseudo-element positions correctly
         }
       })
     ),
     React.createElement(
       'div',
-      { className: "flex gap-1.5 pl-1" },
+      { className: "flex gap-1.5 pl-1 mb-2" },
       Array.from({ length: Math.min(timelineItems.length, 10) }, (_, i) =>
         React.createElement('div', { 
           key: i, 
