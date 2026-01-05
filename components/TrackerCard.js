@@ -264,7 +264,7 @@ function ensureTapAnimationStyles() {
       }
       50% {
         opacity: 1;
-        max-height: 500px;
+        max-height: 100px;
       }
       70% {
         transform: translateY(2px) scale(1.01);
@@ -272,7 +272,7 @@ function ensureTapAnimationStyles() {
       100% {
         opacity: 1;
         transform: translateY(0) scale(1);
-        max-height: 500px;
+        max-height: 100px;
       }
     }
     
@@ -280,12 +280,14 @@ function ensureTapAnimationStyles() {
       0% {
         opacity: 1;
         transform: translateY(0) scale(1);
-        max-height: 500px;
+        max-height: 100px;
+        margin-bottom: 1rem;
       }
       100% {
         opacity: 0;
         transform: translateY(-20px) scale(0.95);
         max-height: 0;
+        margin-bottom: 0;
         padding-top: 0;
         padding-bottom: 0;
       }
@@ -829,8 +831,8 @@ const TrackerCard = ({
     ),
     expanded && React.createElement(
       'div',
-      { className: "mt-4" },
-      ((timelineItems && timelineItems.length > 0) || exitingIds.size > 0)
+      { className: "mt-4 space-y-4" },
+      timelineItems && timelineItems.length > 0
         ? (() => {
             // Combine current items with exiting items for animation
             const allItems = [...timelineItems];
@@ -859,18 +861,11 @@ const TrackerCard = ({
                   ? 'timeline-item-enter' 
                   : '';
               
-              // Add margin-bottom to all items except the last (unless it's exiting)
-              const isLast = index === allItems.length - 1;
-              const spacingClass = (isLast && !isExiting) ? '' : 'mb-4';
-              const finalClassName = animationClass 
-                ? `${animationClass} ${spacingClass}`.trim()
-                : spacingClass;
-              
               return React.createElement(
                 'div',
                 {
                   key: itemId,
-                  className: finalClassName
+                  className: animationClass ? animationClass : ''
                 },
                 React.createElement(TimelineItem, { 
                   entry,
