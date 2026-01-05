@@ -1444,46 +1444,73 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       
       const vv = window.visualViewport;
       if (!vv) return;
-      
+
+      // Throttle visualViewport events to animation frames to avoid choppy re-renders.
+      let rafId = null;
+      let lastKeyboardOffset = keyboardOffset;
+      let lastSheetHeight = sheetHeight;
+
       const handleResize = () => {
-        // Smoothly raise/lower the sheet above the keyboard.
-        setKeyboardOffset(computeKeyboardOffset());
-        if (contentRef.current && sheetRef.current && headerRef.current) {
-          const contentHeight = contentRef.current.scrollHeight;
-          const viewportHeight = vv.height;
-          
-          // Measure actual header height instead of hardcoding
-          const headerHeight = headerRef.current.offsetHeight;
-          
-          // Get safe-area-inset-bottom - try to read computed style, fallback to 0
-          let bottomPad = 0;
-          try {
-            const cs = window.getComputedStyle(sheetRef.current);
-            const pb = cs.paddingBottom;
-            // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
-            if (pb && pb.includes('px')) {
-              bottomPad = parseFloat(pb) || 0;
-            }
-          } catch (e) {
-            // Fallback to 0 if measurement fails
-            bottomPad = 0;
-          }
-          
-          const totalNeeded = contentHeight + headerHeight + bottomPad;
-          // If content fits within 90% of viewport, use exact height to prevent scrolling
-          // Otherwise, cap at 90% to leave some space at top
-          const maxHeight = totalNeeded <= viewportHeight * 0.9 
-            ? totalNeeded 
-            : Math.min(viewportHeight * 0.9, totalNeeded);
-          setSheetHeight(`${maxHeight}px`);
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
         }
+
+        rafId = requestAnimationFrame(() => {
+          const newKeyboardOffset = computeKeyboardOffset();
+
+          // Only update when it actually changed (reduces re-renders during keyboard animation).
+          if (Math.abs(newKeyboardOffset - lastKeyboardOffset) > 0.5) {
+            setKeyboardOffset(newKeyboardOffset);
+            lastKeyboardOffset = newKeyboardOffset;
+          }
+
+          if (contentRef.current && sheetRef.current && headerRef.current) {
+            const contentHeight = contentRef.current.scrollHeight;
+            const viewportHeight = vv.height;
+
+            // Measure actual header height instead of hardcoding
+            const headerHeight = headerRef.current.offsetHeight;
+
+            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
+            let bottomPad = 0;
+            try {
+              const cs = window.getComputedStyle(sheetRef.current);
+              const pb = cs.paddingBottom;
+              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
+              if (pb && pb.includes('px')) {
+                bottomPad = parseFloat(pb) || 0;
+              }
+            } catch (e) {
+              // Fallback to 0 if measurement fails
+              bottomPad = 0;
+            }
+
+            const totalNeeded = contentHeight + headerHeight + bottomPad;
+            // If content fits within 90% of viewport, use exact height to prevent scrolling
+            // Otherwise, cap at 90% to leave some space at top
+            const maxHeight = totalNeeded <= viewportHeight * 0.9
+              ? totalNeeded
+              : Math.min(viewportHeight * 0.9, totalNeeded);
+            const newSheetHeight = `${maxHeight}px`;
+
+            if (newSheetHeight !== lastSheetHeight) {
+              setSheetHeight(newSheetHeight);
+              lastSheetHeight = newSheetHeight;
+            }
+          }
+        });
       };
-      
+
       vv.addEventListener('resize', handleResize);
       vv.addEventListener('scroll', handleResize);
       // Initial sync (covers keyboard already open / first focus)
       handleResize();
       return () => {
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
         vv.removeEventListener('resize', handleResize);
         vv.removeEventListener('scroll', handleResize);
       };
