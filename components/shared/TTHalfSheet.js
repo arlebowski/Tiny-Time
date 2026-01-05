@@ -361,16 +361,17 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
         // Backdrop
         React.createElement('div', {
           ref: backdropRef,
-          className: "fixed inset-0 bg-black z-[100]",
+          className: "fixed inset-0 bg-black",
           onClick: () => { if (onClose && !isDragging) onClose(); },
           style: { 
-            opacity: 0
+            opacity: 0,
+            zIndex: 10000
           }
         }),
         // Sheet Panel
         React.createElement('div', {
           ref: sheetRef,
-          className: "fixed left-0 right-0 bottom-0 z-[101] shadow-2xl",
+          className: "fixed left-0 right-0 bottom-0 shadow-2xl",
           onClick: (e) => e.stopPropagation(),
             style: {
               backgroundColor: "var(--tt-card-bg)",
@@ -389,7 +390,8 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
               touchAction: 'pan-y',
               overscrollBehavior: 'contain',
               borderTopLeftRadius: '20px',
-              borderTopRightRadius: '20px'
+              borderTopRightRadius: '20px',
+              zIndex: 10001
             }
           },
           // Header (part of HalfSheet chrome) - fixed 60px height

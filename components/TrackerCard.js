@@ -12,7 +12,7 @@ const ChevronDown = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -29,7 +29,7 @@ const ChevronUp = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -47,7 +47,7 @@ const EditIcon = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -82,7 +82,7 @@ const CalendarIcon = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -102,7 +102,7 @@ const PlusIcon = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -120,7 +120,7 @@ const CheckIcon = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -137,7 +137,7 @@ const ClockIcon = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -155,7 +155,7 @@ const XIcon = (props) => React.createElement(
     viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: "2",
+    strokeWidth: "2.5",
     strokeLinecap: "round",
     strokeLinejoin: "round",
   },
@@ -196,27 +196,173 @@ function ensureZzzStyles() {
         opacity: 0;
       }
     }
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+      }
+    }
     .zzz {
+      display: inline-block;
+    }
+    .zzz > span {
       display: inline-block;
       animation: floatingZs 2s ease-in-out infinite;
     }
-    .zzz :nth-child(1) { animation-delay: 0s; }
-    .zzz :nth-child(2) { animation-delay: 0.3s; }
-    .zzz :nth-child(3) { animation-delay: 0.6s; }
+    .zzz > span:nth-child(1) { animation-delay: 0s; }
+    .zzz > span:nth-child(2) { animation-delay: 0.3s; }
+    .zzz > span:nth-child(3) { animation-delay: 0.6s; }
   `;
   document.head.appendChild(style);
 }
 
-const TimelineItem = ({ withNote, mode = 'sleep' }) => {
+const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClick = null }) => {
+  if (!entry) return null;
+  
   const isSleep = mode === 'sleep';
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const timelineBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+  
+  // Real-time timer state for active sleep
+  const [elapsedTime, setElapsedTime] = React.useState(() => {
+    if (entry.isActive && entry.startTime) {
+      return Date.now() - entry.startTime;
+    }
+    return 0;
+  });
+  
+  // Update timer every second for active sleep
+  React.useEffect(() => {
+    if (!entry.isActive || !entry.startTime) return;
+    
+    const interval = setInterval(() => {
+      setElapsedTime(Date.now() - entry.startTime);
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [entry.isActive, entry.startTime]);
+  
+  // Format time for display
+  const formatTime12Hour = (timestamp) => {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const mins = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${mins}${ampm}`;
+  };
+
+  // Format duration with seconds for active sleep
+  const formatDurationWithSeconds = (ms) => {
+    const hours = Math.floor(ms / (1000 * 60 * 60));
+    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${seconds}s`;
+    } else if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    } else {
+      return `${seconds}s`;
+    }
+  };
+
+  // Format duration for sleep (with seconds for in-progress)
+  const formatDuration = (startTime, endTime, isActive = false) => {
+    if (!startTime) return '';
+    const start = new Date(startTime);
+    const end = endTime ? new Date(endTime) : new Date();
+    const diffMs = end - start;
+    if (diffMs < 0) return '';
+    
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    const seconds = Math.floor((diffMs % (1000 * 60)) / 1000);
+    
+    // For in-progress, show seconds with smart formatting
+    if (isActive) {
+      if (hours > 0) {
+        return `${hours}h ${minutes}m ${seconds}s`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      } else {
+        return `${seconds}s`;
+      }
+    }
+    
+    // For completed, show hours and minutes only
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  // Get display values based on mode
+  const primaryText = isSleep 
+    ? (entry.isActive && entry.startTime
+        ? formatDurationWithSeconds(elapsedTime)
+        : formatDuration(entry.startTime, entry.endTime, entry.isActive))
+    : `${entry.ounces || 0}oz`;
+  
+  const secondaryText = isSleep
+    ? (entry.startTime && entry.endTime 
+        ? `${formatTime12Hour(entry.startTime)} – ${formatTime12Hour(entry.endTime)}`
+        : entry.startTime 
+          ? `${formatTime12Hour(entry.startTime)} – in progress`
+          : '')
+    : (entry.timestamp ? formatTime12Hour(entry.timestamp) : '');
+
+  const hasNote = entry.notes && entry.notes.trim() !== '';
+  const hasPhotos = entry.photoURLs && Array.isArray(entry.photoURLs) && entry.photoURLs.length > 0;
+  
+  // Get icon based on mode and sleep type (25% larger: 6 * 1.25 = 7.5)
+  const getIcon = () => {
+    if (isSleep) {
+      const sleepType = entry.sleepType || 'night';
+      const DaySleepIcon = window.TT?.shared?.icons?.DaySleep || null;
+      const NightSleepIcon = window.TT?.shared?.icons?.NightSleep || null;
+      const Icon = sleepType === 'day' ? DaySleepIcon : NightSleepIcon;
+      const accentColor = 'var(--tt-sleep)';
+      
+      // Add animated pulsing effect for active sleep
+      const iconStyle = entry.isActive 
+        ? { 
+            color: accentColor,
+            animation: 'pulse 2s ease-in-out infinite'
+          }
+        : { color: accentColor };
+      
+      return Icon ? React.createElement(Icon, {
+        style: { ...iconStyle, width: '2.25rem', height: '2.25rem', strokeWidth: '3' } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px) + 0.5 stroke
+      }) : React.createElement('div', { style: { width: '2.25rem', height: '2.25rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
+    } else {
+      const Bottle2Icon = window.TT?.shared?.icons?.Bottle2 || null;
+      const accentColor = 'var(--tt-feed)';
+      return Bottle2Icon ? React.createElement(Bottle2Icon, {
+        style: { color: accentColor, width: '2.25rem', height: '2.25rem', strokeWidth: '3' } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px) + 0.5 stroke
+      }) : React.createElement('div', { style: { width: '2.25rem', height: '2.25rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
+    }
+  };
+  
+  const handleClick = () => {
+    if (onClick && entry) {
+      onClick(entry);
+    }
+  };
   
   return React.createElement(
     'div',
     { 
       className: "rounded-2xl p-4 cursor-pointer transition-colors duration-150",
-      style: { backgroundColor: timelineBg }
+      style: { backgroundColor: timelineBg },
+      onClick: handleClick
     },
     React.createElement(
       'div',
@@ -224,37 +370,39 @@ const TimelineItem = ({ withNote, mode = 'sleep' }) => {
       React.createElement(
         'div',
         { className: "flex items-center gap-3" },
-        React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
+        getIcon(),
         React.createElement(
           'div',
           null,
           React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
-            isSleep ? '2h 20m' : '4oz'
+            primaryText
           ),
           React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
-            isSleep ? '6:07pm – 8:27pm' : '8:27pm'
+            secondaryText
           )
         )
       ),
-      React.createElement(ChevronDown, { className: "rotate-[-90deg]", style: { color: 'var(--tt-text-secondary)' } })
+      React.createElement(ChevronDown, { className: "rotate-[-90deg]", style: { color: 'var(--tt-text-secondary)', strokeWidth: '3' } })
     ),
-    withNote && React.createElement(
+    (hasNote || hasPhotos) && React.createElement(
       React.Fragment,
       null,
-      React.createElement(
+      hasNote && React.createElement(
         'div',
         { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
-        isSleep ? 'Note: had to hold him forever' : 'Note: kid didn\'t burp dammit!'
+        `Note: ${entry.notes}`
       ),
-      React.createElement(
+      hasPhotos && React.createElement(
         'div',
         { className: "grid grid-cols-2 gap-2" },
-        [0, 1, 2, 3].map(i =>
+        entry.photoURLs.slice(0, 4).map((photoUrl, i) =>
           React.createElement(
-            'div',
+            'img',
             {
               key: i,
-              className: "aspect-square rounded-2xl",
+              src: photoUrl,
+              alt: `Photo ${i + 1}`,
+              className: "aspect-square rounded-2xl object-cover",
               style: { backgroundColor: 'var(--tt-input-bg)' }
             }
           )
@@ -264,7 +412,15 @@ const TimelineItem = ({ withNote, mode = 'sleep' }) => {
   );
 };
 
-const TrackerCard = ({ mode = 'sleep' }) => {
+const TrackerCard = ({ 
+  mode = 'sleep',
+  total = null,           // e.g., 14.5 (oz or hrs)
+  target = null,           // e.g., 14.5 (oz or hrs)
+  timelineItems = [],     // Array of log entries
+  lastEntryTime = null,   // For status text (timestamp in ms)
+  onItemClick = null,     // Callback when timeline item clicked
+  onActiveSleepClick = null // Callback when active sleep entry clicked (opens input sheet)
+}) => {
   ensureZzzStyles();
   const [expanded, setExpanded] = React.useState(false);
   const [cardVisible, setCardVisible] = React.useState(false);
@@ -287,25 +443,112 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     }
   }, []);
 
-  // Demo percent for animation (66% = 2/3)
-  const demoPercent = 66;
+  // Calculate percent from total/target, fallback to demo if not provided
+  const calculatedPercent = (total !== null && target !== null && target > 0) 
+    ? Math.min(100, (total / target) * 100) 
+    : 66;
+  const displayPercent = cardVisible ? calculatedPercent : 0;
   
+  // Format time for status text
+  const formatTime12Hour = (timestamp) => {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'pm' : 'am';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const mins = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${mins}${ampm}`;
+  };
+
+  // Format duration for sleep status
+  const formatDuration = (startTime, endTime) => {
+    if (!startTime) return '';
+    const start = new Date(startTime);
+    const end = endTime ? new Date(endTime) : new Date();
+    const diffMs = end - start;
+    if (diffMs < 0) return '';
+    const hours = Math.floor(diffMs / (1000 * 60 * 60));
+    const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    return `${minutes}m`;
+  };
+
+  // Real-time timer for active sleep in timeline status
+  const ActiveSleepTimer = ({ startTime }) => {
+    const [elapsed, setElapsed] = React.useState(() => {
+      return Date.now() - startTime;
+    });
+    
+    React.useEffect(() => {
+      const interval = setInterval(() => {
+        setElapsed(Date.now() - startTime);
+      }, 1000);
+      return () => clearInterval(interval);
+    }, [startTime]);
+    
+    const formatWithSeconds = (ms) => {
+      const hours = Math.floor(ms / (1000 * 60 * 60));
+      const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+      
+      if (hours > 0) {
+        return `${hours}h ${minutes}m ${seconds}s`;
+      } else if (minutes > 0) {
+        return `${minutes}m ${seconds}s`;
+      } else {
+        return `${seconds}s`;
+      }
+    };
+    
+    return React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
+        formatWithSeconds(elapsed)
+      ),
+      React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
+        ' ',
+        React.createElement('span', { className: "zzz" },
+          React.createElement('span', null, 'z'),
+          React.createElement('span', null, 'Z'),
+          React.createElement('span', null, 'z')
+        )
+      )
+    );
+  };
+
   // Status text based on mode for Timeline row
   const timelineStatusText = mode === 'feeding' 
-    ? 'Last fed 4:02pm'
-    : React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, '1h 20m'),
-        React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
-          ' ',
-          React.createElement('span', { className: "zzz" },
-            React.createElement('span', null, 'z'),
-            React.createElement('span', null, 'Z'),
-            React.createElement('span', null, 'z')
-          )
-        )
-      );
+    ? (lastEntryTime ? `Last fed ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
+    : (() => {
+        // Check if there's an active sleep entry
+        const activeEntry = timelineItems.find(item => item.isActive && item.startTime);
+        if (activeEntry) {
+          return React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime });
+        } else if (lastEntryTime) {
+          return React.createElement(
+            React.Fragment,
+            null,
+            React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
+              formatDuration(lastEntryTime, null)
+            ),
+            React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
+              ' ',
+              React.createElement('span', { className: "zzz" },
+                React.createElement('span', null, 'z'),
+                React.createElement('span', null, 'Z'),
+                React.createElement('span', null, 'z')
+              )
+            )
+          );
+        } else {
+          return 'No sleep logged';
+        }
+      })();
 
   const timelineLabel = mode === 'feeding'
     ? `Timeline • ${timelineStatusText}`
@@ -334,10 +577,11 @@ const TrackerCard = ({ mode = 'sleep' }) => {
       'div',
       { className: "flex items-center gap-2 mb-4 h-6" },
       HeaderIcon ? React.createElement(HeaderIcon, { 
-        className: "h-[28px] w-[28px]",
+        className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
         style: { 
           color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transform: mode === 'feeding' ? 'translateY(-2px)' : 'none'
+          transform: mode === 'feeding' ? 'translateY(-2px)' : 'none',
+          strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
         }
       }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
       React.createElement('div', { 
@@ -352,10 +596,12 @@ const TrackerCard = ({ mode = 'sleep' }) => {
         className: "text-[40px] leading-none font-bold",
         style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
       }, 
-        mode === 'sleep' ? '14.5' : '22.5'
+        total !== null ? total.toFixed(1) : (mode === 'sleep' ? '0.0' : '0.0')
       ),
       React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none", style: { color: 'var(--tt-text-secondary)' } }, 
-        mode === 'sleep' ? 'of 14.5 hrs' : 'of 25.5 oz'
+        target !== null 
+          ? (mode === 'sleep' ? `of ${target.toFixed(1)} hrs` : `of ${target.toFixed(1)} oz`)
+          : (mode === 'sleep' ? 'of 0.0 hrs' : 'of 0.0 oz')
       )
     ),
     
@@ -364,7 +610,7 @@ const TrackerCard = ({ mode = 'sleep' }) => {
       React.createElement('div', {
         className: "absolute left-0 top-0 h-full rounded-2xl",
         style: {
-          width: cardVisible ? `${Math.min(100, demoPercent)}%` : '0%',
+          width: `${displayPercent}%`,
           backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
           transition: 'width 0.6s ease-out',
           transitionDelay: '0s'
@@ -374,7 +620,7 @@ const TrackerCard = ({ mode = 'sleep' }) => {
     React.createElement(
       'div',
       { className: "flex gap-1.5 pl-1" },
-      [0, 1, 2, 3, 4].map(i =>
+      Array.from({ length: Math.min(timelineItems.length, 10) }, (_, i) =>
         React.createElement('div', { 
           key: i, 
           className: "h-3.5 w-3.5 rounded-full",
@@ -398,13 +644,24 @@ const TrackerCard = ({ mode = 'sleep' }) => {
         style: { color: 'var(--tt-text-secondary)' }
       },
       React.createElement('span', null, timelineLabel),
-      expanded ? React.createElement(ChevronUp) : React.createElement(ChevronDown)
+      expanded ? React.createElement(ChevronUp, { style: { strokeWidth: '3' } }) : React.createElement(ChevronDown, { style: { strokeWidth: '3' } })
     ),
     expanded && React.createElement(
       'div',
       { className: "mt-4 space-y-4" },
-      React.createElement(TimelineItem, { mode }),
-      React.createElement(TimelineItem, { withNote: true, mode })
+      timelineItems && timelineItems.length > 0
+        ? timelineItems.map((entry, index) =>
+            React.createElement(TimelineItem, { 
+              key: entry.id || index,
+              entry,
+              mode,
+              onClick: onItemClick
+            })
+          )
+        : React.createElement('div', { 
+            className: "text-sm text-center py-4",
+            style: { color: 'var(--tt-text-secondary)' }
+          }, 'No entries yet')
     )
   );
 };
@@ -931,22 +1188,99 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTFeedDetailSheet Component
-  const TTFeedDetailSheet = ({ isOpen, onClose }) => {
-    const [ounces, setOunces] = React.useState('6');
+  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null }) => {
+    const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
-    const [notes, setNotes] = React.useState("kid didn't burp dammit!");
-    const [photos, setPhotos] = React.useState([]);
+    const [notes, setNotes] = React.useState('');
+    const [photos, setPhotos] = React.useState([]); // Array of base64 data URLs for new photos
+    const [existingPhotoURLs, setExistingPhotoURLs] = React.useState([]); // Array of Firebase Storage URLs
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
+    const [saving, setSaving] = React.useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
 
-    const handleSave = () => {
-      console.log('Feed save:', { ounces, dateTime, notes, photos });
-      // UI-only, no production behavior
-      handleClose(); // Close the sheet after saving
+    // Populate form from entry when it exists
+    React.useEffect(() => {
+      if (entry && isOpen) {
+        setOunces(entry.ounces ? entry.ounces.toString() : '');
+        setDateTime(entry.timestamp ? new Date(entry.timestamp).toISOString() : new Date().toISOString());
+        setNotes(entry.notes || '');
+        setExistingPhotoURLs(entry.photoURLs || []);
+        setPhotos([]); // Reset new photos
+      } else if (!entry && isOpen) {
+        // Create mode - reset to defaults
+        setOunces('');
+        setDateTime(new Date().toISOString());
+        setNotes('');
+        setExistingPhotoURLs([]);
+        setPhotos([]);
+      }
+    }, [entry, isOpen]);
+
+    const handleSave = async () => {
+      const amount = parseFloat(ounces);
+      if (!amount || amount <= 0) return;
+      
+      setSaving(true);
+      try {
+        const timestamp = new Date(dateTime).getTime();
+        
+        // Upload new photos to Firebase Storage
+        const newPhotoURLs = [];
+        for (const photoBase64 of photos) {
+          try {
+            const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+            newPhotoURLs.push(downloadURL);
+          } catch (error) {
+            console.error('Failed to upload photo:', error);
+            // Continue with other photos even if one fails
+          }
+        }
+        
+        // Combine existing and new photo URLs
+        const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+        
+        if (entry && entry.id) {
+          // Update existing feeding
+          await firestoreStorage.updateFeedingWithNotes(
+            entry.id,
+            amount,
+            timestamp,
+            notes || null,
+            allPhotoURLs.length > 0 ? allPhotoURLs : null
+          );
+        } else {
+          // Create new feeding
+          await firestoreStorage.addFeedingWithNotes(
+            amount,
+            timestamp,
+            notes || null,
+            allPhotoURLs.length > 0 ? allPhotoURLs : null
+          );
+        }
+        
+        handleClose();
+      } catch (error) {
+        console.error('Failed to save feeding:', error);
+        alert('Failed to save feeding. Please try again.');
+      } finally {
+        setSaving(false);
+      }
     };
 
-    const handleDelete = () => {
-      console.log('Feed delete');
-      // UI-only, no production behavior
+    const handleDelete = async () => {
+      if (!entry || !entry.id) return;
+      
+      setSaving(true);
+      try {
+        await firestoreStorage.deleteFeeding(entry.id);
+        handleClose();
+      } catch (error) {
+        console.error('Failed to delete feeding:', error);
+        alert('Failed to delete feeding. Please try again.');
+      } finally {
+        setSaving(false);
+        setShowDeleteConfirm(false);
+      }
     };
 
     const handleAddPhoto = () => {
@@ -966,9 +1300,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       input.click();
     };
 
-    const handleRemovePhoto = (index) => {
-      const newPhotos = photos.filter((_, i) => i !== index);
-      setPhotos(newPhotos);
+    const handleRemovePhoto = (index, isExisting = false) => {
+      if (isExisting) {
+        // Remove from existing photos
+        const newExisting = existingPhotoURLs.filter((_, i) => i !== index);
+        setExistingPhotoURLs(newExisting);
+      } else {
+        // Remove from new photos
+        const newPhotos = photos.filter((_, i) => i !== index);
+        setPhotos(newPhotos);
+      }
     };
 
     const handleClose = () => {
@@ -996,9 +1337,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           placeholder: '0'
         }),
 
-        // Start time
+        // Date & Time
         React.createElement(InputRow, {
-          label: 'Start time',
+          label: 'Date & Time',
           value: formatDateTime(dateTime), // This won't be used for datetime type
           rawValue: dateTime, // Pass the raw ISO string
           onChange: setDateTime,
@@ -1023,10 +1364,34 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
         ),
         React.createElement('div', { className: "flex gap-2" },
-          // Render photos
+          // Render existing photos (from Firebase Storage)
+          existingPhotoURLs.map((photoUrl, i) =>
+            React.createElement('div', {
+              key: `existing-${i}`,
+              className: "aspect-square rounded-2xl border relative",
+              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            },
+              React.createElement('img', { 
+                src: photoUrl, 
+                alt: `Photo ${i + 1}`, 
+                className: "w-full h-full object-cover rounded-2xl",
+                onClick: () => setFullSizePhoto(photoUrl)
+              }),
+              React.createElement('button', {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  handleRemovePhoto(i, true);
+                },
+                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
+              },
+                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
+              )
+            )
+          ),
+          // Render new photos (base64, not yet uploaded)
           photos.map((photo, i) =>
             React.createElement('div', {
-              key: i,
+              key: `new-${i}`,
               className: "aspect-square rounded-2xl border relative",
               style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
@@ -1039,7 +1404,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               React.createElement('button', {
                 onClick: (e) => {
                   e.stopPropagation();
-                  handleRemovePhoto(i);
+                  handleRemovePhoto(i, false);
                 },
                 className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
               },
@@ -1058,12 +1423,46 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Delete Button
-      React.createElement('button', {
-        onClick: handleDelete,
+      // Delete Button (only show if editing existing entry)
+      entry && entry.id && React.createElement('button', {
+        onClick: () => setShowDeleteConfirm(true),
+        disabled: saving,
         className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
-        style: { marginTop: '30px' } // 50% more: (12px photos bottom + 16px previous margin) * 1.5 = 42px total, minus 12px photos = 30px
+        style: { marginTop: '30px' }
       }, 'Delete'),
+
+      // Delete confirmation dialog
+      showDeleteConfirm && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', {
+          onClick: () => setShowDeleteConfirm(false),
+          className: "fixed inset-0 bg-black bg-opacity-50 z-[103] flex items-center justify-center p-4"
+        },
+          React.createElement('div', {
+            onClick: (e) => e.stopPropagation(),
+            className: "rounded-2xl p-4 max-w-xs w-full",
+            style: { backgroundColor: 'var(--tt-card-bg)' }
+          },
+            React.createElement('div', { className: "text-base font-semibold mb-4 text-center", style: { color: 'var(--tt-text-primary)' } }, 'Delete feeding?'),
+            React.createElement('div', { className: "flex gap-3" },
+              React.createElement('button', {
+                onClick: () => setShowDeleteConfirm(false),
+                className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
+                style: { 
+                  borderColor: 'var(--tt-card-border)', 
+                  color: 'var(--tt-text-secondary)',
+                  backgroundColor: 'var(--tt-card-bg)'
+                }
+              }, 'Cancel'),
+              React.createElement('button', {
+                onClick: handleDelete,
+                className: "flex-1 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-gray-900 transition text-sm"
+              }, 'Delete')
+            )
+          )
+        )
+      ),
 
       // Full-size photo modal
       fullSizePhoto && React.createElement(
@@ -1094,8 +1493,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           accentColor: 'var(--tt-feed)',
           rightAction: React.createElement('button', {
             onClick: handleSave,
-            className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
-          }, 'Save')
+            disabled: saving,
+            className: `text-base font-normal transition-opacity ${
+              saving 
+                ? 'text-white/50 cursor-not-allowed' 
+                : 'text-white hover:opacity-70 active:opacity-50'
+            }`
+          }, saving ? 'Saving...' : 'Save')
         },
         bodyContent
       );
@@ -1133,13 +1537,34 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTSleepDetailSheet Component
-  const TTSleepDetailSheet = ({ isOpen, onClose }) => {
+  const TTSleepDetailSheet = ({ isOpen, onClose, entry = null }) => {
     const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
     const [endTime, setEndTime] = React.useState(new Date().toISOString());
-    const [notes, setNotes] = React.useState("kid didn't burp dammit!");
-    const [photos, setPhotos] = React.useState([]);
+    const [notes, setNotes] = React.useState('');
+    const [photos, setPhotos] = React.useState([]); // Array of base64 data URLs for new photos
+    const [existingPhotoURLs, setExistingPhotoURLs] = React.useState([]); // Array of Firebase Storage URLs
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
-    const [lastValidDuration, setLastValidDuration] = React.useState({ hours: 2, minutes: 0, seconds: 0 });
+    const [lastValidDuration, setLastValidDuration] = React.useState({ hours: 0, minutes: 0, seconds: 0 });
+    const [saving, setSaving] = React.useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+
+    // Populate form from entry when it exists
+    React.useEffect(() => {
+      if (entry && isOpen) {
+        setStartTime(entry.startTime ? new Date(entry.startTime).toISOString() : new Date().toISOString());
+        setEndTime(entry.endTime ? new Date(entry.endTime).toISOString() : new Date().toISOString());
+        setNotes(entry.notes || '');
+        setExistingPhotoURLs(entry.photoURLs || []);
+        setPhotos([]); // Reset new photos
+      } else if (!entry && isOpen) {
+        // Create mode - reset to defaults
+        setStartTime(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
+        setEndTime(new Date().toISOString());
+        setNotes('');
+        setExistingPhotoURLs([]);
+        setPhotos([]);
+      }
+    }, [entry, isOpen]);
 
     // Calculate duration with validation
     const calculateDuration = () => {
@@ -1170,16 +1595,73 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     }, [isValid, duration.hours, duration.minutes, duration.seconds]);
 
-    const handleSave = () => {
+    const handleSave = async () => {
       if (!isValid) return; // Don't save if invalid
-      console.log('Sleep save:', { startTime, endTime, notes, photos, duration });
-      // UI-only, no production behavior
-      handleClose(); // Close the sheet after saving
+      
+      setSaving(true);
+      try {
+        const startMs = new Date(startTime).getTime();
+        const endMs = new Date(endTime).getTime();
+        
+        // Upload new photos to Firebase Storage
+        const newPhotoURLs = [];
+        for (const photoBase64 of photos) {
+          try {
+            const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
+            newPhotoURLs.push(downloadURL);
+          } catch (error) {
+            console.error('Failed to upload photo:', error);
+            // Continue with other photos even if one fails
+          }
+        }
+        
+        // Combine existing and new photo URLs
+        const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+        
+        if (entry && entry.id) {
+          // Update existing sleep session
+          await firestoreStorage.updateSleepSession(entry.id, {
+            startTime: startMs,
+            endTime: endMs,
+            isActive: false,
+            notes: notes || null,
+            photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
+          });
+        } else {
+          // Create new sleep session (shouldn't happen from detail sheet, but handle it)
+          const session = await firestoreStorage.startSleep(startMs);
+          await firestoreStorage.endSleep(session.id, endMs);
+          if (notes || allPhotoURLs.length > 0) {
+            await firestoreStorage.updateSleepSession(session.id, {
+              notes: notes || null,
+              photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
+            });
+          }
+        }
+        
+        handleClose();
+      } catch (error) {
+        console.error('Failed to save sleep session:', error);
+        alert('Failed to save sleep session. Please try again.');
+      } finally {
+        setSaving(false);
+      }
     };
 
-    const handleDelete = () => {
-      console.log('Sleep delete');
-      // UI-only, no production behavior
+    const handleDelete = async () => {
+      if (!entry || !entry.id) return;
+      
+      setSaving(true);
+      try {
+        await firestoreStorage.deleteSleepSession(entry.id);
+        handleClose();
+      } catch (error) {
+        console.error('Failed to delete sleep session:', error);
+        alert('Failed to delete sleep session. Please try again.');
+      } finally {
+        setSaving(false);
+        setShowDeleteConfirm(false);
+      }
     };
 
     const handleAddPhoto = () => {
@@ -1199,9 +1681,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       input.click();
     };
 
-    const handleRemovePhoto = (index) => {
-      const newPhotos = photos.filter((_, i) => i !== index);
-      setPhotos(newPhotos);
+    const handleRemovePhoto = (index, isExisting = false) => {
+      if (isExisting) {
+        // Remove from existing photos
+        const newExisting = existingPhotoURLs.filter((_, i) => i !== index);
+        setExistingPhotoURLs(newExisting);
+      } else {
+        // Remove from new photos
+        const newPhotos = photos.filter((_, i) => i !== index);
+        setPhotos(newPhotos);
+      }
     };
 
     const handleClose = () => {
@@ -1269,10 +1758,34 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
         ),
         React.createElement('div', { className: "flex gap-2" },
-          // Render photos
+          // Render existing photos (from Firebase Storage)
+          existingPhotoURLs.map((photoUrl, i) =>
+            React.createElement('div', {
+              key: `existing-${i}`,
+              className: "aspect-square rounded-2xl border relative",
+              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+            },
+              React.createElement('img', { 
+                src: photoUrl, 
+                alt: `Photo ${i + 1}`, 
+                className: "w-full h-full object-cover rounded-2xl",
+                onClick: () => setFullSizePhoto(photoUrl)
+              }),
+              React.createElement('button', {
+                onClick: (e) => {
+                  e.stopPropagation();
+                  handleRemovePhoto(i, true);
+                },
+                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
+              },
+                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
+              )
+            )
+          ),
+          // Render new photos (base64, not yet uploaded)
           photos.map((photo, i) =>
             React.createElement('div', {
-              key: i,
+              key: `new-${i}`,
               className: "aspect-square rounded-2xl border relative",
               style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
             },
@@ -1285,7 +1798,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               React.createElement('button', {
                 onClick: (e) => {
                   e.stopPropagation();
-                  handleRemovePhoto(i);
+                  handleRemovePhoto(i, false);
                 },
                 className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
               },
@@ -1304,12 +1817,46 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         )
       ),
 
-      // Delete Button
-      React.createElement('button', {
-        onClick: handleDelete,
+      // Delete Button (only show if editing existing entry)
+      entry && entry.id && React.createElement('button', {
+        onClick: () => setShowDeleteConfirm(true),
+        disabled: saving,
         className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
-        style: { marginTop: '30px' } // 50% more: (12px photos bottom + 16px previous margin) * 1.5 = 42px total, minus 12px photos = 30px
+        style: { marginTop: '30px' }
       }, 'Delete'),
+
+      // Delete confirmation dialog
+      showDeleteConfirm && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', {
+          onClick: () => setShowDeleteConfirm(false),
+          className: "fixed inset-0 bg-black bg-opacity-50 z-[103] flex items-center justify-center p-4"
+        },
+          React.createElement('div', {
+            onClick: (e) => e.stopPropagation(),
+            className: "rounded-2xl p-4 max-w-xs w-full",
+            style: { backgroundColor: 'var(--tt-card-bg)' }
+          },
+            React.createElement('div', { className: "text-base font-semibold mb-4 text-center", style: { color: 'var(--tt-text-primary)' } }, 'Delete sleep session?'),
+            React.createElement('div', { className: "flex gap-3" },
+              React.createElement('button', {
+                onClick: () => setShowDeleteConfirm(false),
+                className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
+                style: { 
+                  borderColor: 'var(--tt-card-border)', 
+                  color: 'var(--tt-text-secondary)',
+                  backgroundColor: 'var(--tt-card-bg)'
+                }
+              }, 'Cancel'),
+              React.createElement('button', {
+                onClick: handleDelete,
+                className: "flex-1 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-gray-900 transition text-sm"
+              }, 'Delete')
+            )
+          )
+        )
+      ),
 
       // Full-size photo modal
       fullSizePhoto && React.createElement(
@@ -1340,14 +1887,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           accentColor: 'var(--tt-sleep)',
           rightAction: React.createElement('button', {
             onClick: handleSave,
-            disabled: !isValid,
+            disabled: !isValid || saving,
             className: `text-base font-normal transition-opacity ${
-              isValid 
+              (isValid && !saving)
                 ? 'text-white hover:opacity-70 active:opacity-50' 
                 : 'cursor-not-allowed'
             }`,
-            style: !isValid ? { color: 'rgba(255,255,255,0.4)' } : undefined
-          }, 'Save')
+            style: (!isValid || saving) ? { color: 'rgba(255,255,255,0.4)' } : undefined
+          }, saving ? 'Saving...' : 'Save')
         },
         bodyContent
       );
@@ -1418,9 +1965,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTInputHalfSheet Component
-  const TTInputHalfSheet = ({ isOpen, onClose, kidId }) => {
+  const TTInputHalfSheet = ({ isOpen, onClose, kidId, initialMode = 'feeding' }) => {
     // Check localStorage for active sleep on mount to determine initial mode
     const getInitialMode = () => {
+      // Use prop if provided, otherwise check localStorage
+      if (initialMode) return initialMode;
       try {
         const activeSleep = localStorage.getItem('tt_active_sleep');
         if (activeSleep) {
@@ -1467,6 +2016,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     const [mode, setMode] = React.useState(getInitialMode()); // 'feeding' | 'sleep'
     
+    // Update mode when initialMode prop changes (e.g., when opened from active sleep)
+    React.useEffect(() => {
+      if (initialMode && isOpen) {
+        setMode(initialMode);
+      }
+    }, [initialMode, isOpen]);
+    
     // Feeding state
     const [ounces, setOunces] = React.useState('');
     const [feedingDateTime, setFeedingDateTime] = React.useState(new Date().toISOString());
@@ -1478,6 +2034,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [endTime, setEndTime] = React.useState(null); // ISO string
     const [sleepNotes, setSleepNotes] = React.useState('');
     const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
+    const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
     const sleepIntervalRef = React.useRef(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
     
@@ -1498,7 +2055,37 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       return (startMs > nowMs + 3 * 3600000) ? (startMs - 86400000) : startMs;
     };
     
-    // Persist running state to localStorage
+    // Sync active sleep with Firebase and localStorage
+    React.useEffect(() => {
+      if (!kidId || typeof firestoreStorage === 'undefined') return;
+      
+      // Subscribe to active sleep from Firebase
+      const unsubscribe = firestoreStorage.subscribeActiveSleep((session) => {
+        if (session && session.id) {
+          // There's an active sleep in Firebase
+          setActiveSleepSessionId(session.id);
+          if (session.startTime) {
+            setStartTime(new Date(session.startTime).toISOString());
+          }
+          if (sleepState !== 'running') {
+            setSleepState('running');
+          }
+        } else {
+          // No active sleep in Firebase
+          if (sleepState === 'running' && !activeSleepSessionId) {
+            // Local state says running but Firebase says no - sync to idle
+            setSleepState('idle');
+          }
+          setActiveSleepSessionId(null);
+        }
+      });
+      
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
+    }, [kidId]);
+    
+    // Persist running state to localStorage (for sheet state persistence)
     React.useEffect(() => {
       if (sleepState === 'running' && startTime) {
         try {
@@ -1675,50 +2262,107 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setShowDeleteConfirm(false);
     };
 
-    // Handle add feeding (standalone mode - no Firestore)
-    const handleAddFeeding = () => {
+    // Handle add feeding - save to Firebase
+    const handleAddFeeding = async () => {
       const amount = parseFloat(ounces);
       if (!amount || amount <= 0) return;
       
-      // Log for standalone mode
-      console.log('Feeding added:', { 
-        ounces: amount, 
-        dateTime: feedingDateTime, 
-        notes: feedingNotes,
-        photos 
-      });
-      
-      // Reset form
-      setOunces('');
-      setFeedingNotes('');
-      setPhotos([]);
-      setFeedingDateTime(new Date().toISOString());
-      if (onClose) onClose();
+      try {
+        const timestamp = new Date(feedingDateTime).getTime();
+        
+        // Upload photos to Firebase Storage
+        const photoURLs = [];
+        for (const photoBase64 of photos) {
+          try {
+            const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+            photoURLs.push(downloadURL);
+          } catch (error) {
+            console.error('Failed to upload photo:', error);
+            // Continue with other photos even if one fails
+          }
+        }
+        
+        // Save to Firebase
+        await firestoreStorage.addFeedingWithNotes(
+          amount,
+          timestamp,
+          feedingNotes || null,
+          photoURLs.length > 0 ? photoURLs : null
+        );
+        
+        // Reset form
+        setOunces('');
+        setFeedingNotes('');
+        setPhotos([]);
+        setFeedingDateTime(new Date().toISOString());
+        if (onClose) onClose();
+      } catch (error) {
+        console.error('Failed to add feeding:', error);
+        alert('Failed to add feeding. Please try again.');
+      }
     };
 
     // Handle start sleep: IDLE/IDLE_WITH_TIMES/COMPLETED → RUNNING
-    const handleStartSleep = () => {
-      if (sleepState === 'completed') {
-        // COMPLETED → RUNNING: Keep existing start time, clear end time
-        setEndTime(null);
+    const handleStartSleep = async () => {
+      try {
+        let sessionId = activeSleepSessionId;
+        let startMs;
+        
+        if (sleepState === 'completed') {
+          // COMPLETED → RUNNING: Keep existing start time, clear end time
+          startMs = new Date(startTime).getTime();
+          setEndTime(null);
+        } else {
+          // IDLE/IDLE_WITH_TIMES → RUNNING: Update start time to now, clear end time
+          const now = new Date().toISOString();
+          setStartTime(now);
+          startMs = Date.now();
+          setEndTime(null);
+        }
+        
+        // Create/update Firebase session
+        if (!sessionId) {
+          const session = await firestoreStorage.startSleep(startMs);
+          sessionId = session.id;
+          setActiveSleepSessionId(sessionId);
+        } else {
+          // Update existing session
+          await firestoreStorage.updateSleepSession(sessionId, {
+            startTime: startMs,
+            endTime: null,
+            isActive: true
+          });
+        }
+        
         setSleepState('running');
-      } else {
-        // IDLE/IDLE_WITH_TIMES → RUNNING: Update start time to now, clear end time
-        const now = new Date().toISOString();
-        setStartTime(now);
-        setEndTime(null);
-        setSleepState('running');
+        // Timer will start via useEffect when sleepState becomes 'running'
+      } catch (error) {
+        console.error('Failed to start sleep:', error);
+        alert('Failed to start sleep. Please try again.');
       }
-      // Timer will start via useEffect when sleepState becomes 'running'
     };
 
     // Handle end sleep: RUNNING → COMPLETED
-    const handleEndSleep = () => {
+    const handleEndSleep = async () => {
       if (sleepState !== 'running') return;
-      const now = new Date().toISOString();
-      setEndTime(now);
-      setSleepState('completed');
-      // Timer will stop via useEffect when sleepState becomes 'completed'
+      
+      try {
+        const now = new Date().toISOString();
+        const endMs = Date.now();
+        setEndTime(now);
+        
+        // End Firebase session
+        if (activeSleepSessionId) {
+          await firestoreStorage.endSleep(activeSleepSessionId, endMs);
+          setActiveSleepSessionId(null);
+        }
+        
+        setSleepState('completed');
+        // Timer will stop via useEffect when sleepState becomes 'completed'
+      } catch (error) {
+        console.error('Failed to end sleep:', error);
+        alert('Failed to end sleep. Please try again.');
+      }
     };
     
     // Handle start time change
@@ -1756,41 +2400,70 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
       if (!isValid()) return; // Don't save if invalid
       
       if (mode === 'feeding') {
-        console.log('Feeding save:', { 
-          ounces: parseFloat(ounces), 
-          dateTime: feedingDateTime, 
-          notes: feedingNotes,
-          photos
-        });
-        // Reset form
-        setOunces('');
-        setFeedingNotes('');
-        setPhotos([]);
-        setFeedingDateTime(new Date().toISOString());
+        // Feeding save is handled by handleAddFeeding
+        await handleAddFeeding();
       } else {
         // Sleep: saveable in COMPLETED or IDLE_WITH_TIMES state
         if (sleepState !== 'completed' && !isIdleWithTimes) return;
-        console.log('Sleep save:', { 
-          startTime, 
-          endTime, 
-          notes: sleepNotes, 
-          duration,
-          photos
-        });
-        // Reset to IDLE and close
-        setSleepState('idle');
-        setStartTime(null);
-        setEndTime(null);
-        setSleepNotes('');
-        setPhotos([]);
-        setSleepElapsedMs(0);
+        
+        try {
+          const startMs = new Date(startTime).getTime();
+          const endMs = new Date(endTime).getTime();
+          
+          // Upload photos to Firebase Storage
+          const photoURLs = [];
+          for (const photoBase64 of photos) {
+            try {
+              const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
+              photoURLs.push(downloadURL);
+            } catch (error) {
+              console.error('Failed to upload photo:', error);
+              // Continue with other photos even if one fails
+            }
+          }
+          
+          // If we have an active session, end it and update
+          if (activeSleepSessionId) {
+            await firestoreStorage.endSleep(activeSleepSessionId, endMs);
+            if (sleepNotes || photoURLs.length > 0) {
+              await firestoreStorage.updateSleepSession(activeSleepSessionId, {
+                notes: sleepNotes || null,
+                photoURLs: photoURLs.length > 0 ? photoURLs : null
+              });
+            }
+            setActiveSleepSessionId(null);
+          } else {
+            // Create new session (IDLE_WITH_TIMES case)
+            const session = await firestoreStorage.startSleep(startMs);
+            await firestoreStorage.endSleep(session.id, endMs);
+            if (sleepNotes || photoURLs.length > 0) {
+              await firestoreStorage.updateSleepSession(session.id, {
+                notes: sleepNotes || null,
+                photoURLs: photoURLs.length > 0 ? photoURLs : null
+              });
+            }
+          }
+          
+          // Reset to IDLE and close
+          setSleepState('idle');
+          setStartTime(null);
+          setEndTime(null);
+          setSleepNotes('');
+          setPhotos([]);
+          setSleepElapsedMs(0);
+          setActiveSleepSessionId(null);
+          
+          // Auto-close after save
+          if (onClose) onClose();
+        } catch (error) {
+          console.error('Failed to save sleep session:', error);
+          alert('Failed to save sleep session. Please try again.');
+        }
       }
-      // Auto-close after save
-      if (onClose) onClose();
     };
 
     // Helper function to render feeding content

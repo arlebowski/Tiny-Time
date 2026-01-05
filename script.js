@@ -85,61 +85,8 @@ const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
 // ========================================
 // UI HELPERS: Segmented toggle (Apple-ish)
 // ========================================
-// Matches the Tracker tab segmented control style, but can be compact (fit-content) for 2 options.
-const SegmentedToggle = ({ value, options, onChange, compact = true }) => {
-  // Apple Health vibe:
-  // - slimmer rail
-  // - translucent background that picks up theme tint
-  // - subtle blur
-  // - light border
-  //
-  // NOTE: Tailwind opacity syntax (bg-white/xx) is supported in most setups.
-  // We also add an inline style fallback below.
-  const wrapCls = compact
-    ? "inline-flex rounded-xl px-1 py-[3px] border border-white/40 backdrop-blur-md"
-    : "inline-flex w-full rounded-xl px-1 py-[3px] border border-white/40 backdrop-blur-md";
-
-  // Fallback for environments without bg-white/xx or backdrop utilities
-  const wrapStyle = {
-    background: "rgba(255,255,255,0.42)",
-    WebkitBackdropFilter: "blur(10px)",
-    backdropFilter: "blur(10px)"
-  };
-
-  const btnBase = "rounded-lg transition text-[13px] font-semibold";
-  const btnOn   = "shadow-sm text-gray-900";
-  const btnOff  = "text-gray-700";
-
-  // Slimmer buttons to match Apple
-  const btnSize = compact ? "px-3 py-[6px]" : "flex-1 py-[6px]";
-
-  return React.createElement(
-    'div',
-    { className: wrapCls, style: wrapStyle },
-    (options || []).map((opt) =>
-      React.createElement(
-        'button',
-        {
-          key: opt.value,
-          type: 'button',
-          onClick: () => onChange && onChange(opt.value),
-          className:
-            btnBase + " " + btnSize + " " + (value === opt.value ? btnOn : btnOff),
-          'aria-pressed': value === opt.value
-        },
-        // Active segment background slightly translucent so tint still shows through
-        React.createElement(
-          'span',
-          {
-            className: "block w-full rounded-lg",
-            style: value === opt.value ? { background: "rgba(255,255,255,0.78)" } : undefined
-          },
-          opt.label
-        )
-      )
-    )
-  );
-};
+// NOTE: SegmentedToggle has been moved to components/shared/SegmentedToggle.js
+// Use window.TT.shared.SegmentedToggle or window.SegmentedToggle
 
 // ========================================
 // TINY TRACKER - PART 1
@@ -162,6 +109,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+const storage = firebase.storage();
 
 // ---------------------------
 // ANALYTICS
@@ -791,6 +739,93 @@ const firestoreStorage = {
   },
 
   // -----------------------
+  // PHOTO HELPERS (compression and upload)
+  // -----------------------
+  _compressImage(base64DataUrl, maxWidth = 1200) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions if image is larger than maxWidth
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        // Convert to base64 with quality compression
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        resolve(compressedBase64);
+      };
+      img.onerror = reject;
+      img.src = base64DataUrl;
+    });
+  },
+
+  async uploadFeedingPhoto(base64DataUrl) {
+    if (!base64DataUrl || typeof base64DataUrl !== "string") {
+      throw new Error("uploadFeedingPhoto: missing base64 data URL");
+    }
+    if (!this.currentFamilyId || !this.currentKidId) {
+      throw new Error("Storage not initialized");
+    }
+    
+    // Compress image before upload
+    const compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+    
+    // Convert base64 to blob
+    const response = await fetch(compressedBase64);
+    const blob = await response.blob();
+    
+    // Generate unique photo ID
+    const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const storagePath = `families/${this.currentFamilyId}/kids/${this.currentKidId}/photos/${photoId}`;
+    
+    // Upload to Firebase Storage
+    const storageRef = storage.ref().child(storagePath);
+    await storageRef.put(blob);
+    
+    // Get download URL
+    const downloadURL = await storageRef.getDownloadURL();
+    return downloadURL;
+  },
+
+  async uploadSleepPhoto(base64DataUrl) {
+    if (!base64DataUrl || typeof base64DataUrl !== "string") {
+      throw new Error("uploadSleepPhoto: missing base64 data URL");
+    }
+    if (!this.currentFamilyId || !this.currentKidId) {
+      throw new Error("Storage not initialized");
+    }
+    
+    // Compress image before upload
+    const compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+    
+    // Convert base64 to blob
+    const response = await fetch(compressedBase64);
+    const blob = await response.blob();
+    
+    // Generate unique photo ID
+    const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const storagePath = `families/${this.currentFamilyId}/kids/${this.currentKidId}/photos/${photoId}`;
+    
+    // Upload to Firebase Storage
+    const storageRef = storage.ref().child(storagePath);
+    await storageRef.put(blob);
+    
+    // Get download URL
+    const downloadURL = await storageRef.getDownloadURL();
+    return downloadURL;
+  },
+
+  // -----------------------
   // FEEDINGS
   // -----------------------
   async addFeeding(ounces, timestamp) {
@@ -834,6 +869,40 @@ const firestoreStorage = {
       .orderBy("timestamp", "asc")
       .get();
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  async addFeedingWithNotes(ounces, timestamp, notes = null, photoURLs = null) {
+    const data = { ounces, timestamp };
+    if (notes !== null && notes !== undefined && notes !== '') {
+      data.notes = notes;
+    }
+    if (photoURLs !== null && photoURLs !== undefined && Array.isArray(photoURLs) && photoURLs.length > 0) {
+      data.photoURLs = photoURLs;
+    }
+    await this._kidRef().collection("feedings").add(data);
+    logEvent("feeding_added", { ounces });
+  },
+
+  async updateFeedingWithNotes(id, ounces, timestamp, notes = null, photoURLs = null) {
+    const data = { ounces, timestamp };
+    if (notes !== null && notes !== undefined) {
+      if (notes === '') {
+        data.notes = firebase.firestore.FieldValue.delete();
+      } else {
+        data.notes = notes;
+      }
+    }
+    if (photoURLs !== null && photoURLs !== undefined) {
+      if (Array.isArray(photoURLs) && photoURLs.length === 0) {
+        data.photoURLs = firebase.firestore.FieldValue.delete();
+      } else if (Array.isArray(photoURLs)) {
+        data.photoURLs = photoURLs;
+      }
+    }
+    await this._kidRef()
+      .collection("feedings")
+      .doc(id)
+      .update(data);
   },
 
   // -----------------------
