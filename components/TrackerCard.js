@@ -355,8 +355,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   if (!entry) return null;
   
   const isSleep = mode === 'sleep';
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-  const timelineBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+  const timelineBg = 'var(--tt-subtle-surface)';
   
   // Swipe state
   const [swipeOffset, setSwipeOffset] = React.useState(0);
@@ -1125,7 +1124,8 @@ const TrackerCard = ({
     };
     
     // Only return the timer text - zZz animation is rendered separately
-    return React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
+    // Use tabular numbers + fixed width + no-wrap so layout doesn't jitter or wrap as seconds change.
+    return React.createElement('span', { className: "font-semibold tabular-nums whitespace-nowrap inline-block w-[96px] text-right", style: { color: 'var(--tt-text-primary)' } }, 
       formatWithSeconds(elapsed)
     );
   };
@@ -1139,11 +1139,12 @@ const TrackerCard = ({
         if (activeEntry) {
           // Render timer and zZz as siblings - timer updates won't affect animation
           return React.createElement(
-            React.Fragment,
-            null,
+            'span',
+            { className: "inline-flex items-baseline gap-2 whitespace-nowrap" },
             React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
-            React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
-              ' ',
+            React.createElement(
+              'span',
+              { className: "inline-flex w-[28px] justify-start font-light leading-none", style: { color: 'var(--tt-text-primary)' } },
               zzzElementMemo
             )
           );
@@ -1169,6 +1170,9 @@ const TrackerCard = ({
         timelineStatusText
       );
 
+  // Match the subtle background used by TimelineItem rows
+  const timelineSubtleBg = 'var(--tt-subtle-surface)';
+
   // Get the appropriate icon for the header
   const HeaderIcon = mode === 'feeding' 
     ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle1) || null
@@ -1182,9 +1186,11 @@ const TrackerCard = ({
     feedingIconTransform = 'translateY(-2px)',
     sleepIconTransform = 'none',
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
+    progressTrackBg = 'var(--tt-input-bg)',   // progress track background
     showDotsRow = true,                       // dots row under progress bar
     progressBottomMarginClass = 'mb-3',       // spacing after progress bar
-    dividerMarginClass = 'my-4'               // divider spacing
+    dividerMarginClass = 'my-4',              // divider spacing
+    timelineVariant = 'v2'                    // 'v2' | 'v3' (v3 uses pill + no bullet)
   } = {}) => {
     return React.createElement(
     'div',
@@ -1232,7 +1238,7 @@ const TrackerCard = ({
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, style: { backgroundColor: 'var(--tt-input-bg)' } },
+    React.createElement('div', { className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, style: { backgroundColor: progressTrackBg } },
       React.createElement('div', {
         className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
@@ -1271,7 +1277,30 @@ const TrackerCard = ({
         className: "flex w-full items-center justify-between",
         style: { color: 'var(--tt-text-secondary)' }
       },
-      React.createElement('span', null, timelineLabel),
+      React.createElement(
+        'span',
+        null,
+        timelineVariant === 'v3'
+          ? React.createElement(
+              'span',
+              { className: "flex items-center gap-3" },
+              React.createElement(
+                'span',
+                { className: "font-medium", style: { color: 'var(--tt-text-secondary)' } },
+                'Timeline'
+              ),
+              React.createElement(
+                'span',
+                {
+                  className:
+                    "inline-flex items-center px-3 py-1 rounded-lg whitespace-nowrap",
+                  style: { backgroundColor: timelineSubtleBg }
+                },
+                timelineStatusText
+              )
+            )
+          : timelineLabel
+      ),
       expanded ? React.createElement(ChevronUp, { style: { strokeWidth: '3' } }) : React.createElement(ChevronDown, { style: { strokeWidth: '3' } })
     ),
     expanded && React.createElement(
@@ -1325,9 +1354,11 @@ const TrackerCard = ({
       feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
       sleepIconTransform: 'translateY(1px)',               // nudge moon down
       progressTrackHeightClass: 'h-3',              // 50% of h-6
+      progressTrackBg: 'var(--tt-subtle-surface)',
       showDotsRow: false,
       progressBottomMarginClass: 'mb-0',
-      dividerMarginClass: 'mt-8 mb-4'              // bar->divider: mt-8 (32px), independent of margin collapse
+      dividerMarginClass: 'mt-8 mb-4',             // bar->divider: mt-8 (32px), independent of margin collapse
+      timelineVariant: 'v3'
     });
   };
 

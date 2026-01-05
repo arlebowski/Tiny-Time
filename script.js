@@ -462,6 +462,8 @@ window.TT.applyAppearance = function(appearance) {
 
     // Input field backgrounds
     root.style.setProperty('--tt-input-bg', darkMode ? '#2C2C2E' : '#f5f5f5');
+    // Subtle surface (used for log list items, pills, etc.)
+    root.style.setProperty('--tt-subtle-surface', darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)');
 
     // Text colors
     root.style.setProperty('--tt-text-primary', darkMode ? 'rgba(255,255,255,0.87)' : 'rgba(0,0,0,0.87)');
