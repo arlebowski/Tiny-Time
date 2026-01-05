@@ -98,13 +98,9 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
 
     // Measure content and set dynamic height
     React.useEffect(() => {
-      // If fixedHeight is provided, use it and skip dynamic measurement
-      if (fixedHeight && isOpen && present && sheetRef.current) {
-        setSheetHeight(fixedHeight);
-        return;
-      }
-      
-      // Otherwise, use existing dynamic measurement logic
+      // Always use dynamic measurement to ensure content fits
+      // fixedHeight is used as a minimum/initial value, but we always recalculate
+      // This prevents fields from shrinking after keyboard closes when content has changed
       if (isOpen && present && contentRef.current && sheetRef.current) {
         const measureHeight = () => {
           if (contentRef.current && sheetRef.current && headerRef.current) {
@@ -112,6 +108,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
             // Use visualViewport if available (more accurate for mobile keyboards)
             const vv = window.visualViewport;
             const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
+            // Use reduced viewport when keyboard is open, full viewport when closed
             const viewportHeight = vv ? vv.height : fallbackH;
             
             // Measure actual header height instead of hardcoding
@@ -137,18 +134,32 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
             const maxHeight = totalNeeded <= viewportHeight * 0.9 
               ? totalNeeded 
               : Math.min(viewportHeight * 0.9, totalNeeded);
-            setSheetHeight(`${maxHeight}px`);
+            
+            // If fixedHeight is provided and keyboard is closed, use the larger of fixedHeight or calculated height
+            // This ensures content always fits, especially after keyboard closes when content may have changed
+            if (fixedHeight && keyboardOffset === 0) {
+              const fixedHeightPx = parseFloat(fixedHeight) || 0;
+              setSheetHeight(`${Math.max(fixedHeightPx, maxHeight)}px`);
+            } else {
+              setSheetHeight(`${maxHeight}px`);
+            }
           }
         };
 
+        // Add extra delay when keyboard closes to let viewport settle and content remeasure
+        const delay = keyboardOffset === 0 && fixedHeight ? 150 : 0;
+        
         // Measure after render with multiple attempts
         requestAnimationFrame(() => {
           measureHeight();
           setTimeout(measureHeight, 50);
           setTimeout(measureHeight, 200); // Extra delay for async content
+          if (delay > 0) {
+            setTimeout(measureHeight, delay); // Extra delay when keyboard closes
+          }
         });
       }
-    }, [isOpen, present, children, contentKey, fixedHeight]);
+    }, [isOpen, present, children, contentKey, fixedHeight, keyboardOffset]);
 
     // Ensure transition is set when sheet is open (for keyboard adjustments)
     React.useEffect(() => {
