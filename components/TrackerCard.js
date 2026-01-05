@@ -518,6 +518,13 @@ const TrackerCard = ({
   const exitTimeoutRefs = React.useRef({});
   const exitingItemsMapRef = React.useRef(new Map()); // Store exiting items by ID
 
+  // Stable ID extraction - always returns string for consistent Set/Map lookups
+  const getStableItemId = React.useCallback((item) => {
+    if (!item) return null;
+    const id = item.id || item.timestamp || item.startTime;
+    return id ? String(id) : null;
+  }, []);
+
   // Animation trigger - set visible after mount
   React.useEffect(() => {
     setCardVisible(true);
@@ -533,14 +540,12 @@ const TrackerCard = ({
     }
     
     const prevItems = [...prevTimelineItemsRef.current]; // Create a copy for comparison
-    const currentItemIds = new Set(timelineItems.map(item => {
-      const id = item.id || item.timestamp || item.startTime;
-      return id;
-    }));
-    const prevItemIds = new Set(prevItems.map(item => {
-      const id = item.id || item.timestamp || item.startTime;
-      return id;
-    }));
+    const currentItemIds = new Set(
+      timelineItems.map(item => getStableItemId(item)).filter(Boolean)
+    );
+    const prevItemIds = new Set(
+      prevItems.map(item => getStableItemId(item)).filter(Boolean)
+    );
     
     // Find new items (enter animation)
     const newIds = new Set();
@@ -575,10 +580,7 @@ const TrackerCard = ({
     if (removedIds.size > 0) {
       // Store exiting items BEFORE updating the ref (so we can render them)
       removedIds.forEach(id => {
-        const exitingItem = prevItems.find(item => {
-          const itemId = item.id || item.timestamp || item.startTime;
-          return itemId === id;
-        });
+        const exitingItem = prevItems.find(item => getStableItemId(item) === id);
         if (exitingItem) {
           exitingItemsMapRef.current.set(id, { ...exitingItem }); // Store a deep copy
         }
@@ -603,8 +605,17 @@ const TrackerCard = ({
     }
     
     // Update ref for next comparison - create a deep copy to avoid reference issues
-    prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item }));
-  }, [timelineItems]);
+    // CRITICAL: Only update ref if NO exit animations are in progress
+    // This prevents the ref from being updated while we're still animating removals
+    if (removedIds.size === 0) {
+      prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item }));
+    } else {
+      // If there ARE removals, delay the ref update until after exit animation completes
+      setTimeout(() => {
+        prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item }));
+      }, 450); // Slightly longer than animation duration (400ms)
+    }
+  }, [timelineItems, getStableItemId]);
   
   // Cleanup timeouts on unmount
   React.useEffect(() => {
@@ -831,8 +842,8 @@ const TrackerCard = ({
     ),
     expanded && React.createElement(
       'div',
-      { className: "mt-4 space-y-4" },
-      timelineItems && timelineItems.length > 0
+      { className: "mt-4" },
+      ((timelineItems && timelineItems.length > 0) || exitingIds.size > 0)
         ? (() => {
             // Combine current items with exiting items for animation
             const allItems = [...timelineItems];
@@ -843,7 +854,7 @@ const TrackerCard = ({
               // Get exiting item from stored map (not from prevItems which is now updated)
               const exitingItem = exitingItemsMapRef.current.get(exitingId);
               if (exitingItem && !allItems.find(item => {
-                const itemId = item.id || item.timestamp || item.startTime;
+                const itemId = getStableItemId(item);
                 return itemId === exitingId;
               })) {
                 allItems.push(exitingItem);
@@ -851,7 +862,7 @@ const TrackerCard = ({
             });
             
             return allItems.map((entry, index) => {
-              const itemId = entry.id || entry.timestamp || entry.startTime;
+              const itemId = getStableItemId(entry);
               const isEntering = enteringIds.has(itemId);
               const isExiting = exitingIds.has(itemId);
               
@@ -865,7 +876,7 @@ const TrackerCard = ({
                 'div',
                 {
                   key: itemId,
-                  className: animationClass ? animationClass : ''
+                  className: `mb-4 ${animationClass || ''}`.trim()
                 },
                 React.createElement(TimelineItem, { 
                   entry,
@@ -1191,20 +1202,21 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Backdrop
         React.createElement('div', {
           ref: backdropRef,
-          className: "fixed inset-0 bg-black z-[100]",
+          className: "fixed inset-0 bg-black",
           onClick: () => { if (onClose && !isDragging) onClose(); },
           style: { 
             opacity: 0,
             top: 0,
             left: 0,
             right: 0,
-            bottom: 0
+            bottom: 0,
+            zIndex: 10000
           }
         }),
         // Sheet Panel
         React.createElement('div', {
           ref: sheetRef,
-          className: "fixed left-0 right-0 bottom-0 z-[101] shadow-2xl",
+          className: "fixed left-0 right-0 bottom-0 shadow-2xl",
           onClick: (e) => e.stopPropagation(),
           onTouchStart: handleTouchStart,
           onTouchMove: handleTouchMove,
@@ -1226,7 +1238,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             touchAction: 'pan-y',
             overscrollBehavior: 'contain',
             borderTopLeftRadius: '20px',
-            borderTopRightRadius: '20px'
+            borderTopRightRadius: '20px',
+            zIndex: 10001
           }
         },
           // Header (part of HalfSheet chrome)
