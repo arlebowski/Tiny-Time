@@ -221,6 +221,52 @@ function ensureZzzStyles() {
 }
 
 // Ensure tap animation styles are injected
+// Helper function to check if a sleep session overlaps with existing ones
+const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
+  try {
+    const allSessions = await firestoreStorage.getAllSleepSessions();
+    const nowMs = Date.now();
+    
+    // Normalize the new sleep interval
+    const normalizeInterval = (sMs, eMs) => {
+      let s = Number(sMs);
+      let e = Number(eMs);
+      if (!Number.isFinite(s) || !Number.isFinite(e)) return null;
+      if (s > nowMs + 3 * 3600000) s -= 86400000;
+      if (e < s) s -= 86400000;
+      if (e < s) return null;
+      return { startMs: s, endMs: e };
+    };
+    
+    const newNorm = normalizeInterval(startMs, endMs);
+    if (!newNorm) return false; // Invalid interval, let other validation catch it
+    
+    // Check each existing session for overlap
+    for (const session of allSessions) {
+      // Skip the session being edited
+      if (excludeId && session.id === excludeId) continue;
+      
+      // For active sleeps, use current time as end
+      const existingEnd = session.isActive ? nowMs : (session.endTime || null);
+      if (!session.startTime || !existingEnd) continue;
+      
+      const existingNorm = normalizeInterval(session.startTime, existingEnd);
+      if (!existingNorm) continue;
+      
+      // Check if ranges overlap: (start1 < end2) && (start2 < end1)
+      if (newNorm.startMs < existingNorm.endMs && existingNorm.startMs < newNorm.endMs) {
+        return true; // Overlap found
+      }
+    }
+    
+    return false; // No overlap
+  } catch (error) {
+    console.error('Error checking sleep overlap:', error);
+    // On error, allow the save (fail open) - user can manually check
+    return false;
+  }
+};
+
 function ensureTapAnimationStyles() {
   if (document.getElementById('tt-tap-anim')) return;
   const style = document.createElement('style');
@@ -2182,6 +2228,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const startMs = new Date(startTime).getTime();
         const endMs = new Date(endTime).getTime();
         
+        // Check for overlaps (exclude current entry if editing)
+        const excludeId = entry && entry.id ? entry.id : null;
+        const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
+        if (hasOverlap) {
+          alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
+          setSaving(false);
+          return;
+        }
+        
         // Upload new photos to Firebase Storage
         const newPhotoURLs = [];
         for (const photoBase64 of photos) {
@@ -3031,6 +3086,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         try {
           const startMs = new Date(startTime).getTime();
           const endMs = new Date(endTime).getTime();
+          
+          // Check for overlaps (exclude active session if ending it)
+          const excludeId = activeSleepSessionId || null;
+          const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
+          if (hasOverlap) {
+            alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
+            return;
+          }
           
           // Upload photos to Firebase Storage
           const photoURLs = [];

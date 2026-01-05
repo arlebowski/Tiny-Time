@@ -230,6 +230,52 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     }
   }, []);
 
+  // Helper function to check if a sleep session overlaps with existing ones
+  const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
+    try {
+      const allSessions = await firestoreStorage.getAllSleepSessions();
+      const nowMs = Date.now();
+      
+      // Normalize the new sleep interval
+      const normalizeInterval = (sMs, eMs) => {
+        let s = Number(sMs);
+        let e = Number(eMs);
+        if (!Number.isFinite(s) || !Number.isFinite(e)) return null;
+        if (s > nowMs + 3 * 3600000) s -= 86400000;
+        if (e < s) s -= 86400000;
+        if (e < s) return null;
+        return { startMs: s, endMs: e };
+      };
+      
+      const newNorm = normalizeInterval(startMs, endMs);
+      if (!newNorm) return false; // Invalid interval, let other validation catch it
+      
+      // Check each existing session for overlap
+      for (const session of allSessions) {
+        // Skip the session being edited
+        if (excludeId && session.id === excludeId) continue;
+        
+        // For active sleeps, use current time as end
+        const existingEnd = session.isActive ? nowMs : (session.endTime || null);
+        if (!session.startTime || !existingEnd) continue;
+        
+        const existingNorm = normalizeInterval(session.startTime, existingEnd);
+        if (!existingNorm) continue;
+        
+        // Check if ranges overlap: (start1 < end2) && (start2 < end1)
+        if (newNorm.startMs < existingNorm.endMs && existingNorm.startMs < newNorm.endMs) {
+          return true; // Overlap found
+        }
+      }
+      
+      return false; // No overlap
+    } catch (error) {
+      console.error('Error checking sleep overlap:', error);
+      // On error, allow the save (fail open) - user can manually check
+      return false;
+    }
+  };
+
   const _pad2 = (n) => String(n).padStart(2, '0');
   const _toHHMM = (ms) => {
     try {
@@ -683,6 +729,19 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     if (endMs < startMs) {
       endMs += 86400000;
     }
+    
+    // Check for overlaps (exclude the session being edited)
+    try {
+      const hasOverlap = await checkSleepOverlap(startMs, endMs, editingSleepId);
+      if (hasOverlap) {
+        alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
+        return;
+      }
+    } catch (err) {
+      console.error('Error checking overlap:', err);
+      // Continue with save on error (fail open)
+    }
+    
     try {
       await firestoreStorage.updateSleepSession(editingSleepId, { startTime: startMs, endTime: endMs });
       setEditingSleepId(null);
