@@ -742,6 +742,37 @@ const TrackerCard = ({
 }) => {
   ensureZzzStyles();
   ensureTapAnimationStyles();
+  
+  // Feature flag for card design - controlled by localStorage (can be toggled from UI Lab)
+  const [cardDesign, setCardDesign] = React.useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_tracker_card_design');
+      return stored !== null ? stored : 'current'; // Default to 'current' to preserve existing design
+    }
+    return 'current';
+  });
+  
+  // Listen for changes to the feature flag
+  React.useEffect(() => {
+    const handleStorageChange = () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = window.localStorage.getItem('tt_tracker_card_design');
+        setCardDesign(stored !== null ? stored : 'current');
+      }
+    };
+    
+    // Listen for storage events (when changed from another tab/window)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically (for same-tab changes)
+    const interval = setInterval(handleStorageChange, 100);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+  
   const [expanded, setExpanded] = React.useState(false);
   
   // Shared memoized zZz element - created once and reused to prevent animation restart
@@ -1039,20 +1070,16 @@ const TrackerCard = ({
               zzzElementMemo
             )
           );
-        } else if (lastEntryTime) {
-          return React.createElement(
-            React.Fragment,
-            null,
-            React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
-              formatDuration(lastEntryTime, null)
-            ),
-            React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
-              ' ',
-              zzzElementMemo
-            )
-          );
         } else {
-          return 'No sleep logged';
+          // Find the last completed sleep entry (has endTime and is not active)
+          const lastCompletedSleep = localTimelineItems.find(item => 
+            item.endTime && !item.isActive
+          );
+          if (lastCompletedSleep && lastCompletedSleep.endTime) {
+            return `Woke at ${formatTime12Hour(lastCompletedSleep.endTime)}`;
+          } else {
+            return 'No sleep logged';
+          }
         }
       })();
 
@@ -1070,7 +1097,9 @@ const TrackerCard = ({
     ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle1) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) || null;
 
-  return React.createElement(
+  // Render current design (default) - preserve existing implementation
+  const renderCurrentDesign = () => {
+    return React.createElement(
     'div',
     { 
       className: "rounded-2xl p-5 shadow-sm",
@@ -1194,7 +1223,19 @@ const TrackerCard = ({
             style: { color: 'var(--tt-text-secondary)' }
           }, 'No entries yet')
     )
-  );
+    );
+  };
+
+  // Render new design (experimental) - edit this function to experiment with new designs
+  const renderNewDesign = () => {
+    // TODO: Implement your new card design here
+    // For now, return the current design as a placeholder
+    // You can copy renderCurrentDesign() and modify it, or create a completely new design
+    return renderCurrentDesign();
+  };
+
+  // Conditional render based on feature flag
+  return cardDesign === 'new' ? renderNewDesign() : renderCurrentDesign();
 };
 
 // Detail Sheet Components
