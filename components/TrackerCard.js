@@ -319,7 +319,8 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   const itemRef = React.useRef(null);
   
   const SWIPE_THRESHOLD = 80; // pixels to reveal delete button
-  const DELETE_BUTTON_WIDTH = 80; // width of delete button
+  const DELETE_BUTTON_WIDTH = 80; // base width of delete button (matches Apple Messages)
+  const DELETE_BUTTON_MAX_WIDTH = 100; // elastic max width (~25% more, like Apple)
   
   // Real-time timer state for active sleep
   const [elapsedTime, setElapsedTime] = React.useState(() => {
@@ -607,102 +608,125 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
       className: "relative overflow-hidden rounded-2xl", // Add rounded-2xl to parent for clipping
       style: { touchAction: 'pan-y' } // Allow vertical scroll, handle horizontal swipe
     },
-    // Swipeable content wrapper
+    // Swipeable content wrapper - container stays fixed, right edge doesn't move
     React.createElement(
       'div',
       { 
-        className: "swipeable-content rounded-2xl p-4 cursor-pointer transition-colors duration-150 tt-tapable",
+        className: "swipeable-content rounded-2xl cursor-pointer transition-colors duration-150 tt-tapable",
         style: {
           backgroundColor: timelineBg,
           position: 'relative',
-          transform: `translateX(${swipeOffset}px) scale(${swipeOffset < -SWIPE_THRESHOLD ? 0.98 : 1})`,
+          // Remove translateX from container - it stays fixed
           transition: isSwiping 
             ? 'none' 
             : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)', // iOS-style spring curve
-          zIndex: 1
+          zIndex: 1,
+          overflow: 'hidden' // Clip delete button when not expanded
         },
         onClick: handleClick
       },
+      // Main content wrapper - translates fully left (like Apple Messages)
       React.createElement(
         'div',
-        { className: "flex items-center justify-between mb-2" },
+        {
+          className: "p-4", // Padding for content
+          style: { 
+            transform: swipeOffset < 0 
+              ? `translateX(${swipeOffset}px)` // Full translation, not capped
+              : 'translateX(0px)',
+            transition: isSwiping 
+              ? 'none' 
+              : 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)' // Apple's spring curve
+          }
+        },
         React.createElement(
           'div',
-          { className: "flex items-center gap-3" },
-          getIcon(),
+          { className: "flex items-center justify-between mb-2" },
           React.createElement(
             'div',
-            null,
-            React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
-              primaryText
-            ),
-            React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
-              secondaryText
-            )
-          )
-        ),
-        // Hide chevron when swiped
-        swipeOffset >= -SWIPE_THRESHOLD && React.createElement(ChevronDown, { 
-          className: "rotate-[-90deg]", 
-          style: { color: 'var(--tt-text-secondary)', strokeWidth: '3' } 
-        })
-      ),
-      (hasNote || hasPhotos) && React.createElement(
-        React.Fragment,
-        null,
-        hasNote && React.createElement(
-          'div',
-          { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
-          `Note: ${entry.notes}`
-        ),
-        hasPhotos && React.createElement(
-          'div',
-          { className: "grid grid-cols-2 gap-2" },
-          entry.photoURLs.slice(0, 4).map((photoUrl, i) =>
+            { className: "flex items-center gap-3" },
+            getIcon(),
             React.createElement(
-              'img',
-              {
-                key: i,
-                src: photoUrl,
-                alt: `Photo ${i + 1}`,
-                className: "aspect-square rounded-2xl object-cover",
-                style: { backgroundColor: 'var(--tt-input-bg)' }
-              }
+              'div',
+              null,
+              React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
+                primaryText
+              ),
+              React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
+                secondaryText
+              )
+            )
+          ),
+          // Hide chevron when swiped
+          swipeOffset >= -SWIPE_THRESHOLD && React.createElement(ChevronDown, { 
+            className: "rotate-[-90deg]", 
+            style: { color: 'var(--tt-text-secondary)', strokeWidth: '3' } 
+          })
+        ),
+        (hasNote || hasPhotos) && React.createElement(
+          React.Fragment,
+          null,
+          hasNote && React.createElement(
+            'div',
+            { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
+            `Note: ${entry.notes}`
+          ),
+          hasPhotos && React.createElement(
+            'div',
+            { className: "grid grid-cols-2 gap-2" },
+            entry.photoURLs.slice(0, 4).map((photoUrl, i) =>
+              React.createElement(
+                'img',
+                {
+                  key: i,
+                  src: photoUrl,
+                  alt: `Photo ${i + 1}`,
+                  className: "aspect-square rounded-2xl object-cover",
+                  style: { backgroundColor: 'var(--tt-input-bg)' }
+                }
+              )
             )
           )
         )
-      )
-    ),
-    // Delete button (revealed on swipe) - part of the rounded container
-    onDelete && React.createElement(
-      'div',
-      {
-        className: "absolute right-0 top-0 bottom-0 flex items-center justify-center rounded-2xl", // Match rounded corners
-        style: {
-          width: `${DELETE_BUTTON_WIDTH}px`,
-          backgroundColor: '#ef4444', // Keep consistent red color
-          transform: `translateX(${DELETE_BUTTON_WIDTH + swipeOffset}px) scale(${
-            swipeOffset < -10 
-              ? Math.min(1.1, 0.8 + (Math.abs(swipeOffset) / DELETE_BUTTON_WIDTH) * 0.3)
-              : 0.8
-          })`,
-          transition: isSwiping 
-            ? 'none' 
-            : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)',
-          zIndex: 0,
-          opacity: swipeOffset < -10 ? Math.min(1, Math.abs(swipeOffset) / 40) : 0 // Smooth fade in
-        }
-      },
-      React.createElement(
-        'button',
+      ),
+      // Delete button - absolutely positioned on right, expands inward from right edge (Apple Messages style)
+      onDelete && React.createElement(
+        'div',
         {
-          onClick: handleDeleteDirect, // Call delete directly
-          className: "text-white font-semibold text-sm px-4",
-          style: { touchAction: 'manipulation' }
+          className: "absolute right-0 top-0 bottom-0 flex items-center justify-center rounded-r-2xl", // Match rounded corners on right side
+          style: {
+            width: swipeOffset < 0 
+              ? (() => {
+                  const absOffset = Math.abs(swipeOffset);
+                  // Grow to base width quickly, then expand elastically
+                  if (absOffset <= DELETE_BUTTON_WIDTH) {
+                    return `${absOffset}px`; // 1:1 growth to base width
+                  } else {
+                    // Elastic expansion beyond base width (slower growth)
+                    const extra = absOffset - DELETE_BUTTON_WIDTH;
+                    return `${Math.min(DELETE_BUTTON_MAX_WIDTH, DELETE_BUTTON_WIDTH + extra * 0.3)}px`;
+                  }
+                })()
+              : '0px',
+            backgroundColor: '#ef4444',
+            transition: isSwiping 
+              ? 'none' 
+              : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)', // Apple's spring curve
+            opacity: swipeOffset < 0 ? Math.min(1, Math.abs(swipeOffset) / 60) : 0,
+            overflow: 'hidden' // Hide text when width is 0
+          }
         },
-        'Delete'
+        React.createElement(
+          'button',
+          {
+            onClick: handleDeleteDirect,
+            className: "text-white font-semibold text-sm px-4 whitespace-nowrap",
+            style: { touchAction: 'manipulation' }
+          },
+          'Delete'
+        )
       )
-    ),
+    )
   );
 };
 
@@ -1057,7 +1081,7 @@ const TrackerCard = ({
     },
     React.createElement(
       'div',
-      { className: "flex items-center gap-2 mb-4 h-6" },
+      { className: "flex items-center gap-2 mb-6 h-6" },
       HeaderIcon ? React.createElement(HeaderIcon, { 
         className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
         style: { 
@@ -1073,7 +1097,7 @@ const TrackerCard = ({
     ),
     React.createElement(
       'div',
-      { className: "flex items-baseline gap-1 mb-2" },
+      { className: "flex items-baseline gap-1 mb-3" },
       React.createElement('div', { 
         className: "text-[40px] leading-none font-bold",
         style: { 
@@ -1092,7 +1116,7 @@ const TrackerCard = ({
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-2", style: { backgroundColor: 'var(--tt-input-bg)' } },
+    React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-3", style: { backgroundColor: 'var(--tt-input-bg)' } },
       React.createElement('div', {
         className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
@@ -1107,7 +1131,7 @@ const TrackerCard = ({
     ),
     React.createElement(
       'div',
-      { className: "flex gap-1.5 pl-1" },
+      { className: "flex gap-1.5 pl-1 mb-2" },
       Array.from({ length: Math.min(timelineItems.length, 10) }, (_, i) =>
         React.createElement('div', { 
           key: i, 
