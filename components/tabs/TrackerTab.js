@@ -902,20 +902,79 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
   return React.createElement('div', { className: "space-y-4" },
     // Date Navigation (moved outside Today Card)
-    React.createElement('div', { className: "flex items-center justify-between mb-4" },
-      React.createElement('button', {
-        onClick: goToPreviousDay,
-        className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
-      }, React.createElement(ChevronLeft, { className: "w-5 h-5", style: { strokeWidth: '3' } })),
-      React.createElement('h2', { 
-        className: "text-lg font-semibold",
-        style: { color: 'var(--tt-text-primary)' }
-      }, formatDate(currentDate)),
-      React.createElement('button', {
-        onClick: goToNextDay,
-        disabled: isToday(),
-        className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-400 hover:bg-indigo-50'}`
-      }, React.createElement(ChevronRight, { className: "w-5 h-5", style: { strokeWidth: '3' } }))
+    React.createElement('div', { 
+      className: "date-nav-container",
+      style: {
+        background: 'rgba(0, 0, 0, 0.03)',
+        padding: '16px 20px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
+        borderBottom: '0.5px solid rgba(0, 0, 0, 0.1)',
+        margin: '0 -1rem 1rem -1rem'
+      }
+    },
+      React.createElement('div', { 
+        className: "date-nav",
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          maxWidth: '600px',
+          margin: '0 auto'
+        }
+      },
+        React.createElement('div', {
+          onClick: goToPreviousDay,
+          className: "nav-arrow",
+          style: {
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#6B7280', // gray-500
+            fontSize: '20px',
+            cursor: 'pointer',
+            userSelect: 'none',
+            transition: 'opacity 0.2s',
+            WebkitTapHighlightColor: 'transparent'
+          },
+          onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
+          onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
+          onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
+        }, '‹'),
+        React.createElement('div', { 
+          className: "date-text",
+          style: {
+            fontSize: '17px',
+            fontWeight: 600,
+            color: '#000',
+            flex: 1,
+            textAlign: 'center'
+          }
+        }, formatDate(currentDate)),
+        React.createElement('div', {
+          onClick: isToday() ? null : goToNextDay,
+          className: "nav-arrow",
+          style: {
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: isToday() ? '#E5E7EB' : '#6B7280', // gray-200 when disabled, gray-500 when enabled
+            fontSize: '20px',
+            cursor: isToday() ? 'not-allowed' : 'pointer',
+            userSelect: 'none',
+            transition: 'opacity 0.2s',
+            WebkitTapHighlightColor: 'transparent'
+          },
+          onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
+          onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
+          onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
+        }, '›')
+      )
     ),
 
     // New TrackerCard Components (when useNewUI is true)
@@ -1619,7 +1678,12 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         setShowFeedDetailSheet(false);
         setSelectedFeedEntry(null);
       },
-      entry: selectedFeedEntry
+      entry: selectedFeedEntry,
+      onDelete: async () => {
+        // Delay refresh until after sheet closes (200ms for close animation)
+        await new Promise(resolve => setTimeout(resolve, 250));
+        await loadFeedings();
+      }
     }),
     window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
       isOpen: showSleepDetailSheet,
@@ -1627,13 +1691,27 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         setShowSleepDetailSheet(false);
         setSelectedSleepEntry(null);
       },
-      entry: selectedSleepEntry
+      entry: selectedSleepEntry,
+      onDelete: async () => {
+        // Delay refresh until after sheet closes (200ms for close animation)
+        await new Promise(resolve => setTimeout(resolve, 250));
+        await loadSleepSessions();
+      }
     }),
     window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
       isOpen: showInputSheet,
       onClose: () => setShowInputSheet(false),
       kidId: kidId,
-      initialMode: inputSheetMode
+      initialMode: inputSheetMode,
+      onAdd: async (mode) => {
+        // Delay refresh until after sheet closes (200ms for close animation)
+        await new Promise(resolve => setTimeout(resolve, 250));
+        if (mode === 'feeding') {
+          await loadFeedings();
+        } else {
+          await loadSleepSessions();
+        }
+      }
     })
   );
 };
