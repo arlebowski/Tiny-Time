@@ -4,6 +4,36 @@
 // ========================================
 
 const TrackerTab = ({ user, kidId, familyId }) => {
+  // Feature flag for new UI - controlled by localStorage (can be toggled from UI Lab)
+  const [useNewUI, setUseNewUI] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_use_new_ui');
+      return stored !== null ? stored === 'true' : true; // Default to true
+    }
+    return true;
+  });
+  
+  // Listen for changes to the feature flag
+  React.useEffect(() => {
+    const handleStorageChange = () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = window.localStorage.getItem('tt_use_new_ui');
+        setUseNewUI(stored !== null ? stored === 'true' : true);
+      }
+    };
+    
+    // Listen for storage events (when changed from another tab/window)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically (for same-tab changes)
+    const interval = setInterval(handleStorageChange, 100);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+  
   const [babyWeight, setBabyWeight] = useState(null);
   const [multiplier, setMultiplier] = useState(2.5);
   const [ounces, setOunces] = useState('');
@@ -28,6 +58,14 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [logMode, setLogMode] = useState('feeding');
   const [cardVisible, setCardVisible] = useState(false);
   const cardRef = React.useRef(null);
+  
+  // Detail sheet state
+  const [showFeedDetailSheet, setShowFeedDetailSheet] = useState(false);
+  const [showSleepDetailSheet, setShowSleepDetailSheet] = useState(false);
+  const [selectedFeedEntry, setSelectedFeedEntry] = useState(null);
+  const [selectedSleepEntry, setSelectedSleepEntry] = useState(null);
+  const [showInputSheet, setShowInputSheet] = useState(false);
+  const [inputSheetMode, setInputSheetMode] = useState('feeding');
 
   // Consistent icon-button styling for edit actions (✓ / ✕) — match Family tab
   const TRACKER_ICON_BTN_BASE =
@@ -630,6 +668,149 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     return completed.length > 0 ? completed[0] : null;
   };
 
+  // Data transformation helpers for new TrackerCard components
+  // Helper function to determine sleep type (must be defined before formatSleepSessionsForCard)
+  const _sleepTypeForSession = (session) => {
+    if (!session) return 'night';
+    if (session.sleepType === 'day' || session.sleepType === 'night') return session.sleepType;
+    if (typeof session.isDaySleep === 'boolean') return session.isDaySleep ? 'day' : 'night';
+    const start = session.startTime;
+    if (!start) return 'night';
+    const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
+    const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
+    const mins = (() => {
+      try {
+        const d = new Date(start);
+        return d.getHours() * 60 + d.getMinutes();
+      } catch {
+        return 0;
+      }
+    })();
+    const within = dayStart <= dayEnd
+      ? (mins >= dayStart && mins <= dayEnd)
+      : (mins >= dayStart || mins <= dayEnd);
+    return within ? 'day' : 'night';
+  };
+
+  const formatFeedingsForCard = (feedings, targetOunces, currentDate) => {
+    if (!feedings || !Array.isArray(feedings)) return { total: 0, target: targetOunces || 0, percent: 0, timelineItems: [], lastEntryTime: null };
+    
+    // Filter to today only
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const todayFeedings = feedings.filter(f => {
+      const timestamp = f.timestamp || 0;
+      return timestamp >= startOfDay.getTime() && timestamp <= endOfDay.getTime();
+    });
+    
+    // Calculate total
+    const total = todayFeedings.reduce((sum, f) => sum + (f.ounces || 0), 0);
+    const target = targetOunces || 0;
+    const percent = target > 0 ? Math.min(100, (total / target) * 100) : 0;
+    
+    // Format timeline items (newest first)
+    const timelineItems = todayFeedings
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      .map(f => ({
+        id: f.id,
+        ounces: f.ounces,
+        timestamp: f.timestamp,
+        notes: f.notes || null,
+        photoURLs: f.photoURLs || null
+      }));
+    
+    const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
+    
+    return { total, target, percent, timelineItems, lastEntryTime };
+  };
+
+  const formatSleepSessionsForCard = (sessions, targetHours, currentDate, activeSleepSession = null) => {
+    if (!sessions || !Array.isArray(sessions)) return { total: 0, target: targetHours || 0, percent: 0, timelineItems: [], lastEntryTime: null };
+    
+    // Filter to today only (sessions that start or end today)
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const todaySessions = sessions.filter(s => {
+      const startTime = s.startTime || 0;
+      const endTime = s.endTime || 0;
+      // Only include completed sessions that start or end today
+      // OR if it's the active session
+      const isActive = activeSleepSession && s.id === activeSleepSession.id;
+      return ((startTime >= startOfDay.getTime() && startTime <= endOfDay.getTime()) ||
+              (endTime >= startOfDay.getTime() && endTime <= endOfDay.getTime())) &&
+             (endTime || isActive); // Must have endTime OR be the active session
+    });
+    
+    // Calculate total hours (only completed sessions + active if exists)
+    const completedSessions = todaySessions.filter(s => {
+      const isActive = activeSleepSession && s.id === activeSleepSession.id;
+      return s.endTime && !isActive; // Only completed, non-active sessions
+    });
+    let totalMs = completedSessions.reduce((sum, s) => {
+      const start = s.startTime || 0;
+      const end = s.endTime || 0;
+      return sum + Math.max(0, end - start);
+    }, 0);
+    
+    // Add active sleep if it exists and is today
+    if (activeSleepSession && activeSleepSession.startTime >= startOfDay.getTime()) {
+      totalMs += Math.max(0, Date.now() - activeSleepSession.startTime);
+    }
+    
+    const total = totalMs / (1000 * 60 * 60); // Convert to hours
+    const target = targetHours || 0;
+    const percent = target > 0 ? Math.min(100, (total / target) * 100) : 0;
+    
+    // Format timeline items (newest first by start time)
+    const timelineItems = todaySessions
+      .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
+      .map(s => {
+        const isActive = activeSleepSession && s.id === activeSleepSession.id;
+        return {
+          id: s.id,
+          startTime: s.startTime,
+          endTime: s.endTime,
+          isActive: isActive || false,
+          notes: s.notes || null,
+          photoURLs: s.photoURLs || null,
+          sleepType: _sleepTypeForSession(s) // Add sleep type
+        };
+      });
+    
+    // Add active sleep to timeline if not already included
+    if (activeSleepSession && activeSleepSession.startTime >= startOfDay.getTime()) {
+      const activeInTimeline = timelineItems.find(item => item.id === activeSleepSession.id);
+      if (!activeInTimeline) {
+        timelineItems.unshift({
+          id: activeSleepSession.id,
+          startTime: activeSleepSession.startTime,
+          endTime: null,
+          isActive: true,
+          notes: activeSleepSession.notes || null,
+          photoURLs: activeSleepSession.photoURLs || null,
+          sleepType: _sleepTypeForSession(activeSleepSession)
+        });
+      }
+    }
+    
+    // Get last entry time (most recent start time)
+    const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].startTime : null;
+    
+    return { total, target, percent, timelineItems, lastEntryTime };
+  };
+
+  const formatTimelineItem = (entry, mode) => {
+    // This is handled by TimelineItem component itself
+    // Just return the entry as-is
+    return entry;
+  };
+
   const calculateSleepDurationMinutes = (session) => {
     if (!session || !session.startTime || !session.endTime) return 0;
     const _normalizeSleepIntervalForUI = (startMs, endMs, nowMs = Date.now()) => {
@@ -678,26 +859,26 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const feedingDeltaIsGood = feedingDeltaOz >= 0;
   const sleepDeltaLabel = `${sleepDeltaHours >= 0 ? '+' : '-'}${_fmtDelta(sleepDeltaHours)} hrs`;
   const sleepDeltaIsGood = sleepDeltaHours >= 0;
-  const _sleepTypeForSession = (session) => {
-    if (!session) return 'night';
-    if (session.sleepType === 'day' || session.sleepType === 'night') return session.sleepType;
-    if (typeof session.isDaySleep === 'boolean') return session.isDaySleep ? 'day' : 'night';
-    const start = session.startTime;
-    if (!start) return 'night';
-    const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
-    const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
-    const mins = (() => {
-      try {
-        const d = new Date(start);
-        return d.getHours() * 60 + d.getMinutes();
-      } catch {
-        return 0;
-      }
-    })();
-    const within = dayStart <= dayEnd
-      ? (mins >= dayStart && mins <= dayEnd)
-      : (mins >= dayStart || mins <= dayEnd);
-    return within ? 'day' : 'night';
+
+  // Format data for new TrackerCard components
+  const feedingCardData = formatFeedingsForCard(feedings, targetOunces, currentDate);
+  const sleepCardData = formatSleepSessionsForCard(sleepSessions, sleepTargetHours, currentDate, activeSleep);
+
+  // Handlers for timeline item clicks
+  const handleFeedItemClick = (entry) => {
+    setSelectedFeedEntry(entry);
+    setShowFeedDetailSheet(true);
+  };
+
+  const handleSleepItemClick = (entry) => {
+    // If it's an active sleep entry, open input sheet in sleep mode
+    if (entry && entry.isActive) {
+      setInputSheetMode('sleep');
+      setShowInputSheet(true);
+      return;
+    }
+    setSelectedSleepEntry(entry);
+    setShowSleepDetailSheet(true);
   };
 
   if (loading) {
@@ -725,7 +906,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       React.createElement('button', {
         onClick: goToPreviousDay,
         className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
-      }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
+      }, React.createElement(ChevronLeft, { className: "w-5 h-5", style: { strokeWidth: '3' } })),
       React.createElement('h2', { 
         className: "text-lg font-semibold",
         style: { color: 'var(--tt-text-primary)' }
@@ -734,9 +915,31 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         onClick: goToNextDay,
         disabled: isToday(),
         className: `p-2 rounded-lg transition ${isToday() ? 'text-gray-300 cursor-not-allowed' : 'text-indigo-400 hover:bg-indigo-50'}`
-      }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
+      }, React.createElement(ChevronRight, { className: "w-5 h-5", style: { strokeWidth: '3' } }))
     ),
 
+    // New TrackerCard Components (when useNewUI is true)
+    useNewUI && window.TrackerCard && React.createElement(React.Fragment, null,
+      React.createElement(window.TrackerCard, {
+        mode: 'feeding',
+        total: feedingCardData.total,
+        target: feedingCardData.target,
+        timelineItems: feedingCardData.timelineItems,
+        lastEntryTime: feedingCardData.lastEntryTime,
+        onItemClick: handleFeedItemClick
+      }),
+      React.createElement(window.TrackerCard, {
+        mode: 'sleep',
+        total: sleepCardData.total,
+        target: sleepCardData.target,
+        timelineItems: sleepCardData.timelineItems,
+        lastEntryTime: sleepCardData.lastEntryTime,
+        onItemClick: handleSleepItemClick
+      })
+    ),
+
+    // Old UI (only show when useNewUI is false)
+    !useNewUI && React.createElement(React.Fragment, null,
     // Today Card (duplicate for editing - new design)
     React.createElement('div', { 
       ref: cardRefCallback, 
@@ -931,7 +1134,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             style: showCustomTime
               ? { backgroundColor: 'var(--tt-feed-soft)', color: 'var(--tt-feed)' }
               : { backgroundColor: 'var(--tt-input-bg)', color: 'var(--tt-text-secondary)' }
-          }, React.createElement(Clock, { className: "w-5 h-5" }))
+          }, React.createElement(Clock, { className: "w-5 h-5", style: { strokeWidth: '3' } }))
         ),
 
         showCustomTime && React.createElement('input', {
@@ -953,7 +1156,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           className: "w-full text-white py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2",
           style: { backgroundColor: 'var(--tt-feed)' }
         },
-          React.createElement(Plus, { className: "w-5 h-5" }),
+          React.createElement(Plus, { className: "w-5 h-5", style: { strokeWidth: '3' } }),
           'Add Feeding'
         )
       ),
@@ -1228,11 +1431,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
                           onClick: () => handleStartEditSleep(s),
                           className: "transition",
                           style: { color: 'var(--tt-sleep)' }
-                        }, React.createElement(Edit2, { className: "w-5 h-5" })),
+                        }, React.createElement(Edit2, { className: "w-5 h-5", style: { strokeWidth: '3' } })),
                         React.createElement('button', {
                           onClick: () => handleDeleteSleepSession(s.id),
                           className: "text-red-400 hover:text-red-600 transition"
-                        }, React.createElement(X, { className: "w-5 h-5" }))
+                        }, React.createElement(X, { className: "w-5 h-5", style: { strokeWidth: '3' } }))
                       )
                     )
               );
@@ -1349,7 +1552,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             )
           )
         )
-    ),
+    )
+    ), // End of old UI section
 
     // Today Card (original - moved to bottom for testing)
     // COMMENTED OUT - Old design kept for reference
@@ -1388,6 +1592,49 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       })
     )
     */
+
+    // Floating Create Button (above nav bar)
+    React.createElement('button', {
+      onClick: () => {
+        setInputSheetMode('feeding');
+        setShowInputSheet(true);
+      },
+      className: "fixed right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center active:opacity-80 transition-opacity",
+      style: {
+        backgroundColor: 'var(--tt-feed)',
+        bottom: '100px', // 80px nav bar + 20px spacing = 100px
+        zIndex: 9999
+      }
+    },
+      window.PlusIcon ? React.createElement(window.PlusIcon, { 
+        className: "w-6 h-6 text-white",
+        style: { strokeWidth: '3' }
+      }) : React.createElement('span', { className: "text-white text-2xl font-bold" }, '+')
+    ),
+
+    // Detail Sheet Instances
+    window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
+      isOpen: showFeedDetailSheet,
+      onClose: () => {
+        setShowFeedDetailSheet(false);
+        setSelectedFeedEntry(null);
+      },
+      entry: selectedFeedEntry
+    }),
+    window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
+      isOpen: showSleepDetailSheet,
+      onClose: () => {
+        setShowSleepDetailSheet(false);
+        setSelectedSleepEntry(null);
+      },
+      entry: selectedSleepEntry
+    }),
+    window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
+      isOpen: showInputSheet,
+      onClose: () => setShowInputSheet(false),
+      kidId: kidId,
+      initialMode: inputSheetMode
+    })
   );
 };
 
@@ -1968,7 +2215,7 @@ const DailyActivityChart = ({
             onClick: pageBack,
             className: 'p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition'
           },
-          React.createElement(ChevronLeft, { className: 'w-5 h-5' })
+          React.createElement(ChevronLeft, { className: 'w-5 h-5', style: { strokeWidth: '3' } })
         ),
         React.createElement(
           'div',
@@ -1989,7 +2236,7 @@ const DailyActivityChart = ({
                 : 'text-indigo-600 hover:bg-indigo-50'
             }`
           },
-          React.createElement(ChevronRight, { className: 'w-5 h-5' })
+          React.createElement(ChevronRight, { className: 'w-5 h-5', style: { strokeWidth: '3' } })
         )
       ),
 
@@ -2846,7 +3093,7 @@ const FullscreenModal = ({ title, onClose, children }) => {
           React.createElement(
             'span',
             { className: 'p-2 -ml-2 rounded-lg hover:bg-black/5 active:bg-black/10' },
-            React.createElement(ChevronLeft, { className: 'w-5 h-5 text-indigo-600' })
+            React.createElement(ChevronLeft, { className: 'w-5 h-5 text-indigo-600', style: { strokeWidth: '3' } })
           ),
           React.createElement(
             'div',
@@ -3437,7 +3684,7 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
       ),
       React.createElement(ChevronRight, { 
         className: 'w-5 h-5',
-        style: { color: 'var(--tt-text-tertiary)' }
+        style: { color: 'var(--tt-text-tertiary)', strokeWidth: '3' }
       })
     ),
     // Insight Text: single block, bold, clamped to 2 lines

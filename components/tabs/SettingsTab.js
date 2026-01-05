@@ -9,6 +9,24 @@ const SettingsTab = ({ user, kidId }) => {
   const [showSleepSheet, setShowSleepSheet] = useState(false);
   const [showInputSheet, setShowInputSheet] = useState(false);
   
+  // UI Lab mode: 'new' or 'old' (controls feature flag)
+  const [uiLabMode, setUiLabMode] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_use_new_ui');
+      return stored === 'false' ? 'old' : 'new';
+    }
+    return 'new';
+  });
+  
+  // Production data for UI Lab
+  const [feedings, setFeedings] = useState([]);
+  const [sleepSessions, setSleepSessions] = useState([]);
+  const [babyWeight, setBabyWeight] = useState(null);
+  const [multiplier, setMultiplier] = useState(2.5);
+  const [sleepSettings, setSleepSettings] = useState(null);
+  const [currentDate] = useState(new Date());
+  const [loading, setLoading] = useState(false);
+  
   // Bottom sheet state for EditableRow (UI Lab only)
   const [editorState, setEditorState] = useState({
     isOpen: false,
@@ -30,6 +48,121 @@ const SettingsTab = ({ user, kidId }) => {
   });
   const [showFeedPalette, setShowFeedPalette] = useState(false);
   const [showSleepPalette, setShowSleepPalette] = useState(false);
+  const [showFeedColorModal, setShowFeedColorModal] = useState(false);
+  const [showSleepColorModal, setShowSleepColorModal] = useState(false);
+  const [feedVariant, setFeedVariant] = useState('normal'); // 'normal' | 'soft'
+  const [sleepVariant, setSleepVariant] = useState('normal'); // 'normal' | 'soft'
+
+  // Fetch production data for UI Lab (always fetch when UI Lab is open)
+  React.useEffect(() => {
+    if (!showUILab || !kidId) return;
+    
+    setLoading(true);
+    const fetchData = async () => {
+      try {
+        // Fetch feedings
+        const feedingsData = await firestoreStorage.getFeedings(kidId);
+        setFeedings(feedingsData || []);
+        
+        // Fetch sleep sessions
+        const sleepData = await firestoreStorage.getSleepSessions(kidId);
+        setSleepSessions(sleepData || []);
+        
+        // Fetch baby weight and multiplier
+        const weightData = await firestoreStorage.getBabyWeight(kidId);
+        if (weightData && weightData.weight) {
+          setBabyWeight(weightData.weight);
+        }
+        
+        // Fetch sleep settings
+        const settings = await firestoreStorage.getSleepSettings(kidId);
+        setSleepSettings(settings);
+      } catch (error) {
+        console.error('Error fetching production data for UI Lab:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchData();
+  }, [showUILab, uiLabMode, kidId]);
+
+  // Data transformation helpers (same as TrackerTab)
+  const formatFeedingsForCard = (feedings, targetOunces, currentDate) => {
+    if (!feedings || !Array.isArray(feedings)) return { total: 0, target: targetOunces || 0, percent: 0, timelineItems: [], lastEntryTime: null };
+    
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const todayFeedings = feedings.filter(f => {
+      const timestamp = f.timestamp || 0;
+      return timestamp >= startOfDay.getTime() && timestamp <= endOfDay.getTime();
+    });
+    
+    const total = todayFeedings.reduce((sum, f) => sum + (f.ounces || 0), 0);
+    const target = targetOunces || 0;
+    const percent = target > 0 ? Math.min(100, (total / target) * 100) : 0;
+    
+    const timelineItems = todayFeedings
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      .map(f => ({
+        id: f.id,
+        ounces: f.ounces,
+        timestamp: f.timestamp,
+        notes: f.notes || null,
+        photoURLs: f.photoURLs || null
+      }));
+    
+    const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
+    
+    return { total, target, percent, timelineItems, lastEntryTime };
+  };
+
+  const formatSleepSessionsForCard = (sessions, targetHours, currentDate) => {
+    if (!sessions || !Array.isArray(sessions)) return { total: 0, target: targetHours || 0, percent: 0, timelineItems: [], lastEntryTime: null };
+    
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
+    const todaySessions = sessions.filter(s => {
+      const startTime = s.startTime || 0;
+      const endTime = s.endTime || 0;
+      return (startTime >= startOfDay.getTime() && startTime <= endOfDay.getTime()) ||
+             (endTime >= startOfDay.getTime() && endTime <= endOfDay.getTime()) ||
+             (s.isActive && startTime <= endOfDay.getTime());
+    });
+    
+    const totalMs = todaySessions.reduce((sum, s) => {
+      if (s.isActive && s.startTime) {
+        return sum + Math.max(0, Date.now() - s.startTime);
+      }
+      const start = s.startTime || 0;
+      const end = s.endTime || 0;
+      return sum + Math.max(0, end - start);
+    }, 0);
+    const total = totalMs / (1000 * 60 * 60);
+    const target = targetHours || 0;
+    const percent = target > 0 ? Math.min(100, (total / target) * 100) : 0;
+    
+    const timelineItems = todaySessions
+      .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
+      .map(s => ({
+        id: s.id,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        isActive: s.isActive || false,
+        notes: s.notes || null,
+        photoURLs: s.photoURLs || null
+      }));
+    
+    const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].startTime : null;
+    
+    return { total, target, percent, timelineItems, lastEntryTime };
+  };
 
   // Sync appearance state with TT.appearance
   useEffect(() => {
@@ -39,16 +172,84 @@ const SettingsTab = ({ user, kidId }) => {
     }
   }, []);
 
-  // Color palettes
-  const FEED_PALETTE = [
-    '#d45d5c', '#e07a5f', '#f2a65a', '#c8553d', '#b23a48', '#9b2915',
-    '#d16ba5', '#ff6f91', '#ff9671', '#ffc75f', '#f9f871', '#c34a36'
+  // Color definitions with Normal and Soft variants
+  const COLOR_DEFINITIONS = [
+    // Blues
+    { name: 'Ocean Blue', normal: { light: '#4a8ac2', dark: '#6ba8dc' }, soft: { light: '#6b9dcc', dark: '#88b8e6' } },
+    { name: 'Slate Blue', normal: { light: '#6b7c9d', dark: '#8d9dbd' }, soft: { light: '#8595ad', dark: '#a5b3cd' } },
+    // Greens
+    { name: 'Mint Green', normal: { light: '#3a9679', dark: '#5cb899' }, soft: { light: '#5ca98a', dark: '#7dc9aa' } },
+    { name: 'Eucalyptus', normal: { light: '#92ADA4', dark: '#a8c4bb' }, soft: { light: '#a8beb7', dark: '#bdd4cc' } },
+    { name: 'Jalapeno', normal: { light: '#758C4F', dark: '#92a96f' }, soft: { light: '#8f9f6a', dark: '#a9bb88' } },
+    // Purple
+    { name: 'Purple', normal: { light: '#8b6ba8', dark: '#a98cc5' }, soft: { light: '#a085b8', dark: '#bba3d5' } },
+    // Reds & Pinks
+    { name: 'Coral', normal: { light: '#d45d5c', dark: '#e88378' }, soft: { light: '#dd7978', dark: '#ed9d93' } },
+    { name: 'Rose Pink', normal: { light: '#d1547c', dark: '#e5749b' }, soft: { light: '#db7090', dark: '#ec8fac' } },
+    { name: 'Cinnabar', normal: { light: '#AE6455', dark: '#c98275' }, soft: { light: '#be8073', dark: '#d69a8e' } },
+    // Oranges & Peaches
+    { name: 'Warm Orange', normal: { light: '#d4704b', dark: '#e89368' }, soft: { light: '#dd8a6a', dark: '#edaa87' } },
+    { name: 'Apricot', normal: { light: '#EF9E70', dark: '#f5b690' }, soft: { light: '#f3b28c', dark: '#f8c7a8' } },
+    { name: 'Roasted Peach', normal: { light: '#DAA58F', dark: '#e8bda8' }, soft: { light: '#e4b8a5', dark: '#eeddc2' } },
+    // Yellows & Creams
+    { name: 'Golden Yellow', normal: { light: '#c9952e', dark: '#e0b04d' }, soft: { light: '#d5a84f', dark: '#e8c26e' } },
+    { name: 'Cream', normal: { light: '#FED8A6', dark: '#ffe4be' }, soft: { light: '#fee2ba', dark: '#ffedce' } },
+    // Browns
+    { name: 'Milky Coffee', normal: { light: '#9B7D61', dark: '#b59881' }, soft: { light: '#af9479', dark: '#c7ad99' } }
   ];
 
-  const SLEEP_PALETTE = [
-    '#4a8ac2', '#3a86ff', '#2d6a4f', '#40916c', '#577590', '#277da1',
-    '#5e60ce', '#6930c3', '#7400b8', '#00b4d8', '#48cae4', '#4d908e'
-  ];
+  // Unified palette - extract light colors from normal variant
+  const ALL_COLORS = COLOR_DEFINITIONS.map(c => c.normal.light);
+  const FEED_PALETTE = ALL_COLORS;
+  const SLEEP_PALETTE = ALL_COLORS;
+
+  // Background theme colors
+  const BACKGROUND_COLORS = {
+    'health-gray': '#f2f2f7',
+    'eggshell': '#FAF7F2'
+  };
+
+  // ChevronDown icon
+  const ChevronDown = (props) => React.createElement('svg', { 
+    ...props, 
+    xmlns: "http://www.w3.org/2000/svg", 
+    width: "24", 
+    height: "24", 
+    viewBox: "0 0 24 24", 
+    fill: "none", 
+    stroke: "currentColor", 
+    strokeWidth: "2", 
+    strokeLinecap: "round", 
+    strokeLinejoin: "round" 
+  },
+    React.createElement('path', { d: "m6 9 6 6 6-6" })
+  );
+
+  // Helper to get color value based on variant and dark mode
+  const getColorValue = (colorName, variant, isDark) => {
+    const colorDef = COLOR_DEFINITIONS.find(c => c.name === colorName);
+    if (!colorDef) return colorName; // Fallback to hex if not found
+    const variantColors = colorDef[variant] || colorDef.normal;
+    return isDark ? variantColors.dark : variantColors.light;
+  };
+
+  // Helper to get current preview color
+  const getPreviewColor = (accentColor, variant, isDark) => {
+    // Try to find color by hex value first (check all variants)
+    const colorDef = COLOR_DEFINITIONS.find(c => 
+      c.normal.light === accentColor || 
+      c.normal.dark === accentColor ||
+      c.soft.light === accentColor ||
+      c.soft.dark === accentColor
+    );
+    if (colorDef) {
+      // Use the requested variant
+      const variantColors = colorDef[variant] || colorDef.normal;
+      return isDark ? variantColors.dark : variantColors.light;
+    }
+    // Fallback to original color if not found in definitions
+    return accentColor;
+  };
 
   // Handle appearance changes
   const handleAppearanceChange = async (partial) => {
@@ -292,10 +493,33 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
       ),
 
+      // UI Mode Toggle (controls feature flag)
+      window.SegmentedToggle && React.createElement('div', { className: "mb-4" },
+        React.createElement(window.SegmentedToggle, {
+          value: uiLabMode,
+          options: [
+            { value: 'new', label: 'New UI' },
+            { value: 'old', label: 'Old UI' }
+          ],
+          onChange: (value) => {
+            setUiLabMode(value);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('tt_use_new_ui', value === 'new' ? 'true' : 'false');
+              // Force reload to apply changes
+              window.location.reload();
+            }
+          }
+        })
+      ),
+
       // Title and subtitle
       React.createElement('div', { className: "mb-6" },
         React.createElement('h2', { className: "text-2xl font-bold text-gray-900 mb-2" }, 'UI Lab'),
-        React.createElement('p', { className: "text-sm text-gray-600" }, 'Design playground for standard components')
+        React.createElement('p', { className: "text-sm text-gray-600" }, 
+          uiLabMode === 'new' 
+            ? 'View new tracker card components with production data' 
+            : 'View old tracker UI with production data'
+        )
       ),
 
       // Design Palette Section
@@ -450,9 +674,48 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
-      // TrackerCard previews
-      React.createElement(window.TrackerCard, { mode: 'feeding' }),
-      React.createElement(window.TrackerCard, { mode: 'sleep' }),
+      // New UI - TrackerCard components with production data
+      uiLabMode === 'new' && (() => {
+        if (loading) {
+          return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
+        }
+        
+        const targetOunces = (babyWeight || 0) * multiplier;
+        const targetHours = sleepSettings?.sleepTargetHours || 14;
+        const feedingCardData = formatFeedingsForCard(feedings, targetOunces, currentDate);
+        const sleepCardData = formatSleepSessionsForCard(sleepSessions, targetHours, currentDate, null); // No active sleep in UI Lab
+        
+        return React.createElement(React.Fragment, null,
+          window.TrackerCard && React.createElement(window.TrackerCard, {
+            mode: 'feeding',
+            total: feedingCardData.total,
+            target: feedingCardData.target,
+            timelineItems: feedingCardData.timelineItems,
+            lastEntryTime: feedingCardData.lastEntryTime,
+            onItemClick: () => {} // No-op for UI Lab
+          }),
+          window.TrackerCard && React.createElement(window.TrackerCard, {
+            mode: 'sleep',
+            total: sleepCardData.total,
+            target: sleepCardData.target,
+            timelineItems: sleepCardData.timelineItems,
+            lastEntryTime: sleepCardData.lastEntryTime,
+            onItemClick: () => {} // No-op for UI Lab
+          })
+        );
+      })(),
+
+      // Old UI Section
+      uiLabMode === 'old' && React.createElement('div', { className: "mt-8" },
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Old UI'),
+        React.createElement('div', { className: "text-sm text-gray-600 mb-4" }, 
+          'This is the previous tracker interface. Switch to "New UI" to see the updated design.'
+        ),
+        loading ? React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...') :
+        React.createElement('div', { className: "bg-gray-50 rounded-2xl p-6 text-center text-gray-500" },
+          'Old UI components will be rendered here with production data'
+        )
+      ),
 
       // Detail Sheet previews with launch buttons
       React.createElement('div', { className: "border-t border-gray-100 pt-6" }),
@@ -1644,7 +1907,8 @@ const SettingsTab = ({ user, kidId }) => {
                     { value: 'sleep', label: 'Sleep' }
                   ],
                   onChange: () => {},
-                  compact: true
+                  variant: 'body',
+                  size: 'medium'
                 }),
                 React.createElement(SegmentedToggle, {
                   value: 'option1',
@@ -1654,7 +1918,8 @@ const SettingsTab = ({ user, kidId }) => {
                     { value: 'option3', label: 'Option 3' }
                   ],
                   onChange: () => {},
-                  compact: true
+                  variant: 'body',
+                  size: 'medium'
                 })
               ),
               React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab')
@@ -2197,153 +2462,267 @@ const SettingsTab = ({ user, kidId }) => {
     // Appearance Card
     React.createElement(TTCard, { variant: "default" },
       React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Appearance'),
-      React.createElement('div', { className: "space-y-6" },
-
-        // Dark Mode Toggle
-        React.createElement('div', { className: "flex items-center justify-between" },
-          React.createElement('span', { className: "text-base font-medium", style: { color: 'var(--tt-text-primary)' } }, 'Dark Mode'),
-          React.createElement('button', {
-            type: 'button',
-            onClick: async () => {
-              await handleAppearanceChange({ darkMode: !appearance.darkMode });
-            },
-            'aria-pressed': appearance.darkMode,
-            className: `relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${
-              appearance.darkMode ? 'bg-gray-400' : 'bg-gray-300'
-            }`,
-            role: 'switch'
-          },
-            React.createElement('span', {
-              className: `inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                appearance.darkMode ? 'translate-x-6' : 'translate-x-1'
-              }`
-            })
-          )
-        ),
-
-        // Background Theme Selector
+      React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+        // Top Left: Background Theme
         React.createElement('div', null,
-          React.createElement('div', { className: "text-sm font-medium mb-3", style: { color: 'var(--tt-text-secondary)' } }, 'Background Theme'),
-          React.createElement('div', { className: "flex gap-3" },
+          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Background Theme'),
+          React.createElement('div', { className: "flex gap-2" },
             React.createElement('button', {
               type: 'button',
               onClick: async () => {
                 await handleAppearanceChange({ background: "health-gray" });
               },
-              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition`,
-              style: {
-                backgroundColor: appearance.background === "health-gray" ? 'var(--tt-card-bg)' : 'var(--tt-card-bg)',
-                borderColor: appearance.background === "health-gray" ? 'var(--tt-card-border)' : 'var(--tt-card-border)',
-                borderWidth: appearance.background === "health-gray" ? '2px' : '1px',
-                color: appearance.background === "health-gray" ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
-              }
-            }, 'Health Gray'),
+              className: "w-11 h-11 rounded-full border-2 transition-all",
+              style: { 
+                backgroundColor: BACKGROUND_COLORS['health-gray'],
+                borderColor: appearance.background === "health-gray" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                boxShadow: appearance.background === "health-gray" 
+                  ? (appearance.darkMode 
+                      ? '0 0 0 1.5px var(--tt-text-primary)' 
+                      : '0 0 0 1.5px var(--tt-card-bg)')
+                  : 'none',
+                transition: 'all 0.12s ease'
+              },
+              title: 'Gray'
+            }),
             React.createElement('button', {
               type: 'button',
               onClick: async () => {
                 await handleAppearanceChange({ background: "eggshell" });
               },
-              className: `flex-1 py-2.5 px-4 rounded-xl font-medium transition`,
-              style: {
-                backgroundColor: appearance.background === "eggshell" ? 'var(--tt-card-bg)' : 'var(--tt-card-bg)',
-                borderColor: appearance.background === "eggshell" ? 'var(--tt-card-border)' : 'var(--tt-card-border)',
-                borderWidth: appearance.background === "eggshell" ? '2px' : '1px',
-                color: appearance.background === "eggshell" ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
-              }
-            }, 'Eggshell')
+              className: "w-11 h-11 rounded-full border-2 transition-all",
+              style: { 
+                backgroundColor: BACKGROUND_COLORS['eggshell'],
+                borderColor: appearance.background === "eggshell" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                boxShadow: appearance.background === "eggshell" 
+                  ? (appearance.darkMode 
+                      ? '0 0 0 1.5px var(--tt-text-primary)' 
+                      : '0 0 0 1.5px var(--tt-card-bg)')
+                  : 'none',
+                transition: 'all 0.12s ease'
+              },
+              title: 'Coffee'
+            })
           )
         ),
 
-        // Feed Accent Picker
+        // Top Right: Dark Mode
         React.createElement('div', null,
-          React.createElement('div', { className: "text-sm font-medium mb-3", style: { color: 'var(--tt-text-secondary)' } }, 'Feed Accent'),
-          React.createElement('div', { className: "flex items-center gap-3" },
+          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Dark Mode'),
+          window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+            value: appearance.darkMode ? 'dark' : 'light',
+            options: [
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' }
+            ],
+            onChange: async (value) => {
+              await handleAppearanceChange({ darkMode: value === 'dark' });
+            },
+            variant: 'body',
+            size: 'medium'
+          })
+        ),
+
+        // Bottom Left: Feed Accent
+        React.createElement('div', null,
+          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Feed Accent'),
+          React.createElement('button', {
+            type: 'button',
+            onClick: () => setShowFeedColorModal(true),
+            className: "flex items-center gap-2 py-2 rounded-lg transition w-full justify-start",
+            style: {
+              backgroundColor: 'var(--tt-card-bg)',
+              paddingLeft: '0',
+              paddingRight: '12px'
+            }
+          },
             React.createElement('div', {
-              className: "w-10 h-10 rounded-full border-2",
+              className: "w-11 h-11 rounded-full border-2",
               style: { 
-                backgroundColor: appearance.feedAccent,
+                backgroundColor: getPreviewColor(appearance.feedAccent, feedVariant, appearance.darkMode),
                 borderColor: 'var(--tt-card-border)'
               }
             }),
-            React.createElement('button', {
-              type: 'button',
-              onClick: () => setShowFeedPalette(!showFeedPalette),
-              className: "flex-1 py-2 px-4 rounded-lg border transition text-sm font-medium",
-              style: {
-                backgroundColor: 'var(--tt-card-bg)',
-                borderColor: 'var(--tt-card-border)',
-                color: 'var(--tt-text-secondary)'
-              }
-            }, 'Change')
-          ),
-          showFeedPalette && React.createElement('div', { className: "mt-4 p-4 rounded-xl", style: { backgroundColor: 'var(--tt-card-bg)' } },
-            React.createElement('div', { className: "grid grid-cols-4 gap-3" },
-              FEED_PALETTE.map((color) =>
-                React.createElement('button', {
-                  key: color,
-                  type: 'button',
-                  onClick: async () => {
-                    await handleAppearanceChange({ feedAccent: color });
-                    setShowFeedPalette(false);
-                  },
-                  className: `w-11 h-11 rounded-full border-2 transition ${
-                    appearance.feedAccent === color ? 'shadow-sm' : 'hover:scale-110'
-                  }`,
-                  style: { 
-                    backgroundColor: color,
-                    borderColor: appearance.feedAccent === color ? 'var(--tt-text-primary)' : 'var(--tt-card-border)'
-                  },
-                  title: color
-                })
-              )
-            )
+            React.createElement(ChevronDown, { 
+              className: "w-4 h-4", 
+              style: { color: 'var(--tt-text-secondary)' } 
+            })
           )
         ),
 
-        // Sleep Accent Picker
+        // Bottom Right: Sleep Accent
         React.createElement('div', null,
-          React.createElement('div', { className: "text-sm font-medium mb-3", style: { color: 'var(--tt-text-secondary)' } }, 'Sleep Accent'),
-          React.createElement('div', { className: "flex items-center gap-3" },
+          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Sleep Accent'),
+          React.createElement('button', {
+            type: 'button',
+            onClick: () => setShowSleepColorModal(true),
+            className: "flex items-center gap-2 py-2 rounded-lg transition w-full justify-start",
+            style: {
+              backgroundColor: 'var(--tt-card-bg)',
+              paddingLeft: '0',
+              paddingRight: '12px'
+            }
+          },
             React.createElement('div', {
-              className: "w-10 h-10 rounded-full border-2",
+              className: "w-11 h-11 rounded-full border-2",
               style: { 
-                backgroundColor: appearance.sleepAccent,
+                backgroundColor: getPreviewColor(appearance.sleepAccent, sleepVariant, appearance.darkMode),
                 borderColor: 'var(--tt-card-border)'
               }
             }),
-            React.createElement('button', {
-              type: 'button',
-              onClick: () => setShowSleepPalette(!showSleepPalette),
-              className: "flex-1 py-2 px-4 rounded-lg border transition text-sm font-medium",
-              style: {
-                backgroundColor: 'var(--tt-card-bg)',
-                borderColor: 'var(--tt-card-border)',
-                color: 'var(--tt-text-secondary)'
-              }
-            }, 'Change')
-          ),
-          showSleepPalette && React.createElement('div', { className: "mt-4 p-4 rounded-xl", style: { backgroundColor: 'var(--tt-card-bg)' } },
-            React.createElement('div', { className: "grid grid-cols-4 gap-3" },
-              SLEEP_PALETTE.map((color) =>
-                React.createElement('button', {
-                  key: color,
-                  type: 'button',
-                  onClick: async () => {
-                    await handleAppearanceChange({ sleepAccent: color });
-                    setShowSleepPalette(false);
-                  },
-                  className: `w-11 h-11 rounded-full border-2 transition ${
-                    appearance.sleepAccent === color ? 'shadow-sm' : 'hover:scale-110'
-                  }`,
-                  style: { 
-                    backgroundColor: color,
-                    borderColor: appearance.sleepAccent === color ? 'var(--tt-text-primary)' : 'var(--tt-card-border)'
-                  },
-                  title: color
-                })
-              )
-            )
+            React.createElement(ChevronDown, { 
+              className: "w-4 h-4", 
+              style: { color: 'var(--tt-text-secondary)' } 
+            })
           )
+        )
+      )
+    ),
+
+    // Feed Color Modal
+    window.TTHalfSheet && React.createElement(window.TTHalfSheet, {
+      isOpen: showFeedColorModal,
+      onClose: () => setShowFeedColorModal(false),
+      title: '',
+      accentColor: getPreviewColor(appearance.feedAccent, feedVariant, appearance.darkMode),
+      titleElement: window.SegmentedToggle ? React.createElement(window.SegmentedToggle, {
+        value: feedVariant,
+        options: [
+          { value: 'normal', label: 'Normal' },
+          { value: 'soft', label: 'Soft' }
+        ],
+        onChange: setFeedVariant,
+        variant: 'header',
+        size: 'medium'
+      }) : null,
+      rightAction: React.createElement('div', { className: "w-6" })
+    },
+      React.createElement('div', { className: "px-6 py-6" },
+        // Color Grid (fixed spacing)
+        React.createElement('div', { 
+          className: "grid grid-cols-5",
+          style: { 
+            gap: '16px',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            justifyItems: 'center'
+          }
+        },
+          COLOR_DEFINITIONS.map((colorDef) => {
+            const variantColors = colorDef[feedVariant] || colorDef.normal;
+            const displayColor = appearance.darkMode ? variantColors.dark : variantColors.light;
+            const isSelected = appearance.feedAccent === colorDef.normal.light || 
+                              appearance.feedAccent === colorDef.normal.dark ||
+                              appearance.feedAccent === colorDef.soft.light ||
+                              appearance.feedAccent === colorDef.soft.dark;
+            return React.createElement('button', {
+              key: colorDef.name,
+              type: 'button',
+              onClick: async () => {
+                await handleAppearanceChange({ feedAccent: colorDef.normal.light });
+                setShowFeedColorModal(false);
+              },
+              className: `rounded-full border-2 transition-all`,
+              style: { 
+                width: '44px',
+                height: '44px',
+                backgroundColor: displayColor,
+                borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                boxShadow: isSelected 
+                  ? (appearance.darkMode 
+                      ? '0 0 0 1.5px var(--tt-text-primary)' 
+                      : '0 0 0 1.5px var(--tt-card-bg)')
+                  : 'none',
+                transform: 'scale(1)',
+                transition: 'all 0.12s ease',
+                position: 'relative'
+              },
+              onMouseEnter: (e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.transform = 'scale(1.2)';
+                  e.currentTarget.style.zIndex = '10';
+                }
+              },
+              onMouseLeave: (e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.zIndex = '1';
+              },
+              title: colorDef.name
+            });
+          })
+        )
+      )
+    ),
+
+    // Sleep Color Modal
+    window.TTHalfSheet && React.createElement(window.TTHalfSheet, {
+      isOpen: showSleepColorModal,
+      onClose: () => setShowSleepColorModal(false),
+      title: '',
+      accentColor: getPreviewColor(appearance.sleepAccent, sleepVariant, appearance.darkMode),
+      titleElement: window.SegmentedToggle ? React.createElement(window.SegmentedToggle, {
+        value: sleepVariant,
+        options: [
+          { value: 'normal', label: 'Normal' },
+          { value: 'soft', label: 'Soft' }
+        ],
+        onChange: setSleepVariant,
+        variant: 'header',
+        size: 'medium'
+      }) : null,
+      rightAction: React.createElement('div', { className: "w-6" })
+    },
+      React.createElement('div', { className: "px-6 py-6" },
+        // Color Grid (fixed spacing)
+        React.createElement('div', { 
+          className: "grid grid-cols-5",
+          style: { 
+            gap: '16px',
+            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+            justifyItems: 'center'
+          }
+        },
+          COLOR_DEFINITIONS.map((colorDef) => {
+            const variantColors = colorDef[sleepVariant] || colorDef.normal;
+            const displayColor = appearance.darkMode ? variantColors.dark : variantColors.light;
+            const isSelected = appearance.sleepAccent === colorDef.normal.light || 
+                              appearance.sleepAccent === colorDef.normal.dark ||
+                              appearance.sleepAccent === colorDef.soft.light ||
+                              appearance.sleepAccent === colorDef.soft.dark;
+            return React.createElement('button', {
+              key: colorDef.name,
+              type: 'button',
+              onClick: async () => {
+                await handleAppearanceChange({ sleepAccent: colorDef.normal.light });
+                setShowSleepColorModal(false);
+              },
+              className: `rounded-full border-2 transition-all`,
+              style: { 
+                width: '44px',
+                height: '44px',
+                backgroundColor: displayColor,
+                borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                boxShadow: isSelected 
+                  ? (appearance.darkMode 
+                      ? '0 0 0 1.5px var(--tt-text-primary)' 
+                      : '0 0 0 1.5px var(--tt-card-bg)')
+                  : 'none',
+                transform: 'scale(1)',
+                transition: 'all 0.12s ease',
+                position: 'relative'
+              },
+              onMouseEnter: (e) => {
+                if (!isSelected) {
+                  e.currentTarget.style.transform = 'scale(1.2)';
+                  e.currentTarget.style.zIndex = '10';
+                }
+              },
+              onMouseLeave: (e) => {
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.zIndex = '1';
+              },
+              title: colorDef.name
+            });
+          })
         )
       )
     ),
