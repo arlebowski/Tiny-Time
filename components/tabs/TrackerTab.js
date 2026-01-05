@@ -3,15 +3,46 @@
 // Tracker Tab - Main Feeding Interface
 // ========================================
 
+// ========================================
+// UI VERSION HELPERS (Single Source of Truth)
+// ========================================
+// Initialize shared UI version helpers (only once)
+if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
+  window.TT = window.TT || {};
+  window.TT.shared = window.TT.shared || {};
+  
+  // Helper to get UI version (defaults to v2 for backward compatibility)
+  window.TT.shared.uiVersion = {
+    getUIVersion: () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const version = window.localStorage.getItem('tt_ui_version');
+        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          return version;
+        }
+        // Migration: derive from old flags if version doesn't exist
+        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
+        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
+        if (useNewUI === 'false') return 'v1';
+        if (cardDesign === 'new') return 'v3';
+        return 'v2'; // default
+      }
+      return 'v2';
+    },
+    shouldUseNewUI: (version) => version !== 'v1',
+    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+  };
+}
+
 const TrackerTab = ({ user, kidId, familyId }) => {
-  // Feature flag for new UI - controlled by localStorage (can be toggled from UI Lab)
-  const [useNewUI, setUseNewUI] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_use_new_ui');
-      return stored !== null ? stored === 'true' : true; // Default to true
-    }
-    return true;
+  // UI Version - single source of truth (v1, v2, or v3)
+  // UI Versions:
+  // - v1: Old UI (useNewUI = false)
+  // - v2: New UI with current tracker cards (useNewUI = true, cardDesign = 'current')
+  // - v3: New UI with new tracker cards (useNewUI = true, cardDesign = 'new')
+  const [uiVersion, setUiVersion] = useState(() => {
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
+  const useNewUI = (window.TT?.shared?.uiVersion?.shouldUseNewUI || ((v) => v !== 'v1'))(uiVersion);
   
   // Feature flag for TodayCard - controlled by localStorage (can be toggled from UI Lab)
   const [showTodayCard, setShowTodayCard] = useState(() => {
@@ -26,8 +57,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   React.useEffect(() => {
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem('tt_use_new_ui');
-        setUseNewUI(stored !== null ? stored === 'true' : true);
+        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+        setUiVersion(version);
         const todayCardStored = window.localStorage.getItem('tt_show_today_card');
         setShowTodayCard(todayCardStored !== null ? todayCardStored === 'true' : false);
       }

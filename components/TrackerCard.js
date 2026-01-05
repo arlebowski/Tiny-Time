@@ -776,6 +776,36 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   );
 };
 
+// ========================================
+// UI VERSION HELPERS (Single Source of Truth)
+// ========================================
+// Initialize shared UI version helpers (only once)
+if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
+  window.TT = window.TT || {};
+  window.TT.shared = window.TT.shared || {};
+  
+  // Helper to get UI version (defaults to v2 for backward compatibility)
+  window.TT.shared.uiVersion = {
+    getUIVersion: () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const version = window.localStorage.getItem('tt_ui_version');
+        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          return version;
+        }
+        // Migration: derive from old flags if version doesn't exist
+        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
+        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
+        if (useNewUI === 'false') return 'v1';
+        if (cardDesign === 'new') return 'v3';
+        return 'v2'; // default
+      }
+      return 'v2';
+    },
+    shouldUseNewUI: (version) => version !== 'v1',
+    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+  };
+}
+
 const TrackerCard = ({ 
   mode = 'sleep',
   total = null,           // e.g., 14.5 (oz or hrs)
@@ -789,21 +819,22 @@ const TrackerCard = ({
   ensureZzzStyles();
   ensureTapAnimationStyles();
   
-  // Feature flag for card design - controlled by localStorage (can be toggled from UI Lab)
-  const [cardDesign, setCardDesign] = React.useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_tracker_card_design');
-      return stored !== null ? stored : 'current'; // Default to 'current' to preserve existing design
-    }
-    return 'current';
+  // UI Version - single source of truth (v1, v2, or v3)
+  // Part of UI Version system:
+  // - v1: Old UI (not used here, TrackerCard only shows in v2/v3)
+  // - v2: useNewUI = true, cardDesign = 'current'
+  // - v3: useNewUI = true, cardDesign = 'new'
+  const [uiVersion, setUiVersion] = React.useState(() => {
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
+  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v3' ? 'new' : 'current'))(uiVersion);
   
   // Listen for changes to the feature flag
   React.useEffect(() => {
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem('tt_tracker_card_design');
-        setCardDesign(stored !== null ? stored : 'current');
+        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+        setUiVersion(version);
       }
     };
     
