@@ -905,7 +905,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     React.createElement('div', { 
       className: "date-nav-container",
       style: {
-        background: 'rgba(0, 0, 0, 0.03)',
+        backgroundColor: 'var(--tt-app-bg)', // Match header background
         padding: '16px 20px',
         position: 'sticky',
         top: 0,
@@ -921,7 +921,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           alignItems: 'center',
           justifyContent: 'space-between',
           maxWidth: '600px',
-          margin: '0 auto'
+          margin: '0 auto',
+          backgroundColor: 'rgba(0, 0, 0, 0.05)', // Matches bg-black/5 pattern from design system
+          padding: '8px 16px',
+          borderRadius: '12px' // rounded-xl (matches toggle)
         }
       },
         React.createElement('div', {
@@ -1680,8 +1683,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       },
       entry: selectedFeedEntry,
       onDelete: async () => {
-        // Delay refresh until after sheet closes (200ms for close animation)
-        await new Promise(resolve => setTimeout(resolve, 250));
+        // Delay refresh until after sheet closes (200ms) + exit animation (400ms) + buffer (50ms)
+        await new Promise(resolve => setTimeout(resolve, 650));
         await loadFeedings();
       }
     }),
@@ -1693,8 +1696,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       },
       entry: selectedSleepEntry,
       onDelete: async () => {
-        // Delay refresh until after sheet closes (200ms for close animation)
-        await new Promise(resolve => setTimeout(resolve, 250));
+        // Delay refresh until after sheet closes (200ms) + exit animation (400ms) + buffer (50ms)
+        await new Promise(resolve => setTimeout(resolve, 650));
         await loadSleepSessions();
       }
     }),
