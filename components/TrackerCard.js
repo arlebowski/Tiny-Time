@@ -254,6 +254,53 @@ function ensureTapAnimationStyles() {
     .dark .tt-tapable::before {
       background: rgba(255, 255, 255, 0.1);
     }
+    
+    /* Timeline item animations */
+    @keyframes slideInDown {
+      0% {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+        max-height: 0;
+      }
+      50% {
+        opacity: 1;
+        max-height: 100px;
+      }
+      70% {
+        transform: translateY(2px) scale(1.01);
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        max-height: 100px;
+      }
+    }
+    
+    @keyframes slideOutUp {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+        max-height: 100px;
+        margin-bottom: 1rem;
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-20px) scale(0.95);
+        max-height: 0;
+        margin-bottom: 0;
+        padding-top: 0;
+        padding-bottom: 0;
+      }
+    }
+    
+    .timeline-item-enter {
+      animation: slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    
+    .timeline-item-exit {
+      animation: slideOutUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      overflow: hidden;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -463,10 +510,107 @@ const TrackerCard = ({
   ensureTapAnimationStyles();
   const [expanded, setExpanded] = React.useState(false);
   const [cardVisible, setCardVisible] = React.useState(false);
+  
+  // Animation state
+  const [enteringIds, setEnteringIds] = React.useState(new Set());
+  const [exitingIds, setExitingIds] = React.useState(new Set());
+  const prevTimelineItemsRef = React.useRef([]);
+  const exitTimeoutRefs = React.useRef({});
+  const exitingItemsMapRef = React.useRef(new Map()); // Store exiting items by ID
 
   // Animation trigger - set visible after mount
   React.useEffect(() => {
     setCardVisible(true);
+  }, []);
+  
+  // Detect additions and removals for animations
+  React.useEffect(() => {
+    // Only run comparison if we have previous items (skip first render)
+    if (prevTimelineItemsRef.current.length === 0 && timelineItems.length > 0) {
+      // First render with items - just store them, no animation
+      prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item })); // Create a deep copy
+      return;
+    }
+    
+    const prevItems = [...prevTimelineItemsRef.current]; // Create a copy for comparison
+    const currentItemIds = new Set(timelineItems.map(item => {
+      const id = item.id || item.timestamp || item.startTime;
+      return id;
+    }));
+    const prevItemIds = new Set(prevItems.map(item => {
+      const id = item.id || item.timestamp || item.startTime;
+      return id;
+    }));
+    
+    // Find new items (enter animation)
+    const newIds = new Set();
+    currentItemIds.forEach(id => {
+      if (!prevItemIds.has(id)) {
+        newIds.add(id);
+      }
+    });
+    
+    // Find removed items (exit animation)
+    const removedIds = new Set();
+    prevItemIds.forEach(id => {
+      if (!currentItemIds.has(id)) {
+        removedIds.add(id);
+      }
+    });
+    
+    // Set entering IDs (will be cleared after animation)
+    if (newIds.size > 0) {
+      setEnteringIds(newIds);
+      // Clear enter animation class after animation completes
+      setTimeout(() => {
+        setEnteringIds(prev => {
+          const updated = new Set(prev);
+          newIds.forEach(id => updated.delete(id));
+          return updated;
+        });
+      }, 400);
+    }
+    
+    // Set exiting IDs and schedule cleanup
+    if (removedIds.size > 0) {
+      // Store exiting items BEFORE updating the ref (so we can render them)
+      removedIds.forEach(id => {
+        const exitingItem = prevItems.find(item => {
+          const itemId = item.id || item.timestamp || item.startTime;
+          return itemId === id;
+        });
+        if (exitingItem) {
+          exitingItemsMapRef.current.set(id, { ...exitingItem }); // Store a deep copy
+        }
+      });
+      
+      setExitingIds(removedIds);
+      // Keep exiting items visible for animation, then remove
+      removedIds.forEach(id => {
+        if (exitTimeoutRefs.current[id]) {
+          clearTimeout(exitTimeoutRefs.current[id]);
+        }
+        exitTimeoutRefs.current[id] = setTimeout(() => {
+          setExitingIds(prev => {
+            const updated = new Set(prev);
+            updated.delete(id);
+            return updated;
+          });
+          exitingItemsMapRef.current.delete(id); // Clean up stored item
+          delete exitTimeoutRefs.current[id];
+        }, 400);
+      });
+    }
+    
+    // Update ref for next comparison - create a deep copy to avoid reference issues
+    prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item }));
+  }, [timelineItems]);
+  
+  // Cleanup timeouts on unmount
+  React.useEffect(() => {
+    return () => {
+      Object.values(exitTimeoutRefs.current).forEach(timeout => clearTimeout(timeout));
+    };
   }, []);
 
   // Inject a calm zZz keyframe animation (UI Lab version - unique to avoid conflicts)
@@ -689,14 +833,48 @@ const TrackerCard = ({
       'div',
       { className: "mt-4 space-y-4" },
       timelineItems && timelineItems.length > 0
-        ? timelineItems.map((entry, index) =>
-            React.createElement(TimelineItem, { 
-              key: entry.id || index,
-              entry,
-              mode,
-              onClick: onItemClick
-            })
-          )
+        ? (() => {
+            // Combine current items with exiting items for animation
+            const allItems = [...timelineItems];
+            const prevItems = prevTimelineItemsRef.current;
+            
+            // Add exiting items back to the list for exit animation
+            exitingIds.forEach(exitingId => {
+              // Get exiting item from stored map (not from prevItems which is now updated)
+              const exitingItem = exitingItemsMapRef.current.get(exitingId);
+              if (exitingItem && !allItems.find(item => {
+                const itemId = item.id || item.timestamp || item.startTime;
+                return itemId === exitingId;
+              })) {
+                allItems.push(exitingItem);
+              }
+            });
+            
+            return allItems.map((entry, index) => {
+              const itemId = entry.id || entry.timestamp || entry.startTime;
+              const isEntering = enteringIds.has(itemId);
+              const isExiting = exitingIds.has(itemId);
+              
+              const animationClass = isExiting 
+                ? 'timeline-item-exit' 
+                : isEntering 
+                  ? 'timeline-item-enter' 
+                  : '';
+              
+              return React.createElement(
+                'div',
+                {
+                  key: itemId,
+                  className: animationClass ? animationClass : ''
+                },
+                React.createElement(TimelineItem, { 
+                  entry,
+                  mode,
+                  onClick: onItemClick
+                })
+              );
+            });
+          })()
         : React.createElement('div', { 
             className: "text-sm text-center py-4",
             style: { color: 'var(--tt-text-secondary)' }
@@ -1227,7 +1405,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTFeedDetailSheet Component
-  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null }) => {
+  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null }) => {
     const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -1312,7 +1490,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setSaving(true);
       try {
         await firestoreStorage.deleteFeeding(entry.id);
+        // Close the sheet first
         handleClose();
+        // Then refresh timeline after sheet closes (onDelete callback handles the delay)
+        if (onDelete) {
+          await onDelete();
+        }
       } catch (error) {
         console.error('Failed to delete feeding:', error);
         alert('Failed to delete feeding. Please try again.');
@@ -1576,7 +1759,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTSleepDetailSheet Component
-  const TTSleepDetailSheet = ({ isOpen, onClose, entry = null }) => {
+  const TTSleepDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null }) => {
     const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
     const [endTime, setEndTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -1693,7 +1876,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setSaving(true);
       try {
         await firestoreStorage.deleteSleepSession(entry.id);
+        // Close the sheet first
         handleClose();
+        // Then refresh timeline after sheet closes (onDelete callback handles the delay)
+        if (onDelete) {
+          await onDelete();
+        }
       } catch (error) {
         console.error('Failed to delete sleep session:', error);
         alert('Failed to delete sleep session. Please try again.');
@@ -2004,7 +2192,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTInputHalfSheet Component
-  const TTInputHalfSheet = ({ isOpen, onClose, kidId, initialMode = 'feeding' }) => {
+  const TTInputHalfSheet = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null }) => {
     // Check localStorage for active sleep on mount to determine initial mode
     const getInitialMode = () => {
       // Use prop if provided, otherwise check localStorage
@@ -2334,7 +2522,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setFeedingNotes('');
         setPhotos([]);
         setFeedingDateTime(new Date().toISOString());
+        // Close the sheet first
         if (onClose) onClose();
+        // Then refresh timeline after sheet closes (onAdd callback handles the delay)
+        if (onAdd) {
+          await onAdd('feeding');
+        }
       } catch (error) {
         console.error('Failed to add feeding:', error);
         alert('Failed to add feeding. Please try again.');
@@ -2498,6 +2691,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           
           // Auto-close after save
           if (onClose) onClose();
+          // Then refresh timeline after sheet closes (onAdd callback handles the delay)
+          if (onAdd) {
+            await onAdd('sleep');
+          }
         } catch (error) {
           console.error('Failed to save sleep session:', error);
           alert('Failed to save sleep session. Please try again.');
