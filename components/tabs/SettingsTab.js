@@ -2469,10 +2469,11 @@ const SettingsTab = ({ user, kidId }) => {
           React.createElement('div', { className: "flex gap-2" },
             React.createElement('button', {
               type: 'button',
-              onClick: async () => {
+              onClick: appearance.darkMode ? undefined : async () => {
                 await handleAppearanceChange({ background: "health-gray" });
               },
-              className: "w-11 h-11 rounded-full border-2 transition-all",
+              disabled: appearance.darkMode,
+              className: `w-11 h-11 rounded-full border-2 transition-all ${appearance.darkMode ? 'cursor-not-allowed' : ''}`,
               style: { 
                 backgroundColor: BACKGROUND_COLORS['health-gray'],
                 borderColor: appearance.background === "health-gray" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
@@ -2481,16 +2482,19 @@ const SettingsTab = ({ user, kidId }) => {
                       ? '0 0 0 1.5px var(--tt-text-primary)' 
                       : '0 0 0 1.5px var(--tt-card-bg)')
                   : 'none',
-                transition: 'all 0.12s ease'
+                transition: 'all 0.12s ease',
+                opacity: appearance.darkMode ? 0.4 : 1,
+                filter: appearance.darkMode ? 'grayscale(0.3)' : 'none'
               },
-              title: 'Gray'
+              title: appearance.darkMode ? 'Light mode only' : 'Gray'
             }),
             React.createElement('button', {
               type: 'button',
-              onClick: async () => {
+              onClick: appearance.darkMode ? undefined : async () => {
                 await handleAppearanceChange({ background: "eggshell" });
               },
-              className: "w-11 h-11 rounded-full border-2 transition-all",
+              disabled: appearance.darkMode,
+              className: `w-11 h-11 rounded-full border-2 transition-all ${appearance.darkMode ? 'cursor-not-allowed' : ''}`,
               style: { 
                 backgroundColor: BACKGROUND_COLORS['eggshell'],
                 borderColor: appearance.background === "eggshell" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
@@ -2499,11 +2503,17 @@ const SettingsTab = ({ user, kidId }) => {
                       ? '0 0 0 1.5px var(--tt-text-primary)' 
                       : '0 0 0 1.5px var(--tt-card-bg)')
                   : 'none',
-                transition: 'all 0.12s ease'
+                transition: 'all 0.12s ease',
+                opacity: appearance.darkMode ? 0.4 : 1,
+                filter: appearance.darkMode ? 'grayscale(0.3)' : 'none'
               },
-              title: 'Coffee'
+              title: appearance.darkMode ? 'Light mode only' : 'Coffee'
             })
-          )
+          ),
+          appearance.darkMode && React.createElement('div', { 
+            className: "text-xs mt-1", 
+            style: { color: 'var(--tt-text-tertiary)' } 
+          }, 'Light mode only')
         ),
 
         // Top Right: Dark Mode

@@ -447,35 +447,37 @@ window.TT.applyAppearance = function(appearance) {
   const mode = darkMode ? 'dark' : 'light';
   const theme = BACKGROUND_THEMES[mode][background] || BACKGROUND_THEMES[mode]["health-gray"]; // FIX 2: mode-aware fallback
 
-  // Set CSS variables on :root
-  const root = document.documentElement;
-
-  // Background/surfaces
-  root.style.setProperty('--tt-app-bg', theme.appBg);
-  root.style.setProperty('--tt-card-bg', theme.cardBg);
-  root.style.setProperty('--tt-card-border', theme.cardBorder);
-
-  // Input field backgrounds
-  root.style.setProperty('--tt-input-bg', darkMode ? '#2C2C2E' : '#f5f5f5');
-
-  // Text colors
-  root.style.setProperty('--tt-text-primary', darkMode ? 'rgba(255,255,255,0.87)' : 'rgba(0,0,0,0.87)');
-  root.style.setProperty('--tt-text-secondary', darkMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)');
-  root.style.setProperty('--tt-text-tertiary', darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)');
-
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
   const sleepVariants = deriveAccentVariants(sanitizedSleepAccent, darkMode);
 
-  // Feed accents
-  root.style.setProperty('--tt-feed', sanitizedFeedAccent);
-  root.style.setProperty('--tt-feed-soft', feedVariants.soft);
-  root.style.setProperty('--tt-feed-strong', feedVariants.strong);
+  // Batch all CSS variable updates in a single frame for smooth, synchronized transition
+  requestAnimationFrame(() => {
+    const root = document.documentElement;
 
-  // Sleep accents
-  root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
-  root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
-  root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
+    // Background/surfaces
+    root.style.setProperty('--tt-app-bg', theme.appBg);
+    root.style.setProperty('--tt-card-bg', theme.cardBg);
+    root.style.setProperty('--tt-card-border', theme.cardBorder);
+
+    // Input field backgrounds
+    root.style.setProperty('--tt-input-bg', darkMode ? '#2C2C2E' : '#f5f5f5');
+
+    // Text colors
+    root.style.setProperty('--tt-text-primary', darkMode ? 'rgba(255,255,255,0.87)' : 'rgba(0,0,0,0.87)');
+    root.style.setProperty('--tt-text-secondary', darkMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)');
+    root.style.setProperty('--tt-text-tertiary', darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)');
+
+    // Feed accents
+    root.style.setProperty('--tt-feed', sanitizedFeedAccent);
+    root.style.setProperty('--tt-feed-soft', feedVariants.soft);
+    root.style.setProperty('--tt-feed-strong', feedVariants.strong);
+
+    // Sleep accents
+    root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
+    root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
+    root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
+  });
 
   // Update meta theme-color for iOS status bar area
   if (typeof window.updateMetaThemeColor === 'function') {
