@@ -220,6 +220,44 @@ function ensureZzzStyles() {
   document.head.appendChild(style);
 }
 
+// Ensure tap animation styles are injected
+function ensureTapAnimationStyles() {
+  if (document.getElementById('tt-tap-anim')) return;
+  const style = document.createElement('style');
+  style.id = 'tt-tap-anim';
+  style.textContent = `
+    .tt-tapable {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .tt-tapable::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.05);
+      opacity: 0;
+      transition: opacity 0.1s ease-out;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 1;
+    }
+    
+    .tt-tapable:active::before {
+      opacity: 1;
+    }
+    
+    /* Dark mode: use white overlay instead of black */
+    .dark .tt-tapable::before {
+      background: rgba(255, 255, 255, 0.1);
+    }
+  `;
+  document.head.appendChild(style);
+}
+
 const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClick = null }) => {
   if (!entry) return null;
   
@@ -360,8 +398,8 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   return React.createElement(
     'div',
     { 
-      className: "rounded-2xl p-4 cursor-pointer transition-colors duration-150",
-      style: { backgroundColor: timelineBg },
+      className: "rounded-2xl p-4 cursor-pointer transition-colors duration-150 tt-tapable",
+      style: { backgroundColor: timelineBg, position: 'relative' },
       onClick: handleClick
     },
     React.createElement(
@@ -422,6 +460,7 @@ const TrackerCard = ({
   onActiveSleepClick = null // Callback when active sleep entry clicked (opens input sheet)
 }) => {
   ensureZzzStyles();
+  ensureTapAnimationStyles();
   const [expanded, setExpanded] = React.useState(false);
   const [cardVisible, setCardVisible] = React.useState(false);
 
@@ -1123,8 +1162,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between rounded-2xl p-4 cursor-pointer transition-colors duration-150 mb-2",
-        style: { backgroundColor: 'var(--tt-input-bg)' },
+        className: "flex items-center justify-between rounded-2xl p-4 cursor-pointer transition-colors duration-150 mb-2 tt-tapable",
+        style: { backgroundColor: 'var(--tt-input-bg)', position: 'relative' },
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
