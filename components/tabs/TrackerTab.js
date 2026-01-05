@@ -13,12 +13,23 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     return true;
   });
   
-  // Listen for changes to the feature flag
+  // Feature flag for TodayCard - controlled by localStorage (can be toggled from UI Lab)
+  const [showTodayCard, setShowTodayCard] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_show_today_card');
+      return stored !== null ? stored === 'true' : false; // Default to false
+    }
+    return false;
+  });
+  
+  // Listen for changes to the feature flags
   React.useEffect(() => {
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const stored = window.localStorage.getItem('tt_use_new_ui');
         setUseNewUI(stored !== null ? stored === 'true' : true);
+        const todayCardStored = window.localStorage.getItem('tt_show_today_card');
+        setShowTodayCard(todayCardStored !== null ? todayCardStored === 'true' : false);
       }
     };
     
@@ -51,6 +62,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [prevFeedingCardData, setPrevFeedingCardData] = useState(null);
   const [prevSleepCardData, setPrevSleepCardData] = useState(null);
   const [isDateTransitioning, setIsDateTransitioning] = useState(false);
+  const transitionIdRef = React.useRef(0);
+  const [transitionPending, setTransitionPending] = useState(0);
   const prevDateRef = React.useRef(currentDate);
   const [editingFeedingId, setEditingFeedingId] = useState(null);
   const [editOunces, setEditOunces] = useState('');
@@ -452,6 +465,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   // Log render state after DOM updates (moved after calculations to avoid TDZ issues)
 
   const loadSleepSessions = async () => {
+    const myTransitionId = transitionIdRef.current; // Capture transition ID
     try {
       const sessions = await firestoreStorage.getAllSleepSessions();
       const ended = (sessions || []).filter(s => s && s.endTime);
@@ -501,10 +515,16 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       setSleepTodayMs(todayMs);
       setSleepTodayCount(todaySessions.length);
       setSleepYesterdayMs(yMs);
-      setIsDateTransitioning(false); // Clear transitioning state after data loads
+      // Only decrement if still current transition
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
     } catch (err) {
       console.error("Failed to load sleep sessions", err);
-      setIsDateTransitioning(false);
+      // Only decrement if still current transition
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
     }
   };
 
@@ -517,6 +537,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   }, [currentDate, loading, kidId]);
 
   const loadFeedings = async () => {
+    const myTransitionId = transitionIdRef.current; // Capture transition ID
     try {
       const allFeedings = await firestoreStorage.getAllFeedings();
       const startOfDay = new Date(currentDate);
@@ -549,10 +570,16 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       })).sort((a, b) => b.timestamp - a.timestamp); // Sort newest first
       
       setFeedings(dayFeedings);
-      setIsDateTransitioning(false); // Clear transitioning state after data loads
+      // Only decrement if still current transition
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
     } catch (error) {
       console.error('Error loading feedings:', error);
-      setIsDateTransitioning(false);
+      // Only decrement if still current transition
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
     }
   };
 
@@ -694,6 +721,9 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
     setPrevFeedingCardData(currentFeedingData);
     setPrevSleepCardData(currentSleepData);
+    // Start new transition and expect 2 completions
+    transitionIdRef.current += 1;
+    setTransitionPending(2);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -710,6 +740,9 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
     setPrevFeedingCardData(currentFeedingData);
     setPrevSleepCardData(currentSleepData);
+    // Start new transition and expect 2 completions
+    transitionIdRef.current += 1;
+    setTransitionPending(2);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -987,6 +1020,13 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     ? prevSleepCardData 
     : currentSleepData;
   
+  // End transition when both loaders complete
+  React.useEffect(() => {
+    if (isDateTransitioning && transitionPending === 0) {
+      setIsDateTransitioning(false);
+    }
+  }, [isDateTransitioning, transitionPending]);
+
   // Clear previous data when transition completes
   React.useEffect(() => {
     if (!isDateTransitioning && (prevFeedingCardData || prevSleepCardData)) {
@@ -1137,7 +1177,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       }),
       
       // Old Today Card (copied for reference - shows smooth transitions)
-      React.createElement('div', { 
+      // Only show if feature flag is enabled
+      showTodayCard && React.createElement('div', { 
         ref: cardRefCallback, 
         className: "rounded-2xl shadow-sm p-6",
         style: { backgroundColor: 'var(--tt-card-bg)' }
