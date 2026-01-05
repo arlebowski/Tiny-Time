@@ -315,7 +315,6 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   // Swipe state
   const [swipeOffset, setSwipeOffset] = React.useState(0);
   const [isSwiping, setIsSwiping] = React.useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const touchStartRef = React.useRef({ x: 0, y: 0 });
   const itemRef = React.useRef(null);
   
@@ -475,17 +474,18 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     // Use provided offset or current swipeOffset state
     const currentOffset = finalOffset !== null ? finalOffset : swipeOffset;
     
-    // Full swipe delete (swiped past delete button width)
+    // Full swipe delete (swiped past delete button width) - delete directly
     if (currentOffset < -DELETE_BUTTON_WIDTH * 1.5) {
       // Haptic feedback (if available)
       if (navigator.vibrate) {
         navigator.vibrate(10); // Short vibration
       }
-      // Trigger delete confirmation directly
+      // Delete directly without confirmation
       if (onDelete && entry?.id) {
-        setShowDeleteConfirm(true);
-        // Reset swipe position
+        // Reset swipe position first
         setSwipeOffset(0);
+        // Call delete handler
+        handleDeleteDirect();
       }
     } else if (currentOffset < -SWIPE_THRESHOLD) {
       // Haptic feedback for reveal
@@ -546,12 +546,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     };
   }, [swipeOffset, isSwiping, onDelete, entry]);
   
-  const handleDeleteClick = async () => {
-    if (!entry || !entry.id || !onDelete) return;
-    setShowDeleteConfirm(true);
-  };
-  
-  const handleDeleteConfirm = async () => {
+  const handleDeleteDirect = async () => {
     if (!entry || !entry.id || !onDelete) return;
     
     try {
@@ -567,21 +562,18 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
       } else {
         await firestoreStorage.deleteFeeding(entry.id);
       }
-      setShowDeleteConfirm(false);
+      
+      // Reset swipe position
       setSwipeOffset(0);
+      
+      // Call onDelete callback for data refresh
       if (onDelete) {
         await onDelete();
       }
     } catch (error) {
       console.error('Failed to delete:', error);
       alert('Failed to delete. Please try again.');
-      setShowDeleteConfirm(false);
     }
-  };
-  
-  const handleDeleteCancel = () => {
-    setShowDeleteConfirm(false);
-    setSwipeOffset(0);
   };
   
   // Reset swipe when clicking elsewhere
@@ -612,7 +604,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     'div',
     {
       ref: itemRef,
-      className: "relative overflow-hidden",
+      className: "relative overflow-hidden rounded-2xl", // Add rounded-2xl to parent for clipping
       style: { touchAction: 'pan-y' } // Allow vertical scroll, handle horizontal swipe
     },
     // Swipeable content wrapper
@@ -681,77 +673,36 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
         )
       )
     ),
-    // Delete button (revealed on swipe)
+    // Delete button (revealed on swipe) - part of the rounded container
     onDelete && React.createElement(
       'div',
       {
-        className: "absolute right-0 top-0 bottom-0 flex items-center justify-center",
+        className: "absolute right-0 top-0 bottom-0 flex items-center justify-center rounded-2xl", // Match rounded corners
         style: {
           width: `${DELETE_BUTTON_WIDTH}px`,
-          backgroundColor: swipeOffset < -DELETE_BUTTON_WIDTH * 1.2 ? '#dc2626' : '#ef4444', // Darker red when swiping past
-          transform: `translateX(${DELETE_BUTTON_WIDTH + swipeOffset}px) scale(${swipeOffset < -DELETE_BUTTON_WIDTH ? 1.02 : 1})`,
+          backgroundColor: '#ef4444', // Keep consistent red color
+          transform: `translateX(${DELETE_BUTTON_WIDTH + swipeOffset}px) scale(${
+            swipeOffset < -10 
+              ? Math.min(1.1, 0.8 + (Math.abs(swipeOffset) / DELETE_BUTTON_WIDTH) * 0.3)
+              : 0.8
+          })`,
           transition: isSwiping 
             ? 'none' 
-            : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1), background-color 0.2s ease, opacity 0.2s ease',
+            : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)',
           zIndex: 0,
-          borderRadius: '0 1rem 1rem 0',
           opacity: swipeOffset < -10 ? Math.min(1, Math.abs(swipeOffset) / 40) : 0 // Smooth fade in
         }
       },
       React.createElement(
         'button',
         {
-          onClick: handleDeleteClick,
+          onClick: handleDeleteDirect, // Call delete directly
           className: "text-white font-semibold text-sm px-4",
           style: { touchAction: 'manipulation' }
         },
         'Delete'
       )
     ),
-    // Confirmation dialog
-    showDeleteConfirm && React.createElement(
-      'div',
-      {
-        className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50",
-        onClick: handleDeleteCancel,
-        style: { zIndex: 9999 }
-      },
-      React.createElement(
-        'div',
-        {
-          className: "bg-white dark:bg-gray-800 rounded-2xl p-6 mx-4 max-w-sm w-full",
-          onClick: (e) => e.stopPropagation()
-        },
-        React.createElement('div', { className: "text-lg font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } },
-          'Delete entry?'
-        ),
-        React.createElement('div', { className: "text-sm mb-6", style: { color: 'var(--tt-text-secondary)' } },
-          'This action cannot be undone.'
-        ),
-        React.createElement('div', { className: "flex gap-3" },
-          React.createElement(
-            'button',
-            {
-              onClick: handleDeleteCancel,
-              className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
-              style: {
-                borderColor: 'var(--tt-card-border)',
-                color: 'var(--tt-text-primary)'
-              }
-            },
-            'Cancel'
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: handleDeleteConfirm,
-              className: "flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
-            },
-            'Delete'
-          )
-        )
-      )
-    )
   );
 };
 
