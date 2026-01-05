@@ -1174,8 +1174,15 @@ const TrackerCard = ({
     ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle1) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) || null;
 
-  // Render current design (default) - preserve existing implementation
-  const renderCurrentDesign = () => {
+  // Shared renderer: v2 ("current") and v3 ("new") can vary styling without duplicating markup.
+  const renderDesign = ({
+    headerGapClass = 'gap-2',                 // icon ↔ label spacing
+    headerBottomMarginClass = 'mb-6',         // header ↔ big number spacing
+    headerLabelClassName = 'text-base font-semibold',
+    feedingIconTransform = 'translateY(-2px)',
+    sleepIconTransform = 'none',
+    progressTrackHeightClass = 'h-6'          // progress track (fill uses h-full)
+  } = {}) => {
     return React.createElement(
     'div',
     { 
@@ -1187,17 +1194,17 @@ const TrackerCard = ({
     },
     React.createElement(
       'div',
-      { className: "flex items-center gap-[3px] mb-8 h-6" },
+      { className: `flex items-center ${headerGapClass} ${headerBottomMarginClass} h-6` },
       HeaderIcon ? React.createElement(HeaderIcon, { 
         className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
         style: { 
           color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transform: mode === 'feeding' ? 'translateY(-2px) scaleX(-1)' : 'translateY(1px)',
+          transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
           strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
         }
       }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
       React.createElement('div', { 
-        className: "text-[20px] font-thin",
+        className: headerLabelClassName,
         style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
       }, mode === 'feeding' ? 'Feed' : 'Sleep')
     ),
@@ -1222,7 +1229,7 @@ const TrackerCard = ({
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-3", style: { backgroundColor: 'var(--tt-input-bg)' } },
+    React.createElement('div', { className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden mb-3`, style: { backgroundColor: 'var(--tt-input-bg)' } },
       React.createElement('div', {
         className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
@@ -1303,12 +1310,19 @@ const TrackerCard = ({
     );
   };
 
-  // Render new design (experimental) - edit this function to experiment with new designs
+  // v2: current design (production)
+  const renderCurrentDesign = () => renderDesign();
+
+  // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
-    // TODO: Implement your new card design here
-    // For now, return the current design as a placeholder
-    // You can copy renderCurrentDesign() and modify it, or create a completely new design
-    return renderCurrentDesign();
+    return renderDesign({
+      headerGapClass: 'gap-[3px]',                 // 3px
+      headerBottomMarginClass: 'mb-8',
+      headerLabelClassName: 'text-[20px] font-thin',
+      feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
+      sleepIconTransform: 'translateY(1px)',               // nudge moon down
+      progressTrackHeightClass: 'h-3'               // 50% of h-6
+    });
   };
 
   // Conditional render based on feature flag
