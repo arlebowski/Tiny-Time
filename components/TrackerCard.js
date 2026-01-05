@@ -1181,7 +1181,10 @@ const TrackerCard = ({
     headerLabelClassName = 'text-base font-semibold',
     feedingIconTransform = 'translateY(-2px)',
     sleepIconTransform = 'none',
-    progressTrackHeightClass = 'h-6'          // progress track (fill uses h-full)
+    progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
+    showDotsRow = true,                       // dots row under progress bar
+    progressBottomMarginClass = 'mb-3',       // spacing after progress bar
+    dividerMarginClass = 'my-4'               // divider spacing
   } = {}) => {
     return React.createElement(
     'div',
@@ -1229,7 +1232,7 @@ const TrackerCard = ({
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden mb-3`, style: { backgroundColor: 'var(--tt-input-bg)' } },
+    React.createElement('div', { className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, style: { backgroundColor: 'var(--tt-input-bg)' } },
       React.createElement('div', {
         className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
@@ -1242,7 +1245,7 @@ const TrackerCard = ({
         }
       })
     ),
-    React.createElement(
+    showDotsRow && React.createElement(
       'div',
       { className: "flex gap-1.5 pl-1 mb-2" },
       Array.from({ length: Math.min(timelineItems.length, 10) }, (_, i) =>
@@ -1254,7 +1257,7 @@ const TrackerCard = ({
       )
     ),
     React.createElement('div', { 
-      className: "border-t my-4",
+      className: `border-t ${dividerMarginClass}`,
       style: { 
         borderColor: document.documentElement.classList.contains('dark') 
           ? 'rgba(255,255,255,0.06)'  // More subtle in dark mode
@@ -1321,7 +1324,10 @@ const TrackerCard = ({
       headerLabelClassName: 'text-[20px] font-thin',
       feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
       sleepIconTransform: 'translateY(1px)',               // nudge moon down
-      progressTrackHeightClass: 'h-3'               // 50% of h-6
+      progressTrackHeightClass: 'h-3',              // 50% of h-6
+      showDotsRow: false,
+      progressBottomMarginClass: 'mb-0',
+      dividerMarginClass: 'mt-8 mb-4'              // bar->divider: mt-8 (32px), independent of margin collapse
     });
   };
 
