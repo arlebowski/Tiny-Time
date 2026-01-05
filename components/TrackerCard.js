@@ -532,6 +532,8 @@ const TrackerCard = ({
   
   // Detect additions and removals for animations
   React.useEffect(() => {
+    console.log('🔵 useEffect triggered - timelineItems changed:', timelineItems.length, 'items');
+    
     // Only run comparison if we have previous items (skip first render)
     if (prevTimelineItemsRef.current.length === 0 && timelineItems.length > 0) {
       // First render with items - just store them, no animation
@@ -540,12 +542,17 @@ const TrackerCard = ({
     }
     
     const prevItems = [...prevTimelineItemsRef.current]; // Create a copy for comparison
+    console.log('🔵 Previous items:', prevItems.length, 'Current items:', timelineItems.length);
+    
     const currentItemIds = new Set(
       timelineItems.map(item => getStableItemId(item)).filter(Boolean)
     );
     const prevItemIds = new Set(
       prevItems.map(item => getStableItemId(item)).filter(Boolean)
     );
+    
+    console.log('🔵 Previous IDs:', Array.from(prevItemIds));
+    console.log('🔵 Current IDs:', Array.from(currentItemIds));
     
     // Find new items (enter animation)
     const newIds = new Set();
@@ -563,6 +570,9 @@ const TrackerCard = ({
       }
     });
     
+    console.log('🔵 New IDs:', Array.from(newIds));
+    console.log('🔵 Removed IDs:', Array.from(removedIds));
+    
     // Set entering IDs (will be cleared after animation)
     if (newIds.size > 0) {
       setEnteringIds(newIds);
@@ -578,21 +588,30 @@ const TrackerCard = ({
     
     // Set exiting IDs and schedule cleanup
     if (removedIds.size > 0) {
+      console.log('🔴 REMOVAL DETECTED! Count:', removedIds.size, 'IDs:', Array.from(removedIds));
+      
       // Store exiting items BEFORE updating the ref (so we can render them)
       removedIds.forEach(id => {
         const exitingItem = prevItems.find(item => getStableItemId(item) === id);
         if (exitingItem) {
           exitingItemsMapRef.current.set(id, { ...exitingItem }); // Store a deep copy
+          console.log('🔴 Stored exiting item in map:', id);
+        } else {
+          console.log('🔴 ERROR: Could not find exiting item for ID:', id);
         }
       });
       
+      console.log('🔴 Exiting items map size:', exitingItemsMapRef.current.size);
+      console.log('🔴 Setting exitingIds state to:', Array.from(removedIds));
       setExitingIds(removedIds);
+      
       // Keep exiting items visible for animation, then remove
       removedIds.forEach(id => {
         if (exitTimeoutRefs.current[id]) {
           clearTimeout(exitTimeoutRefs.current[id]);
         }
         exitTimeoutRefs.current[id] = setTimeout(() => {
+          console.log('🔴 Cleanup timeout fired for:', id);
           setExitingIds(prev => {
             const updated = new Set(prev);
             updated.delete(id);
@@ -845,6 +864,10 @@ const TrackerCard = ({
       { className: "mt-4" },
       ((timelineItems && timelineItems.length > 0) || exitingIds.size > 0)
         ? (() => {
+            console.log('🟢 RENDERING - timelineItems:', timelineItems.length, 'exitingIds:', exitingIds.size);
+            console.log('🟢 exitingIds contents:', Array.from(exitingIds));
+            console.log('🟢 exitingItemsMapRef size:', exitingItemsMapRef.current.size);
+            
             // Combine current items with exiting items for animation
             const allItems = [...timelineItems];
             const prevItems = prevTimelineItemsRef.current;
@@ -853,18 +876,28 @@ const TrackerCard = ({
             exitingIds.forEach(exitingId => {
               // Get exiting item from stored map (not from prevItems which is now updated)
               const exitingItem = exitingItemsMapRef.current.get(exitingId);
+              console.log('🟢 Checking exitingId:', exitingId, 'Found in map:', !!exitingItem);
               if (exitingItem && !allItems.find(item => {
                 const itemId = getStableItemId(item);
                 return itemId === exitingId;
               })) {
                 allItems.push(exitingItem);
+                console.log('🟢 Added exiting item to render list:', exitingId);
+              } else {
+                console.log('🟢 Did NOT add exiting item (already in list or not found)');
               }
             });
+            
+            console.log('🟢 Total items to render:', allItems.length);
             
             return allItems.map((entry, index) => {
               const itemId = getStableItemId(entry);
               const isEntering = enteringIds.has(itemId);
               const isExiting = exitingIds.has(itemId);
+              
+              if (isExiting) {
+                console.log('🟡 RENDERING EXITING ITEM:', itemId, 'with class: timeline-item-exit');
+              }
               
               const animationClass = isExiting 
                 ? 'timeline-item-exit' 
@@ -2282,6 +2315,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [photos, setPhotos] = React.useState([]);
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
     
+    // Track keyboard state to hide sticky button when keyboard is open
+    const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
+    
     // Refs for measuring both content heights
     const feedingContentRef = React.useRef(null);
     const sleepContentRef = React.useRef(null);
@@ -2377,6 +2413,32 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }
       };
     }, [sleepState, startTime]);
+    
+    // Detect keyboard state using visualViewport to hide sticky button when keyboard is open
+    React.useEffect(() => {
+      if (!isOpen) {
+        setIsKeyboardOpen(false);
+        return;
+      }
+      
+      const vv = window.visualViewport;
+      if (!vv) return;
+      
+      const checkKeyboard = () => {
+        const layoutH = document.documentElement?.clientHeight || window.innerHeight;
+        const keyboardHeight = layoutH - vv.height - vv.offsetTop;
+        setIsKeyboardOpen(keyboardHeight > 50); // Threshold: 50px means keyboard is likely open
+      };
+      
+      vv.addEventListener('resize', checkKeyboard);
+      vv.addEventListener('scroll', checkKeyboard);
+      checkKeyboard(); // Initial check
+      
+      return () => {
+        vv.removeEventListener('resize', checkKeyboard);
+        vv.removeEventListener('scroll', checkKeyboard);
+      };
+    }, [isOpen]);
     
     // Auto-populate start time when toggle switches to Sleep
     React.useEffect(() => {
@@ -3014,11 +3076,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)
+      // Hide when keyboard is open to prevent overlap with keyboard
       React.createElement('div', {
         className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
         style: { 
           zIndex: 10,
-          backgroundColor: 'var(--tt-card-bg)'
+          backgroundColor: 'var(--tt-card-bg)',
+          display: isKeyboardOpen ? 'none' : 'block'
         }
       },
         mode === 'feeding'
