@@ -26,6 +26,15 @@ const SettingsTab = ({ user, kidId }) => {
     return false;
   });
   
+  // Tracker Card Design feature flag
+  const [trackerCardDesign, setTrackerCardDesign] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_tracker_card_design');
+      return stored !== null ? stored : 'current'; // Default to 'current' to preserve existing design
+    }
+    return 'current';
+  });
+  
   // Production data for UI Lab
   const [feedings, setFeedings] = useState([]);
   const [sleepSessions, setSleepSessions] = useState([]);
@@ -536,6 +545,29 @@ const SettingsTab = ({ user, kidId }) => {
             setShowTodayCard(isOn);
             if (typeof window !== 'undefined' && window.localStorage) {
               window.localStorage.setItem('tt_show_today_card', isOn ? 'true' : 'false');
+              // Force reload to apply changes
+              window.location.reload();
+            }
+          }
+        })
+      ),
+
+      // Tracker Card Design Toggle (controls feature flag)
+      React.createElement('div', { className: "mb-4" },
+        React.createElement('label', { 
+          className: "block text-sm font-medium text-gray-700 mb-2" 
+        }, 'Tracker Card Design'),
+        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+          value: trackerCardDesign === 'new' ? 'new' : 'current',
+          options: [
+            { value: 'current', label: 'Current' },
+            { value: 'new', label: 'New' }
+          ],
+          onChange: (value) => {
+            const design = value === 'new' ? 'new' : 'current';
+            setTrackerCardDesign(design);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('tt_tracker_card_design', design);
               // Force reload to apply changes
               window.location.reload();
             }
