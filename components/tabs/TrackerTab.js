@@ -47,6 +47,11 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const [sleepTodayCount, setSleepTodayCount] = useState(0);
   const [sleepYesterdayMs, setSleepYesterdayMs] = useState(0);
   const [currentDate, setCurrentDate] = useState(new Date());
+  // State for smooth date transitions - preserve previous values while loading
+  const [prevFeedingCardData, setPrevFeedingCardData] = useState(null);
+  const [prevSleepCardData, setPrevSleepCardData] = useState(null);
+  const [isDateTransitioning, setIsDateTransitioning] = useState(false);
+  const prevDateRef = React.useRef(currentDate);
   const [editingFeedingId, setEditingFeedingId] = useState(null);
   const [editOunces, setEditOunces] = useState('');
   const [editTime, setEditTime] = useState('');
@@ -448,8 +453,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       setSleepTodayMs(todayMs);
       setSleepTodayCount(todaySessions.length);
       setSleepYesterdayMs(yMs);
+      setIsDateTransitioning(false); // Clear transitioning state after data loads
     } catch (err) {
       console.error("Failed to load sleep sessions", err);
+      setIsDateTransitioning(false);
     }
   };
 
@@ -494,8 +501,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       })).sort((a, b) => b.timestamp - a.timestamp); // Sort newest first
       
       setFeedings(dayFeedings);
+      setIsDateTransitioning(false); // Clear transitioning state after data loads
     } catch (error) {
       console.error('Error loading feedings:', error);
+      setIsDateTransitioning(false);
     }
   };
 
@@ -629,13 +638,33 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const goToPreviousDay = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() - 1);
+    // Save current card data before changing date for smooth transition
+    // Calculate target values inline since they're not available yet
+    const targetOz = babyWeight ? babyWeight * multiplier : 0;
+    const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
+    const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
+    const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
+    setPrevFeedingCardData(currentFeedingData);
+    setPrevSleepCardData(currentSleepData);
+    setIsDateTransitioning(true);
     setCurrentDate(newDate);
+    prevDateRef.current = newDate;
   };
 
   const goToNextDay = () => {
     const newDate = new Date(currentDate);
     newDate.setDate(newDate.getDate() + 1);
+    // Save current card data before changing date for smooth transition
+    // Calculate target values inline since they're not available yet
+    const targetOz = babyWeight ? babyWeight * multiplier : 0;
+    const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
+    const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
+    const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
+    setPrevFeedingCardData(currentFeedingData);
+    setPrevSleepCardData(currentSleepData);
+    setIsDateTransitioning(true);
     setCurrentDate(newDate);
+    prevDateRef.current = newDate;
   };
 
   const isToday = () => {
@@ -861,8 +890,25 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const sleepDeltaIsGood = sleepDeltaHours >= 0;
 
   // Format data for new TrackerCard components
-  const feedingCardData = formatFeedingsForCard(feedings, targetOunces, currentDate);
-  const sleepCardData = formatSleepSessionsForCard(sleepSessions, sleepTargetHours, currentDate, activeSleep);
+  // Use previous data during date transitions to prevent showing zeros
+  const currentFeedingData = formatFeedingsForCard(feedings, targetOunces, currentDate);
+  const currentSleepData = formatSleepSessionsForCard(sleepSessions, sleepTargetHours, currentDate, activeSleep);
+  
+  const feedingCardData = isDateTransitioning && prevFeedingCardData 
+    ? prevFeedingCardData 
+    : currentFeedingData;
+    
+  const sleepCardData = isDateTransitioning && prevSleepCardData 
+    ? prevSleepCardData 
+    : currentSleepData;
+  
+  // Clear previous data when transition completes
+  React.useEffect(() => {
+    if (!isDateTransitioning && (prevFeedingCardData || prevSleepCardData)) {
+      setPrevFeedingCardData(null);
+      setPrevSleepCardData(null);
+    }
+  }, [isDateTransitioning, prevFeedingCardData, prevSleepCardData]);
 
   // Handlers for timeline item clicks
   const handleFeedItemClick = (entry) => {
@@ -905,7 +951,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     React.createElement('div', { 
       className: "date-nav-container",
       style: {
-        background: 'rgba(0, 0, 0, 0.03)',
+        backgroundColor: 'var(--tt-app-bg)', // Match header background
         padding: '16px 20px',
         position: 'sticky',
         top: 0,
@@ -921,7 +967,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           alignItems: 'center',
           justifyContent: 'space-between',
           maxWidth: '600px',
-          margin: '0 auto'
+          margin: '0 auto',
+          backgroundColor: 'rgba(0, 0, 0, 0.05)', // Matches bg-black/5 pattern from design system
+          padding: '8px 16px',
+          borderRadius: '12px' // rounded-xl (matches toggle)
         }
       },
         React.createElement('div', {
@@ -933,8 +982,6 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#6B7280', // gray-500
-            fontSize: '20px',
             cursor: 'pointer',
             userSelect: 'none',
             transition: 'opacity 0.2s',
@@ -943,7 +990,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
           onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
           onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
-        }, '‹'),
+        }, React.createElement(ChevronLeft, { className: "w-5 h-5", style: { color: '#6B7280', strokeWidth: '2' } })),
         React.createElement('div', { 
           className: "date-text",
           style: {
@@ -963,8 +1010,6 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: isToday() ? '#E5E7EB' : '#6B7280', // gray-200 when disabled, gray-500 when enabled
-            fontSize: '20px',
             cursor: isToday() ? 'not-allowed' : 'pointer',
             userSelect: 'none',
             transition: 'opacity 0.2s',
@@ -973,7 +1018,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
           onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
           onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
-        }, '›')
+        }, React.createElement(ChevronRight, { className: "w-5 h-5", style: { color: isToday() ? '#E5E7EB' : '#6B7280', strokeWidth: '2' } }))
       )
     ),
 
@@ -985,7 +1030,12 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         target: feedingCardData.target,
         timelineItems: feedingCardData.timelineItems,
         lastEntryTime: feedingCardData.lastEntryTime,
-        onItemClick: handleFeedItemClick
+        onItemClick: handleFeedItemClick,
+        onDelete: async () => {
+          // Small delay for animation
+          await new Promise(resolve => setTimeout(resolve, 200));
+          await loadFeedings();
+        }
       }),
       React.createElement(window.TrackerCard, {
         mode: 'sleep',
@@ -993,8 +1043,116 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         target: sleepCardData.target,
         timelineItems: sleepCardData.timelineItems,
         lastEntryTime: sleepCardData.lastEntryTime,
-        onItemClick: handleSleepItemClick
-      })
+        onItemClick: handleSleepItemClick,
+        onDelete: async () => {
+          // Small delay for animation
+          await new Promise(resolve => setTimeout(resolve, 200));
+          await loadSleepSessions();
+        }
+      }),
+      
+      // Old Today Card (copied for reference - shows smooth transitions)
+      React.createElement('div', { 
+        ref: cardRefCallback, 
+        className: "rounded-2xl shadow-sm p-6",
+        style: { backgroundColor: 'var(--tt-card-bg)' }
+      },
+        // Feeding Progress
+        React.createElement('div', { className: "mb-8" },
+          React.createElement('div', { className: "flex items-center justify-between mb-2" },
+            React.createElement('div', { 
+              className: "text-sm font-medium",
+              style: { color: 'var(--tt-text-secondary)' }
+            }, "Feeding"),
+            React.createElement('div', { 
+              className: "text-xs",
+              style: { color: 'var(--tt-text-tertiary)' }
+            },
+              lastFeeding 
+                ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${lastFeedingAmount.toFixed(1)} oz)`
+                : "No feedings yet"
+            )
+          ),
+          
+          // Progress Bar
+          React.createElement('div', { 
+            className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+            style: { backgroundColor: 'var(--tt-input-bg)' }
+          },
+            React.createElement('div', {
+              className: "absolute left-0 top-0 h-full rounded-2xl",
+              style: {
+                width: cardVisible ? `${Math.min(100, feedingPercent)}%` : '0%',
+                background: 'var(--tt-feed)',
+                transition: 'width 0.6s ease-out',
+                transitionDelay: '0s'
+              }
+            })
+          ),
+
+          // Stats
+          React.createElement('div', { className: "flex items-baseline justify-between" },
+            React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-feed)' } },
+              `${totalConsumed.toFixed(1)} `,
+              React.createElement('span', { 
+                className: "text-base font-normal",
+                style: { color: 'var(--tt-text-secondary)' }
+              },
+                `of ${targetOunces.toFixed(1)} oz`
+              )
+            )
+          )
+        ),
+
+        // Sleep Progress
+        React.createElement('div', {},
+          React.createElement('div', { className: "flex items-center justify-between mb-2" },
+            React.createElement('div', { 
+              className: "text-sm font-medium",
+              style: { color: 'var(--tt-text-secondary)' }
+            }, "Sleep"),
+            React.createElement('div', { 
+              className: "text-xs",
+              style: { color: 'var(--tt-text-tertiary)' }
+            },
+              isCurrentlySleeping
+                ? `Sleeping now (${formatSleepDuration(Math.floor(sleepElapsedMs / 60000))})`
+                : lastSleep
+                  ? `Last slept at ${formatTime12Hour(lastSleepTime)} (${formatSleepDuration(lastSleepDuration)})`
+                  : "No sleep sessions yet"
+            )
+          ),
+          
+          // Progress Bar
+          React.createElement('div', { 
+            className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+            style: { backgroundColor: 'var(--tt-input-bg)' }
+          },
+            React.createElement('div', {
+              className: "absolute left-0 top-0 h-full rounded-2xl",
+              style: {
+                width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
+                background: 'var(--tt-sleep)',
+                transition: 'width 0.6s ease-out',
+                transitionDelay: '0.05s'
+              }
+            })
+          ),
+
+          // Stats
+          React.createElement('div', { className: "flex items-baseline justify-between" },
+            React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-sleep)' } },
+              `${sleepTotalHours.toFixed(1)} `,
+              React.createElement('span', { 
+                className: "text-base font-normal",
+                style: { color: 'var(--tt-text-secondary)' }
+              },
+                `of ${sleepTargetHours.toFixed(1)} hrs`
+              )
+            )
+          )
+        )
+      )
     ),
 
     // Old UI (only show when useNewUI is false)
@@ -1680,8 +1838,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       },
       entry: selectedFeedEntry,
       onDelete: async () => {
-        // Delay refresh until after sheet closes (200ms for close animation)
-        await new Promise(resolve => setTimeout(resolve, 250));
+        // Small delay for sheet close animation (animation handled locally in TrackerCard)
+        await new Promise(resolve => setTimeout(resolve, 200));
         await loadFeedings();
       }
     }),
@@ -1693,8 +1851,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       },
       entry: selectedSleepEntry,
       onDelete: async () => {
-        // Delay refresh until after sheet closes (200ms for close animation)
-        await new Promise(resolve => setTimeout(resolve, 250));
+        // Small delay for sheet close animation (animation handled locally in TrackerCard)
+        await new Promise(resolve => setTimeout(resolve, 200));
         await loadSleepSessions();
       }
     }),

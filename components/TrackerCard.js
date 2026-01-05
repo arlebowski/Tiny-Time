@@ -305,12 +305,22 @@ function ensureTapAnimationStyles() {
   document.head.appendChild(style);
 }
 
-const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClick = null }) => {
+const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClick = null, onDelete = null }) => {
   if (!entry) return null;
   
   const isSleep = mode === 'sleep';
   const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
   const timelineBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+  
+  // Swipe state
+  const [swipeOffset, setSwipeOffset] = React.useState(0);
+  const [isSwiping, setIsSwiping] = React.useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+  const touchStartRef = React.useRef({ x: 0, y: 0 });
+  const itemRef = React.useRef(null);
+  
+  const SWIPE_THRESHOLD = 80; // pixels to reveal delete button
+  const DELETE_BUTTON_WIDTH = 80; // width of delete button
   
   // Real-time timer state for active sleep
   const [elapsedTime, setElapsedTime] = React.useState(() => {
@@ -436,7 +446,163 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     }
   };
   
-  const handleClick = () => {
+  // Touch handlers for swipe - use refs to add non-passive listeners
+  const handleTouchStart = (e) => {
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    setIsSwiping(false);
+  };
+  
+  const handleTouchMove = (e) => {
+    if (!touchStartRef.current) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+    
+    // Only handle horizontal swipes (more horizontal than vertical)
+    if (Math.abs(deltaX) > deltaY && deltaX < 0) {
+      setIsSwiping(true);
+      // Allow swiping beyond delete button for full-swipe delete
+      const newOffset = Math.max(-DELETE_BUTTON_WIDTH * 2, deltaX); // Allow 2x width for full swipe
+      setSwipeOffset(newOffset);
+    }
+  };
+  
+  const handleTouchEnd = (finalOffset = null) => {
+    if (!isSwiping) return;
+    
+    // Use provided offset or current swipeOffset state
+    const currentOffset = finalOffset !== null ? finalOffset : swipeOffset;
+    
+    // Full swipe delete (swiped past delete button width)
+    if (currentOffset < -DELETE_BUTTON_WIDTH * 1.5) {
+      // Haptic feedback (if available)
+      if (navigator.vibrate) {
+        navigator.vibrate(10); // Short vibration
+      }
+      // Trigger delete confirmation directly
+      if (onDelete && entry?.id) {
+        setShowDeleteConfirm(true);
+        // Reset swipe position
+        setSwipeOffset(0);
+      }
+    } else if (currentOffset < -SWIPE_THRESHOLD) {
+      // Haptic feedback for reveal
+      if (navigator.vibrate) {
+        navigator.vibrate(5); // Very short vibration
+      }
+      // Partial swipe - reveal delete button
+      setSwipeOffset(-DELETE_BUTTON_WIDTH);
+    } else {
+      // Snap back
+      setSwipeOffset(0);
+    }
+    setIsSwiping(false);
+    touchStartRef.current = null;
+  };
+  
+  // Add non-passive touch listeners using useEffect
+  React.useEffect(() => {
+    const element = itemRef.current;
+    if (!element) return;
+    
+    const swipeableElement = element.querySelector('.swipeable-content');
+    if (!swipeableElement) return;
+    
+    let currentSwipeOffset = swipeOffset;
+    
+    const touchMoveHandler = (e) => {
+      if (!touchStartRef.current) return;
+      
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+      
+      // Only handle horizontal swipes (more horizontal than vertical)
+      if (Math.abs(deltaX) > deltaY && deltaX < 0) {
+        setIsSwiping(true);
+        e.preventDefault(); // Now we can preventDefault since listener is non-passive
+        // Allow swiping beyond delete button for full-swipe delete
+        const newOffset = Math.max(-DELETE_BUTTON_WIDTH * 2, deltaX); // Allow 2x width for full swipe
+        currentSwipeOffset = newOffset;
+        setSwipeOffset(newOffset);
+      }
+    };
+    
+    const touchEndHandler = () => {
+      handleTouchEnd(currentSwipeOffset);
+    };
+    
+    // Add listeners with passive: false for touchmove so we can preventDefault
+    swipeableElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+    swipeableElement.addEventListener('touchmove', touchMoveHandler, { passive: false });
+    swipeableElement.addEventListener('touchend', touchEndHandler, { passive: true });
+    
+    return () => {
+      swipeableElement.removeEventListener('touchstart', handleTouchStart);
+      swipeableElement.removeEventListener('touchmove', touchMoveHandler);
+      swipeableElement.removeEventListener('touchend', touchEndHandler);
+    };
+  }, [swipeOffset, isSwiping, onDelete, entry]);
+  
+  const handleDeleteClick = async () => {
+    if (!entry || !entry.id || !onDelete) return;
+    setShowDeleteConfirm(true);
+  };
+  
+  const handleDeleteConfirm = async () => {
+    if (!entry || !entry.id || !onDelete) return;
+    
+    try {
+      // firestoreStorage is a global constant, access it directly
+      if (typeof firestoreStorage === 'undefined') {
+        console.error('firestoreStorage not available');
+        alert('Unable to delete. Please try again.');
+        return;
+      }
+      
+      if (mode === 'sleep') {
+        await firestoreStorage.deleteSleepSession(entry.id);
+      } else {
+        await firestoreStorage.deleteFeeding(entry.id);
+      }
+      setShowDeleteConfirm(false);
+      setSwipeOffset(0);
+      if (onDelete) {
+        await onDelete();
+      }
+    } catch (error) {
+      console.error('Failed to delete:', error);
+      alert('Failed to delete. Please try again.');
+      setShowDeleteConfirm(false);
+    }
+  };
+  
+  const handleDeleteCancel = () => {
+    setShowDeleteConfirm(false);
+    setSwipeOffset(0);
+  };
+  
+  // Reset swipe when clicking elsewhere
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (itemRef.current && !itemRef.current.contains(e.target) && swipeOffset < 0) {
+        setSwipeOffset(0);
+      }
+    };
+    if (swipeOffset < 0) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [swipeOffset]);
+  
+  const handleClick = (e) => {
+    // Don't trigger onClick if swiping or delete button is visible
+    if (isSwiping || swipeOffset < 0) {
+      e.stopPropagation();
+      return;
+    }
     if (onClick && entry) {
       onClick(entry);
     }
@@ -444,52 +610,144 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   
   return React.createElement(
     'div',
-    { 
-      className: "rounded-2xl p-4 cursor-pointer transition-colors duration-150 tt-tapable",
-      style: { backgroundColor: timelineBg, position: 'relative' },
-      onClick: handleClick
+    {
+      ref: itemRef,
+      className: "relative overflow-hidden",
+      style: { touchAction: 'pan-y' } // Allow vertical scroll, handle horizontal swipe
     },
+    // Swipeable content wrapper
     React.createElement(
       'div',
-      { className: "flex items-center justify-between mb-2" },
+      { 
+        className: "swipeable-content rounded-2xl p-4 cursor-pointer transition-colors duration-150 tt-tapable",
+        style: {
+          backgroundColor: timelineBg,
+          position: 'relative',
+          transform: `translateX(${swipeOffset}px) scale(${swipeOffset < -SWIPE_THRESHOLD ? 0.98 : 1})`,
+          transition: isSwiping 
+            ? 'none' 
+            : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)', // iOS-style spring curve
+          zIndex: 1
+        },
+        onClick: handleClick
+      },
       React.createElement(
         'div',
-        { className: "flex items-center gap-3" },
-        getIcon(),
+        { className: "flex items-center justify-between mb-2" },
         React.createElement(
           'div',
-          null,
-          React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
-            primaryText
-          ),
-          React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
-            secondaryText
+          { className: "flex items-center gap-3" },
+          getIcon(),
+          React.createElement(
+            'div',
+            null,
+            React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-secondary)' } }, 
+              primaryText
+            ),
+            React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-secondary)' } }, 
+              secondaryText
+            )
+          )
+        ),
+        // Hide chevron when swiped
+        swipeOffset >= -SWIPE_THRESHOLD && React.createElement(ChevronDown, { 
+          className: "rotate-[-90deg]", 
+          style: { color: 'var(--tt-text-secondary)', strokeWidth: '3' } 
+        })
+      ),
+      (hasNote || hasPhotos) && React.createElement(
+        React.Fragment,
+        null,
+        hasNote && React.createElement(
+          'div',
+          { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
+          `Note: ${entry.notes}`
+        ),
+        hasPhotos && React.createElement(
+          'div',
+          { className: "grid grid-cols-2 gap-2" },
+          entry.photoURLs.slice(0, 4).map((photoUrl, i) =>
+            React.createElement(
+              'img',
+              {
+                key: i,
+                src: photoUrl,
+                alt: `Photo ${i + 1}`,
+                className: "aspect-square rounded-2xl object-cover",
+                style: { backgroundColor: 'var(--tt-input-bg)' }
+              }
+            )
           )
         )
-      ),
-      React.createElement(ChevronDown, { className: "rotate-[-90deg]", style: { color: 'var(--tt-text-secondary)', strokeWidth: '3' } })
+      )
     ),
-    (hasNote || hasPhotos) && React.createElement(
-      React.Fragment,
-      null,
-      hasNote && React.createElement(
+    // Delete button (revealed on swipe)
+    onDelete && React.createElement(
+      'div',
+      {
+        className: "absolute right-0 top-0 bottom-0 flex items-center justify-center",
+        style: {
+          width: `${DELETE_BUTTON_WIDTH}px`,
+          backgroundColor: swipeOffset < -DELETE_BUTTON_WIDTH * 1.2 ? '#dc2626' : '#ef4444', // Darker red when swiping past
+          transform: `translateX(${DELETE_BUTTON_WIDTH + swipeOffset}px) scale(${swipeOffset < -DELETE_BUTTON_WIDTH ? 1.02 : 1})`,
+          transition: isSwiping 
+            ? 'none' 
+            : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1), background-color 0.2s ease, opacity 0.2s ease',
+          zIndex: 0,
+          borderRadius: '0 1rem 1rem 0',
+          opacity: swipeOffset < -10 ? Math.min(1, Math.abs(swipeOffset) / 40) : 0 // Smooth fade in
+        }
+      },
+      React.createElement(
+        'button',
+        {
+          onClick: handleDeleteClick,
+          className: "text-white font-semibold text-sm px-4",
+          style: { touchAction: 'manipulation' }
+        },
+        'Delete'
+      )
+    ),
+    // Confirmation dialog
+    showDeleteConfirm && React.createElement(
+      'div',
+      {
+        className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50",
+        onClick: handleDeleteCancel,
+        style: { zIndex: 9999 }
+      },
+      React.createElement(
         'div',
-        { className: "italic text-sm mb-3", style: { color: 'var(--tt-text-secondary)' } },
-        `Note: ${entry.notes}`
-      ),
-      hasPhotos && React.createElement(
-        'div',
-        { className: "grid grid-cols-2 gap-2" },
-        entry.photoURLs.slice(0, 4).map((photoUrl, i) =>
+        {
+          className: "bg-white dark:bg-gray-800 rounded-2xl p-6 mx-4 max-w-sm w-full",
+          onClick: (e) => e.stopPropagation()
+        },
+        React.createElement('div', { className: "text-lg font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } },
+          'Delete entry?'
+        ),
+        React.createElement('div', { className: "text-sm mb-6", style: { color: 'var(--tt-text-secondary)' } },
+          'This action cannot be undone.'
+        ),
+        React.createElement('div', { className: "flex gap-3" },
           React.createElement(
-            'img',
+            'button',
             {
-              key: i,
-              src: photoUrl,
-              alt: `Photo ${i + 1}`,
-              className: "aspect-square rounded-2xl object-cover",
-              style: { backgroundColor: 'var(--tt-input-bg)' }
-            }
+              onClick: handleDeleteCancel,
+              className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
+              style: {
+                borderColor: 'var(--tt-card-border)',
+                color: 'var(--tt-text-primary)'
+              }
+            },
+            'Cancel'
+          ),
+          React.createElement(
+            'button',
+            {
+              onClick: handleDeleteConfirm,
+              className: "flex-1 py-2.5 rounded-xl bg-red-500 text-white font-semibold hover:bg-red-600 transition text-sm"
+            },
+            'Delete'
           )
         )
       )
@@ -504,19 +762,32 @@ const TrackerCard = ({
   timelineItems = [],     // Array of log entries
   lastEntryTime = null,   // For status text (timestamp in ms)
   onItemClick = null,     // Callback when timeline item clicked
-  onActiveSleepClick = null // Callback when active sleep entry clicked (opens input sheet)
+  onActiveSleepClick = null, // Callback when active sleep entry clicked (opens input sheet)
+  onDelete = null         // Callback when item is deleted (for data refresh)
 }) => {
   ensureZzzStyles();
   ensureTapAnimationStyles();
   const [expanded, setExpanded] = React.useState(false);
-  const [cardVisible, setCardVisible] = React.useState(false);
   
-  // Animation state
+  // Shared memoized zZz element - created once and reused to prevent animation restart
+  const zzzElementMemo = React.useMemo(() => 
+    React.createElement('span', { className: "zzz" },
+      React.createElement('span', null, 'z'),
+      React.createElement('span', null, 'Z'),
+      React.createElement('span', null, 'z')
+    ), []
+  );
+  
+  // Animation state - using local array pattern
+  const [localTimelineItems, setLocalTimelineItems] = React.useState(timelineItems);
   const [enteringIds, setEnteringIds] = React.useState(new Set());
   const [exitingIds, setExitingIds] = React.useState(new Set());
-  const prevTimelineItemsRef = React.useRef([]);
   const exitTimeoutRefs = React.useRef({});
-  const exitingItemsMapRef = React.useRef(new Map()); // Store exiting items by ID
+  
+  // Smooth transition state - preserve last valid percent (like old UI's cardVisible)
+  // Once card has been shown, never reset to 0% - ensures smooth transitions between dates
+  const [cardHasBeenShown, setCardHasBeenShown] = React.useState(false);
+  const lastValidPercentRef = React.useRef(0);
 
   // Stable ID extraction - always returns string for consistent Set/Map lookups
   const getStableItemId = React.useCallback((item) => {
@@ -525,56 +796,48 @@ const TrackerCard = ({
     return id ? String(id) : null;
   }, []);
 
-  // Animation trigger - set visible after mount
+  // Sync localTimelineItems with prop, handling additions and removals with animations
   React.useEffect(() => {
-    setCardVisible(true);
-  }, []);
-  
-  // Detect additions and removals for animations
-  React.useEffect(() => {
-    console.log('🔵 useEffect triggered - timelineItems changed:', timelineItems.length, 'items');
-    
-    // Only run comparison if we have previous items (skip first render)
-    if (prevTimelineItemsRef.current.length === 0 && timelineItems.length > 0) {
-      // First render with items - just store them, no animation
-      prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item })); // Create a deep copy
-      return;
-    }
-    
-    const prevItems = [...prevTimelineItemsRef.current]; // Create a copy for comparison
-    console.log('🔵 Previous items:', prevItems.length, 'Current items:', timelineItems.length);
-    
-    const currentItemIds = new Set(
+    const currentIds = new Set(
       timelineItems.map(item => getStableItemId(item)).filter(Boolean)
     );
-    const prevItemIds = new Set(
-      prevItems.map(item => getStableItemId(item)).filter(Boolean)
+    const localIds = new Set(
+      localTimelineItems.map(item => getStableItemId(item)).filter(Boolean)
     );
-    
-    console.log('🔵 Previous IDs:', Array.from(prevItemIds));
-    console.log('🔵 Current IDs:', Array.from(currentItemIds));
     
     // Find new items (enter animation)
     const newIds = new Set();
-    currentItemIds.forEach(id => {
-      if (!prevItemIds.has(id)) {
+    currentIds.forEach(id => {
+      if (!localIds.has(id)) {
         newIds.add(id);
       }
     });
     
     // Find removed items (exit animation)
     const removedIds = new Set();
-    prevItemIds.forEach(id => {
-      if (!currentItemIds.has(id)) {
+    localIds.forEach(id => {
+      if (!currentIds.has(id)) {
         removedIds.add(id);
       }
     });
     
-    console.log('🔵 New IDs:', Array.from(newIds));
-    console.log('🔵 Removed IDs:', Array.from(removedIds));
-    
-    // Set entering IDs (will be cleared after animation)
+    // Handle additions - add immediately and mark as entering
     if (newIds.size > 0) {
+      // Preserve order from prop: add new items in their correct positions
+      setLocalTimelineItems(prev => {
+        const result = [];
+        timelineItems.forEach(propItem => {
+          result.push(propItem);
+        });
+        // Add exiting items that aren't in prop (at the end)
+        prev.forEach(localItem => {
+          const id = getStableItemId(localItem);
+          if (removedIds.has(id)) {
+            result.push(localItem);
+          }
+        });
+        return result;
+      });
       setEnteringIds(newIds);
       // Clear enter animation class after animation completes
       setTimeout(() => {
@@ -586,53 +849,42 @@ const TrackerCard = ({
       }, 400);
     }
     
-    // Set exiting IDs and schedule cleanup
+    // Handle removals - mark as exiting, remove after animation
     if (removedIds.size > 0) {
-      console.log('🔴 REMOVAL DETECTED! Count:', removedIds.size, 'IDs:', Array.from(removedIds));
-      
-      // Store exiting items BEFORE updating the ref (so we can render them)
-      removedIds.forEach(id => {
-        const exitingItem = prevItems.find(item => getStableItemId(item) === id);
-        if (exitingItem) {
-          exitingItemsMapRef.current.set(id, { ...exitingItem }); // Store a deep copy
-          console.log('🔴 Stored exiting item in map:', id);
-        } else {
-          console.log('🔴 ERROR: Could not find exiting item for ID:', id);
-        }
-      });
-      
-      console.log('🔴 Exiting items map size:', exitingItemsMapRef.current.size);
-      console.log('🔴 Setting exitingIds state to:', Array.from(removedIds));
       setExitingIds(removedIds);
-      
-      // Keep exiting items visible for animation, then remove
+      // Remove from local array after animation completes
       removedIds.forEach(id => {
         if (exitTimeoutRefs.current[id]) {
           clearTimeout(exitTimeoutRefs.current[id]);
         }
         exitTimeoutRefs.current[id] = setTimeout(() => {
-          console.log('🔴 Cleanup timeout fired for:', id);
+          setLocalTimelineItems(prev => prev.filter(item => getStableItemId(item) !== id));
           setExitingIds(prev => {
             const updated = new Set(prev);
             updated.delete(id);
             return updated;
           });
-          exitingItemsMapRef.current.delete(id); // Clean up stored item
           delete exitTimeoutRefs.current[id];
         }, 400);
       });
     }
     
-    // Update ref for next comparison - create a deep copy to avoid reference issues
-    // CRITICAL: Only update ref if NO exit animations are in progress
-    // This prevents the ref from being updated while we're still animating removals
-    if (removedIds.size === 0) {
-      prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item }));
-    } else {
-      // If there ARE removals, delay the ref update until after exit animation completes
-      setTimeout(() => {
-        prevTimelineItemsRef.current = timelineItems.map(item => ({ ...item }));
-      }, 450); // Slightly longer than animation duration (400ms)
+    // If no changes, sync order from prop (handles reordering)
+    if (newIds.size === 0 && removedIds.size === 0) {
+      setLocalTimelineItems(prev => {
+        // Reorder to match prop, but keep exiting items
+        const result = [];
+        timelineItems.forEach(propItem => {
+          result.push(propItem);
+        });
+        prev.forEach(localItem => {
+          const id = getStableItemId(localItem);
+          if (!currentIds.has(id)) {
+            result.push(localItem); // Keep exiting items
+          }
+        });
+        return result;
+      });
     }
   }, [timelineItems, getStableItemId]);
   
@@ -656,11 +908,28 @@ const TrackerCard = ({
     }
   }, []);
 
-  // Calculate percent from total/target, fallback to demo if not provided
-  const calculatedPercent = (total !== null && target !== null && target > 0) 
+  // Calculate current percent from total/target
+  const currentPercent = (total !== null && target !== null && target > 0) 
     ? Math.min(100, (total / target) * 100) 
-    : 66;
-  const displayPercent = cardVisible ? calculatedPercent : 0;
+    : 0;
+  
+  // Once card has been shown, preserve last valid value during transitions
+  // This matches the old UI behavior - cardVisible stays true once set
+  React.useEffect(() => {
+    if (currentPercent > 0 || (total !== null && target !== null)) {
+      // Card has valid data - mark as shown and update last valid percent
+      if (!cardHasBeenShown) {
+        setCardHasBeenShown(true);
+      }
+      lastValidPercentRef.current = currentPercent;
+    }
+  }, [currentPercent, total, target, cardHasBeenShown]);
+  
+  // Use last valid percent if card hasn't been shown yet, otherwise use current (smooth transition)
+  // Once shown, preserve value during transitions to prevent jitter
+  const calculatedPercent = cardHasBeenShown 
+    ? (currentPercent > 0 || (total !== null && target !== null) ? currentPercent : lastValidPercentRef.current)
+    : currentPercent; // First render - can start at 0
   
   // Format time for status text
   const formatTime12Hour = (timestamp) => {
@@ -691,6 +960,7 @@ const TrackerCard = ({
   };
 
   // Real-time timer for active sleep in timeline status
+  // Only returns timer text - zZz animation is rendered separately to prevent restart
   const ActiveSleepTimer = ({ startTime }) => {
     const [elapsed, setElapsed] = React.useState(() => {
       return Date.now() - startTime;
@@ -717,20 +987,9 @@ const TrackerCard = ({
       }
     };
     
-    return React.createElement(
-      React.Fragment,
-      null,
-      React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
-        formatWithSeconds(elapsed)
-      ),
-      React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
-        ' ',
-        React.createElement('span', { className: "zzz" },
-          React.createElement('span', null, 'z'),
-          React.createElement('span', null, 'Z'),
-          React.createElement('span', null, 'z')
-        )
-      )
+    // Only return the timer text - zZz animation is rendered separately
+    return React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
+      formatWithSeconds(elapsed)
     );
   };
 
@@ -739,9 +998,18 @@ const TrackerCard = ({
     ? (lastEntryTime ? `Last fed ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
     : (() => {
         // Check if there's an active sleep entry
-        const activeEntry = timelineItems.find(item => item.isActive && item.startTime);
+        const activeEntry = localTimelineItems.find(item => item.isActive && item.startTime);
         if (activeEntry) {
-          return React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime });
+          // Render timer and zZz as siblings - timer updates won't affect animation
+          return React.createElement(
+            React.Fragment,
+            null,
+            React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
+            React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
+              ' ',
+              zzzElementMemo
+            )
+          );
         } else if (lastEntryTime) {
           return React.createElement(
             React.Fragment,
@@ -751,11 +1019,7 @@ const TrackerCard = ({
             ),
             React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
               ' ',
-              React.createElement('span', { className: "zzz" },
-                React.createElement('span', null, 'z'),
-                React.createElement('span', null, 'Z'),
-                React.createElement('span', null, 'z')
-              )
+              zzzElementMemo
             )
           );
         } else {
@@ -807,7 +1071,10 @@ const TrackerCard = ({
       { className: "flex items-baseline gap-1 mb-2" },
       React.createElement('div', { 
         className: "text-[40px] leading-none font-bold",
-        style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+        style: { 
+          color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+          transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
+        }
       }, 
         total !== null ? total.toFixed(1) : (mode === 'sleep' ? '0.0' : '0.0')
       ),
@@ -819,14 +1086,16 @@ const TrackerCard = ({
     ),
     
     // Animated Progress Bar (production-style)
+    // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
     React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-2", style: { backgroundColor: 'var(--tt-input-bg)' } },
       React.createElement('div', {
         className: "absolute left-0 top-0 h-full rounded-2xl",
         style: {
-          width: `${displayPercent}%`,
+          width: `${calculatedPercent}%`,
           backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transition: 'width 0.6s ease-out',
-          transitionDelay: '0s'
+          transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+          transitionDelay: '0s',
+          minWidth: '0%' // Ensure smooth animation to 0
         }
       })
     ),
@@ -862,42 +1131,12 @@ const TrackerCard = ({
     expanded && React.createElement(
       'div',
       { className: "mt-4" },
-      ((timelineItems && timelineItems.length > 0) || exitingIds.size > 0)
+      ((localTimelineItems && localTimelineItems.length > 0) || exitingIds.size > 0)
         ? (() => {
-            console.log('🟢 RENDERING - timelineItems:', timelineItems.length, 'exitingIds:', exitingIds.size);
-            console.log('🟢 exitingIds contents:', Array.from(exitingIds));
-            console.log('🟢 exitingItemsMapRef size:', exitingItemsMapRef.current.size);
-            
-            // Combine current items with exiting items for animation
-            const allItems = [...timelineItems];
-            const prevItems = prevTimelineItemsRef.current;
-            
-            // Add exiting items back to the list for exit animation
-            exitingIds.forEach(exitingId => {
-              // Get exiting item from stored map (not from prevItems which is now updated)
-              const exitingItem = exitingItemsMapRef.current.get(exitingId);
-              console.log('🟢 Checking exitingId:', exitingId, 'Found in map:', !!exitingItem);
-              if (exitingItem && !allItems.find(item => {
-                const itemId = getStableItemId(item);
-                return itemId === exitingId;
-              })) {
-                allItems.push(exitingItem);
-                console.log('🟢 Added exiting item to render list:', exitingId);
-              } else {
-                console.log('🟢 Did NOT add exiting item (already in list or not found)');
-              }
-            });
-            
-            console.log('🟢 Total items to render:', allItems.length);
-            
-            return allItems.map((entry, index) => {
+            return localTimelineItems.map((entry, index) => {
               const itemId = getStableItemId(entry);
               const isEntering = enteringIds.has(itemId);
               const isExiting = exitingIds.has(itemId);
-              
-              if (isExiting) {
-                console.log('🟡 RENDERING EXITING ITEM:', itemId, 'with class: timeline-item-exit');
-              }
               
               const animationClass = isExiting 
                 ? 'timeline-item-exit' 
@@ -914,7 +1153,8 @@ const TrackerCard = ({
                 React.createElement(TimelineItem, { 
                   entry,
                   mode,
-                  onClick: onItemClick
+                  onClick: onItemClick,
+                  onDelete: onDelete
                 })
               );
             });
