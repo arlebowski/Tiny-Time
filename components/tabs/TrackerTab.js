@@ -3,15 +3,46 @@
 // Tracker Tab - Main Feeding Interface
 // ========================================
 
+// ========================================
+// UI VERSION HELPERS (Single Source of Truth)
+// ========================================
+// Initialize shared UI version helpers (only once)
+if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
+  window.TT = window.TT || {};
+  window.TT.shared = window.TT.shared || {};
+  
+  // Helper to get UI version (defaults to v2 for backward compatibility)
+  window.TT.shared.uiVersion = {
+    getUIVersion: () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const version = window.localStorage.getItem('tt_ui_version');
+        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          return version;
+        }
+        // Migration: derive from old flags if version doesn't exist
+        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
+        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
+        if (useNewUI === 'false') return 'v1';
+        if (cardDesign === 'new') return 'v3';
+        return 'v2'; // default
+      }
+      return 'v2';
+    },
+    shouldUseNewUI: (version) => version !== 'v1',
+    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+  };
+}
+
 const TrackerTab = ({ user, kidId, familyId }) => {
-  // Feature flag for new UI - controlled by localStorage (can be toggled from UI Lab)
-  const [useNewUI, setUseNewUI] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_use_new_ui');
-      return stored !== null ? stored === 'true' : true; // Default to true
-    }
-    return true;
+  // UI Version - single source of truth (v1, v2, or v3)
+  // UI Versions:
+  // - v1: Old UI (useNewUI = false)
+  // - v2: New UI with current tracker cards (useNewUI = true, cardDesign = 'current')
+  // - v3: New UI with new tracker cards (useNewUI = true, cardDesign = 'new')
+  const [uiVersion, setUiVersion] = useState(() => {
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
+  const useNewUI = (window.TT?.shared?.uiVersion?.shouldUseNewUI || ((v) => v !== 'v1'))(uiVersion);
   
   // Feature flag for TodayCard - controlled by localStorage (can be toggled from UI Lab)
   const [showTodayCard, setShowTodayCard] = useState(() => {
@@ -26,8 +57,8 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   React.useEffect(() => {
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem('tt_use_new_ui');
-        setUseNewUI(stored !== null ? stored === 'true' : true);
+        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+        setUiVersion(version);
         const todayCardStored = window.localStorage.getItem('tt_show_today_card');
         setShowTodayCard(todayCardStored !== null ? todayCardStored === 'true' : false);
       }
@@ -229,6 +260,52 @@ const TrackerTab = ({ user, kidId, familyId }) => {
       // non-fatal
     }
   }, []);
+
+  // Helper function to check if a sleep session overlaps with existing ones
+  const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
+    try {
+      const allSessions = await firestoreStorage.getAllSleepSessions();
+      const nowMs = Date.now();
+      
+      // Normalize the new sleep interval
+      const normalizeInterval = (sMs, eMs) => {
+        let s = Number(sMs);
+        let e = Number(eMs);
+        if (!Number.isFinite(s) || !Number.isFinite(e)) return null;
+        if (s > nowMs + 3 * 3600000) s -= 86400000;
+        if (e < s) s -= 86400000;
+        if (e < s) return null;
+        return { startMs: s, endMs: e };
+      };
+      
+      const newNorm = normalizeInterval(startMs, endMs);
+      if (!newNorm) return false; // Invalid interval, let other validation catch it
+      
+      // Check each existing session for overlap
+      for (const session of allSessions) {
+        // Skip the session being edited
+        if (excludeId && session.id === excludeId) continue;
+        
+        // For active sleeps, use current time as end
+        const existingEnd = session.isActive ? nowMs : (session.endTime || null);
+        if (!session.startTime || !existingEnd) continue;
+        
+        const existingNorm = normalizeInterval(session.startTime, existingEnd);
+        if (!existingNorm) continue;
+        
+        // Check if ranges overlap: (start1 < end2) && (start2 < end1)
+        if (newNorm.startMs < existingNorm.endMs && existingNorm.startMs < newNorm.endMs) {
+          return true; // Overlap found
+        }
+      }
+      
+      return false; // No overlap
+    } catch (error) {
+      console.error('Error checking sleep overlap:', error);
+      // On error, allow the save (fail open) - user can manually check
+      return false;
+    }
+  };
 
   const _pad2 = (n) => String(n).padStart(2, '0');
   const _toHHMM = (ms) => {
@@ -683,6 +760,19 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     if (endMs < startMs) {
       endMs += 86400000;
     }
+    
+    // Check for overlaps (exclude the session being edited)
+    try {
+      const hasOverlap = await checkSleepOverlap(startMs, endMs, editingSleepId);
+      if (hasOverlap) {
+        alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
+        return;
+      }
+    } catch (err) {
+      console.error('Error checking overlap:', err);
+      // Continue with save on error (fail open)
+    }
+    
     try {
       await firestoreStorage.updateSleepSession(editingSleepId, { startTime: startMs, endTime: endMs });
       setEditingSleepId(null);

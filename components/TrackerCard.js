@@ -221,6 +221,52 @@ function ensureZzzStyles() {
 }
 
 // Ensure tap animation styles are injected
+// Helper function to check if a sleep session overlaps with existing ones
+const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
+  try {
+    const allSessions = await firestoreStorage.getAllSleepSessions();
+    const nowMs = Date.now();
+    
+    // Normalize the new sleep interval
+    const normalizeInterval = (sMs, eMs) => {
+      let s = Number(sMs);
+      let e = Number(eMs);
+      if (!Number.isFinite(s) || !Number.isFinite(e)) return null;
+      if (s > nowMs + 3 * 3600000) s -= 86400000;
+      if (e < s) s -= 86400000;
+      if (e < s) return null;
+      return { startMs: s, endMs: e };
+    };
+    
+    const newNorm = normalizeInterval(startMs, endMs);
+    if (!newNorm) return false; // Invalid interval, let other validation catch it
+    
+    // Check each existing session for overlap
+    for (const session of allSessions) {
+      // Skip the session being edited
+      if (excludeId && session.id === excludeId) continue;
+      
+      // For active sleeps, use current time as end
+      const existingEnd = session.isActive ? nowMs : (session.endTime || null);
+      if (!session.startTime || !existingEnd) continue;
+      
+      const existingNorm = normalizeInterval(session.startTime, existingEnd);
+      if (!existingNorm) continue;
+      
+      // Check if ranges overlap: (start1 < end2) && (start2 < end1)
+      if (newNorm.startMs < existingNorm.endMs && existingNorm.startMs < newNorm.endMs) {
+        return true; // Overlap found
+      }
+    }
+    
+    return false; // No overlap
+  } catch (error) {
+    console.error('Error checking sleep overlap:', error);
+    // On error, allow the save (fail open) - user can manually check
+    return false;
+  }
+};
+
 function ensureTapAnimationStyles() {
   if (document.getElementById('tt-tap-anim')) return;
   const style = document.createElement('style');
@@ -730,6 +776,36 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   );
 };
 
+// ========================================
+// UI VERSION HELPERS (Single Source of Truth)
+// ========================================
+// Initialize shared UI version helpers (only once)
+if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
+  window.TT = window.TT || {};
+  window.TT.shared = window.TT.shared || {};
+  
+  // Helper to get UI version (defaults to v2 for backward compatibility)
+  window.TT.shared.uiVersion = {
+    getUIVersion: () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const version = window.localStorage.getItem('tt_ui_version');
+        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          return version;
+        }
+        // Migration: derive from old flags if version doesn't exist
+        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
+        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
+        if (useNewUI === 'false') return 'v1';
+        if (cardDesign === 'new') return 'v3';
+        return 'v2'; // default
+      }
+      return 'v2';
+    },
+    shouldUseNewUI: (version) => version !== 'v1',
+    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+  };
+}
+
 const TrackerCard = ({ 
   mode = 'sleep',
   total = null,           // e.g., 14.5 (oz or hrs)
@@ -742,6 +818,38 @@ const TrackerCard = ({
 }) => {
   ensureZzzStyles();
   ensureTapAnimationStyles();
+  
+  // UI Version - single source of truth (v1, v2, or v3)
+  // Part of UI Version system:
+  // - v1: Old UI (not used here, TrackerCard only shows in v2/v3)
+  // - v2: useNewUI = true, cardDesign = 'current'
+  // - v3: useNewUI = true, cardDesign = 'new'
+  const [uiVersion, setUiVersion] = React.useState(() => {
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+  });
+  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v3' ? 'new' : 'current'))(uiVersion);
+  
+  // Listen for changes to the feature flag
+  React.useEffect(() => {
+    const handleStorageChange = () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+        setUiVersion(version);
+      }
+    };
+    
+    // Listen for storage events (when changed from another tab/window)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check periodically (for same-tab changes)
+    const interval = setInterval(handleStorageChange, 100);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+  
   const [expanded, setExpanded] = React.useState(false);
   
   // Shared memoized zZz element - created once and reused to prevent animation restart
@@ -1039,20 +1147,16 @@ const TrackerCard = ({
               zzzElementMemo
             )
           );
-        } else if (lastEntryTime) {
-          return React.createElement(
-            React.Fragment,
-            null,
-            React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
-              formatDuration(lastEntryTime, null)
-            ),
-            React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
-              ' ',
-              zzzElementMemo
-            )
-          );
         } else {
-          return 'No sleep logged';
+          // Find the last completed sleep entry (has endTime and is not active)
+          const lastCompletedSleep = localTimelineItems.find(item => 
+            item.endTime && !item.isActive
+          );
+          if (lastCompletedSleep && lastCompletedSleep.endTime) {
+            return `Woke at ${formatTime12Hour(lastCompletedSleep.endTime)}`;
+          } else {
+            return 'No sleep logged';
+          }
         }
       })();
 
@@ -1070,7 +1174,9 @@ const TrackerCard = ({
     ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle1) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) || null;
 
-  return React.createElement(
+  // Render current design (default) - preserve existing implementation
+  const renderCurrentDesign = () => {
+    return React.createElement(
     'div',
     { 
       className: "rounded-2xl p-5 shadow-sm",
@@ -1194,7 +1300,19 @@ const TrackerCard = ({
             style: { color: 'var(--tt-text-secondary)' }
           }, 'No entries yet')
     )
-  );
+    );
+  };
+
+  // Render new design (experimental) - edit this function to experiment with new designs
+  const renderNewDesign = () => {
+    // TODO: Implement your new card design here
+    // For now, return the current design as a placeholder
+    // You can copy renderCurrentDesign() and modify it, or create a completely new design
+    return renderCurrentDesign();
+  };
+
+  // Conditional render based on feature flag
+  return cardDesign === 'new' ? renderNewDesign() : renderCurrentDesign();
 };
 
 // Detail Sheet Components
@@ -1326,46 +1444,73 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       
       const vv = window.visualViewport;
       if (!vv) return;
-      
+
+      // Throttle visualViewport events to animation frames to avoid choppy re-renders.
+      let rafId = null;
+      let lastKeyboardOffset = keyboardOffset;
+      let lastSheetHeight = sheetHeight;
+
       const handleResize = () => {
-        // Smoothly raise/lower the sheet above the keyboard.
-        setKeyboardOffset(computeKeyboardOffset());
-        if (contentRef.current && sheetRef.current && headerRef.current) {
-          const contentHeight = contentRef.current.scrollHeight;
-          const viewportHeight = vv.height;
-          
-          // Measure actual header height instead of hardcoding
-          const headerHeight = headerRef.current.offsetHeight;
-          
-          // Get safe-area-inset-bottom - try to read computed style, fallback to 0
-          let bottomPad = 0;
-          try {
-            const cs = window.getComputedStyle(sheetRef.current);
-            const pb = cs.paddingBottom;
-            // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
-            if (pb && pb.includes('px')) {
-              bottomPad = parseFloat(pb) || 0;
-            }
-          } catch (e) {
-            // Fallback to 0 if measurement fails
-            bottomPad = 0;
-          }
-          
-          const totalNeeded = contentHeight + headerHeight + bottomPad;
-          // If content fits within 90% of viewport, use exact height to prevent scrolling
-          // Otherwise, cap at 90% to leave some space at top
-          const maxHeight = totalNeeded <= viewportHeight * 0.9 
-            ? totalNeeded 
-            : Math.min(viewportHeight * 0.9, totalNeeded);
-          setSheetHeight(`${maxHeight}px`);
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
         }
+
+        rafId = requestAnimationFrame(() => {
+          const newKeyboardOffset = computeKeyboardOffset();
+
+          // Only update when it actually changed (reduces re-renders during keyboard animation).
+          if (Math.abs(newKeyboardOffset - lastKeyboardOffset) > 0.5) {
+            setKeyboardOffset(newKeyboardOffset);
+            lastKeyboardOffset = newKeyboardOffset;
+          }
+
+          if (contentRef.current && sheetRef.current && headerRef.current) {
+            const contentHeight = contentRef.current.scrollHeight;
+            const viewportHeight = vv.height;
+
+            // Measure actual header height instead of hardcoding
+            const headerHeight = headerRef.current.offsetHeight;
+
+            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
+            let bottomPad = 0;
+            try {
+              const cs = window.getComputedStyle(sheetRef.current);
+              const pb = cs.paddingBottom;
+              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
+              if (pb && pb.includes('px')) {
+                bottomPad = parseFloat(pb) || 0;
+              }
+            } catch (e) {
+              // Fallback to 0 if measurement fails
+              bottomPad = 0;
+            }
+
+            const totalNeeded = contentHeight + headerHeight + bottomPad;
+            // If content fits within 90% of viewport, use exact height to prevent scrolling
+            // Otherwise, cap at 90% to leave some space at top
+            const maxHeight = totalNeeded <= viewportHeight * 0.9
+              ? totalNeeded
+              : Math.min(viewportHeight * 0.9, totalNeeded);
+            const newSheetHeight = `${maxHeight}px`;
+
+            if (newSheetHeight !== lastSheetHeight) {
+              setSheetHeight(newSheetHeight);
+              lastSheetHeight = newSheetHeight;
+            }
+          }
+        });
       };
-      
+
       vv.addEventListener('resize', handleResize);
       vv.addEventListener('scroll', handleResize);
       // Initial sync (covers keyboard already open / first focus)
       handleResize();
       return () => {
+        if (rafId) {
+          cancelAnimationFrame(rafId);
+          rafId = null;
+        }
         vv.removeEventListener('resize', handleResize);
         vv.removeEventListener('scroll', handleResize);
       };
@@ -2140,6 +2285,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       try {
         const startMs = new Date(startTime).getTime();
         const endMs = new Date(endTime).getTime();
+        
+        // Check for overlaps (exclude current entry if editing)
+        const excludeId = entry && entry.id ? entry.id : null;
+        const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
+        if (hasOverlap) {
+          alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
+          setSaving(false);
+          return;
+        }
         
         // Upload new photos to Firebase Storage
         const newPhotoURLs = [];
@@ -2990,6 +3144,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         try {
           const startMs = new Date(startTime).getTime();
           const endMs = new Date(endTime).getTime();
+          
+          // Check for overlaps (exclude active session if ending it)
+          const excludeId = activeSleepSessionId || null;
+          const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
+          if (hasOverlap) {
+            alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
+            return;
+          }
           
           // Upload photos to Firebase Storage
           const photoURLs = [];

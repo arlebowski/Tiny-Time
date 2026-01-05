@@ -3,20 +3,47 @@
 // Settings Tab - Share App, Sign Out, Delete Account
 // ========================================
 
+// ========================================
+// UI VERSION HELPERS (Single Source of Truth)
+// ========================================
+// Initialize shared UI version helpers (only once)
+if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
+  window.TT = window.TT || {};
+  window.TT.shared = window.TT.shared || {};
+  
+  // Helper to get UI version (defaults to v2 for backward compatibility)
+  window.TT.shared.uiVersion = {
+    getUIVersion: () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const version = window.localStorage.getItem('tt_ui_version');
+        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          return version;
+        }
+        // Migration: derive from old flags if version doesn't exist
+        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
+        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
+        if (useNewUI === 'false') return 'v1';
+        if (cardDesign === 'new') return 'v3';
+        return 'v2'; // default
+      }
+      return 'v2';
+    },
+    shouldUseNewUI: (version) => version !== 'v1',
+    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+  };
+}
+
 const SettingsTab = ({ user, kidId }) => {
   const [showUILab, setShowUILab] = useState(false);
   const [showFeedSheet, setShowFeedSheet] = useState(false);
   const [showSleepSheet, setShowSleepSheet] = useState(false);
   const [showInputSheet, setShowInputSheet] = useState(false);
   
-  // UI Lab mode: 'new' or 'old' (controls feature flag)
-  const [uiLabMode, setUiLabMode] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_use_new_ui');
-      return stored === 'false' ? 'old' : 'new';
-    }
-    return 'new';
+  // UI Version - single source of truth (v1, v2, or v3)
+  const [uiVersion, setUiVersion] = useState(() => {
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
+  
   // Today Card toggle state
   const [showTodayCard, setShowTodayCard] = useState(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
@@ -93,7 +120,7 @@ const SettingsTab = ({ user, kidId }) => {
     };
     
     fetchData();
-  }, [showUILab, uiLabMode, kidId]);
+  }, [showUILab, uiVersion, kidId]);
 
   // Data transformation helpers (same as TrackerTab)
   const formatFeedingsForCard = (feedings, targetOunces, currentDate) => {
@@ -501,18 +528,21 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
       ),
 
-      // UI Mode Toggle (controls feature flag)
-      window.SegmentedToggle && React.createElement('div', { className: "mb-4" },
-        React.createElement(window.SegmentedToggle, {
-          value: uiLabMode,
+      // UI Version Toggle (single source of truth for v1/v2/v3)
+      React.createElement('div', { className: "mb-4" },
+        React.createElement('label', { 
+          className: "block text-sm font-medium text-gray-700 mb-2" 
+        }, 'UI Version'),
+        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+          value: uiVersion,
           options: [
-            { value: 'new', label: 'New UI' },
-            { value: 'old', label: 'Old UI' }
+            { value: 'v1', label: 'v1' },
+            { value: 'v2', label: 'v2' },
+            { value: 'v3', label: 'v3' }
           ],
           onChange: (value) => {
-            setUiLabMode(value);
             if (typeof window !== 'undefined' && window.localStorage) {
-              window.localStorage.setItem('tt_use_new_ui', value === 'new' ? 'true' : 'false');
+              window.localStorage.setItem('tt_ui_version', value);
               // Force reload to apply changes
               window.location.reload();
             }
@@ -547,9 +577,11 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement('div', { className: "mb-6" },
         React.createElement('h2', { className: "text-2xl font-bold text-gray-900 mb-2" }, 'UI Lab'),
         React.createElement('p', { className: "text-sm text-gray-600" }, 
-          uiLabMode === 'new' 
-            ? 'View new tracker card components with production data' 
-            : 'View old tracker UI with production data'
+          uiVersion === 'v1'
+            ? 'View old tracker UI with production data (v1)'
+            : uiVersion === 'v2'
+              ? 'View new tracker card components with current design (v2)'
+              : 'View new tracker card components with new design (v3)'
         )
       ),
 
@@ -705,8 +737,8 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
-      // New UI - TrackerCard components with production data
-      uiLabMode === 'new' && (() => {
+      // New UI - TrackerCard components with production data (v2 and v3)
+      (uiVersion === 'v2' || uiVersion === 'v3') && (() => {
         if (loading) {
           return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
         }
@@ -736,8 +768,8 @@ const SettingsTab = ({ user, kidId }) => {
         );
       })(),
 
-      // Old UI Section
-      uiLabMode === 'old' && React.createElement('div', { className: "mt-8" },
+      // Old UI Section (v1)
+      uiVersion === 'v1' && React.createElement('div', { className: "mt-8" },
         React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Old UI'),
         React.createElement('div', { className: "text-sm text-gray-600 mb-4" }, 
           'This is the previous tracker interface. Switch to "New UI" to see the updated design.'
