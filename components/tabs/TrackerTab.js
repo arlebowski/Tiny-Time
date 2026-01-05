@@ -405,7 +405,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
   const loadSleepSessions = async () => {
     try {
-      const sessions = await firestoreStorage.getSleepSessionsLastNDays(8);
+      const sessions = await firestoreStorage.getAllSleepSessions();
       const ended = (sessions || []).filter(s => s && s.endTime);
       const startOfDay = new Date(currentDate);
       startOfDay.setHours(0, 0, 0, 0);
@@ -470,7 +470,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
 
   const loadFeedings = async () => {
     try {
-      const allFeedings = await firestoreStorage.getFeedingsLastNDays(8);
+      const allFeedings = await firestoreStorage.getAllFeedings();
       const startOfDay = new Date(currentDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(currentDate);
@@ -759,46 +759,80 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const formatSleepSessionsForCard = (sessions, targetHours, currentDate, activeSleepSession = null) => {
     if (!sessions || !Array.isArray(sessions)) return { total: 0, target: targetHours || 0, percent: 0, timelineItems: [], lastEntryTime: null };
     
-    // Filter to today only (sessions that start or end today)
     const startOfDay = new Date(currentDate);
     startOfDay.setHours(0, 0, 0, 0);
     const endOfDay = new Date(currentDate);
     endOfDay.setHours(23, 59, 59, 999);
-    
-    const todaySessions = sessions.filter(s => {
-      const startTime = s.startTime || 0;
-      const endTime = s.endTime || 0;
-      // Only include completed sessions that start or end today
-      // OR if it's the active session
+    const dayStartMs = startOfDay.getTime();
+    const dayEndMs = endOfDay.getTime() + 1; // make end inclusive
+
+    // Use the same normalization and overlap helpers as loadSleepSessions
+    const _normalizeSleepInterval = (startMs, endMs, nowMs = Date.now()) => {
+      let sMs = Number(startMs);
+      let eMs = Number(endMs);
+      if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+      // If start time accidentally landed in the future (common around midnight), pull it back one day.
+      if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+      // If end < start, assume the sleep crossed midnight and the start belongs to the previous day.
+      if (eMs < sMs) sMs -= 86400000;
+      if (eMs < sMs) return null; // still invalid
+      return { startMs: sMs, endMs: eMs };
+    };
+
+    const _overlapMs = (rangeStartMs, rangeEndMs, winStartMs, winEndMs) => {
+      const a = Math.max(rangeStartMs, winStartMs);
+      const b = Math.min(rangeEndMs, winEndMs);
+      return Math.max(0, b - a);
+    };
+
+    // Normalize all sessions (including active sleep)
+    const normSessions = sessions.map((s) => {
       const isActive = activeSleepSession && s.id === activeSleepSession.id;
-      return ((startTime >= startOfDay.getTime() && startTime <= endOfDay.getTime()) ||
-              (endTime >= startOfDay.getTime() && endTime <= endOfDay.getTime())) &&
-             (endTime || isActive); // Must have endTime OR be the active session
+      if (isActive) {
+        // Active sleep - use current time as end
+        const norm = _normalizeSleepInterval(s.startTime, Date.now());
+        return norm ? { ...s, _normStartTime: norm.startMs, _normEndTime: norm.endMs } : null;
+      }
+      if (!s.endTime) return null; // Skip incomplete sessions (except active)
+      const norm = _normalizeSleepInterval(s.startTime, s.endTime);
+      return norm ? { ...s, _normStartTime: norm.startMs, _normEndTime: norm.endMs } : null;
+    }).filter(Boolean);
+
+    // Filter to sessions that overlap with current day (using overlap, not just start/end check)
+    const todaySessions = normSessions.filter(s => {
+      const isActive = activeSleepSession && s.id === activeSleepSession.id;
+      const endTime = isActive ? Date.now() : (s._normEndTime || s.endTime);
+      return _overlapMs(s._normStartTime || s.startTime, endTime, dayStartMs, dayEndMs) > 0;
     });
-    
-    // Calculate total hours (only completed sessions + active if exists)
+
+    // Calculate total using overlap (like loadSleepSessions does) - only counts portion in current day
     const completedSessions = todaySessions.filter(s => {
       const isActive = activeSleepSession && s.id === activeSleepSession.id;
       return s.endTime && !isActive; // Only completed, non-active sessions
     });
+    
     let totalMs = completedSessions.reduce((sum, s) => {
-      const start = s.startTime || 0;
-      const end = s.endTime || 0;
-      return sum + Math.max(0, end - start);
+      return sum + _overlapMs(s._normStartTime, s._normEndTime, dayStartMs, dayEndMs);
     }, 0);
-    
-    // Add active sleep if it exists and is today
-    if (activeSleepSession && activeSleepSession.startTime >= startOfDay.getTime()) {
-      totalMs += Math.max(0, Date.now() - activeSleepSession.startTime);
+
+    // Add active sleep if it exists and overlaps with today
+    if (activeSleepSession && activeSleepSession.startTime) {
+      const activeNorm = _normalizeSleepInterval(activeSleepSession.startTime, Date.now());
+      if (activeNorm) {
+        const activeOverlap = _overlapMs(activeNorm.startMs, activeNorm.endMs, dayStartMs, dayEndMs);
+        if (activeOverlap > 0) {
+          totalMs += activeOverlap;
+        }
+      }
     }
-    
+
     const total = totalMs / (1000 * 60 * 60); // Convert to hours
     const target = targetHours || 0;
     const percent = target > 0 ? Math.min(100, (total / target) * 100) : 0;
-    
+
     // Format timeline items (newest first by start time)
     const timelineItems = todaySessions
-      .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))
+      .sort((a, b) => (b._normStartTime || b.startTime || 0) - (a._normStartTime || a.startTime || 0))
       .map(s => {
         const isActive = activeSleepSession && s.id === activeSleepSession.id;
         return {
@@ -811,26 +845,29 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           sleepType: _sleepTypeForSession(s) // Add sleep type
         };
       });
-    
+
     // Add active sleep to timeline if not already included
-    if (activeSleepSession && activeSleepSession.startTime >= startOfDay.getTime()) {
-      const activeInTimeline = timelineItems.find(item => item.id === activeSleepSession.id);
-      if (!activeInTimeline) {
-        timelineItems.unshift({
-          id: activeSleepSession.id,
-          startTime: activeSleepSession.startTime,
-          endTime: null,
-          isActive: true,
-          notes: activeSleepSession.notes || null,
-          photoURLs: activeSleepSession.photoURLs || null,
-          sleepType: _sleepTypeForSession(activeSleepSession)
-        });
+    if (activeSleepSession && activeSleepSession.startTime) {
+      const activeNorm = _normalizeSleepInterval(activeSleepSession.startTime, Date.now());
+      if (activeNorm && _overlapMs(activeNorm.startMs, activeNorm.endMs, dayStartMs, dayEndMs) > 0) {
+        const activeInTimeline = timelineItems.find(item => item.id === activeSleepSession.id);
+        if (!activeInTimeline) {
+          timelineItems.unshift({
+            id: activeSleepSession.id,
+            startTime: activeSleepSession.startTime,
+            endTime: null,
+            isActive: true,
+            notes: activeSleepSession.notes || null,
+            photoURLs: activeSleepSession.photoURLs || null,
+            sleepType: _sleepTypeForSession(activeSleepSession)
+          });
+        }
       }
     }
-    
+
     // Get last entry time (most recent start time)
     const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].startTime : null;
-    
+
     return { total, target, percent, timelineItems, lastEntryTime };
   };
 
