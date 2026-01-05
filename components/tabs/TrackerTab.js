@@ -169,6 +169,54 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     }
   }, []);
 
+  // Inject BMW-style charging pulse animation for active sleep progress bar
+  useEffect(() => {
+    try {
+      if (document.getElementById('tt-sleep-pulse-style')) return;
+      const s = document.createElement('style');
+      s.id = 'tt-sleep-pulse-style';
+      s.textContent = `
+        @keyframes ttSleepPulse {
+          0% {
+            transform: translateX(-100%) skewX(-20deg);
+            opacity: 0;
+          }
+          50% {
+            opacity: 0.8;
+          }
+          100% {
+            transform: translateX(200%) skewX(-20deg);
+            opacity: 0;
+          }
+        }
+        .tt-sleep-progress-pulse {
+          position: relative;
+          overflow: hidden;
+        }
+        .tt-sleep-progress-pulse::after {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 50%;
+          height: 100%;
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.5),
+            transparent
+          );
+          animation: ttSleepPulse 2.5s ease-in-out infinite;
+          border-radius: inherit;
+          pointer-events: none;
+        }
+      `;
+      document.head.appendChild(s);
+    } catch (e) {
+      // non-fatal
+    }
+  }, []);
+
   const _pad2 = (n) => String(n).padStart(2, '0');
   const _toHHMM = (ms) => {
     try {
@@ -1166,7 +1214,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
             style: { backgroundColor: 'var(--tt-input-bg)' }
           },
             React.createElement('div', {
-              className: "absolute left-0 top-0 h-full rounded-2xl",
+              className: `absolute left-0 top-0 h-full rounded-2xl ${isCurrentlySleeping ? 'tt-sleep-progress-pulse' : ''}`,
               style: {
                 width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
                 background: 'var(--tt-sleep)',
@@ -1272,7 +1320,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           style: { backgroundColor: 'var(--tt-input-bg)' }
         },
           React.createElement('div', {
-            className: "absolute left-0 top-0 h-full rounded-2xl",
+            className: `absolute left-0 top-0 h-full rounded-2xl ${isCurrentlySleeping ? 'tt-sleep-progress-pulse' : ''}`,
             style: {
               width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
               background: 'var(--tt-sleep)',
