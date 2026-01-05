@@ -1187,17 +1187,17 @@ const TrackerCard = ({
     },
     React.createElement(
       'div',
-      { className: "flex items-center gap-1 mb-8 h-6" },
+      { className: "flex items-center gap-[3px] mb-8 h-6" },
       HeaderIcon ? React.createElement(HeaderIcon, { 
         className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
         style: { 
           color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transform: mode === 'feeding' ? 'translateY(-2px)' : 'translateY(1px)',
+          transform: mode === 'feeding' ? 'translateY(-2px) scaleX(-1)' : 'translateY(1px)',
           strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
         }
       }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
       React.createElement('div', { 
-        className: "text-[22px] font-thin",
+        className: "text-[20px] font-thin",
         style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
       }, mode === 'feeding' ? 'Feed' : 'Sleep')
     ),
