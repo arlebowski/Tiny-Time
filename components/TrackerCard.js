@@ -220,6 +220,38 @@ function ensureZzzStyles() {
   document.head.appendChild(style);
 }
 
+// ========================================
+// ELAPSED TIME FORMATTER (Shared)
+// Rules:
+// - < 1 minute: show seconds only; <10s => "Xs", otherwise "XXs"
+// - < 1 hour: show minutes + seconds; minutes <10 => "Xm", else "XXm"; seconds always "XXs"
+// - >= 1 hour: show hours + minutes + seconds; hours <10 => "Xh" else "XXh"; minutes/seconds always 2 digits
+// ========================================
+function formatElapsedHmsTT(ms) {
+  const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad2 = (n) => String(Math.max(0, n)).padStart(2, '0');
+
+  if (h > 0) {
+    const hStr = h >= 10 ? pad2(h) : String(h);
+    const mStr = pad2(m);
+    const sStr = pad2(s);
+    return { h, m, s, showH: true, showM: true, showS: true, hStr, mStr, sStr, str: `${hStr}h ${mStr}m ${sStr}s` };
+  }
+
+  if (m > 0) {
+    const mStr = m >= 10 ? pad2(m) : String(m);
+    const sStr = pad2(s); // minutes present => seconds always 2 digits
+    return { h: 0, m, s, showH: false, showM: true, showS: true, mStr, sStr, str: `${mStr}m ${sStr}s` };
+  }
+
+  // seconds only
+  const sStr = s < 10 ? String(s) : pad2(s);
+  return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
+}
+
 // Ensure tap animation styles are injected
 // Helper function to check if a sleep session overlaps with existing ones
 const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
@@ -355,8 +387,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
   if (!entry) return null;
   
   const isSleep = mode === 'sleep';
-  const isDark = typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-  const timelineBg = isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)';
+  const timelineBg = 'var(--tt-subtle-surface)';
   
   // Swipe state
   const [swipeOffset, setSwipeOffset] = React.useState(0);
@@ -402,17 +433,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
 
   // Format duration with seconds for active sleep
   const formatDurationWithSeconds = (ms) => {
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${seconds}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds}s`;
-    } else {
-      return `${seconds}s`;
-    }
+    return formatElapsedHmsTT(ms).str;
   };
 
   // Format duration for sleep (with seconds for in-progress)
@@ -429,13 +450,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     
     // For in-progress, show seconds with smart formatting
     if (isActive) {
-      if (hours > 0) {
-        return `${hours}h ${minutes}m ${seconds}s`;
-      } else if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-      } else {
-        return `${seconds}s`;
-      }
+      return formatElapsedHmsTT(diffMs).str;
     }
     
     // For completed, show hours and minutes only
@@ -1111,21 +1126,12 @@ const TrackerCard = ({
     }, [startTime]);
     
     const formatWithSeconds = (ms) => {
-      const hours = Math.floor(ms / (1000 * 60 * 60));
-      const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-      
-      if (hours > 0) {
-        return `${hours}h ${minutes}m ${seconds}s`;
-      } else if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-      } else {
-        return `${seconds}s`;
-      }
+      return formatElapsedHmsTT(ms).str;
     };
     
     // Only return the timer text - zZz animation is rendered separately
-    return React.createElement('span', { className: "font-semibold", style: { color: 'var(--tt-text-primary)' } }, 
+    // Use tabular numbers + no-wrap so the pill can naturally size to content.
+    return React.createElement('span', { className: "font-semibold tabular-nums whitespace-nowrap inline-block text-right", style: { color: 'currentColor' } }, 
       formatWithSeconds(elapsed)
     );
   };
@@ -1139,11 +1145,12 @@ const TrackerCard = ({
         if (activeEntry) {
           // Render timer and zZz as siblings - timer updates won't affect animation
           return React.createElement(
-            React.Fragment,
-            null,
+            'span',
+            { className: "inline-flex items-baseline gap-2 whitespace-nowrap" },
             React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
-            React.createElement('span', { className: "font-light", style: { color: 'var(--tt-text-primary)' } },
-              ' ',
+            React.createElement(
+              'span',
+              { className: "inline-flex w-[28px] justify-start font-light leading-none", style: { color: 'currentColor' } },
               zzzElementMemo
             )
           );
@@ -1169,13 +1176,31 @@ const TrackerCard = ({
         timelineStatusText
       );
 
+  // Match the subtle background used by TimelineItem rows
+  const timelineSubtleBg = 'var(--tt-subtle-surface)';
+
   // Get the appropriate icon for the header
   const HeaderIcon = mode === 'feeding' 
     ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle1) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) || null;
 
-  // Render current design (default) - preserve existing implementation
-  const renderCurrentDesign = () => {
+  // Shared renderer: v2 ("current") and v3 ("new") can vary styling without duplicating markup.
+  const renderDesign = ({
+    headerGapClass = 'gap-2',                 // icon ↔ label spacing
+    headerBottomMarginClass = 'mb-6',         // header ↔ big number spacing
+    headerLabelClassName = 'text-base font-semibold',
+    headerIconClassName = 'h-8 w-8',
+    feedingIconTransform = 'translateY(-2px)',
+    sleepIconTransform = 'none',
+    showHeaderIcon = true,                   // show icon in header left
+    headerRight = null,                      // optional right-side content in header row
+    progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
+    progressTrackBg = 'var(--tt-input-bg)',   // progress track background
+    showDotsRow = true,                       // dots row under progress bar
+    progressBottomMarginClass = 'mb-3',       // spacing after progress bar
+    dividerMarginClass = 'my-4',              // divider spacing
+    timelineVariant = 'v2'                    // 'v2' | 'v3' (v3 uses pill + no bullet)
+  } = {}) => {
     return React.createElement(
     'div',
     { 
@@ -1187,19 +1212,26 @@ const TrackerCard = ({
     },
     React.createElement(
       'div',
-      { className: "flex items-center gap-2 mb-6 h-6" },
-      HeaderIcon ? React.createElement(HeaderIcon, { 
-        className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
-        style: { 
-          color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transform: mode === 'feeding' ? 'translateY(-2px)' : 'none',
-          strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
-        }
-      }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
-      React.createElement('div', { 
-        className: "text-base font-semibold",
-        style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-      }, mode === 'feeding' ? 'Feed' : 'Sleep')
+      { className: `flex items-center justify-between ${headerBottomMarginClass} h-6` },
+      React.createElement(
+        'div',
+        { className: `flex items-center ${headerGapClass}` },
+        showHeaderIcon
+          ? (HeaderIcon ? React.createElement(HeaderIcon, { 
+              className: headerIconClassName,
+              style: { 
+                color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+                transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
+                strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
+              }
+            }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
+          : null,
+        React.createElement('div', { 
+          className: headerLabelClassName,
+          style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+        }, mode === 'feeding' ? 'Feed' : 'Sleep')
+      ),
+      headerRight
     ),
     React.createElement(
       'div',
@@ -1222,7 +1254,7 @@ const TrackerCard = ({
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { className: "relative w-full h-6 rounded-2xl overflow-hidden mb-3", style: { backgroundColor: 'var(--tt-input-bg)' } },
+    React.createElement('div', { className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, style: { backgroundColor: progressTrackBg } },
       React.createElement('div', {
         className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
@@ -1235,7 +1267,7 @@ const TrackerCard = ({
         }
       })
     ),
-    React.createElement(
+    showDotsRow && React.createElement(
       'div',
       { className: "flex gap-1.5 pl-1 mb-2" },
       Array.from({ length: Math.min(timelineItems.length, 10) }, (_, i) =>
@@ -1247,7 +1279,7 @@ const TrackerCard = ({
       )
     ),
     React.createElement('div', { 
-      className: "border-t my-4",
+      className: `border-t ${dividerMarginClass}`,
       style: { 
         borderColor: document.documentElement.classList.contains('dark') 
           ? 'rgba(255,255,255,0.06)'  // More subtle in dark mode
@@ -1261,8 +1293,24 @@ const TrackerCard = ({
         className: "flex w-full items-center justify-between",
         style: { color: 'var(--tt-text-secondary)' }
       },
-      React.createElement('span', null, timelineLabel),
-      expanded ? React.createElement(ChevronUp, { style: { strokeWidth: '3' } }) : React.createElement(ChevronDown, { style: { strokeWidth: '3' } })
+      React.createElement(
+        'span',
+        null,
+        timelineVariant === 'v3'
+          ? React.createElement(
+              'span',
+              { className: "flex items-center" },
+              React.createElement(
+                'span',
+                { className: "font-medium", style: { color: 'var(--tt-text-secondary)' } },
+                'Timeline'
+              )
+            )
+          : timelineLabel
+      ),
+      expanded
+        ? React.createElement(ChevronUp, { style: { strokeWidth: '3', color: 'var(--tt-text-tertiary)' } })
+        : React.createElement(ChevronDown, { style: { strokeWidth: '3', color: 'var(--tt-text-tertiary)' } })
     ),
     expanded && React.createElement(
       'div',
@@ -1303,12 +1351,69 @@ const TrackerCard = ({
     );
   };
 
-  // Render new design (experimental) - edit this function to experiment with new designs
+  // v2: current design (production)
+  const renderCurrentDesign = () => renderDesign();
+
+  // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
-    // TODO: Implement your new card design here
-    // For now, return the current design as a placeholder
-    // You can copy renderCurrentDesign() and modify it, or create a completely new design
-    return renderCurrentDesign();
+    const v3HeaderRight = (() => {
+      const pillInner = React.createElement(
+        'span',
+        { className: "inline-flex items-center" },
+        React.createElement('span', null, timelineStatusText)
+      );
+
+      // Active sleep: special tappable/pulsing pill that opens sleep controls.
+      const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
+      if (isActiveSleepPill && typeof onActiveSleepClick === 'function') {
+        return React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: (e) => {
+              try { e.preventDefault(); e.stopPropagation(); } catch {}
+              try { onActiveSleepClick(); } catch {}
+            },
+            className:
+              "inline-flex items-center gap-1 px-3 py-1 rounded-lg whitespace-nowrap text-sm tt-tapable tt-sleep-progress-pulse",
+            style: {
+              backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
+              color: 'var(--tt-sleep)'
+            },
+            title: "Sleep controls",
+            'aria-label': "Sleep controls"
+          },
+          pillInner
+        );
+      }
+
+      // Default v3 status pill (non-interactive)
+      return React.createElement(
+        'span',
+        {
+          className: "inline-flex items-center gap-1 px-3 py-1 rounded-lg whitespace-nowrap text-sm",
+          style: { backgroundColor: timelineSubtleBg, color: 'var(--tt-text-secondary)' }
+        },
+        pillInner
+      );
+    })();
+
+    return renderDesign({
+      headerGapClass: 'gap-[2px]',                 // 2px
+      headerBottomMarginClass: 'mb-8',
+      headerLabelClassName: 'text-[20px] font-thin',
+      feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle (down 1px)
+      sleepIconTransform: 'translateY(0px)',               // moon up 1px
+      showHeaderIcon: true,
+      headerIconClassName: 'h-[24px] w-[24px]',
+      headerRight: v3HeaderRight,
+      progressTrackHeightClass: 'h-3',              // 50% of h-6
+      progressTrackBg: 'var(--tt-subtle-surface)',
+      showDotsRow: false,
+      progressBottomMarginClass: 'mb-0',
+      dividerMarginClass: 'mt-8 mb-4',             // bar->divider: mt-8 (32px), independent of margin collapse
+      timelineVariant: 'v3'
+    });
   };
 
   // Conditional render based on feature flag
@@ -2398,6 +2503,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     };
 
+    // Timer display (apply shared formatting rules)
+    const durationMs = (Number(duration.hours || 0) * 3600000) + (Number(duration.minutes || 0) * 60000) + (Number(duration.seconds || 0) * 1000);
+    const tParts = formatElapsedHmsTT(durationMs);
+
     // Body content (used in both static and overlay modes)
     const bodyContent = React.createElement(
       React.Fragment,
@@ -2406,12 +2515,20 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
         React.createElement('div', { className: "text-[40px] leading-none font-bold", style: { color: 'var(--tt-text-primary)' } },
-          React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
-          React.createElement('span', { className: "ml-2" }, `${String(duration.minutes).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
-          React.createElement('span', { className: "ml-2" }, `${String(duration.seconds).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
+          React.createElement(React.Fragment, null,
+            tParts.showH && React.createElement(React.Fragment, null,
+              React.createElement('span', null, tParts.hStr),
+              React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
+              React.createElement('span', { className: "ml-2" })
+            ),
+            tParts.showM && React.createElement(React.Fragment, null,
+              React.createElement('span', null, tParts.mStr),
+              React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
+              React.createElement('span', { className: "ml-2" })
+            ),
+            React.createElement('span', null, tParts.sStr),
+            React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
+          )
         )
       ),
 
@@ -3293,19 +3410,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
     // Helper function to render sleep content
     const renderSleepContent = () => {
-      // Calculate timer display: elapsed time when RUNNING, duration when COMPLETED/IDLE
-      let hours, minutes, seconds;
-      if (sleepState === 'running') {
-        // Show elapsed time from timer
-        hours = Math.floor(sleepElapsedMs / 3600000);
-        minutes = Math.floor((sleepElapsedMs % 3600000) / 60000);
-        seconds = Math.floor((sleepElapsedMs % 60000) / 1000);
-      } else {
-        // Show calculated duration
-        hours = duration.hours;
-        minutes = duration.minutes;
-        seconds = duration.seconds;
-      }
+      // Calculate timer display (apply shared formatting rules)
+      const displayMs = sleepState === 'running'
+        ? sleepElapsedMs
+        : ((Number(duration.hours || 0) * 3600000) + (Number(duration.minutes || 0) * 60000) + (Number(duration.seconds || 0) * 1000));
+      const tParts = formatElapsedHmsTT(displayMs);
       
       // Time fields are always editable (even in RUNNING state)
       // Show icon always
@@ -3318,16 +3427,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('div', { className: "text-center mb-6" },
           React.createElement('div', { className: "text-[40px] leading-none font-bold flex items-end justify-center", style: { color: 'var(--tt-text-primary)' } },
             React.createElement(React.Fragment, null,
-              // Only show hours if > 0
-              hours > 0 && React.createElement(React.Fragment, null,
-                React.createElement('span', null, `${hours}`),
+              tParts.showH && React.createElement(React.Fragment, null,
+                React.createElement('span', null, tParts.hStr),
                 React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
                 React.createElement('span', { className: "ml-2" })
               ),
-              // Minutes: single/double digit when no hours, always 2 digits when hours present
-              React.createElement('span', null, hours > 0 ? `${String(minutes).padStart(2, '0')}` : `${minutes}`),
-              React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
-              React.createElement('span', { className: "ml-2" }, `${String(seconds).padStart(2, '0')}`),
+              tParts.showM && React.createElement(React.Fragment, null,
+                React.createElement('span', null, tParts.mStr),
+                React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
+                React.createElement('span', { className: "ml-2" })
+              ),
+              React.createElement('span', null, tParts.sStr),
               React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
             )
           )
