@@ -1434,7 +1434,34 @@ const TrackerCard = ({
 
   // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
-    const v3Icon = (mode === 'feeding' ? BottleMainIcon : MoonMainIcon);
+    // Prefer PNG icons (if present) with SVG fallback.
+    // Drop these files in the project root:
+    // - bottle-main@3x.png
+    // - moon-main@3x.png
+    const v3IconSvg = (mode === 'feeding' ? BottleMainIcon : MoonMainIcon);
+    const v3IconSrc = (mode === 'feeding')
+      ? 'bottle-main@3x.png'
+      : 'moon-main@3x.png';
+
+    const V3Icon = (() => {
+      return function V3IconComponent(props) {
+        const [failed, setFailed] = React.useState(false);
+        if (failed || !v3IconSrc) {
+          return v3IconSvg ? React.createElement(v3IconSvg, props) : null;
+        }
+        const { style, alt, ...rest } = props || {};
+        return React.createElement('img', {
+          ...rest,
+          src: v3IconSrc,
+          alt: alt || '',
+          draggable: false,
+          decoding: 'async',
+          loading: 'eager',
+          style: { ...(style || {}), objectFit: 'contain' },
+          onError: () => setFailed(true)
+        });
+      };
+    })();
 
     const v3StatusText = mode === 'feeding'
       ? (lastEntryTime ? `Last ate at ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
@@ -1478,7 +1505,7 @@ const TrackerCard = ({
               try { onActiveSleepClick(); } catch {}
             },
             className:
-              "inline-flex items-center gap-1 px-3 py-1 rounded-lg whitespace-nowrap text-sm tt-tapable tt-sleep-progress-pulse",
+              "inline-flex items-center gap-1 px-3 py-1.5 rounded-lg whitespace-nowrap font-normal tt-tapable tt-sleep-progress-pulse",
             style: {
               backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
               color: 'var(--tt-sleep)'
@@ -1528,7 +1555,7 @@ const TrackerCard = ({
       headerGapClass: 'gap-[2px]',                 // (unused when header removed, but keep for safety)
       headerBottomMarginClass: 'mb-8',             // (unused when header removed)
       headerLabelClassName: 'text-[20px] font-thin', // (unused when header removed)
-      iconOverride: v3Icon,
+      iconOverride: V3Icon,
       feedingIconTransform: 'scaleX(-1)',                  // mirror bottle, no vertical offset
       sleepIconTransform: 'none',                           // no offset
       showHeaderIcon: false,
@@ -1538,7 +1565,7 @@ const TrackerCard = ({
       bigNumberRight: null,
       bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
       bigNumberValueClassName: "text-[36px] leading-none font-bold",
-      bigNumberTargetClassName: "text-base leading-none font-normal",
+      bigNumberTargetClassName: "relative -top-[2px] text-base leading-none font-normal",
       bigNumberTargetColor: 'var(--tt-text-tertiary)',
       progressTrackHeightClass: 'h-[12px]',         // 12px track height
       progressTrackBg: 'var(--tt-subtle-surface)',
