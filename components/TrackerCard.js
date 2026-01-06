@@ -1191,6 +1191,7 @@ const TrackerCard = ({
     headerLabelClassName = 'text-base font-semibold',
     feedingIconTransform = 'translateY(-2px)',
     sleepIconTransform = 'none',
+    showHeaderIcon = true,                   // show icon in header left
     headerRight = null,                      // optional right-side content in header row
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
@@ -1214,14 +1215,16 @@ const TrackerCard = ({
       React.createElement(
         'div',
         { className: `flex items-center ${headerGapClass}` },
-        HeaderIcon ? React.createElement(HeaderIcon, { 
-          className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
-          style: { 
-            color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-            transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
-            strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
-          }
-        }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
+        showHeaderIcon
+          ? (HeaderIcon ? React.createElement(HeaderIcon, { 
+              className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
+              style: { 
+                color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+                transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
+                strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
+              }
+            }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
+          : null,
         React.createElement('div', { 
           className: headerLabelClassName,
           style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
@@ -1353,6 +1356,23 @@ const TrackerCard = ({
   // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
     const v3HeaderRight = (() => {
+      // Pill icon (matches pill font size: text-sm = 14px)
+      const showPillIcon = !(mode === 'sleep' && isSleepActive); // hide only for active sleep (zZz already present)
+      const PillIcon = (showPillIcon ? HeaderIcon : null);
+      const pillIconEl = PillIcon
+        ? React.createElement(PillIcon, {
+            className: "h-[18px] w-[18px] shrink-0",
+            style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)', strokeWidth: '3' }
+          })
+        : null;
+
+      const pillInner = React.createElement(
+        'span',
+        { className: "inline-flex items-center gap-1" }, // gap-1 = 4px
+        pillIconEl,
+        React.createElement('span', null, timelineStatusText)
+      );
+
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
       const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
       if (isActiveSleepPill && typeof onActiveSleepClick === 'function') {
@@ -1365,7 +1385,7 @@ const TrackerCard = ({
               try { onActiveSleepClick(); } catch {}
             },
             className:
-              "inline-flex items-center px-3 py-1 rounded-lg whitespace-nowrap text-sm tt-tapable tt-sleep-progress-pulse",
+              "inline-flex items-center gap-1 px-3 py-1 rounded-lg whitespace-nowrap text-sm tt-tapable tt-sleep-progress-pulse",
             style: {
               backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
               color: 'var(--tt-sleep)'
@@ -1373,7 +1393,7 @@ const TrackerCard = ({
             title: "Sleep controls",
             'aria-label': "Sleep controls"
           },
-          timelineStatusText
+          pillInner
         );
       }
 
@@ -1381,19 +1401,20 @@ const TrackerCard = ({
       return React.createElement(
         'span',
         {
-          className: "inline-flex items-center px-3 py-1 rounded-lg whitespace-nowrap text-sm",
+          className: "inline-flex items-center gap-1 px-3 py-1 rounded-lg whitespace-nowrap text-sm",
           style: { backgroundColor: timelineSubtleBg, color: 'var(--tt-text-secondary)' }
         },
-        timelineStatusText
+        pillInner
       );
     })();
 
     return renderDesign({
       headerGapClass: 'gap-[3px]',                 // 3px
       headerBottomMarginClass: 'mb-8',
-      headerLabelClassName: 'text-[20px] font-thin',
+      headerLabelClassName: 'text-[16px] font-thin',
       feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
       sleepIconTransform: 'translateY(1px)',               // nudge moon down
+      showHeaderIcon: false,
       headerRight: v3HeaderRight,
       progressTrackHeightClass: 'h-3',              // 50% of h-6
       progressTrackBg: 'var(--tt-subtle-surface)',
