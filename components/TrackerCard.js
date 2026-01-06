@@ -220,6 +220,38 @@ function ensureZzzStyles() {
   document.head.appendChild(style);
 }
 
+// ========================================
+// ELAPSED TIME FORMATTER (Shared)
+// Rules:
+// - < 1 minute: show seconds only; <10s => "Xs", otherwise "XXs"
+// - < 1 hour: show minutes + seconds; minutes <10 => "Xm", else "XXm"; seconds always "XXs"
+// - >= 1 hour: show hours + minutes + seconds; hours <10 => "Xh" else "XXh"; minutes/seconds always 2 digits
+// ========================================
+function formatElapsedHmsTT(ms) {
+  const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad2 = (n) => String(Math.max(0, n)).padStart(2, '0');
+
+  if (h > 0) {
+    const hStr = h >= 10 ? pad2(h) : String(h);
+    const mStr = pad2(m);
+    const sStr = pad2(s);
+    return { h, m, s, showH: true, showM: true, showS: true, hStr, mStr, sStr, str: `${hStr}h ${mStr}m ${sStr}s` };
+  }
+
+  if (m > 0) {
+    const mStr = m >= 10 ? pad2(m) : String(m);
+    const sStr = pad2(s); // minutes present => seconds always 2 digits
+    return { h: 0, m, s, showH: false, showM: true, showS: true, mStr, sStr, str: `${mStr}m ${sStr}s` };
+  }
+
+  // seconds only
+  const sStr = s < 10 ? String(s) : pad2(s);
+  return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
+}
+
 // Ensure tap animation styles are injected
 // Helper function to check if a sleep session overlaps with existing ones
 const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
@@ -401,17 +433,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
 
   // Format duration with seconds for active sleep
   const formatDurationWithSeconds = (ms) => {
-    const hours = Math.floor(ms / (1000 * 60 * 60));
-    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-    
-    if (hours > 0) {
-      return `${hours}h ${minutes}m ${seconds}s`;
-    } else if (minutes > 0) {
-      return `${minutes}m ${seconds}s`;
-    } else {
-      return `${seconds}s`;
-    }
+    return formatElapsedHmsTT(ms).str;
   };
 
   // Format duration for sleep (with seconds for in-progress)
@@ -428,13 +450,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     
     // For in-progress, show seconds with smart formatting
     if (isActive) {
-      if (hours > 0) {
-        return `${hours}h ${minutes}m ${seconds}s`;
-      } else if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-      } else {
-        return `${seconds}s`;
-      }
+      return formatElapsedHmsTT(diffMs).str;
     }
     
     // For completed, show hours and minutes only
@@ -1110,17 +1126,7 @@ const TrackerCard = ({
     }, [startTime]);
     
     const formatWithSeconds = (ms) => {
-      const hours = Math.floor(ms / (1000 * 60 * 60));
-      const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-
-      if (hours > 0) {
-        return `${hours}h ${minutes}m ${seconds}s`;
-      } else if (minutes > 0) {
-        return `${minutes}m ${seconds}s`;
-      } else {
-        return `${seconds}s`;
-      }
+      return formatElapsedHmsTT(ms).str;
     };
     
     // Only return the timer text - zZz animation is rendered separately
@@ -2485,6 +2491,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     };
 
+    // Timer display (apply shared formatting rules)
+    const durationMs = (Number(duration.hours || 0) * 3600000) + (Number(duration.minutes || 0) * 60000) + (Number(duration.seconds || 0) * 1000);
+    const tParts = formatElapsedHmsTT(durationMs);
+
     // Body content (used in both static and overlay modes)
     const bodyContent = React.createElement(
       React.Fragment,
@@ -2493,12 +2503,20 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
         React.createElement('div', { className: "text-[40px] leading-none font-bold", style: { color: 'var(--tt-text-primary)' } },
-          React.createElement('span', null, `${String(duration.hours).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
-          React.createElement('span', { className: "ml-2" }, `${String(duration.minutes).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
-          React.createElement('span', { className: "ml-2" }, `${String(duration.seconds).padStart(2, '0')}`),
-          React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
+          React.createElement(React.Fragment, null,
+            tParts.showH && React.createElement(React.Fragment, null,
+              React.createElement('span', null, tParts.hStr),
+              React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
+              React.createElement('span', { className: "ml-2" })
+            ),
+            tParts.showM && React.createElement(React.Fragment, null,
+              React.createElement('span', null, tParts.mStr),
+              React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
+              React.createElement('span', { className: "ml-2" })
+            ),
+            React.createElement('span', null, tParts.sStr),
+            React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
+          )
         )
       ),
 
@@ -3380,19 +3398,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
     // Helper function to render sleep content
     const renderSleepContent = () => {
-      // Calculate timer display: elapsed time when RUNNING, duration when COMPLETED/IDLE
-      let hours, minutes, seconds;
-      if (sleepState === 'running') {
-        // Show elapsed time from timer
-        hours = Math.floor(sleepElapsedMs / 3600000);
-        minutes = Math.floor((sleepElapsedMs % 3600000) / 60000);
-        seconds = Math.floor((sleepElapsedMs % 60000) / 1000);
-      } else {
-        // Show calculated duration
-        hours = duration.hours;
-        minutes = duration.minutes;
-        seconds = duration.seconds;
-      }
+      // Calculate timer display (apply shared formatting rules)
+      const displayMs = sleepState === 'running'
+        ? sleepElapsedMs
+        : ((Number(duration.hours || 0) * 3600000) + (Number(duration.minutes || 0) * 60000) + (Number(duration.seconds || 0) * 1000));
+      const tParts = formatElapsedHmsTT(displayMs);
       
       // Time fields are always editable (even in RUNNING state)
       // Show icon always
@@ -3405,16 +3415,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         React.createElement('div', { className: "text-center mb-6" },
           React.createElement('div', { className: "text-[40px] leading-none font-bold flex items-end justify-center", style: { color: 'var(--tt-text-primary)' } },
             React.createElement(React.Fragment, null,
-              // Only show hours if > 0
-              hours > 0 && React.createElement(React.Fragment, null,
-                React.createElement('span', null, `${hours}`),
+              tParts.showH && React.createElement(React.Fragment, null,
+                React.createElement('span', null, tParts.hStr),
                 React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
                 React.createElement('span', { className: "ml-2" })
               ),
-              // Minutes: single/double digit when no hours, always 2 digits when hours present
-              React.createElement('span', null, hours > 0 ? `${String(minutes).padStart(2, '0')}` : `${minutes}`),
-              React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
-              React.createElement('span', { className: "ml-2" }, `${String(seconds).padStart(2, '0')}`),
+              tParts.showM && React.createElement(React.Fragment, null,
+                React.createElement('span', null, tParts.mStr),
+                React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
+                React.createElement('span', { className: "ml-2" })
+              ),
+              React.createElement('span', null, tParts.sStr),
               React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
             )
           )
