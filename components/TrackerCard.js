@@ -826,6 +826,7 @@ const TrackerCard = ({
   total = null,           // e.g., 14.5 (oz or hrs)
   target = null,           // e.g., 14.5 (oz or hrs)
   timelineItems = [],     // Array of log entries
+  entriesTodayCount = null, // Number of entries today (computed upstream in TrackerTab)
   lastEntryTime = null,   // For status text (timestamp in ms)
   onItemClick = null,     // Callback when timeline item clicked
   onActiveSleepClick = null, // Callback when active sleep entry clicked (opens input sheet)
@@ -1176,16 +1177,39 @@ const TrackerCard = ({
         timelineStatusText
       );
 
+  const entriesTodayLabel = (() => {
+    const n = Number(entriesTodayCount);
+    if (!Number.isFinite(n)) return null;
+    const abs = Math.max(0, Math.floor(n));
+    const nounBase = (mode === 'feeding') ? 'feed' : 'sleep';
+    const noun = abs === 1 ? nounBase : `${nounBase}s`;
+    return `• ${abs} ${noun} today`;
+  })();
+
   // Match the subtle background used by TimelineItem rows
   const timelineSubtleBg = 'var(--tt-subtle-surface)';
 
   // Get the appropriate icon for the header
   const HeaderIcon = mode === 'feeding' 
-    ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle1) || null
-    : (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) || null;
+    ? (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-main"]) || null
+    : (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-main"]) || null;
+
+  // v3 "main" icons (safe fallback)
+  const BottleMainIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
+    HeaderIcon ||
+    null;
+  const MoonMainIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
+    HeaderIcon ||
+    null;
 
   // Shared renderer: v2 ("current") and v3 ("new") can vary styling without duplicating markup.
   const renderDesign = ({
+    showHeaderRow = true,                   // show the old header row (icon + Feed/Sleep + headerRight)
+    iconOverride = null,                    // override icon component (v3 uses bottle-main/moon-main)
     headerGapClass = 'gap-2',                 // icon ↔ label spacing
     headerBottomMarginClass = 'mb-6',         // header ↔ big number spacing
     headerLabelClassName = 'text-base font-semibold',
@@ -1194,13 +1218,24 @@ const TrackerCard = ({
     sleepIconTransform = 'none',
     showHeaderIcon = true,                   // show icon in header left
     headerRight = null,                      // optional right-side content in header row
+    showBigNumberIcon = false,               // show icon inline with the big number row
+    bigNumberIconClassName = null,           // icon size for big number row (defaults to headerIconClassName)
+    bigNumberRight = null,                   // optional right-side content in big number row (e.g. status pill)
+    bigNumberRowClassName = "flex items-baseline gap-1 mb-3",
+    bigNumberValueClassName = "text-[40px] leading-none font-bold",
+    bigNumberTargetClassName = "relative -top-[1px] text-[16px] leading-none",
+    bigNumberTargetColor = 'var(--tt-text-secondary)',
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
+    statusRow = null,                         // optional row below progress bar (v3)
+    statusRowClassName = '',                  // spacing wrapper for statusRow
     showDotsRow = true,                       // dots row under progress bar
     progressBottomMarginClass = 'mb-3',       // spacing after progress bar
     dividerMarginClass = 'my-4',              // divider spacing
+    timelineTextColor = 'var(--tt-text-secondary)',
     timelineVariant = 'v2'                    // 'v2' | 'v3' (v3 uses pill + no bullet)
   } = {}) => {
+    const IconComp = iconOverride || HeaderIcon;
     return React.createElement(
     'div',
     { 
@@ -1210,14 +1245,14 @@ const TrackerCard = ({
         borderColor: "var(--tt-card-border)"
       }
     },
-    React.createElement(
+    showHeaderRow ? React.createElement(
       'div',
       { className: `flex items-center justify-between ${headerBottomMarginClass} h-6` },
       React.createElement(
         'div',
         { className: `flex items-center ${headerGapClass}` },
         showHeaderIcon
-          ? (HeaderIcon ? React.createElement(HeaderIcon, { 
+          ? (IconComp ? React.createElement(IconComp, { 
               className: headerIconClassName,
               style: { 
                 color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
@@ -1232,25 +1267,67 @@ const TrackerCard = ({
         }, mode === 'feeding' ? 'Feed' : 'Sleep')
       ),
       headerRight
-    ),
-    React.createElement(
-      'div',
-      { className: "flex items-baseline gap-1 mb-3" },
-      React.createElement('div', { 
-        className: "text-[40px] leading-none font-bold",
+    ) : null,
+
+    (() => {
+      const valueEl = React.createElement('div', { 
+        className: bigNumberValueClassName,
         style: { 
           color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
           transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
         }
       }, 
         total !== null ? total.toFixed(1) : (mode === 'sleep' ? '0.0' : '0.0')
-      ),
-      React.createElement('div', { className: "relative -top-[1px] text-[16px] leading-none", style: { color: 'var(--tt-text-secondary)' } }, 
+      );
+
+      const targetEl = React.createElement('div', { 
+        className: bigNumberTargetClassName,
+        style: { color: bigNumberTargetColor } 
+      }, 
         target !== null 
-          ? (mode === 'sleep' ? `of ${target.toFixed(1)} hrs` : `of ${target.toFixed(1)} oz`)
-          : (mode === 'sleep' ? 'of 0.0 hrs' : 'of 0.0 oz')
-      )
-    ),
+          ? (mode === 'sleep' ? `/ ${target.toFixed(1)} hrs` : `/ ${target.toFixed(1)} oz`)
+          : (mode === 'sleep' ? '/ 0.0 hrs' : '/ 0.0 oz')
+      );
+
+      const iconEl = (showBigNumberIcon && IconComp)
+        ? React.createElement(IconComp, { 
+            className: bigNumberIconClassName || headerIconClassName,
+            style: { 
+              color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+              transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
+              strokeWidth: '3'
+            }
+          })
+        : null;
+
+      // Default (v2): number + target only.
+      if (!showBigNumberIcon && !bigNumberRight) {
+        return React.createElement(
+          'div',
+          { className: bigNumberRowClassName },
+          valueEl,
+          targetEl
+        );
+      }
+
+      // v3: icon + number (left) and optional right content (status pill)
+      return React.createElement(
+        'div',
+        { className: bigNumberRowClassName },
+        React.createElement(
+          'div',
+          { className: "flex items-center gap-[6px] min-w-0" },
+          iconEl,
+          React.createElement(
+            'div',
+            { className: "flex items-baseline gap-[6px] min-w-0" },
+            valueEl,
+            targetEl
+          )
+        ),
+        bigNumberRight
+      );
+    })(),
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
@@ -1267,6 +1344,7 @@ const TrackerCard = ({
         }
       })
     ),
+    statusRow ? React.createElement('div', { className: statusRowClassName }, statusRow) : null,
     showDotsRow && React.createElement(
       'div',
       { className: "flex gap-1.5 pl-1 mb-2" },
@@ -1291,7 +1369,7 @@ const TrackerCard = ({
       {
         onClick: () => setExpanded(!expanded),
         className: "flex w-full items-center justify-between",
-        style: { color: 'var(--tt-text-secondary)' }
+        style: { color: timelineTextColor }
       },
       React.createElement(
         'span',
@@ -1302,15 +1380,15 @@ const TrackerCard = ({
               { className: "flex items-center" },
               React.createElement(
                 'span',
-                { className: "font-medium", style: { color: 'var(--tt-text-secondary)' } },
+                { className: "font-normal", style: { color: timelineTextColor } },
                 'Timeline'
               )
             )
           : timelineLabel
       ),
       expanded
-        ? React.createElement(ChevronUp, { style: { strokeWidth: '3', color: 'var(--tt-text-tertiary)' } })
-        : React.createElement(ChevronDown, { style: { strokeWidth: '3', color: 'var(--tt-text-tertiary)' } })
+        ? React.createElement(ChevronUp, { style: { strokeWidth: '3', color: timelineTextColor } })
+        : React.createElement(ChevronDown, { style: { strokeWidth: '3', color: timelineTextColor } })
     ),
     expanded && React.createElement(
       'div',
@@ -1356,11 +1434,36 @@ const TrackerCard = ({
 
   // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
+    const v3Icon = (mode === 'feeding' ? BottleMainIcon : MoonMainIcon);
+
+    const v3StatusText = mode === 'feeding'
+      ? (lastEntryTime ? `Last ate at ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
+      : (() => {
+          const activeEntry = localTimelineItems.find(item => item.isActive && item.startTime);
+          if (activeEntry) {
+            return React.createElement(
+              'span',
+              { className: "inline-flex items-center gap-2" },
+              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
+              React.createElement(
+                'span',
+                { className: "inline-flex items-center font-light", style: { color: 'currentColor' } },
+                zzzElementMemo
+              )
+            );
+          }
+          const lastCompletedSleep = localTimelineItems.find(item => item.endTime && !item.isActive);
+          if (lastCompletedSleep && lastCompletedSleep.endTime) {
+            return `Last woke at ${formatTime12Hour(lastCompletedSleep.endTime)}`;
+          }
+          return 'No sleep logged';
+        })();
+
     const v3HeaderRight = (() => {
       const pillInner = React.createElement(
         'span',
         { className: "inline-flex items-center" },
-        React.createElement('span', null, timelineStatusText)
+        React.createElement('span', null, v3StatusText)
       );
 
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
@@ -1391,27 +1494,60 @@ const TrackerCard = ({
       return React.createElement(
         'span',
         {
-          className: "inline-flex items-center gap-1 px-3 py-1 rounded-lg whitespace-nowrap text-sm",
-          style: { backgroundColor: timelineSubtleBg, color: 'var(--tt-text-secondary)' }
+          className: "inline-flex items-center gap-1 px-3 py-1.5 rounded-lg whitespace-nowrap font-normal",
+          style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
         },
         pillInner
       );
     })();
 
+    const v3CountPill = (() => {
+      const n = Number(entriesTodayCount);
+      const abs = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+      const nounBase = (mode === 'feeding') ? 'feed' : 'sleep';
+      const noun = abs === 1 ? nounBase : `${nounBase}s`;
+      return React.createElement(
+        'span',
+        {
+          className: "inline-flex items-center px-3 py-1.5 rounded-lg whitespace-nowrap font-normal",
+          style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
+        },
+        `${abs} ${noun} today`
+      );
+    })();
+
+    const v3StatusRow = React.createElement(
+      'div',
+      { className: "flex flex-wrap items-center gap-3" },
+      v3HeaderRight,
+      v3CountPill
+    );
+
     return renderDesign({
-      headerGapClass: 'gap-[2px]',                 // 2px
-      headerBottomMarginClass: 'mb-8',
-      headerLabelClassName: 'text-[20px] font-thin',
-      feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle (down 1px)
-      sleepIconTransform: 'translateY(0px)',               // moon up 1px
-      showHeaderIcon: true,
-      headerIconClassName: 'h-[24px] w-[24px]',
-      headerRight: v3HeaderRight,
-      progressTrackHeightClass: 'h-3',              // 50% of h-6
+      showHeaderRow: false,                        // remove old header row (v3)
+      headerGapClass: 'gap-[2px]',                 // (unused when header removed, but keep for safety)
+      headerBottomMarginClass: 'mb-8',             // (unused when header removed)
+      headerLabelClassName: 'text-[20px] font-thin', // (unused when header removed)
+      iconOverride: v3Icon,
+      feedingIconTransform: 'scaleX(-1)',                  // mirror bottle, no vertical offset
+      sleepIconTransform: 'none',                           // no offset
+      showHeaderIcon: false,
+      headerRight: null,
+      showBigNumberIcon: true,
+      bigNumberIconClassName: 'h-[40px] w-[40px]',
+      bigNumberRight: null,
+      bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
+      bigNumberValueClassName: "text-[36px] leading-none font-bold",
+      bigNumberTargetClassName: "text-base leading-none font-normal",
+      bigNumberTargetColor: 'var(--tt-text-tertiary)',
+      progressTrackHeightClass: 'h-[12px]',         // 12px track height
       progressTrackBg: 'var(--tt-subtle-surface)',
+      statusRow: v3StatusRow,
+      statusRowClassName: "mt-[13px] mb-4",
       showDotsRow: false,
       progressBottomMarginClass: 'mb-0',
-      dividerMarginClass: 'mt-8 mb-4',             // bar->divider: mt-8 (32px), independent of margin collapse
+      dividerMarginClass: 'my-4',
+      timelineTextColor: 'var(--tt-text-tertiary)',
       timelineVariant: 'v3'
     });
   };

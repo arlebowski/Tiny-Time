@@ -1244,6 +1244,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         total: feedingCardData.total,
         target: feedingCardData.target,
         timelineItems: feedingCardData.timelineItems,
+        entriesTodayCount: Array.isArray(feedingCardData.timelineItems) ? feedingCardData.timelineItems.length : 0,
         lastEntryTime: feedingCardData.lastEntryTime,
         onItemClick: handleFeedItemClick,
         onDelete: async () => {
@@ -1257,6 +1258,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         total: sleepCardData.total,
         target: sleepCardData.target,
         timelineItems: sleepCardData.timelineItems,
+        entriesTodayCount: sleepTodayCount,
         lastEntryTime: sleepCardData.lastEntryTime,
         onItemClick: handleSleepItemClick,
         onActiveSleepClick: () => {
