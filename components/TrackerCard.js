@@ -1189,6 +1189,7 @@ const TrackerCard = ({
     headerGapClass = 'gap-2',                 // icon ↔ label spacing
     headerBottomMarginClass = 'mb-6',         // header ↔ big number spacing
     headerLabelClassName = 'text-base font-semibold',
+    headerIconClassName = 'h-8 w-8',
     feedingIconTransform = 'translateY(-2px)',
     sleepIconTransform = 'none',
     showHeaderIcon = true,                   // show icon in header left
@@ -1217,7 +1218,7 @@ const TrackerCard = ({
         { className: `flex items-center ${headerGapClass}` },
         showHeaderIcon
           ? (HeaderIcon ? React.createElement(HeaderIcon, { 
-              className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
+              className: headerIconClassName,
               style: { 
                 color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
                 transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
@@ -1356,20 +1357,9 @@ const TrackerCard = ({
   // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
     const v3HeaderRight = (() => {
-      // Pill icon (matches pill font size: text-sm = 14px)
-      const showPillIcon = !(mode === 'sleep' && isSleepActive); // hide only for active sleep (zZz already present)
-      const PillIcon = (showPillIcon ? HeaderIcon : null);
-      const pillIconEl = PillIcon
-        ? React.createElement(PillIcon, {
-            className: "h-[18px] w-[18px] shrink-0",
-            style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)', strokeWidth: '3' }
-          })
-        : null;
-
       const pillInner = React.createElement(
         'span',
-        { className: "inline-flex items-center gap-1" }, // gap-1 = 4px
-        pillIconEl,
+        { className: "inline-flex items-center" },
         React.createElement('span', null, timelineStatusText)
       );
 
@@ -1409,12 +1399,13 @@ const TrackerCard = ({
     })();
 
     return renderDesign({
-      headerGapClass: 'gap-[3px]',                 // 3px
+      headerGapClass: 'gap-[2px]',                 // 2px
       headerBottomMarginClass: 'mb-8',
-      headerLabelClassName: 'text-[16px] font-thin',
-      feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
-      sleepIconTransform: 'translateY(1px)',               // nudge moon down
-      showHeaderIcon: false,
+      headerLabelClassName: 'text-[20px] font-thin',
+      feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle (down 1px)
+      sleepIconTransform: 'translateY(0px)',               // moon up 1px
+      showHeaderIcon: true,
+      headerIconClassName: 'h-[24px] w-[24px]',
       headerRight: v3HeaderRight,
       progressTrackHeightClass: 'h-3',              // 50% of h-6
       progressTrackBg: 'var(--tt-subtle-surface)',
