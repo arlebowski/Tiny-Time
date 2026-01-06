@@ -1492,9 +1492,9 @@ const TrackerCard = ({
             });
           })()
         : React.createElement('div', { 
-            className: "text-sm text-center py-4",
-            style: { color: 'var(--tt-text-secondary)' }
-          }, 'No entries yet')
+            className: "text-sm font-normal text-center py-4",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, mode === 'feeding' ? 'No feedings yet' : 'No sleeps yet')
     )
     );
   };
@@ -1703,13 +1703,13 @@ const TrackerCard = ({
       headerLabelClassName: 'text-[20px] font-thin', // (unused when header removed)
       iconOverride: V3Icon,
       feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
-      sleepIconTransform: 'none',                           // no offset
+      sleepIconTransform: 'translateY(2px)',                // nudge moon down 2px
       mirrorFeedingIcon: false,
       showHeaderIcon: false,
       headerRight: null,
       showBigNumberIcon: true,
-      // Per-mode sizing: both 10% smaller than prior (bottle 38px -> 34.2px, moon 36px -> 32.4px)
-      bigNumberIconClassName: mode === 'feeding' ? 'h-[34.2px] w-[34.2px]' : 'h-[32.4px] w-[32.4px]',
+      // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px)
+      bigNumberIconClassName: mode === 'feeding' ? 'h-[32.49px] w-[32.49px]' : 'h-[30.78px] w-[30.78px]',
       bigNumberRight: null,
       bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
       // Icons were matched; add +1px only for sleep (moon) per request.
@@ -3177,6 +3177,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const feedingContentRef = React.useRef(null);
     const sleepContentRef = React.useRef(null);
     const [resolvedSheetHeight, setResolvedSheetHeight] = React.useState(null);
+    const lockedSheetHeightPxRef = React.useRef(null); // keep CTA position stable across toggles/updates
     
     // Reserve space so the bottom CTA button stays in the same visual spot across modes
     const CTA_SPACER_PX = 86; // button height (py-3 = 12px top + 12px bottom + text line height ~20px) + mt-4 (16px) + padding
@@ -3852,6 +3853,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     React.useEffect(() => {
       if (!isOpen) {
         setResolvedSheetHeight(null);
+        lockedSheetHeightPxRef.current = null;
         return;
       }
 
@@ -3879,8 +3881,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           const maxHeight = totalNeeded <= viewportHeight * 0.9 
             ? totalNeeded 
             : Math.min(viewportHeight * 0.9, totalNeeded);
-          
-          setResolvedSheetHeight(`${maxHeight}px`);
+
+          // Lock height while the sheet is open so toggling modes doesn't cause the CTA to "jump".
+          // Only allow the sheet to grow (never shrink) during a single open session.
+          const prev = lockedSheetHeightPxRef.current;
+          if (prev == null || maxHeight > prev) {
+            lockedSheetHeightPxRef.current = maxHeight;
+            setResolvedSheetHeight(`${maxHeight}px`);
+          }
         }
       };
 

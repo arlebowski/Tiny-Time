@@ -33,7 +33,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   };
 }
 
-const TrackerTab = ({ user, kidId, familyId }) => {
+const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
   // UI Version - single source of truth (v1, v2, or v3)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
@@ -1141,6 +1141,17 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     setSelectedSleepEntry(entry);
     setShowSleepDetailSheet(true);
   };
+
+  // Allow global nav "+" button (outside this tab) to open the input half sheet.
+  React.useEffect(() => {
+    if (!requestOpenInputSheetMode) return;
+    try {
+      setInputSheetMode(requestOpenInputSheetMode);
+      setShowInputSheet(true);
+    } finally {
+      try { if (typeof onRequestOpenInputSheetHandled === 'function') onRequestOpenInputSheetHandled(); } catch {}
+    }
+  }, [requestOpenInputSheetMode, onRequestOpenInputSheetHandled]);
 
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
