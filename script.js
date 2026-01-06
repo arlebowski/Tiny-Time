@@ -370,7 +370,7 @@ const isValidHex = (hex) => {
   return typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex);
 };
 
-// Helper: Derive soft/strong accent variants from base color
+// Helper: Derive softer/soft/strong accent variants from base color
 const deriveAccentVariants = (hex, isDark) => {
   // Parse hex to RGB
   const r = parseInt(hex.slice(1, 3), 16);
@@ -386,13 +386,19 @@ const deriveAccentVariants = (hex, isDark) => {
   const softB = isDark ? mix(b, 0, 0.55) : mix(b, 255, 0.82);
   const softHex = `#${softR.toString(16).padStart(2, '0')}${softG.toString(16).padStart(2, '0')}${softB.toString(16).padStart(2, '0')}`;
 
+  // Softer variant (one step lighter than "soft")
+  const softerR = isDark ? mix(r, 0, 0.65) : mix(r, 255, 0.88);
+  const softerG = isDark ? mix(g, 0, 0.65) : mix(g, 255, 0.88);
+  const softerB = isDark ? mix(b, 0, 0.65) : mix(b, 255, 0.88);
+  const softerHex = `#${softerR.toString(16).padStart(2, '0')}${softerG.toString(16).padStart(2, '0')}${softerB.toString(16).padStart(2, '0')}`;
+
   // Strong variant
   const strongR = isDark ? mix(r, 255, 0.15) : mix(r, 0, 0.15);
   const strongG = isDark ? mix(g, 255, 0.15) : mix(g, 0, 0.15);
   const strongB = isDark ? mix(b, 255, 0.15) : mix(b, 0, 0.15);
   const strongHex = `#${strongR.toString(16).padStart(2, '0')}${strongG.toString(16).padStart(2, '0')}${strongB.toString(16).padStart(2, '0')}`;
 
-  return { soft: softHex, strong: strongHex };
+  return { softer: softerHex, soft: softHex, strong: strongHex };
 };
 
 // Background theme mapping
@@ -477,6 +483,7 @@ window.TT.applyAppearance = function(appearance) {
 
     // Sleep accents
     root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
+    root.style.setProperty('--tt-sleep-softer', sleepVariants.softer);
     root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
     root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
   });

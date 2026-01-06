@@ -1259,6 +1259,10 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         timelineItems: sleepCardData.timelineItems,
         lastEntryTime: sleepCardData.lastEntryTime,
         onItemClick: handleSleepItemClick,
+        onActiveSleepClick: () => {
+          setInputSheetMode('sleep');
+          setShowInputSheet(true);
+        },
         onDelete: async () => {
           // Small delay for animation
           await new Promise(resolve => setTimeout(resolve, 200));

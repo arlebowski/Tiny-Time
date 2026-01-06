@@ -1125,7 +1125,7 @@ const TrackerCard = ({
     
     // Only return the timer text - zZz animation is rendered separately
     // Use tabular numbers + no-wrap so the pill can naturally size to content.
-    return React.createElement('span', { className: "font-semibold tabular-nums whitespace-nowrap inline-block text-right", style: { color: 'var(--tt-text-primary)' } }, 
+    return React.createElement('span', { className: "font-semibold tabular-nums whitespace-nowrap inline-block text-right", style: { color: 'currentColor' } }, 
       formatWithSeconds(elapsed)
     );
   };
@@ -1144,7 +1144,7 @@ const TrackerCard = ({
             React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
             React.createElement(
               'span',
-              { className: "inline-flex w-[28px] justify-start font-light leading-none", style: { color: 'var(--tt-text-primary)' } },
+              { className: "inline-flex w-[28px] justify-start font-light leading-none", style: { color: 'currentColor' } },
               zzzElementMemo
             )
           );
@@ -1346,20 +1346,49 @@ const TrackerCard = ({
 
   // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
-    return renderDesign({
-      headerGapClass: 'gap-[3px]',                 // 3px
-      headerBottomMarginClass: 'mb-8',
-      headerLabelClassName: 'text-[20px] font-thin',
-      feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
-      sleepIconTransform: 'translateY(1px)',               // nudge moon down
-      headerRight: React.createElement(
+    const v3HeaderRight = (() => {
+      // Active sleep: special tappable/pulsing pill that opens sleep controls.
+      const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
+      if (isActiveSleepPill && typeof onActiveSleepClick === 'function') {
+        return React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: (e) => {
+              try { e.preventDefault(); e.stopPropagation(); } catch {}
+              try { onActiveSleepClick(); } catch {}
+            },
+            className:
+              "inline-flex items-center px-3 py-1 rounded-lg whitespace-nowrap text-sm tt-tapable tt-sleep-progress-pulse",
+            style: {
+              backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
+              color: 'var(--tt-sleep)'
+            },
+            title: "Sleep controls",
+            'aria-label': "Sleep controls"
+          },
+          timelineStatusText
+        );
+      }
+
+      // Default v3 status pill (non-interactive)
+      return React.createElement(
         'span',
         {
           className: "inline-flex items-center px-3 py-1 rounded-lg whitespace-nowrap text-sm",
           style: { backgroundColor: timelineSubtleBg, color: 'var(--tt-text-secondary)' }
         },
         timelineStatusText
-      ),
+      );
+    })();
+
+    return renderDesign({
+      headerGapClass: 'gap-[3px]',                 // 3px
+      headerBottomMarginClass: 'mb-8',
+      headerLabelClassName: 'text-[20px] font-thin',
+      feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
+      sleepIconTransform: 'translateY(1px)',               // nudge moon down
+      headerRight: v3HeaderRight,
       progressTrackHeightClass: 'h-3',              // 50% of h-6
       progressTrackBg: 'var(--tt-subtle-surface)',
       showDotsRow: false,
