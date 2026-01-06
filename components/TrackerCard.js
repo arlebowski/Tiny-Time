@@ -252,6 +252,17 @@ function formatElapsedHmsTT(ms) {
   return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
 }
 
+// v3 number formatting:
+// - whole numbers: "7"
+// - non-whole: "7.3" (one decimal)
+function formatV3Number(n) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return '0';
+  const rounded = Math.round(x);
+  if (Math.abs(x - rounded) < 1e-9) return String(rounded);
+  return x.toFixed(1);
+}
+
 // Ensure tap animation styles are injected
 // Helper function to check if a sleep session overlaps with existing ones
 const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
@@ -1369,7 +1380,7 @@ const TrackerCard = ({
           transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
         }
       }, 
-        total !== null ? total.toFixed(1) : (mode === 'sleep' ? '0.0' : '0.0')
+        total !== null ? formatV3Number(total) : '0'
       );
 
       const targetEl = React.createElement('div', { 
@@ -1377,8 +1388,8 @@ const TrackerCard = ({
         style: { color: bigNumberTargetColor } 
       }, 
         target !== null 
-          ? (mode === 'sleep' ? `/ ${target.toFixed(1)} hrs` : `/ ${target.toFixed(1)} oz`)
-          : (mode === 'sleep' ? '/ 0.0 hrs' : '/ 0.0 oz')
+          ? (mode === 'sleep' ? `/ ${formatV3Number(target)} hrs` : `/ ${formatV3Number(target)} oz`)
+          : (mode === 'sleep' ? '/ 0 hrs' : '/ 0 oz')
       );
 
       const iconEl = (showBigNumberIcon && IconComp)

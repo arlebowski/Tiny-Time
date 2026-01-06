@@ -1092,6 +1092,17 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const s = Math.abs(Number(n || 0)).toFixed(1);
     return s.endsWith('.0') ? s.slice(0, -2) : s;
   };
+
+  // v3 card number formatting:
+  // - whole numbers: "7"
+  // - non-whole: "7.3" (one decimal)
+  const formatV3Number = (n) => {
+    const x = Number(n);
+    if (!Number.isFinite(x)) return '0';
+    const rounded = Math.round(x);
+    if (Math.abs(x - rounded) < 1e-9) return String(rounded);
+    return x.toFixed(1);
+  };
   const feedingDeltaLabel = `${feedingDeltaOz >= 0 ? '+' : '-'}${_fmtDelta(feedingDeltaOz)} oz`;
   const feedingDeltaIsGood = feedingDeltaOz >= 0;
   const sleepDeltaLabel = `${sleepDeltaHours >= 0 ? '+' : '-'}${_fmtDelta(sleepDeltaHours)} hrs`;
@@ -1353,12 +1364,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
               // Big number (moved above progress)
               React.createElement('div', { className: "flex items-baseline justify-between mb-2" },
                 React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-feed)' } },
-                  `${totalConsumed.toFixed(1)} `,
+                  `${formatV3Number(totalConsumed)} `,
                   React.createElement('span', { 
                     className: "text-base font-normal",
                     style: { color: 'var(--tt-text-secondary)' }
                   },
-                    `of ${targetOunces.toFixed(1)} oz`
+                    `of ${formatV3Number(targetOunces)} oz`
                   )
                 )
               ),
@@ -1381,11 +1392,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
 
               // Status text (moved below progress)
               React.createElement('div', { 
-                className: "text-xs",
+                className: "text-xs text-right",
                 style: { color: 'var(--tt-text-tertiary)' }
               },
                 lastFeeding 
-                  ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${lastFeedingAmount.toFixed(1)} oz)`
+                  ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${formatV3Number(lastFeedingAmount)} oz)`
                   : "No feedings yet"
               )
             ),
@@ -1444,12 +1455,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
               // Big number (moved above progress)
               React.createElement('div', { className: "flex items-baseline justify-between mb-2" },
                 React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-sleep)' } },
-                  `${sleepTotalHours.toFixed(1)} `,
+                  `${formatV3Number(sleepTotalHours)} `,
                   React.createElement('span', { 
                     className: "text-base font-normal",
                     style: { color: 'var(--tt-text-secondary)' }
                   },
-                    `of ${sleepTargetHours.toFixed(1)} hrs`
+                    `of ${formatV3Number(sleepTargetHours)} hrs`
                   )
                 )
               ),
@@ -1472,7 +1483,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
 
               // Status text (moved below progress)
               React.createElement('div', { 
-                className: "text-xs",
+                className: "text-xs text-right",
                 style: { color: 'var(--tt-text-tertiary)' }
               },
                 isCurrentlySleeping
@@ -2241,25 +2252,6 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       })
     )
     */
-
-    // Floating Create Button (above nav bar)
-    React.createElement('button', {
-      onClick: () => {
-        setInputSheetMode('feeding');
-        setShowInputSheet(true);
-      },
-      className: "fixed right-6 w-14 h-14 rounded-full shadow-lg flex items-center justify-center active:opacity-80 transition-opacity",
-      style: {
-        backgroundColor: 'var(--tt-feed)',
-        bottom: '100px', // 80px nav bar + 20px spacing = 100px
-        zIndex: 9999
-      }
-    },
-      window.PlusIcon ? React.createElement(window.PlusIcon, { 
-        className: "w-6 h-6 text-white",
-        style: { strokeWidth: '3' }
-      }) : React.createElement('span', { className: "text-white text-2xl font-bold" }, '+')
-    ),
 
     // Detail Sheet Instances
     window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {

@@ -422,9 +422,10 @@ const BACKGROUND_THEMES = {
       cardBorder: "rgba(255,255,255,0.10)"
     },
     "eggshell": {
-      appBg: "#0F0F10",
-      cardBg: "#1A1A1C",
-      cardBorder: "rgba(255,255,255,0.10)"
+      // Claude-inspired dark background palette
+      appBg: "#1C1C1C",      // --tt-bg-app
+      cardBg: "#202020",     // --tt-bg-surface
+      cardBorder: "#2E2E2E"  // --tt-border-subtle
     }
   }
 };
@@ -452,6 +453,7 @@ window.TT.applyAppearance = function(appearance) {
   // Get background theme
   const mode = darkMode ? 'dark' : 'light';
   const theme = BACKGROUND_THEMES[mode][background] || BACKGROUND_THEMES[mode]["health-gray"]; // FIX 2: mode-aware fallback
+  const isClaudeDark = !!darkMode && background === 'eggshell';
 
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
@@ -466,15 +468,42 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-card-bg', theme.cardBg);
     root.style.setProperty('--tt-card-border', theme.cardBorder);
 
-    // Input field backgrounds
-    root.style.setProperty('--tt-input-bg', darkMode ? '#2C2C2E' : '#f5f5f5');
-    // Subtle surface (used for log list items, pills, etc.)
-    root.style.setProperty('--tt-subtle-surface', darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)');
-
-    // Text colors
-    root.style.setProperty('--tt-text-primary', darkMode ? 'rgba(255,255,255,0.87)' : 'rgba(0,0,0,0.87)');
-    root.style.setProperty('--tt-text-secondary', darkMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)');
-    root.style.setProperty('--tt-text-tertiary', darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)');
+    // Input/surfaces/text (light unchanged; dark depends on selected background)
+    if (!darkMode) {
+      // Light mode (unchanged)
+      root.style.setProperty('--tt-input-bg', '#f5f5f5');
+      root.style.setProperty('--tt-subtle-surface', 'rgba(0,0,0,0.03)');
+      root.style.setProperty('--tt-text-primary', 'rgba(0,0,0,0.87)');
+      root.style.setProperty('--tt-text-secondary', 'rgba(0,0,0,0.60)');
+      root.style.setProperty('--tt-text-tertiary', 'rgba(0,0,0,0.38)');
+      // Optional additional tokens for future dark variants
+      root.style.setProperty('--tt-text-disabled', 'rgba(0,0,0,0.28)');
+      root.style.setProperty('--tt-bg-hover', 'rgba(0,0,0,0.03)');
+      root.style.setProperty('--tt-border-subtle', 'rgba(0,0,0,0.08)');
+      root.style.setProperty('--tt-border-strong', 'rgba(0,0,0,0.16)');
+    } else if (isClaudeDark) {
+      // Dark mode: Claude-inspired palette (mapped to existing TT vars)
+      root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
+      root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
+      root.style.setProperty('--tt-text-primary', '#EDEDED');
+      root.style.setProperty('--tt-text-secondary', '#B3B3B3');
+      root.style.setProperty('--tt-text-tertiary', '#8A8A8A');
+      root.style.setProperty('--tt-text-disabled', '#6F6F6F');
+      root.style.setProperty('--tt-bg-hover', '#2A2A2A');
+      root.style.setProperty('--tt-border-subtle', '#2E2E2E');
+      root.style.setProperty('--tt-border-strong', '#3A3A3A');
+    } else {
+      // Dark mode: existing palette (current behavior)
+      root.style.setProperty('--tt-input-bg', '#2C2C2E');
+      root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-text-primary', 'rgba(255,255,255,0.87)');
+      root.style.setProperty('--tt-text-secondary', 'rgba(255,255,255,0.60)');
+      root.style.setProperty('--tt-text-tertiary', 'rgba(255,255,255,0.38)');
+      root.style.setProperty('--tt-text-disabled', 'rgba(255,255,255,0.26)');
+      root.style.setProperty('--tt-bg-hover', 'rgba(255,255,255,0.08)');
+      root.style.setProperty('--tt-border-subtle', 'rgba(255,255,255,0.10)');
+      root.style.setProperty('--tt-border-strong', 'rgba(255,255,255,0.16)');
+    }
 
     // Feed accents
     root.style.setProperty('--tt-feed', sanitizedFeedAccent);
@@ -2353,7 +2382,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 ),
                 React.createElement(ChevronDown, {
                   className: "w-5 h-5 ml-2",
-                  style: { color: theme.accent }
+                  style: { color: 'var(--tt-text-tertiary)' }
                 })
               ),
 
@@ -2587,6 +2616,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         style: {
           backgroundColor: "var(--tt-app-bg)",
           boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
+          // Make the bar a bit taller without moving its contents (including the +):
+          // increasing height pushes the top up, and matching paddingTop pushes contents back down.
+          paddingTop: '10px',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
       },
@@ -2609,7 +2641,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'tracker' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'tracker' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
                 React.createElement(BarChart, { className: "w-6 h-6" }),
                 React.createElement('span', { className: "text-xs font-medium" }, 'Tracker')
@@ -2625,7 +2660,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'analytics' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'analytics' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
                 React.createElement(TrendingUp, { className: "w-6 h-6" }),
                 React.createElement('span', { className: "text-xs font-medium" }, 'Analytics')
@@ -2662,7 +2700,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'chat' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'chat' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
                 React.createElement(MessageCircle, { className: "w-6 h-6" }),
                 React.createElement('span', { className: "text-xs font-medium" }, 'AI Chat')
@@ -2678,7 +2719,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'family' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'family' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
                 React.createElement(Users, { className: "w-6 h-6" }),
                 React.createElement('span', { className: "text-xs font-medium" }, 'Family')
