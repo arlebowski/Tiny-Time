@@ -383,7 +383,7 @@ function ensureTapAnimationStyles() {
   document.head.appendChild(style);
 }
 
-const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, onClick = null, onActiveSleepClick = null, onDelete = null }) => {
+const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOverride = null, onClick = null, onActiveSleepClick = null, onDelete = null }) => {
   if (!entry) return null;
   
   const isSleep = mode === 'sleep';
@@ -516,17 +516,34 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, onClic
         style: { ...iconStyle, width: '2.25rem', height: '2.25rem', strokeWidth: '3' } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px) + 0.5 stroke
       }) : React.createElement('div', { style: { width: '2.25rem', height: '2.25rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
     } else {
+      // In v3 we override the feeding icon with the masked PNG bottle (already mirrored to point right).
+      const OverrideIcon = iconOverride || null;
       const Bottle2Icon = window.TT?.shared?.icons?.Bottle2 || null;
       const accentColor = 'var(--tt-feed)';
-      return Bottle2Icon ? React.createElement(Bottle2Icon, {
+      if (OverrideIcon) {
+        return React.createElement(OverrideIcon, {
+          style: {
+            color: accentColor,
+            width: '2.25rem',
+            height: '2.25rem'
+          }
+        });
+      }
+      // If we’re using the SVG bottle, mirror it with an outer wrapper so it works reliably everywhere.
+      const bottleEl = Bottle2Icon ? React.createElement(Bottle2Icon, {
         style: {
           color: accentColor,
           width: '2.25rem',
           height: '2.25rem',
-          strokeWidth: '3',
-          ...(mirrorFeedingIcon ? { transform: 'scaleX(-1)' } : null)
+          strokeWidth: '3'
         } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px) + 0.5 stroke
-      }) : React.createElement('div', { style: { width: '2.25rem', height: '2.25rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
+      }) : null;
+      if (bottleEl) {
+        return mirrorFeedingIcon
+          ? React.createElement('span', { style: { display: 'inline-block', transform: 'scaleX(-1)', transformOrigin: 'center' } }, bottleEl)
+          : bottleEl;
+      }
+      return React.createElement('div', { style: { width: '2.25rem', height: '2.25rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
     }
   };
   
@@ -1485,6 +1502,7 @@ const TrackerCard = ({
                   entry,
                   mode,
                   mirrorFeedingIcon: timelineVariant === 'v3',
+                  iconOverride: iconOverride,
                   onClick: onItemClick,
                   onDelete: onDelete
                 })
