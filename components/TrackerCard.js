@@ -383,7 +383,7 @@ function ensureTapAnimationStyles() {
   document.head.appendChild(style);
 }
 
-const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClick = null, onDelete = null }) => {
+const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, onClick = null, onActiveSleepClick = null, onDelete = null }) => {
   if (!entry) return null;
   
   const isSleep = mode === 'sleep';
@@ -431,6 +431,23 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     return `${hours}:${mins}${ampm}`;
   };
 
+  const isSameLocalDay = (a, b) => {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  };
+
+  const isYesterdayLocal = (timestamp) => {
+    if (!timestamp) return false;
+    const d = new Date(timestamp);
+    const now = new Date();
+    const y = new Date(now);
+    y.setDate(now.getDate() - 1);
+    return isSameLocalDay(d, y);
+  };
+
   // Format duration with seconds for active sleep
   const formatDurationWithSeconds = (ms) => {
     return formatElapsedHmsTT(ms).str;
@@ -471,7 +488,7 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
     ? (entry.startTime && entry.endTime 
         ? `${formatTime12Hour(entry.startTime)} – ${formatTime12Hour(entry.endTime)}`
         : entry.startTime 
-          ? `${formatTime12Hour(entry.startTime)} – in progress`
+          ? `${(entry.isActive && isYesterdayLocal(entry.startTime)) ? 'YD ' : ''}${formatTime12Hour(entry.startTime)} – in progress`
           : '')
     : (entry.timestamp ? formatTime12Hour(entry.timestamp) : '');
 
@@ -502,7 +519,13 @@ const TimelineItem = ({ entry, mode = 'sleep', onClick = null, onActiveSleepClic
       const Bottle2Icon = window.TT?.shared?.icons?.Bottle2 || null;
       const accentColor = 'var(--tt-feed)';
       return Bottle2Icon ? React.createElement(Bottle2Icon, {
-        style: { color: accentColor, width: '2.25rem', height: '2.25rem', strokeWidth: '3' } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px) + 0.5 stroke
+        style: {
+          color: accentColor,
+          width: '2.25rem',
+          height: '2.25rem',
+          strokeWidth: '3',
+          ...(mirrorFeedingIcon ? { transform: 'scaleX(-1)' } : null)
+        } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px) + 0.5 stroke
       }) : React.createElement('div', { style: { width: '2.25rem', height: '2.25rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
     }
   };
@@ -1216,6 +1239,7 @@ const TrackerCard = ({
     headerIconClassName = 'h-8 w-8',
     feedingIconTransform = 'translateY(-2px)',
     sleepIconTransform = 'none',
+    mirrorFeedingIcon = false,
     showHeaderIcon = true,                   // show icon in header left
     headerRight = null,                      // optional right-side content in header row
     showBigNumberIcon = false,               // show icon inline with the big number row
@@ -1236,6 +1260,13 @@ const TrackerCard = ({
     timelineVariant = 'v2'                    // 'v2' | 'v3' (v3 uses pill + no bullet)
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
+    const withFeedingMirror = (t) => {
+      const s = (t || '').trim();
+      if (s.includes('scaleX(-1)')) return s;
+      if (!s || s === 'none') return 'scaleX(-1)';
+      return `scaleX(-1) ${s}`;
+    };
+    const effectiveFeedingTransform = mirrorFeedingIcon ? withFeedingMirror(feedingIconTransform) : feedingIconTransform;
     return React.createElement(
     'div',
     { 
@@ -1256,7 +1287,7 @@ const TrackerCard = ({
               className: headerIconClassName,
               style: { 
                 color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-                transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
+                transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
                 strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
               }
             }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
@@ -1294,7 +1325,7 @@ const TrackerCard = ({
             className: bigNumberIconClassName || headerIconClassName,
             style: { 
               color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-              transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
+              transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
               strokeWidth: '3'
             }
           })
@@ -1415,6 +1446,7 @@ const TrackerCard = ({
                 React.createElement(TimelineItem, { 
                   entry,
                   mode,
+                  mirrorFeedingIcon: timelineVariant === 'v3',
                   onClick: onItemClick,
                   onDelete: onDelete
                 })
@@ -1449,25 +1481,100 @@ const TrackerCard = ({
     const V3Icon = React.useMemo(() => {
       return function V3IconComponent(props) {
         const [failed, setFailed] = React.useState(false);
+        // Prefer CSS mask tinting (works great for silhouette PNGs) so icons can use accent tokens.
+        // Fall back to SVG if mask isn't supported or if PNG fails to load.
+        const canMask = (() => {
+          try {
+            if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+            // Safari uses -webkit-mask-image; other browsers support mask-image.
+            return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
+          } catch {
+            return false;
+          }
+        })();
+
+        // Preload the PNG so we can fall back cleanly if the file is missing.
+        React.useEffect(() => {
+          let cancelled = false;
+          try { setFailed(false); } catch {}
+          try {
+            const img = new Image();
+            img.onload = () => { /* noop */ };
+            img.onerror = () => { if (!cancelled) setFailed(true); };
+            img.src = v3IconSrc;
+          } catch {
+            if (!cancelled) setFailed(true);
+          }
+          return () => { cancelled = true; };
+        }, [v3IconSrc]);
+
         if (failed || !v3IconSrc) {
           return v3IconSvg ? React.createElement(v3IconSvg, props) : null;
         }
         const { style, alt, ...rest } = props || {};
-        const mergedStyle = { ...(style || {}), objectFit: 'contain' };
-        // Ensure feeding PNG is mirrored even if caller forgets to pass a transform.
-        if (mode === 'feeding' && !mergedStyle.transform) {
-          mergedStyle.transform = 'scaleX(-1)';
+        const baseStyle = { ...(style || {}) };
+        const withFeedingMirror = (t) => {
+          const s = (t || '').trim();
+          if (s.includes('scaleX(-1)')) return s;
+          if (!s || s === 'none') return 'scaleX(-1)';
+          return `scaleX(-1) ${s}`;
+        };
+        // Ensure feeding icon is always mirrored, regardless of caller transform.
+        if (mode === 'feeding') {
+          baseStyle.transform = withFeedingMirror(baseStyle.transform);
+          baseStyle.WebkitTransform = baseStyle.transform; // extra-safe for iOS Safari
+          baseStyle.transformOrigin = baseStyle.transformOrigin || 'center';
+          baseStyle.WebkitTransformOrigin = baseStyle.WebkitTransformOrigin || 'center';
         }
-        return React.createElement('img', {
-          ...rest,
-          src: v3IconSrc,
-          alt: alt || '',
-          draggable: false,
-          decoding: 'async',
-          loading: 'eager',
-          style: mergedStyle,
-          onError: () => setFailed(true)
-        });
+
+        const tintColor = baseStyle.color || 'currentColor';
+
+        if (canMask) {
+          // Safari can be finicky about transforms on elements that also have -webkit-mask-image.
+          // To make mirroring 100% reliable, apply transforms on an outer wrapper and keep the mask on an inner span.
+          const { transform, WebkitTransform, transformOrigin, WebkitTransformOrigin, ...innerBase } = baseStyle;
+
+          const outerStyle = {
+            ...innerBase,
+            display: 'inline-block',
+            // keep transforms only on outer wrapper
+            ...(transform ? { transform } : null),
+            ...(WebkitTransform ? { WebkitTransform } : null),
+            ...(transformOrigin ? { transformOrigin } : null),
+            ...(WebkitTransformOrigin ? { WebkitTransformOrigin } : null)
+          };
+
+          const innerStyle = {
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            backgroundColor: tintColor,
+            // CSS mask (tints the silhouette)
+            WebkitMaskImage: `url("${v3IconSrc}")`,
+            WebkitMaskRepeat: 'no-repeat',
+            WebkitMaskSize: 'contain',
+            WebkitMaskPosition: 'center',
+            maskImage: `url("${v3IconSrc}")`,
+            maskRepeat: 'no-repeat',
+            maskSize: 'contain',
+            maskPosition: 'center'
+          };
+
+          return React.createElement(
+            'span',
+            {
+              ...rest,
+              'aria-hidden': alt ? undefined : true,
+              role: alt ? 'img' : undefined,
+              'aria-label': alt || undefined,
+              style: outerStyle
+            },
+            React.createElement('span', { style: innerStyle })
+          );
+        }
+
+        // No mask support: fall back to SVG (keeps accent colors via currentColor).
+        return v3IconSvg ? React.createElement(v3IconSvg, props) : null;
       };
     }, [mode, v3IconSrc, v3IconSvg]);
 
@@ -1566,10 +1673,12 @@ const TrackerCard = ({
       iconOverride: V3Icon,
       feedingIconTransform: 'scaleX(-1)',                  // mirror bottle, no vertical offset (works for PNG + SVG)
       sleepIconTransform: 'none',                           // no offset
+      mirrorFeedingIcon: true,
       showHeaderIcon: false,
       headerRight: null,
       showBigNumberIcon: true,
-      bigNumberIconClassName: 'h-[40px] w-[40px]',
+      // Per-mode sizing: bottle 5% smaller than 40px (=38px), moon 10% smaller (=36px)
+      bigNumberIconClassName: mode === 'feeding' ? 'h-[38px] w-[38px]' : 'h-[36px] w-[36px]',
       bigNumberRight: null,
       bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
       bigNumberValueClassName: "text-[36px] leading-none font-bold",
