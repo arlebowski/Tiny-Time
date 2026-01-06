@@ -780,6 +780,24 @@ const firestoreStorage = {
     });
   },
 
+  _dataUrlToBlob(base64DataUrl) {
+    // Avoid fetch(data:) — it’s flaky in some iOS/PWA contexts.
+    if (!base64DataUrl || typeof base64DataUrl !== 'string') {
+      throw new Error("_dataUrlToBlob: missing data URL");
+    }
+    const commaIdx = base64DataUrl.indexOf(',');
+    if (commaIdx < 0) throw new Error("_dataUrlToBlob: invalid data URL");
+    const meta = base64DataUrl.slice(0, commaIdx);
+    const b64 = base64DataUrl.slice(commaIdx + 1);
+    const mimeMatch = meta.match(/data:([^;]+);base64/i);
+    const mime = (mimeMatch && mimeMatch[1]) ? mimeMatch[1] : 'application/octet-stream';
+    const bin = atob(b64);
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  },
+
   async uploadFeedingPhoto(base64DataUrl) {
     if (!base64DataUrl || typeof base64DataUrl !== "string") {
       throw new Error("uploadFeedingPhoto: missing base64 data URL");
@@ -788,12 +806,17 @@ const firestoreStorage = {
       throw new Error("Storage not initialized");
     }
     
-    // Compress image before upload
-    const compressedBase64 = await this._compressImage(base64DataUrl, 1200);
-    
-    // Convert base64 to blob
-    const response = await fetch(compressedBase64);
-    const blob = await response.blob();
+    // Compress image before upload (fallback to original on failure)
+    let compressedBase64 = base64DataUrl;
+    try {
+      compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+    } catch (e) {
+      // If compression fails (e.g., codec issues), upload the original.
+      compressedBase64 = base64DataUrl;
+    }
+
+    // Convert base64 to blob (robust across iOS/PWA)
+    const blob = this._dataUrlToBlob(compressedBase64);
     
     // Generate unique photo ID
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -801,7 +824,7 @@ const firestoreStorage = {
     
     // Upload to Firebase Storage
     const storageRef = storage.ref().child(storagePath);
-    await storageRef.put(blob);
+    await storageRef.put(blob, { contentType: blob.type || 'image/jpeg' });
     
     // Get download URL
     const downloadURL = await storageRef.getDownloadURL();
@@ -816,12 +839,16 @@ const firestoreStorage = {
       throw new Error("Storage not initialized");
     }
     
-    // Compress image before upload
-    const compressedBase64 = await this._compressImage(base64DataUrl, 1200);
-    
-    // Convert base64 to blob
-    const response = await fetch(compressedBase64);
-    const blob = await response.blob();
+    // Compress image before upload (fallback to original on failure)
+    let compressedBase64 = base64DataUrl;
+    try {
+      compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+    } catch (e) {
+      compressedBase64 = base64DataUrl;
+    }
+
+    // Convert base64 to blob (robust across iOS/PWA)
+    const blob = this._dataUrlToBlob(compressedBase64);
     
     // Generate unique photo ID
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -829,7 +856,7 @@ const firestoreStorage = {
     
     // Upload to Firebase Storage
     const storageRef = storage.ref().child(storagePath);
-    await storageRef.put(blob);
+    await storageRef.put(blob, { contentType: blob.type || 'image/jpeg' });
     
     // Get download URL
     const downloadURL = await storageRef.getDownloadURL();

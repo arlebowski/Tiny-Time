@@ -332,6 +332,11 @@ function ensureTapAnimationStyles() {
     .dark .tt-tapable::before {
       background: rgba(255, 255, 255, 0.1);
     }
+
+    /* Consistent placeholder color across inputs/textareas */
+    .tt-placeholder-tertiary::placeholder { color: var(--tt-text-tertiary); }
+    .tt-placeholder-tertiary::-webkit-input-placeholder { color: var(--tt-text-tertiary); }
+    .tt-placeholder-tertiary::-ms-input-placeholder { color: var(--tt-text-tertiary); }
     
     /* Timeline item animations */
     @keyframes slideInDown {
@@ -1312,7 +1317,8 @@ const TrackerCard = ({
     progressBottomMarginClass = 'mb-3',       // spacing after progress bar
     dividerMarginClass = 'my-4',              // divider spacing
     timelineTextColor = 'var(--tt-text-secondary)',
-    timelineVariant = 'v2'                    // 'v2' | 'v3' (v3 uses pill + no bullet)
+    timelineVariant = 'v2',                   // 'v2' | 'v3' (v3 uses pill + no bullet)
+    timelineCountPill = null                 // optional v3 pill shown inline next to "Timeline"
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
     const withFeedingMirror = (t) => {
@@ -1463,12 +1469,13 @@ const TrackerCard = ({
         timelineVariant === 'v3'
           ? React.createElement(
               'span',
-              { className: "flex items-center" },
+              { className: "flex items-center gap-3" },
               React.createElement(
                 'span',
                 { className: "font-normal", style: { color: timelineTextColor } },
                 'Timeline'
-              )
+              ),
+              timelineCountPill
             )
           : timelineLabel
       ),
@@ -1728,6 +1735,7 @@ const TrackerCard = ({
       showBigNumberIcon: true,
       // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px)
       bigNumberIconClassName: mode === 'feeding' ? 'h-[32.49px] w-[32.49px]' : 'h-[30.78px] w-[30.78px]',
+      // v3: big-number row is just icon + number + target (left-aligned)
       bigNumberRight: null,
       bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
       // Icons were matched; add +1px only for sleep (moon) per request.
@@ -1738,13 +1746,16 @@ const TrackerCard = ({
       // 12px * 1.2 = 14.4px
       progressTrackHeightClass: 'h-[14.4px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
-      statusRow: v3StatusRow,
-      statusRowClassName: "mt-[13px] mb-4",
+      // v3: "Last ate/woke" pill below the progress bar, left-aligned with the bar.
+      // Add a touch more breathing room on small screens to avoid looking like it collides with the big number.
+      statusRow: v3HeaderRight,
+      statusRowClassName: "mt-4 mb-4 flex justify-start",
       showDotsRow: false,
       progressBottomMarginClass: 'mb-0',
       dividerMarginClass: 'my-4',
       timelineTextColor: 'var(--tt-text-tertiary)',
-      timelineVariant: 'v3'
+      timelineVariant: 'v3',
+      timelineCountPill: v3CountPill
     });
   };
 
@@ -2260,7 +2271,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 },
                 placeholder: placeholder,
                 rows: 1,
-                className: "text-base font-normal w-full outline-none resize-none",
+                className: "tt-placeholder-tertiary text-base font-normal w-full outline-none resize-none",
                 style: { background: 'transparent', maxHeight: '4.5rem', overflowY: 'auto', color: 'var(--tt-text-primary)' }
               }
             )
@@ -2283,12 +2294,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                   }
                 },
                 placeholder: placeholder,
-                className: `text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
+                className: `tt-placeholder-tertiary text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
                 style: { 
                   background: 'transparent', 
                   color: invalid 
                     ? undefined 
-                    : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-secondary)' : 'var(--tt-text-primary)')
+                    : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
                 },
                 readOnly: type === 'datetime'
               }
@@ -2412,11 +2423,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            setPhotos([...photos, event.target.result]);
+            setPhotos((prev) => [...(prev || []), event.target.result]);
+            try { document.body.removeChild(input); } catch {}
           };
           reader.readAsDataURL(file);
+        } else {
+          try { document.body.removeChild(input); } catch {}
         }
       };
+      // iOS Safari/PWA: input needs to be in the DOM to reliably open the picker.
+      try { document.body.appendChild(input); } catch {}
       input.click();
     };
 
@@ -2807,11 +2823,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            setPhotos([...photos, event.target.result]);
+            setPhotos((prev) => [...(prev || []), event.target.result]);
+            try { document.body.removeChild(input); } catch {}
           };
           reader.readAsDataURL(file);
+        } else {
+          try { document.body.removeChild(input); } catch {}
         }
       };
+      try { document.body.appendChild(input); } catch {}
       input.click();
     };
 
@@ -3157,7 +3177,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       } catch (e) {
         // Ignore errors
       }
-      return null;
+      // Default to "now" so the sleep sheet has a valid, editable start time
+      // before the user taps Start Sleep. This also makes the sheet height measurement
+      // stable across Feed/Sleep toggles (no surprise growth on first toggle).
+      return new Date().toISOString();
     };
     
     const [mode, setMode] = React.useState(getInitialMode()); // 'feeding' | 'sleep'
@@ -3180,6 +3203,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [endTime, setEndTime] = React.useState(null); // ISO string
     const [sleepNotes, setSleepNotes] = React.useState('');
     const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
+    // Pre-start preview timer tick (lets the user set a start time BEFORE starting sleep and see elapsed update)
+    const [sleepPreviewNowMs, setSleepPreviewNowMs] = React.useState(() => Date.now());
+    // Only start the *preview ticking* after the user explicitly edits the start time.
+    // This avoids the feeling that toggling to Sleep "started the timer".
+    const [sleepStartTimeTouched, setSleepStartTimeTouched] = React.useState(false);
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
     const sleepIntervalRef = React.useRef(null);
     const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
@@ -3194,11 +3222,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Refs for measuring both content heights
     const feedingContentRef = React.useRef(null);
     const sleepContentRef = React.useRef(null);
+    const ctaFooterRef = React.useRef(null);
     const [resolvedSheetHeight, setResolvedSheetHeight] = React.useState(null);
     const lockedSheetHeightPxRef = React.useRef(null); // keep CTA position stable across toggles/updates
     
-    // Reserve space so the bottom CTA button stays in the same visual spot across modes
-    const CTA_SPACER_PX = 86; // button height (py-3 = 12px top + 12px bottom + text line height ~20px) + mt-4 (16px) + padding
+    // Reserve space so the bottom CTA button stays in the same visual spot across modes.
+    // Also keep content scrolled above the CTA when it is offset upward.
+    const CTA_BOTTOM_OFFSET_PX = 30;
+    const CTA_SPACER_PX = 86 + CTA_BOTTOM_OFFSET_PX; // base + offset
     
     const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
       if (!startMs) return null;
@@ -3287,11 +3318,26 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }
       };
     }, [sleepState, startTime]);
+
+    // Pre-start preview ticking:
+    // When the user has picked a start time but hasn't started the sleep yet, keep the timer display updating.
+    React.useEffect(() => {
+      if (!isOpen) return;
+      if (mode !== 'sleep') return;
+      if (sleepState === 'running') return;
+      if (!sleepStartTimeTouched) return;
+      if (!startTime || endTime) return;
+
+      setSleepPreviewNowMs(Date.now());
+      const id = setInterval(() => setSleepPreviewNowMs(Date.now()), 1000);
+      return () => clearInterval(id);
+    }, [isOpen, mode, sleepState, sleepStartTimeTouched, startTime, endTime]);
     
     // Detect keyboard state using visualViewport to hide sticky button when keyboard is open
     React.useEffect(() => {
       if (!isOpen) {
         setIsKeyboardOpen(false);
+        setSleepStartTimeTouched(false);
         return;
       }
       
@@ -3361,11 +3407,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         if (file) {
           const reader = new FileReader();
           reader.onload = (event) => {
-            setPhotos([...photos, event.target.result]);
+            setPhotos((prev) => [...(prev || []), event.target.result]);
+            try { document.body.removeChild(input); } catch {}
           };
           reader.readAsDataURL(file);
+        } else {
+          try { document.body.removeChild(input); } catch {}
         }
       };
+      try { document.body.appendChild(input); } catch {}
       input.click();
     };
 
@@ -3562,6 +3612,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Timer will recalculate via useEffect dependency on startTime
       } else {
         // Other states: Just update start time
+        setSleepStartTimeTouched(true);
         setStartTime(newStartTime);
       }
     };
@@ -3752,9 +3803,24 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Helper function to render sleep content
     const renderSleepContent = () => {
       // Calculate timer display (apply shared formatting rules)
-      const displayMs = sleepState === 'running'
-        ? sleepElapsedMs
-        : ((Number(duration.hours || 0) * 3600000) + (Number(duration.minutes || 0) * 60000) + (Number(duration.seconds || 0) * 1000));
+      const displayMs = (() => {
+        if (sleepState === 'running') return sleepElapsedMs;
+
+        // Pre-start preview: show elapsed from chosen startTime to "now"
+        // (only when endTime isn't set yet)
+        if (sleepStartTimeTouched && startTime && !endTime) {
+          const rawStartMs = new Date(startTime).getTime();
+          const startMs = _normalizeSleepStartMs(rawStartMs, sleepPreviewNowMs);
+          return startMs ? Math.max(0, sleepPreviewNowMs - startMs) : 0;
+        }
+
+        // Completed / idle-with-times: show duration from start/end
+        return (
+          (Number(duration.hours || 0) * 3600000) +
+          (Number(duration.minutes || 0) * 60000) +
+          (Number(duration.seconds || 0) * 1000)
+        );
+      })();
       const tParts = formatElapsedHmsTT(displayMs);
       
       // Time fields are always editable (even in RUNNING state)
@@ -3880,7 +3946,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Measure content heights (scrollHeight includes all content)
           const feedingHeight = feedingContentRef.current.scrollHeight;
           const sleepHeight = sleepContentRef.current.scrollHeight;
-          const maxContentHeight = Math.max(feedingHeight, sleepHeight);
+          // Include shared sticky CTA footer height (it lives outside the per-mode refs)
+          // so our fixedHeight matches what the actual sheet content requires.
+          const footerHeight = ctaFooterRef.current
+            ? (ctaFooterRef.current.offsetHeight || ctaFooterRef.current.scrollHeight || 0)
+            : 0;
+          const maxContentHeight = Math.max(feedingHeight, sleepHeight) + footerHeight;
           
           // Get viewport height for capping
           const vv = window.visualViewport;
@@ -3919,12 +3990,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     }, [isOpen, ounces, feedingNotes, photos, startTime, endTime, sleepNotes, sleepState]);
 
     // Body content - render both for measurement, show one based on mode
+    // IMPORTANT: Make the body a full-height flex column so the CTA stays locked to the bottom
+    // even when one mode's content is shorter.
     const bodyContent = React.createElement(
-      React.Fragment,
-      null,
+      'div',
+      { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
       // Wrapper to ensure proper clipping of absolutely positioned children
       React.createElement('div', {
-        style: { position: 'relative', overflow: 'hidden', width: '100%' }
+        style: { position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: 0 }
       },
         // Feeding content (hidden when not active, but rendered for measurement)
         React.createElement('div', {
@@ -3938,10 +4011,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             left: 0,
             right: 0,
             opacity: 0,
+            visibility: 'hidden',
             pointerEvents: 'none',
-            zIndex: -1,
-            height: 'auto',
-            overflow: 'hidden'
+            height: 'auto'
           }
         }, renderFeedingContent()),
         
@@ -3957,10 +4029,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             left: 0,
             right: 0,
             opacity: 0,
+            visibility: 'hidden',
             pointerEvents: 'none',
-            zIndex: -1,
-            height: 'auto',
-            overflow: 'hidden'
+            height: 'auto'
           }
         }, renderSleepContent())
       ),
@@ -3968,11 +4039,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)
       // Hide when keyboard is open to prevent overlap with keyboard
       React.createElement('div', {
+      ref: ctaFooterRef,
         className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
         style: { 
           zIndex: 10,
           backgroundColor: 'var(--tt-card-bg)',
-          display: isKeyboardOpen ? 'none' : 'block'
+          display: isKeyboardOpen ? 'none' : 'block',
+          bottom: `${CTA_BOTTOM_OFFSET_PX}px`
         }
       },
         mode === 'feeding'
@@ -4001,7 +4074,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               onMouseLeave: (e) => {
                 e.target.style.backgroundColor = 'var(--tt-sleep)';
               }
-            }, sleepState === 'running' ? 'End Sleep' : 'Start Sleep')
+            }, sleepState === 'running' ? 'Stop timer' : 'Start Sleep')
       ),
 
       // Full-size photo modal (shared for both modes)

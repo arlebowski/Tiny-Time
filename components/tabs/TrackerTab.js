@@ -1185,7 +1185,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       className: "date-nav-container",
       style: {
         backgroundColor: 'var(--tt-app-bg)', // Match header background
-        padding: '16px 20px',
+        // Match the horizontal inset used by the cards (`script.js` page content uses `px-4` = 16px)
+        padding: '16px 16px',
         position: 'sticky',
         top: 0,
         zIndex: 100,
@@ -1199,8 +1200,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          maxWidth: '600px',
-          margin: '0 auto',
+          // Match TrackerCards: full available width within the tab content.
+          width: '100%',
           backgroundColor: dateNavTrackBg, // tokenized for dark mode
           padding: '8px 16px',
           borderRadius: '12px' // rounded-xl (matches toggle)
@@ -1290,108 +1291,299 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         }
       }),
       
-      // Old Today Card (copied for reference - shows smooth transitions)
-      // Only show if feature flag is enabled
-      showTodayCard && React.createElement('div', { 
-        ref: cardRefCallback, 
-        className: "rounded-2xl shadow-sm p-6",
-        style: { backgroundColor: 'var(--tt-card-bg)' }
-      },
-        // Feeding Progress
-        React.createElement('div', { className: "mb-8" },
-          React.createElement('div', { className: "flex items-center justify-between mb-2" },
-            React.createElement('div', { 
-              className: "text-sm font-medium",
-              style: { color: 'var(--tt-text-secondary)' }
-            }, "Feeding"),
-            React.createElement('div', { 
-              className: "text-xs",
-              style: { color: 'var(--tt-text-tertiary)' }
-            },
-              lastFeeding 
-                ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${lastFeedingAmount.toFixed(1)} oz)`
-                : "No feedings yet"
-            )
-          ),
-          
-          // Progress Bar
-          React.createElement('div', { 
-            className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
-            style: { backgroundColor: 'var(--tt-input-bg)' }
+      // Today Card (New UI) — split v2 vs v3 so v3 can be edited independently.
+      // Only show if feature flag is enabled.
+      showTodayCard && (uiVersion === 'v3'
+        ? React.createElement('div', { 
+            ref: cardRefCallback, 
+            className: "rounded-2xl shadow-sm p-6",
+            style: { backgroundColor: 'var(--tt-card-bg)' }
           },
-            React.createElement('div', {
-              className: "absolute left-0 top-0 h-full rounded-2xl",
-              style: {
-                width: cardVisible ? `${Math.min(100, feedingPercent)}%` : '0%',
-                background: 'var(--tt-feed)',
-                transition: 'width 0.6s ease-out',
-                transitionDelay: '0s'
-              }
-            })
-          ),
+            // Feeding Progress (v3)
+            React.createElement('div', { className: "mb-8" },
+              // Icon + label
+              React.createElement('div', { className: "flex items-center mb-2" },
+                React.createElement('div', { 
+                  className: "text-sm font-medium inline-flex items-center gap-2",
+                  style: { color: 'var(--tt-feed)' }
+                },
+                  (() => {
+                    const v3Src = 'assets/ui-icons/bottle-main-right-v3@3x.png';
+                    const v3Svg =
+                      (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-main"]) ||
+                      (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
+                      null;
+                    const canMask = (() => {
+                      try {
+                        if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+                        return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
+                      } catch {
+                        return false;
+                      }
+                    })();
+                    if (canMask) {
+                      return React.createElement(
+                        'span',
+                        { style: { width: 18, height: 18, display: 'inline-block' } },
+                        React.createElement('span', {
+                          style: {
+                            width: '100%',
+                            height: '100%',
+                            display: 'block',
+                            backgroundColor: 'var(--tt-feed)',
+                            WebkitMaskImage: `url("${v3Src}")`,
+                            WebkitMaskRepeat: 'no-repeat',
+                            WebkitMaskSize: 'contain',
+                            WebkitMaskPosition: 'center',
+                            maskImage: `url("${v3Src}")`,
+                            maskRepeat: 'no-repeat',
+                            maskSize: 'contain',
+                            maskPosition: 'center'
+                          }
+                        })
+                      );
+                    }
+                    // Fallback: SVG if mask isn't supported
+                    return v3Svg ? React.createElement(v3Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-feed)', strokeWidth: '3' } }) : null;
+                  })(),
+                  React.createElement('span', null, "Feeding")
+                )
+              ),
 
-          // Stats
-          React.createElement('div', { className: "flex items-baseline justify-between" },
-            React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-feed)' } },
-              `${totalConsumed.toFixed(1)} `,
-              React.createElement('span', { 
-                className: "text-base font-normal",
-                style: { color: 'var(--tt-text-secondary)' }
+              // Big number (moved above progress)
+              React.createElement('div', { className: "flex items-baseline justify-between mb-2" },
+                React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-feed)' } },
+                  `${totalConsumed.toFixed(1)} `,
+                  React.createElement('span', { 
+                    className: "text-base font-normal",
+                    style: { color: 'var(--tt-text-secondary)' }
+                  },
+                    `of ${targetOunces.toFixed(1)} oz`
+                  )
+                )
+              ),
+              
+              // Progress Bar
+              React.createElement('div', { 
+                className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+                style: { backgroundColor: 'var(--tt-input-bg)' }
               },
-                `of ${targetOunces.toFixed(1)} oz`
+                React.createElement('div', {
+                  className: "absolute left-0 top-0 h-full rounded-2xl",
+                  style: {
+                    width: cardVisible ? `${Math.min(100, feedingPercent)}%` : '0%',
+                    background: 'var(--tt-feed)',
+                    transition: 'width 0.6s ease-out',
+                    transitionDelay: '0s'
+                  }
+                })
+              ),
+
+              // Status text (moved below progress)
+              React.createElement('div', { 
+                className: "text-xs",
+                style: { color: 'var(--tt-text-tertiary)' }
+              },
+                lastFeeding 
+                  ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${lastFeedingAmount.toFixed(1)} oz)`
+                  : "No feedings yet"
+              )
+            ),
+
+            // Sleep Progress (v3)
+            React.createElement('div', {},
+              // Icon + label
+              React.createElement('div', { className: "flex items-center mb-2" },
+                React.createElement('div', { 
+                  className: "text-sm font-medium inline-flex items-center gap-2",
+                  style: { color: 'var(--tt-sleep)' }
+                },
+                  (() => {
+                    const v3Src = 'assets/ui-icons/moon-main@3x.png';
+                    const v3Svg =
+                      (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-main"]) ||
+                      (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
+                      null;
+                    const canMask = (() => {
+                      try {
+                        if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+                        return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
+                      } catch {
+                        return false;
+                      }
+                    })();
+                    if (canMask) {
+                      return React.createElement(
+                        'span',
+                        { style: { width: 18, height: 18, display: 'inline-block' } },
+                        React.createElement('span', {
+                          style: {
+                            width: '100%',
+                            height: '100%',
+                            display: 'block',
+                            backgroundColor: 'var(--tt-sleep)',
+                            WebkitMaskImage: `url("${v3Src}")`,
+                            WebkitMaskRepeat: 'no-repeat',
+                            WebkitMaskSize: 'contain',
+                            WebkitMaskPosition: 'center',
+                            maskImage: `url("${v3Src}")`,
+                            maskRepeat: 'no-repeat',
+                            maskSize: 'contain',
+                            maskPosition: 'center'
+                          }
+                        })
+                      );
+                    }
+                    // Fallback: SVG if mask isn't supported
+                    return v3Svg ? React.createElement(v3Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-sleep)', strokeWidth: '3' } }) : null;
+                  })(),
+                  React.createElement('span', null, "Sleep")
+                )
+              ),
+
+              // Big number (moved above progress)
+              React.createElement('div', { className: "flex items-baseline justify-between mb-2" },
+                React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-sleep)' } },
+                  `${sleepTotalHours.toFixed(1)} `,
+                  React.createElement('span', { 
+                    className: "text-base font-normal",
+                    style: { color: 'var(--tt-text-secondary)' }
+                  },
+                    `of ${sleepTargetHours.toFixed(1)} hrs`
+                  )
+                )
+              ),
+              
+              // Progress Bar
+              React.createElement('div', { 
+                className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+                style: { backgroundColor: 'var(--tt-input-bg)' }
+              },
+                React.createElement('div', {
+                  className: `absolute left-0 top-0 h-full rounded-2xl ${isCurrentlySleeping ? 'tt-sleep-progress-pulse' : ''}`,
+                  style: {
+                    width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
+                    background: 'var(--tt-sleep)',
+                    transition: 'width 0.6s ease-out',
+                    transitionDelay: '0.05s'
+                  }
+                })
+              ),
+
+              // Status text (moved below progress)
+              React.createElement('div', { 
+                className: "text-xs",
+                style: { color: 'var(--tt-text-tertiary)' }
+              },
+                isCurrentlySleeping
+                  ? `Sleeping now (${formatSleepDuration(Math.floor(sleepElapsedMs / 60000))})`
+                  : lastSleep
+                    ? `Last slept at ${formatTime12Hour(lastSleepTime)} (${formatSleepDuration(lastSleepDuration)})`
+                    : "No sleep sessions yet"
               )
             )
           )
-        ),
-
-        // Sleep Progress
-        React.createElement('div', {},
-          React.createElement('div', { className: "flex items-center justify-between mb-2" },
-            React.createElement('div', { 
-              className: "text-sm font-medium",
-              style: { color: 'var(--tt-text-secondary)' }
-            }, "Sleep"),
-            React.createElement('div', { 
-              className: "text-xs",
-              style: { color: 'var(--tt-text-tertiary)' }
-            },
-              isCurrentlySleeping
-                ? `Sleeping now (${formatSleepDuration(Math.floor(sleepElapsedMs / 60000))})`
-                : lastSleep
-                  ? `Last slept at ${formatTime12Hour(lastSleepTime)} (${formatSleepDuration(lastSleepDuration)})`
-                  : "No sleep sessions yet"
-            )
-          ),
-          
-          // Progress Bar
-          React.createElement('div', { 
-            className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
-            style: { backgroundColor: 'var(--tt-input-bg)' }
+        : React.createElement('div', { 
+            ref: cardRefCallback, 
+            className: "rounded-2xl shadow-sm p-6",
+            style: { backgroundColor: 'var(--tt-card-bg)' }
           },
-            React.createElement('div', {
-              className: `absolute left-0 top-0 h-full rounded-2xl ${isCurrentlySleeping ? 'tt-sleep-progress-pulse' : ''}`,
-              style: {
-                width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
-                background: 'var(--tt-sleep)',
-                transition: 'width 0.6s ease-out',
-                transitionDelay: '0.05s'
-              }
-            })
-          ),
-
-          // Stats
-          React.createElement('div', { className: "flex items-baseline justify-between" },
-            React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-sleep)' } },
-              `${sleepTotalHours.toFixed(1)} `,
-              React.createElement('span', { 
-                className: "text-base font-normal",
-                style: { color: 'var(--tt-text-secondary)' }
+            // Feeding Progress (v2)
+            React.createElement('div', { className: "mb-8" },
+              React.createElement('div', { className: "flex items-center justify-between mb-2" },
+                React.createElement('div', { 
+                  className: "text-sm font-medium",
+                  style: { color: 'var(--tt-text-secondary)' }
+                }, "Feeding"),
+                React.createElement('div', { 
+                  className: "text-xs",
+                  style: { color: 'var(--tt-text-tertiary)' }
+                },
+                  lastFeeding 
+                    ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${lastFeedingAmount.toFixed(1)} oz)`
+                    : "No feedings yet"
+                )
+              ),
+              
+              // Progress Bar
+              React.createElement('div', { 
+                className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+                style: { backgroundColor: 'var(--tt-input-bg)' }
               },
-                `of ${sleepTargetHours.toFixed(1)} hrs`
+                React.createElement('div', {
+                  className: "absolute left-0 top-0 h-full rounded-2xl",
+                  style: {
+                    width: cardVisible ? `${Math.min(100, feedingPercent)}%` : '0%',
+                    background: 'var(--tt-feed)',
+                    transition: 'width 0.6s ease-out',
+                    transitionDelay: '0s'
+                  }
+                })
+              ),
+
+              // Stats
+              React.createElement('div', { className: "flex items-baseline justify-between" },
+                React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-feed)' } },
+                  `${totalConsumed.toFixed(1)} `,
+                  React.createElement('span', { 
+                    className: "text-base font-normal",
+                    style: { color: 'var(--tt-text-secondary)' }
+                  },
+                    `of ${targetOunces.toFixed(1)} oz`
+                  )
+                )
+              )
+            ),
+
+            // Sleep Progress (v2)
+            React.createElement('div', {},
+              React.createElement('div', { className: "flex items-center justify-between mb-2" },
+                React.createElement('div', { 
+                  className: "text-sm font-medium",
+                  style: { color: 'var(--tt-text-secondary)' }
+                }, "Sleep"),
+                React.createElement('div', { 
+                  className: "text-xs",
+                  style: { color: 'var(--tt-text-tertiary)' }
+                },
+                  isCurrentlySleeping
+                    ? `Sleeping now (${formatSleepDuration(Math.floor(sleepElapsedMs / 60000))})`
+                    : lastSleep
+                      ? `Last slept at ${formatTime12Hour(lastSleepTime)} (${formatSleepDuration(lastSleepDuration)})`
+                      : "No sleep sessions yet"
+                )
+              ),
+              
+              // Progress Bar
+              React.createElement('div', { 
+                className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+                style: { backgroundColor: 'var(--tt-input-bg)' }
+              },
+                React.createElement('div', {
+                  className: `absolute left-0 top-0 h-full rounded-2xl ${isCurrentlySleeping ? 'tt-sleep-progress-pulse' : ''}`,
+                  style: {
+                    width: cardVisible ? `${Math.min(100, sleepPercent)}%` : '0%',
+                    background: 'var(--tt-sleep)',
+                    transition: 'width 0.6s ease-out',
+                    transitionDelay: '0.05s'
+                  }
+                })
+              ),
+
+              // Stats
+              React.createElement('div', { className: "flex items-baseline justify-between" },
+                React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-sleep)' } },
+                  `${sleepTotalHours.toFixed(1)} `,
+                  React.createElement('span', { 
+                    className: "text-base font-normal",
+                    style: { color: 'var(--tt-text-secondary)' }
+                  },
+                    `of ${sleepTargetHours.toFixed(1)} hrs`
+                  )
+                )
               )
             )
           )
-        )
       )
     ),
 
