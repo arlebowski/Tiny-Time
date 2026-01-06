@@ -1071,6 +1071,39 @@ const TrackerCard = ({
           border-radius: inherit;
           pointer-events: none;
         }
+        /* Dark-mode tuning: keep the sheen visible but not blown out */
+        .dark .tt-sleep-progress-pulse::after {
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.22),
+            transparent
+          );
+        }
+        /* Active sleep pill (button) is visually louder than the progress bar in dark mode.
+           Dial back ONLY the pill shimmer in dark mode. */
+        @keyframes ttSleepPulseDarkPill {
+          0% {
+            transform: translateX(-100%) skewX(-20deg);
+            opacity: 0;
+          }
+          50% {
+            opacity: 0.35;
+          }
+          100% {
+            transform: translateX(200%) skewX(-20deg);
+            opacity: 0;
+          }
+        }
+        .dark button.tt-sleep-progress-pulse::after {
+          background: linear-gradient(
+            90deg,
+            transparent,
+            rgba(255, 255, 255, 0.14),
+            transparent
+          );
+          animation: ttSleepPulseDarkPill 3.0s ease-in-out infinite;
+        }
       `;
       document.head.appendChild(s);
     } catch (e) {
@@ -1675,12 +1708,12 @@ const TrackerCard = ({
       showHeaderIcon: false,
       headerRight: null,
       showBigNumberIcon: true,
-      // Per-mode sizing: bottle 5% smaller than 40px (=38px), moon 10% smaller (=36px)
-      bigNumberIconClassName: mode === 'feeding' ? 'h-[38px] w-[38px]' : 'h-[36px] w-[36px]',
+      // Per-mode sizing: both 10% smaller than prior (bottle 38px -> 34.2px, moon 36px -> 32.4px)
+      bigNumberIconClassName: mode === 'feeding' ? 'h-[34.2px] w-[34.2px]' : 'h-[32.4px] w-[32.4px]',
       bigNumberRight: null,
       bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
       // Icons were matched; add +1px only for sleep (moon) per request.
-      bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[7px]' : 'gap-[6px]',
+      bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
       bigNumberValueClassName: "text-[36px] leading-none font-bold",
       bigNumberTargetClassName: "relative -top-[2px] text-base leading-none font-normal",
       bigNumberTargetColor: 'var(--tt-text-tertiary)',

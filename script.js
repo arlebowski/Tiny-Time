@@ -2383,10 +2383,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   setShowKidMenu(false);
                 },
                 className:
-                  "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
+                  // No background; slightly larger tap target + icon.
+                  "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 transition"
               },
               React.createElement(ShareIcon, {
-                className: "w-4 h-4",
+                className: "w-5 h-5",
                 style: { color: theme.accent }
               })
             ),
