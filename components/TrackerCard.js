@@ -1106,6 +1106,10 @@ const TrackerCard = ({
   const calculatedPercent = cardHasBeenShown 
     ? (currentPercent > 0 || (total !== null && target !== null) ? currentPercent : lastValidPercentRef.current)
     : currentPercent; // First render - can start at 0
+
+  // If there's truly no progress yet, show a tiny stub so the UI doesn't look "broken"/empty.
+  // (Requested: ~1–2%)
+  const displayPercent = (calculatedPercent <= 0 && (!total || total <= 0)) ? 2 : calculatedPercent;
   
   // Format time for status text
   const formatTime12Hour = (timestamp) => {
@@ -1246,6 +1250,7 @@ const TrackerCard = ({
     bigNumberIconClassName = null,           // icon size for big number row (defaults to headerIconClassName)
     bigNumberRight = null,                   // optional right-side content in big number row (e.g. status pill)
     bigNumberRowClassName = "flex items-baseline gap-1 mb-3",
+    bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value (v3)
     bigNumberValueClassName = "text-[40px] leading-none font-bold",
     bigNumberTargetClassName = "relative -top-[1px] text-[16px] leading-none",
     bigNumberTargetColor = 'var(--tt-text-secondary)',
@@ -1347,7 +1352,7 @@ const TrackerCard = ({
         { className: bigNumberRowClassName },
         React.createElement(
           'div',
-          { className: "flex items-center gap-[6px] min-w-0" },
+          { className: `flex items-center ${bigNumberIconValueGapClassName} min-w-0` },
           iconEl,
           React.createElement(
             'div',
@@ -1366,7 +1371,7 @@ const TrackerCard = ({
       React.createElement('div', {
         className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
-          width: `${calculatedPercent}%`,
+          width: `${displayPercent}%`,
           backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
           transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
           transitionDelay: '0s',
@@ -1468,15 +1473,15 @@ const TrackerCard = ({
   const renderNewDesign = () => {
     // Prefer PNG icons (if present) with SVG fallback.
     // Drop these files in the project root:
-    // - bottle-main@3x.png
-    // - moon-main@3x.png
+    // - assets/ui-icons/bottle-main-right-v3@3x.png
+    // - assets/ui-icons/moon-main@3x.png
     //
     // NOTE: This component must be stable across renders to avoid image flicker
     // (active sleep re-renders every second).
     const v3IconSvg = (mode === 'feeding' ? BottleMainIcon : MoonMainIcon);
     const v3IconSrc = (mode === 'feeding')
-      ? 'bottle-main@3x.png'
-      : 'moon-main@3x.png';
+      ? 'assets/ui-icons/bottle-main-right-v3@3x.png'
+      : 'assets/ui-icons/moon-main@3x.png';
 
     const V3Icon = React.useMemo(() => {
       return function V3IconComponent(props) {
@@ -1513,19 +1518,7 @@ const TrackerCard = ({
         }
         const { style, alt, ...rest } = props || {};
         const baseStyle = { ...(style || {}) };
-        const withFeedingMirror = (t) => {
-          const s = (t || '').trim();
-          if (s.includes('scaleX(-1)')) return s;
-          if (!s || s === 'none') return 'scaleX(-1)';
-          return `scaleX(-1) ${s}`;
-        };
-        // Ensure feeding icon is always mirrored, regardless of caller transform.
-        if (mode === 'feeding') {
-          baseStyle.transform = withFeedingMirror(baseStyle.transform);
-          baseStyle.WebkitTransform = baseStyle.transform; // extra-safe for iOS Safari
-          baseStyle.transformOrigin = baseStyle.transformOrigin || 'center';
-          baseStyle.WebkitTransformOrigin = baseStyle.WebkitTransformOrigin || 'center';
-        }
+        // Bottle PNG is stored already mirrored (points right), so no runtime flip needed here.
 
         const tintColor = baseStyle.color || 'currentColor';
 
@@ -1602,6 +1595,11 @@ const TrackerCard = ({
         })();
 
     const v3HeaderRight = (() => {
+      // v3 pills: keep a single source of truth so height/radius stays consistent.
+      // Fixed height avoids subtle font/animation differences changing pill size.
+      const v3PillBaseClass =
+        "inline-flex items-center h-8 px-3 rounded-lg whitespace-nowrap text-sm font-normal leading-none";
+
       const pillInner = React.createElement(
         'span',
         { className: "inline-flex items-center" },
@@ -1619,8 +1617,7 @@ const TrackerCard = ({
               try { e.preventDefault(); e.stopPropagation(); } catch {}
               try { onActiveSleepClick(); } catch {}
             },
-            className:
-              "inline-flex items-center gap-1 px-3 py-1.5 rounded-lg whitespace-nowrap font-normal tt-tapable tt-sleep-progress-pulse",
+            className: `${v3PillBaseClass} gap-1 tt-tapable tt-sleep-progress-pulse`,
             style: {
               backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
               color: 'var(--tt-sleep)'
@@ -1636,7 +1633,7 @@ const TrackerCard = ({
       return React.createElement(
         'span',
         {
-          className: "inline-flex items-center gap-1 px-3 py-1.5 rounded-lg whitespace-nowrap font-normal",
+          className: `${v3PillBaseClass} gap-1`,
           style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
         },
         pillInner
@@ -1651,7 +1648,8 @@ const TrackerCard = ({
       return React.createElement(
         'span',
         {
-          className: "inline-flex items-center px-3 py-1.5 rounded-lg whitespace-nowrap font-normal",
+          className:
+            "inline-flex items-center h-8 px-3 rounded-lg whitespace-nowrap text-sm font-normal leading-none",
           style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
         },
         `${abs} ${noun} today`
@@ -1671,9 +1669,9 @@ const TrackerCard = ({
       headerBottomMarginClass: 'mb-8',             // (unused when header removed)
       headerLabelClassName: 'text-[20px] font-thin', // (unused when header removed)
       iconOverride: V3Icon,
-      feedingIconTransform: 'scaleX(-1)',                  // mirror bottle, no vertical offset (works for PNG + SVG)
+      feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
       sleepIconTransform: 'none',                           // no offset
-      mirrorFeedingIcon: true,
+      mirrorFeedingIcon: false,
       showHeaderIcon: false,
       headerRight: null,
       showBigNumberIcon: true,
@@ -1681,10 +1679,13 @@ const TrackerCard = ({
       bigNumberIconClassName: mode === 'feeding' ? 'h-[38px] w-[38px]' : 'h-[36px] w-[36px]',
       bigNumberRight: null,
       bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
+      // Icons were matched; add +1px only for sleep (moon) per request.
+      bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[7px]' : 'gap-[6px]',
       bigNumberValueClassName: "text-[36px] leading-none font-bold",
       bigNumberTargetClassName: "relative -top-[2px] text-base leading-none font-normal",
       bigNumberTargetColor: 'var(--tt-text-tertiary)',
-      progressTrackHeightClass: 'h-[12px]',         // 12px track height
+      // 12px * 1.2 = 14.4px
+      progressTrackHeightClass: 'h-[14.4px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
       statusRow: v3StatusRow,
       statusRowClassName: "mt-[13px] mb-4",
@@ -3435,16 +3436,24 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       try {
         let sessionId = activeSleepSessionId;
         let startMs;
+        let effectiveStartIso = startTime;
         
         if (sleepState === 'completed') {
           // COMPLETED → RUNNING: Keep existing start time, clear end time
           startMs = new Date(startTime).getTime();
           setEndTime(null);
         } else {
-          // IDLE/IDLE_WITH_TIMES → RUNNING: Update start time to now, clear end time
-          const now = new Date().toISOString();
-          setStartTime(now);
-          startMs = Date.now();
+          // IDLE/IDLE_WITH_TIMES → RUNNING:
+          // Use the user-selected startTime if present; otherwise default to now.
+          const parsed = effectiveStartIso ? new Date(effectiveStartIso).getTime() : NaN;
+          if (!effectiveStartIso || !Number.isFinite(parsed)) {
+            effectiveStartIso = new Date().toISOString();
+            setStartTime(effectiveStartIso);
+            startMs = new Date(effectiveStartIso).getTime();
+          } else {
+            startMs = parsed;
+          }
+          // Clear any end time when starting a running timer.
           setEndTime(null);
         }
         
