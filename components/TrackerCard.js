@@ -1113,7 +1113,7 @@ const TrackerCard = ({
       const hours = Math.floor(ms / (1000 * 60 * 60));
       const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
       const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-      
+
       if (hours > 0) {
         return `${hours}h ${minutes}m ${seconds}s`;
       } else if (minutes > 0) {
@@ -1124,8 +1124,8 @@ const TrackerCard = ({
     };
     
     // Only return the timer text - zZz animation is rendered separately
-    // Use tabular numbers + fixed width + no-wrap so layout doesn't jitter or wrap as seconds change.
-    return React.createElement('span', { className: "font-semibold tabular-nums whitespace-nowrap inline-block w-[96px] text-right", style: { color: 'var(--tt-text-primary)' } }, 
+    // Use tabular numbers + no-wrap so the pill can naturally size to content.
+    return React.createElement('span', { className: "font-semibold tabular-nums whitespace-nowrap inline-block text-right", style: { color: 'var(--tt-text-primary)' } }, 
       formatWithSeconds(elapsed)
     );
   };
@@ -1185,6 +1185,7 @@ const TrackerCard = ({
     headerLabelClassName = 'text-base font-semibold',
     feedingIconTransform = 'translateY(-2px)',
     sleepIconTransform = 'none',
+    headerRight = null,                      // optional right-side content in header row
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
     showDotsRow = true,                       // dots row under progress bar
@@ -1203,19 +1204,24 @@ const TrackerCard = ({
     },
     React.createElement(
       'div',
-      { className: `flex items-center ${headerGapClass} ${headerBottomMarginClass} h-6` },
-      HeaderIcon ? React.createElement(HeaderIcon, { 
-        className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
-        style: { 
-          color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
-          strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
-        }
-      }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
-      React.createElement('div', { 
-        className: headerLabelClassName,
-        style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-      }, mode === 'feeding' ? 'Feed' : 'Sleep')
+      { className: `flex items-center justify-between ${headerBottomMarginClass} h-6` },
+      React.createElement(
+        'div',
+        { className: `flex items-center ${headerGapClass}` },
+        HeaderIcon ? React.createElement(HeaderIcon, { 
+          className: "h-8 w-8", // 15% bigger (28px * 1.15 = 32.2px ≈ 32px = h-8 w-8)
+          style: { 
+            color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+            transform: mode === 'feeding' ? feedingIconTransform : sleepIconTransform,
+            strokeWidth: '3' // Add 0.5 stroke (base 2.5 + 0.5 = 3)
+          }
+        }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }),
+        React.createElement('div', { 
+          className: headerLabelClassName,
+          style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+        }, mode === 'feeding' ? 'Feed' : 'Sleep')
+      ),
+      headerRight
     ),
     React.createElement(
       'div',
@@ -1283,25 +1289,18 @@ const TrackerCard = ({
         timelineVariant === 'v3'
           ? React.createElement(
               'span',
-              { className: "flex items-center gap-3" },
+              { className: "flex items-center" },
               React.createElement(
                 'span',
                 { className: "font-medium", style: { color: 'var(--tt-text-secondary)' } },
                 'Timeline'
-              ),
-              React.createElement(
-                'span',
-                {
-                  className:
-                    "inline-flex items-center px-3 py-1 rounded-lg whitespace-nowrap",
-                  style: { backgroundColor: timelineSubtleBg }
-                },
-                timelineStatusText
               )
             )
           : timelineLabel
       ),
-      expanded ? React.createElement(ChevronUp, { style: { strokeWidth: '3' } }) : React.createElement(ChevronDown, { style: { strokeWidth: '3' } })
+      expanded
+        ? React.createElement(ChevronUp, { style: { strokeWidth: '3', color: 'var(--tt-text-tertiary)' } })
+        : React.createElement(ChevronDown, { style: { strokeWidth: '3', color: 'var(--tt-text-tertiary)' } })
     ),
     expanded && React.createElement(
       'div',
@@ -1353,6 +1352,14 @@ const TrackerCard = ({
       headerLabelClassName: 'text-[20px] font-thin',
       feedingIconTransform: 'translateY(-2px) scaleX(-1)', // mirrored bottle
       sleepIconTransform: 'translateY(1px)',               // nudge moon down
+      headerRight: React.createElement(
+        'span',
+        {
+          className: "inline-flex items-center px-3 py-1 rounded-lg whitespace-nowrap text-sm",
+          style: { backgroundColor: timelineSubtleBg, color: 'var(--tt-text-secondary)' }
+        },
+        timelineStatusText
+      ),
       progressTrackHeightClass: 'h-3',              // 50% of h-6
       progressTrackBg: 'var(--tt-subtle-surface)',
       showDotsRow: false,
