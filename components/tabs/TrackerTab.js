@@ -33,7 +33,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   };
 }
 
-const TrackerTab = ({ user, kidId, familyId }) => {
+const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
   // UI Version - single source of truth (v1, v2, or v3)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
@@ -1142,6 +1142,17 @@ const TrackerTab = ({ user, kidId, familyId }) => {
     setShowSleepDetailSheet(true);
   };
 
+  // Allow global nav "+" button (outside this tab) to open the input half sheet.
+  React.useEffect(() => {
+    if (!requestOpenInputSheetMode) return;
+    try {
+      setInputSheetMode(requestOpenInputSheetMode);
+      setShowInputSheet(true);
+    } finally {
+      try { if (typeof onRequestOpenInputSheetHandled === 'function') onRequestOpenInputSheetHandled(); } catch {}
+    }
+  }, [requestOpenInputSheetMode, onRequestOpenInputSheetHandled]);
+
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
       React.createElement('div', { 
@@ -1161,6 +1172,13 @@ const TrackerTab = ({ user, kidId, familyId }) => {
   const feedingPercent = targetOunces > 0 ? Math.min(100, (totalConsumed / targetOunces) * 100) : 0;
   // sleepPercent is already calculated above (line 2795)
 
+  const isDark = document.documentElement.classList.contains('dark');
+  const chevronColor = 'var(--tt-text-tertiary)'; // match TrackerCard timeline chevron token
+  // Disabled but still visible against the track (esp. in dark mode)
+  const chevronDisabledColor = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.24)';
+  const dateNavTrackBg = 'var(--tt-subtle-surface)';
+  const dateNavDividerColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgb(243, 244, 246)';
+
   return React.createElement('div', { className: "space-y-4" },
     // Date Navigation (moved outside Today Card)
     React.createElement('div', { 
@@ -1171,7 +1189,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         position: 'sticky',
         top: 0,
         zIndex: 100,
-        borderBottom: '0.5px solid rgba(0, 0, 0, 0.1)',
+        borderBottom: `0.5px solid ${dateNavDividerColor}`,
         margin: '0 -1rem 1rem -1rem'
       }
     },
@@ -1183,7 +1201,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           justifyContent: 'space-between',
           maxWidth: '600px',
           margin: '0 auto',
-          backgroundColor: 'rgba(0, 0, 0, 0.05)', // Matches bg-black/5 pattern from design system
+          backgroundColor: dateNavTrackBg, // tokenized for dark mode
           padding: '8px 16px',
           borderRadius: '12px' // rounded-xl (matches toggle)
         }
@@ -1205,13 +1223,13 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
           onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
           onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(ChevronLeft, { className: "w-5 h-5", style: { color: '#6B7280', strokeWidth: '2' } })),
+        }, React.createElement(ChevronLeft, { className: "w-5 h-5", style: { color: chevronColor, strokeWidth: '3' } })),
         React.createElement('div', { 
           className: "date-text",
           style: {
             fontSize: '17px',
             fontWeight: 600,
-            color: '#000',
+            color: 'var(--tt-text-primary)',
             flex: 1,
             textAlign: 'center'
           }
@@ -1233,7 +1251,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
           onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
           onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
           onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(ChevronRight, { className: "w-5 h-5", style: { color: isToday() ? '#E5E7EB' : '#6B7280', strokeWidth: '2' } }))
+        }, React.createElement(ChevronRight, { className: "w-5 h-5", style: { color: isToday() ? chevronDisabledColor : chevronColor, strokeWidth: '3' } }))
       )
     ),
 
@@ -1244,6 +1262,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         total: feedingCardData.total,
         target: feedingCardData.target,
         timelineItems: feedingCardData.timelineItems,
+        entriesTodayCount: Array.isArray(feedingCardData.timelineItems) ? feedingCardData.timelineItems.length : 0,
         lastEntryTime: feedingCardData.lastEntryTime,
         onItemClick: handleFeedItemClick,
         onDelete: async () => {
@@ -1257,6 +1276,7 @@ const TrackerTab = ({ user, kidId, familyId }) => {
         total: sleepCardData.total,
         target: sleepCardData.target,
         timelineItems: sleepCardData.timelineItems,
+        entriesTodayCount: sleepTodayCount,
         lastEntryTime: sleepCardData.lastEntryTime,
         onItemClick: handleSleepItemClick,
         onActiveSleepClick: () => {

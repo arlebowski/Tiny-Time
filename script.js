@@ -2082,6 +2082,23 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [showKidMenu, setShowKidMenu] = useState(false);
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
+  const [navRequestedInputMode, setNavRequestedInputMode] = useState(null); // 'feeding' | 'sleep' | null
+
+  // v3-only navigation changes (center +, settings moved to header, etc.)
+  const uiVersion = (window.TT?.shared?.uiVersion?.getUIVersion || (() => {
+    try {
+      const v = window.localStorage?.getItem('tt_ui_version');
+      if (v && ['v1', 'v2', 'v3'].includes(v)) return v;
+      const useNewUI = window.localStorage?.getItem('tt_use_new_ui');
+      const cardDesign = window.localStorage?.getItem('tt_tracker_card_design');
+      if (useNewUI === 'false') return 'v1';
+      if (cardDesign === 'new') return 'v3';
+      return 'v2';
+    } catch {
+      return 'v2';
+    }
+  }))();
+  const isV3 = uiVersion === 'v3';
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
@@ -2264,7 +2281,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       React.createElement(
         'div',
         {
-          className: "sticky top-0 z-50",
+          // Must sit above sticky in-tab UI like the TrackerTab date picker.
+          className: "sticky top-0 z-[1200]",
           style: { backgroundColor: "var(--tt-app-bg)" }
         },
         React.createElement(
@@ -2282,7 +2300,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'button',
                 {
                   type: 'button',
-                  onPointerDown: (e) => {
+                  onClick: (e) => {
                     e.preventDefault();
                     e.stopPropagation();
                     setShowKidMenu((v) => !v);
@@ -2318,9 +2336,16 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   'div',
                   {
                     className:
-                      "absolute left-0 mt-3 w-60 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                      // Dropdown: tokenized colors + higher z-index than sticky date nav
+                      "absolute left-0 mt-3 w-60 rounded-2xl shadow-lg border overflow-hidden z-[1000]",
                     onPointerDown: (e) => e.stopPropagation(),
                     onClick: (e) => e.stopPropagation()
+                    ,
+                    style: {
+                      backgroundColor: 'var(--tt-card-bg)',
+                      borderColor: 'var(--tt-card-border)',
+                      color: 'var(--tt-text-primary)'
+                    }
                   },
                   kids.map((k) => {
                     const isCurrent = k.id === kidId;
@@ -2329,24 +2354,33 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                       {
                         key: k.id,
                         type: 'button',
-                        onPointerDown: (e) => {
+                        onClick: (e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           handleSelectKid(k.id);
                         },
                         className:
-                          "w-full px-3 py-2.5 text-sm flex items-center justify-between " +
-                          (isCurrent ? "bg-indigo-50" : "hover:bg-gray-50")
+                          "w-full h-11 px-3 text-sm flex items-center justify-between transition " +
+                          (isCurrent ? "" : "hover:bg-black/5 dark:hover:bg-white/10"),
+                        style: isCurrent ? { backgroundColor: 'var(--tt-subtle-surface)' } : undefined
                       },
                       React.createElement(
                         'span',
-                        { className: "font-medium text-gray-800 truncate" },
+                        { className: "font-medium truncate", style: { color: 'var(--tt-text-primary)' } },
                         k.name || 'Baby'
                       ),
                       React.createElement(
                         'span',
-                        { className: "w-4 h-4 rounded-full border border-indigo-500 flex items-center justify-center" },
-                        isCurrent ? React.createElement('span', { className: "w-2 h-2 rounded-full bg-indigo-500" }) : null
+                        {
+                          className: "w-4 h-4 rounded-full border flex items-center justify-center",
+                          style: { borderColor: 'var(--tt-card-border)' }
+                        },
+                        isCurrent
+                          ? React.createElement('span', {
+                              className: "w-2 h-2 rounded-full",
+                              style: { backgroundColor: 'var(--tt-text-primary)' }
+                            })
+                          : null
                       )
                     );
                   }),
@@ -2356,7 +2390,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     'button',
                     {
                       type: 'button',
-                      onPointerDown: (e) => {
+                      onClick: (e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setShowKidMenu(false);
@@ -2364,31 +2398,62 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         setHeaderRequestedAddChild(true);
                       },
                       className:
-                        "w-full px-3 py-2 text-xs font-medium text-indigo-600 border-t border-gray-100 text-left hover:bg-indigo-50"
+                        "w-full h-11 px-3 text-sm font-medium text-left border-t transition hover:bg-black/5 dark:hover:bg-white/10",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        borderColor: 'var(--tt-card-border)'
+                      }
                     },
                     "+ Add child"
                   )
                 )
             ),
 
-            // RIGHT: Share button
+            // RIGHT: Share (+ Settings in v3 only)
             React.createElement(
-              'button',
-              {
-                type: 'button',
-                onPointerDown: (e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setShowShareMenu((v) => !v);
-                  setShowKidMenu(false);
+              'div',
+              { className: "flex items-center gap-1" },
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowShareMenu((v) => !v);
+                    setShowKidMenu(false);
+                  },
+                  className: isV3
+                    ? "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
+                    : "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
                 },
-                className:
-                  "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
-              },
-              React.createElement(ShareIcon, {
-                className: "w-4 h-4",
-                style: { color: theme.accent }
-              })
+                React.createElement(ShareIcon, {
+                  className: isV3 ? "w-6 h-6" : "w-4 h-4",
+                  style: { color: isV3 ? 'var(--tt-text-primary)' : theme.accent }
+                })
+              ),
+              isV3
+                ? React.createElement(
+                    'button',
+                    {
+                      type: 'button',
+                      onClick: (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                        setActiveTab('settings');
+                      },
+                      className:
+                        "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
+                      'aria-label': 'Settings'
+                    },
+                    React.createElement(Menu, {
+                      className: "w-6 h-6",
+                      style: { color: 'var(--tt-text-primary)' }
+                    })
+                  )
+                : null
             ),
 
             // Share dropdown
@@ -2397,40 +2462,47 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'div',
                 {
                   className:
-                    "absolute right-4 top-20 w-56 bg-white rounded-2xl shadow-lg border border-gray-100 overflow-hidden z-50",
+                    "absolute right-4 top-20 w-56 rounded-2xl shadow-lg border overflow-hidden z-[1000]",
                   onPointerDown: (e) => e.stopPropagation(),
-                  onClick: (e) => e.stopPropagation()
+                  onClick: (e) => e.stopPropagation(),
+                  style: {
+                    backgroundColor: 'var(--tt-card-bg)',
+                    borderColor: 'var(--tt-card-border)',
+                    color: 'var(--tt-text-primary)'
+                  }
                 },
                 React.createElement(
                   'button',
                   {
                     type: 'button',
-                    onPointerDown: async (e) => {
+                    onClick: async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       await handleGlobalShareApp();
                       setShowShareMenu(false);
                     },
                     className:
-                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                      "w-full h-11 px-3 text-sm flex items-center gap-2 transition hover:bg-black/5 dark:hover:bg-white/10",
+                    style: { color: 'var(--tt-text-primary)' }
                   },
-                  React.createElement(LinkIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
+                  React.createElement(LinkIcon, { className: "w-4 h-4", style: { color: 'var(--tt-text-primary)' } }),
                   "Share app link"
                 ),
                 React.createElement(
                   'button',
                   {
                     type: 'button',
-                    onPointerDown: async (e) => {
+                    onClick: async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       await handleGlobalInvitePartner();
                       setShowShareMenu(false);
                     },
                     className:
-                      "w-full px-3 py-2 text-sm flex items-center gap-2 hover:bg-indigo-50 text-gray-800"
+                      "w-full h-11 px-3 text-sm flex items-center gap-2 transition hover:bg-black/5 dark:hover:bg-white/10",
+                    style: { color: 'var(--tt-text-primary)' }
                   },
-                  React.createElement(PersonAddIcon, { className: "w-4 h-4", style: { color: theme.accent } }),
+                  React.createElement(PersonAddIcon, { className: "w-4 h-4", style: { color: 'var(--tt-text-primary)' } }),
                   "Invite partner"
                 )
               )
@@ -2442,7 +2514,13 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       React.createElement(
         'div',
         { className: "px-4 pb-5" },
-        activeTab === 'tracker' && React.createElement(window.TT.tabs.TrackerTab, { user, kidId, familyId }),
+        activeTab === 'tracker' && React.createElement(window.TT.tabs.TrackerTab, { 
+          user, 
+          kidId, 
+          familyId,
+          requestOpenInputSheetMode: navRequestedInputMode,
+          onRequestOpenInputSheetHandled: () => setNavRequestedInputMode(null)
+        }),
         activeTab === 'analytics' && React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId }),
         activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
@@ -2463,8 +2541,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     // Click-away overlay to close menus (UNDER dropdowns)
     (showShareMenu || showKidMenu) &&
       React.createElement('div', {
-        className: "fixed inset-0 z-20",
-        onClick: (e) => {
+        // Under dropdowns, over everything else. Use pointer-down so outside tap closes immediately
+        // and doesn't fight with onClick handlers.
+        className: "fixed inset-0 z-[900]",
+        onPointerDown: (e) => {
           e.preventDefault();
           e.stopPropagation();
           setShowShareMenu(false);
@@ -2472,7 +2552,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         }
       }),
 
-    // Bottom navigation
+    // Bottom navigation (v3 uses center + and no Settings; v1/v2 keep classic 5-tab bar)
     React.createElement(
       'div',
       {
@@ -2483,34 +2563,129 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
       },
-      React.createElement(
-        'div',
-        { className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3" },
-        [
-          { id: 'tracker', icon: BarChart, label: 'Tracker' },
-          { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
-          { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
-          { id: 'family', icon: Users, label: 'Family' },
-          { id: 'settings', icon: Menu, label: 'Settings' }
-        ].map((tab) =>
-          React.createElement(
-            'button',
-            {
-              key: tab.id,
-              type: 'button',
-              onClick: () => {
-                setActiveTab(tab.id);
-                setShowShareMenu(false);
-                setShowKidMenu(false);
-              },
-              className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-              style: { color: activeTab === tab.id ? theme.accent : '#9CA3AF' }
-            },
-            React.createElement(tab.icon, { className: "w-6 h-6" }),
-            React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+      isV3
+        ? React.createElement(
+            'div',
+            { className: "max-w-2xl mx-auto relative flex items-center justify-around px-4 py-3" },
+            // Order: tracker | analytics | plus | AI Chat | Family
+            React.createElement(
+              React.Fragment,
+              null,
+              React.createElement(
+                'button',
+                {
+                  key: 'tracker',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('tracker');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: activeTab === 'tracker' ? theme.accent : '#9CA3AF' }
+                },
+                React.createElement(BarChart, { className: "w-6 h-6" }),
+                React.createElement('span', { className: "text-xs font-medium" }, 'Tracker')
+              ),
+              React.createElement(
+                'button',
+                {
+                  key: 'analytics',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('analytics');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: activeTab === 'analytics' ? theme.accent : '#9CA3AF' }
+                },
+                React.createElement(TrendingUp, { className: "w-6 h-6" }),
+                React.createElement('span', { className: "text-xs font-medium" }, 'Analytics')
+              ),
+              React.createElement(
+                'button',
+                {
+                  key: 'plus',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('tracker');
+                    setNavRequestedInputMode('feeding');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className:
+                    "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
+                  style: {
+                    backgroundColor: theme.accent,
+                    color: '#fff'
+                  },
+                  'aria-label': 'Add'
+                },
+                React.createElement('span', { className: "text-3xl leading-none", style: { transform: 'translateY(-1px)' } }, '+')
+              ),
+              React.createElement(
+                'button',
+                {
+                  key: 'chat',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('chat');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: activeTab === 'chat' ? theme.accent : '#9CA3AF' }
+                },
+                React.createElement(MessageCircle, { className: "w-6 h-6" }),
+                React.createElement('span', { className: "text-xs font-medium" }, 'AI Chat')
+              ),
+              React.createElement(
+                'button',
+                {
+                  key: 'family',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('family');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: activeTab === 'family' ? theme.accent : '#9CA3AF' }
+                },
+                React.createElement(Users, { className: "w-6 h-6" }),
+                React.createElement('span', { className: "text-xs font-medium" }, 'Family')
+              )
+            )
           )
-        )
-      )
+        : React.createElement(
+            'div',
+            { className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3" },
+            [
+              { id: 'tracker', icon: BarChart, label: 'Tracker' },
+              { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
+              { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
+              { id: 'family', icon: Users, label: 'Family' },
+              { id: 'settings', icon: Menu, label: 'Settings' }
+            ].map((tab) =>
+              React.createElement(
+                'button',
+                {
+                  key: tab.id,
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab(tab.id);
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: { color: activeTab === tab.id ? theme.accent : '#9CA3AF' }
+                },
+                React.createElement(tab.icon, { className: "w-6 h-6" }),
+                React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+              )
+            )
+          )
     )
   );
 };

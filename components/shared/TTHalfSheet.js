@@ -135,9 +135,12 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
               ? totalNeeded 
               : Math.min(viewportHeight * 0.9, totalNeeded);
             
-            // If fixedHeight is provided and keyboard is closed, use the larger of fixedHeight or calculated height
+            // If fixedHeight is provided and keyboard is closed, use the larger of fixedHeight or calculated height.
+            // Note: on mobile, visualViewport can report tiny non-zero offsets even when the keyboard is closed,
+            // so treat "near zero" as closed to keep layouts stable.
+            const keyboardIsClosed = (keyboardOffset == null) || keyboardOffset < 1;
             // This ensures content always fits, especially after keyboard closes when content may have changed
-            if (fixedHeight && keyboardOffset === 0) {
+            if (fixedHeight && keyboardIsClosed) {
               const fixedHeightPx = parseFloat(fixedHeight) || 0;
               setSheetHeight(`${Math.max(fixedHeightPx, maxHeight)}px`);
             } else {
@@ -147,7 +150,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
         };
 
         // Add extra delay when keyboard closes to let viewport settle and content remeasure
-        const delay = keyboardOffset === 0 && fixedHeight ? 150 : 0;
+        const delay = ((keyboardOffset == null) || keyboardOffset < 1) && fixedHeight ? 150 : 0;
         
         // Measure after render with multiple attempts
         requestAnimationFrame(() => {
@@ -187,7 +190,8 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
         }
 
         rafId = requestAnimationFrame(() => {
-          const newKeyboardOffset = computeKeyboardOffset();
+          let newKeyboardOffset = computeKeyboardOffset();
+          if (newKeyboardOffset < 1) newKeyboardOffset = 0;
 
           // Only update when it actually changed (reduces re-renders during keyboard animation).
           if (Math.abs(newKeyboardOffset - lastKeyboardOffset) > 0.5) {

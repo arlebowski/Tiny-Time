@@ -94,7 +94,10 @@
     input.style.padding = "0";
     input.style.margin = "0";
     input.style.zIndex = "2147483647";
-    input.style.pointerEvents = "none";
+    // Important: allow the element to receive pointer events.
+    // When pointerEvents is "none", taps can land on underlying UI (e.g. sheet/backdrop),
+    // which can steal focus and trigger an early blur, closing the native picker.
+    input.style.pointerEvents = "auto";
 
     const scrollParent = findScrollParent(anchorEl);
 
@@ -105,6 +108,8 @@
     let rafId = null;
     let alive = true;
     let pickedValue = null; // Store the picked value
+    let lockStopId = null;
+    let openedAt = Date.now();
 
     const lockScroll = () => {
       if (!alive) return;
@@ -123,6 +128,7 @@
     const cleanup = () => {
       alive = false;
       if (rafId) cancelAnimationFrame(rafId);
+      if (lockStopId) clearTimeout(lockStopId);
       input.onchange = null;
       input.onblur = null;
       try { document.body.removeChild(input); } catch {}
@@ -133,8 +139,17 @@
       pickedValue = e.target?.value; // Store "HH:MM" but don't apply yet
     };
 
-    // Only call onChange when picker is dismissed (user pressed Done or Cancel)
+    // Only call onChange when picker is dismissed (user pressed Done or Cancel).
+    // Some mobile browsers can emit a transient blur right as the picker opens or during layout shifts.
+    // Guard against that so the picker stays open until the user explicitly finishes.
     input.onblur = () => {
+      const sinceOpen = Date.now() - openedAt;
+      // If we blur almost immediately after opening, ignore it.
+      // (This prevents "picker closes before you can select" flakiness.)
+      if (sinceOpen < 250) {
+        try { input.focus({ preventScroll: true }); } catch { try { input.focus(); } catch {} }
+        return;
+      }
       cleanup();
       if (pickedValue) {
         // Use smart logic for new entries, preserve date for edits
@@ -147,6 +162,11 @@
 
     // Start scroll lock BEFORE focus/click (prevents scroll jump)
     rafId = requestAnimationFrame(lockScroll);
+    // But only for a short window: continuous scroll locking can cause focus/blur flakiness on iOS.
+    lockStopId = setTimeout(() => {
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+    }, 400);
 
     // Focus without scroll if supported
     try { input.focus({ preventScroll: true }); } catch { input.focus(); }
@@ -167,7 +187,8 @@
       input.click();
     }
 
-    setTimeout(cleanup, 8000);
+    // Safety cleanup in case the picker never blurs (should be rare).
+    setTimeout(cleanup, 20000);
   };
 })();
 
