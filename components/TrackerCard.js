@@ -1438,18 +1438,26 @@ const TrackerCard = ({
     // Drop these files in the project root:
     // - bottle-main@3x.png
     // - moon-main@3x.png
+    //
+    // NOTE: This component must be stable across renders to avoid image flicker
+    // (active sleep re-renders every second).
     const v3IconSvg = (mode === 'feeding' ? BottleMainIcon : MoonMainIcon);
     const v3IconSrc = (mode === 'feeding')
       ? 'bottle-main@3x.png'
       : 'moon-main@3x.png';
 
-    const V3Icon = (() => {
+    const V3Icon = React.useMemo(() => {
       return function V3IconComponent(props) {
         const [failed, setFailed] = React.useState(false);
         if (failed || !v3IconSrc) {
           return v3IconSvg ? React.createElement(v3IconSvg, props) : null;
         }
         const { style, alt, ...rest } = props || {};
+        const mergedStyle = { ...(style || {}), objectFit: 'contain' };
+        // Ensure feeding PNG is mirrored even if caller forgets to pass a transform.
+        if (mode === 'feeding' && !mergedStyle.transform) {
+          mergedStyle.transform = 'scaleX(-1)';
+        }
         return React.createElement('img', {
           ...rest,
           src: v3IconSrc,
@@ -1457,11 +1465,11 @@ const TrackerCard = ({
           draggable: false,
           decoding: 'async',
           loading: 'eager',
-          style: { ...(style || {}), objectFit: 'contain' },
+          style: mergedStyle,
           onError: () => setFailed(true)
         });
       };
-    })();
+    }, [mode, v3IconSrc, v3IconSvg]);
 
     const v3StatusText = mode === 'feeding'
       ? (lastEntryTime ? `Last ate at ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
@@ -1556,7 +1564,7 @@ const TrackerCard = ({
       headerBottomMarginClass: 'mb-8',             // (unused when header removed)
       headerLabelClassName: 'text-[20px] font-thin', // (unused when header removed)
       iconOverride: V3Icon,
-      feedingIconTransform: 'scaleX(-1)',                  // mirror bottle, no vertical offset
+      feedingIconTransform: 'scaleX(-1)',                  // mirror bottle, no vertical offset (works for PNG + SVG)
       sleepIconTransform: 'none',                           // no offset
       showHeaderIcon: false,
       headerRight: null,
