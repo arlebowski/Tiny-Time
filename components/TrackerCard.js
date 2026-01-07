@@ -1321,6 +1321,7 @@ const TrackerCard = ({
     bigNumberTargetClassName = "relative -top-[1px] text-[16px] leading-none",
     bigNumberTargetColor = 'var(--tt-text-secondary)',
     bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v3 uses 'unit')
+    bigNumberTopLabel = null,                 // optional icon + label above big number (for v3 feeding)
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
     statusRow = null,                         // optional row below progress bar (v3)
@@ -1351,8 +1352,21 @@ const TrackerCard = ({
     },
     showHeaderRow ? React.createElement(
       'div',
-      { className: `flex items-center justify-between ${headerBottomMarginClass} h-6` },
-      React.createElement(
+      { 
+        className: `flex items-center w-full ${headerRight && !showHeaderIcon ? 'justify-end' : 'justify-between'} ${headerBottomMarginClass} ${headerRight && !showHeaderIcon ? '' : 'h-6'}`,
+        style: headerRight && !showHeaderIcon ? { 
+          width: '100%',
+          marginLeft: 0,
+          marginRight: 0,
+          paddingLeft: 0,
+          paddingRight: 0,
+          boxSizing: 'border-box',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end'
+        } : {}
+      },
+      (showHeaderIcon || (!headerRight)) ? React.createElement(
         'div',
         { className: `flex items-center ${headerGapClass}` },
         showHeaderIcon
@@ -1365,12 +1379,19 @@ const TrackerCard = ({
               }
             }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
           : null,
-        React.createElement('div', { 
+        (!headerRight || showHeaderIcon) ? React.createElement('div', { 
           className: headerLabelClassName,
           style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-        }, mode === 'feeding' ? 'Feed' : 'Sleep')
-      ),
+        }, mode === 'feeding' ? 'Feed' : 'Sleep') : null
+      ) : null,
       headerRight
+    ) : null,
+
+    // Optional icon + label above big number (for v3 feeding)
+    bigNumberTopLabel ? React.createElement(
+      'div',
+      { className: "flex items-center mb-2" },
+      bigNumberTopLabel
     ) : null,
 
     (() => {
@@ -1437,7 +1458,18 @@ const TrackerCard = ({
     
     // Animated Progress Bar (production-style)
     // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, style: { backgroundColor: progressTrackBg } },
+    React.createElement('div', { 
+      className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, 
+      style: { 
+        backgroundColor: progressTrackBg,
+        marginLeft: 0,
+        marginRight: 0,
+        paddingLeft: 0,
+        paddingRight: 0,
+        width: '100%',
+        boxSizing: 'border-box'
+      } 
+    },
       React.createElement('div', {
         className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
         style: {
@@ -1481,16 +1513,13 @@ const TrackerCard = ({
         'span',
         null,
         timelineVariant === 'v3'
-          ? React.createElement(
-              'span',
-              { className: "flex items-center gap-3" },
-              React.createElement(
-                'span',
-                { className: "font-normal", style: { color: timelineTextColor } },
-                'Timeline'
-              ),
-              timelineCountPill
-            )
+          ? (timelineCountPill 
+              ? timelineCountPill  // Feeding: replace "Timeline" with pills
+              : React.createElement(  // Sleep: show "Timeline" text
+                  'span',
+                  { className: "font-normal", style: { color: timelineTextColor } },
+                  'Timeline'
+                ))
           : timelineLabel
       ),
       expanded
@@ -1728,49 +1757,111 @@ const TrackerCard = ({
       );
     })();
 
-    // v3: status pill below the progress bar (left-aligned)
-    const v3StatusRow = React.createElement(
+    // v3 pills: keep a single source of truth so height/radius stays consistent.
+    const v3PillBaseClass =
+      "inline-flex items-center h-8 px-3 rounded-lg whitespace-nowrap text-sm font-normal leading-none";
+
+    // For feeding: pills go in timeline (count + status, in that order)
+    const v3FeedingTimelinePills = mode === 'feeding' ? React.createElement(
+      'span',
+      { className: "flex items-center gap-3" },
+      v3CountPill,
+      v3HeaderRight
+    ) : null;
+
+    // For sleep: pills go in timeline (count + status, in that order)
+    const v3SleepTimelinePills = mode === 'sleep' ? React.createElement(
+      'span',
+      { className: "flex items-center gap-3" },
+      v3CountPill,
+      v3HeaderRight
+    ) : null;
+
+    // For feeding: icon + label above big number (copied from today card)
+    const v3FeedingTopLabel = mode === 'feeding' ? React.createElement(
       'div',
-      { className: "flex flex-wrap items-center gap-3" },
-      v3HeaderRight,
-      v3CountPill
-    );
+      { 
+        className: "text-sm font-medium inline-flex items-center gap-2",
+        style: { color: 'var(--tt-feed)' }
+      },
+      (() => {
+        const v3Src = 'assets/ui-icons/bottle-main-right-v3@3x.png';
+        const v3Svg =
+          (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-main"]) ||
+          (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
+          null;
+        const canMask = (() => {
+          try {
+            if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+            return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
+          } catch {
+            return false;
+          }
+        })();
+        if (canMask) {
+          return React.createElement(
+            'span',
+            { style: { width: 18, height: 18, display: 'inline-block' } },
+            React.createElement('span', {
+              style: {
+                width: '100%',
+                height: '100%',
+                display: 'block',
+                backgroundColor: 'var(--tt-feed)',
+                WebkitMaskImage: `url("${v3Src}")`,
+                WebkitMaskRepeat: 'no-repeat',
+                WebkitMaskSize: 'contain',
+                WebkitMaskPosition: 'center',
+                maskImage: `url("${v3Src}")`,
+                maskRepeat: 'no-repeat',
+                maskSize: 'contain',
+                maskPosition: 'center'
+              }
+            })
+          );
+        }
+        // Fallback: SVG if mask isn't supported
+        return v3Svg ? React.createElement(v3Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-feed)', strokeWidth: '3' } }) : null;
+      })(),
+      React.createElement('span', null, "Feeding")
+    ) : null;
 
     return renderDesign({
-      showHeaderRow: false,                        // remove old header row (v3)
-      headerGapClass: 'gap-[2px]',                 // (unused when header removed, but keep for safety)
-      headerBottomMarginClass: 'mb-8',             // (unused when header removed)
-      headerLabelClassName: 'text-[20px] font-thin', // (unused when header removed)
+      showHeaderRow: false,                        // no header row for v3 (pills moved to timeline)
+      headerGapClass: 'gap-[2px]',
+      headerBottomMarginClass: 'mb-8',
+      headerLabelClassName: 'text-[20px] font-thin',
       iconOverride: V3Icon,
       feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
       sleepIconTransform: 'translateY(2px)',                // nudge moon down 2px
       mirrorFeedingIcon: false,
       showHeaderIcon: false,
-      headerRight: null,
-      showBigNumberIcon: true,
+      headerRight: null,                            // no pills in header (moved to timeline)
+      showBigNumberIcon: mode === 'sleep',          // only show big icon for sleep, not feeding
+      bigNumberTopLabel: v3FeedingTopLabel,          // feeding icon + label above big number
       // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px)
       bigNumberIconClassName: mode === 'feeding' ? 'h-[32.49px] w-[32.49px]' : 'h-[30.78px] w-[30.78px]',
       // v3: big-number row is just icon + number + target (left-aligned)
       bigNumberRight: null,
-      bigNumberRowClassName: "flex items-center gap-1 mb-[13px]",
+      bigNumberRowClassName: mode === 'feeding' ? "flex items-baseline gap-1 mb-[13px]" : "flex items-center gap-1 mb-[13px]",
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
       bigNumberValueClassName: "text-[36px] leading-none font-bold",
-      bigNumberTargetClassName: "relative -top-[2px] text-base leading-none font-normal",
+      bigNumberTargetClassName: mode === 'feeding' ? "text-base leading-none font-normal" : "relative -top-[2px] text-base leading-none font-normal",
       bigNumberTargetColor: 'var(--tt-text-secondary)',
       bigNumberTargetVariant: 'target',
       // 12px * 1.2 = 14.4px
       progressTrackHeightClass: 'h-[14.4px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
-      // v3: status pill (left) + "/ target" (right) below the progress bar
-      statusRow: v3StatusRow,
-      statusRowClassName: "mt-4 mb-4",
+      // v3: no status row below progress bar (pills moved to timeline/header)
+      statusRow: null,
+      statusRowClassName: "",
       showDotsRow: false,
       progressBottomMarginClass: 'mb-0',
       dividerMarginClass: 'my-4',
       timelineTextColor: 'var(--tt-text-tertiary)',
       timelineVariant: 'v3',
-      timelineCountPill: null
+      timelineCountPill: mode === 'feeding' ? v3FeedingTimelinePills : v3SleepTimelinePills  // pills replace "Timeline" for both modes
     });
   };
 
