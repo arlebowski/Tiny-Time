@@ -468,6 +468,14 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-card-bg', theme.cardBg);
     root.style.setProperty('--tt-card-border', theme.cardBorder);
 
+    // Premium surface elevation for chrome:
+    // - light: header/nav blend with app background
+    // - dark: header/nav use card surface for subtle separation
+    root.style.setProperty('--tt-header-bg', darkMode ? theme.cardBg : theme.appBg);
+    root.style.setProperty('--tt-nav-bg', darkMode ? theme.cardBg : theme.appBg);
+    // Reduce/disable nav shadow in dark mode (rely on surface step instead)
+    root.style.setProperty('--tt-nav-shadow', darkMode ? 'none' : '0 -1px 3px rgba(0,0,0,0.1)');
+
     // Input/surfaces/text (light unchanged; dark depends on selected background)
     if (!darkMode) {
       // Light mode (unchanged)
@@ -2339,7 +2347,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         {
           // Must sit above sticky in-tab UI like the TrackerTab date picker.
           className: "sticky top-0 z-[1200]",
-          style: { backgroundColor: "var(--tt-app-bg)" }
+          style: { backgroundColor: "var(--tt-header-bg)" }
         },
         React.createElement(
           'div',
@@ -2614,8 +2622,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
-          backgroundColor: "var(--tt-app-bg)",
-          boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
+          backgroundColor: "var(--tt-nav-bg)",
+          boxShadow: 'var(--tt-nav-shadow)',
           // Make the bar a bit taller without moving its contents (including the +):
           // increasing height pushes the top up, and matching paddingTop pushes contents back down.
           paddingTop: '10px',
@@ -2646,8 +2654,27 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement(BarChart, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'Tracker')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/Today_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/Today_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'tracker' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Today')
               ),
               React.createElement(
                 'button',
@@ -2665,8 +2692,27 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement(TrendingUp, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'Analytics')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/Trends_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/Trends_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'analytics' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Trends')
               ),
               React.createElement(
                 'button',
@@ -2705,8 +2751,27 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement(MessageCircle, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'AI Chat')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/chat_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/chat_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'chat' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Chat')
               ),
               React.createElement(
                 'button',
@@ -2724,8 +2789,27 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement(Users, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'Family')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/Family 1_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/Family 1_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'family' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Family')
               )
             )
           )

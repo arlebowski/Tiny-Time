@@ -1315,17 +1315,18 @@ const TrackerCard = ({
     showBigNumberIcon = false,               // show icon inline with the big number row
     bigNumberIconClassName = null,           // icon size for big number row (defaults to headerIconClassName)
     bigNumberRight = null,                   // optional right-side content in big number row (e.g. status pill)
-    bigNumberRowClassName = "flex items-baseline gap-1 mb-3",
+    bigNumberRowClassName = "flex items-baseline gap-1 mb-1",
     bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value (v3)
     bigNumberValueClassName = "text-[40px] leading-none font-bold",
     bigNumberTargetClassName = "relative -top-[1px] text-[16px] leading-none",
     bigNumberTargetColor = 'var(--tt-text-secondary)',
+    bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v3 uses 'unit')
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
     statusRow = null,                         // optional row below progress bar (v3)
     statusRowClassName = '',                  // spacing wrapper for statusRow
     showDotsRow = true,                       // dots row under progress bar
-    progressBottomMarginClass = 'mb-3',       // spacing after progress bar
+    progressBottomMarginClass = 'mb-1',       // spacing after progress bar
     dividerMarginClass = 'my-4',              // divider spacing
     timelineTextColor = 'var(--tt-text-secondary)',
     timelineVariant = 'v2',                   // 'v2' | 'v3' (v3 uses pill + no bullet)
@@ -1387,9 +1388,11 @@ const TrackerCard = ({
         className: bigNumberTargetClassName,
         style: { color: bigNumberTargetColor } 
       }, 
-        target !== null 
-          ? (mode === 'sleep' ? `/ ${formatV3Number(target)} hrs` : `/ ${formatV3Number(target)} oz`)
-          : (mode === 'sleep' ? '/ 0 hrs' : '/ 0 oz')
+        bigNumberTargetVariant === 'unit'
+          ? (mode === 'sleep' ? 'hrs' : 'oz')
+          : (target !== null 
+              ? (mode === 'sleep' ? `/ ${formatV3Number(target)} hrs` : `/ ${formatV3Number(target)} oz`)
+              : (mode === 'sleep' ? '/ 0 hrs' : '/ 0 oz'))
       );
 
       const iconEl = (showBigNumberIcon && IconComp)
@@ -1423,7 +1426,7 @@ const TrackerCard = ({
           iconEl,
           React.createElement(
             'div',
-            { className: "flex items-baseline gap-[6px] min-w-0" },
+            { className: "flex items-baseline gap-[2px] min-w-0" },
             valueEl,
             targetEl
           )
@@ -1725,6 +1728,7 @@ const TrackerCard = ({
       );
     })();
 
+    // v3: status pill below the progress bar (left-aligned)
     const v3StatusRow = React.createElement(
       'div',
       { className: "flex flex-wrap items-center gap-3" },
@@ -1753,20 +1757,20 @@ const TrackerCard = ({
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
       bigNumberValueClassName: "text-[36px] leading-none font-bold",
       bigNumberTargetClassName: "relative -top-[2px] text-base leading-none font-normal",
-      bigNumberTargetColor: 'var(--tt-text-tertiary)',
+      bigNumberTargetColor: 'var(--tt-text-secondary)',
+      bigNumberTargetVariant: 'target',
       // 12px * 1.2 = 14.4px
       progressTrackHeightClass: 'h-[14.4px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
-      // v3: "Last ate/woke" pill below the progress bar, left-aligned with the bar.
-      // Add a touch more breathing room on small screens to avoid looking like it collides with the big number.
-      statusRow: v3HeaderRight,
-      statusRowClassName: "mt-4 mb-4 flex justify-start",
+      // v3: status pill (left) + "/ target" (right) below the progress bar
+      statusRow: v3StatusRow,
+      statusRowClassName: "mt-4 mb-4",
       showDotsRow: false,
       progressBottomMarginClass: 'mb-0',
       dividerMarginClass: 'my-4',
       timelineTextColor: 'var(--tt-text-tertiary)',
       timelineVariant: 'v3',
-      timelineCountPill: v3CountPill
+      timelineCountPill: null
     });
   };
 
