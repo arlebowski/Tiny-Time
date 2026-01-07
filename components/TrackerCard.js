@@ -2320,6 +2320,34 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [dragStartY, setDragStartY] = React.useState(0);
     const [dragCurrentY, setDragCurrentY] = React.useState(0);
     const [dragStartTime, setDragStartTime] = React.useState(0);
+    
+    // Refs for drag state to access latest values in event handlers
+    const isDraggingRef = React.useRef(false);
+    const dragStartYRef = React.useRef(0);
+    const dragCurrentYRef = React.useRef(0);
+    const dragStartTimeRef = React.useRef(0);
+    const keyboardOffsetRef = React.useRef(0);
+    
+    // Keep refs in sync with state
+    React.useEffect(() => {
+      isDraggingRef.current = isDragging;
+    }, [isDragging]);
+    
+    React.useEffect(() => {
+      dragStartYRef.current = dragStartY;
+    }, [dragStartY]);
+    
+    React.useEffect(() => {
+      dragCurrentYRef.current = dragCurrentY;
+    }, [dragCurrentY]);
+    
+    React.useEffect(() => {
+      dragStartTimeRef.current = dragStartTime;
+    }, [dragStartTime]);
+    
+    React.useEffect(() => {
+      keyboardOffsetRef.current = keyboardOffset;
+    }, [keyboardOffset]);
 
     // Set present when isOpen becomes true
     React.useEffect(() => {
@@ -2383,6 +2411,30 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             // Measure actual header height instead of hardcoding
             const headerHeight = headerRef.current.offsetHeight;
             
+            // Check for sticky CTA button and add its bottom offset space
+            let ctaBottomSpace = 0;
+            if (contentRef.current) {
+              // Look for element with sticky positioning (the CTA button container)
+              const stickyElements = contentRef.current.querySelectorAll('[class*="sticky"]');
+              for (const el of stickyElements) {
+                const styles = window.getComputedStyle(el);
+                if (styles.position === 'sticky' && styles.bottom !== 'auto') {
+                  // Get bottom offset from inline style (e.g., "30px")
+                  const bottomStyle = el.style.bottom;
+                  if (bottomStyle && bottomStyle.includes('px')) {
+                    const bottomOffset = parseFloat(bottomStyle) || 0;
+                    // Only add space if CTA is visible
+                    if (styles.display !== 'none') {
+                      // Add the bottom offset to ensure space for sticky positioning
+                      // The CTA height is already in scrollHeight, but we need space for the offset
+                      ctaBottomSpace = bottomOffset;
+                    }
+                  }
+                  break; // Only count the first sticky CTA
+                }
+              }
+            }
+            
             // Get safe-area-inset-bottom - try to read computed style, fallback to 0
             let bottomPad = 0;
             try {
@@ -2397,7 +2449,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               bottomPad = 0;
             }
             
-            const totalNeeded = contentHeight + headerHeight + bottomPad;
+            const totalNeeded = contentHeight + headerHeight + bottomPad + ctaBottomSpace;
             // If content fits within 90% of viewport, use exact height to prevent scrolling
             // Otherwise, cap at 90% to leave some space at top
             const maxHeight = totalNeeded <= viewportHeight * 0.9 
@@ -2456,7 +2508,31 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
             // Measure actual header height instead of hardcoding
             const headerHeight = headerRef.current.offsetHeight;
-
+            
+            // Check for sticky CTA button and add its bottom offset space
+            let ctaBottomSpace = 0;
+            if (contentRef.current) {
+              // Look for element with sticky positioning (the CTA button container)
+              const stickyElements = contentRef.current.querySelectorAll('[class*="sticky"]');
+              for (const el of stickyElements) {
+                const styles = window.getComputedStyle(el);
+                if (styles.position === 'sticky' && styles.bottom !== 'auto') {
+                  // Get bottom offset from inline style (e.g., "30px")
+                  const bottomStyle = el.style.bottom;
+                  if (bottomStyle && bottomStyle.includes('px')) {
+                    const bottomOffset = parseFloat(bottomStyle) || 0;
+                    // Only add space if CTA is visible
+                    if (styles.display !== 'none') {
+                      // Add the bottom offset to ensure space for sticky positioning
+                      // The CTA height is already in scrollHeight, but we need space for the offset
+                      ctaBottomSpace = bottomOffset;
+                    }
+                  }
+                  break; // Only count the first sticky CTA
+                }
+              }
+            }
+            
             // Get safe-area-inset-bottom - try to read computed style, fallback to 0
             let bottomPad = 0;
             try {
@@ -2470,8 +2546,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               // Fallback to 0 if measurement fails
               bottomPad = 0;
             }
-
-            const totalNeeded = contentHeight + headerHeight + bottomPad;
+            
+            const totalNeeded = contentHeight + headerHeight + bottomPad + ctaBottomSpace;
             // If content fits within 90% of viewport, use exact height to prevent scrolling
             // Otherwise, cap at 90% to leave some space at top
             const maxHeight = totalNeeded <= viewportHeight * 0.9
@@ -2546,14 +2622,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // NOTE: When the keyboard is open, dragging feels glitchy on iOS PWAs.
     // Disable drag-to-dismiss while a field is focused / keyboard is up.
     const canDrag = () => {
-      if (keyboardOffset > 0) return false;
+      if (keyboardOffsetRef.current > 0) return false;
       const ae = document.activeElement;
       if (!ae) return true;
       const tag = (ae.tagName || '').toUpperCase();
       return !(tag === 'INPUT' || tag === 'TEXTAREA' || ae.isContentEditable);
     };
 
-    const handleTouchStart = (e) => {
+    // Touch handlers stored in refs to access latest state values
+    const handleTouchStartRef = React.useRef((e) => {
       if (!canDrag()) return;
       if (!sheetRef.current) return;
       const touch = e.touches[0];
@@ -2563,14 +2640,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setDragStartTime(Date.now());
       // Only disable transform transition, keep height transition
       sheetRef.current.style.transition = 'height 200ms ease-out';
-    };
+    });
 
-    const handleTouchMove = (e) => {
+    const handleTouchMoveRef = React.useRef((e) => {
       if (!canDrag()) return;
-      if (!isDragging || !sheetRef.current || !backdropRef.current) return;
-      e.preventDefault();
+      if (!isDraggingRef.current || !sheetRef.current || !backdropRef.current) return;
+      e.preventDefault(); // Now works because listener is non-passive
       const touch = e.touches[0];
-      const deltaY = touch.clientY - dragStartY;
+      const deltaY = touch.clientY - dragStartYRef.current;
       
       // Only allow downward drag
       if (deltaY > 0) {
@@ -2582,14 +2659,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const backdropOpacity = Math.max(0, 0.4 - (deltaY / maxDrag) * 0.4);
         backdropRef.current.style.opacity = backdropOpacity.toString();
       }
-    };
+    });
 
-    const handleTouchEnd = () => {
+    const handleTouchEndRef = React.useRef(() => {
       if (!canDrag()) return;
-      if (!isDragging || !sheetRef.current || !backdropRef.current) return;
+      if (!isDraggingRef.current || !sheetRef.current || !backdropRef.current) return;
       
-      const deltaY = dragCurrentY - dragStartY;
-      const dragDuration = Date.now() - dragStartTime;
+      const deltaY = dragCurrentYRef.current - dragStartYRef.current;
+      const dragDuration = Date.now() - dragStartTimeRef.current;
       const velocity = deltaY / dragDuration; // pixels per ms
       const threshold = 0.3; // 30% of sheet height
       const sheetHeightPx = sheetRef.current.offsetHeight;
@@ -2609,7 +2686,25 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         sheetRef.current.style.transform = 'translateY(0)';
         backdropRef.current.style.opacity = '0.4';
       }
-    };
+    });
+
+    // Attach touch event listeners directly to DOM with passive: false
+    // This allows preventDefault() to work properly
+    React.useEffect(() => {
+      if (!present || !isOpen || !sheetRef.current) return;
+      
+      const sheetEl = sheetRef.current;
+      
+      sheetEl.addEventListener('touchstart', handleTouchStartRef.current, { passive: false });
+      sheetEl.addEventListener('touchmove', handleTouchMoveRef.current, { passive: false });
+      sheetEl.addEventListener('touchend', handleTouchEndRef.current, { passive: false });
+      
+      return () => {
+        sheetEl.removeEventListener('touchstart', handleTouchStartRef.current);
+        sheetEl.removeEventListener('touchmove', handleTouchMoveRef.current);
+        sheetEl.removeEventListener('touchend', handleTouchEndRef.current);
+      };
+    }, [isOpen, present]);
 
     // Escape closes
     React.useEffect(() => {
@@ -2651,9 +2746,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           ref: sheetRef,
           className: "fixed left-0 right-0 bottom-0 shadow-2xl",
           onClick: (e) => e.stopPropagation(),
-          onTouchStart: handleTouchStart,
-          onTouchMove: handleTouchMove,
-          onTouchEnd: handleTouchEnd,
           style: {
             backgroundColor: "var(--tt-card-bg)",
             transform: 'translateY(100%)',
@@ -2690,11 +2782,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               flexShrink: 0
             }
           },
-            // X button (close)
+            // ChevronDown button (close)
             React.createElement('button', {
               onClick: onClose,
               className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-            }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+            }, React.createElement(ChevronDown, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
             
             // Centered title
             React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || ''),
@@ -2851,7 +2943,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTFeedDetailSheet Component
-  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null }) => {
+  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
     const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -2859,7 +2951,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [existingPhotoURLs, setExistingPhotoURLs] = React.useState([]); // Array of Firebase Storage URLs
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
     const [saving, setSaving] = React.useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+    
+    // Track keyboard state to hide sticky button when keyboard is open
+    const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
+    const ctaFooterRef = React.useRef(null);
+    const CTA_BOTTOM_OFFSET_PX = 30;
 
     // Populate form from entry when it exists
     React.useEffect(() => {
@@ -2921,7 +3017,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           );
         }
         
+        // Close the sheet first
         handleClose();
+        // Then refresh timeline after sheet closes (onSave callback handles the delay)
+        if (onSave) {
+          await onSave();
+        }
       } catch (error) {
         console.error('Failed to save feeding:', error);
         alert('Failed to save feeding. Please try again.');
@@ -2994,12 +3095,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     };
 
     // Body content (used in both static and overlay modes)
+    // IMPORTANT: Make the body a full-height flex column so the CTA stays locked to the bottom
     const bodyContent = React.createElement(
-      React.Fragment,
-      null,
-
-      // Input rows wrapped in spacing container
-      React.createElement('div', { className: "space-y-2" },
+      'div',
+      { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
+      // Content wrapper
+      React.createElement('div', {
+        style: { position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: 0 }
+      },
+        // Input rows wrapped in spacing container
+        React.createElement('div', { className: "space-y-2" },
         // Ounces
         React.createElement(InputRow, {
           label: 'Ounces',
@@ -3094,47 +3199,47 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
+      )
       ),
 
-      // Delete Button (only show if editing existing entry)
-      entry && entry.id && React.createElement('button', {
-        onClick: () => setShowDeleteConfirm(true),
-        disabled: saving,
-        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
-        style: { marginTop: '30px' }
-      }, 'Delete'),
-
-      // Delete confirmation dialog
-      showDeleteConfirm && React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('div', {
-          onClick: () => setShowDeleteConfirm(false),
-          className: "fixed inset-0 bg-black bg-opacity-50 z-[103] flex items-center justify-center p-4"
-        },
-          React.createElement('div', {
-            onClick: (e) => e.stopPropagation(),
-            className: "rounded-2xl p-4 max-w-xs w-full",
-            style: { backgroundColor: 'var(--tt-card-bg)' }
+      // Sticky bottom CTA (Save button)
+      // Hide when keyboard is open to prevent overlap with keyboard
+      React.createElement('div', {
+        ref: ctaFooterRef,
+        className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
+        style: { 
+          zIndex: 10,
+          backgroundColor: 'var(--tt-card-bg)',
+          display: isKeyboardOpen ? 'none' : 'block',
+          bottom: `${CTA_BOTTOM_OFFSET_PX}px`
+        }
+      },
+        React.createElement('button', {
+          type: 'button',
+          onClick: handleSave,
+          disabled: saving,
+          onTouchStart: (e) => {
+            // Prevent scroll container from capturing touch
+            e.stopPropagation();
           },
-            React.createElement('div', { className: "text-base font-semibold mb-4 text-center", style: { color: 'var(--tt-text-primary)' } }, 'Delete feeding?'),
-            React.createElement('div', { className: "flex gap-3" },
-              React.createElement('button', {
-                onClick: () => setShowDeleteConfirm(false),
-                className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
-                style: { 
-                  borderColor: 'var(--tt-card-border)', 
-                  color: 'var(--tt-text-secondary)',
-                  backgroundColor: 'var(--tt-card-bg)'
-                }
-              }, 'Cancel'),
-              React.createElement('button', {
-                onClick: handleDelete,
-                className: "flex-1 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-gray-900 transition text-sm"
-              }, 'Delete')
-            )
-          )
-        )
+          className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: saving ? 'var(--tt-feed-strong)' : 'var(--tt-feed)',
+            touchAction: 'manipulation', // Prevent scroll interference on mobile
+            opacity: saving ? 0.7 : 1,
+            cursor: saving ? 'not-allowed' : 'pointer'
+          },
+          onMouseEnter: (e) => {
+            if (!saving) {
+              e.target.style.backgroundColor = 'var(--tt-feed-strong)';
+            }
+          },
+          onMouseLeave: (e) => {
+            if (!saving) {
+              e.target.style.backgroundColor = 'var(--tt-feed)';
+            }
+          }
+        }, saving ? 'Saving...' : 'Save')
       ),
 
       // Full-size photo modal
@@ -3164,15 +3269,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onClose: handleClose,
           title: 'Feeding',
           accentColor: 'var(--tt-feed)',
-          rightAction: React.createElement('button', {
-            onClick: handleSave,
-            disabled: saving,
-            className: `text-base font-normal transition-opacity ${
-              saving 
-                ? 'text-white/50 cursor-not-allowed' 
-                : 'text-white hover:opacity-70 active:opacity-50'
-            }`
-          }, saving ? 'Saving...' : 'Save')
+          rightAction: null
         },
         bodyContent
       );
@@ -3210,7 +3307,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
   };
 
   // TTSleepDetailSheet Component
-  const TTSleepDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null }) => {
+  const TTSleepDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
     const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
     const [endTime, setEndTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -3219,7 +3316,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
     const [lastValidDuration, setLastValidDuration] = React.useState({ hours: 0, minutes: 0, seconds: 0 });
     const [saving, setSaving] = React.useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+    
+    // Track keyboard state to hide sticky button when keyboard is open
+    const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
+    const ctaFooterRef = React.useRef(null);
+    const CTA_BOTTOM_OFFSET_PX = 30;
 
     // Populate form from entry when it exists
     React.useEffect(() => {
@@ -3267,6 +3368,32 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setLastValidDuration(duration);
       }
     }, [isValid, duration.hours, duration.minutes, duration.seconds]);
+
+    // Detect keyboard state using visualViewport to hide sticky button when keyboard is open
+    React.useEffect(() => {
+      if (!isOpen) {
+        setIsKeyboardOpen(false);
+        return;
+      }
+      
+      const vv = window.visualViewport;
+      if (!vv) return;
+      
+      const checkKeyboard = () => {
+        const layoutH = document.documentElement?.clientHeight || window.innerHeight;
+        const keyboardHeight = layoutH - vv.height - vv.offsetTop;
+        setIsKeyboardOpen(keyboardHeight > 50); // Threshold: 50px means keyboard is likely open
+      };
+      
+      vv.addEventListener('resize', checkKeyboard);
+      vv.addEventListener('scroll', checkKeyboard);
+      checkKeyboard(); // Initial check
+      
+      return () => {
+        vv.removeEventListener('resize', checkKeyboard);
+        vv.removeEventListener('scroll', checkKeyboard);
+      };
+    }, [isOpen]);
 
     const handleSave = async () => {
       if (!isValid) return; // Don't save if invalid
@@ -3321,7 +3448,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           }
         }
         
+        // Close the sheet first
         handleClose();
+        // Then refresh timeline after sheet closes (onSave callback handles the delay)
+        if (onSave) {
+          await onSave();
+        }
       } catch (error) {
         console.error('Failed to save sleep session:', error);
         alert('Failed to save sleep session. Please try again.');
@@ -3397,11 +3529,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const tParts = formatElapsedHmsTT(durationMs);
 
     // Body content (used in both static and overlay modes)
+    // IMPORTANT: Make the body a full-height flex column so the CTA stays locked to the bottom
     const bodyContent = React.createElement(
-      React.Fragment,
-      null,
-
-      // Timer Display
+      'div',
+      { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
+      // Content wrapper
+      React.createElement('div', {
+        style: { position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: 0 }
+      },
+        // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
         React.createElement('div', { className: "text-[40px] leading-none font-bold", style: { color: 'var(--tt-text-primary)' } },
           React.createElement(React.Fragment, null,
@@ -3518,47 +3654,49 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
+      )
       ),
 
-      // Delete Button (only show if editing existing entry)
-      entry && entry.id && React.createElement('button', {
-        onClick: () => setShowDeleteConfirm(true),
-        disabled: saving,
-        className: "w-full text-red-600 py-2 text-center font-normal active:opacity-70 transition-opacity duration-100",
-        style: { marginTop: '30px' }
-      }, 'Delete'),
-
-      // Delete confirmation dialog
-      showDeleteConfirm && React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('div', {
-          onClick: () => setShowDeleteConfirm(false),
-          className: "fixed inset-0 bg-black bg-opacity-50 z-[103] flex items-center justify-center p-4"
-        },
-          React.createElement('div', {
-            onClick: (e) => e.stopPropagation(),
-            className: "rounded-2xl p-4 max-w-xs w-full",
-            style: { backgroundColor: 'var(--tt-card-bg)' }
+      // Sticky bottom CTA (Save button)
+      // Hide when keyboard is open to prevent overlap with keyboard
+      React.createElement('div', {
+        ref: ctaFooterRef,
+        className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
+        style: { 
+          zIndex: 10,
+          backgroundColor: 'var(--tt-card-bg)',
+          display: isKeyboardOpen ? 'none' : 'block',
+          bottom: `${CTA_BOTTOM_OFFSET_PX}px`
+        }
+      },
+        React.createElement('button', {
+          type: 'button',
+          onClick: handleSave,
+          disabled: saving || !isValid,
+          onTouchStart: (e) => {
+            // Prevent scroll container from capturing touch
+            e.stopPropagation();
           },
-            React.createElement('div', { className: "text-base font-semibold mb-4 text-center", style: { color: 'var(--tt-text-primary)' } }, 'Delete sleep session?'),
-            React.createElement('div', { className: "flex gap-3" },
-              React.createElement('button', {
-                onClick: () => setShowDeleteConfirm(false),
-                className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
-                style: { 
-                  borderColor: 'var(--tt-card-border)', 
-                  color: 'var(--tt-text-secondary)',
-                  backgroundColor: 'var(--tt-card-bg)'
-                }
-              }, 'Cancel'),
-              React.createElement('button', {
-                onClick: handleDelete,
-                className: "flex-1 py-2.5 rounded-xl bg-black text-white font-semibold hover:bg-gray-900 transition text-sm"
-              }, 'Delete')
-            )
-          )
-        )
+          className: "w-full py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: (saving || !isValid) ? 'transparent' : 'var(--tt-sleep)',
+            color: (saving || !isValid) ? '#ef4444' : 'white',
+            border: (saving || !isValid) ? '1px solid #ef4444' : 'none',
+            touchAction: 'manipulation', // Prevent scroll interference on mobile
+            opacity: (saving || !isValid) ? 0.7 : 1,
+            cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'
+          },
+          onMouseEnter: (e) => {
+            if (!saving && isValid) {
+              e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+            }
+          },
+          onMouseLeave: (e) => {
+            if (!saving && isValid) {
+              e.target.style.backgroundColor = 'var(--tt-sleep)';
+            }
+          }
+        }, saving ? 'Saving...' : 'Save')
       ),
 
       // Full-size photo modal
@@ -3588,16 +3726,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onClose: handleClose,
           title: 'Sleep',
           accentColor: 'var(--tt-sleep)',
-          rightAction: React.createElement('button', {
-            onClick: handleSave,
-            disabled: !isValid || saving,
-            className: `text-base font-normal transition-opacity ${
-              (isValid && !saving)
-                ? 'text-white hover:opacity-70 active:opacity-50' 
-                : 'cursor-not-allowed'
-            }`,
-            style: (!isValid || saving) ? { color: 'rgba(255,255,255,0.4)' } : undefined
-          }, saving ? 'Saving...' : 'Save')
+          rightAction: null
         },
         bodyContent
       );
@@ -3613,28 +3742,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           borderColor: "var(--tt-card-border)"
         }
       },
-      // Header: [X] [Sleep] [Save]
-      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
-        // X button (close)
+      // Header: [ChevronDown] [Sleep] [empty]
+      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 h-[60px] mb-6 flex items-center justify-between" },
         React.createElement('button', {
           onClick: handleClose,
           className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
-        
-        // Centered title
-        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Sleep'),
-        
-        // Save button
-        React.createElement('button', {
-          onClick: handleSave,
-          disabled: !isValid,
-          className: `text-base font-normal transition-opacity ${
-            isValid 
-              ? 'text-white hover:opacity-70 active:opacity-50' 
-              : 'cursor-not-allowed'
-          }`,
-          style: !isValid ? { color: 'var(--tt-text-tertiary)' } : undefined
-        }, 'Save')
+        }, React.createElement(ChevronDown, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+        React.createElement('div', { className: "flex-1 flex justify-center" },
+          React.createElement('h2', { className: "text-base font-semibold text-white" }, 'Sleep')
+        ),
+        React.createElement('div', { className: "w-6" })
       ),
       bodyContent
     );

@@ -2275,6 +2275,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         // Small delay for sheet close animation (animation handled locally in TrackerCard)
         await new Promise(resolve => setTimeout(resolve, 200));
         await loadFeedings();
+      },
+      onSave: async () => {
+        // Small delay for sheet close animation (animation handled locally in TrackerCard)
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await loadFeedings();
       }
     }),
     window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
@@ -2285,6 +2290,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       },
       entry: selectedSleepEntry,
       onDelete: async () => {
+        // Small delay for sheet close animation (animation handled locally in TrackerCard)
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await loadSleepSessions();
+      },
+      onSave: async () => {
         // Small delay for sheet close animation (animation handled locally in TrackerCard)
         await new Promise(resolve => setTimeout(resolve, 200));
         await loadSleepSessions();
