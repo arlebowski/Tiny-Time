@@ -53,6 +53,15 @@ const SettingsTab = ({ user, kidId }) => {
     return false;
   });
   
+  // V3 Variant toggle state
+  const [v3Variant, setV3Variant] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_v3_card_variant');
+      return stored && ['variant1', 'variant2'].includes(stored) ? stored : 'variant1';
+    }
+    return 'variant1';
+  });
+  
   // Production data for UI Lab
   const [feedings, setFeedings] = useState([]);
   const [sleepSessions, setSleepSessions] = useState([]);
@@ -648,7 +657,32 @@ const SettingsTab = ({ user, kidId }) => {
     const lastTime = React.useRef(Date.now());
 
     const generateOptions = () => {
-      if (type === 'hour') {
+      if (type === 'date') {
+        const options = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        
+        // First option: "Today"
+        options.push({ display: 'Today', value: today.toISOString() });
+        
+        // Then previous dates: yesterday, 2 days ago, 3 days ago, etc.
+        for (let i = 1; i <= 6; i++) {
+          const date = new Date(today);
+          date.setDate(today.getDate() - i);
+          
+          const dayName = dayNames[date.getDay()];
+          const monthName = monthNames[date.getMonth()];
+          const day = date.getDate();
+          
+          const display = `${dayName} ${monthName} ${day}`;
+          options.push({ display, value: date.toISOString() });
+        }
+        
+        return options;
+      } else if (type === 'hour') {
         const options = [];
         for (let hour = 1; hour <= 12; hour++) {
           options.push({ display: hour.toString(), value: hour });
@@ -683,6 +717,17 @@ const SettingsTab = ({ user, kidId }) => {
     const padY = Math.max(0, (pickerHeight - ITEM_HEIGHT) / 2);
 
     const getCurrentIndex = () => {
+      if (type === 'date' && value) {
+        // Normalize both values to midnight for comparison
+        const valDate = new Date(value);
+        valDate.setHours(0, 0, 0, 0);
+        const valISO = valDate.toISOString();
+        return options.findIndex(opt => {
+          const optDate = new Date(opt.value);
+          optDate.setHours(0, 0, 0, 0);
+          return optDate.toISOString() === valISO;
+        });
+      }
       return options.findIndex(opt => opt.value === value);
     };
 
@@ -859,6 +904,11 @@ const SettingsTab = ({ user, kidId }) => {
   const WheelPickersLabSection = () => {
     const [amount, setAmount] = useState(4);
     const [unit, setUnit] = useState('oz');
+    const [selectedDate, setSelectedDate] = useState(() => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return today.toISOString();
+    });
     const [hour, setHour] = useState(2);
     const [minute, setMinute] = useState(30);
     const [ampm, setAmpm] = useState('PM');
@@ -964,7 +1014,7 @@ const SettingsTab = ({ user, kidId }) => {
                 position: 'relative',
                 zIndex: 1,
                 display: 'grid',
-                gridTemplateColumns: 'min(84px, 22vw) 14px min(84px, 22vw) min(84px, 22vw)',
+                gridTemplateColumns: 'min(110px, 28vw) min(84px, 22vw) 14px min(84px, 22vw) min(84px, 22vw)',
                 justifyContent: 'center',
                 alignItems: 'center',
                 columnGap: '6px',
@@ -972,6 +1022,13 @@ const SettingsTab = ({ user, kidId }) => {
                 maxWidth: '100%'
               }
             },
+            React.createElement(WheelPicker, { 
+              type: 'date', 
+              value: selectedDate, 
+              onChange: setSelectedDate, 
+              compact: true, 
+              showSelection: false 
+            }),
             React.createElement(WheelPicker, { type: 'hour', value: hour, onChange: setHour, compact: true, showSelection: false }),
             React.createElement(
               'div',
@@ -1051,6 +1108,28 @@ const SettingsTab = ({ user, kidId }) => {
             setShowTodayCard(isOn);
             if (typeof window !== 'undefined' && window.localStorage) {
               window.localStorage.setItem('tt_show_today_card', isOn ? 'true' : 'false');
+              // Force reload to apply changes
+              window.location.reload();
+            }
+          }
+        })
+      ),
+
+      // V3 Card Variant Toggle (only show when v3 is selected)
+      uiVersion === 'v3' && React.createElement('div', { className: "mb-4" },
+        React.createElement('label', { 
+          className: "block text-sm font-medium text-gray-700 mb-2" 
+        }, 'V3 Card Variant'),
+        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+          value: v3Variant,
+          options: [
+            { value: 'variant1', label: 'Variant 1' },
+            { value: 'variant2', label: 'Variant 2' }
+          ],
+          onChange: (value) => {
+            setV3Variant(value);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('tt_v3_card_variant', value);
               // Force reload to apply changes
               window.location.reload();
             }

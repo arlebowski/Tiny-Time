@@ -1681,7 +1681,7 @@ const LoginScreen = () => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-4" },
-            React.createElement(Baby, {
+            React.createElement(window.TT?.shared?.icons?.BabyIcon || Baby, {
               className: "w-12 h-12 text-indigo-600",
             })
           )
@@ -1956,7 +1956,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-3" },
-            React.createElement(Baby, { className: "w-10 h-10 text-indigo-600" })
+            React.createElement(window.TT?.shared?.icons?.BabyIcon || Baby, { className: "w-10 h-10 text-indigo-600" })
           )
         ),
         React.createElement(
@@ -2375,7 +2375,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 React.createElement(
                   'div',
                   { className: "flex items-center justify-center mr-2" },
-                  React.createElement(Baby, {
+                  React.createElement(window.TT?.shared?.icons?.BabyIcon || Baby, {
                     className: "w-8 h-8",
                     style: { color: 'var(--tt-feed)' }
                   })
@@ -2388,8 +2388,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   (activeKid?.name || 'Baby') + "'s Tracker"
                 ),
-                React.createElement(ChevronDown, {
+                React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, {
                   className: "w-5 h-5 ml-2",
+                  isTapped: showKidMenu,
+                  selectedWeight: 'bold',
                   style: { color: 'var(--tt-text-tertiary)' }
                 })
               ),
@@ -2476,7 +2478,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             // RIGHT: Share (+ Settings in v3 only)
             React.createElement(
               'div',
-              { className: "flex items-center gap-1" },
+              { className: "flex items-center justify-center gap-0.5" },
               React.createElement(
                 'button',
                 {
@@ -2491,8 +2493,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     ? "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
                     : "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
                 },
-                React.createElement(ShareIcon, {
+                React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || ShareIcon, {
                   className: isV3 ? "w-6 h-6" : "w-4 h-4",
+                  isTapped: showShareMenu,
+                  selectedWeight: 'fill',
                   style: { color: isV3 ? 'var(--tt-text-primary)' : theme.accent }
                 })
               ),
@@ -2512,8 +2516,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
                       'aria-label': 'Settings'
                     },
-                    React.createElement(Menu, {
+                    React.createElement(window.TT?.shared?.icons?.MenuIcon || Menu, {
                       className: "w-6 h-6",
+                      isSelected: activeTab === 'settings',
+                      selectedWeight: 'fill',
                       style: { color: 'var(--tt-text-primary)' }
                     })
                   )
@@ -2650,27 +2656,20 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
-                    color: activeTab === 'tracker' ? theme.accent : '#9CA3AF',
+                    color: 'var(--tt-text-primary)',
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement('div', { 
-                  className: "h-6 w-6",
+                React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
+                  className: "w-6 h-6",
+                  isSelected: activeTab === 'tracker',
+                  selectedWeight: 'fill',
                   style: {
-                    maskImage: 'url("assets/ui-icons/Today_png.png")',
-                    maskSize: 'contain',
-                    maskRepeat: 'no-repeat',
-                    maskPosition: 'center',
-                    maskMode: 'alpha',
-                    WebkitMaskImage: 'url("assets/ui-icons/Today_png.png")',
-                    WebkitMaskSize: 'contain',
-                    WebkitMaskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    backgroundColor: activeTab === 'tracker' ? theme.accent : 'var(--tt-text-primary)'
+                    color: 'var(--tt-text-primary)'
                   }
                 }),
                 React.createElement('span', { 
-                  className: "text-xs font-medium",
+                  className: "text-xs font-light",
                   style: {
                     color: 'var(--tt-text-primary)'
                   }
@@ -2688,27 +2687,20 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
-                    color: activeTab === 'analytics' ? theme.accent : '#9CA3AF',
+                    color: 'var(--tt-text-primary)',
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement('div', { 
-                  className: "h-6 w-6",
+                React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
+                  className: "w-6 h-6",
+                  isSelected: activeTab === 'analytics',
+                  selectedWeight: 'fill',
                   style: {
-                    maskImage: 'url("assets/ui-icons/Trends_png.png")',
-                    maskSize: 'contain',
-                    maskRepeat: 'no-repeat',
-                    maskPosition: 'center',
-                    maskMode: 'alpha',
-                    WebkitMaskImage: 'url("assets/ui-icons/Trends_png.png")',
-                    WebkitMaskSize: 'contain',
-                    WebkitMaskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    backgroundColor: activeTab === 'analytics' ? theme.accent : 'var(--tt-text-primary)'
+                    color: 'var(--tt-text-primary)'
                   }
                 }),
                 React.createElement('span', { 
-                  className: "text-xs font-medium",
+                  className: "text-xs font-light",
                   style: {
                     color: 'var(--tt-text-primary)'
                   }
@@ -2733,7 +2725,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   'aria-label': 'Add'
                 },
-                React.createElement('span', { className: "text-3xl leading-none", style: { transform: 'translateY(-1px)' } }, '+')
+                React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
+                  className: "w-6 h-6",
+                  weight: 'fill',
+                  style: { color: '#fff' }
+                })
               ),
               React.createElement(
                 'button',
@@ -2747,27 +2743,20 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
-                    color: activeTab === 'chat' ? theme.accent : '#9CA3AF',
+                    color: 'var(--tt-text-primary)',
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement('div', { 
-                  className: "h-6 w-6",
+                React.createElement(window.TT?.shared?.icons?.ChatIcon || (() => null), {
+                  className: "w-6 h-6",
+                  isSelected: activeTab === 'chat',
+                  selectedWeight: 'fill',
                   style: {
-                    maskImage: 'url("assets/ui-icons/chat_png.png")',
-                    maskSize: 'contain',
-                    maskRepeat: 'no-repeat',
-                    maskPosition: 'center',
-                    maskMode: 'alpha',
-                    WebkitMaskImage: 'url("assets/ui-icons/chat_png.png")',
-                    WebkitMaskSize: 'contain',
-                    WebkitMaskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    backgroundColor: activeTab === 'chat' ? theme.accent : 'var(--tt-text-primary)'
+                    color: 'var(--tt-text-primary)'
                   }
                 }),
                 React.createElement('span', { 
-                  className: "text-xs font-medium",
+                  className: "text-xs font-light",
                   style: {
                     color: 'var(--tt-text-primary)'
                   }
@@ -2785,27 +2774,20 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
-                    color: activeTab === 'family' ? theme.accent : '#9CA3AF',
+                    color: 'var(--tt-text-primary)',
                     transform: 'translateY(-10px)'
                   }
                 },
-                React.createElement('div', { 
-                  className: "h-6 w-6",
+                React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
+                  className: "w-6 h-6",
+                  isSelected: activeTab === 'family',
+                  selectedWeight: 'fill',
                   style: {
-                    maskImage: 'url("assets/ui-icons/Family 1_png.png")',
-                    maskSize: 'contain',
-                    maskRepeat: 'no-repeat',
-                    maskPosition: 'center',
-                    maskMode: 'alpha',
-                    WebkitMaskImage: 'url("assets/ui-icons/Family 1_png.png")',
-                    WebkitMaskSize: 'contain',
-                    WebkitMaskRepeat: 'no-repeat',
-                    WebkitMaskPosition: 'center',
-                    backgroundColor: activeTab === 'family' ? theme.accent : 'var(--tt-text-primary)'
+                    color: 'var(--tt-text-primary)'
                   }
                 }),
                 React.createElement('span', { 
-                  className: "text-xs font-medium",
+                  className: "text-xs font-light",
                   style: {
                     color: 'var(--tt-text-primary)'
                   }
@@ -2817,11 +2799,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             'div',
             { className: "max-w-2xl mx-auto flex items-center justify-around px-4 py-3" },
             [
-              { id: 'tracker', icon: BarChart, label: 'Tracker' },
-              { id: 'analytics', icon: TrendingUp, label: 'Analytics' },
-              { id: 'chat', icon: MessageCircle, label: 'AI Chat' },
-              { id: 'family', icon: Users, label: 'Family' },
-              { id: 'settings', icon: Menu, label: 'Settings' }
+              { id: 'tracker', icon: window.TT?.shared?.icons?.TodayIcon || BarChart, label: 'Today', selectedWeight: 'fill' },
+              { id: 'analytics', icon: window.TT?.shared?.icons?.TrendsIcon || TrendingUp, label: 'Trends', selectedWeight: 'fill' },
+              { id: 'chat', icon: window.TT?.shared?.icons?.ChatIcon || MessageCircle, label: 'Chat', selectedWeight: 'fill' },
+              { id: 'family', icon: window.TT?.shared?.icons?.HomeIcon || Users, label: 'Family', selectedWeight: 'fill' },
+              { id: 'settings', icon: window.TT?.shared?.icons?.MenuIcon || Menu, label: 'Settings', selectedWeight: 'bold' }
             ].map((tab) =>
               React.createElement(
                 'button',
@@ -2834,10 +2816,15 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === tab.id ? theme.accent : '#9CA3AF' }
+                  style: { color: 'var(--tt-text-primary)' }
                 },
-                React.createElement(tab.icon, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, tab.label)
+                React.createElement(tab.icon, { 
+                  className: "w-6 h-6",
+                  isSelected: activeTab === tab.id,
+                  selectedWeight: tab.selectedWeight,
+                  style: { color: 'var(--tt-text-primary)' }
+                }),
+                React.createElement('span', { className: "text-xs font-light" }, tab.label)
               )
             )
           )

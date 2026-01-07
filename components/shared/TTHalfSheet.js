@@ -453,11 +453,16 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
               flexShrink: 0
             }
           },
-            // X button (close)
+            // ChevronDown button (close)
             React.createElement('button', {
               onClick: onClose,
               className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-            }, React.createElement(window.XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
+            }, React.createElement(
+              window.TT?.shared?.icons?.ChevronDownIcon || 
+              window.ChevronDown || 
+              window.XIcon, // fallback
+              { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
+            )),
             
             // Centered title or custom title element
             titleElement ? (
