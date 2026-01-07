@@ -126,7 +126,7 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
       { className: 'flex items-center justify-center py-12' },
       React.createElement(
         'div',
-        { className: 'text-gray-600' },
+        { style: { color: 'var(--tt-text-secondary)' } },
         'Loading conversation.'
       )
     );
@@ -136,7 +136,8 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
     'div',
     {
       className: 'flex flex-col',
-      style: { height: 'calc(100vh - 160px)' } // viewport minus header + nav
+      // viewport minus header + nav (nav is taller in v3 now)
+      style: { height: 'calc(100vh - 170px)' }
     },
 
     // Top row – just Clear button on the right
@@ -334,16 +335,19 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
       'div',
       {
         className: 'px-4 pb-4 pt-2',
-        style: { backgroundColor: theme.bg }
+        style: {
+          backgroundColor: 'var(--tt-app-bg)',
+          borderTop: '1px solid var(--tt-card-border)'
+        }
       },
       React.createElement(
         'div',
         {
           className: 'flex items-center gap-2 rounded-2xl px-3 py-1.5 border',
           style: {
-            backgroundColor: 'var(--tt-card-bg)',
-            borderColor: inputFocused ? theme.accent : 'var(--tt-card-border)',
-            boxShadow: inputFocused ? `0 0 0 3px ${theme.soft || theme.bg}` : 'none'
+            backgroundColor: 'var(--tt-input-bg)',
+            borderColor: inputFocused ? 'var(--tt-border-strong, var(--tt-card-border))' : 'var(--tt-card-border)',
+            boxShadow: 'none'
           }
         },
         React.createElement('textarea', {
@@ -366,8 +370,12 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
           disabled: loading,
           rows: 1,
           className:
-            'flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px] disabled:opacity-50',
-          style: { maxHeight: '100px' }
+            'tt-placeholder-tertiary flex-1 px-2 py-2 bg-transparent resize-none focus:outline-none text-[15px] disabled:opacity-50',
+          style: {
+            maxHeight: '100px',
+            color: 'var(--tt-text-primary)',
+            caretColor: 'var(--tt-text-primary)'
+          }
         }),
         React.createElement(
           'button',

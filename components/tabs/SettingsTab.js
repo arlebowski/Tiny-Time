@@ -238,10 +238,18 @@ const SettingsTab = ({ user, kidId }) => {
   const FEED_PALETTE = ALL_COLORS;
   const SLEEP_PALETTE = ALL_COLORS;
 
-  // Background theme colors
+  // Background theme colors (mode-aware)
+  // Light mode: health-gray (Gray), eggshell (Coffee)
+  // Dark mode: health-gray (existing dark), eggshell (Claude-inspired dark)
   const BACKGROUND_COLORS = {
-    'health-gray': '#f2f2f7',
-    'eggshell': '#FAF7F2'
+    light: {
+      'health-gray': '#f2f2f7',
+      'eggshell': '#FAF7F2'
+    },
+    dark: {
+      'health-gray': '#0F0F10',
+      'eggshell': '#1C1C1C'
+    }
   };
 
   // ChevronDown icon
@@ -509,6 +517,483 @@ const SettingsTab = ({ user, kidId }) => {
             WebkitOverflowScrolling: 'touch'
           }
         }, children)
+      )
+    );
+  };
+
+  // ========================================
+  // WHEEL PICKERS (ported from TinyTrackerDemo.jsx for UI Lab)
+  // ========================================
+  const wheelStyles = {
+    section: {
+      padding: '16px',
+      background: 'white',
+      borderRadius: '16px',
+      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
+      overflow: 'hidden'
+    },
+    sectionHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '12px'
+    },
+    sectionTitle: { fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: 0 },
+    unitToggle: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 12px',
+      background: '#f1f5f9',
+      border: 'none',
+      borderRadius: '12px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '600'
+    },
+    unitActive: { color: '#2563eb' },
+    unitInactive: { color: '#94a3b8' },
+    unitDivider: { color: '#cbd5e1' },
+
+    timePicker: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 8px' },
+    timeColon: { fontSize: '28px', fontWeight: '600', color: '#000000' },
+
+    pickerContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' },
+    label: {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: '#666',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px'
+    },
+    picker: {
+      position: 'relative',
+      width: '100%',
+      maxWidth: '260px',
+      height: '250px',
+      overflow: 'hidden',
+      cursor: 'grab',
+      userSelect: 'none',
+      touchAction: 'pan-y'
+    },
+    // Fixed width ensures hour / minute / ampm + ":" can be perfectly centered as a group.
+    pickerCompact: { width: 'min(84px, 22vw)', height: '220px' },
+    items: { position: 'relative', height: '100%', zIndex: 2 },
+    item: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: '40px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '23px',
+      lineHeight: '40px',
+      fontWeight: '400',
+      color: '#000000',
+      transformOrigin: 'center center',
+      willChange: 'transform, opacity'
+    },
+    itemSelected: { color: '#000000', fontWeight: '600' },
+    // iOS-style selection bar (behind content)
+    selection: {
+      position: 'absolute',
+      top: '50%',
+      left: '10px',
+      right: '10px',
+      height: '40px',
+      transform: 'translateY(-50%)',
+      background: '#F9FAFB', // grey-50
+      borderRadius: '8px', // rounded-lg
+      pointerEvents: 'none',
+      zIndex: 1
+    },
+    // iOS-style fades
+    overlay: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      pointerEvents: 'none',
+      zIndex: 3
+    },
+    overlayTop: {
+      top: 0,
+      background: 'linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(255,255,255,0.85) 55%, rgba(255,255,255,0) 100%)'
+    },
+    overlayBottom: {
+      bottom: 0,
+      background: 'linear-gradient(to top, rgba(255,255,255,1) 0%, rgba(255,255,255,0.85) 55%, rgba(255,255,255,0) 100%)'
+    }
+  };
+
+  const WheelPicker = ({
+    type = 'number',
+    value,
+    onChange,
+    min = 0,
+    max = 32,
+    step = 0.25,
+    label = '',
+    unit = 'oz', // for amount picker
+    compact = false, // for time pickers
+    showSelection = true,
+    showOverlay = true
+  }) => {
+    const [isDragging, setIsDragging] = useState(false);
+    const [startY, setStartY] = useState(0);
+    const [velocity, setVelocity] = useState(0);
+    const containerRef = React.useRef(null);
+    const animationRef = React.useRef(null);
+    const lastY = React.useRef(0);
+    const lastTime = React.useRef(Date.now());
+
+    const generateOptions = () => {
+      if (type === 'hour') {
+        const options = [];
+        for (let hour = 1; hour <= 12; hour++) {
+          options.push({ display: hour.toString(), value: hour });
+        }
+        return options;
+      } else if (type === 'minute') {
+        const options = [];
+        for (let minute = 0; minute < 60; minute++) {
+          options.push({ display: minute.toString().padStart(2, '0'), value: minute });
+        }
+        return options;
+      } else if (type === 'ampm') {
+        return [
+          { display: 'AM', value: 'AM' },
+          { display: 'PM', value: 'PM' }
+        ];
+      } else {
+        const options = [];
+        for (let i = min; i <= max; i += step) {
+          const displayValue = i % 1 === 0 ? i.toString() : i.toFixed(2);
+          options.push({ display: `${displayValue} ${unit}`, value: i });
+        }
+        return options;
+      }
+    };
+
+    const options = generateOptions();
+    const ITEM_HEIGHT = 40;
+    // Center the "selected" row (40px) inside the picker height.
+    // This fixes the subtle mismatch caused by hard-coded padding.
+    const pickerHeight = compact ? 220 : 250;
+    const padY = Math.max(0, (pickerHeight - ITEM_HEIGHT) / 2);
+
+    const getCurrentIndex = () => {
+      return options.findIndex(opt => opt.value === value);
+    };
+
+    const initialIndex = Math.max(0, getCurrentIndex());
+    const [selectedIndex, setSelectedIndex] = useState(initialIndex);
+    const [currentOffset, setCurrentOffset] = useState(-initialIndex * ITEM_HEIGHT);
+
+    // Keep selection + offset aligned to external value changes
+    useEffect(() => {
+      const idx = Math.max(0, getCurrentIndex());
+      setSelectedIndex(idx);
+      setCurrentOffset(-idx * ITEM_HEIGHT);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [value, type, min, max, step, unit]);
+
+    const snapToNearest = (offset) => {
+      const index = Math.round(-offset / ITEM_HEIGHT);
+      const clampedIndex = Math.max(0, Math.min(options.length - 1, index));
+      const snappedOffset = -clampedIndex * ITEM_HEIGHT;
+
+      setCurrentOffset(snappedOffset);
+      setSelectedIndex(clampedIndex);
+      onChange(options[clampedIndex].value);
+    };
+
+    const handleStart = (clientY) => {
+      setIsDragging(true);
+      setStartY(clientY);
+      lastY.current = clientY;
+      lastTime.current = Date.now();
+      setVelocity(0);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+
+    const handleMove = (clientY) => {
+      if (!isDragging) return;
+
+      const deltaY = clientY - startY;
+      const newOffset = selectedIndex * -ITEM_HEIGHT + deltaY;
+
+      const now = Date.now();
+      const timeDelta = now - lastTime.current;
+      const yDelta = clientY - lastY.current;
+
+      if (timeDelta > 0) {
+        setVelocity(yDelta / timeDelta);
+      }
+
+      lastY.current = clientY;
+      lastTime.current = now;
+
+      const maxOffset = 0;
+      const minOffset = -(options.length - 1) * ITEM_HEIGHT;
+
+      let constrainedOffset = newOffset;
+      if (newOffset > maxOffset) {
+        constrainedOffset = maxOffset + (newOffset - maxOffset) * 0.3;
+      } else if (newOffset < minOffset) {
+        constrainedOffset = minOffset + (newOffset - minOffset) * 0.3;
+      }
+
+      setCurrentOffset(constrainedOffset);
+    };
+
+    const handleEnd = () => {
+      setIsDragging(false);
+
+      let finalOffset = currentOffset + velocity * 200;
+
+      const maxOffset = 0;
+      const minOffset = -(options.length - 1) * ITEM_HEIGHT;
+      finalOffset = Math.max(minOffset, Math.min(maxOffset, finalOffset));
+
+      snapToNearest(finalOffset);
+    };
+
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      handleStart(e.clientY);
+    };
+
+    const handleMouseMove = (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        handleMove(e.clientY);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) {
+        handleEnd();
+      }
+    };
+
+    const handleTouchStart = (e) => {
+      handleStart(e.touches[0].clientY);
+    };
+
+    const handleTouchMove = (e) => {
+      handleMove(e.touches[0].clientY);
+    };
+
+    const handleTouchEnd = () => {
+      handleEnd();
+    };
+
+    useEffect(() => {
+      if (isDragging) {
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', handleMouseUp);
+        };
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isDragging, currentOffset]);
+
+    const getItemStyle = (index) => {
+      const offset = currentOffset + index * ITEM_HEIGHT;
+      const distance = Math.abs(offset / ITEM_HEIGHT);
+
+      const scale = Math.max(0.85, 1 - distance * 0.08);
+      const opacity = Math.max(0.25, 1 - distance * 0.35);
+
+      return {
+        transform: `translateY(${offset}px) scale(${scale})`,
+        opacity: opacity,
+        transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+      };
+    };
+
+    return React.createElement(
+      'div',
+      { style: wheelStyles.pickerContainer },
+      label ? React.createElement('div', { style: wheelStyles.label }, label) : null,
+      React.createElement(
+        'div',
+        {
+          style: { ...wheelStyles.picker, ...(compact ? wheelStyles.pickerCompact : {}) },
+          ref: containerRef,
+          onMouseDown: handleMouseDown,
+          onTouchStart: handleTouchStart,
+          onTouchMove: handleTouchMove,
+          onTouchEnd: handleTouchEnd
+        },
+        showSelection ? React.createElement('div', { style: wheelStyles.selection }) : null,
+        showOverlay ? React.createElement('div', { style: { ...wheelStyles.overlay, height: `${padY}px`, ...wheelStyles.overlayTop } }) : null,
+        showOverlay ? React.createElement('div', { style: { ...wheelStyles.overlay, height: `${padY}px`, ...wheelStyles.overlayBottom } }) : null,
+        React.createElement(
+          'div',
+          { style: { ...wheelStyles.items, padding: `${padY}px 0` } },
+          options.map((option, index) =>
+            React.createElement(
+              'div',
+              {
+                key: index,
+                style: {
+                  ...wheelStyles.item,
+                  ...(index === selectedIndex && !isDragging ? wheelStyles.itemSelected : {}),
+                  ...getItemStyle(index)
+                }
+              },
+              option.display
+            )
+          )
+        )
+      )
+    );
+  };
+
+  const WheelPickersLabSection = () => {
+    const [amount, setAmount] = useState(4);
+    const [unit, setUnit] = useState('oz');
+    const [hour, setHour] = useState(2);
+    const [minute, setMinute] = useState(30);
+    const [ampm, setAmpm] = useState('PM');
+
+    const snapToStep = (val, step) => {
+      const n = Number(val) || 0;
+      const s = Number(step) || 1;
+      const snapped = Math.round(n / s) * s;
+      // Normalize float noise for 0.25 step
+      return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+    };
+
+    const setUnitWithConversion = (nextUnit) => {
+      if (!nextUnit || nextUnit === unit) return;
+      if (nextUnit === 'ml') {
+        const ml = snapToStep(amount * 29.5735, 10);
+        setUnit('ml');
+        setAmount(ml);
+      } else {
+        const oz = snapToStep(amount / 29.5735, 0.25);
+        setUnit('oz');
+        setAmount(oz);
+      }
+    };
+
+    const getAmountRange = () => {
+      if (unit === 'oz') {
+        return { min: 0, max: 12, step: 0.25 };
+      } else {
+        return { min: 0, max: 360, step: 10 };
+      }
+    };
+
+    const range = getAmountRange();
+
+    return React.createElement(
+      'div',
+      { style: { display: 'grid', gap: 16 } },
+      React.createElement(
+        'div',
+        { style: wheelStyles.section },
+        React.createElement(
+          'div',
+          { style: wheelStyles.sectionHeader },
+          React.createElement('h3', { style: wheelStyles.sectionTitle }, 'Amount'),
+          window.SegmentedToggle
+            ? React.createElement(window.SegmentedToggle, {
+                value: unit,
+                options: [
+                  { value: 'oz', label: 'oz' },
+                  { value: 'ml', label: 'ml' }
+                ],
+                onChange: (v) => setUnitWithConversion(v),
+                variant: 'body',
+                size: 'medium',
+                // Visual nudge so it aligns with the "Amount" title better
+                style: { transform: 'translateY(-2px)' }
+              })
+            : React.createElement(
+                'button',
+                { style: wheelStyles.unitToggle, onClick: () => setUnitWithConversion(unit === 'oz' ? 'ml' : 'oz'), type: 'button' },
+                React.createElement('span', { style: unit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
+                React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
+                React.createElement('span', { style: unit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
+              )
+        ),
+        React.createElement(WheelPicker, {
+          type: 'number',
+          value: amount,
+          onChange: setAmount,
+          min: range.min,
+          max: range.max,
+          step: range.step,
+          unit: unit
+        })
+      ),
+      React.createElement(
+        'div',
+        { style: wheelStyles.section },
+        React.createElement('h3', { style: wheelStyles.sectionTitle }, 'Time'),
+        React.createElement(
+          'div',
+          { style: { position: 'relative' } },
+          // Single iOS-style selection bar spanning the whole time row
+          React.createElement('div', {
+            style: {
+              position: 'absolute',
+              left: 8,
+              right: 8,
+              top: '50%',
+              height: 40,
+              transform: 'translateY(-50%)',
+              background: '#F9FAFB', // grey-50
+              borderRadius: 8, // rounded-lg
+              zIndex: 0,
+              pointerEvents: 'none'
+            }
+          }),
+          React.createElement(
+            'div',
+            {
+              style: {
+                position: 'relative',
+                zIndex: 1,
+                display: 'grid',
+                gridTemplateColumns: 'min(84px, 22vw) 14px min(84px, 22vw) min(84px, 22vw)',
+                justifyContent: 'center',
+                alignItems: 'center',
+                columnGap: '6px',
+                padding: '0 8px',
+                maxWidth: '100%'
+              }
+            },
+            React.createElement(WheelPicker, { type: 'hour', value: hour, onChange: setHour, compact: true, showSelection: false }),
+            React.createElement(
+              'div',
+              {
+                style: {
+                  ...wheelStyles.timeColon,
+                  width: '14px',
+                  height: '40px',
+                  lineHeight: '40px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
+                  transform: 'translateY(-3.5px)' // Nudge colon up 3.5px for alignment
+                }
+              },
+              ':'
+            ),
+            React.createElement(WheelPicker, { type: 'minute', value: minute, onChange: setMinute, compact: true, showSelection: false }),
+            React.createElement(WheelPicker, { type: 'ampm', value: ampm, onChange: setAmpm, compact: true, showSelection: false })
+          )
+        )
       )
     );
   };
@@ -2466,6 +2951,13 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
+      // Wheel Pickers section (TinyTrackerDemo)
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Wheel Pickers'),
+        React.createElement(WheelPickersLabSection)
+      ),
+
       // Shared Bottom Sheet for EditableRow
       React.createElement(TTBottomSheet, {
         isOpen: editorState.isOpen,
@@ -2532,51 +3024,42 @@ const SettingsTab = ({ user, kidId }) => {
           React.createElement('div', { className: "flex gap-2" },
             React.createElement('button', {
               type: 'button',
-              onClick: appearance.darkMode ? undefined : async () => {
+              onClick: async () => {
                 await handleAppearanceChange({ background: "health-gray" });
               },
-              disabled: appearance.darkMode,
-              className: `w-11 h-11 rounded-full border-2 transition-all ${appearance.darkMode ? 'cursor-not-allowed' : ''}`,
+              className: "w-11 h-11 rounded-full border-2 transition-all",
               style: { 
-                backgroundColor: BACKGROUND_COLORS['health-gray'],
+                backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['health-gray'] : BACKGROUND_COLORS.light['health-gray']),
                 borderColor: appearance.background === "health-gray" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
                 boxShadow: appearance.background === "health-gray" 
                   ? (appearance.darkMode 
                       ? '0 0 0 1.5px var(--tt-text-primary)' 
                       : '0 0 0 1.5px var(--tt-card-bg)')
                   : 'none',
-                transition: 'all 0.12s ease',
-                opacity: appearance.darkMode ? 0.4 : 1,
-                filter: appearance.darkMode ? 'grayscale(0.3)' : 'none'
+                transition: 'all 0.12s ease'
               },
-              title: appearance.darkMode ? 'Light mode only' : 'Gray'
+              title: 'Gray'
             }),
             React.createElement('button', {
               type: 'button',
-              onClick: appearance.darkMode ? undefined : async () => {
+              onClick: async () => {
                 await handleAppearanceChange({ background: "eggshell" });
               },
-              disabled: appearance.darkMode,
-              className: `w-11 h-11 rounded-full border-2 transition-all ${appearance.darkMode ? 'cursor-not-allowed' : ''}`,
+              className: "w-11 h-11 rounded-full border-2 transition-all",
               style: { 
-                backgroundColor: BACKGROUND_COLORS['eggshell'],
+                backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['eggshell'] : BACKGROUND_COLORS.light['eggshell']),
                 borderColor: appearance.background === "eggshell" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
                 boxShadow: appearance.background === "eggshell" 
                   ? (appearance.darkMode 
                       ? '0 0 0 1.5px var(--tt-text-primary)' 
                       : '0 0 0 1.5px var(--tt-card-bg)')
                   : 'none',
-                transition: 'all 0.12s ease',
-                opacity: appearance.darkMode ? 0.4 : 1,
-                filter: appearance.darkMode ? 'grayscale(0.3)' : 'none'
+                transition: 'all 0.12s ease'
               },
-              title: appearance.darkMode ? 'Light mode only' : 'Coffee'
+              title: 'Coffee'
             })
           ),
-          appearance.darkMode && React.createElement('div', { 
-            className: "text-xs mt-1", 
-            style: { color: 'var(--tt-text-tertiary)' } 
-          }, 'Light mode only')
+          null
         ),
 
         // Top Right: Dark Mode

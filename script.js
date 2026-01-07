@@ -422,9 +422,10 @@ const BACKGROUND_THEMES = {
       cardBorder: "rgba(255,255,255,0.10)"
     },
     "eggshell": {
-      appBg: "#0F0F10",
-      cardBg: "#1A1A1C",
-      cardBorder: "rgba(255,255,255,0.10)"
+      // Claude-inspired dark background palette
+      appBg: "#1C1C1C",      // --tt-bg-app
+      cardBg: "#202020",     // --tt-bg-surface
+      cardBorder: "#2E2E2E"  // --tt-border-subtle
     }
   }
 };
@@ -452,6 +453,7 @@ window.TT.applyAppearance = function(appearance) {
   // Get background theme
   const mode = darkMode ? 'dark' : 'light';
   const theme = BACKGROUND_THEMES[mode][background] || BACKGROUND_THEMES[mode]["health-gray"]; // FIX 2: mode-aware fallback
+  const isClaudeDark = !!darkMode && background === 'eggshell';
 
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
@@ -466,15 +468,50 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-card-bg', theme.cardBg);
     root.style.setProperty('--tt-card-border', theme.cardBorder);
 
-    // Input field backgrounds
-    root.style.setProperty('--tt-input-bg', darkMode ? '#2C2C2E' : '#f5f5f5');
-    // Subtle surface (used for log list items, pills, etc.)
-    root.style.setProperty('--tt-subtle-surface', darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)');
+    // Premium surface elevation for chrome:
+    // - light: header/nav blend with app background
+    // - dark: header/nav use card surface for subtle separation
+    root.style.setProperty('--tt-header-bg', darkMode ? theme.cardBg : theme.appBg);
+    root.style.setProperty('--tt-nav-bg', darkMode ? theme.cardBg : theme.appBg);
+    // Reduce/disable nav shadow in dark mode (rely on surface step instead)
+    root.style.setProperty('--tt-nav-shadow', darkMode ? 'none' : '0 -1px 3px rgba(0,0,0,0.1)');
 
-    // Text colors
-    root.style.setProperty('--tt-text-primary', darkMode ? 'rgba(255,255,255,0.87)' : 'rgba(0,0,0,0.87)');
-    root.style.setProperty('--tt-text-secondary', darkMode ? 'rgba(255,255,255,0.60)' : 'rgba(0,0,0,0.60)');
-    root.style.setProperty('--tt-text-tertiary', darkMode ? 'rgba(255,255,255,0.38)' : 'rgba(0,0,0,0.38)');
+    // Input/surfaces/text (light unchanged; dark depends on selected background)
+    if (!darkMode) {
+      // Light mode (unchanged)
+      root.style.setProperty('--tt-input-bg', '#f5f5f5');
+      root.style.setProperty('--tt-subtle-surface', 'rgba(0,0,0,0.03)');
+      root.style.setProperty('--tt-text-primary', 'rgba(0,0,0,0.87)');
+      root.style.setProperty('--tt-text-secondary', 'rgba(0,0,0,0.60)');
+      root.style.setProperty('--tt-text-tertiary', 'rgba(0,0,0,0.38)');
+      // Optional additional tokens for future dark variants
+      root.style.setProperty('--tt-text-disabled', 'rgba(0,0,0,0.28)');
+      root.style.setProperty('--tt-bg-hover', 'rgba(0,0,0,0.03)');
+      root.style.setProperty('--tt-border-subtle', 'rgba(0,0,0,0.08)');
+      root.style.setProperty('--tt-border-strong', 'rgba(0,0,0,0.16)');
+    } else if (isClaudeDark) {
+      // Dark mode: Claude-inspired palette (mapped to existing TT vars)
+      root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
+      root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
+      root.style.setProperty('--tt-text-primary', '#EDEDED');
+      root.style.setProperty('--tt-text-secondary', '#B3B3B3');
+      root.style.setProperty('--tt-text-tertiary', '#8A8A8A');
+      root.style.setProperty('--tt-text-disabled', '#6F6F6F');
+      root.style.setProperty('--tt-bg-hover', '#2A2A2A');
+      root.style.setProperty('--tt-border-subtle', '#2E2E2E');
+      root.style.setProperty('--tt-border-strong', '#3A3A3A');
+    } else {
+      // Dark mode: existing palette (current behavior)
+      root.style.setProperty('--tt-input-bg', '#2C2C2E');
+      root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-text-primary', 'rgba(255,255,255,0.87)');
+      root.style.setProperty('--tt-text-secondary', 'rgba(255,255,255,0.60)');
+      root.style.setProperty('--tt-text-tertiary', 'rgba(255,255,255,0.38)');
+      root.style.setProperty('--tt-text-disabled', 'rgba(255,255,255,0.26)');
+      root.style.setProperty('--tt-bg-hover', 'rgba(255,255,255,0.08)');
+      root.style.setProperty('--tt-border-subtle', 'rgba(255,255,255,0.10)');
+      root.style.setProperty('--tt-border-strong', 'rgba(255,255,255,0.16)');
+    }
 
     // Feed accents
     root.style.setProperty('--tt-feed', sanitizedFeedAccent);
@@ -780,6 +817,24 @@ const firestoreStorage = {
     });
   },
 
+  _dataUrlToBlob(base64DataUrl) {
+    // Avoid fetch(data:) — it’s flaky in some iOS/PWA contexts.
+    if (!base64DataUrl || typeof base64DataUrl !== 'string') {
+      throw new Error("_dataUrlToBlob: missing data URL");
+    }
+    const commaIdx = base64DataUrl.indexOf(',');
+    if (commaIdx < 0) throw new Error("_dataUrlToBlob: invalid data URL");
+    const meta = base64DataUrl.slice(0, commaIdx);
+    const b64 = base64DataUrl.slice(commaIdx + 1);
+    const mimeMatch = meta.match(/data:([^;]+);base64/i);
+    const mime = (mimeMatch && mimeMatch[1]) ? mimeMatch[1] : 'application/octet-stream';
+    const bin = atob(b64);
+    const len = bin.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  },
+
   async uploadFeedingPhoto(base64DataUrl) {
     if (!base64DataUrl || typeof base64DataUrl !== "string") {
       throw new Error("uploadFeedingPhoto: missing base64 data URL");
@@ -788,12 +843,17 @@ const firestoreStorage = {
       throw new Error("Storage not initialized");
     }
     
-    // Compress image before upload
-    const compressedBase64 = await this._compressImage(base64DataUrl, 1200);
-    
-    // Convert base64 to blob
-    const response = await fetch(compressedBase64);
-    const blob = await response.blob();
+    // Compress image before upload (fallback to original on failure)
+    let compressedBase64 = base64DataUrl;
+    try {
+      compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+    } catch (e) {
+      // If compression fails (e.g., codec issues), upload the original.
+      compressedBase64 = base64DataUrl;
+    }
+
+    // Convert base64 to blob (robust across iOS/PWA)
+    const blob = this._dataUrlToBlob(compressedBase64);
     
     // Generate unique photo ID
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -801,7 +861,7 @@ const firestoreStorage = {
     
     // Upload to Firebase Storage
     const storageRef = storage.ref().child(storagePath);
-    await storageRef.put(blob);
+    await storageRef.put(blob, { contentType: blob.type || 'image/jpeg' });
     
     // Get download URL
     const downloadURL = await storageRef.getDownloadURL();
@@ -816,12 +876,16 @@ const firestoreStorage = {
       throw new Error("Storage not initialized");
     }
     
-    // Compress image before upload
-    const compressedBase64 = await this._compressImage(base64DataUrl, 1200);
-    
-    // Convert base64 to blob
-    const response = await fetch(compressedBase64);
-    const blob = await response.blob();
+    // Compress image before upload (fallback to original on failure)
+    let compressedBase64 = base64DataUrl;
+    try {
+      compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+    } catch (e) {
+      compressedBase64 = base64DataUrl;
+    }
+
+    // Convert base64 to blob (robust across iOS/PWA)
+    const blob = this._dataUrlToBlob(compressedBase64);
     
     // Generate unique photo ID
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -829,7 +893,7 @@ const firestoreStorage = {
     
     // Upload to Firebase Storage
     const storageRef = storage.ref().child(storagePath);
-    await storageRef.put(blob);
+    await storageRef.put(blob, { contentType: blob.type || 'image/jpeg' });
     
     // Get download URL
     const downloadURL = await storageRef.getDownloadURL();
@@ -2283,7 +2347,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         {
           // Must sit above sticky in-tab UI like the TrackerTab date picker.
           className: "sticky top-0 z-[1200]",
-          style: { backgroundColor: "var(--tt-app-bg)" }
+          style: { backgroundColor: "var(--tt-header-bg)" }
         },
         React.createElement(
           'div',
@@ -2326,7 +2390,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 ),
                 React.createElement(ChevronDown, {
                   className: "w-5 h-5 ml-2",
-                  style: { color: theme.accent }
+                  style: { color: 'var(--tt-text-tertiary)' }
                 })
               ),
 
@@ -2558,8 +2622,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       {
         className: "fixed bottom-0 left-0 right-0 z-50",
         style: {
-          backgroundColor: "var(--tt-app-bg)",
-          boxShadow: '0 -1px 3px rgba(0,0,0,0.1)',
+          backgroundColor: "var(--tt-nav-bg)",
+          boxShadow: 'var(--tt-nav-shadow)',
+          // Make the bar a bit taller without moving its contents (including the +):
+          // increasing height pushes the top up, and matching paddingTop pushes contents back down.
+          paddingTop: '10px',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
       },
@@ -2582,10 +2649,32 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'tracker' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'tracker' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
-                React.createElement(BarChart, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'Tracker')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/Today_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/Today_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'tracker' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Today')
               ),
               React.createElement(
                 'button',
@@ -2598,10 +2687,32 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'analytics' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'analytics' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
-                React.createElement(TrendingUp, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'Analytics')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/Trends_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/Trends_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'analytics' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Trends')
               ),
               React.createElement(
                 'button',
@@ -2635,10 +2746,32 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'chat' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'chat' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
-                React.createElement(MessageCircle, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'AI Chat')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/chat_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/chat_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'chat' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Chat')
               ),
               React.createElement(
                 'button',
@@ -2651,10 +2784,32 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu(false);
                   },
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: { color: activeTab === 'family' ? theme.accent : '#9CA3AF' }
+                  style: {
+                    color: activeTab === 'family' ? theme.accent : '#9CA3AF',
+                    transform: 'translateY(-10px)'
+                  }
                 },
-                React.createElement(Users, { className: "w-6 h-6" }),
-                React.createElement('span', { className: "text-xs font-medium" }, 'Family')
+                React.createElement('div', { 
+                  className: "h-6 w-6",
+                  style: {
+                    maskImage: 'url("assets/ui-icons/Family 1_png.png")',
+                    maskSize: 'contain',
+                    maskRepeat: 'no-repeat',
+                    maskPosition: 'center',
+                    maskMode: 'alpha',
+                    WebkitMaskImage: 'url("assets/ui-icons/Family 1_png.png")',
+                    WebkitMaskSize: 'contain',
+                    WebkitMaskRepeat: 'no-repeat',
+                    WebkitMaskPosition: 'center',
+                    backgroundColor: activeTab === 'family' ? theme.accent : 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-medium",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Family')
               )
             )
           )

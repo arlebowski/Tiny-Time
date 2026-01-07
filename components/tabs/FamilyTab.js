@@ -30,9 +30,11 @@ const FamilyTab = ({
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
-  const TT_ICON_BTN_BASE = "h-10 w-10 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center";
+  const TT_ICON_BTN_BASE =
+    "h-10 w-10 rounded-lg border flex items-center justify-center transition " +
+    "border-[var(--tt-card-border)] bg-[var(--tt-card-bg)] hover:bg-[var(--tt-subtle-surface)]";
   const TT_ICON_BTN_OK = TT_ICON_BTN_BASE + " text-green-600";
-  const TT_ICON_BTN_CANCEL = TT_ICON_BTN_BASE + " text-gray-500";
+  const TT_ICON_BTN_CANCEL = TT_ICON_BTN_BASE + " text-[var(--tt-text-tertiary)]";
   const TT_ICON_SIZE = "w-5 h-5";
 
   // Edit states
@@ -953,10 +955,13 @@ const handleInvite = async () => {
     // Baby Info Card
     React.createElement(
       'div',
-      { className: 'bg-white rounded-2xl shadow-lg p-6' },
+      { 
+        className: 'rounded-2xl shadow-lg p-6 border',
+        style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)' }
+      },
       React.createElement(
         'h2',
-        { className: 'text-lg font-semibold text-gray-800 mb-4' },
+        { className: 'text-lg font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
         'Baby Info'
       ),
 
@@ -988,7 +993,8 @@ const handleInvite = async () => {
                       style: { backgroundColor: 'var(--tt-feed-soft)' }
                   },
                   React.createElement(Baby, {
-                    className: 'w-12 h-12 text-indigo-600'
+                    className: 'w-12 h-12',
+                    style: { color: 'var(--tt-feed)' }
                   })
                 )
           ),
@@ -1061,7 +1067,8 @@ const handleInvite = async () => {
                       setTempBabyName(kidData?.name || '');
                       setEditingName(true);
                     },
-                    className: 'text-indigo-600 hover:text-indigo-700'
+                    className: 'hover:opacity-80',
+                    style: { color: 'var(--tt-feed)' }
                   },
                   React.createElement(Edit2, { className: 'w-4 h-4' })
                 )
@@ -1092,7 +1099,7 @@ const handleInvite = async () => {
           // Owner display / your name
           React.createElement(
             'div',
-            { className: 'mt-1 text-sm text-gray-500' },
+            { className: 'mt-1 text-sm', style: { color: 'var(--tt-text-secondary)' } },
             'Owner: ',
             editingUserName
               ? React.createElement(
@@ -1103,14 +1110,15 @@ const handleInvite = async () => {
                     value: tempUserName,
                     onChange: (e) => setTempUserName(e.target.value),
                     className:
-                      'px-2 py-1 text-sm border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500'
+                      'px-2 py-1 text-sm border rounded-lg focus:outline-none',
+                    style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
                   }),
                   React.createElement(
                     'button',
                     {
                       onClick: handleUpdateUserName,
                       className:
-                        'ml-2 text-green-600 hover:text-green-700'
+                        'ml-2 text-green-600 hover:opacity-80'
                     },
                     React.createElement(Check, { className: 'w-4 h-4' })
                   ),
@@ -1137,7 +1145,8 @@ const handleInvite = async () => {
                           setEditingUserName(true);
                         },
                         className:
-                          'ml-2 text-indigo-600 hover:text-indigo-700'
+                          'ml-2 hover:opacity-80',
+                        style: { color: 'var(--tt-feed)' }
                       },
                       'Edit'
                     )
@@ -1154,7 +1163,8 @@ const handleInvite = async () => {
         React.createElement(
           'div',
           {
-            className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3',
+            className: 'rounded-xl border px-4 py-3',
+            style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' },
             onClick: editingBirthDate
               ? undefined
               : () => {
@@ -1170,7 +1180,7 @@ const handleInvite = async () => {
           },
           React.createElement(
             'div',
-            { className: 'text-xs font-medium text-gray-500' },
+            { className: 'text-xs font-medium', style: { color: 'var(--tt-text-secondary)' } },
             'Birth date'
           ),
           editingBirthDate
@@ -1182,7 +1192,8 @@ const handleInvite = async () => {
                   value: tempBirthDate,
                   onChange: (e) => setTempBirthDate(e.target.value),
                   className:
-                    'flex-1 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm'
+                    'flex-1 px-3 py-2 border rounded-lg text-sm',
+                  style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
                 }),
                 React.createElement(
                   'button',
@@ -1206,13 +1217,14 @@ const handleInvite = async () => {
                 { className: 'flex items-center justify-between mt-1' },
                 React.createElement(
                   'div',
-                  { className: 'text-base font-semibold text-gray-900' },
+                  { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
                   kidData?.birthDate
                     ? new Date(kidData.birthDate).toLocaleDateString()
                     : 'Not set'
                 ),
                 React.createElement(Edit2, {
-                  className: 'w-4 h-4 text-indigo-600'
+                  className: 'w-4 h-4',
+                  style: { color: 'var(--tt-feed)' }
                 })
               )
         ),
@@ -1220,7 +1232,8 @@ const handleInvite = async () => {
         React.createElement(
           'div',
           {
-            className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3',
+            className: 'rounded-xl border px-4 py-3',
+            style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' },
             onClick: editingWeight
               ? undefined
               : () => {
@@ -1230,7 +1243,7 @@ const handleInvite = async () => {
           },
           React.createElement(
             'div',
-            { className: 'text-xs font-medium text-gray-500' },
+            { className: 'text-xs font-medium', style: { color: 'var(--tt-text-secondary)' } },
             'Current weight'
           ),
           editingWeight
@@ -1244,11 +1257,12 @@ const handleInvite = async () => {
                   onChange: (e) => setTempWeight(e.target.value),
                   placeholder: '8.5',
                   className:
-                    'w-28 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm text-right'
+                    'w-28 px-3 py-2 border rounded-lg text-sm text-right',
+                  style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
                 }),
                 React.createElement(
                   'span',
-                  { className: 'text-gray-600' },
+                  { className: '', style: { color: 'var(--tt-text-secondary)' } },
                   'lbs'
                 ),
                 React.createElement(
@@ -1273,11 +1287,12 @@ const handleInvite = async () => {
                 { className: 'flex items-center justify-between mt-1' },
                 React.createElement(
                   'div',
-                  { className: 'text-base font-semibold text-gray-900' },
+                  { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
                   settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set'
                 ),
                 React.createElement(Edit2, {
-                  className: 'w-4 h-4 text-indigo-600'
+                  className: 'w-4 h-4',
+                  style: { color: 'var(--tt-feed)' }
                 })
               )
         )
@@ -1286,7 +1301,8 @@ const handleInvite = async () => {
       React.createElement(
         'div',
         {
-          className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 mt-2',
+          className: 'rounded-xl border px-4 py-3 mt-2',
+          style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' },
           onClick: editingMultiplier
             ? undefined
             : () => {
@@ -1299,7 +1315,7 @@ const handleInvite = async () => {
           { className: 'flex items-center' },
           React.createElement(
             'div',
-            { className: 'text-xs font-medium text-gray-500' },
+            { className: 'text-xs font-medium', style: { color: 'var(--tt-text-secondary)' } },
             'Target multiplier (oz/lb)'
           ),
           React.createElement(InfoDot, {
@@ -1325,11 +1341,12 @@ const handleInvite = async () => {
                 onChange: (e) => setTempMultiplier(e.target.value),
                 placeholder: '2.5',
                 className:
-                  'w-28 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm text-right'
+                  'w-28 px-3 py-2 border rounded-lg text-sm text-right',
+                style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
               }),
               React.createElement(
                 'span',
-                { className: 'text-gray-600' },
+                { className: '', style: { color: 'var(--tt-text-secondary)' } },
                 'x'
               ),
               React.createElement(
@@ -1354,20 +1371,21 @@ const handleInvite = async () => {
               { className: 'flex items-center justify-between mt-1' },
               React.createElement(
                 'div',
-                { className: 'text-base font-semibold text-gray-900' },
+                { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
                 `${settings.multiplier}x`
               ),
               React.createElement(Edit2, {
-                className: 'w-4 h-4 text-indigo-600'
+                className: 'w-4 h-4',
+                style: { color: 'var(--tt-feed)' }
               })
             )
       ),
 
-      sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t border-gray-100" },
-        React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Sleep settings'),
-        React.createElement( 'div', { className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3', onClick: isEditingSleepTarget ? undefined : () => { setIsEditingSleepTarget(true); } },
+      sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t", style: { borderColor: 'var(--tt-card-border)' } },
+        React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Sleep settings'),
+        React.createElement( 'div', { className: 'rounded-xl border px-4 py-3', style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' }, onClick: isEditingSleepTarget ? undefined : () => { setIsEditingSleepTarget(true); } },
           React.createElement('div', { className: "flex items-center" },
-            React.createElement('div', { className: "text-xs font-medium text-gray-500" }, 'Daily sleep target (hrs)'),
+            React.createElement('div', { className: "text-xs font-medium", style: { color: 'var(--tt-text-secondary)' } }, 'Daily sleep target (hrs)'),
             React.createElement(InfoDot, { onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); alert( "Daily sleep target\n\n" + "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" + "If your baby’s clinician suggested a different target, you can override it here." ); } })
           ),
           isEditingSleepTarget ? React.createElement('div', { className: "flex items-center gap-3 mt-2" },
@@ -1390,20 +1408,21 @@ const handleInvite = async () => {
                 if (!n || n <= 0) setSleepTargetDraftOverride(false);
                 else setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
               },
-              className: "w-28 h-10 px-3 rounded-lg border border-gray-200 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300",
+              className: "w-28 h-10 px-3 rounded-lg border text-base focus:outline-none",
+              style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' },
               step: "0.1",
               min: "0"
             }),
             React.createElement('button', { type: 'button', disabled: !sleepTargetDraftOverride && (sleepTargetInput === sleepTargetLastSaved), onClick: async () => { await saveSleepTargetOverride(); setSleepTargetLastSaved(sleepTargetInput); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_OK }, React.createElement(Check, { className: TT_ICON_SIZE })),
             React.createElement('button', { type: 'button', onClick: () => { setSleepTargetInput(sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs)); setSleepTargetDraftOverride(false); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_CANCEL }, React.createElement(X, { className: TT_ICON_SIZE }))
           ) : React.createElement( 'div', { className: 'flex items-center justify-between mt-1' },
-            React.createElement( 'div', { className: 'text-base font-semibold text-gray-900' }, sleepTargetInput || formatSleepTargetDisplay(autoSleepTargetHrs) ),
-            React.createElement(Edit2, { className: 'w-4 h-4 text-indigo-600' })
+            React.createElement( 'div', { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } }, sleepTargetInput || formatSleepTargetDisplay(autoSleepTargetHrs) ),
+            React.createElement(Edit2, { className: 'w-4 h-4', style: { color: 'var(--tt-feed)' } })
           )
         ),
-        sleepSettings?.sleepTargetIsOverride && Math.abs(Number(sleepSettings.sleepTargetHours ?? 0) - Number(sleepSettings.sleepTargetAutoHours ?? 0)) >= 0.05 && React.createElement('div', { className: "flex items-center justify-between mt-2 text-xs text-gray-600" },
+        sleepSettings?.sleepTargetIsOverride && Math.abs(Number(sleepSettings.sleepTargetHours ?? 0) - Number(sleepSettings.sleepTargetAutoHours ?? 0)) >= 0.05 && React.createElement('div', { className: "flex items-center justify-between mt-2 text-xs", style: { color: 'var(--tt-text-secondary)' } },
           React.createElement('div', null, `Recommended: ${formatSleepTargetDisplay(sleepSettings.sleepTargetAutoHours)} hrs`),
-          React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "text-indigo-600 font-medium" }, 'Revert to recommended')
+          React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "font-medium hover:opacity-80", style: { color: 'var(--tt-feed)' } }, 'Revert to recommended')
         ),
         DaySleepWindowCard
       )
@@ -1412,10 +1431,10 @@ const handleInvite = async () => {
     // Family Members Card
     React.createElement(
       'div',
-      { className: 'bg-white rounded-2xl shadow-lg p-6' },
+      { className: 'rounded-2xl shadow-lg p-6 border', style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)' } },
       React.createElement(
         'h2',
-        { className: 'text-lg font-semibold text-gray-800 mb-4' },
+        { className: 'text-lg font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
         'Family Members'
       ),
       React.createElement(
@@ -1427,7 +1446,8 @@ const handleInvite = async () => {
             {
               key: member.uid,
               className:
-                'flex items-center gap-3 p-3 bg-gray-50 rounded-xl'
+                'flex items-center gap-3 p-3 rounded-xl',
+              style: { backgroundColor: 'var(--tt-input-bg)' }
             },
             React.createElement(
               'div',
@@ -1442,7 +1462,8 @@ const handleInvite = async () => {
                     'div',
                     {
                       className:
-                        'w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold'
+                        'w-12 h-12 rounded-full flex items-center justify-center font-semibold',
+                      style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-primary)' }
                     },
                     (member.displayName || member.email || '?')
                       .charAt(0)
@@ -1454,12 +1475,12 @@ const handleInvite = async () => {
               { className: 'flex-1 min-w-0' },
               React.createElement(
                 'div',
-                { className: 'text-sm font-medium text-gray-800 truncate' },
+                { className: 'text-sm font-medium truncate', style: { color: 'var(--tt-text-primary)' } },
                 member.displayName || member.email || 'Member'
               ),
               React.createElement(
                 'div',
-                { className: 'text-xs text-gray-500 truncate' },
+                { className: 'text-xs truncate', style: { color: 'var(--tt-text-secondary)' } },
                 member.email
               )
             ),
@@ -1492,10 +1513,10 @@ const handleInvite = async () => {
     showInvite &&
       React.createElement(
         'div',
-        { className: 'bg-indigo-50 rounded-2xl p-4' },
+        { className: 'rounded-2xl p-4 border', style: { backgroundColor: 'var(--tt-subtle-surface)', borderColor: 'var(--tt-card-border)' } },
         React.createElement(
           'div',
-          { className: 'text-sm text-gray-600 mb-2' },
+          { className: 'text-sm mb-2', style: { color: 'var(--tt-text-secondary)' } },
           'Share this link with your partner:'
         ),
         React.createElement(
@@ -1506,7 +1527,8 @@ const handleInvite = async () => {
             value: inviteLink,
             readOnly: true,
             className:
-              'flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm'
+              'flex-1 px-3 py-2 border rounded-lg text-sm',
+            style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)', color: 'var(--tt-text-primary)' }
           }),
           React.createElement(
             'button',
@@ -1522,8 +1544,8 @@ const handleInvite = async () => {
           'button',
           {
             onClick: () => setShowInvite(false),
-            className:
-              'mt-2 text-sm text-gray-600 hover:text-gray-800'
+            className: 'mt-2 text-sm hover:opacity-80',
+            style: { color: 'var(--tt-text-secondary)' }
           },
           'Close'
         )
@@ -1541,16 +1563,17 @@ const handleInvite = async () => {
           'div',
           {
             className:
-              'bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm'
+              'rounded-2xl shadow-2xl p-6 w-full max-w-sm border',
+            style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)' }
           },
           React.createElement(
             'h2',
-            { className: 'text-lg font-semibold text-gray-800 mb-2' },
+            { className: 'text-lg font-semibold mb-2', style: { color: 'var(--tt-text-primary)' } },
             'Add Child'
           ),
           React.createElement(
             'p',
-            { className: 'text-xs text-gray-500 mb-4' },
+            { className: 'text-xs mb-4', style: { color: 'var(--tt-text-secondary)' } },
             'This child will share the same family and members.'
           ),
           React.createElement(
@@ -1563,7 +1586,8 @@ const handleInvite = async () => {
                 'label',
                 {
                   className:
-                    'block text-xs font-medium text-gray-700 mb-1'
+                    'block text-xs font-medium mb-1',
+                  style: { color: 'var(--tt-text-secondary)' }
                 },
                 "Child's Name"
               ),
@@ -1572,7 +1596,8 @@ const handleInvite = async () => {
                 value: newBabyName,
                 onChange: (e) => setNewBabyName(e.target.value),
                 className:
-                  'w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400'
+                  'w-full px-3 py-2 border rounded-xl text-sm focus:outline-none',
+                style: { backgroundColor: 'var(--tt-input-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
               })
             ),
             React.createElement(
@@ -1585,7 +1610,8 @@ const handleInvite = async () => {
                   'label',
                   {
                     className:
-                      'block text-xs font-medium text-gray-700 mb-1'
+                      'block text-xs font-medium mb-1',
+                    style: { color: 'var(--tt-text-secondary)' }
                   },
                   'Weight (lbs)'
                 ),
@@ -1595,7 +1621,8 @@ const handleInvite = async () => {
                   value: newBabyWeight,
                   onChange: (e) => setNewBabyWeight(e.target.value),
                   className:
-                    'w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400'
+                    'w-full px-3 py-2 border rounded-xl text-sm focus:outline-none',
+                  style: { backgroundColor: 'var(--tt-input-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
                 })
               ),
               React.createElement(
@@ -1605,7 +1632,8 @@ const handleInvite = async () => {
                   'label',
                   {
                     className:
-                      'block text-xs font-medium text-gray-700 mb-1'
+                      'block text-xs font-medium mb-1',
+                    style: { color: 'var(--tt-text-secondary)' }
                   },
                   'Birth date'
                 ),
@@ -1614,7 +1642,8 @@ const handleInvite = async () => {
                   value: newBabyBirthDate,
                   onChange: (e) => setNewBabyBirthDate(e.target.value),
                   className:
-                    'w-full px-3 py-2 border-2 border-gray-200 rounded-xl text-sm focus:outline-none focus:border-indigo-400'
+                    'w-full px-3 py-2 border rounded-xl text-sm focus:outline-none',
+                  style: { backgroundColor: 'var(--tt-input-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
                 })
               )
             )
@@ -1627,8 +1656,8 @@ const handleInvite = async () => {
               {
                 type: 'button',
                 onClick: () => setShowAddChild(false),
-                className:
-                  'text-sm text-gray-600 hover:text-gray-800'
+                className: 'text-sm hover:opacity-80',
+                style: { color: 'var(--tt-text-secondary)' }
               },
               'Cancel'
             ),
