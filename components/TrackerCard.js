@@ -4688,10 +4688,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       },
         mode === 'feeding'
           ? React.createElement('button', {
+              type: 'button',
               onClick: handleAddFeeding,
+              onTouchStart: (e) => {
+                // Prevent scroll container from capturing touch
+                e.stopPropagation();
+              },
               className: "w-full text-white py-3 rounded-2xl font-semibold transition",
               style: {
-                backgroundColor: 'var(--tt-feed)'
+                backgroundColor: 'var(--tt-feed)',
+                touchAction: 'manipulation' // Prevent scroll interference on mobile
               },
               onMouseEnter: (e) => {
                 e.target.style.backgroundColor = 'var(--tt-feed-strong)';
@@ -4704,10 +4710,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               // Sleep CTA button logic
               if (sleepState === 'running') {
                 return React.createElement('button', {
+                  type: 'button',
                   onClick: handleEndSleep,
+                  onTouchStart: (e) => {
+                    // Prevent scroll container from capturing touch
+                    e.stopPropagation();
+                  },
                   className: "w-full text-white py-3 rounded-2xl font-semibold transition",
                   style: {
-                    backgroundColor: 'var(--tt-sleep)'
+                    backgroundColor: 'var(--tt-sleep)',
+                    touchAction: 'manipulation' // Prevent scroll interference on mobile
                   },
                   onMouseEnter: (e) => {
                     e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
@@ -4721,7 +4733,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 // Disabled and red text if invalid
                 const isValid = isSleepValid;
                 return React.createElement('button', {
+                  type: 'button',
                   onClick: isValid ? handleSaveSleep : undefined,
+                  onTouchStart: (e) => {
+                    // Prevent scroll container from capturing touch
+                    e.stopPropagation();
+                  },
                   disabled: !isValid,
                   className: "w-full py-3 rounded-2xl font-semibold transition",
                   style: {
@@ -4729,7 +4746,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                     color: isValid ? 'white' : '#ef4444', // Red text when invalid
                     border: isValid ? 'none' : '1px solid #ef4444',
                     cursor: isValid ? 'pointer' : 'not-allowed',
-                    opacity: isValid ? 1 : 0.7
+                    opacity: isValid ? 1 : 0.7,
+                    touchAction: 'manipulation' // Prevent scroll interference on mobile
                   },
                   onMouseEnter: (e) => {
                     if (isValid) {
@@ -4745,10 +4763,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               } else {
                 // Show Start Sleep button when idle
                 return React.createElement('button', {
+                  type: 'button',
                   onClick: handleStartSleep,
+                  onTouchStart: (e) => {
+                    // Prevent scroll container from capturing touch
+                    e.stopPropagation();
+                  },
                   className: "w-full text-white py-3 rounded-2xl font-semibold transition",
                   style: {
-                    backgroundColor: 'var(--tt-sleep)'
+                    backgroundColor: 'var(--tt-sleep)',
+                    touchAction: 'manipulation' // Prevent scroll interference on mobile
                   },
                   onMouseEnter: (e) => {
                     e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
