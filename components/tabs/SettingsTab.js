@@ -53,6 +53,15 @@ const SettingsTab = ({ user, kidId }) => {
     return false;
   });
   
+  // V3 Variant toggle state
+  const [v3Variant, setV3Variant] = useState(() => {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem('tt_v3_card_variant');
+      return stored && ['variant1', 'variant2'].includes(stored) ? stored : 'variant1';
+    }
+    return 'variant1';
+  });
+  
   // Production data for UI Lab
   const [feedings, setFeedings] = useState([]);
   const [sleepSessions, setSleepSessions] = useState([]);
@@ -1051,6 +1060,28 @@ const SettingsTab = ({ user, kidId }) => {
             setShowTodayCard(isOn);
             if (typeof window !== 'undefined' && window.localStorage) {
               window.localStorage.setItem('tt_show_today_card', isOn ? 'true' : 'false');
+              // Force reload to apply changes
+              window.location.reload();
+            }
+          }
+        })
+      ),
+
+      // V3 Card Variant Toggle (only show when v3 is selected)
+      uiVersion === 'v3' && React.createElement('div', { className: "mb-4" },
+        React.createElement('label', { 
+          className: "block text-sm font-medium text-gray-700 mb-2" 
+        }, 'V3 Card Variant'),
+        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+          value: v3Variant,
+          options: [
+            { value: 'variant1', label: 'Variant 1' },
+            { value: 'variant2', label: 'Variant 2' }
+          ],
+          onChange: (value) => {
+            setV3Variant(value);
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('tt_v3_card_variant', value);
               // Force reload to apply changes
               window.location.reload();
             }

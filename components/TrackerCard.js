@@ -873,7 +873,17 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
       return 'v2';
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+    getCardDesign: (version) => version === 'v3' ? 'new' : 'current',
+    getV3Variant: () => {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const variant = window.localStorage.getItem('tt_v3_card_variant');
+        if (variant && ['variant1', 'variant2'].includes(variant)) {
+          return variant;
+        }
+        return 'variant1'; // default: big icon inline
+      }
+      return 'variant1';
+    }
   };
 }
 
@@ -901,12 +911,19 @@ const TrackerCard = ({
   });
   const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v3' ? 'new' : 'current'))(uiVersion);
   
-  // Listen for changes to the feature flag
+  // V3 Variant - variant1 (big icon inline) or variant2 (small icon + label in header)
+  const [v3Variant, setV3Variant] = React.useState(() => {
+    return (window.TT?.shared?.uiVersion?.getV3Variant || (() => 'variant1'))();
+  });
+  
+  // Listen for changes to the feature flags
   React.useEffect(() => {
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
         setUiVersion(version);
+        const variant = (window.TT?.shared?.uiVersion?.getV3Variant || (() => 'variant1'))();
+        setV3Variant(variant);
       }
     };
     
@@ -1312,6 +1329,7 @@ const TrackerCard = ({
     mirrorFeedingIcon = false,
     showHeaderIcon = true,                   // show icon in header left
     headerRight = null,                      // optional right-side content in header row
+    headerLabel = null,                      // optional custom label for header (variant 2)
     showBigNumberIcon = false,               // show icon inline with the big number row
     bigNumberIconClassName = null,           // icon size for big number row (defaults to headerIconClassName)
     bigNumberRight = null,                   // optional right-side content in big number row (e.g. status pill)
@@ -1379,10 +1397,14 @@ const TrackerCard = ({
               }
             }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
           : null,
-        (!headerRight || showHeaderIcon) ? React.createElement('div', { 
-          className: headerLabelClassName,
-          style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-        }, mode === 'feeding' ? 'Feed' : 'Sleep') : null
+        (!headerRight || showHeaderIcon) ? (
+          headerLabel 
+            ? headerLabel  // variant 2: show icon + label in header
+            : React.createElement('div', { 
+                className: headerLabelClassName,
+                style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+              }, mode === 'feeding' ? 'Feed' : 'Sleep')
+        ) : null
       ) : null,
       headerRight
     ) : null,
@@ -1390,7 +1412,7 @@ const TrackerCard = ({
     // Optional icon + label above big number (for v3 feeding)
     bigNumberTopLabel ? React.createElement(
       'div',
-      { className: "flex items-center mb-2" },
+      { className: "flex items-center mb-4" },
       bigNumberTopLabel
     ) : null,
 
@@ -1777,77 +1799,102 @@ const TrackerCard = ({
       v3HeaderRight
     ) : null;
 
-    // For feeding: icon + label above big number (copied from today card)
-    const v3FeedingTopLabel = mode === 'feeding' ? React.createElement(
-      'div',
-      { 
-        className: "text-sm font-medium inline-flex items-center gap-2",
-        style: { color: 'var(--tt-feed)' }
-      },
-      (() => {
-        const v3Src = 'assets/ui-icons/bottle-main-right-v3@3x.png';
-        const v3Svg =
-          (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-main"]) ||
-          (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
-          null;
-        const canMask = (() => {
-          try {
-            if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
-            return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
-          } catch {
-            return false;
-          }
-        })();
-        if (canMask) {
-          return React.createElement(
-            'span',
-            { style: { width: 18, height: 18, display: 'inline-block' } },
-            React.createElement('span', {
-              style: {
-                width: '100%',
-                height: '100%',
-                display: 'block',
-                backgroundColor: 'var(--tt-feed)',
-                WebkitMaskImage: `url("${v3Src}")`,
-                WebkitMaskRepeat: 'no-repeat',
-                WebkitMaskSize: 'contain',
-                WebkitMaskPosition: 'center',
-                maskImage: `url("${v3Src}")`,
-                maskRepeat: 'no-repeat',
-                maskSize: 'contain',
-                maskPosition: 'center'
-              }
-            })
-          );
+    // Helper function to create icon + label component (for variant 2)
+    const createIconLabel = (m) => {
+      const isFeed = m === 'feeding';
+      const v3Src = isFeed 
+        ? 'assets/ui-icons/bottle-main-right-v3@3x.png'
+        : 'assets/ui-icons/moon-main@3x.png';
+      const v3Svg = isFeed
+        ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-main"]) ||
+           (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
+           null)
+        : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-main"]) ||
+           (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
+           null);
+      const color = isFeed ? 'var(--tt-feed)' : 'var(--tt-sleep)';
+      const label = isFeed ? 'Feeding' : 'Sleep';
+      
+      const canMask = (() => {
+        try {
+          if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+          return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
+        } catch {
+          return false;
         }
-        // Fallback: SVG if mask isn't supported
-        return v3Svg ? React.createElement(v3Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-feed)', strokeWidth: '3' } }) : null;
-      })(),
-      React.createElement('span', null, "Feeding")
-    ) : null;
+      })();
+      
+      return React.createElement(
+        'div',
+        { 
+          className: "text-sm font-medium inline-flex items-center gap-2",
+          style: { color }
+        },
+        (() => {
+          if (canMask) {
+            return React.createElement(
+              'span',
+              { style: { width: 18, height: 18, display: 'inline-block' } },
+              React.createElement('span', {
+                style: {
+                  width: '100%',
+                  height: '100%',
+                  display: 'block',
+                  backgroundColor: color,
+                  WebkitMaskImage: `url("${v3Src}")`,
+                  WebkitMaskRepeat: 'no-repeat',
+                  WebkitMaskSize: 'contain',
+                  WebkitMaskPosition: 'center',
+                  maskImage: `url("${v3Src}")`,
+                  maskRepeat: 'no-repeat',
+                  maskSize: 'contain',
+                  maskPosition: 'center'
+                }
+              })
+            );
+          }
+          // Fallback: SVG if mask isn't supported
+          return v3Svg ? React.createElement(v3Svg, { className: "w-[18px] h-[18px]", style: { color, strokeWidth: '3' } }) : null;
+        })(),
+        React.createElement('span', null, label)
+      );
+    };
+
+    // Variant 1: Big icon inline with big number (default)
+    // Variant 2: Small icon + label in header
+    const isVariant1 = v3Variant === 'variant1';
+    const isVariant2 = v3Variant === 'variant2';
+    
+    const v3HeaderLabel = isVariant2 ? createIconLabel(mode) : null;
+    const v3TopLabel = isVariant2 ? createIconLabel(mode) : null;
 
     return renderDesign({
-      showHeaderRow: false,                        // no header row for v3 (pills moved to timeline)
-      headerGapClass: 'gap-[2px]',
+      showHeaderRow: isVariant2,                    // show header row for variant 2 (with icon + label)
+      headerGapClass: 'gap-2',
       headerBottomMarginClass: 'mb-8',
-      headerLabelClassName: 'text-[20px] font-thin',
+      headerLabelClassName: 'text-sm font-medium',
       iconOverride: V3Icon,
       feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
       sleepIconTransform: 'translateY(2px)',                // nudge moon down 2px
       mirrorFeedingIcon: false,
       showHeaderIcon: false,
       headerRight: null,                            // no pills in header (moved to timeline)
-      showBigNumberIcon: mode === 'sleep',          // only show big icon for sleep, not feeding
-      bigNumberTopLabel: v3FeedingTopLabel,          // feeding icon + label above big number
+      headerLabel: isVariant2 ? v3HeaderLabel : null,  // variant 2: icon + label in header
+      showBigNumberIcon: isVariant1,                // show big icon inline for variant 1
+      bigNumberTopLabel: null,                      // not used in header (use headerLabel instead)
       // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px)
       bigNumberIconClassName: mode === 'feeding' ? 'h-[32.49px] w-[32.49px]' : 'h-[30.78px] w-[30.78px]',
       // v3: big-number row is just icon + number + target (left-aligned)
       bigNumberRight: null,
-      bigNumberRowClassName: mode === 'feeding' ? "flex items-baseline gap-1 mb-[13px]" : "flex items-center gap-1 mb-[13px]",
+      bigNumberRowClassName: isVariant1 
+        ? (mode === 'feeding' ? "flex items-baseline gap-1 mb-[13px]" : "flex items-center gap-1 mb-[13px]")
+        : (mode === 'feeding' ? "flex items-baseline gap-1 mb-[13px]" : "flex items-center gap-1 mb-[13px]"),
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
       bigNumberValueClassName: "text-[36px] leading-none font-bold",
-      bigNumberTargetClassName: mode === 'feeding' ? "text-base leading-none font-normal" : "relative -top-[2px] text-base leading-none font-normal",
+      bigNumberTargetClassName: isVariant1 
+        ? "relative -top-[2px] text-base leading-none font-normal"  // variant 1: original styling
+        : (mode === 'feeding' ? "text-base leading-none font-normal" : "relative -top-[2px] text-base leading-none font-normal"),
       bigNumberTargetColor: 'var(--tt-text-secondary)',
       bigNumberTargetVariant: 'target',
       // 12px * 1.2 = 14.4px
