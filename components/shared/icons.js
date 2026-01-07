@@ -1,3 +1,10 @@
+// Ensure React is available (UMD build exposes it as window.React)
+const React = window.React;
+
+if (!React) {
+  console.error('icons.js: React is not available! window.React =', window.React);
+}
+
 // Edit icon
 const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
@@ -122,13 +129,300 @@ const BottleMain = (props) => React.createElement('svg', { ...props, xmlns: "htt
 const CustomIcon1 = MoonMain;
 const CustomIcon2 = BottleMain;
 
+// ========================================
+// PHOSPHOR ICONS
+// Official Phosphor Icons implementation using actual SVG paths
+// ========================================
+
+// Helper to create Phosphor-style SVG icon component
+const createPhosphorSVG = (paths, viewBox = "0 0 256 256") => {
+  return (props) => {
+    const { 
+      weight = 'regular', 
+      className, 
+      style, 
+      ...rest 
+    } = props;
+    
+    // Extract size from className if present (e.g., "w-6 h-6" -> 24)
+    let size = 24; // default
+    if (className) {
+      const sizeMatch = className.match(/(?:w|h)-(\d+)/);
+      if (sizeMatch) {
+        size = parseInt(sizeMatch[1]) * 4; // Tailwind: w-6 = 24px
+      }
+    }
+    
+    // Phosphor weight system
+    // Regular weight uses fill (outline style is in the path design itself)
+    // Fill weight uses fill (solid)
+    // Bold weight uses fill (thicker/bolder paths)
+    const fill = weight === 'fill' || weight === 'regular' || weight === 'bold' ? 'currentColor' : 'none';
+    const stroke = 'none';
+    const strokeWidth = 0;
+    
+    return React.createElement('svg', {
+      ...rest,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: size,
+      height: size,
+      viewBox: viewBox,
+      fill: fill,
+      stroke: stroke,
+      strokeWidth: strokeWidth,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      className: className,
+      style: { 
+        ...style, 
+        color: style?.color || 'currentColor',
+        display: 'block',
+        verticalAlign: 'middle'
+      }
+    }, paths);
+  };
+};
+
+// Factory helper to create icon components properly
+// This ensures icons are React components, not pre-invoked elements
+const makeIcon = (paths, viewBox = "0 0 256 256", fillPaths = null, boldPaths = null) => {
+  const RegularComponent = createPhosphorSVG(paths, viewBox);
+  const FillComponent = fillPaths ? createPhosphorSVG(fillPaths, viewBox) : RegularComponent;
+  const BoldComponent = boldPaths ? createPhosphorSVG(boldPaths, viewBox) : RegularComponent;
+  
+  return (props) => {
+    // Handle weight logic based on selection/tap state
+    const { isSelected, isTapped, selectedWeight, weight: propWeight, ...rest } = props;
+    let finalWeight = propWeight || 'regular';
+    
+    // Only use selectedWeight when actually selected/tapped
+    if ((isSelected || isTapped) && selectedWeight) {
+      finalWeight = selectedWeight;
+    }
+    
+    // Choose component based on final weight
+    let Component = RegularComponent;
+    if (finalWeight === 'fill' && fillPaths) {
+      Component = FillComponent;
+    } else if (finalWeight === 'bold' && boldPaths) {
+      Component = BoldComponent;
+    }
+    
+    return Component({ ...rest, weight: finalWeight });
+  };
+};
+
+// Sun (Today) - Phosphor Sun icon
+const TodayIcon = makeIcon(
+  // Regular weight (outline)
+  [
+    React.createElement('path', { 
+      key: 'path', 
+      d: 'M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm72,88a64,64,0,1,1-64-64A64.07,64.07,0,0,1,192,128Zm-16,0a48,48,0,1,0-48,48A48.05,48.05,0,0,0,176,128ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z'
+    })
+  ],
+  "0 0 256 256",
+  // Fill weight (solid) - correct fill version
+  [
+    React.createElement('path', { 
+      key: 'path', 
+      d: 'M120,40V16a8,8,0,0,1,16,0V40a8,8,0,0,1-16,0Zm8,24a64,64,0,1,0,64,64A64.07,64.07,0,0,0,128,64ZM58.34,69.66A8,8,0,0,0,69.66,58.34l-16-16A8,8,0,0,0,42.34,53.66Zm0,116.68-16,16a8,8,0,0,0,11.32,11.32l16-16a8,8,0,0,0-11.32-11.32ZM192,72a8,8,0,0,0,5.66-2.34l16-16a8,8,0,0,0-11.32-11.32l-16,16A8,8,0,0,0,192,72Zm5.66,114.34a8,8,0,0,0-11.32,11.32l16,16a8,8,0,0,0,11.32-11.32ZM48,128a8,8,0,0,0-8-8H16a8,8,0,0,0,0,16H40A8,8,0,0,0,48,128Zm80,80a8,8,0,0,0-8,8v24a8,8,0,0,0,16,0V216A8,8,0,0,0,128,208Zm112-88H216a8,8,0,0,0,0,16h24a8,8,0,0,0,0-16Z'
+    })
+  ]
+);
+
+// TrendUp (Trends)
+const TrendsIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M240,56v64a8,8,0,0,1-16,0V75.31l-82.34,82.35a8,8,0,0,1-11.32,0L96,123.31,29.66,189.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0L136,140.69,212.69,64H168a8,8,0,0,1,0-16h64A8,8,0,0,1,240,56Z'
+  })
+], "0 0 256 256", [
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M240,56v64a8,8,0,0,1-13.66,5.66L200,99.31l-58.34,58.35a8,8,0,0,1-11.32,0L96,123.31,29.66,189.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0L136,140.69,188.69,88,162.34,61.66A8,8,0,0,1,168,48h64A8,8,0,0,1,240,56Z'
+  })
+]);
+
+// ChatCircle (Chat)
+const ChatIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M232.07,186.76a80,80,0,0,0-62.5-114.17A80,80,0,1,0,23.93,138.76l-7.27,24.71a16,16,0,0,0,19.87,19.87l24.71-7.27a80.39,80.39,0,0,0,25.18,7.35,80,80,0,0,0,108.34,40.65l24.71,7.27a16,16,0,0,0,19.87-19.86ZM62,159.5a8.28,8.28,0,0,0-2.26.32L32,168l8.17-27.76a8,8,0,0,0-.63-6,64,64,0,1,1,26.26,26.26A8,8,0,0,0,62,159.5Zm153.79,28.73L224,216l-27.76-8.17a8,8,0,0,0-6,.63,64.05,64.05,0,0,1-85.87-24.88A79.93,79.93,0,0,0,174.7,89.71a64,64,0,0,1,41.75,92.48A8,8,0,0,0,215.82,188.23Z'
+  })
+], "0 0 256 256", [
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M232.07,186.76a80,80,0,0,0-62.5-114.17A80,80,0,1,0,23.93,138.76l-7.27,24.71a16,16,0,0,0,19.87,19.87l24.71-7.27a80.39,80.39,0,0,0,25.18,7.35,80,80,0,0,0,108.34,40.65l24.71,7.27a16,16,0,0,0,19.87-19.86Zm-16.25,1.47L224,216l-27.76-8.17a8,8,0,0,0-6,.63,64.05,64.05,0,0,1-85.87-24.88A79.93,79.93,0,0,0,174.7,89.71a64,64,0,0,1,41.75,92.48A8,8,0,0,0,215.82,188.23Z'
+  })
+]);
+
+// House (Home/Family)
+const HomeIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M240,208H224V136l2.34,2.34A8,8,0,0,0,237.66,127L139.31,28.68a16,16,0,0,0-22.62,0L18.34,127a8,8,0,0,0,11.32,11.31L32,136v72H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16ZM48,120l80-80,80,80v88H160V152a8,8,0,0,0-8-8H104a8,8,0,0,0-8,8v56H48Zm96,88H112V160h32Z'
+  })
+], "0 0 256 256", [
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M240,208H224V136l2.34,2.34A8,8,0,0,0,237.66,127L139.31,28.68a16,16,0,0,0-22.62,0L18.34,127a8,8,0,0,0,11.32,11.31L32,136v72H16a8,8,0,0,0,0,16H240a8,8,0,0,0,0-16Zm-88,0H104V160a4,4,0,0,1,4-4h40a4,4,0,0,1,4,4Z'
+  })
+]);
+
+// Plus
+const PlusIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z'
+  })
+], "0 0 256 256", null, [
+  // Bold version (when tapped)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z'
+  })
+]);
+
+// List (Menu/Hamburger)
+const MenuIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128ZM40,72H216a8,8,0,0,0,0-16H40a8,8,0,0,0,0,16ZM216,184H40a8,8,0,0,0,0,16H216a8,8,0,0,0,0-16Z'
+  })
+], "0 0 256 256", [
+  // Fill version (when selected)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM192,184H64a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Zm0-48H64a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Zm0-48H64a8,8,0,0,1,0-16H192a8,8,0,0,1,0,16Z'
+  })
+], [
+  // Bold version (when tapped)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M228,128a12,12,0,0,1-12,12H40a12,12,0,0,1,0-24H216A12,12,0,0,1,228,128ZM40,76H216a12,12,0,0,0,0-24H40a12,12,0,0,0,0,24ZM216,180H40a12,12,0,0,0,0,24H216a12,12,0,0,0,0-24Z'
+  })
+]);
+
+// Share
+const ShareIconPhosphor = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M216,112v96a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V112A16,16,0,0,1,56,96H80a8,8,0,0,1,0,16H56v96H200V112H176a8,8,0,0,1,0-16h24A16,16,0,0,1,216,112ZM93.66,69.66,120,43.31V136a8,8,0,0,0,16,0V43.31l26.34,26.35a8,8,0,0,0,11.32-11.32l-40-40a8,8,0,0,0-11.32,0l-40,40A8,8,0,0,0,93.66,69.66Z'
+  })
+], "0 0 256 256", [
+  // Fill version (when tapped)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M216,112v96a16,16,0,0,1-16,16H56a16,16,0,0,1-16-16V112A16,16,0,0,1,56,96h64v48a8,8,0,0,0,16,0V96h64A16,16,0,0,1,216,112ZM136,43.31l26.34,26.35a8,8,0,0,0,11.32-11.32l-40-40a8,8,0,0,0-11.32,0l-40,40A8,8,0,0,0,93.66,69.66L120,43.31V96h16Z'
+  })
+]);
+
+// Baby
+const BabyIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M92,140a12,12,0,1,1,12-12A12,12,0,0,1,92,140Zm72-24a12,12,0,1,0,12,12A12,12,0,0,0,164,116Zm-12.27,45.23a45,45,0,0,1-47.46,0,8,8,0,0,0-8.54,13.54,61,61,0,0,0,64.54,0,8,8,0,0,0-8.54-13.54ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88.11,88.11,0,0,0-84.09-87.91C120.32,56.38,120,71.88,120,72a8,8,0,0,0,16,0,8,8,0,0,1,16,0,24,24,0,0,1-48,0c0-.73.13-14.3,8.46-30.63A88,88,0,1,0,216,128Z'
+  })
+], "0 0 256 256", [
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M92,140a12,12,0,1,1,12-12A12,12,0,0,1,92,140Zm72-24a12,12,0,1,0,12,12A12,12,0,0,0,164,116Zm-12.27,45.23a45,45,0,0,1-47.46,0,8,8,0,0,0-8.54,13.54,61,61,0,0,0,64.54,0,8,8,0,0,0-8.54-13.54ZM232,128A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88.11,88.11,0,0,0-84.09-87.91C120.32,56.38,120,71.88,120,72a8,8,0,0,0,16,0,8,8,0,0,1,16,0,24,24,0,0,1-48,0c0-.73.13-14.3,8.46-30.63A88,88,0,1,0,216,128Z'
+  })
+]);
+
+// CaretLeft (ChevronLeft)
+const ChevronLeftIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M165.66,202.34a8,8,0,0,1-11.32,11.32l-80-80a8,8,0,0,1,0-11.32l80-80a8,8,0,0,1,11.32,11.32L91.31,128Z'
+  })
+], "0 0 256 256", null, [
+  // Bold version (when tapped)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M168.49,199.51a12,12,0,0,1-17,17l-80-80a12,12,0,0,1,0-17l80-80a12,12,0,0,1,17,17L97,128Z'
+  })
+]);
+
+// CaretRight (ChevronRight)
+const ChevronRightIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z'
+  })
+], "0 0 256 256", null, [
+  // Bold version (when tapped)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z'
+  })
+]);
+
+// CaretDown (ChevronDown)
+const ChevronDownIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z'
+  })
+], "0 0 256 256", null, [
+  // Bold version (when tapped)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M216.49,104.49l-80,80a12,12,0,0,1-17,0l-80-80a12,12,0,0,1,17-17L128,159l71.51-71.52a12,12,0,0,1,17,17Z'
+  })
+]);
+
+// CaretUp (ChevronUp)
+const ChevronUpIcon = makeIcon([
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M213.66,165.66a8,8,0,0,1-11.32,0L128,91.31,53.66,165.66a8,8,0,0,1-11.32-11.32l80-80a8,8,0,0,1,11.32,0l80,80A8,8,0,0,1,213.66,165.66Z'
+  })
+], "0 0 256 256", null, [
+  // Bold version (when tapped)
+  React.createElement('path', { 
+    key: 'path', 
+    d: 'M216.49,168.49a12,12,0,0,1-17,0L128,97,56.49,168.49a12,12,0,0,1-17-17l80-80a12,12,0,0,1,17,0l80,80A12,12,0,0,1,216.49,168.49Z'
+  })
+]);
+
+// BottleV2 - New bottle icon for v3 variant 2
+const BottleV2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5", strokeLinecap: "round", strokeLinejoin: "round" },
+  React.createElement('path', { d: "M17 10.4999C17 10.4999 18 12.9999 18 16.2499C18 17.4211 17.8701 18.4948 17.704 19.3893C17.4952 20.5136 17.3908 21.0757 16.835 21.5378C16.2792 21.9999 15.6168 21.9999 14.2919 21.9999H9.70813C8.38323 21.9999 7.72079 21.9999 7.16499 21.5378C6.60919 21.0757 6.50478 20.5136 6.29598 19.3893C6.12986 18.4948 6 17.4211 6 16.2499C6 12.9999 7 10.4999 7 10.4999" }),
+  React.createElement('path', { d: "M7.00011 10.5109H17.0001C17.148 9.69502 16.9213 8.12207 14.9607 7.49988C14.4954 7.35226 13.95 7.07619 13.7045 6.61167C13.4872 6.20036 13.3855 5.64345 13.7112 5.02533C14.3134 3.88252 13.7323 2.48044 12.4822 2.08711C12.326 2.03794 12.1632 2.00167 12.0001 2.00006C11.826 1.99834 11.6517 2.03461 11.4849 2.08711C10.2348 2.48044 9.65373 3.88252 10.2559 5.02533C10.5816 5.64345 10.4799 6.20036 10.2626 6.61167C10.0247 7.06186 9.50673 7.46163 9.02371 7.61486C7.67057 8.04418 6.73858 9.06774 7.00011 10.5109Z" }),
+  React.createElement('path', { d: "M15 13.9999H17.5M15 17.9999H17.5" })
+);
+
+// MoonV2 - New moon icon for v3 variant 2
+const MoonV2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "32", height: "32", fill: "currentColor", viewBox: "0 0 256 256" },
+  React.createElement('path', { d: "M240,96a8,8,0,0,1-8,8H216v16a8,8,0,0,1-16,0V104H184a8,8,0,0,1,0-16h16V72a8,8,0,0,1,16,0V88h16A8,8,0,0,1,240,96ZM144,56h8v8a8,8,0,0,0,16,0V56h8a8,8,0,0,0,0-16h-8V32a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16Zm72.77,97a8,8,0,0,1,1.43,8A96,96,0,1,1,95.07,37.8a8,8,0,0,1,10.6,9.06A88.07,88.07,0,0,0,209.14,150.33,8,8,0,0,1,216.77,153Zm-19.39,14.88c-1.79.09-3.59.14-5.38.14A104.11,104.11,0,0,1,88,64c0-1.79,0-3.59.14-5.38A80,80,0,1,0,197.38,167.86Z" })
+);
+
 // Expose to global namespace (backward compat + new namespace)
-window.TT = window.TT || {};
-window.TT.shared = window.TT.shared || {};
-window.TT.shared.icons = { Edit2, Check, X, Plus, Bottle1, Bottle2, Bottle3, Calendar1, Calendar2, Chat, DaySleep1, DaySleep, Family1, Family2, Moon2, NightSleep, Paci1, Paci2, Sun, Today, Trends, BottleMain, MoonMain, CustomIcon1, CustomIcon2 };
-// Aliases with hyphenated names (must be accessed via bracket notation)
-window.TT.shared.icons["bottle-main"] = window.TT.shared.icons.BottleMain;
-window.TT.shared.icons["moon-main"] = window.TT.shared.icons.MoonMain;
+try {
+  window.TT = window.TT || {};
+  window.TT.shared = window.TT.shared || {};
+  
+  console.log('icons.js: About to export icons. TodayIcon type:', typeof TodayIcon);
+  console.log('icons.js: makeIcon type:', typeof makeIcon);
+  console.log('icons.js: React type:', typeof React);
+  
+  window.TT.shared.icons = { Edit2, Check, X, Plus, Bottle1, Bottle2, Bottle3, Calendar1, Calendar2, Chat, DaySleep1, DaySleep, Family1, Family2, Moon2, NightSleep, Paci1, Paci2, Sun, Today, Trends, BottleMain, MoonMain, BottleV2, MoonV2, CustomIcon1, CustomIcon2, TodayIcon, TrendsIcon, ChatIcon, HomeIcon, PlusIcon, MenuIcon, ShareIconPhosphor, BabyIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon };
+  
+  console.log('icons.js: Successfully exported icons. window.TT.shared.icons =', window.TT.shared.icons);
+  console.log('icons.js: TodayIcon in exported object:', typeof window.TT.shared.icons.TodayIcon);
+  
+  // Aliases with hyphenated names (must be accessed via bracket notation)
+  window.TT.shared.icons["bottle-main"] = window.TT.shared.icons.BottleMain;
+  window.TT.shared.icons["moon-main"] = window.TT.shared.icons.MoonMain;
+  window.TT.shared.icons["bottle-v2"] = window.TT.shared.icons.BottleV2;
+  window.TT.shared.icons["moon-v2"] = window.TT.shared.icons.MoonV2;
+} catch (error) {
+  console.error('icons.js: Error exporting icons:', error);
+  console.error('icons.js: Error stack:', error.stack);
+  console.error('icons.js: Error message:', error.message);
+}
 
 // Temporary backward compatibility (will remove later)
 window.Edit2 = Edit2;

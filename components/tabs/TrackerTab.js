@@ -81,7 +81,9 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [ounces, setOunces] = useState('');
   const [customTime, setCustomTime] = useState('');
   const [feedings, setFeedings] = useState([]);
+  const [allFeedings, setAllFeedings] = useState([]);
   const [sleepSessions, setSleepSessions] = useState([]);
+  const [allSleepSessions, setAllSleepSessions] = useState([]);
   const [sleepSettings, setSleepSettings] = useState(null);
   const [yesterdayConsumed, setYesterdayConsumed] = useState(0);
   const [yesterdayFeedingCount, setYesterdayFeedingCount] = useState(0);
@@ -545,6 +547,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const myTransitionId = transitionIdRef.current; // Capture transition ID
     try {
       const sessions = await firestoreStorage.getAllSleepSessions();
+      setAllSleepSessions(sessions || []); // Store all sleep sessions for yesterday calculation
       const ended = (sessions || []).filter(s => s && s.endTime);
       const startOfDay = new Date(currentDate);
       startOfDay.setHours(0, 0, 0, 0);
@@ -616,7 +619,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const loadFeedings = async () => {
     const myTransitionId = transitionIdRef.current; // Capture transition ID
     try {
-      const allFeedings = await firestoreStorage.getAllFeedings();
+      const allFeedingsData = await firestoreStorage.getAllFeedings();
+      setAllFeedings(allFeedingsData); // Store all feedings for yesterday calculation
       const startOfDay = new Date(currentDate);
       startOfDay.setHours(0, 0, 0, 0);
       const endOfDay = new Date(currentDate);
@@ -629,12 +633,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       const yEnd = new Date(yDate);
       yEnd.setHours(23, 59, 59, 999);
 
-      const yFeedings = allFeedings.filter(f => f.timestamp >= yStart.getTime() && f.timestamp <= yEnd.getTime());
+      const yFeedings = allFeedingsData.filter(f => f.timestamp >= yStart.getTime() && f.timestamp <= yEnd.getTime());
       const yConsumed = yFeedings.reduce((sum, f) => sum + (f.ounces || 0), 0);
       setYesterdayConsumed(yConsumed);
       setYesterdayFeedingCount(yFeedings.length);
 
-      const dayFeedings = allFeedings.filter(f =>
+      const dayFeedings = allFeedingsData.filter(f =>
         f.timestamp >= startOfDay.getTime() &&
         f.timestamp <= endOfDay.getTime()
       ).map(f => ({
@@ -1235,7 +1239,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
           onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
           onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
           onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(ChevronLeft, { className: "w-5 h-5", style: { color: chevronColor, strokeWidth: '3' } })),
+        }, React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: chevronColor } })),
         React.createElement('div', { 
           className: "date-text",
           style: {
@@ -1263,7 +1267,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
           onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
           onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
           onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(ChevronRight, { className: "w-5 h-5", style: { color: isToday() ? chevronDisabledColor : chevronColor, strokeWidth: '3' } }))
+        }, React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: isToday() ? chevronDisabledColor : chevronColor } }))
       )
     ),
 
@@ -1276,6 +1280,9 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         timelineItems: feedingCardData.timelineItems,
         entriesTodayCount: Array.isArray(feedingCardData.timelineItems) ? feedingCardData.timelineItems.length : 0,
         lastEntryTime: feedingCardData.lastEntryTime,
+        rawFeedings: allFeedings,
+        rawSleepSessions: [],
+        currentDate: currentDate,
         onItemClick: handleFeedItemClick,
         onDelete: async () => {
           // Small delay for animation
@@ -1290,6 +1297,9 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         timelineItems: sleepCardData.timelineItems,
         entriesTodayCount: sleepTodayCount,
         lastEntryTime: sleepCardData.lastEntryTime,
+        rawFeedings: [],
+        rawSleepSessions: allSleepSessions,
+        currentDate: currentDate,
         onItemClick: handleSleepItemClick,
         onActiveSleepClick: () => {
           setInputSheetMode('sleep');
@@ -1376,7 +1386,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
               
               // Progress Bar
               React.createElement('div', { 
-                className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+                className: "relative w-full h-[22px] rounded-2xl overflow-hidden mb-2",
                 style: { backgroundColor: 'var(--tt-input-bg)' }
               },
                 React.createElement('div', {
@@ -1467,7 +1477,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
               
               // Progress Bar
               React.createElement('div', { 
-                className: "relative w-full h-5 rounded-2xl overflow-hidden mb-2",
+                className: "relative w-full h-[22px] rounded-2xl overflow-hidden mb-2",
                 style: { backgroundColor: 'var(--tt-input-bg)' }
               },
                 React.createElement('div', {
