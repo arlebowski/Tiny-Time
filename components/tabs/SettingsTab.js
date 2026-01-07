@@ -603,9 +603,8 @@ const SettingsTab = ({ user, kidId }) => {
       right: '10px',
       height: '40px',
       transform: 'translateY(-50%)',
-      background: '#ECEEF3',
-      // Tailwind `rounded-xl` ≈ 12px
-      borderRadius: '12px',
+      background: '#F9FAFB', // grey-50
+      borderRadius: '8px', // rounded-lg
       pointerEvents: 'none',
       zIndex: 1
     },
@@ -952,8 +951,8 @@ const SettingsTab = ({ user, kidId }) => {
               top: '50%',
               height: 40,
               transform: 'translateY(-50%)',
-              background: '#ECEEF3',
-              borderRadius: 12,
+              background: '#F9FAFB', // grey-50
+              borderRadius: 8, // rounded-lg
               zIndex: 0,
               pointerEvents: 'none'
             }
