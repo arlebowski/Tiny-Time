@@ -986,7 +986,7 @@ const SettingsTab = ({ user, kidId }) => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   textAlign: 'center',
-                  transform: 'translateY(-2.5px)' // Nudge colon up 2.5px for alignment
+                  transform: 'translateY(-3.5px)' // Nudge colon up 3.5px for alignment
                 }
               },
               ':'
