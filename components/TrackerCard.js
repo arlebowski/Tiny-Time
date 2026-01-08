@@ -2760,6 +2760,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const ctaFooterRef = React.useRef(null);
     const CTA_BOTTOM_OFFSET_PX = 30;
     
+    // Track original photo URLs to detect deletions
+    const originalPhotoURLsRef = React.useRef([]);
+    
     // Collapsible Notes/Photos state
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
@@ -2779,6 +2782,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setDateTime(entry.timestamp ? new Date(entry.timestamp).toISOString() : new Date().toISOString());
         setNotes(entry.notes || '');
         setExistingPhotoURLs(entry.photoURLs || []);
+        originalPhotoURLsRef.current = entry.photoURLs || []; // Track original URLs
         setPhotos([]); // Reset new photos
         // Auto-expand if there's existing content
         setNotesExpanded(!!entry.notes);
@@ -2789,6 +2793,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setDateTime(new Date().toISOString());
         setNotes('');
         setExistingPhotoURLs([]);
+        originalPhotoURLsRef.current = []; // Reset
         setPhotos([]);
         setNotesExpanded(false);
         setPhotosExpanded(false);
@@ -2807,6 +2812,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       try {
         const timestamp = new Date(dateTime).getTime();
         console.log('[TTFeedDetailSheet] Timestamp:', timestamp);
+        
+        // Find photos that were removed (in original but not in current existingPhotoURLs)
+        const originalURLs = originalPhotoURLsRef.current || [];
+        const removedPhotoURLs = originalURLs.filter(url => !existingPhotoURLs.includes(url));
+        
+        // Delete removed photos from Supabase Storage
+        if (removedPhotoURLs.length > 0) {
+          console.log('[TTFeedDetailSheet] Deleting removed photos...', removedPhotoURLs.length);
+          for (const photoUrl of removedPhotoURLs) {
+            try {
+              if (window.TT && typeof window.TT.deletePhotoFromSupabase === "function") {
+                await window.TT.deletePhotoFromSupabase(photoUrl);
+                console.log('[TTFeedDetailSheet] Deleted photo:', photoUrl);
+              } else {
+                console.warn('[TTFeedDetailSheet] Supabase delete function not available');
+              }
+            } catch (error) {
+              console.error('[TTFeedDetailSheet] Failed to delete photo:', photoUrl, error);
+              // Continue with other deletions even if one fails
+            }
+          }
+        }
         
         // Upload new photos to Firebase Storage
         const newPhotoURLs = [];
@@ -3190,6 +3217,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const ctaFooterRef = React.useRef(null);
     const CTA_BOTTOM_OFFSET_PX = 30;
     
+    // Track original photo URLs to detect deletions
+    const originalPhotoURLsRef = React.useRef([]);
+    
     // Collapsible Notes/Photos state
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
@@ -3209,6 +3239,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setEndTime(entry.endTime ? new Date(entry.endTime).toISOString() : new Date().toISOString());
         setNotes(entry.notes || '');
         setExistingPhotoURLs(entry.photoURLs || []);
+        originalPhotoURLsRef.current = entry.photoURLs || []; // Track original URLs
         setPhotos([]); // Reset new photos
         // Auto-expand if there's existing content
         setNotesExpanded(!!entry.notes);
@@ -3219,6 +3250,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setEndTime(new Date().toISOString());
         setNotes('');
         setExistingPhotoURLs([]);
+        originalPhotoURLsRef.current = []; // Reset
         setPhotos([]);
         setNotesExpanded(false);
         setPhotosExpanded(false);
@@ -3304,6 +3336,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           return;
         }
         console.log('[TTSleepDetailSheet] No overlap detected');
+        
+        // Find photos that were removed (in original but not in current existingPhotoURLs)
+        const originalURLs = originalPhotoURLsRef.current || [];
+        const removedPhotoURLs = originalURLs.filter(url => !existingPhotoURLs.includes(url));
+        
+        // Delete removed photos from Supabase Storage
+        if (removedPhotoURLs.length > 0) {
+          console.log('[TTSleepDetailSheet] Deleting removed photos...', removedPhotoURLs.length);
+          for (const photoUrl of removedPhotoURLs) {
+            try {
+              if (window.TT && typeof window.TT.deletePhotoFromSupabase === "function") {
+                await window.TT.deletePhotoFromSupabase(photoUrl);
+                console.log('[TTSleepDetailSheet] Deleted photo:', photoUrl);
+              } else {
+                console.warn('[TTSleepDetailSheet] Supabase delete function not available');
+              }
+            } catch (error) {
+              console.error('[TTSleepDetailSheet] Failed to delete photo:', photoUrl, error);
+              // Continue with other deletions even if one fails
+            }
+          }
+        }
         
         // Upload new photos to Firebase Storage
         const newPhotoURLs = [];
