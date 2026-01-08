@@ -469,12 +469,13 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-card-border', theme.cardBorder);
 
     // Premium surface elevation for chrome:
-    // - light: header/nav blend with app background
-    // - dark: header/nav use card surface for subtle separation
-    root.style.setProperty('--tt-header-bg', darkMode ? theme.cardBg : theme.appBg);
-    root.style.setProperty('--tt-nav-bg', darkMode ? theme.cardBg : theme.appBg);
+    // - header/nav blend with app background in both light and dark mode
+    root.style.setProperty('--tt-header-bg', theme.appBg);
+    root.style.setProperty('--tt-nav-bg', theme.appBg);
     // Reduce/disable nav shadow in dark mode (rely on surface step instead)
     root.style.setProperty('--tt-nav-shadow', darkMode ? 'none' : '0 -1px 3px rgba(0,0,0,0.1)');
+    // Footer fade gradient with actual color value
+    root.style.setProperty('--tt-nav-fade-gradient', `linear-gradient(to top, ${theme.appBg} 0%, transparent 100%)`);
 
     // Input/surfaces/text (light unchanged; dark depends on selected background)
     if (!darkMode) {
@@ -1229,7 +1230,14 @@ const firestoreStorage = {
 
   async updateSleepSession(id, data) {
     if (!id) throw new Error("Missing sleep session id");
-    await this._kidRef().collection("sleepSessions").doc(id).update(data || {});
+    // Handle empty photoURLs array - delete the field instead of saving empty array
+    const updateData = { ...data };
+    if (updateData.photoURLs !== null && updateData.photoURLs !== undefined) {
+      if (Array.isArray(updateData.photoURLs) && updateData.photoURLs.length === 0) {
+        updateData.photoURLs = firebase.firestore.FieldValue.delete();
+      }
+    }
+    await this._kidRef().collection("sleepSessions").doc(id).update(updateData || {});
   },
 
   async deleteSleepSession(id) {
@@ -2689,6 +2697,20 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           setShowKidMenu(false);
         }
       }),
+
+    // Gradient fade above footer for smooth content fade
+    React.createElement(
+      'div',
+      {
+        className: "fixed left-0 right-0 pointer-events-none",
+        style: {
+          bottom: 'calc(env(safe-area-inset-bottom) + 70px)', // Position at footer top edge
+          height: '32px', // Taller for better visibility
+          background: 'var(--tt-nav-fade-gradient)',
+          zIndex: 40
+        }
+      }
+    ),
 
     // Bottom navigation (v3 uses center + and no Settings; v1/v2 keep classic 5-tab bar)
     React.createElement(

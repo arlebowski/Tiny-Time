@@ -2392,7 +2392,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
       return vv ? vv.height : fallbackH;
     }, []);
-    
+
     const [sheetHeight, setSheetHeight] = React.useState(() => {
       const vh = getViewportHeight();
       const heightVH = fixedHeight || DETAIL_SHEET_HEIGHT_VH;
@@ -2433,7 +2433,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         });
       } else {
         // Close: slide down
-        sheetRef.current.style.transform = 'translateY(100%)';
+            sheetRef.current.style.transform = 'translateY(100%)';
         // After animation, unmount
         const timer = setTimeout(() => {
           setPresent(false);
@@ -2458,7 +2458,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       dragCurrentYRef.current = touch.clientY;
       dragStartTimeRef.current = Date.now();
       if (sheetRef.current) {
-        // Only disable transform transition, keep height transition
+      // Only disable transform transition, keep height transition
         sheetRef.current.style.transition = 'height 300ms cubic-bezier(0.2, 0, 0, 1)';
       }
     });
@@ -2484,13 +2484,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       const velocity = deltaY / deltaTime;
       
       if (sheetRef.current) {
-        // Restore both transitions
+      // Restore both transitions
         sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 300ms cubic-bezier(0.2, 0, 0, 1)';
-        
+      
         if (deltaY > 100 || velocity > 0.3) {
-          if (onClose) onClose();
-        } else {
-          sheetRef.current.style.transform = 'translateY(0)';
+        if (onClose) onClose();
+      } else {
+        sheetRef.current.style.transform = 'translateY(0)';
         }
       }
     });
@@ -2813,48 +2813,36 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         const timestamp = new Date(dateTime).getTime();
         console.log('[TTFeedDetailSheet] Timestamp:', timestamp);
         
-        // Find photos that were removed (in original but not in current existingPhotoURLs)
+        // Track removed photos for soft delete (optional cleanup later)
         const originalURLs = originalPhotoURLsRef.current || [];
         const removedPhotoURLs = originalURLs.filter(url => !existingPhotoURLs.includes(url));
         
-        // Delete removed photos from Supabase Storage
         if (removedPhotoURLs.length > 0) {
-          console.log('[TTFeedDetailSheet] Deleting removed photos...', removedPhotoURLs.length);
-          for (const photoUrl of removedPhotoURLs) {
-            try {
-              if (window.TT && typeof window.TT.deletePhotoFromSupabase === "function") {
-                await window.TT.deletePhotoFromSupabase(photoUrl);
-                console.log('[TTFeedDetailSheet] Deleted photo:', photoUrl);
-              } else {
-                console.warn('[TTFeedDetailSheet] Supabase delete function not available');
-              }
-            } catch (error) {
-              console.error('[TTFeedDetailSheet] Failed to delete photo:', photoUrl, error);
-              // Continue with other deletions even if one fails
-            }
-          }
+          console.log('[TTFeedDetailSheet] Photos removed (soft delete):', removedPhotoURLs.length);
+          // Photos are removed from photoURLs array - no Supabase deletion
+          // Files remain in Supabase Storage for optional cleanup later
         }
         
-        // Upload new photos to Firebase Storage
+        // Upload new photos to Supabase Storage
         const newPhotoURLs = [];
         if (photos && photos.length > 0) {
           console.log('[TTFeedDetailSheet] Starting photo uploads...', photos.length);
           for (let i = 0; i < photos.length; i++) {
             const photoBase64 = photos[i];
-            try {
+          try {
               console.log(`[TTFeedDetailSheet] Uploading photo ${i + 1}/${photos.length}...`);
-              const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+            const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
               console.log(`[TTFeedDetailSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
-              newPhotoURLs.push(downloadURL);
-            } catch (error) {
+            newPhotoURLs.push(downloadURL);
+          } catch (error) {
               console.error(`[TTFeedDetailSheet] Failed to upload photo ${i + 1}:`, error);
               console.error('[TTFeedDetailSheet] Photo upload error details:', {
                 message: error.message,
                 stack: error.stack,
                 name: error.name
               });
-              // Continue with other photos even if one fails
-            }
+            // Continue with other photos even if one fails
+          }
           }
           console.log('[TTFeedDetailSheet] Photo uploads complete. Success:', newPhotoURLs.length, 'Failed:', photos.length - newPhotoURLs.length);
         } else {
@@ -2863,17 +2851,30 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         
         // Combine existing and new photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+        console.log('[TTFeedDetailSheet] Photo URL arrays:', {
+          originalCount: originalURLs.length,
+          originalURLs: originalURLs,
+          existingCount: existingPhotoURLs.length,
+          existingURLs: existingPhotoURLs,
+          newCount: newPhotoURLs.length,
+          newURLs: newPhotoURLs,
+          allCount: allPhotoURLs.length,
+          allURLs: allPhotoURLs,
+          removedCount: removedPhotoURLs.length,
+          removedURLs: removedPhotoURLs
+        });
         console.log('[TTFeedDetailSheet] Total photo URLs:', allPhotoURLs.length, { existing: existingPhotoURLs.length, new: newPhotoURLs.length });
         
         if (entry && entry.id) {
           // Update existing feeding
           console.log('[TTFeedDetailSheet] Updating existing feeding:', entry.id);
+          console.log('[TTFeedDetailSheet] Saving photoURLs to Firestore:', allPhotoURLs.length > 0 ? allPhotoURLs : []);
           await firestoreStorage.updateFeedingWithNotes(
             entry.id,
             amount,
             timestamp,
             notes || null,
-            allPhotoURLs.length > 0 ? allPhotoURLs : null
+            allPhotoURLs.length > 0 ? allPhotoURLs : []
           );
           console.log('[TTFeedDetailSheet] Feeding updated successfully');
         } else {
@@ -2883,7 +2884,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             amount,
             timestamp,
             notes || null,
-            allPhotoURLs.length > 0 ? allPhotoURLs : null
+            allPhotoURLs.length > 0 ? allPhotoURLs : []
           );
           console.log('[TTFeedDetailSheet] Feeding created successfully');
         }
@@ -2985,8 +2986,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       React.createElement('div', {
         style: { position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: 0 }
       },
-        // Input rows wrapped in spacing container
-        React.createElement('div', { className: "space-y-2" },
+      // Input rows wrapped in spacing container
+      React.createElement('div', { className: "space-y-2" },
         // Ounces
         React.createElement(InputRow, {
           label: 'Ounces',
@@ -3010,13 +3011,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Notes - conditionally render based on expanded state
         notesExpanded 
           ? React.createElement(InputRow, {
-              label: 'Notes',
-              value: notes,
-              onChange: setNotes,
-              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-              type: 'text',
-              placeholder: 'Add a note...'
-            })
+          label: 'Notes',
+          value: notes,
+          onChange: setNotes,
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+          type: 'text',
+          placeholder: 'Add a note...'
+        })
           : React.createElement('div', {
               onClick: () => setNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
@@ -3027,12 +3028,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos - conditionally render based on expanded state
       photosExpanded 
         ? React.createElement('div', { className: "py-3" },
-            React.createElement('div', { className: "mb-3" },
-              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-            ),
-            React.createElement('div', { className: "flex gap-2" },
-              // Render existing photos (from Firebase Storage)
-              existingPhotoURLs.map((photoUrl, i) =>
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+        ),
+        React.createElement('div', { className: "flex gap-2" },
+          // Render existing photos (from Firebase Storage)
+          existingPhotoURLs.map((photoUrl, i) =>
             React.createElement('div', {
               key: `existing-${i}`,
               className: "aspect-square rounded-2xl border relative",
@@ -3098,7 +3099,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Sticky bottom CTA (Save button)
       // Hide when keyboard is open to prevent overlap with keyboard
-      React.createElement('div', {
+        React.createElement('div', {
         ref: ctaFooterRef,
         className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
         style: { 
@@ -3108,7 +3109,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           bottom: `${CTA_BOTTOM_OFFSET_PX}px`
         }
       },
-        React.createElement('button', {
+              React.createElement('button', {
           type: 'button',
           onClick: handleSave,
           disabled: saving,
@@ -3117,7 +3118,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             e.stopPropagation();
           },
           className: "w-full text-white py-3 rounded-2xl font-semibold transition",
-          style: {
+                style: { 
             backgroundColor: saving ? 'var(--tt-feed-strong)' : 'var(--tt-feed)',
             touchAction: 'manipulation', // Prevent scroll interference on mobile
             opacity: saving ? 0.7 : 1,
@@ -3337,40 +3338,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }
         console.log('[TTSleepDetailSheet] No overlap detected');
         
-        // Find photos that were removed (in original but not in current existingPhotoURLs)
+        // Track removed photos for soft delete (optional cleanup later)
         const originalURLs = originalPhotoURLsRef.current || [];
         const removedPhotoURLs = originalURLs.filter(url => !existingPhotoURLs.includes(url));
         
-        // Delete removed photos from Supabase Storage
         if (removedPhotoURLs.length > 0) {
-          console.log('[TTSleepDetailSheet] Deleting removed photos...', removedPhotoURLs.length);
-          for (const photoUrl of removedPhotoURLs) {
-            try {
-              if (window.TT && typeof window.TT.deletePhotoFromSupabase === "function") {
-                await window.TT.deletePhotoFromSupabase(photoUrl);
-                console.log('[TTSleepDetailSheet] Deleted photo:', photoUrl);
-              } else {
-                console.warn('[TTSleepDetailSheet] Supabase delete function not available');
-              }
-            } catch (error) {
-              console.error('[TTSleepDetailSheet] Failed to delete photo:', photoUrl, error);
-              // Continue with other deletions even if one fails
-            }
-          }
+          console.log('[TTSleepDetailSheet] Photos removed (soft delete):', removedPhotoURLs.length);
+          // Photos are removed from photoURLs array - no Supabase deletion
+          // Files remain in Supabase Storage for optional cleanup later
         }
         
-        // Upload new photos to Firebase Storage
+        // Upload new photos to Supabase Storage
         const newPhotoURLs = [];
         if (photos && photos.length > 0) {
           console.log('[TTSleepDetailSheet] Starting photo uploads...', photos.length);
           for (let i = 0; i < photos.length; i++) {
             const photoBase64 = photos[i];
-            try {
+          try {
               console.log(`[TTSleepDetailSheet] Uploading photo ${i + 1}/${photos.length}...`);
-              const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
+            const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
               console.log(`[TTSleepDetailSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
-              newPhotoURLs.push(downloadURL);
-            } catch (error) {
+            newPhotoURLs.push(downloadURL);
+          } catch (error) {
               console.error(`[TTSleepDetailSheet] Failed to upload photo ${i + 1}:`, error);
               console.error('[TTSleepDetailSheet] Photo upload error details:', {
                 message: error.message,
@@ -3378,8 +3367,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 name: error.name,
                 code: error.code
               });
-              // Continue with other photos even if one fails
-            }
+            // Continue with other photos even if one fails
+          }
           }
           console.log('[TTSleepDetailSheet] Photo uploads complete. Success:', newPhotoURLs.length, 'Failed:', photos.length - newPhotoURLs.length);
         } else {
@@ -3398,7 +3387,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             endTime: endMs,
             isActive: false,
             notes: notes || null,
-            photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
+            photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : []
           });
           console.log('[TTSleepDetailSheet] Sleep session updated successfully');
         } else {
@@ -3409,7 +3398,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           if (notes || allPhotoURLs.length > 0) {
             await firestoreStorage.updateSleepSession(session.id, {
               notes: notes || null,
-              photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
+              photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : []
             });
           }
           console.log('[TTSleepDetailSheet] Sleep session created successfully');
@@ -3515,7 +3504,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       React.createElement('div', {
         style: { position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: 0 }
       },
-        // Timer Display
+      // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
         React.createElement('div', { className: "text-[40px] leading-none font-bold", style: { color: 'var(--tt-text-primary)' } },
           React.createElement(React.Fragment, null,
@@ -3561,13 +3550,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Notes - conditionally render based on expanded state
         notesExpanded 
           ? React.createElement(InputRow, {
-              label: 'Notes',
-              value: notes,
-              onChange: setNotes,
-              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-              type: 'text',
-              placeholder: 'Add a note...'
-            })
+          label: 'Notes',
+          value: notes,
+          onChange: setNotes,
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+          type: 'text',
+          placeholder: 'Add a note...'
+        })
           : React.createElement('div', {
               onClick: () => setNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
@@ -3578,12 +3567,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos - conditionally render based on expanded state
       photosExpanded 
         ? React.createElement('div', { className: "py-3" },
-            React.createElement('div', { className: "mb-3" },
-              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-            ),
-            React.createElement('div', { className: "flex gap-2" },
-              // Render existing photos (from Firebase Storage)
-              existingPhotoURLs.map((photoUrl, i) =>
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+        ),
+        React.createElement('div', { className: "flex gap-2" },
+          // Render existing photos (from Firebase Storage)
+          existingPhotoURLs.map((photoUrl, i) =>
             React.createElement('div', {
               key: `existing-${i}`,
               className: "aspect-square rounded-2xl border relative",
@@ -3649,7 +3638,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Sticky bottom CTA (Save button)
       // Hide when keyboard is open to prevent overlap with keyboard
-      React.createElement('div', {
+        React.createElement('div', {
         ref: ctaFooterRef,
         className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
         style: { 
@@ -3659,7 +3648,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           bottom: `${CTA_BOTTOM_OFFSET_PX}px`
         }
       },
-        React.createElement('button', {
+              React.createElement('button', {
           type: 'button',
           onClick: handleSave,
           disabled: saving || !isValid,
@@ -3668,7 +3657,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             e.stopPropagation();
           },
           className: "w-full py-3 rounded-2xl font-semibold transition",
-          style: {
+                style: { 
             backgroundColor: (saving || !isValid) ? 'transparent' : 'var(--tt-sleep)',
             color: (saving || !isValid) ? '#ef4444' : 'white',
             border: (saving || !isValid) ? '1px solid #ef4444' : 'none',
@@ -4159,12 +4148,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           console.log('[TTInputHalfSheet] Starting photo uploads...', photos.length);
           for (let i = 0; i < photos.length; i++) {
             const photoBase64 = photos[i];
-            try {
+          try {
               console.log(`[TTInputHalfSheet] Uploading photo ${i + 1}/${photos.length}...`);
-              const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+            const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
               console.log(`[TTInputHalfSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
-              photoURLs.push(downloadURL);
-            } catch (error) {
+            photoURLs.push(downloadURL);
+          } catch (error) {
               console.error(`[TTInputHalfSheet] Failed to upload photo ${i + 1}:`, error);
               console.error('[TTInputHalfSheet] Photo upload error details:', {
                 message: error.message,
@@ -4172,8 +4161,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 name: error.name,
                 code: error.code
               });
-              // Continue with other photos even if one fails
-            }
+            // Continue with other photos even if one fails
+          }
           }
           console.log('[TTInputHalfSheet] Photo uploads complete. Success:', photoURLs.length, 'Failed:', photos.length - photoURLs.length);
         } else {
@@ -4336,7 +4325,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     // Handle end time change - shows Save button when edited, makes text red if invalid
     const handleEndTimeChange = (newEndTime) => {
-      setEndTime(newEndTime);
+        setEndTime(newEndTime);
       setEndTimeManuallyEdited(true);
       
       if (sleepState === 'running') {
@@ -4382,7 +4371,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             });
           }
           setActiveSleepSessionId(null);
-        } else {
+      } else {
           // Create new session
           const session = await firestoreStorage.startSleep(startMs);
           await firestoreStorage.endSleep(session.id, endMs);
@@ -4534,13 +4523,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Notes - conditionally render based on expanded state
         notesExpanded 
           ? React.createElement(InputRow, {
-              label: 'Notes',
-              value: feedingNotes,
-              onChange: setFeedingNotes,
-              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-              type: 'text',
-              placeholder: 'Add a note...'
-            })
+          label: 'Notes',
+          value: feedingNotes,
+          onChange: setFeedingNotes,
+          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+          type: 'text',
+          placeholder: 'Add a note...'
+        })
           : React.createElement('div', {
               onClick: () => setNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
@@ -4551,10 +4540,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos - conditionally render based on expanded state
       photosExpanded 
         ? React.createElement('div', { className: "py-3" },
-            React.createElement('div', { className: "mb-3" },
-              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-            ),
-            React.createElement('div', { className: "flex gap-2" },
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+        ),
+        React.createElement('div', { className: "flex gap-2" },
           // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
@@ -4597,7 +4586,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Reserve space for sticky footer CTA
       React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
-      );
+    );
 
     // Helper function to render sleep content
     const renderSleepContent = () => {
@@ -4676,13 +4665,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Notes - conditionally render based on expanded state
           notesExpanded 
             ? React.createElement(InputRow, {
-                label: 'Notes',
-                value: sleepNotes,
-                onChange: setSleepNotes,
-                icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-                type: 'text',
-                placeholder: 'Add a note...'
-              })
+            label: 'Notes',
+            value: sleepNotes,
+            onChange: setSleepNotes,
+            icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+            type: 'text',
+            placeholder: 'Add a note...'
+          })
             : React.createElement('div', {
                 onClick: () => setNotesExpanded(true),
                 className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
@@ -4693,12 +4682,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // Photos - conditionally render based on expanded state
       photosExpanded 
         ? React.createElement('div', { className: "py-3" },
-            React.createElement('div', { className: "mb-3" },
-              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-            ),
-            React.createElement('div', { className: "flex gap-2" },
-              // Render photos
-              photos.map((photo, i) =>
+        React.createElement('div', { className: "mb-3" },
+          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+        ),
+        React.createElement('div', { className: "flex gap-2" },
+          // Render photos
+          photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
               className: "aspect-square rounded-2xl border relative",
@@ -4832,17 +4821,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                     // Prevent scroll container from capturing touch
                     e.stopPropagation();
                   },
-                  className: "w-full text-white py-3 rounded-2xl font-semibold transition",
-                  style: {
+              className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+              style: {
                     backgroundColor: 'var(--tt-sleep)',
                     touchAction: 'manipulation' // Prevent scroll interference on mobile
-                  },
-                  onMouseEnter: (e) => {
-                    e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-                  },
-                  onMouseLeave: (e) => {
-                    e.target.style.backgroundColor = 'var(--tt-sleep)';
-                  }
+              },
+              onMouseEnter: (e) => {
+                e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+              },
+              onMouseLeave: (e) => {
+                e.target.style.backgroundColor = 'var(--tt-sleep)';
+              }
                 }, 'Stop timer');
               } else if (endTimeManuallyEdited) {
                 // Show Save button when end time is edited
