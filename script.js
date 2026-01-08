@@ -836,67 +836,165 @@ const firestoreStorage = {
   },
 
   async uploadFeedingPhoto(base64DataUrl) {
+    console.log('[uploadFeedingPhoto] Starting upload...');
     if (!base64DataUrl || typeof base64DataUrl !== "string") {
+      console.error('[uploadFeedingPhoto] Error: missing base64 data URL');
       throw new Error("uploadFeedingPhoto: missing base64 data URL");
     }
     if (!this.currentFamilyId || !this.currentKidId) {
+      console.error('[uploadFeedingPhoto] Error: Storage not initialized', { currentFamilyId: this.currentFamilyId, currentKidId: this.currentKidId });
       throw new Error("Storage not initialized");
     }
+    
+    // Ensure user is authenticated
+    const user = auth.currentUser;
+    if (!user) {
+      console.error('[uploadFeedingPhoto] Error: User not authenticated');
+      throw new Error("User must be authenticated to upload photos");
+    }
+    console.log('[uploadFeedingPhoto] User authenticated:', user.uid);
     
     // Compress image before upload (fallback to original on failure)
     let compressedBase64 = base64DataUrl;
     try {
+      console.log('[uploadFeedingPhoto] Compressing image...');
       compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+      console.log('[uploadFeedingPhoto] Image compressed');
     } catch (e) {
+      console.warn('[uploadFeedingPhoto] Compression failed, using original:', e);
       // If compression fails (e.g., codec issues), upload the original.
       compressedBase64 = base64DataUrl;
     }
 
     // Convert base64 to blob (robust across iOS/PWA)
+    console.log('[uploadFeedingPhoto] Converting to blob...');
     const blob = this._dataUrlToBlob(compressedBase64);
+    console.log('[uploadFeedingPhoto] Blob created:', { size: blob.size, type: blob.type });
     
     // Generate unique photo ID
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const storagePath = `families/${this.currentFamilyId}/kids/${this.currentKidId}/photos/${photoId}`;
+    console.log('[uploadFeedingPhoto] Storage path:', storagePath);
     
-    // Upload to Firebase Storage
+    // Upload to Firebase Storage with proper metadata
     const storageRef = storage.ref().child(storagePath);
-    await storageRef.put(blob, { contentType: blob.type || 'image/jpeg' });
+    const metadata = {
+      contentType: blob.type || 'image/jpeg',
+      customMetadata: {
+        uploadedBy: user.uid,
+        uploadedAt: new Date().toISOString()
+      }
+    };
+    console.log('[uploadFeedingPhoto] Uploading to Firebase Storage...', { metadata });
+    
+    // Wrap upload in shorter timeout to prevent hanging on CORS errors
+    const uploadPromise = storageRef.put(blob, metadata);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Photo upload timeout - CORS may be blocking the request'));
+      }, 3000); // 3 second timeout (shorter for faster failure)
+    });
+    
+    try {
+      await Promise.race([uploadPromise, timeoutPromise]);
+      console.log('[uploadFeedingPhoto] Upload successful');
+    } catch (uploadError) {
+      console.error('[uploadFeedingPhoto] Upload failed:', uploadError);
+      console.error('[uploadFeedingPhoto] Upload error details:', {
+        message: uploadError.message,
+        stack: uploadError.stack,
+        name: uploadError.name,
+        code: uploadError.code,
+        serverResponse: uploadError.serverResponse
+      });
+      throw uploadError;
+    }
     
     // Get download URL
+    console.log('[uploadFeedingPhoto] Getting download URL...');
     const downloadURL = await storageRef.getDownloadURL();
+    console.log('[uploadFeedingPhoto] Download URL:', downloadURL);
     return downloadURL;
   },
 
   async uploadSleepPhoto(base64DataUrl) {
+    console.log('[uploadSleepPhoto] Starting upload...');
     if (!base64DataUrl || typeof base64DataUrl !== "string") {
+      console.error('[uploadSleepPhoto] Error: missing base64 data URL');
       throw new Error("uploadSleepPhoto: missing base64 data URL");
     }
     if (!this.currentFamilyId || !this.currentKidId) {
+      console.error('[uploadSleepPhoto] Error: Storage not initialized', { currentFamilyId: this.currentFamilyId, currentKidId: this.currentKidId });
       throw new Error("Storage not initialized");
     }
+    
+    // Ensure user is authenticated
+    const user = auth.currentUser;
+    if (!user) {
+      console.error('[uploadSleepPhoto] Error: User not authenticated');
+      throw new Error("User must be authenticated to upload photos");
+    }
+    console.log('[uploadSleepPhoto] User authenticated:', user.uid);
     
     // Compress image before upload (fallback to original on failure)
     let compressedBase64 = base64DataUrl;
     try {
+      console.log('[uploadSleepPhoto] Compressing image...');
       compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+      console.log('[uploadSleepPhoto] Image compressed');
     } catch (e) {
+      console.warn('[uploadSleepPhoto] Compression failed, using original:', e);
       compressedBase64 = base64DataUrl;
     }
 
     // Convert base64 to blob (robust across iOS/PWA)
+    console.log('[uploadSleepPhoto] Converting to blob...');
     const blob = this._dataUrlToBlob(compressedBase64);
+    console.log('[uploadSleepPhoto] Blob created:', { size: blob.size, type: blob.type });
     
     // Generate unique photo ID
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const storagePath = `families/${this.currentFamilyId}/kids/${this.currentKidId}/photos/${photoId}`;
+    console.log('[uploadSleepPhoto] Storage path:', storagePath);
     
-    // Upload to Firebase Storage
+    // Upload to Firebase Storage with proper metadata
     const storageRef = storage.ref().child(storagePath);
-    await storageRef.put(blob, { contentType: blob.type || 'image/jpeg' });
+    const metadata = {
+      contentType: blob.type || 'image/jpeg',
+      customMetadata: {
+        uploadedBy: user.uid,
+        uploadedAt: new Date().toISOString()
+      }
+    };
+    console.log('[uploadSleepPhoto] Uploading to Firebase Storage...', { metadata });
+    
+    // Wrap upload in shorter timeout to prevent hanging on CORS errors
+    const uploadPromise = storageRef.put(blob, metadata);
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Photo upload timeout - CORS may be blocking the request'));
+      }, 3000); // 3 second timeout (shorter for faster failure)
+    });
+    
+    try {
+      await Promise.race([uploadPromise, timeoutPromise]);
+      console.log('[uploadSleepPhoto] Upload successful');
+    } catch (uploadError) {
+      console.error('[uploadSleepPhoto] Upload failed:', uploadError);
+      console.error('[uploadSleepPhoto] Upload error details:', {
+        message: uploadError.message,
+        stack: uploadError.stack,
+        name: uploadError.name,
+        code: uploadError.code,
+        serverResponse: uploadError.serverResponse
+      });
+      throw uploadError;
+    }
     
     // Get download URL
+    console.log('[uploadSleepPhoto] Getting download URL...');
     const downloadURL = await storageRef.getDownloadURL();
+    console.log('[uploadSleepPhoto] Download URL:', downloadURL);
     return downloadURL;
   },
 

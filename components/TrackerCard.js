@@ -2797,29 +2797,50 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
     const handleSave = async () => {
       const amount = parseFloat(ounces);
-      if (!amount || amount <= 0) return;
+      if (!amount || amount <= 0) {
+        console.log('[TTFeedDetailSheet] Save blocked: invalid amount', amount);
+        return;
+      }
       
+      console.log('[TTFeedDetailSheet] Starting save...', { amount, photosCount: photos?.length || 0, existingPhotosCount: existingPhotoURLs?.length || 0 });
       setSaving(true);
       try {
         const timestamp = new Date(dateTime).getTime();
+        console.log('[TTFeedDetailSheet] Timestamp:', timestamp);
         
         // Upload new photos to Firebase Storage
         const newPhotoURLs = [];
-        for (const photoBase64 of photos) {
-          try {
-            const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
-            newPhotoURLs.push(downloadURL);
-          } catch (error) {
-            console.error('Failed to upload photo:', error);
-            // Continue with other photos even if one fails
+        if (photos && photos.length > 0) {
+          console.log('[TTFeedDetailSheet] Starting photo uploads...', photos.length);
+          for (let i = 0; i < photos.length; i++) {
+            const photoBase64 = photos[i];
+            try {
+              console.log(`[TTFeedDetailSheet] Uploading photo ${i + 1}/${photos.length}...`);
+              const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+              console.log(`[TTFeedDetailSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
+              newPhotoURLs.push(downloadURL);
+            } catch (error) {
+              console.error(`[TTFeedDetailSheet] Failed to upload photo ${i + 1}:`, error);
+              console.error('[TTFeedDetailSheet] Photo upload error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+              });
+              // Continue with other photos even if one fails
+            }
           }
+          console.log('[TTFeedDetailSheet] Photo uploads complete. Success:', newPhotoURLs.length, 'Failed:', photos.length - newPhotoURLs.length);
+        } else {
+          console.log('[TTFeedDetailSheet] No photos to upload');
         }
         
         // Combine existing and new photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+        console.log('[TTFeedDetailSheet] Total photo URLs:', allPhotoURLs.length, { existing: existingPhotoURLs.length, new: newPhotoURLs.length });
         
         if (entry && entry.id) {
           // Update existing feeding
+          console.log('[TTFeedDetailSheet] Updating existing feeding:', entry.id);
           await firestoreStorage.updateFeedingWithNotes(
             entry.id,
             amount,
@@ -2827,26 +2848,40 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             notes || null,
             allPhotoURLs.length > 0 ? allPhotoURLs : null
           );
+          console.log('[TTFeedDetailSheet] Feeding updated successfully');
         } else {
           // Create new feeding
+          console.log('[TTFeedDetailSheet] Creating new feeding');
           await firestoreStorage.addFeedingWithNotes(
             amount,
             timestamp,
             notes || null,
             allPhotoURLs.length > 0 ? allPhotoURLs : null
           );
+          console.log('[TTFeedDetailSheet] Feeding created successfully');
         }
         
         // Close the sheet first
+        console.log('[TTFeedDetailSheet] Closing sheet...');
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
         if (onSave) {
+          console.log('[TTFeedDetailSheet] Calling onSave callback...');
           await onSave();
+          console.log('[TTFeedDetailSheet] onSave callback complete');
         }
+        console.log('[TTFeedDetailSheet] Save completed successfully');
       } catch (error) {
-        console.error('Failed to save feeding:', error);
-        alert('Failed to save feeding. Please try again.');
+        console.error('[TTFeedDetailSheet] Failed to save feeding:', error);
+        console.error('[TTFeedDetailSheet] Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: error.code
+        });
+        alert(`Failed to save feeding: ${error.message || 'Please try again.'}`);
       } finally {
+        console.log('[TTFeedDetailSheet] Setting saving to false');
         setSaving(false);
       }
     };
@@ -3246,39 +3281,64 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     }, [isOpen]);
 
     const handleSave = async () => {
-      if (!isValid) return; // Don't save if invalid
+      if (!isValid) {
+        console.log('[TTSleepDetailSheet] Save blocked: invalid times');
+        return; // Don't save if invalid
+      }
       
+      console.log('[TTSleepDetailSheet] Starting save...', { startTime, endTime, photosCount: photos?.length || 0, existingPhotosCount: existingPhotoURLs?.length || 0 });
       setSaving(true);
       try {
         const startMs = new Date(startTime).getTime();
         const endMs = new Date(endTime).getTime();
+        console.log('[TTSleepDetailSheet] Times:', { startMs, endMs });
         
         // Check for overlaps (exclude current entry if editing)
         const excludeId = entry && entry.id ? entry.id : null;
+        console.log('[TTSleepDetailSheet] Checking for overlaps...', { excludeId });
         const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
         if (hasOverlap) {
+          console.log('[TTSleepDetailSheet] Overlap detected, aborting save');
           alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
           setSaving(false);
           return;
         }
+        console.log('[TTSleepDetailSheet] No overlap detected');
         
         // Upload new photos to Firebase Storage
         const newPhotoURLs = [];
-        for (const photoBase64 of photos) {
-          try {
-            const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
-            newPhotoURLs.push(downloadURL);
-          } catch (error) {
-            console.error('Failed to upload photo:', error);
-            // Continue with other photos even if one fails
+        if (photos && photos.length > 0) {
+          console.log('[TTSleepDetailSheet] Starting photo uploads...', photos.length);
+          for (let i = 0; i < photos.length; i++) {
+            const photoBase64 = photos[i];
+            try {
+              console.log(`[TTSleepDetailSheet] Uploading photo ${i + 1}/${photos.length}...`);
+              const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
+              console.log(`[TTSleepDetailSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
+              newPhotoURLs.push(downloadURL);
+            } catch (error) {
+              console.error(`[TTSleepDetailSheet] Failed to upload photo ${i + 1}:`, error);
+              console.error('[TTSleepDetailSheet] Photo upload error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name,
+                code: error.code
+              });
+              // Continue with other photos even if one fails
+            }
           }
+          console.log('[TTSleepDetailSheet] Photo uploads complete. Success:', newPhotoURLs.length, 'Failed:', photos.length - newPhotoURLs.length);
+        } else {
+          console.log('[TTSleepDetailSheet] No photos to upload');
         }
         
         // Combine existing and new photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+        console.log('[TTSleepDetailSheet] Total photo URLs:', allPhotoURLs.length, { existing: existingPhotoURLs.length, new: newPhotoURLs.length });
         
         if (entry && entry.id) {
           // Update existing sleep session
+          console.log('[TTSleepDetailSheet] Updating existing sleep session:', entry.id);
           await firestoreStorage.updateSleepSession(entry.id, {
             startTime: startMs,
             endTime: endMs,
@@ -3286,8 +3346,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             notes: notes || null,
             photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
           });
+          console.log('[TTSleepDetailSheet] Sleep session updated successfully');
         } else {
           // Create new sleep session (shouldn't happen from detail sheet, but handle it)
+          console.log('[TTSleepDetailSheet] Creating new sleep session');
           const session = await firestoreStorage.startSleep(startMs);
           await firestoreStorage.endSleep(session.id, endMs);
           if (notes || allPhotoURLs.length > 0) {
@@ -3296,18 +3358,30 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
             });
           }
+          console.log('[TTSleepDetailSheet] Sleep session created successfully');
         }
         
         // Close the sheet first
+        console.log('[TTSleepDetailSheet] Closing sheet...');
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
         if (onSave) {
+          console.log('[TTSleepDetailSheet] Calling onSave callback...');
           await onSave();
+          console.log('[TTSleepDetailSheet] onSave callback complete');
         }
+        console.log('[TTSleepDetailSheet] Save completed successfully');
       } catch (error) {
-        console.error('Failed to save sleep session:', error);
-        alert('Failed to save sleep session. Please try again.');
+        console.error('[TTSleepDetailSheet] Failed to save sleep session:', error);
+        console.error('[TTSleepDetailSheet] Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: error.code
+        });
+        alert(`Failed to save sleep session: ${error.message || 'Please try again.'}`);
       } finally {
+        console.log('[TTSleepDetailSheet] Setting saving to false');
         setSaving(false);
       }
     };
@@ -3809,23 +3883,19 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     }, [sleepState, startTime]);
     
-    // Fix start time initialization: only set to NOW when idle AND no start time exists
+    // Fix start time initialization: set to NOW when opening in sleep mode
     // Reset immediately on close (no delay) to prevent past time from showing
     React.useEffect(() => {
       if (!isOpen) {
         setEndTimeManuallyEdited(false);
-        // Only reset if idle AND no start time exists AND no active sleep
-        if (sleepState === 'idle' && !startTime && !activeSleepSessionId) {
-          setStartTime(new Date().toISOString());
-        }
       } else {
-        // When sheet opens, set to NOW only if idle AND no start time exists
-        // If there's an active sleep, Firebase subscription will set correct startTime
-        if (sleepState === 'idle' && !startTime && !activeSleepSessionId) {
+        // When sheet opens in sleep mode, set startTime to NOW
+        // UNLESS sleep is currently running (don't override active sleep)
+        if (mode === 'sleep' && sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
         }
       }
-    }, [isOpen, sleepState, startTime, activeSleepSessionId]);
+    }, [isOpen, mode, sleepState, activeSleepSessionId]);
     
     // Update timer when sleepState is 'running' (timer continues even when sheet closes)
     React.useEffect(() => {
@@ -3889,9 +3959,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     // Auto-populate start time when toggle switches to Sleep
     React.useEffect(() => {
-      if (mode === 'sleep') {
-        // If in idle state with no start time, populate it
-        if (!startTime && sleepState === 'idle') {
+      if (mode === 'sleep' && isOpen) {
+        // Always set startTime to NOW when sleep mode is selected
+        // UNLESS sleep is currently running (don't override active sleep)
+        if (sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
         }
         // If not running and not idle_with_times (both times entered), clear end time
@@ -3900,7 +3971,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           setEndTime(null);
         }
       }
-    }, [mode, sleepState, startTime, endTime]);
+    }, [mode, isOpen, sleepState, activeSleepSessionId, startTime, endTime]);
     
     // Load most recent feed ounces when switching to feeding mode
     React.useEffect(() => {
@@ -4018,30 +4089,52 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Handle add feeding - save to Firebase
     const handleAddFeeding = async () => {
       const amount = parseFloat(ounces);
-      if (!amount || amount <= 0) return;
+      if (!amount || amount <= 0) {
+        console.log('[TTInputHalfSheet] Add feeding blocked: invalid amount', amount);
+        return;
+      }
       
+      console.log('[TTInputHalfSheet] Starting add feeding...', { amount, photosCount: photos?.length || 0 });
       try {
         const timestamp = new Date(feedingDateTime).getTime();
+        console.log('[TTInputHalfSheet] Timestamp:', timestamp);
         
         // Upload photos to Firebase Storage
         const photoURLs = [];
-        for (const photoBase64 of photos) {
-          try {
-            const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
-            photoURLs.push(downloadURL);
-          } catch (error) {
-            console.error('Failed to upload photo:', error);
-            // Continue with other photos even if one fails
+        if (photos && photos.length > 0) {
+          console.log('[TTInputHalfSheet] Starting photo uploads...', photos.length);
+          for (let i = 0; i < photos.length; i++) {
+            const photoBase64 = photos[i];
+            try {
+              console.log(`[TTInputHalfSheet] Uploading photo ${i + 1}/${photos.length}...`);
+              const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+              console.log(`[TTInputHalfSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
+              photoURLs.push(downloadURL);
+            } catch (error) {
+              console.error(`[TTInputHalfSheet] Failed to upload photo ${i + 1}:`, error);
+              console.error('[TTInputHalfSheet] Photo upload error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name,
+                code: error.code
+              });
+              // Continue with other photos even if one fails
+            }
           }
+          console.log('[TTInputHalfSheet] Photo uploads complete. Success:', photoURLs.length, 'Failed:', photos.length - photoURLs.length);
+        } else {
+          console.log('[TTInputHalfSheet] No photos to upload');
         }
         
         // Save to Firebase
+        console.log('[TTInputHalfSheet] Saving to Firestore...', { photoURLsCount: photoURLs.length });
         await firestoreStorage.addFeedingWithNotes(
           amount,
           timestamp,
           feedingNotes || null,
           photoURLs.length > 0 ? photoURLs : null
         );
+        console.log('[TTInputHalfSheet] Feeding saved successfully to Firestore');
         
         // Reset form
         setOunces('');
@@ -4049,14 +4142,24 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setPhotos([]);
         setFeedingDateTime(new Date().toISOString());
         // Close the sheet first
+        console.log('[TTInputHalfSheet] Closing sheet...');
         if (onClose) onClose();
         // Then refresh timeline after sheet closes (onAdd callback handles the delay)
         if (onAdd) {
+          console.log('[TTInputHalfSheet] Calling onAdd callback...');
           await onAdd('feeding');
+          console.log('[TTInputHalfSheet] onAdd callback complete');
         }
+        console.log('[TTInputHalfSheet] Add feeding completed successfully');
       } catch (error) {
-        console.error('Failed to add feeding:', error);
-        alert('Failed to add feeding. Please try again.');
+        console.error('[TTInputHalfSheet] Failed to add feeding:', error);
+        console.error('[TTInputHalfSheet] Error details:', {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: error.code
+        });
+        alert(`Failed to add feeding: ${error.message || 'Please try again.'}`);
       }
     };
 
