@@ -89,7 +89,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
       const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
       return vv ? vv.height : fallbackH;
     }, []);
-    
+
     const [sheetHeight, setSheetHeight] = React.useState(() => {
       const vh = getViewportHeight();
       const heightVH = fixedHeight || 70; // Default to 70vh
@@ -130,7 +130,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
         });
       } else {
         // Close: slide down
-        sheetRef.current.style.transform = 'translateY(100%)';
+            sheetRef.current.style.transform = 'translateY(100%)';
         // After animation, unmount
         const timer = setTimeout(() => {
           setPresent(false);
@@ -155,7 +155,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
       dragCurrentYRef.current = touch.clientY;
       dragStartTimeRef.current = Date.now();
       if (sheetRef.current) {
-        // Only disable transform transition, keep height transition
+      // Only disable transform transition, keep height transition
         sheetRef.current.style.transition = 'height 300ms cubic-bezier(0.2, 0, 0, 1)';
       }
     });
@@ -181,13 +181,13 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
       const velocity = deltaY / deltaTime;
       
       if (sheetRef.current) {
-        // Restore both transitions
+      // Restore both transitions
         sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 300ms cubic-bezier(0.2, 0, 0, 1)';
-        
+      
         if (deltaY > 100 || velocity > 0.3) {
-          if (onClose) onClose();
-        } else {
-          sheetRef.current.style.transform = 'translateY(0)';
+        if (onClose) onClose();
+      } else {
+        sheetRef.current.style.transform = 'translateY(0)';
         }
       }
     });

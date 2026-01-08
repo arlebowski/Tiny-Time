@@ -42,16 +42,30 @@
       throw new Error("deletePhotoFromSupabase: missing photo URL");
     }
 
+    console.log("[Supabase] Delete called with URL:", photoUrl);
+
     // Extract path from Supabase public URL
     // URL format: https://[project].supabase.co/storage/v1/object/public/photos/[path]
-    const urlParts = photoUrl.split('/photos/');
-    if (urlParts.length !== 2) {
-      console.warn("[Supabase] Could not extract path from URL:", photoUrl);
-      return; // Silently fail if URL format is unexpected
+    // The path may contain /photos/ again, so we need to get everything after the first /photos/
+    const photosIndex = photoUrl.indexOf('/photos/');
+    if (photosIndex === -1) {
+      console.error("[Supabase] Could not find /photos/ in URL:", photoUrl);
+      throw new Error("Invalid Supabase photo URL format");
     }
 
-    const path = urlParts[1];
-    console.log("[Supabase] Delete start:", path);
+    // Get everything after the first '/photos/' and remove query parameters/fragments
+    let path = photoUrl.substring(photosIndex + '/photos/'.length);
+    path = path.split('?')[0].split('#')[0];
+    
+    // Decode URL encoding if present
+    try {
+      path = decodeURIComponent(path);
+    } catch (e) {
+      // If decoding fails, use original path
+      console.warn("[Supabase] Could not decode path, using as-is:", path);
+    }
+
+    console.log("[Supabase] Delete start - extracted path:", path);
 
     const { error } = await client
       .storage
@@ -60,6 +74,11 @@
 
     if (error) {
       console.error("[Supabase] Delete error:", error);
+      console.error("[Supabase] Delete error details:", {
+        message: error.message,
+        statusCode: error.statusCode,
+        error: error.error
+      });
       throw error;
     }
 
