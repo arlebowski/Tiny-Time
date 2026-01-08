@@ -2998,9 +2998,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           placeholder: '0'
         }),
 
-        // Date & Time
+        // Start time
         React.createElement(InputRow, {
-          label: 'Date & Time',
+          label: 'Start time',
           value: formatDateTime(dateTime), // This won't be used for datetime type
           rawValue: dateTime, // Pass the raw ISO string
           onChange: setDateTime,
@@ -3940,11 +3940,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Timer is running - only reset manual edit flag
           setEndTimeManuallyEdited(false);
         }
+        // Reset feeding state when closing
+        setFeedingDateTime(new Date().toISOString());
       } else {
         // When sheet opens in sleep mode, set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
         if (mode === 'sleep' && sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
+        }
+        // When sheet opens in feeding mode, set feedingDateTime to NOW
+        if (mode === 'feeding') {
+          setFeedingDateTime(new Date().toISOString());
         }
       }
     }, [isOpen, mode, sleepState, activeSleepSessionId]);
