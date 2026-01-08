@@ -3832,7 +3832,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [feedingNotes, setFeedingNotes] = React.useState('');
     
     // Sleep state
-    const [sleepState, setSleepState] = React.useState(getInitialSleepState()); // 'idle' | 'idle_with_times' | 'running' | 'completed'
+    const [sleepState, setSleepState] = React.useState(getInitialSleepState()); // 'idle' | 'idle_with_times' | 'running'
     const [startTime, setStartTime] = React.useState(getInitialStartTime()); // ISO string
     const [endTime, setEndTime] = React.useState(null); // ISO string
     const [sleepNotes, setSleepNotes] = React.useState('');
@@ -3840,7 +3840,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
     const sleepIntervalRef = React.useRef(null);
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
-    const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
     
     // Shared photos state
     const [photos, setPhotos] = React.useState([]);
@@ -3926,11 +3925,21 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     }, [sleepState, startTime]);
     
-    // Fix start time initialization: set to NOW when opening in sleep mode
-    // Reset immediately on close (no delay) to prevent past time from showing
+    // Reset state when sheet closes (clean slate on reopen)
     React.useEffect(() => {
       if (!isOpen) {
-        setEndTimeManuallyEdited(false);
+        // Reset all sleep-related state when closing (except if timer is running)
+        if (sleepState !== 'running') {
+          setEndTimeManuallyEdited(false);
+          setEndTime(null);
+          setSleepNotes('');
+          setPhotos([]);
+          setSleepElapsedMs(0);
+          // Don't reset startTime or sleepState here - they're managed by other logic
+        } else {
+          // Timer is running - only reset manual edit flag
+          setEndTimeManuallyEdited(false);
+        }
       } else {
         // When sheet opens in sleep mode, set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
@@ -4087,46 +4096,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const isSleepValid = durationResult !== null;
     const duration = isSleepValid ? durationResult : { hours: 0, minutes: 0, seconds: 0 };
     
-    // Determine if we're in idle_with_times state (both times entered but not running/completed)
+    // Determine if we're in idle_with_times state (both times entered but not running)
     const isIdleWithTimes = sleepState === 'idle' && startTime && endTime;
     
-    // Handle close with state-based logic
+    // Handle close - always close immediately (state reset happens in useEffect)
     const handleClose = () => {
-      if (mode === 'feeding') {
-        // Feeding mode: always close immediately
-        if (onClose) onClose();
-        return;
-      }
-      
-      // Sleep mode: state-based dismissal
-      if (sleepState === 'idle' && !isIdleWithTimes) {
-        // IDLE (no times): Close immediately
-        if (onClose) onClose();
-      } else if (sleepState === 'running') {
-        // RUNNING: Close sheet, timer continues in background
-        if (onClose) onClose();
-      } else if (sleepState === 'completed' || isIdleWithTimes) {
-        // COMPLETED or IDLE_WITH_TIMES: Show confirmation dialog
-        setShowDeleteConfirm(true);
-      }
-    };
-    
-    // Handle delete confirmation
-    const handleDeleteConfirm = () => {
-      // Reset to IDLE and close
-      setSleepState('idle');
-      setStartTime(null);
-      setEndTime(null);
-      setSleepNotes('');
-      setPhotos([]);
-      setSleepElapsedMs(0);
-      setShowDeleteConfirm(false);
       if (onClose) onClose();
-    };
-    
-    // Handle delete cancel
-    const handleDeleteCancel = () => {
-      setShowDeleteConfirm(false);
     };
 
     // Handle add feeding - save to Firebase
@@ -4213,8 +4188,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         let startMs;
         let effectiveStartIso = startTime;
         
-        if (sleepState === 'completed') {
-          // COMPLETED → RUNNING: Keep existing start time, clear end time
+        if (isIdleWithTimes) {
+          // IDLE_WITH_TIMES → RUNNING: Keep existing start time, clear end time
           startMs = new Date(startTime).getTime();
           setEndTime(null);
         } else {
@@ -4412,7 +4387,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         return amount > 0;
       } else {
         // Sleep: valid in COMPLETED state or IDLE_WITH_TIMES with valid duration
-        return (sleepState === 'completed' || isIdleWithTimes) && isSleepValid;
+        return isIdleWithTimes && isSleepValid;
       }
     };
 
@@ -4424,7 +4399,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         await handleAddFeeding();
       } else {
         // Sleep: saveable in COMPLETED or IDLE_WITH_TIMES state
-        if (sleepState !== 'completed' && !isIdleWithTimes) return;
+        if (!isIdleWithTimes) return;
         
         try {
           const startMs = new Date(startTime).getTime();
@@ -4659,7 +4634,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             type: 'datetime',
             placeholder: 'Add...',
             readOnly: false, // Always editable
-            invalid: !isSleepValid && (sleepState === 'completed' || isIdleWithTimes)
+            invalid: !isSleepValid && isIdleWithTimes
           }),
 
           // Notes - conditionally render based on expanded state
@@ -4904,60 +4879,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             className: "max-w-full max-h-full object-contain",
             onClick: (e) => e.stopPropagation()
           })
-        )
-      ),
-      
-      // Delete confirmation dialog (simplified)
-      showDeleteConfirm && React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('div', {
-          onClick: handleDeleteCancel,
-          className: "fixed inset-0 bg-black bg-opacity-50 z-[103] flex items-center justify-center p-4"
-        },
-          React.createElement('div', {
-            onClick: (e) => e.stopPropagation(),
-            className: "rounded-2xl p-4 max-w-xs w-full",
-            style: { 
-              backgroundColor: document.documentElement.classList.contains('dark') 
-                ? '#2C2C2E'  // Lighter than card-bg in dark mode
-                : 'var(--tt-card-bg)'
-            }
-          },
-            React.createElement('div', { className: "text-base font-semibold mb-4 text-center", style: { color: 'var(--tt-text-primary)' } }, 'Delete entry?'),
-            React.createElement('div', { className: "flex gap-3" },
-              React.createElement('button', {
-                onClick: handleDeleteCancel,
-                className: "flex-1 py-2.5 rounded-xl border font-semibold transition text-sm",
-                style: { 
-                  borderColor: 'var(--tt-card-border)', 
-                  color: 'var(--tt-text-secondary)',
-                  backgroundColor: document.documentElement.classList.contains('dark') 
-                    ? '#2C2C2E'
-                    : 'var(--tt-card-bg)'
-                }
-              }, 'Cancel'),
-              React.createElement('button', {
-                onClick: handleDeleteConfirm,
-                className: "flex-1 py-2.5 rounded-xl text-white font-semibold transition text-sm",
-                style: { 
-                  backgroundColor: document.documentElement.classList.contains('dark') 
-                    ? '#dc2626'  // Red-600 for dark mode
-                    : '#ef4444'  // Red-500 for light mode
-                },
-                onMouseEnter: (e) => {
-                  e.target.style.backgroundColor = document.documentElement.classList.contains('dark')
-                    ? '#b91c1c'  // Red-700 for dark mode hover
-                    : '#dc2626'; // Red-600 for light mode hover
-                },
-                onMouseLeave: (e) => {
-                  e.target.style.backgroundColor = document.documentElement.classList.contains('dark')
-                    ? '#dc2626'
-                    : '#ef4444';
-                }
-              }, 'Delete')
-            )
-          )
         )
       )
     );
