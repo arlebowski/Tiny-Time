@@ -2304,15 +2304,18 @@ const TrackerCard = ({
 // Guard to prevent redeclaration
 if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
   
+  // Height constants (82% of viewport height)
+  const DETAIL_SHEET_HEIGHT_VH = 82;
+  const SLEEP_DETAIL_SHEET_HEIGHT_VH = 82;
+  const INPUT_SHEET_HEIGHT_VH = 82;
+  
   // HalfSheet wrapper component (UI Lab only)
-  const HalfSheet = ({ isOpen, onClose, title, rightAction, children, accentColor }) => {
+  const HalfSheet = ({ isOpen, onClose, title, rightAction, children, accentColor, fixedHeight }) => {
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
     const headerRef = React.useRef(null);
     const contentRef = React.useRef(null);
-    const [sheetHeight, setSheetHeight] = React.useState('auto');
     const [present, setPresent] = React.useState(false); // Controls rendering
-    const [keyboardOffset, setKeyboardOffset] = React.useState(0);
     const scrollYRef = React.useRef(0);
     
     // Drag state
@@ -2326,7 +2329,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const dragStartYRef = React.useRef(0);
     const dragCurrentYRef = React.useRef(0);
     const dragStartTimeRef = React.useRef(0);
-    const keyboardOffsetRef = React.useRef(0);
     
     // Keep refs in sync with state
     React.useEffect(() => {
@@ -2344,10 +2346,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     React.useEffect(() => {
       dragStartTimeRef.current = dragStartTime;
     }, [dragStartTime]);
-    
-    React.useEffect(() => {
-      keyboardOffsetRef.current = keyboardOffset;
-    }, [keyboardOffset]);
 
     // Set present when isOpen becomes true
     React.useEffect(() => {
@@ -2388,303 +2386,112 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       };
     }, [present]);
 
-    // Compute keyboard offset (px) from visualViewport.
-    // In iOS PWA, documentElement.clientHeight is often more stable than window.innerHeight.
-    const computeKeyboardOffset = React.useCallback(() => {
+    // Calculate viewport-based height
+    const getViewportHeight = React.useCallback(() => {
       const vv = window.visualViewport;
-      if (!vv) return 0;
-      const layoutH = document.documentElement?.clientHeight || window.innerHeight;
-      return Math.max(0, layoutH - vv.height - vv.offsetTop);
+      const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
+      return vv ? vv.height : fallbackH;
     }, []);
-
-    // Measure content and set dynamic height
+    
+    const [sheetHeight, setSheetHeight] = React.useState(() => {
+      const vh = getViewportHeight();
+      const heightVH = fixedHeight || DETAIL_SHEET_HEIGHT_VH;
+      return `${(vh * heightVH) / 100}px`;
+    });
+    
+    // Update height when viewport changes or fixedHeight changes
     React.useEffect(() => {
-      if (isOpen && present && contentRef.current && sheetRef.current) {
-        const measureHeight = () => {
-          if (contentRef.current && sheetRef.current && headerRef.current) {
-            const contentHeight = contentRef.current.scrollHeight; // Already includes py-8 padding
-            // Use visualViewport if available (more accurate for mobile keyboards)
-            const vv = window.visualViewport;
-            const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
-            const viewportHeight = vv ? vv.height : fallbackH;
-            
-            // Measure actual header height instead of hardcoding
-            const headerHeight = headerRef.current.offsetHeight;
-            
-            // Check for sticky CTA button and add its bottom offset space
-            let ctaBottomSpace = 0;
-            if (contentRef.current) {
-              // Look for element with sticky positioning (the CTA button container)
-              const stickyElements = contentRef.current.querySelectorAll('[class*="sticky"]');
-              for (const el of stickyElements) {
-                const styles = window.getComputedStyle(el);
-                if (styles.position === 'sticky' && styles.bottom !== 'auto') {
-                  // Get bottom offset from inline style (e.g., "30px")
-                  const bottomStyle = el.style.bottom;
-                  if (bottomStyle && bottomStyle.includes('px')) {
-                    const bottomOffset = parseFloat(bottomStyle) || 0;
-                    // Only add space if CTA is visible
-                    if (styles.display !== 'none') {
-                      // Add the bottom offset to ensure space for sticky positioning
-                      // The CTA height is already in scrollHeight, but we need space for the offset
-                      ctaBottomSpace = bottomOffset;
-                    }
-                  }
-                  break; // Only count the first sticky CTA
-                }
-              }
-            }
-            
-            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
-            let bottomPad = 0;
-            try {
-              const cs = window.getComputedStyle(sheetRef.current);
-              const pb = cs.paddingBottom;
-              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
-              if (pb && pb.includes('px')) {
-                bottomPad = parseFloat(pb) || 0;
-              }
-            } catch (e) {
-              // Fallback to 0 if measurement fails
-              bottomPad = 0;
-            }
-            
-            const totalNeeded = contentHeight + headerHeight + bottomPad + ctaBottomSpace;
-            // If content fits within 90% of viewport, use exact height to prevent scrolling
-            // Otherwise, cap at 90% to leave some space at top
-            const maxHeight = totalNeeded <= viewportHeight * 0.9 
-              ? totalNeeded 
-              : Math.min(viewportHeight * 0.9, totalNeeded);
-            setSheetHeight(`${maxHeight}px`);
-          }
-        };
+      if (!isOpen || !present) return;
+      
+      const updateHeight = () => {
+        const vh = getViewportHeight();
+        const heightVH = fixedHeight || 70; // Default to 70vh
+        setSheetHeight(`${(vh * heightVH) / 100}px`);
+      };
+      
+      updateHeight(); // Update immediately when fixedHeight changes
+      window.addEventListener('resize', updateHeight);
+      return () => window.removeEventListener('resize', updateHeight);
+    }, [isOpen, present, fixedHeight, getViewportHeight]);
 
-        // Measure after render with multiple attempts
-        requestAnimationFrame(() => {
-          measureHeight();
-          setTimeout(measureHeight, 50);
-          setTimeout(measureHeight, 200); // Extra delay for async content
-        });
-      }
-    }, [isOpen, present, children]);
-
-    // Ensure transition is set when sheet is open (for keyboard adjustments)
+    // Update transition - include both transform and height
     React.useEffect(() => {
       if (!present || !isOpen || !sheetRef.current) return;
-      // Set combined transition so height changes animate smoothly
-      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
+      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 300ms cubic-bezier(0.2, 0, 0, 1)';
     }, [isOpen, present]);
-
-    // Listen to visualViewport resize/scroll for keyboard changes (PWA-safe)
-    React.useEffect(() => {
-      if (!present || !isOpen) return;
-      
-      const vv = window.visualViewport;
-      if (!vv) return;
-
-      // Throttle visualViewport events to animation frames to avoid choppy re-renders.
-      let rafId = null;
-      let lastKeyboardOffset = keyboardOffset;
-      let lastSheetHeight = sheetHeight;
-
-      const handleResize = () => {
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
-        }
-
-        rafId = requestAnimationFrame(() => {
-          const newKeyboardOffset = computeKeyboardOffset();
-
-          // Only update when it actually changed (reduces re-renders during keyboard animation).
-          if (Math.abs(newKeyboardOffset - lastKeyboardOffset) > 0.5) {
-            setKeyboardOffset(newKeyboardOffset);
-            lastKeyboardOffset = newKeyboardOffset;
-          }
-
-          if (contentRef.current && sheetRef.current && headerRef.current) {
-            const contentHeight = contentRef.current.scrollHeight;
-            const viewportHeight = vv.height;
-
-            // Measure actual header height instead of hardcoding
-            const headerHeight = headerRef.current.offsetHeight;
-            
-            // Check for sticky CTA button and add its bottom offset space
-            let ctaBottomSpace = 0;
-            if (contentRef.current) {
-              // Look for element with sticky positioning (the CTA button container)
-              const stickyElements = contentRef.current.querySelectorAll('[class*="sticky"]');
-              for (const el of stickyElements) {
-                const styles = window.getComputedStyle(el);
-                if (styles.position === 'sticky' && styles.bottom !== 'auto') {
-                  // Get bottom offset from inline style (e.g., "30px")
-                  const bottomStyle = el.style.bottom;
-                  if (bottomStyle && bottomStyle.includes('px')) {
-                    const bottomOffset = parseFloat(bottomStyle) || 0;
-                    // Only add space if CTA is visible
-                    if (styles.display !== 'none') {
-                      // Add the bottom offset to ensure space for sticky positioning
-                      // The CTA height is already in scrollHeight, but we need space for the offset
-                      ctaBottomSpace = bottomOffset;
-                    }
-                  }
-                  break; // Only count the first sticky CTA
-                }
-              }
-            }
-            
-            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
-            let bottomPad = 0;
-            try {
-              const cs = window.getComputedStyle(sheetRef.current);
-              const pb = cs.paddingBottom;
-              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
-              if (pb && pb.includes('px')) {
-                bottomPad = parseFloat(pb) || 0;
-              }
-            } catch (e) {
-              // Fallback to 0 if measurement fails
-              bottomPad = 0;
-            }
-            
-            const totalNeeded = contentHeight + headerHeight + bottomPad + ctaBottomSpace;
-            // If content fits within 90% of viewport, use exact height to prevent scrolling
-            // Otherwise, cap at 90% to leave some space at top
-            const maxHeight = totalNeeded <= viewportHeight * 0.9
-              ? totalNeeded
-              : Math.min(viewportHeight * 0.9, totalNeeded);
-            const newSheetHeight = `${maxHeight}px`;
-
-            if (newSheetHeight !== lastSheetHeight) {
-              setSheetHeight(newSheetHeight);
-              lastSheetHeight = newSheetHeight;
-            }
-          }
-        });
-      };
-
-      vv.addEventListener('resize', handleResize);
-      vv.addEventListener('scroll', handleResize);
-      // Initial sync (covers keyboard already open / first focus)
-      handleResize();
-      return () => {
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
-        }
-        vv.removeEventListener('resize', handleResize);
-        vv.removeEventListener('scroll', handleResize);
-      };
-    }, [isOpen, present, computeKeyboardOffset]);
 
     // Animation: Open and Close
     React.useEffect(() => {
-      if (!present || !sheetRef.current || !backdropRef.current) return;
+      if (!present || !sheetRef.current) return;
       
       if (isOpen) {
-        // Open animation
-        sheetRef.current.style.transition = 'none';
-        sheetRef.current.style.transform = 'translateY(100%)';
-        backdropRef.current.style.transition = 'none';
-        backdropRef.current.style.opacity = '0';
-        
+        // Open: slide up
         requestAnimationFrame(() => {
-          if (sheetRef.current && backdropRef.current) {
-            // Combine transform and height transitions
-            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
+          if (sheetRef.current) {
             sheetRef.current.style.transform = 'translateY(0)';
-            backdropRef.current.style.transition = 'opacity 250ms ease-out';
-            backdropRef.current.style.opacity = '0.4';
           }
         });
       } else {
-        // Close animation
-        void sheetRef.current.offsetHeight; // Force reflow
-        
-        requestAnimationFrame(() => {
-          if (sheetRef.current && backdropRef.current) {
-            // Combine transform and height transitions
-            sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
-            sheetRef.current.style.transform = 'translateY(100%)';
-            backdropRef.current.style.transition = 'opacity 200ms ease-in';
-            backdropRef.current.style.opacity = '0';
-          }
-        });
-        
-        // Unmount after animation completes
-        setTimeout(() => {
+        // Close: slide down
+        sheetRef.current.style.transform = 'translateY(100%)';
+        // After animation, unmount
+        const timer = setTimeout(() => {
           setPresent(false);
-        }, 200);
+        }, 250);
+        return () => clearTimeout(timer);
       }
     }, [isOpen, present]);
 
     // Drag handlers
-    // NOTE: When the keyboard is open, dragging feels glitchy on iOS PWAs.
-    // Disable drag-to-dismiss while a field is focused / keyboard is up.
-    const canDrag = () => {
-      if (keyboardOffsetRef.current > 0) return false;
-      const ae = document.activeElement;
-      if (!ae) return true;
-      const tag = (ae.tagName || '').toUpperCase();
-      return !(tag === 'INPUT' || tag === 'TEXTAREA' || ae.isContentEditable);
-    };
+    const canDrag = React.useCallback(() => {
+      if (!contentRef.current) return false;
+      const scrollTop = contentRef.current.scrollTop;
+      return scrollTop === 0;
+    }, []);
 
     // Touch handlers stored in refs to access latest state values
     const handleTouchStartRef = React.useRef((e) => {
       if (!canDrag()) return;
-      if (!sheetRef.current) return;
       const touch = e.touches[0];
-      setIsDragging(true);
-      setDragStartY(touch.clientY);
-      setDragCurrentY(touch.clientY);
-      setDragStartTime(Date.now());
-      // Only disable transform transition, keep height transition
-      sheetRef.current.style.transition = 'height 200ms ease-out';
-    });
-
-    const handleTouchMoveRef = React.useRef((e) => {
-      if (!canDrag()) return;
-      if (!isDraggingRef.current || !sheetRef.current || !backdropRef.current) return;
-      e.preventDefault(); // Now works because listener is non-passive
-      const touch = e.touches[0];
-      const deltaY = touch.clientY - dragStartYRef.current;
-      
-      // Only allow downward drag
-      if (deltaY > 0) {
-        setDragCurrentY(touch.clientY);
-        sheetRef.current.style.transform = `translateY(${deltaY}px)`;
-        
-        // Reduce backdrop opacity as you drag down
-        const maxDrag = 300; // Max drag distance for full fade
-        const backdropOpacity = Math.max(0, 0.4 - (deltaY / maxDrag) * 0.4);
-        backdropRef.current.style.opacity = backdropOpacity.toString();
+      isDraggingRef.current = true;
+      dragStartYRef.current = touch.clientY;
+      dragCurrentYRef.current = touch.clientY;
+      dragStartTimeRef.current = Date.now();
+      if (sheetRef.current) {
+        // Only disable transform transition, keep height transition
+        sheetRef.current.style.transition = 'height 300ms cubic-bezier(0.2, 0, 0, 1)';
       }
     });
 
-    const handleTouchEndRef = React.useRef(() => {
-      if (!canDrag()) return;
-      if (!isDraggingRef.current || !sheetRef.current || !backdropRef.current) return;
+    const handleTouchMoveRef = React.useRef((e) => {
+      if (!isDraggingRef.current) return;
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - dragStartYRef.current;
+      
+      if (deltaY > 0 && sheetRef.current) {
+        e.preventDefault();
+        dragCurrentYRef.current = touch.clientY;
+        sheetRef.current.style.transform = `translateY(${deltaY}px)`;
+      }
+    });
+
+    const handleTouchEndRef = React.useRef((e) => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
       
       const deltaY = dragCurrentYRef.current - dragStartYRef.current;
-      const dragDuration = Date.now() - dragStartTimeRef.current;
-      const velocity = deltaY / dragDuration; // pixels per ms
-      const threshold = 0.3; // 30% of sheet height
-      const sheetHeightPx = sheetRef.current.offsetHeight;
-      const dismissThreshold = sheetHeightPx * threshold;
-      const velocityThreshold = 0.5; // pixels per ms
+      const deltaTime = Date.now() - dragStartTimeRef.current;
+      const velocity = deltaY / deltaTime;
       
-      setIsDragging(false);
-      // Restore both transitions
-      sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
-      backdropRef.current.style.transition = 'opacity 200ms ease-in';
-      
-      // Dismiss if past threshold or fast velocity
-      if (deltaY > dismissThreshold || velocity > velocityThreshold) {
-        if (onClose) onClose();
-      } else {
-        // Snap back
-        sheetRef.current.style.transform = 'translateY(0)';
-        backdropRef.current.style.opacity = '0.4';
+      if (sheetRef.current) {
+        // Restore both transitions
+        sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 300ms cubic-bezier(0.2, 0, 0, 1)';
+        
+        if (deltaY > 100 || velocity > 0.3) {
+          if (onClose) onClose();
+        } else {
+          sheetRef.current.style.transform = 'translateY(0)';
+        }
       }
     });
 
@@ -2751,12 +2558,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             transform: 'translateY(100%)',
             willChange: 'transform',
             paddingBottom: 'env(safe-area-inset-bottom, 0)',
-            // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
             maxHeight: '100%',
             height: sheetHeight,
-            // When keyboard is open, lift the whole sheet above it (smoothly via transition).
-            bottom: `${keyboardOffset}px`,
-            // Transition is set dynamically in useEffect to combine transform and height
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
@@ -2956,6 +2759,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
     const ctaFooterRef = React.useRef(null);
     const CTA_BOTTOM_OFFSET_PX = 30;
+    
+    // Collapsible Notes/Photos state
+    const [notesExpanded, setNotesExpanded] = React.useState(false);
+    const [photosExpanded, setPhotosExpanded] = React.useState(false);
+
+    // Calculate height based on expanded fields
+    const calculateHeight = React.useMemo(() => {
+      const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
+      if (expandedCount === 0) return 70;
+      if (expandedCount === 1) return 76;
+      return 82; // expandedCount === 2
+    }, [notesExpanded, photosExpanded]);
 
     // Populate form from entry when it exists
     React.useEffect(() => {
@@ -2965,6 +2780,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setNotes(entry.notes || '');
         setExistingPhotoURLs(entry.photoURLs || []);
         setPhotos([]); // Reset new photos
+        // Auto-expand if there's existing content
+        setNotesExpanded(!!entry.notes);
+        setPhotosExpanded(!!(entry.photoURLs && entry.photoURLs.length > 0));
       } else if (!entry && isOpen) {
         // Create mode - reset to defaults
         setOunces('');
@@ -2972,6 +2790,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setNotes('');
         setExistingPhotoURLs([]);
         setPhotos([]);
+        setNotesExpanded(false);
+        setPhotosExpanded(false);
       }
     }, [entry, isOpen]);
 
@@ -3125,25 +2945,32 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           type: 'datetime'
         }),
 
-        // Notes
-        React.createElement(InputRow, {
-          label: 'Notes',
-          value: notes,
-          onChange: setNotes,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'text',
-          placeholder: 'Add a note...'
-        })
+        // Notes - conditionally render based on expanded state
+        notesExpanded 
+          ? React.createElement(InputRow, {
+              label: 'Notes',
+              value: notes,
+              onChange: setNotes,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              type: 'text',
+              placeholder: 'Add a note...'
+            })
+          : React.createElement('div', {
+              onClick: () => setNotesExpanded(true),
+              className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+              style: { color: 'var(--tt-text-tertiary)' }
+            }, '+ Add notes')
       ),
 
-      // Photos
-      React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
-          // Render existing photos (from Firebase Storage)
-          existingPhotoURLs.map((photoUrl, i) =>
+      // Photos - conditionally render based on expanded state
+      photosExpanded 
+        ? React.createElement('div', { className: "py-3" },
+            React.createElement('div', { className: "mb-3" },
+              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+            ),
+            React.createElement('div', { className: "flex gap-2" },
+              // Render existing photos (from Firebase Storage)
+              existingPhotoURLs.map((photoUrl, i) =>
             React.createElement('div', {
               key: `existing-${i}`,
               className: "aspect-square rounded-2xl border relative",
@@ -3200,6 +3027,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           )
         )
       )
+        : React.createElement('div', {
+            onClick: () => setPhotosExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add photos')
       ),
 
       // Sticky bottom CTA (Save button)
@@ -3269,7 +3101,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onClose: handleClose,
           title: 'Feeding',
           accentColor: 'var(--tt-feed)',
-          rightAction: null
+          rightAction: null,
+          fixedHeight: calculateHeight
         },
         bodyContent
       );
@@ -3321,6 +3154,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
     const ctaFooterRef = React.useRef(null);
     const CTA_BOTTOM_OFFSET_PX = 30;
+    
+    // Collapsible Notes/Photos state
+    const [notesExpanded, setNotesExpanded] = React.useState(false);
+    const [photosExpanded, setPhotosExpanded] = React.useState(false);
+
+    // Calculate height based on expanded fields
+    const calculateHeight = React.useMemo(() => {
+      const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
+      if (expandedCount === 0) return 70;
+      if (expandedCount === 1) return 76;
+      return 82; // expandedCount === 2
+    }, [notesExpanded, photosExpanded]);
 
     // Populate form from entry when it exists
     React.useEffect(() => {
@@ -3330,6 +3175,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setNotes(entry.notes || '');
         setExistingPhotoURLs(entry.photoURLs || []);
         setPhotos([]); // Reset new photos
+        // Auto-expand if there's existing content
+        setNotesExpanded(!!entry.notes);
+        setPhotosExpanded(!!(entry.photoURLs && entry.photoURLs.length > 0));
       } else if (!entry && isOpen) {
         // Create mode - reset to defaults
         setStartTime(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
@@ -3337,6 +3185,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setNotes('');
         setExistingPhotoURLs([]);
         setPhotos([]);
+        setNotesExpanded(false);
+        setPhotosExpanded(false);
       }
     }, [entry, isOpen]);
 
@@ -3580,25 +3430,32 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           invalid: !isValid // Pass invalid flag when end time is before start time
         }),
 
-        // Notes
-        React.createElement(InputRow, {
-          label: 'Notes',
-          value: notes,
-          onChange: setNotes,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'text',
-          placeholder: 'Add a note...'
-        })
+        // Notes - conditionally render based on expanded state
+        notesExpanded 
+          ? React.createElement(InputRow, {
+              label: 'Notes',
+              value: notes,
+              onChange: setNotes,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              type: 'text',
+              placeholder: 'Add a note...'
+            })
+          : React.createElement('div', {
+              onClick: () => setNotesExpanded(true),
+              className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+              style: { color: 'var(--tt-text-tertiary)' }
+            }, '+ Add notes')
       ),
 
-      // Photos
-      React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
-          // Render existing photos (from Firebase Storage)
-          existingPhotoURLs.map((photoUrl, i) =>
+      // Photos - conditionally render based on expanded state
+      photosExpanded 
+        ? React.createElement('div', { className: "py-3" },
+            React.createElement('div', { className: "mb-3" },
+              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+            ),
+            React.createElement('div', { className: "flex gap-2" },
+              // Render existing photos (from Firebase Storage)
+              existingPhotoURLs.map((photoUrl, i) =>
             React.createElement('div', {
               key: `existing-${i}`,
               className: "aspect-square rounded-2xl border relative",
@@ -3655,6 +3512,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           )
         )
       )
+        : React.createElement('div', {
+            onClick: () => setPhotosExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add photos')
       ),
 
       // Sticky bottom CTA (Save button)
@@ -3726,7 +3588,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onClose: handleClose,
           title: 'Sleep',
           accentColor: 'var(--tt-sleep)',
-          rightAction: null
+          rightAction: null,
+          fixedHeight: calculateHeight
         },
         bodyContent
       );
@@ -3869,12 +3732,22 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Track keyboard state to hide sticky button when keyboard is open
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
     
+    // Collapsible Notes/Photos state (for input half sheet)
+    const [notesExpanded, setNotesExpanded] = React.useState(false);
+    const [photosExpanded, setPhotosExpanded] = React.useState(false);
+    
+    // Calculate height based on expanded fields
+    const calculateHeight = React.useMemo(() => {
+      const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
+      if (expandedCount === 0) return 70;
+      if (expandedCount === 1) return 76;
+      return 82; // expandedCount === 2
+    }, [notesExpanded, photosExpanded]);
+    
     // Refs for measuring both content heights
     const feedingContentRef = React.useRef(null);
     const sleepContentRef = React.useRef(null);
     const ctaFooterRef = React.useRef(null);
-    const [resolvedSheetHeight, setResolvedSheetHeight] = React.useState(null);
-    const lockedSheetHeightPxRef = React.useRef(null); // keep CTA position stable across toggles/updates
     
     // Reserve space so the bottom CTA button stays in the same visual spot across modes.
     // Also keep content scrolled above the CTA when it is offset upward.
@@ -4501,23 +4374,30 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           type: 'datetime'
         }),
 
-        // Notes
-        React.createElement(InputRow, {
-          label: 'Notes',
-          value: feedingNotes,
-          onChange: setFeedingNotes,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'text',
-          placeholder: 'Add a note...'
-        })
+        // Notes - conditionally render based on expanded state
+        notesExpanded 
+          ? React.createElement(InputRow, {
+              label: 'Notes',
+              value: feedingNotes,
+              onChange: setFeedingNotes,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              type: 'text',
+              placeholder: 'Add a note...'
+            })
+          : React.createElement('div', {
+              onClick: () => setNotesExpanded(true),
+              className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+              style: { color: 'var(--tt-text-tertiary)' }
+            }, '+ Add notes')
       ),
 
-      // Photos
-      React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
+      // Photos - conditionally render based on expanded state
+      photosExpanded 
+        ? React.createElement('div', { className: "py-3" },
+            React.createElement('div', { className: "mb-3" },
+              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+            ),
+            React.createElement('div', { className: "flex gap-2" },
           // Render photos
           photos.map((photo, i) =>
             React.createElement('div', {
@@ -4551,11 +4431,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
-      ),
+      )
+        : React.createElement('div', {
+            onClick: () => setPhotosExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add photos'),
 
       // Reserve space for sticky footer CTA
       React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
-    );
+      );
 
     // Helper function to render sleep content
     const renderSleepContent = () => {
@@ -4631,25 +4516,32 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             invalid: !isSleepValid && (sleepState === 'completed' || isIdleWithTimes)
           }),
 
-          // Notes
-          React.createElement(InputRow, {
-            label: 'Notes',
-            value: sleepNotes,
-            onChange: setSleepNotes,
-            icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-            type: 'text',
-            placeholder: 'Add a note...'
-          })
+          // Notes - conditionally render based on expanded state
+          notesExpanded 
+            ? React.createElement(InputRow, {
+                label: 'Notes',
+                value: sleepNotes,
+                onChange: setSleepNotes,
+                icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+                type: 'text',
+                placeholder: 'Add a note...'
+              })
+            : React.createElement('div', {
+                onClick: () => setNotesExpanded(true),
+                className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+                style: { color: 'var(--tt-text-tertiary)' }
+              }, '+ Add notes')
         ),
 
-      // Photos
-      React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
-          // Render photos
-          photos.map((photo, i) =>
+      // Photos - conditionally render based on expanded state
+      photosExpanded 
+        ? React.createElement('div', { className: "py-3" },
+            React.createElement('div', { className: "mb-3" },
+              React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
+            ),
+            React.createElement('div', { className: "flex gap-2" },
+              // Render photos
+              photos.map((photo, i) =>
             React.createElement('div', {
               key: i,
               className: "aspect-square rounded-2xl border relative",
@@ -4681,68 +4573,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
           )
         )
-      ),
+      )
+        : React.createElement('div', {
+            onClick: () => setPhotosExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add photos'),
 
       // Reserve space for sticky footer CTA
       React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
       );
     };
 
-    // Measure both contents when sheet opens to determine max height
-    React.useEffect(() => {
-      if (!isOpen) {
-        setResolvedSheetHeight(null);
-        lockedSheetHeightPxRef.current = null;
-        return;
-      }
-
-      const measureBoth = () => {
-        if (feedingContentRef.current && sleepContentRef.current) {
-          // Measure content heights (scrollHeight includes all content)
-          const feedingHeight = feedingContentRef.current.scrollHeight;
-          const sleepHeight = sleepContentRef.current.scrollHeight;
-          // Include shared sticky CTA footer height (it lives outside the per-mode refs)
-          // so our fixedHeight matches what the actual sheet content requires.
-          const footerHeight = ctaFooterRef.current
-            ? (ctaFooterRef.current.offsetHeight || ctaFooterRef.current.scrollHeight || 0)
-            : 0;
-          const maxContentHeight = Math.max(feedingHeight, sleepHeight) + footerHeight;
-          
-          // Get viewport height for capping
-          const vv = window.visualViewport;
-          const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
-          const viewportHeight = vv ? vv.height : fallbackH;
-          
-          // Calculate total height: content + header (60px) + content padding
-          // TTHalfSheet adds px-6 pt-8 pb-[42px] to content area
-          // pt-8 = 32px, pb-[42px] = 42px, total = 74px
-          const headerHeight = 60; // Fixed header height
-          const contentPadding = 74; // pt-8 (32px) + pb-[42px] (42px)
-          
-          const totalNeeded = maxContentHeight + contentPadding + headerHeight;
-          
-          // Cap at 90% of viewport (same as TTHalfSheet logic)
-          const maxHeight = totalNeeded <= viewportHeight * 0.9 
-            ? totalNeeded 
-            : Math.min(viewportHeight * 0.9, totalNeeded);
-
-          // Lock height while the sheet is open so toggling modes doesn't cause the CTA to "jump".
-          // Only allow the sheet to grow (never shrink) during a single open session.
-          const prev = lockedSheetHeightPxRef.current;
-          if (prev == null || maxHeight > prev) {
-            lockedSheetHeightPxRef.current = maxHeight;
-            setResolvedSheetHeight(`${maxHeight}px`);
-          }
-        }
-      };
-
-      // Measure after render with multiple attempts
-      requestAnimationFrame(() => {
-        measureBoth();
-        setTimeout(measureBoth, 50);
-        setTimeout(measureBoth, 200); // Extra delay for async content
-      });
-    }, [isOpen, ounces, feedingNotes, photos, startTime, endTime, sleepNotes, sleepState]);
 
     // Body content - render both for measurement, show one based on mode
     // IMPORTANT: Make the body a full-height flex column so the CTA stays locked to the bottom
@@ -4981,7 +4823,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         {
           isOpen: isOpen || false,
           onClose: handleClose,
-          fixedHeight: resolvedSheetHeight,
+          fixedHeight: calculateHeight,
           accentColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
           titleElement: React.createElement(HeaderSegmentedToggle, {
             value: mode,

@@ -4,14 +4,15 @@
 // Guard to prevent redeclaration
 if (typeof window !== 'undefined' && !window.TTHalfSheet) {
   
+  // Height constant (82% of viewport height)
+  const INPUT_SHEET_HEIGHT_VH = 82;
+  
   const TTHalfSheet = ({ isOpen, onClose, title, titleElement, rightAction, children, contentKey, fixedHeight, accentColor }) => {
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
     const headerRef = React.useRef(null);
     const contentRef = React.useRef(null);
-    const [sheetHeight, setSheetHeight] = React.useState('auto');
     const [present, setPresent] = React.useState(false); // Controls rendering
-    const [keyboardOffset, setKeyboardOffset] = React.useState(0);
     const scrollYRef = React.useRef(0);
     
     // Drag state
@@ -25,7 +26,6 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
     const dragStartYRef = React.useRef(0);
     const dragCurrentYRef = React.useRef(0);
     const dragStartTimeRef = React.useRef(0);
-    const keyboardOffsetRef = React.useRef(0);
     
     // Keep refs in sync with state
     React.useEffect(() => {
@@ -43,10 +43,6 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
     React.useEffect(() => {
       dragStartTimeRef.current = dragStartTime;
     }, [dragStartTime]);
-    
-    React.useEffect(() => {
-      keyboardOffsetRef.current = keyboardOffset;
-    }, [keyboardOffset]);
 
     // Set present when isOpen becomes true
     React.useEffect(() => {
@@ -87,278 +83,112 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
       };
     }, [present]);
 
-    // Compute keyboard offset (px) from visualViewport.
-    // In iOS PWA, documentElement.clientHeight is often more stable than window.innerHeight.
-    const computeKeyboardOffset = React.useCallback(() => {
+    // Calculate viewport-based height
+    const getViewportHeight = React.useCallback(() => {
       const vv = window.visualViewport;
-      if (!vv) return 0;
-      const layoutH = document.documentElement?.clientHeight || window.innerHeight;
-      return Math.max(0, layoutH - vv.height - vv.offsetTop);
+      const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
+      return vv ? vv.height : fallbackH;
     }, []);
-
-    // Measure content and set dynamic height
+    
+    const [sheetHeight, setSheetHeight] = React.useState(() => {
+      const vh = getViewportHeight();
+      const heightVH = fixedHeight || 70; // Default to 70vh
+      return `${(vh * heightVH) / 100}px`;
+    });
+    
+    // Update height when viewport changes or fixedHeight changes
     React.useEffect(() => {
-      // Always use dynamic measurement to ensure content fits
-      // fixedHeight is used as a minimum/initial value, but we always recalculate
-      // This prevents fields from shrinking after keyboard closes when content has changed
-      if (isOpen && present && contentRef.current && sheetRef.current) {
-        const measureHeight = () => {
-          if (contentRef.current && sheetRef.current && headerRef.current) {
-            const contentHeight = contentRef.current.scrollHeight; // Already includes py-8 padding
-            // Use visualViewport if available (more accurate for mobile keyboards)
-            const vv = window.visualViewport;
-            const fallbackH = document.documentElement?.clientHeight || window.innerHeight;
-            // Use reduced viewport when keyboard is open, full viewport when closed
-            const viewportHeight = vv ? vv.height : fallbackH;
-            
-            // Measure actual header height instead of hardcoding
-            const headerHeight = headerRef.current.offsetHeight;
-            
-            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
-            let bottomPad = 0;
-            try {
-              const cs = window.getComputedStyle(sheetRef.current);
-              const pb = cs.paddingBottom;
-              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
-              if (pb && pb.includes('px')) {
-                bottomPad = parseFloat(pb) || 0;
-              }
-            } catch (e) {
-              // Fallback to 0 if measurement fails
-              bottomPad = 0;
-            }
-            
-            const totalNeeded = contentHeight + headerHeight + bottomPad;
-            // If content fits within 90% of viewport, use exact height to prevent scrolling
-            // Otherwise, cap at 90% to leave some space at top
-            const maxHeight = totalNeeded <= viewportHeight * 0.9 
-              ? totalNeeded 
-              : Math.min(viewportHeight * 0.9, totalNeeded);
-            
-            // If fixedHeight is provided and keyboard is closed, use the larger of fixedHeight or calculated height.
-            // Note: on mobile, visualViewport can report tiny non-zero offsets even when the keyboard is closed,
-            // so treat "near zero" as closed to keep layouts stable.
-            const keyboardIsClosed = (keyboardOffset == null) || keyboardOffset < 1;
-            // This ensures content always fits, especially after keyboard closes when content may have changed
-            if (fixedHeight && keyboardIsClosed) {
-              const fixedHeightPx = parseFloat(fixedHeight) || 0;
-              setSheetHeight(`${Math.max(fixedHeightPx, maxHeight)}px`);
-            } else {
-              setSheetHeight(`${maxHeight}px`);
-            }
-          }
-        };
+      if (!isOpen || !present) return;
+      
+      const updateHeight = () => {
+        const vh = getViewportHeight();
+        const heightVH = fixedHeight || 70; // Default to 70vh
+        setSheetHeight(`${(vh * heightVH) / 100}px`);
+      };
+      
+      updateHeight(); // Update immediately when fixedHeight changes
+      window.addEventListener('resize', updateHeight);
+      return () => window.removeEventListener('resize', updateHeight);
+    }, [isOpen, present, fixedHeight, getViewportHeight]);
 
-        // Add extra delay when keyboard closes to let viewport settle and content remeasure
-        const delay = ((keyboardOffset == null) || keyboardOffset < 1) && fixedHeight ? 150 : 0;
-        
-        // Measure after render with multiple attempts
-        requestAnimationFrame(() => {
-          measureHeight();
-          setTimeout(measureHeight, 50);
-          setTimeout(measureHeight, 200); // Extra delay for async content
-          if (delay > 0) {
-            setTimeout(measureHeight, delay); // Extra delay when keyboard closes
-          }
-        });
-      }
-    }, [isOpen, present, children, contentKey, fixedHeight, keyboardOffset]);
-
-    // Ensure transition is set when sheet is open (for keyboard adjustments)
+    // Update transition - include both transform and height
     React.useEffect(() => {
       if (!present || !isOpen || !sheetRef.current) return;
-      // Set combined transition so height changes animate smoothly
-      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
+      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 300ms cubic-bezier(0.2, 0, 0, 1)';
     }, [isOpen, present]);
-
-    // Listen to visualViewport resize/scroll for keyboard changes (PWA-safe)
-    React.useEffect(() => {
-      if (!present || !isOpen) return;
-      
-      const vv = window.visualViewport;
-      if (!vv) return;
-
-      // Throttle visualViewport events to animation frames to avoid choppy re-renders.
-      let rafId = null;
-      let lastKeyboardOffset = keyboardOffsetRef.current || 0;
-      let lastSheetHeight = sheetHeight;
-
-      const handleResize = () => {
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
-        }
-
-        rafId = requestAnimationFrame(() => {
-          let newKeyboardOffset = computeKeyboardOffset();
-          if (newKeyboardOffset < 1) newKeyboardOffset = 0;
-
-          // Only update when it actually changed (reduces re-renders during keyboard animation).
-          if (Math.abs(newKeyboardOffset - lastKeyboardOffset) > 0.5) {
-            setKeyboardOffset(newKeyboardOffset);
-            keyboardOffsetRef.current = newKeyboardOffset;
-            lastKeyboardOffset = newKeyboardOffset;
-          }
-
-          if (contentRef.current && sheetRef.current && headerRef.current) {
-            const contentHeight = contentRef.current.scrollHeight;
-            const viewportHeight = vv.height;
-
-            // Measure actual header height instead of hardcoding
-            const headerHeight = headerRef.current.offsetHeight;
-
-            // Get safe-area-inset-bottom - try to read computed style, fallback to 0
-            let bottomPad = 0;
-            try {
-              const cs = window.getComputedStyle(sheetRef.current);
-              const pb = cs.paddingBottom;
-              // If it's a pixel value, parse it; otherwise it's likely env() and we'll use 0
-              if (pb && pb.includes('px')) {
-                bottomPad = parseFloat(pb) || 0;
-              }
-            } catch (e) {
-              // Fallback to 0 if measurement fails
-              bottomPad = 0;
-            }
-
-            const totalNeeded = contentHeight + headerHeight + bottomPad;
-            // If content fits within 90% of viewport, use exact height to prevent scrolling
-            // Otherwise, cap at 90% to leave some space at top
-            const maxHeight = totalNeeded <= viewportHeight * 0.9
-              ? totalNeeded
-              : Math.min(viewportHeight * 0.9, totalNeeded);
-            const newSheetHeight = `${maxHeight}px`;
-
-            if (newSheetHeight !== lastSheetHeight) {
-              setSheetHeight(newSheetHeight);
-              lastSheetHeight = newSheetHeight;
-            }
-          }
-        });
-      };
-
-      vv.addEventListener('resize', handleResize);
-      vv.addEventListener('scroll', handleResize);
-      // Initial sync (covers keyboard already open / first focus)
-      handleResize();
-      return () => {
-        if (rafId) {
-          cancelAnimationFrame(rafId);
-          rafId = null;
-        }
-        vv.removeEventListener('resize', handleResize);
-        vv.removeEventListener('scroll', handleResize);
-      };
-    }, [isOpen, present, computeKeyboardOffset]);
 
     // Animation: Open and Close
     React.useEffect(() => {
-      if (!present || !sheetRef.current || !backdropRef.current) return;
+      if (!present || !sheetRef.current) return;
       
       if (isOpen) {
-        // Open animation
-        sheetRef.current.style.transition = 'none';
-        sheetRef.current.style.transform = 'translateY(100%)';
-        backdropRef.current.style.transition = 'none';
-        backdropRef.current.style.opacity = '0';
-        
+        // Open: slide up
         requestAnimationFrame(() => {
-          if (sheetRef.current && backdropRef.current) {
-            // Combine transform and height transitions
-            sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 200ms ease-out, bottom 200ms ease-out';
+          if (sheetRef.current) {
             sheetRef.current.style.transform = 'translateY(0)';
-            backdropRef.current.style.transition = 'opacity 250ms ease-out';
-            backdropRef.current.style.opacity = '0.4';
           }
         });
       } else {
-        // Close animation
-        void sheetRef.current.offsetHeight; // Force reflow
-        
-        requestAnimationFrame(() => {
-          if (sheetRef.current && backdropRef.current) {
-            // Combine transform and height transitions
-            sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
-            sheetRef.current.style.transform = 'translateY(100%)';
-            backdropRef.current.style.transition = 'opacity 200ms ease-in';
-            backdropRef.current.style.opacity = '0';
-          }
-        });
-        
-        // Unmount after animation completes
-        setTimeout(() => {
+        // Close: slide down
+        sheetRef.current.style.transform = 'translateY(100%)';
+        // After animation, unmount
+        const timer = setTimeout(() => {
           setPresent(false);
-        }, 200);
+        }, 250);
+        return () => clearTimeout(timer);
       }
     }, [isOpen, present]);
 
     // Drag handlers
-    // NOTE: When the keyboard is open, dragging feels glitchy on iOS PWAs.
-    // Disable drag-to-dismiss while a field is focused / keyboard is up.
-    const canDrag = () => {
-      if (keyboardOffsetRef.current > 0) return false;
-      const ae = document.activeElement;
-      if (!ae) return true;
-      const tag = (ae.tagName || '').toUpperCase();
-      return !(tag === 'INPUT' || tag === 'TEXTAREA' || ae.isContentEditable);
-    };
+    const canDrag = React.useCallback(() => {
+      if (!contentRef.current) return false;
+      const scrollTop = contentRef.current.scrollTop;
+      return scrollTop === 0;
+    }, []);
 
     // Touch handlers stored in refs to access latest state values
     const handleTouchStartRef = React.useRef((e) => {
       if (!canDrag()) return;
-      if (!sheetRef.current) return;
       const touch = e.touches[0];
-      setIsDragging(true);
-      setDragStartY(touch.clientY);
-      setDragCurrentY(touch.clientY);
-      setDragStartTime(Date.now());
-      // Only disable transform transition, keep height transition
-      sheetRef.current.style.transition = 'height 200ms ease-out';
-    });
-
-    const handleTouchMoveRef = React.useRef((e) => {
-      if (!canDrag()) return;
-      if (!isDraggingRef.current || !sheetRef.current || !backdropRef.current) return;
-      e.preventDefault(); // Now works because listener is non-passive
-      const touch = e.touches[0];
-      const deltaY = touch.clientY - dragStartYRef.current;
-      
-      // Only allow downward drag
-      if (deltaY > 0) {
-        setDragCurrentY(touch.clientY);
-        sheetRef.current.style.transform = `translateY(${deltaY}px)`;
-        
-        // Reduce backdrop opacity as you drag down
-        const maxDrag = 300; // Max drag distance for full fade
-        const backdropOpacity = Math.max(0, 0.4 - (deltaY / maxDrag) * 0.4);
-        backdropRef.current.style.opacity = backdropOpacity.toString();
+      isDraggingRef.current = true;
+      dragStartYRef.current = touch.clientY;
+      dragCurrentYRef.current = touch.clientY;
+      dragStartTimeRef.current = Date.now();
+      if (sheetRef.current) {
+        // Only disable transform transition, keep height transition
+        sheetRef.current.style.transition = 'height 300ms cubic-bezier(0.2, 0, 0, 1)';
       }
     });
 
-    const handleTouchEndRef = React.useRef(() => {
-      if (!canDrag()) return;
-      if (!isDraggingRef.current || !sheetRef.current || !backdropRef.current) return;
+    const handleTouchMoveRef = React.useRef((e) => {
+      if (!isDraggingRef.current) return;
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - dragStartYRef.current;
+      
+      if (deltaY > 0 && sheetRef.current) {
+        e.preventDefault();
+        dragCurrentYRef.current = touch.clientY;
+        sheetRef.current.style.transform = `translateY(${deltaY}px)`;
+      }
+    });
+
+    const handleTouchEndRef = React.useRef((e) => {
+      if (!isDraggingRef.current) return;
+      isDraggingRef.current = false;
       
       const deltaY = dragCurrentYRef.current - dragStartYRef.current;
-      const dragDuration = Date.now() - dragStartTimeRef.current;
-      const velocity = deltaY / dragDuration; // pixels per ms
-      const threshold = 0.3; // 30% of sheet height
-      const sheetHeightPx = sheetRef.current.offsetHeight;
-      const dismissThreshold = sheetHeightPx * threshold;
-      const velocityThreshold = 0.5; // pixels per ms
+      const deltaTime = Date.now() - dragStartTimeRef.current;
+      const velocity = deltaY / deltaTime;
       
-      setIsDragging(false);
-      // Restore both transitions
-      sheetRef.current.style.transition = 'transform 200ms ease-in, height 200ms ease-out, bottom 200ms ease-out';
-      backdropRef.current.style.transition = 'opacity 200ms ease-in';
-      
-      // Dismiss if past threshold or fast velocity
-      if (deltaY > dismissThreshold || velocity > velocityThreshold) {
-        if (onClose) onClose();
-      } else {
-        // Snap back
-        sheetRef.current.style.transform = 'translateY(0)';
-        backdropRef.current.style.opacity = '0.4';
+      if (sheetRef.current) {
+        // Restore both transitions
+        sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1), height 300ms cubic-bezier(0.2, 0, 0, 1)';
+        
+        if (deltaY > 100 || velocity > 0.3) {
+          if (onClose) onClose();
+        } else {
+          sheetRef.current.style.transform = 'translateY(0)';
+        }
       }
     });
 
@@ -421,12 +251,8 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
               transform: 'translateY(100%)',
               willChange: 'transform',
               paddingBottom: 'env(safe-area-inset-bottom, 0)',
-              // Avoid vh-based snapping in iOS PWAs when the keyboard opens/closes.
               maxHeight: '100%',
               height: sheetHeight,
-              // When keyboard is open, lift the whole sheet above it (smoothly via transition).
-              bottom: `${keyboardOffset}px`,
-              // Transition is set dynamically in useEffect to combine transform and height
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
