@@ -417,8 +417,8 @@ const BACKGROUND_THEMES = {
   },
   dark: {
     "health-gray": {
-      appBg: "#0F0F10",
-      cardBg: "#1A1A1C",
+      appBg: "#121212",      // Clubhouse app background
+      cardBg: "#1C1C1E",     // Clubhouse card/nav background
       cardBorder: "rgba(255,255,255,0.10)"
     },
     "eggshell": {
@@ -854,6 +854,11 @@ const firestoreStorage = {
     }
     console.log('[uploadFeedingPhoto] User authenticated:', user.uid);
     
+    // Check Supabase uploader is available
+    if (!window.TT || typeof window.TT.uploadPhotoToSupabase !== "function") {
+      throw new Error("Supabase uploader not initialized (check script tags + keys)");
+    }
+    
     // Compress image before upload (fallback to original on failure)
     let compressedBase64 = base64DataUrl;
     try {
@@ -871,50 +876,30 @@ const firestoreStorage = {
     const blob = this._dataUrlToBlob(compressedBase64);
     console.log('[uploadFeedingPhoto] Blob created:', { size: blob.size, type: blob.type });
     
-    // Generate unique photo ID
+    // Generate unique photo ID and storage path
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const storagePath = `families/${this.currentFamilyId}/kids/${this.currentKidId}/photos/${photoId}`;
     console.log('[uploadFeedingPhoto] Storage path:', storagePath);
     
-    // Upload to Firebase Storage with proper metadata
-    const storageRef = storage.ref().child(storagePath);
-    const metadata = {
-      contentType: blob.type || 'image/jpeg',
-      customMetadata: {
-        uploadedBy: user.uid,
-        uploadedAt: new Date().toISOString()
-      }
-    };
-    console.log('[uploadFeedingPhoto] Uploading to Firebase Storage...', { metadata });
-    
-    // Wrap upload in shorter timeout to prevent hanging on CORS errors
-    const uploadPromise = storageRef.put(blob, metadata);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Photo upload timeout - CORS may be blocking the request'));
-      }, 3000); // 3 second timeout (shorter for faster failure)
-    });
-    
+    // Upload to Supabase Storage
     try {
-      await Promise.race([uploadPromise, timeoutPromise]);
-      console.log('[uploadFeedingPhoto] Upload successful');
+      console.log('[uploadFeedingPhoto] Uploading to Supabase Storage...');
+      const publicUrl = await window.TT.uploadPhotoToSupabase({
+        blob,
+        path: storagePath,
+        contentType: blob.type || 'image/jpeg'
+      });
+      console.log('[uploadFeedingPhoto] Upload successful:', publicUrl);
+      return publicUrl;
     } catch (uploadError) {
       console.error('[uploadFeedingPhoto] Upload failed:', uploadError);
       console.error('[uploadFeedingPhoto] Upload error details:', {
         message: uploadError.message,
         stack: uploadError.stack,
-        name: uploadError.name,
-        code: uploadError.code,
-        serverResponse: uploadError.serverResponse
+        name: uploadError.name
       });
       throw uploadError;
     }
-    
-    // Get download URL
-    console.log('[uploadFeedingPhoto] Getting download URL...');
-    const downloadURL = await storageRef.getDownloadURL();
-    console.log('[uploadFeedingPhoto] Download URL:', downloadURL);
-    return downloadURL;
   },
 
   async uploadSleepPhoto(base64DataUrl) {
@@ -936,6 +921,11 @@ const firestoreStorage = {
     }
     console.log('[uploadSleepPhoto] User authenticated:', user.uid);
     
+    // Check Supabase uploader is available
+    if (!window.TT || typeof window.TT.uploadPhotoToSupabase !== "function") {
+      throw new Error("Supabase uploader not initialized (check script tags + keys)");
+    }
+    
     // Compress image before upload (fallback to original on failure)
     let compressedBase64 = base64DataUrl;
     try {
@@ -952,50 +942,30 @@ const firestoreStorage = {
     const blob = this._dataUrlToBlob(compressedBase64);
     console.log('[uploadSleepPhoto] Blob created:', { size: blob.size, type: blob.type });
     
-    // Generate unique photo ID
+    // Generate unique photo ID and storage path
     const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const storagePath = `families/${this.currentFamilyId}/kids/${this.currentKidId}/photos/${photoId}`;
     console.log('[uploadSleepPhoto] Storage path:', storagePath);
     
-    // Upload to Firebase Storage with proper metadata
-    const storageRef = storage.ref().child(storagePath);
-    const metadata = {
-      contentType: blob.type || 'image/jpeg',
-      customMetadata: {
-        uploadedBy: user.uid,
-        uploadedAt: new Date().toISOString()
-      }
-    };
-    console.log('[uploadSleepPhoto] Uploading to Firebase Storage...', { metadata });
-    
-    // Wrap upload in shorter timeout to prevent hanging on CORS errors
-    const uploadPromise = storageRef.put(blob, metadata);
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Photo upload timeout - CORS may be blocking the request'));
-      }, 3000); // 3 second timeout (shorter for faster failure)
-    });
-    
+    // Upload to Supabase Storage
     try {
-      await Promise.race([uploadPromise, timeoutPromise]);
-      console.log('[uploadSleepPhoto] Upload successful');
+      console.log('[uploadSleepPhoto] Uploading to Supabase Storage...');
+      const publicUrl = await window.TT.uploadPhotoToSupabase({
+        blob,
+        path: storagePath,
+        contentType: blob.type || 'image/jpeg'
+      });
+      console.log('[uploadSleepPhoto] Upload successful:', publicUrl);
+      return publicUrl;
     } catch (uploadError) {
       console.error('[uploadSleepPhoto] Upload failed:', uploadError);
       console.error('[uploadSleepPhoto] Upload error details:', {
         message: uploadError.message,
         stack: uploadError.stack,
-        name: uploadError.name,
-        code: uploadError.code,
-        serverResponse: uploadError.serverResponse
+        name: uploadError.name
       });
       throw uploadError;
     }
-    
-    // Get download URL
-    console.log('[uploadSleepPhoto] Getting download URL...');
-    const downloadURL = await storageRef.getDownloadURL();
-    console.log('[uploadSleepPhoto] Download URL:', downloadURL);
-    return downloadURL;
   },
 
   // -----------------------
