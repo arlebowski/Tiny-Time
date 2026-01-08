@@ -4031,6 +4031,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     }, [mode, isOpen, sleepState, activeSleepSessionId, startTime, endTime]);
     
+    // Auto-populate start time when toggle switches to Feeding
+    React.useEffect(() => {
+      if (mode === 'feeding' && isOpen) {
+        // Always set feedingDateTime to NOW when feeding mode is selected
+        setFeedingDateTime(new Date().toISOString());
+      }
+    }, [mode, isOpen]);
+    
     // Load most recent feed ounces when switching to feeding mode
     React.useEffect(() => {
       if (mode === 'feeding' && kidId && !ounces && typeof firestoreStorage !== 'undefined') {
