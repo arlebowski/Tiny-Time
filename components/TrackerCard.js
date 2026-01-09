@@ -1381,7 +1381,7 @@ const TrackerCard = ({
             opacity: 0;
           }
           50% {
-            opacity: 0.3;
+            opacity: 0.5;
           }
           100% {
             transform: translateX(200%) skewX(-20deg);
@@ -1402,7 +1402,7 @@ const TrackerCard = ({
           background: linear-gradient(
             90deg,
             transparent,
-            rgba(255, 255, 255, 0.2),
+            rgba(255, 255, 255, 0.38),
             transparent
           );
           animation: ttSleepPulse 3.5s ease-in-out infinite;
@@ -1414,7 +1414,7 @@ const TrackerCard = ({
           background: linear-gradient(
             90deg,
             transparent,
-            rgba(255, 255, 255, 0.1),
+            rgba(255, 255, 255, 0.19),
             transparent
           );
         }
@@ -1422,14 +1422,14 @@ const TrackerCard = ({
         @keyframes ttSleepPulsePillBorder {
           0% {
             transform: rotate(0deg);
-            opacity: 0.3;
+            opacity: 0.13;
           }
           50% {
-            opacity: 0.6;
+            opacity: 0.26;
           }
           100% {
             transform: rotate(360deg);
-            opacity: 0.3;
+            opacity: 0.13;
           }
         }
         /* Light mode pill - border animation */
@@ -1445,8 +1445,8 @@ const TrackerCard = ({
             from 0deg,
             transparent 0deg,
             transparent 240deg,
-            rgba(255, 255, 255, 0.15) 270deg,
-            rgba(255, 255, 255, 0.15) 300deg,
+            rgba(255, 255, 255, 0.06) 270deg,
+            rgba(255, 255, 255, 0.06) 300deg,
             transparent 330deg,
             transparent 360deg
           );
@@ -1464,8 +1464,8 @@ const TrackerCard = ({
             from 0deg,
             transparent 0deg,
             transparent 240deg,
-            rgba(255, 255, 255, 0.08) 270deg,
-            rgba(255, 255, 255, 0.08) 300deg,
+            rgba(255, 255, 255, 0.034) 270deg,
+            rgba(255, 255, 255, 0.034) 300deg,
             transparent 330deg,
             transparent 360deg
           );
@@ -2707,8 +2707,475 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return `${day} ${hours}:${mins} ${ampm}`;
   };
 
+  // Wheel Picker Styles (from UI Lab)
+  const wheelStyles = {
+    section: {
+      padding: '16px',
+      background: 'transparent',
+      borderRadius: '16px',
+      overflow: 'hidden'
+    },
+    sectionHeader: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: '12px'
+    },
+    sectionTitle: { 
+      fontSize: '16px', 
+      fontWeight: '600', 
+      color: 'var(--tt-text-primary)', 
+      margin: 0 
+    },
+    unitToggle: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      padding: '8px 12px',
+      background: 'var(--tt-input-bg)',
+      border: 'none',
+      borderRadius: '12px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      fontWeight: '600'
+    },
+    unitActive: { color: 'var(--tt-text-primary)' },
+    unitInactive: { color: 'var(--tt-text-secondary)' },
+    unitDivider: { color: 'var(--tt-card-border)' },
+    pickerContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' },
+    label: {
+      fontSize: '14px',
+      fontWeight: '600',
+      color: 'var(--tt-text-secondary)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.5px'
+    },
+    picker: {
+      position: 'relative',
+      width: '100%',
+      maxWidth: '260px',
+      height: '250px',
+      overflow: 'hidden',
+      cursor: 'grab',
+      userSelect: 'none',
+      touchAction: 'none'
+    },
+    pickerCompact: { width: 'min(50px, 12vw)', height: '220px' },
+    pickerDateCompact: { width: 'min(65px, 16vw)', height: '220px' },
+    items: { position: 'relative', height: '100%', zIndex: 2 },
+    item: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      height: '40px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      fontSize: '16px',
+      lineHeight: '40px',
+      fontWeight: '400',
+      color: 'var(--tt-text-primary)',
+      transformOrigin: 'center center',
+      willChange: 'transform, opacity'
+    },
+    itemSelected: { 
+      color: 'var(--tt-text-primary)', 
+      fontWeight: '400' 
+    },
+    selection: {
+      position: 'absolute',
+      top: '50%',
+      left: '10px',
+      right: '10px',
+      height: '40px',
+      transform: 'translateY(-50%)',
+      background: 'var(--tt-subtle-surface)',
+      borderRadius: '8px',
+      pointerEvents: 'none',
+      zIndex: 1
+    },
+    overlay: {
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      pointerEvents: 'none',
+      zIndex: 3
+    },
+    overlayTop: {
+      top: 0,
+      background: 'linear-gradient(to bottom, var(--tt-card-bg) 0%, var(--tt-card-bg) 55%, transparent 100%)'
+    },
+    overlayBottom: {
+      bottom: 0,
+      background: 'linear-gradient(to top, var(--tt-card-bg) 0%, var(--tt-card-bg) 55%, transparent 100%)'
+    }
+  };
+
+  // WheelPicker Component (simplified for amount picker)
+  const WheelPicker = ({
+    type = 'number',
+    value,
+    onChange,
+    min = 0,
+    max = 32,
+    step = 0.25,
+    label = '',
+    unit = 'oz',
+    compact = false,
+    showSelection = true,
+    showOverlay = true
+  }) => {
+    const [isDragging, setIsDragging] = React.useState(false);
+    const [startY, setStartY] = React.useState(0);
+    const [velocity, setVelocity] = React.useState(0);
+    const containerRef = React.useRef(null);
+    const animationRef = React.useRef(null);
+    const lastY = React.useRef(0);
+    const lastTime = React.useRef(Date.now());
+
+    const generateOptions = () => {
+      if (type === 'number') {
+        const options = [];
+        for (let i = min; i <= max; i += step) {
+          const displayValue = i % 1 === 0 ? i.toString() : i.toFixed(2);
+          options.push({ display: `${displayValue} ${unit}`, value: i });
+        }
+        return options;
+      }
+      return [];
+    };
+
+    const options = generateOptions();
+    const ITEM_HEIGHT = 40;
+    const pickerHeight = compact ? 220 : 250;
+    const padY = Math.max(0, (pickerHeight - ITEM_HEIGHT) / 2);
+
+    const getCurrentIndex = () => {
+      // For floating point comparison, find the closest option
+      let closestIndex = 0;
+      let minDiff = Infinity;
+      options.forEach((opt, idx) => {
+        const diff = Math.abs(opt.value - value);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestIndex = idx;
+        }
+      });
+      return closestIndex;
+    };
+
+    const initialIndex = Math.max(0, getCurrentIndex());
+    const [selectedIndex, setSelectedIndex] = React.useState(initialIndex);
+    const [currentOffset, setCurrentOffset] = React.useState(-initialIndex * ITEM_HEIGHT);
+
+    React.useEffect(() => {
+      const idx = Math.max(0, getCurrentIndex());
+      setSelectedIndex(idx);
+      setCurrentOffset(-idx * ITEM_HEIGHT);
+    }, [value, type, min, max, step, unit]);
+
+    const snapToNearest = (offset) => {
+      const index = Math.round(-offset / ITEM_HEIGHT);
+      const clampedIndex = Math.max(0, Math.min(options.length - 1, index));
+      const snappedOffset = -clampedIndex * ITEM_HEIGHT;
+
+      setCurrentOffset(snappedOffset);
+      setSelectedIndex(clampedIndex);
+      onChange(options[clampedIndex].value);
+    };
+
+    const handleStart = (clientY) => {
+      setIsDragging(true);
+      setStartY(clientY);
+      lastY.current = clientY;
+      lastTime.current = Date.now();
+      setVelocity(0);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+
+    const handleMove = (clientY) => {
+      if (!isDragging) return;
+
+      const deltaY = clientY - startY;
+      const newOffset = selectedIndex * -ITEM_HEIGHT + deltaY;
+
+      const now = Date.now();
+      const timeDelta = now - lastTime.current;
+      const yDelta = clientY - lastY.current;
+
+      if (timeDelta > 0) {
+        setVelocity(yDelta / timeDelta);
+      }
+
+      lastY.current = clientY;
+      lastTime.current = now;
+
+      const maxOffset = 0;
+      const minOffset = -(options.length - 1) * ITEM_HEIGHT;
+
+      let constrainedOffset = newOffset;
+      if (newOffset > maxOffset) {
+        constrainedOffset = maxOffset + (newOffset - maxOffset) * 0.3;
+      } else if (newOffset < minOffset) {
+        constrainedOffset = minOffset + (newOffset - minOffset) * 0.3;
+      }
+
+      setCurrentOffset(constrainedOffset);
+    };
+
+    const handleEnd = () => {
+      setIsDragging(false);
+      let finalOffset = currentOffset + velocity * 200;
+      const maxOffset = 0;
+      const minOffset = -(options.length - 1) * ITEM_HEIGHT;
+      finalOffset = Math.max(minOffset, Math.min(maxOffset, finalOffset));
+      snapToNearest(finalOffset);
+    };
+
+    const handleMouseDown = (e) => {
+      e.preventDefault();
+      handleStart(e.clientY);
+    };
+
+    const handleMouseMove = (e) => {
+      if (isDragging) {
+        e.preventDefault();
+        handleMove(e.clientY);
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) {
+        handleEnd();
+      }
+    };
+
+    const handleTouchStart = (e) => {
+      e.preventDefault();
+      handleStart(e.touches[0].clientY);
+    };
+
+    const handleTouchMove = (e) => {
+      e.preventDefault();
+      handleMove(e.touches[0].clientY);
+    };
+
+    const handleTouchEnd = (e) => {
+      e.preventDefault();
+      handleEnd();
+    };
+
+    React.useEffect(() => {
+      if (isDragging) {
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+        return () => {
+          window.removeEventListener('mousemove', handleMouseMove);
+          window.removeEventListener('mouseup', handleMouseUp);
+        };
+      }
+    }, [isDragging, currentOffset]);
+
+    const getItemStyle = (index) => {
+      const offset = currentOffset + index * ITEM_HEIGHT;
+      const distance = Math.abs(offset / ITEM_HEIGHT);
+
+      const scale = Math.max(0.85, 1 - distance * 0.08);
+      const opacity = Math.max(0.25, 1 - distance * 0.35);
+
+      return {
+        transform: `translateY(${offset}px) scale(${scale})`,
+        opacity: opacity,
+        transition: isDragging ? 'none' : 'all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+      };
+    };
+
+    return React.createElement(
+      'div',
+      { style: wheelStyles.pickerContainer },
+      label ? React.createElement('div', { style: wheelStyles.label }, label) : null,
+      React.createElement(
+        'div',
+        {
+          style: { 
+            ...wheelStyles.picker, 
+            ...(compact ? wheelStyles.pickerCompact : {}) 
+          },
+          ref: containerRef,
+          onMouseDown: handleMouseDown,
+          onTouchStart: handleTouchStart,
+          onTouchMove: handleTouchMove,
+          onTouchEnd: handleTouchEnd
+        },
+        showSelection ? React.createElement('div', { style: wheelStyles.selection }) : null,
+        showOverlay ? React.createElement('div', { style: { ...wheelStyles.overlay, height: `${padY}px`, ...wheelStyles.overlayTop } }) : null,
+        showOverlay ? React.createElement('div', { style: { ...wheelStyles.overlay, height: `${padY}px`, ...wheelStyles.overlayBottom } }) : null,
+        React.createElement(
+          'div',
+          { style: { ...wheelStyles.items, padding: `${padY}px 0` } },
+          options.map((option, index) =>
+            React.createElement(
+              'div',
+              {
+                key: index,
+                style: {
+                  ...wheelStyles.item,
+                  ...(index === selectedIndex && !isDragging ? wheelStyles.itemSelected : {}),
+                  ...getItemStyle(index)
+                }
+              },
+              option.display
+            )
+          )
+        )
+      )
+    );
+  };
+
+  // Inline Amount Picker Component
+  const InlineAmountPicker = ({ value, onChange, onDone }) => {
+    const [amount, setAmount] = React.useState(() => {
+      const num = parseFloat(value) || 0;
+      return Math.max(0, num); // Ensure non-negative
+    });
+    const [unit, setUnit] = React.useState('oz');
+    
+    // Update amount when value prop changes (from outside)
+    React.useEffect(() => {
+      const num = parseFloat(value) || 0;
+      setAmount(Math.max(0, num));
+    }, [value]);
+
+    const snapToStep = (val, step) => {
+      const n = Number(val) || 0;
+      const s = Number(step) || 1;
+      const snapped = Math.round(n / s) * s;
+      return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+    };
+
+    const setUnitWithConversion = (nextUnit) => {
+      if (!nextUnit || nextUnit === unit) return;
+      if (nextUnit === 'ml') {
+        const ml = snapToStep(amount * 29.5735, 10);
+        setUnit('ml');
+        setAmount(ml);
+      } else {
+        const oz = snapToStep(amount / 29.5735, 0.25);
+        setUnit('oz');
+        setAmount(oz);
+      }
+    };
+
+    const getAmountRange = () => {
+      if (unit === 'oz') {
+        return { min: 0, max: 12, step: 0.25 };
+      } else {
+        return { min: 0, max: 360, step: 10 };
+      }
+    };
+
+    const range = getAmountRange();
+
+    const handleDone = () => {
+      // Convert ml back to oz before saving
+      let finalAmount = amount;
+      if (unit === 'ml') {
+        finalAmount = snapToStep(amount / 29.5735, 0.25);
+      }
+      if (onChange) {
+        onChange(finalAmount.toString());
+      }
+      if (onDone) {
+        onDone();
+      }
+    };
+
+    return React.createElement(
+      'div',
+      {
+        style: {
+          padding: '16px',
+          backgroundColor: 'var(--tt-input-bg)',
+          borderRadius: '16px',
+          marginTop: '8px',
+          position: 'relative'
+        }
+      },
+      React.createElement(
+        'div',
+        {
+          style: {
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            position: 'relative'
+          }
+        },
+        React.createElement(
+          'div',
+          { style: { flex: 1, position: 'relative' } },
+          React.createElement('div', {
+            style: {
+              position: 'absolute',
+              left: '10px',
+              right: '10px',
+              top: '50%',
+              height: 40,
+              transform: 'translateY(-50%)',
+              background: 'var(--tt-subtle-surface)',
+              borderRadius: 8,
+              zIndex: 0,
+              pointerEvents: 'none'
+            }
+          }),
+          React.createElement(
+            'div',
+            { style: { position: 'relative', zIndex: 1 } },
+            React.createElement(WheelPicker, {
+              type: 'number',
+              value: amount,
+              onChange: setAmount,
+              min: range.min,
+              max: range.max,
+              step: range.step,
+              unit: unit,
+              compact: true,
+              showSelection: false,
+              showOverlay: true
+            })
+          )
+        ),
+        window.SegmentedToggle
+          ? React.createElement(window.SegmentedToggle, {
+              value: unit,
+              options: [
+                { value: 'oz', label: 'oz' },
+                { value: 'ml', label: 'ml' }
+              ],
+              onChange: setUnitWithConversion,
+              variant: 'body',
+              size: 'medium'
+            })
+          : React.createElement(
+              'button',
+              { 
+                style: wheelStyles.unitToggle, 
+                onClick: () => setUnitWithConversion(unit === 'oz' ? 'ml' : 'oz'), 
+                type: 'button' 
+              },
+              React.createElement('span', { style: unit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
+              React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
+              React.createElement('span', { style: unit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
+            )
+      )
+    );
+  };
+
   // Input Field Row Component
-  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false }) => {
+  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false, useAmountPicker = false }) => {
+    const [isPickerOpen, setIsPickerOpen] = React.useState(false);
     
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     // If rawValue is null/empty and placeholder exists, show placeholder as the value
@@ -2723,8 +3190,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       if (e.target.closest('button')) {
         return;
       }
-      // For datetime fields, use old picker
-      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+      // For amount picker, toggle the picker
+      if (useAmountPicker && type === 'number') {
+        e.preventDefault();
+        setIsPickerOpen(!isPickerOpen);
+      } else if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+        // For datetime fields, use old picker
         e.preventDefault();
         if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
           window.TT.ui.openAnchoredTimePicker({
@@ -2742,7 +3213,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleIconClick = (e) => {
       e.stopPropagation();
       e.preventDefault();
-      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+      // For amount picker, toggle the picker
+      if (useAmountPicker && type === 'number') {
+        setIsPickerOpen(!isPickerOpen);
+      } else if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         // Use old picker
         if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
           window.TT.ui.openAnchoredTimePicker({
@@ -2757,6 +3231,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           inputRef.current.focus();
         }
       }
+    };
+
+    const handlePickerDone = () => {
+      setIsPickerOpen(false);
     };
 
     return React.createElement(
@@ -2778,10 +3256,26 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         },
         React.createElement('div', { className: "flex-1" },
           React.createElement('div', { 
-            className: "text-xs mb-1",
+            className: "text-xs mb-1 flex items-center justify-between",
             style: { color: 'var(--tt-text-secondary)' } 
           },
-            React.createElement('span', {}, label)
+            React.createElement('span', {}, label),
+            isPickerOpen && useAmountPicker && React.createElement('button', {
+              onClick: (e) => {
+                e.stopPropagation();
+                handlePickerDone();
+              },
+              style: {
+                color: 'var(--tt-text-primary)',
+                fontSize: '14px',
+                fontWeight: '600',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer'
+              }
+            }, 'Done')
           ),
           type === 'text' 
             ? React.createElement('textarea',
@@ -2831,12 +3325,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 }
               )
         ),
-        icon && React.createElement('button', {
+        icon && !isPickerOpen && React.createElement('button', {
           onClick: handleIconClick,
           className: "ml-4",
           style: { marginLeft: '17px' }
         }, icon)
-      )
+      ),
+      // Amount picker (shown when expanded and useAmountPicker is true)
+      isPickerOpen && useAmountPicker && type === 'number' && React.createElement(InlineAmountPicker, {
+        value,
+        onChange,
+        onDone: handlePickerDone
+      })
     );
   };
 
@@ -3098,7 +3598,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setOunces,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'number',
-          placeholder: '0'
+          placeholder: '0',
+          useAmountPicker: true
         }),
 
         // Start time
@@ -4669,7 +5170,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setOunces,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'number',
-          placeholder: '0'
+          placeholder: '0',
+          useAmountPicker: true
         }),
 
         // Start time
