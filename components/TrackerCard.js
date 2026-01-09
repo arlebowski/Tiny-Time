@@ -2795,7 +2795,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
       if (expandedCount === 0) return 70;
       if (expandedCount === 1) return 78;
-      return 82; // expandedCount === 2
+      return 83; // expandedCount === 2
     }, [notesExpanded, photosExpanded]);
 
     // Populate form from entry when it exists
@@ -3261,7 +3261,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
       if (expandedCount === 0) return 70;
       if (expandedCount === 1) return 78;
-      return 82; // expandedCount === 2
+      return 83; // expandedCount === 2
     }, [notesExpanded, photosExpanded]);
 
     // Populate form from entry when it exists
@@ -3896,7 +3896,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
       if (expandedCount === 0) return 70;
       if (expandedCount === 1) return 78;
-      return 82; // expandedCount === 2
+      return 83; // expandedCount === 2
     }, [notesExpanded, photosExpanded]);
     
     // Refs for measuring both content heights
