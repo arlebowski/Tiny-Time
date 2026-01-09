@@ -637,12 +637,13 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
         HighlightCard,
         {
           icon: feedLabelIcon,
-          label: 'Feed',
+          label: 'Feeding',
           insightText: [
             'Levi has been eating a bit less in the last three days.',
             'But that\'s totally fine!'
           ],
           categoryColor: 'var(--tt-feed)',
+          isFeeding: true,
           onClick: () => setActiveModal('feeding')
         },
         React.createElement(FeedingChart, {
