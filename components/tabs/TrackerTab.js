@@ -3899,6 +3899,9 @@ const SleepChart = ({ data = [], average = 0 }) => {
   };
 
   const sleepColor = getComputedColor('--tt-sleep');
+  const mutedBarColor = getComputedColor('--tt-subtle-surface');
+  const tertiaryText = getComputedColor('--tt-text-tertiary');
+  const secondaryText = getComputedColor('--tt-text-secondary');
 
   // Convert date to day of week abbreviation
   const getDayAbbrev = (date) => {
@@ -4023,22 +4026,31 @@ const SleepChart = ({ data = [], average = 0 }) => {
     React.createElement(
       'div',
       { className: 'flex flex-col mb-1' },
-      React.createElement(
-        'span',
-        { className: 'text-xs font-medium text-gray-400 tracking-wider mb-1' },
-        'Average sleep'
-      ),
-      React.createElement(
-        'div',
-        { className: 'flex items-baseline space-x-1' },
         React.createElement(
           'span',
-          { className: 'text-[2.25rem] font-bold text-indigo-700 leading-none' },
+          {
+            className: 'text-xs font-medium tracking-wider mb-1',
+            style: { color: tertiaryText }
+          },
+          'Average sleep'
+        ),
+        React.createElement(
+          'div',
+          { className: 'flex items-baseline space-x-1' },
+        React.createElement(
+          'span',
+          {
+            className: 'text-[2.25rem] font-bold leading-none',
+            style: { color: sleepColor }
+          },
           average.toFixed(1)
         ),
         React.createElement(
           'span',
-          { className: 'text-sm font-medium text-gray-400' },
+          {
+            className: 'text-sm font-medium',
+            style: { color: secondaryText }
+          },
           'hrs'
         )
       )
@@ -4066,7 +4078,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
               y: isVisible ? bar.y : chartHeight, // Start at bottom, animate to position
               width: barWidth,
               height: isVisible ? bar.height : 0, // Start with 0 height, animate to full height
-              fill: bar.isToday ? sleepColor : '#e5e7eb',
+              fill: bar.isToday ? sleepColor : mutedBarColor,
               rx: 6,
               ry: 6,
               style: {
@@ -4085,7 +4097,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
               x: bar.x + barWidth / 2,
               y: chartHeight + 18,
               textAnchor: 'middle',
-              fill: '#9ca3af',
+              fill: tertiaryText,
               fontSize: 12,
               fontWeight: 500,
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -4122,6 +4134,9 @@ const FeedingChart = ({ data = [], average = 0 }) => {
   };
 
   const feedColor = getComputedColor('--tt-feed');
+  const mutedBarColor = getComputedColor('--tt-subtle-surface');
+  const tertiaryText = getComputedColor('--tt-text-tertiary');
+  const secondaryText = getComputedColor('--tt-text-secondary');
 
   // Convert date to day of week abbreviation
   const getDayAbbrev = (date) => {
@@ -4246,22 +4261,31 @@ const FeedingChart = ({ data = [], average = 0 }) => {
     React.createElement(
       'div',
       { className: 'flex flex-col mb-1' },
-      React.createElement(
-        'span',
-        { className: 'text-xs font-medium text-gray-400 tracking-wider mb-1' },
-        'Average intake'
-      ),
-      React.createElement(
-        'div',
-        { className: 'flex items-baseline space-x-1' },
         React.createElement(
           'span',
-          { className: 'text-[2.25rem] font-bold text-pink-600 leading-none' },
+          {
+            className: 'text-xs font-medium tracking-wider mb-1',
+            style: { color: tertiaryText }
+          },
+          'Average intake'
+        ),
+        React.createElement(
+          'div',
+          { className: 'flex items-baseline space-x-1' },
+        React.createElement(
+          'span',
+          {
+            className: 'text-[2.25rem] font-bold leading-none',
+            style: { color: feedColor }
+          },
           average.toFixed(1)
         ),
         React.createElement(
           'span',
-          { className: 'text-sm font-medium text-gray-400' },
+          {
+            className: 'text-sm font-medium',
+            style: { color: secondaryText }
+          },
           'oz'
         )
       )
@@ -4289,7 +4313,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
               y: isVisible ? bar.y : chartHeight, // Start at bottom, animate to position
               width: barWidth,
               height: isVisible ? bar.height : 0, // Start with 0 height, animate to full height
-              fill: bar.isToday ? feedColor : '#e5e7eb',
+              fill: bar.isToday ? feedColor : mutedBarColor,
               rx: 6,
               ry: 6,
               style: {
@@ -4308,7 +4332,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
               x: bar.x + barWidth / 2,
               y: chartHeight + 18,
               textAnchor: 'middle',
-              fill: '#9ca3af',
+              fill: tertiaryText,
               fontSize: 12,
               fontWeight: 500,
               fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
@@ -4338,25 +4362,25 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
   return React.createElement(
     'div',
     {
-      className: 'rounded-2xl shadow-lg p-6 cursor-pointer',
+      className: 'rounded-2xl shadow-sm p-6 cursor-pointer',
       style: { backgroundColor: 'var(--tt-card-bg)' },
       onClick: onClick
     },
     // Header: icon + label left, chevron right
     React.createElement(
       'div',
-      { className: 'flex items-center justify-between mb-3' },
+      { className: 'flex items-center justify-between mb-3 h-6' },
       React.createElement(
         'div',
         { className: 'flex items-center gap-2' },
         React.createElement(Icon, {
-          className: 'w-5 h-5',
+          className: 'w-8 h-8',
           style: { color: categoryColor }
         }),
         React.createElement(
           'span',
           {
-            className: 'text-sm font-semibold',
+            className: 'text-base font-semibold',
             style: { color: categoryColor }
           },
           label

@@ -618,6 +618,9 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
     ...stats.chartData.map(d => d.volume)
   );
 
+  const feedLabelIcon = (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"]) || Milk;
+  const sleepLabelIcon = (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || Moon;
+
   return React.createElement(
     'div',
     { className: 'space-y-4' },
@@ -629,26 +632,11 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       'div',
       { className: 'space-y-3' },
 
-      // Daily Activity highlight
-      React.createElement(
-        HighlightCard,
-        {
-          icon: Kanban,
-          label: 'Daily Activity',
-          insightText: [
-            'Levi has been eating and sleeping like a champ this week!',
-            'Great work, Levi!'
-          ],
-          categoryColor: 'var(--color-daily)',
-          onClick: () => setActiveModal('activity')
-        }
-      ),
-
       // Feeding highlight
       React.createElement(
         HighlightCard,
         {
-          icon: Milk,
+          icon: feedLabelIcon,
           label: 'Feed',
           insightText: [
             'Levi has been eating a bit less in the last three days.',
@@ -667,7 +655,7 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
       React.createElement(
         HighlightCard,
         {
-          icon: Moon,
+          icon: sleepLabelIcon,
           label: 'Sleep',
           insightText: [
             'Levi has been sleeping great this week!',
@@ -680,6 +668,21 @@ const AnalyticsTab = ({ user, kidId, familyId }) => {
           data: sleepChartData,
           average: sleepChartAverage
         })
+      ),
+
+      // Daily Activity highlight
+      React.createElement(
+        HighlightCard,
+        {
+          icon: Kanban,
+          label: 'Daily Activity',
+          insightText: [
+            'Levi has been eating and sleeping like a champ this week!',
+            'Great work, Levi!'
+          ],
+          categoryColor: 'var(--color-daily)',
+          onClick: () => setActiveModal('activity')
+        }
       )
     ),
 
