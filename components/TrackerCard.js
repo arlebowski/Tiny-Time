@@ -4081,6 +4081,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     }, [mode, isOpen]);
     
+    // Reset expand state when mode changes
+    React.useEffect(() => {
+      if (isOpen) {
+        setNotesExpanded(false);
+        setPhotosExpanded(false);
+      }
+    }, [mode, isOpen]);
+    
     // Load most recent feed ounces when switching to feeding mode
     React.useEffect(() => {
       if (mode === 'feeding' && kidId && !ounces && typeof firestoreStorage !== 'undefined') {
