@@ -14,6 +14,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
     const contentRef = React.useRef(null);
     const [present, setPresent] = React.useState(false); // Controls rendering
     const scrollYRef = React.useRef(0);
+    const [needsScroll, setNeedsScroll] = React.useState(false);
     
     // Drag state
     const [isDragging, setIsDragging] = React.useState(false);
@@ -138,6 +139,27 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
         return () => clearTimeout(timer);
       }
     }, [isOpen, present]);
+
+    // Check if content overflows and needs scrolling
+    React.useEffect(() => {
+      if (!present || !isOpen || !contentRef.current) {
+        setNeedsScroll(false);
+        return;
+      }
+      // Check after a brief delay to allow content to render
+      const checkOverflow = () => {
+        if (contentRef.current) {
+          const needs = contentRef.current.scrollHeight > contentRef.current.clientHeight;
+          setNeedsScroll(needs);
+        }
+      };
+      // Initial check
+      setTimeout(checkOverflow, 50);
+      // Recheck on resize or content changes
+      const resizeObserver = new ResizeObserver(checkOverflow);
+      if (contentRef.current) resizeObserver.observe(contentRef.current);
+      return () => resizeObserver.disconnect();
+    }, [present, isOpen, children, contentKey]);
 
     // Drag handlers
     const canDrag = React.useCallback(() => {
@@ -303,11 +325,12 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
           // Body area (scrollable)
           React.createElement('div', {
             ref: contentRef,
-            className: "flex-1 overflow-y-auto px-6 pt-8 pb-[42px]",
+            className: `flex-1 px-6 pt-8 pb-[42px] ${needsScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`,
             style: {
-              WebkitOverflowScrolling: 'touch',
+              WebkitOverflowScrolling: needsScroll ? 'touch' : 'auto',
               minHeight: 0,
-              overscrollBehavior: 'contain'
+              overscrollBehavior: 'none',
+              touchAction: needsScroll ? 'pan-y' : 'none'
             }
           }, children)
         )

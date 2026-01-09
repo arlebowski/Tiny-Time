@@ -2317,6 +2317,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const contentRef = React.useRef(null);
     const [present, setPresent] = React.useState(false); // Controls rendering
     const scrollYRef = React.useRef(0);
+    const [needsScroll, setNeedsScroll] = React.useState(false);
     
     // Drag state
     const [isDragging, setIsDragging] = React.useState(false);
@@ -2441,6 +2442,27 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         return () => clearTimeout(timer);
       }
     }, [isOpen, present]);
+
+    // Check if content overflows and needs scrolling
+    React.useEffect(() => {
+      if (!present || !isOpen || !contentRef.current) {
+        setNeedsScroll(false);
+        return;
+      }
+      // Check after a brief delay to allow content to render
+      const checkOverflow = () => {
+        if (contentRef.current) {
+          const needs = contentRef.current.scrollHeight > contentRef.current.clientHeight;
+          setNeedsScroll(needs);
+        }
+      };
+      // Initial check
+      setTimeout(checkOverflow, 50);
+      // Recheck on resize or content changes
+      const resizeObserver = new ResizeObserver(checkOverflow);
+      if (contentRef.current) resizeObserver.observe(contentRef.current);
+      return () => resizeObserver.disconnect();
+    }, [present, isOpen, children]);
 
     // Drag handlers
     const canDrag = React.useCallback(() => {
@@ -2600,11 +2622,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           // Body area (scrollable)
           React.createElement('div', {
             ref: contentRef,
-            className: "flex-1 overflow-y-auto px-6 pt-8 pb-[42px]",
+            className: `flex-1 px-6 pt-8 pb-[42px] ${needsScroll ? 'overflow-y-auto' : 'overflow-y-hidden'}`,
             style: {
-              WebkitOverflowScrolling: 'touch',
+              WebkitOverflowScrolling: needsScroll ? 'touch' : 'auto',
               minHeight: 0,
-              overscrollBehavior: 'contain'
+              overscrollBehavior: 'none',
+              touchAction: needsScroll ? 'pan-y' : 'none'
             }
           }, children)
         )
@@ -2771,7 +2794,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const calculateHeight = React.useMemo(() => {
       const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
       if (expandedCount === 0) return 70;
-      if (expandedCount === 1) return 76;
+      if (expandedCount === 1) return 78;
       return 82; // expandedCount === 2
     }, [notesExpanded, photosExpanded]);
 
@@ -2799,6 +2822,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setPhotosExpanded(false);
       }
     }, [entry, isOpen]);
+
+    // Reset expand state when sheet closes
+    React.useEffect(() => {
+      if (!isOpen) {
+        setNotesExpanded(false);
+        setPhotosExpanded(false);
+      }
+    }, [isOpen]);
 
     const handleSave = async () => {
       const amount = parseFloat(ounces);
@@ -3229,7 +3260,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const calculateHeight = React.useMemo(() => {
       const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
       if (expandedCount === 0) return 70;
-      if (expandedCount === 1) return 76;
+      if (expandedCount === 1) return 78;
       return 82; // expandedCount === 2
     }, [notesExpanded, photosExpanded]);
 
@@ -3257,6 +3288,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setPhotosExpanded(false);
       }
     }, [entry, isOpen]);
+
+    // Reset expand state when sheet closes
+    React.useEffect(() => {
+      if (!isOpen) {
+        setNotesExpanded(false);
+        setPhotosExpanded(false);
+      }
+    }, [isOpen]);
 
     // Calculate duration with validation
     const calculateDuration = () => {
@@ -3856,7 +3895,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const calculateHeight = React.useMemo(() => {
       const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
       if (expandedCount === 0) return 70;
-      if (expandedCount === 1) return 76;
+      if (expandedCount === 1) return 78;
       return 82; // expandedCount === 2
     }, [notesExpanded, photosExpanded]);
     
@@ -3942,6 +3981,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }
         // Reset feeding state when closing
         setFeedingDateTime(new Date().toISOString());
+        // Reset expand state when closing
+        setNotesExpanded(false);
+        setPhotosExpanded(false);
       } else {
         // When sheet opens in sleep mode, set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
@@ -4036,6 +4078,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       if (mode === 'feeding' && isOpen) {
         // Always set feedingDateTime to NOW when feeding mode is selected
         setFeedingDateTime(new Date().toISOString());
+      }
+    }, [mode, isOpen]);
+    
+    // Reset expand state when mode changes
+    React.useEffect(() => {
+      if (isOpen) {
+        setNotesExpanded(false);
+        setPhotosExpanded(false);
       }
     }, [mode, isOpen]);
     
