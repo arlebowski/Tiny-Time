@@ -536,9 +536,8 @@ const SettingsTab = ({ user, kidId }) => {
   const wheelStyles = {
     section: {
       padding: '16px',
-      background: 'white',
+      background: 'transparent', // Transparent for use in half sheets
       borderRadius: '16px',
-      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.05)',
       overflow: 'hidden'
     },
     sectionHeader: {
@@ -547,31 +546,40 @@ const SettingsTab = ({ user, kidId }) => {
       alignItems: 'center',
       marginBottom: '12px'
     },
-    sectionTitle: { fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: 0 },
+    sectionTitle: { 
+      fontSize: '16px', 
+      fontWeight: '600', 
+      color: 'var(--tt-text-primary)', 
+      margin: 0 
+    },
     unitToggle: {
       display: 'flex',
       alignItems: 'center',
       gap: '8px',
       padding: '8px 12px',
-      background: '#f1f5f9',
+      background: 'var(--tt-input-bg)',
       border: 'none',
       borderRadius: '12px',
       cursor: 'pointer',
       fontSize: '14px',
       fontWeight: '600'
     },
-    unitActive: { color: '#2563eb' },
-    unitInactive: { color: '#94a3b8' },
-    unitDivider: { color: '#cbd5e1' },
+    unitActive: { color: 'var(--tt-text-primary)' },
+    unitInactive: { color: 'var(--tt-text-secondary)' },
+    unitDivider: { color: 'var(--tt-card-border)' },
 
-    timePicker: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', padding: '0 8px' },
-    timeColon: { fontSize: '28px', fontWeight: '600', color: '#000000' },
+    timePicker: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '0 4px' },
+    timeColon: { 
+      fontSize: '20px', 
+      fontWeight: '600', 
+      color: 'var(--tt-text-primary)' 
+    },
 
     pickerContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' },
     label: {
       fontSize: '14px',
       fontWeight: '600',
-      color: '#666',
+      color: 'var(--tt-text-secondary)',
       textTransform: 'uppercase',
       letterSpacing: '0.5px'
     },
@@ -583,10 +591,11 @@ const SettingsTab = ({ user, kidId }) => {
       overflow: 'hidden',
       cursor: 'grab',
       userSelect: 'none',
-      touchAction: 'pan-y'
+      touchAction: 'none' // Prevent page scrolling when scrolling the wheel
     },
     // Fixed width ensures hour / minute / ampm + ":" can be perfectly centered as a group.
-    pickerCompact: { width: 'min(84px, 22vw)', height: '220px' },
+    pickerCompact: { width: 'min(50px, 12vw)', height: '220px' },
+    pickerDateCompact: { width: 'min(65px, 16vw)', height: '220px' },
     items: { position: 'relative', height: '100%', zIndex: 2 },
     item: {
       position: 'absolute',
@@ -596,14 +605,17 @@ const SettingsTab = ({ user, kidId }) => {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: '23px',
+      fontSize: '16px',
       lineHeight: '40px',
       fontWeight: '400',
-      color: '#000000',
+      color: 'var(--tt-text-primary)',
       transformOrigin: 'center center',
       willChange: 'transform, opacity'
     },
-    itemSelected: { color: '#000000', fontWeight: '600' },
+    itemSelected: { 
+      color: 'var(--tt-text-primary)', 
+      fontWeight: '400' 
+    },
     // iOS-style selection bar (behind content)
     selection: {
       position: 'absolute',
@@ -612,12 +624,12 @@ const SettingsTab = ({ user, kidId }) => {
       right: '10px',
       height: '40px',
       transform: 'translateY(-50%)',
-      background: '#F9FAFB', // grey-50
-      borderRadius: '8px', // rounded-lg
+      background: 'var(--tt-subtle-surface)',
+      borderRadius: '8px',
       pointerEvents: 'none',
       zIndex: 1
     },
-    // iOS-style fades
+    // iOS-style fades - transparent gradients that work with any background
     overlay: {
       position: 'absolute',
       left: 0,
@@ -627,11 +639,11 @@ const SettingsTab = ({ user, kidId }) => {
     },
     overlayTop: {
       top: 0,
-      background: 'linear-gradient(to bottom, rgba(255,255,255,1) 0%, rgba(255,255,255,0.85) 55%, rgba(255,255,255,0) 100%)'
+      background: 'linear-gradient(to bottom, var(--tt-card-bg) 0%, var(--tt-card-bg) 55%, transparent 100%)'
     },
     overlayBottom: {
       bottom: 0,
-      background: 'linear-gradient(to top, rgba(255,255,255,1) 0%, rgba(255,255,255,0.85) 55%, rgba(255,255,255,0) 100%)'
+      background: 'linear-gradient(to top, var(--tt-card-bg) 0%, var(--tt-card-bg) 55%, transparent 100%)'
     }
   };
 
@@ -646,7 +658,8 @@ const SettingsTab = ({ user, kidId }) => {
     unit = 'oz', // for amount picker
     compact = false, // for time pickers
     showSelection = true,
-    showOverlay = true
+    showOverlay = true,
+    dateCompact = false // for date picker in time row
   }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [startY, setStartY] = useState(0);
@@ -659,29 +672,29 @@ const SettingsTab = ({ user, kidId }) => {
     const generateOptions = () => {
       if (type === 'date') {
         const options = [];
-        const today = new Date();
+        const now = new Date();
+        const today = new Date(now);
         today.setHours(0, 0, 0, 0);
         
         const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         
-        // First option: "Today"
-        options.push({ display: 'Today', value: today.toISOString() });
-        
-        // Then previous dates: yesterday, 2 days ago, 3 days ago, etc.
-        for (let i = 1; i <= 6; i++) {
+        // Generate dates: 6 previous days, then today (previous dates above)
+        const allDates = [];
+        // First add previous dates (6 days ago to yesterday)
+        for (let i = 6; i >= 1; i--) {
           const date = new Date(today);
           date.setDate(today.getDate() - i);
           
           const dayName = dayNames[date.getDay()];
-          const monthName = monthNames[date.getMonth()];
           const day = date.getDate();
           
-          const display = `${dayName} ${monthName} ${day}`;
-          options.push({ display, value: date.toISOString() });
+          allDates.push({ display: `${dayName} ${day}`, value: date.toISOString(), fullDate: date });
         }
+        // Then add today
+        allDates.push({ display: 'Today', value: today.toISOString(), fullDate: today });
         
-        return options;
+        return allDates;
       } else if (type === 'hour') {
         const options = [];
         for (let hour = 1; hour <= 12; hour++) {
@@ -825,14 +838,17 @@ const SettingsTab = ({ user, kidId }) => {
     };
 
     const handleTouchStart = (e) => {
+      e.preventDefault(); // Prevent page scroll
       handleStart(e.touches[0].clientY);
     };
 
     const handleTouchMove = (e) => {
+      e.preventDefault(); // Prevent page scroll
       handleMove(e.touches[0].clientY);
     };
 
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e) => {
+      e.preventDefault(); // Prevent page scroll
       handleEnd();
     };
 
@@ -869,7 +885,10 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement(
         'div',
         {
-          style: { ...wheelStyles.picker, ...(compact ? wheelStyles.pickerCompact : {}) },
+          style: { 
+            ...wheelStyles.picker, 
+            ...(compact && dateCompact ? wheelStyles.pickerDateCompact : compact ? wheelStyles.pickerCompact : {}) 
+          },
           ref: containerRef,
           onMouseDown: handleMouseDown,
           onTouchStart: handleTouchStart,
@@ -1001,8 +1020,8 @@ const SettingsTab = ({ user, kidId }) => {
               top: '50%',
               height: 40,
               transform: 'translateY(-50%)',
-              background: '#F9FAFB', // grey-50
-              borderRadius: 8, // rounded-lg
+              background: 'var(--tt-subtle-surface)',
+              borderRadius: 8,
               zIndex: 0,
               pointerEvents: 'none'
             }
@@ -1014,11 +1033,11 @@ const SettingsTab = ({ user, kidId }) => {
                 position: 'relative',
                 zIndex: 1,
                 display: 'grid',
-                gridTemplateColumns: 'min(110px, 28vw) min(84px, 22vw) 14px min(84px, 22vw) min(84px, 22vw)',
+                gridTemplateColumns: 'min(65px, 16vw) min(50px, 12vw) 8px min(50px, 12vw) min(50px, 12vw)',
                 justifyContent: 'center',
                 alignItems: 'center',
-                columnGap: '6px',
-                padding: '0 8px',
+                columnGap: '0px',
+                padding: '0',
                 maxWidth: '100%'
               }
             },
@@ -1026,7 +1045,8 @@ const SettingsTab = ({ user, kidId }) => {
               type: 'date', 
               value: selectedDate, 
               onChange: setSelectedDate, 
-              compact: true, 
+              compact: true,
+              dateCompact: true,
               showSelection: false 
             }),
             React.createElement(WheelPicker, { type: 'hour', value: hour, onChange: setHour, compact: true, showSelection: false }),
@@ -1035,7 +1055,8 @@ const SettingsTab = ({ user, kidId }) => {
               {
                 style: {
                   ...wheelStyles.timeColon,
-                  width: '14px',
+                  width: '8px',
+                  fontSize: '20px',
                   height: '40px',
                   lineHeight: '40px',
                   display: 'flex',
