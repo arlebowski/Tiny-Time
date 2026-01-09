@@ -4351,15 +4351,24 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     };
     
     // Handle start time change
-    const handleStartTimeChange = (newStartTime) => {
+    const handleStartTimeChange = async (newStartTime) => {
+      setStartTime(newStartTime);
+      
       if (sleepState === 'running') {
-        // RUNNING: Recalculate elapsed time from new start time, timer continues
-        setStartTime(newStartTime);
+        // RUNNING: Update Firebase immediately so card timer reflects the change
         // Timer will recalculate via useEffect dependency on startTime
-      } else {
-        // Other states: Just update start time
-        setStartTime(newStartTime);
+        if (activeSleepSessionId && typeof firestoreStorage !== 'undefined') {
+          try {
+            const startMs = new Date(newStartTime).getTime();
+            await firestoreStorage.updateSleepSession(activeSleepSessionId, {
+              startTime: startMs
+            });
+          } catch (error) {
+            console.error('Failed to update start time in Firebase:', error);
+          }
+        }
       }
+      // IDLE: No Firebase update needed - start time is saved when "Start Sleep" is pressed
     };
     
     // Handle end time change - shows Save button when edited, makes text red if invalid
