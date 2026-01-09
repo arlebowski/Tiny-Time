@@ -3741,13 +3741,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, saving ? 'Saving...' : 'Save')
       ),
 
-      // Full-size photo modal
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
+      // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
         },
           React.createElement('button', {
             onClick: (e) => {
@@ -3776,7 +3775,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             className: "max-w-full max-h-full object-contain",
             onClick: (e) => e.stopPropagation()
           })
-        )
+        ),
+        document.body
       )
     );
 
@@ -4311,13 +4311,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, saving ? 'Saving...' : 'Save')
       ),
 
-      // Full-size photo modal
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
+      // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
         },
           React.createElement('button', {
             onClick: (e) => {
@@ -4346,7 +4345,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             className: "max-w-full max-h-full object-contain",
             onClick: (e) => e.stopPropagation()
           })
-        )
+        ),
+        document.body
       )
     );
 
@@ -5554,13 +5554,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             })()
       ),
 
-      // Full-size photo modal (shared for both modes)
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
+      // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
         },
           React.createElement('button', {
             onClick: (e) => {
@@ -5589,7 +5588,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             className: "max-w-full max-h-full object-contain",
             onClick: (e) => e.stopPropagation()
           })
-        )
+        ),
+        document.body
       )
     );
 
