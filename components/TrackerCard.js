@@ -2653,6 +2653,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
   // Input Field Row Component
   const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false }) => {
+    
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     // If rawValue is null/empty and placeholder exists, show placeholder as the value
     const displayValue = type === 'datetime' 
@@ -2662,11 +2663,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const timeAnchorRef = React.useRef(null);
     
     const handleRowClick = (e) => {
-      // Don't focus if clicking the icon button (it has its own handler)
+      // Don't focus if clicking the icon button or done button
       if (e.target.closest('button')) {
         return;
       }
-      // For datetime fields, open the picker when clicking the row
+      // For datetime fields, use old picker
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         e.preventDefault();
         if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
@@ -2686,6 +2687,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       e.stopPropagation();
       e.preventDefault();
       if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+        // Use old picker
         if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
           window.TT.ui.openAnchoredTimePicker({
             anchorEl: timeAnchorRef.current,
@@ -2700,71 +2702,85 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }
       }
     };
-    
+
     return React.createElement(
       'div',
       { 
-        className: "flex items-center justify-between rounded-2xl p-4 cursor-pointer transition-colors duration-150 mb-2 tt-tapable",
-        style: { backgroundColor: 'var(--tt-input-bg)', position: 'relative' },
-        onClick: handleRowClick
+        className: "rounded-2xl mb-2 transition-all duration-200",
+        style: { 
+          backgroundColor: 'var(--tt-input-bg)', 
+          position: 'relative',
+          overflow: 'hidden'
+        }
       },
-      React.createElement('div', { className: "flex-1" },
-        React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, label),
-        type === 'text' 
-          ? React.createElement('textarea',
-              {
-                ref: inputRef,
-                value: displayValue || '',
-                onChange: (e) => {
-                  if (onChange) {
-                    onChange(e.target.value);
-                    // Auto-growing height logic (same as AI chat tab)
-                    const el = e.target;
-                    el.style.height = 'auto';
-                    el.style.height = el.scrollHeight + 'px';
-                  }
-                },
-                placeholder: placeholder,
-                rows: 1,
-                className: "tt-placeholder-tertiary text-base font-normal w-full outline-none resize-none",
-                style: { background: 'transparent', maxHeight: '4.5rem', overflowY: 'auto', color: invalid ? '#ef4444' : 'var(--tt-text-primary)' }
-              }
-            )
-          : React.createElement('input',
-              {
-                ref: type === 'datetime' ? timeAnchorRef : inputRef,
-                type: type === 'datetime' ? 'text' : type,
-                inputMode: type === 'number' ? 'decimal' : undefined,
-                step: type === 'number' ? '0.25' : undefined,
-                value: displayValue || '',
-                onChange: (e) => {
-                  if (type !== 'datetime' && onChange) {
-                    if (type === 'number') {
-                      // Only allow numbers and decimal point
-                      const value = e.target.value.replace(/[^0-9.]/g, '');
-                      onChange(value);
-                    } else {
+      // Header row with label
+      React.createElement(
+        'div',
+        {
+          className: "flex items-center justify-between p-4 cursor-pointer",
+          onClick: handleRowClick
+        },
+        React.createElement('div', { className: "flex-1" },
+          React.createElement('div', { 
+            className: "text-xs mb-1",
+            style: { color: 'var(--tt-text-secondary)' } 
+          },
+            React.createElement('span', {}, label)
+          ),
+          type === 'text' 
+            ? React.createElement('textarea',
+                {
+                  ref: inputRef,
+                  value: displayValue || '',
+                  onChange: (e) => {
+                    if (onChange) {
                       onChange(e.target.value);
+                      const el = e.target;
+                      el.style.height = 'auto';
+                      el.style.height = el.scrollHeight + 'px';
                     }
-                  }
-                },
-                placeholder: placeholder,
-                className: `tt-placeholder-tertiary text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
-                style: { 
-                  background: 'transparent', 
-                  color: invalid 
-                    ? '#ef4444' // Red when invalid
-                    : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
-                },
-                readOnly: type === 'datetime'
-              }
-            )
-      ),
-      icon && React.createElement('button', {
-        onClick: handleIconClick,
-        className: "ml-4",
-        style: { marginLeft: '17px' } // ml-4 (16px) + 1px inward = 17px
-      }, icon)
+                  },
+                  placeholder: placeholder,
+                  rows: 1,
+                  className: "tt-placeholder-tertiary text-base font-normal w-full outline-none resize-none",
+                  style: { background: 'transparent', maxHeight: '4.5rem', overflowY: 'auto', color: invalid ? '#ef4444' : 'var(--tt-text-primary)' }
+                }
+              )
+            : React.createElement('input',
+                {
+                  ref: type === 'datetime' ? timeAnchorRef : inputRef,
+                  type: type === 'datetime' ? 'text' : type,
+                  inputMode: type === 'number' ? 'decimal' : undefined,
+                  step: type === 'number' ? '0.25' : undefined,
+                  value: displayValue || '',
+                  onChange: (e) => {
+                    if (type !== 'datetime' && onChange) {
+                      if (type === 'number') {
+                        const value = e.target.value.replace(/[^0-9.]/g, '');
+                        onChange(value);
+                      } else {
+                        onChange(e.target.value);
+                      }
+                    }
+                  },
+                  placeholder: placeholder,
+                  className: `tt-placeholder-tertiary text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
+                  style: { 
+                    background: 'transparent', 
+                    color: invalid 
+                      ? '#ef4444'
+                      : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
+                  },
+                  readOnly: type === 'datetime'
+                }
+              )
+        ),
+        icon && React.createElement('button', {
+          onClick: handleIconClick,
+          className: "ml-4",
+          style: { marginLeft: '17px' }
+        }, icon)
+      )
     );
   };
 
@@ -3036,7 +3052,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           rawValue: dateTime, // Pass the raw ISO string
           onChange: setDateTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'datetime'
+          type: 'datetime',
         }),
 
         // Notes - conditionally render based on expanded state
@@ -3572,7 +3588,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           rawValue: startTime, // Pass the raw ISO string
           onChange: setStartTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'datetime'
+          type: 'datetime',
         }),
 
         // End time
@@ -4565,7 +4581,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           rawValue: feedingDateTime,
           onChange: setFeedingDateTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'datetime'
+          type: 'datetime',
         }),
 
         // Notes - conditionally render based on expanded state
