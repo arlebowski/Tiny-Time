@@ -2324,7 +2324,7 @@ const TrackerCard = ({
               e.stopPropagation();
               setTimelineFullSizePhoto(null);
             },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-10",
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
             'aria-label': 'Close'
           },
             React.createElement('svg', {
@@ -3253,7 +3253,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               e.stopPropagation();
               setFullSizePhoto(null);
             },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-10",
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
             'aria-label': 'Close'
           },
             React.createElement('svg', {
@@ -3823,7 +3823,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               e.stopPropagation();
               setFullSizePhoto(null);
             },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-10",
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
             'aria-label': 'Close'
           },
             React.createElement('svg', {
@@ -5065,7 +5065,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               e.stopPropagation();
               setFullSizePhoto(null);
             },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-10",
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
             'aria-label': 'Close'
           },
             React.createElement('svg', {
