@@ -3184,21 +3184,43 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, saving ? 'Saving...' : 'Save')
       ),
 
-      // Full-size photo modal
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
+      // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
         },
+          React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              setFullSizePhoto(null);
+            },
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors",
+            style: { zIndex: 20001 },
+            'aria-label': 'Close'
+          },
+            React.createElement('svg', {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "32",
+              height: "32",
+              fill: "#ffffff",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5"
+            },
+              React.createElement('path', {
+                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+              })
+            )
+          ),
           React.createElement('img', {
             src: fullSizePhoto,
             alt: "Full size photo",
             className: "max-w-full max-h-full object-contain",
             onClick: (e) => e.stopPropagation()
           })
-        )
+        ),
+        document.body
       )
     );
 
@@ -3733,21 +3755,43 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, saving ? 'Saving...' : 'Save')
       ),
 
-      // Full-size photo modal
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
+      // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
         },
+          React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              setFullSizePhoto(null);
+            },
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors",
+            style: { zIndex: 20001 },
+            'aria-label': 'Close'
+          },
+            React.createElement('svg', {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "32",
+              height: "32",
+              fill: "#ffffff",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5"
+            },
+              React.createElement('path', {
+                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+              })
+            )
+          ),
           React.createElement('img', {
             src: fullSizePhoto,
             alt: "Full size photo",
             className: "max-w-full max-h-full object-contain",
             onClick: (e) => e.stopPropagation()
           })
-        )
+        ),
+        document.body
       )
     );
 
@@ -4954,21 +4998,43 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             })()
       ),
 
-      // Full-size photo modal (shared for both modes)
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
+      // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
         },
+          React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              setFullSizePhoto(null);
+            },
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors",
+            style: { zIndex: 20001 },
+            'aria-label': 'Close'
+          },
+            React.createElement('svg', {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "32",
+              height: "32",
+              fill: "#ffffff",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5"
+            },
+              React.createElement('path', {
+                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+              })
+            )
+          ),
           React.createElement('img', {
             src: fullSizePhoto,
             alt: "Full size photo",
             className: "max-w-full max-h-full object-contain",
             onClick: (e) => e.stopPropagation()
           })
-        )
+        ),
+        document.body
       )
     );
 
