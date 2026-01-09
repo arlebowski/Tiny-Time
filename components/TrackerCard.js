@@ -3952,13 +3952,20 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       return 'idle';
     };
     
+    const normalizeIsoTime = (value) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return null;
+      return parsed.toISOString();
+    };
+    
     const getInitialStartTime = () => {
       try {
         const activeSleep = localStorage.getItem('tt_active_sleep');
         if (activeSleep) {
           const parsed = JSON.parse(activeSleep);
           if (parsed.startTime) {
-            return parsed.startTime;
+            return normalizeIsoTime(parsed.startTime);
           }
         }
       } catch (e) {
@@ -4040,6 +4047,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           if (session.startTime) {
             setStartTime(new Date(session.startTime).toISOString());
           }
+          setEndTime(null);
+          setEndTimeManuallyEdited(false);
           if (sleepState !== 'running') {
             setSleepState('running');
           }
@@ -4061,13 +4070,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Persist running state to localStorage (for sheet state persistence)
     React.useEffect(() => {
       if (sleepState === 'running' && startTime) {
-        try {
-          localStorage.setItem('tt_active_sleep', JSON.stringify({
-            startTime: startTime,
-            endTime: null
-          }));
-        } catch (e) {
-          // Ignore errors
+        const normalizedStartTime = normalizeIsoTime(startTime);
+        if (normalizedStartTime) {
+          try {
+            localStorage.setItem('tt_active_sleep', JSON.stringify({
+              startTime: normalizedStartTime,
+              endTime: null
+            }));
+          } catch (e) {
+            // Ignore errors
+          }
         }
       } else {
         try {
@@ -4084,11 +4096,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Reset all sleep-related state when closing (except if timer is running)
         if (sleepState !== 'running') {
           setEndTimeManuallyEdited(false);
+          setStartTime(new Date().toISOString());
           setEndTime(null);
           setSleepNotes('');
           setPhotos([]);
           setSleepElapsedMs(0);
-          // Don't reset startTime or sleepState here - they're managed by other logic
+          // Leave sleepState alone; start time resets to a clean default on reopen.
         } else {
           // Timer is running - only reset manual edit flag
           setEndTimeManuallyEdited(false);
@@ -4469,6 +4482,19 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       setStartTime(newStartTime);
       
       if (sleepState === 'running') {
+        setEndTime(null);
+        setEndTimeManuallyEdited(false);
+        const normalizedStartTime = normalizeIsoTime(newStartTime);
+        if (normalizedStartTime) {
+          try {
+            localStorage.setItem('tt_active_sleep', JSON.stringify({
+              startTime: normalizedStartTime,
+              endTime: null
+            }));
+          } catch (e) {
+            // Ignore errors
+          }
+        }
         // RUNNING: Update Firebase immediately so card timer reflects the change
         // Timer will recalculate via useEffect dependency on startTime
         if (activeSleepSessionId && typeof firestoreStorage !== 'undefined') {
