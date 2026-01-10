@@ -4391,9 +4391,9 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
             label
           )
         ),
-      React.createElement(ChevronRight, { 
+      React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { 
         className: 'w-5 h-5',
-        style: { color: 'var(--tt-text-tertiary)', strokeWidth: '3' }
+        style: { color: 'var(--tt-text-tertiary)' }
       })
     ),
     // Insight Text: single block, bold, clamped to 2 lines
