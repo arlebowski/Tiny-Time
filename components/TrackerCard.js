@@ -163,6 +163,37 @@ const XIcon = (props) => React.createElement(
   React.createElement('path', { d: "m6 6 12 12" })
 );
 
+const PHOTO_MODAL_Z_INDEX = 20000;
+
+const renderFullSizePhotoModal = (fullSizePhoto, onClose) => {
+  if (!fullSizePhoto) return null;
+  return ReactDOM.createPortal(
+    React.createElement('div', {
+      onClick: onClose,
+      className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+      style: { zIndex: PHOTO_MODAL_Z_INDEX }
+    },
+      React.createElement('button', {
+        type: 'button',
+        onClick: (e) => {
+          e.stopPropagation();
+          onClose();
+        },
+        className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors",
+        style: { zIndex: PHOTO_MODAL_Z_INDEX + 1 },
+        'aria-label': 'Close'
+      }, React.createElement(XIcon, { className: "w-5 h-5 text-white" })),
+      React.createElement('img', {
+        src: fullSizePhoto,
+        alt: "Full size photo",
+        className: "max-w-full max-h-full object-contain",
+        onClick: (e) => e.stopPropagation()
+      })
+    ),
+    document.body
+  );
+};
+
 // Expose icons globally so script.js can use them
 if (typeof window !== 'undefined') {
   window.ChevronDown = ChevronDown;
@@ -3184,22 +3215,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, saving ? 'Saving...' : 'Save')
       ),
 
-      // Full-size photo modal
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('div', {
-          onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
-        },
-          React.createElement('img', {
-            src: fullSizePhoto,
-            alt: "Full size photo",
-            className: "max-w-full max-h-full object-contain",
-            onClick: (e) => e.stopPropagation()
-          })
-        )
-      )
+      // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      renderFullSizePhotoModal(fullSizePhoto, () => setFullSizePhoto(null))
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
@@ -3733,22 +3750,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, saving ? 'Saving...' : 'Save')
       ),
 
-      // Full-size photo modal
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('div', {
-          onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
-        },
-          React.createElement('img', {
-            src: fullSizePhoto,
-            alt: "Full size photo",
-            className: "max-w-full max-h-full object-contain",
-            onClick: (e) => e.stopPropagation()
-          })
-        )
-      )
+      // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      renderFullSizePhotoModal(fullSizePhoto, () => setFullSizePhoto(null))
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
@@ -4954,22 +4957,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             })()
       ),
 
-      // Full-size photo modal (shared for both modes)
-      fullSizePhoto && React.createElement(
-        React.Fragment,
-        null,
-        React.createElement('div', {
-          onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
-        },
-          React.createElement('img', {
-            src: fullSizePhoto,
-            alt: "Full size photo",
-            className: "max-w-full max-h-full object-contain",
-            onClick: (e) => e.stopPropagation()
-          })
-        )
-      )
+      // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+      renderFullSizePhotoModal(fullSizePhoto, () => setFullSizePhoto(null))
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
