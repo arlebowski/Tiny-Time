@@ -2402,6 +2402,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   // UI
   // --------------------------------------
 
+  const isAnalyticsSubtab = [
+    'analytics-feeding',
+    'analytics-sleep',
+    'analytics-activity'
+  ].includes(activeTab);
+
   return React.createElement(
     'div',
     {
@@ -2415,10 +2421,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     // WRAPPER (header + page content)
     React.createElement(
       'div',
-      { className: "max-w-2xl mx-auto" },
+      { className: isAnalyticsSubtab ? "mx-auto w-full" : "max-w-2xl mx-auto" },
 
       // ---------------- HEADER ----------------
-      React.createElement(
+      !isAnalyticsSubtab && React.createElement(
         'div',
         {
           // Must sit above sticky in-tab UI like the TrackerTab date picker.
@@ -2659,7 +2665,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       // ---------------- PAGE CONTENT ----------------
       React.createElement(
         'div',
-        { className: "px-4 pb-5" },
+        { className: isAnalyticsSubtab ? "pb-5" : "px-4 pb-5" },
         activeTab === 'tracker' && React.createElement(window.TT.tabs.TrackerTab, { 
           user, 
           kidId, 
