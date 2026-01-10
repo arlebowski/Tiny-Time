@@ -1585,7 +1585,7 @@ const SettingsTab = ({ user, kidId }) => {
                     disabled: true,
                     style: {
                       fontSize: '16px',
-                      fontWeight: '600',
+                      fontWeight: '400', // Normal text weight per design system
                       color: 'var(--tt-text-secondary)',
                       background: 'none',
                       border: 'none',
@@ -1669,7 +1669,7 @@ const SettingsTab = ({ user, kidId }) => {
                     disabled: true,
                     style: {
                       fontSize: '16px',
-                      fontWeight: '600',
+                      fontWeight: '400', // Normal text weight per design system
                       color: 'var(--tt-text-secondary)',
                       background: 'none',
                       border: 'none',
@@ -1798,7 +1798,7 @@ const SettingsTab = ({ user, kidId }) => {
               onClick: () => setShowAmountPickerTray(false),
               style: {
                 fontSize: '16px',
-                fontWeight: '600',
+                fontWeight: '400', // Normal text weight per design system
                 color: 'var(--tt-text-primary)',
                 background: 'none',
                 border: 'none',
@@ -1851,7 +1851,7 @@ const SettingsTab = ({ user, kidId }) => {
               onClick: () => setShowDateTimePickerTray(false),
               style: {
                 fontSize: '16px',
-                fontWeight: '600',
+                fontWeight: '400', // Normal text weight per design system
                 color: 'var(--tt-text-primary)',
                 background: 'none',
                 border: 'none',
