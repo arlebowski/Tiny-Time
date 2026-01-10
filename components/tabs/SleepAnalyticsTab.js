@@ -246,7 +246,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     React.createElement(
       'div',
       { 
-        className: 'sticky top-0 z-10 px-4 py-3 flex items-center justify-between',
+        className: 'sticky top-0 z-10 px-4 py-3 grid grid-cols-3 items-center',
         style: { backgroundColor: 'var(--tt-app-bg)', borderBottom: '1px solid var(--tt-card-border)' }
       },
       React.createElement(
@@ -254,7 +254,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         {
           type: 'button',
           onClick: () => setActiveTab('analytics'),
-          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-center',
+          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-start',
           style: { 
             color: 'var(--tt-text-secondary)',
             padding: '8px 12px',
@@ -269,7 +269,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       ),
       React.createElement(
         'div',
-        { className: 'flex items-center gap-1' },
+        { className: 'flex items-center justify-center gap-1' },
         sleepLabelIcon && React.createElement(sleepLabelIcon, {
           className: 'w-5 h-5',
           style: { 
@@ -286,7 +286,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           'Sleep'
         )
       ),
-      React.createElement('div', { style: { width: '80px' } }) // Spacer to balance layout
+      React.createElement('div') // Empty spacer for grid balance
     ),
 
     // Timeframe toggle
@@ -320,74 +320,76 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       React.createElement(
         "div",
         { className: "grid grid-cols-2 gap-4" },
+        // Row 1: Hours / Day, Sleeps / Day
         React.createElement(
           "div",
           { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center",
+            className: "rounded-2xl shadow-sm p-6 flex flex-col",
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement("div", { 
-            className: "text-sm font-medium mb-2",
+            className: "text-[15.4px] font-medium mb-2",
             style: { color: 'var(--tt-text-secondary)' }
-          }, "Total Sleep"),
+          }, "Hours / Day"),
           React.createElement(
             "div",
-            { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
+            { className: "flex items-baseline gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
             Number(sleepCards.avgTotal || 0).toFixed(1),
-            React.createElement("span", { className: "text-sm font-normal", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
+            React.createElement("span", { className: "text-[15.4px] font-normal", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
           React.createElement("div", { className: "text-xs mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
         ),
         React.createElement(
           "div",
           { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center",
+            className: "rounded-2xl shadow-sm p-6 flex flex-col",
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement("div", { 
-            className: "text-sm font-medium mb-2",
-            style: { color: 'var(--tt-text-secondary)' }
-          }, "Day Sleep"),
-          React.createElement(
-            "div",
-            { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
-            Number(sleepCards.avgDay || 0).toFixed(1),
-            React.createElement("span", { className: "text-sm font-normal", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
-          ),
-          React.createElement("div", { className: "text-xs mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
-        ),
-        React.createElement(
-          "div",
-          { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center",
-            style: { backgroundColor: 'var(--tt-card-bg)' }
-          },
-          React.createElement("div", { 
-            className: "text-sm font-medium mb-2",
-            style: { color: 'var(--tt-text-secondary)' }
-          }, "Night Sleep"),
-          React.createElement(
-            "div",
-            { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
-            Number(sleepCards.avgNight || 0).toFixed(1),
-            React.createElement("span", { className: "text-sm font-normal", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
-          ),
-          React.createElement("div", { className: "text-xs mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
-        ),
-        React.createElement(
-          "div",
-          { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center",
-            style: { backgroundColor: 'var(--tt-card-bg)' }
-          },
-          React.createElement("div", { 
-            className: "text-sm font-medium mb-2",
+            className: "text-[15.4px] font-medium mb-2",
             style: { color: 'var(--tt-text-secondary)' }
           }, "Sleeps / Day"),
           React.createElement(
             "div",
-            { className: "flex items-baseline justify-center gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
+            { className: "text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
             Number(sleepCards.avgSleeps || 0).toFixed(1)
+          ),
+          React.createElement("div", { className: "text-xs mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
+        ),
+        // Row 2: Day Sleep, Night Sleep
+        React.createElement(
+          "div",
+          { 
+            className: "rounded-2xl shadow-sm p-6 flex flex-col",
+            style: { backgroundColor: 'var(--tt-card-bg)' }
+          },
+          React.createElement("div", { 
+            className: "text-[15.4px] font-medium mb-2",
+            style: { color: 'var(--tt-text-secondary)' }
+          }, "Day Sleep"),
+          React.createElement(
+            "div",
+            { className: "flex items-baseline gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
+            Number(sleepCards.avgDay || 0).toFixed(1),
+            React.createElement("span", { className: "text-[15.4px] font-normal", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
+          ),
+          React.createElement("div", { className: "text-xs mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
+        ),
+        React.createElement(
+          "div",
+          { 
+            className: "rounded-2xl shadow-sm p-6 flex flex-col",
+            style: { backgroundColor: 'var(--tt-card-bg)' }
+          },
+          React.createElement("div", { 
+            className: "text-[15.4px] font-medium mb-2",
+            style: { color: 'var(--tt-text-secondary)' }
+          }, "Night Sleep"),
+          React.createElement(
+            "div",
+            { className: "flex items-baseline gap-1 text-2xl font-bold", style: { color: 'var(--tt-sleep)' } },
+            Number(sleepCards.avgNight || 0).toFixed(1),
+            React.createElement("span", { className: "text-[15.4px] font-normal", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
           React.createElement("div", { className: "text-xs mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
         )

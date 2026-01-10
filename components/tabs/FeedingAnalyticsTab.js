@@ -228,7 +228,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     React.createElement(
       'div',
       { 
-        className: 'sticky top-0 z-10 px-4 py-3 flex items-center justify-between',
+        className: 'sticky top-0 z-10 px-4 py-3 grid grid-cols-3 items-center',
         style: { backgroundColor: 'var(--tt-app-bg)', borderBottom: '1px solid var(--tt-card-border)' }
       },
       React.createElement(
@@ -236,7 +236,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         {
           type: 'button',
           onClick: () => setActiveTab('analytics'),
-          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-center',
+          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-start',
           style: { 
             color: 'var(--tt-text-secondary)',
             padding: '8px 12px',
@@ -251,7 +251,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       ),
       React.createElement(
         'div',
-        { className: 'flex items-center gap-1' },
+        { className: 'flex items-center justify-center gap-1' },
         feedLabelIcon && React.createElement(feedLabelIcon, {
           className: 'w-5 h-5',
           style: { 
@@ -270,7 +270,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           'Feeding'
         )
       ),
-      React.createElement('div', { style: { width: '80px' } }) // Spacer to balance layout
+      React.createElement('div') // Empty spacer for grid balance
     ),
 
     // Timeframe toggle
@@ -312,11 +312,11 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             'div',
             {
               key: stat.label,
-              className: 'rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center',
+              className: 'rounded-2xl shadow-sm p-6 flex flex-col',
               style: { backgroundColor: 'var(--tt-card-bg)' }
             },
             React.createElement('div', { 
-              className: 'text-sm font-medium mb-2',
+              className: 'text-[15.4px] font-medium mb-2',
               style: { color: 'var(--tt-text-secondary)' }
             }, stat.label),
             React.createElement('div', { 
@@ -325,7 +325,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             }, 
               stat.value,
               React.createElement('span', { 
-                className: 'text-sm font-normal ml-1',
+                className: 'text-[15.4px] font-normal ml-1',
                 style: { color: 'var(--tt-text-tertiary)' }
               }, 'oz')
             ),
@@ -344,13 +344,13 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           'div',
           { 
-            className: 'rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center',
+            className: 'rounded-2xl shadow-sm p-6 flex flex-col',
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement('div', { 
-            className: 'text-sm font-medium mb-2',
+            className: 'text-[15.4px] font-medium mb-2',
             style: { color: 'var(--tt-text-secondary)' }
-          }, 'Feedings / Day'),
+          }, 'Feeds / Day'),
           React.createElement('div', { 
             className: 'text-2xl font-bold',
             style: { color: 'var(--tt-feed)' }
@@ -363,13 +363,13 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           'div',
           { 
-            className: 'rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center text-center',
+            className: 'rounded-2xl shadow-sm p-6 flex flex-col',
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement('div', { 
-            className: 'text-sm font-medium mb-2',
+            className: 'text-[15.4px] font-medium mb-2',
             style: { color: 'var(--tt-text-secondary)' }
-          }, 'Time Between Feeds'),
+          }, 'Interval'),
           React.createElement('div', { 
             className: 'text-2xl font-bold',
             style: { color: 'var(--tt-feed)' }
