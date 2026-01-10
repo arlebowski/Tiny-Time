@@ -120,13 +120,12 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       recentFeedings.length > 0
         ? totalVolume / recentFeedings.length
         : 0;
-    const uniqueDays = new Set(
-      recentFeedings.map(f => new Date(f.timestamp).toDateString())
-    ).size;
+    // Calculate number of calendar days in period (not just days with data)
+    const daysInPeriod = Math.ceil((periodEnd - periodStart) / MS_PER_DAY);
     const avgVolumePerDay =
-      uniqueDays > 0 ? totalVolume / uniqueDays : 0;
+      daysInPeriod > 0 ? totalVolume / daysInPeriod : 0;
     const avgFeedingsPerDay =
-      uniqueDays > 0 ? recentFeedings.length / uniqueDays : 0;
+      daysInPeriod > 0 ? recentFeedings.length / daysInPeriod : 0;
 
     let totalIntervalMinutes = 0;
     for (let i = 1; i < recentFeedings.length; i++) {

@@ -154,54 +154,75 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   }, [timeframe, sleepByDay]);
 
   const sleepCards = useMemo(() => {
-    // Match your feeding cards behavior: show avg for selected timeframe and a small label like "3-day avg"/"7-day avg"/"30-day avg"
-    const vals = sleepBuckets.map(b => b || {});
-    const totals = vals.map(v => v.totalHrs || 0);
-    const days = vals.map(v => v.dayHrs || 0);
-    const nights = vals.map(v => v.nightHrs || 0);
-    const counts = vals.map(v => v.count || 0);
-
-    const label = timeframe === 'day' ? '3-day avg' : (timeframe === 'week' ? '7-day avg' : '30-day avg');
-    const windowN = timeframe === 'day' ? 3 : (timeframe === 'week' ? 7 : 30);
+    // Calculate averages based on actual calendar days (not buckets)
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
     
-    // Count buckets with actual sleep data
-    const bucketsWithData = vals.filter(v => (v.totalHrs || 0) > 0 || (v.count || 0) > 0).length;
+    // Start of "today" in local time
+    const todayStartDate = new Date();
+    todayStartDate.setHours(0, 0, 0, 0);
+    const todayStart = todayStartDate.getTime();
     
-    // Determine if we should exclude today/current period
-    // If we have > windowN days/buckets of data, exclude today/current period
-    // If we have <= windowN days/buckets of data, include today/current period
-    const excludeToday = bucketsWithData > windowN;
+    // How many distinct calendar days of data we have in total
+    const dataByDay = sleepByDay || {};
+    const allUniqueDays = Object.keys(dataByDay).filter(k => {
+      const day = dataByDay[k];
+      return (day.totalHrs || 0) > 0 || (day.count || 0) > 0;
+    }).length;
     
-    // Get today's date key
-    const todayKey = _dateKeyLocal(Date.now());
-    
-    // Check if last bucket includes today
-    // For 'day': check if key matches today
-    // For 'week'/'month': assume last bucket includes today if it's the most recent period
-    const lastBucketIsToday = timeframe === 'day' 
-      ? (vals.length > 0 && vals[vals.length - 1]?.key === todayKey)
-      : (vals.length > 0); // For week/month, last bucket is always current period
-    
-    // Select buckets to average
-    let bucketsToAverage;
-    if (excludeToday && lastBucketIsToday && vals.length > windowN) {
-      // Exclude today: take last N+1 items, remove the last one (today)
-      bucketsToAverage = vals.slice(-windowN - 1, -1);
+    let numDays, label;
+    if (timeframe === 'day') {
+      numDays = 3;
+      label = '3-day avg';
+    } else if (timeframe === 'week') {
+      numDays = 7;
+      label = '7-day avg';
     } else {
-      // Include today: take last N items (or all if fewer than N)
-      bucketsToAverage = vals.slice(-windowN);
+      numDays = 30;
+      label = '30-day avg';
     }
     
-    // Extract values and calculate averages
-    const totalsToAvg = bucketsToAverage.map(v => v.totalHrs || 0);
-    const daysToAvg = bucketsToAverage.map(v => v.dayHrs || 0);
-    const nightsToAvg = bucketsToAverage.map(v => v.nightHrs || 0);
-    const countsToAvg = bucketsToAverage.map(v => v.count || 0);
-
-    const avgTotal = _avg(totalsToAvg);
-    const avgDay = _avg(daysToAvg);
-    const avgNight = _avg(nightsToAvg);
-    const avgSleeps = _avg(countsToAvg);
+    // Per-timeframe bootstrap rule (same as feeding):
+    // - If we have > numDays distinct days of data, exclude today (use only completed days)
+    // - If we have <= numDays distinct days of data, include today
+    const excludeToday = allUniqueDays > numDays;
+    
+    let periodStart, periodEnd;
+    if (excludeToday) {
+      // Exclude today: last `numDays` full days before today
+      periodEnd = todayStart; // start of today (exclusive upper bound)
+      periodStart = todayStart - numDays * MS_PER_DAY;
+    } else {
+      // Include today: last `numDays` days up through the end of today
+      periodEnd = todayStart + MS_PER_DAY; // end of today
+      periodStart = periodEnd - numDays * MS_PER_DAY;
+    }
+    
+    // Get all day keys in the period
+    const daysInPeriod = [];
+    for (let d = new Date(periodStart); d.getTime() < periodEnd; d.setDate(d.getDate() + 1)) {
+      const key = _dateKeyLocal(d.getTime());
+      daysInPeriod.push(key);
+    }
+    
+    // Sum values for all days in period (days with 0 data contribute 0)
+    let totalHrs = 0;
+    let dayHrs = 0;
+    let nightHrs = 0;
+    let count = 0;
+    
+    daysInPeriod.forEach(key => {
+      const day = dataByDay[key] || {};
+      totalHrs += day.totalHrs || 0;
+      dayHrs += day.dayHrs || 0;
+      nightHrs += day.nightHrs || 0;
+      count += day.count || 0;
+    });
+    
+    // Calculate averages: divide by number of calendar days in period
+    const avgTotal = daysInPeriod.length > 0 ? totalHrs / daysInPeriod.length : 0;
+    const avgDay = daysInPeriod.length > 0 ? dayHrs / daysInPeriod.length : 0;
+    const avgNight = daysInPeriod.length > 0 ? nightHrs / daysInPeriod.length : 0;
+    const avgSleeps = daysInPeriod.length > 0 ? count / daysInPeriod.length : 0;
     
     return {
       label,
@@ -210,7 +231,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       avgNight,
       avgSleeps
     };
-  }, [timeframe, sleepBuckets]);
+  }, [timeframe, sleepByDay]);
 
   // Auto-scroll Sleep History to the right
   useEffect(() => {
