@@ -2312,41 +2312,41 @@ const TrackerCard = ({
   };
 
   // Timeline photo modal
-  const timelinePhotoModal = timelineFullSizePhoto && React.createElement(
-    React.Fragment,
-    null,
+  const timelinePhotoModal = timelineFullSizePhoto && ReactDOM.createPortal(
     React.createElement('div', {
       onClick: () => setTimelineFullSizePhoto(null),
-      className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+      className: "fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4",
+      style: { zIndex: 20000 }
     },
-        React.createElement('button', {
-            onClick: (e) => {
-              e.stopPropagation();
-              setTimelineFullSizePhoto(null);
-            },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
-            'aria-label': 'Close'
-          },
-            React.createElement('svg', {
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "32",
-              height: "32",
-              fill: "#ffffff",
-              viewBox: "0 0 256 256",
-              className: "w-5 h-5"
-            },
-              React.createElement('path', {
-                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-              })
-            )
-          ),
+      React.createElement('button', {
+        onClick: (e) => {
+          e.stopPropagation();
+          setTimelineFullSizePhoto(null);
+        },
+        className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
+        'aria-label': 'Close'
+      },
+        React.createElement('svg', {
+          xmlns: "http://www.w3.org/2000/svg",
+          width: "32",
+          height: "32",
+          fill: "#ffffff",
+          viewBox: "0 0 256 256",
+          className: "w-5 h-5"
+        },
+          React.createElement('path', {
+            d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+          })
+        )
+      ),
       React.createElement('img', {
         src: timelineFullSizePhoto,
         alt: "Full size photo",
         className: "max-w-full max-h-full object-contain",
         onClick: (e) => e.stopPropagation()
       })
-    )
+    ),
+    document.body
   );
 
   // Conditional render based on feature flag
