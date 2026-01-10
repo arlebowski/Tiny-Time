@@ -2667,7 +2667,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           requestOpenInputSheetMode: navRequestedInputMode,
           onRequestOpenInputSheetHandled: () => setNavRequestedInputMode(null)
         }),
-        activeTab === 'analytics' && React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId }),
+        activeTab === 'analytics' && React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId, setActiveTab }),
+        activeTab === 'analytics-feeding' && React.createElement(window.TT.tabs.FeedingAnalyticsTab, { user, kidId, familyId, setActiveTab }),
+        activeTab === 'analytics-sleep' && React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab }),
+        activeTab === 'analytics-activity' && React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
