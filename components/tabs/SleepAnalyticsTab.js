@@ -5,8 +5,9 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [timeframe, setTimeframe] = useState('day');
   const sleepHistoryScrollRef = React.useRef(null);
 
-  // Get icons
-  const ChevronLeft = window.TT?.shared?.icons?.ChevronLeftIcon || window.TT?.shared?.icons?.["chevron-left"] || (() => React.createElement('span', null, '←'));
+  // Get icons (matching AnalyticsTab highlight cards)
+  const sleepLabelIcon = (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null;
+  const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
 
   useEffect(() => {
     loadAnalytics();
@@ -245,22 +246,47 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     React.createElement(
       'div',
       { 
-        className: 'sticky top-0 z-10 px-4 py-3 flex items-center gap-3',
-        style: { backgroundColor: 'var(--tt-bg)', borderBottom: '1px solid var(--tt-border)' }
+        className: 'sticky top-0 z-10 px-4 py-3 flex items-center justify-between',
+        style: { backgroundColor: 'var(--tt-app-bg)', borderBottom: '1px solid var(--tt-card-border)' }
       },
       React.createElement(
         'button',
         {
+          type: 'button',
           onClick: () => setActiveTab('analytics'),
-          className: 'p-2 rounded-lg active:scale-95',
-          style: { color: 'var(--tt-text-primary)' }
+          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-center',
+          style: { 
+            color: 'var(--tt-text-secondary)',
+            padding: '8px 12px',
+            minHeight: '44px',
+            minWidth: '44px'
+          }
         },
-        React.createElement(ChevronLeft, { size: 24 })
+        ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
+          className: 'w-5 h-5',
+          style: { color: 'var(--tt-text-secondary)' }
+        })
       ),
-      React.createElement('h1', { 
-        className: 'text-lg font-semibold',
-        style: { color: 'var(--tt-text-primary)' }
-      }, 'Sleep')
+      React.createElement(
+        'div',
+        { className: 'flex items-center gap-1' },
+        sleepLabelIcon && React.createElement(sleepLabelIcon, {
+          className: 'w-5 h-5',
+          style: { 
+            color: 'var(--tt-sleep)',
+            fill: 'var(--tt-sleep)'
+          }
+        }),
+        React.createElement(
+          'span',
+          {
+            className: 'text-[17.6px] font-semibold leading-6',
+            style: { color: 'var(--tt-sleep)' }
+          },
+          'Sleep'
+        )
+      ),
+      React.createElement('div', { style: { width: '80px' } }) // Spacer to balance layout
     ),
 
     // Timeframe toggle
