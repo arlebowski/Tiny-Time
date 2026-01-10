@@ -51,7 +51,7 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     React.createElement(
       'div',
       { 
-        className: 'sticky top-0 z-10 px-4 py-3 flex items-center justify-between',
+        className: 'sticky top-0 z-10 px-4 py-3 grid grid-cols-3 items-center',
         style: { backgroundColor: 'var(--tt-app-bg)', borderBottom: '1px solid var(--tt-card-border)' }
       },
       React.createElement(
@@ -59,7 +59,7 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         {
           type: 'button',
           onClick: () => setActiveTab('analytics'),
-          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-center',
+          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-start',
           style: { 
             color: 'var(--tt-text-secondary)',
             padding: '8px 12px',
@@ -74,7 +74,7 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       ),
       React.createElement(
         'div',
-        { className: 'flex items-center gap-1' },
+        { className: 'flex items-center justify-center gap-1' },
         typeof Kanban !== 'undefined' && React.createElement(Kanban, {
           className: 'w-5 h-5',
           style: { color: 'var(--color-daily)' }
@@ -88,7 +88,7 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           'Daily Activity'
         )
       ),
-      React.createElement('div', { style: { width: '80px' } }) // Spacer to balance layout
+      React.createElement('div') // Empty spacer for grid balance
     ),
 
     // Timeframe toggle

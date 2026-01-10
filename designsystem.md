@@ -121,9 +121,11 @@ backgroundColor: hexToRgba(categoryColor, 0.08) // Subtle backgrounds
 
 // Body
 'text-[17.6px] font-normal'  // Units, target text (v3)
-'text-[15.4px] font-normal'  // Status pills, timeline secondary
-'text-sm font-medium'        // Labels (14px)
-'text-xs font-medium'        // Tiny labels (12px)
+'text-[15.4px] font-normal'  // Status pills, timeline secondary, stat card units
+'text-[15.4px] font-medium'  // Stat card labels
+'text-2xl font-bold'          // Stat card main numbers (24px)
+'text-sm font-medium'         // Labels (14px)
+'text-xs font-normal'        // Stat card average labels, tiny labels (12px)
 ```
 
 ### Font Weight
@@ -888,7 +890,84 @@ React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
 
 **Note**: Always use the Phosphor icon system with fallback for backward compatibility. The Phosphor icons are fill-based (no stroke), so remove any `strokeWidth` properties when migrating from legacy icons.
 
-### 8. Bar Chart Pattern (Week View)
+### 8. Stat Card Pattern (2-Column Grid)
+
+```javascript
+// Used in: Analytics subtabs (FeedingAnalyticsTab, SleepAnalyticsTab)
+// Structure: 2-column grid with stat cards showing metrics
+
+// Card Container
+React.createElement('div', {
+  className: 'rounded-2xl shadow-sm p-6 flex flex-col',
+  style: { backgroundColor: 'var(--tt-card-bg)' }
+},
+  // Label (top)
+  React.createElement('div', {
+    className: 'text-[15.4px] font-medium mb-2',
+    style: { color: 'var(--tt-text-secondary)' }
+  }, 'Oz / Feed'),
+  
+  // Value + Unit (main number)
+  React.createElement('div', {
+    className: 'text-2xl font-bold',
+    style: { color: 'var(--tt-feed)' } // or 'var(--tt-sleep)'
+  },
+    '3.6',
+    React.createElement('span', {
+      className: 'text-[15.4px] font-normal ml-1',
+      style: { color: 'var(--tt-text-tertiary)' }
+    }, 'oz')
+  ),
+  
+  // Average label (bottom)
+  React.createElement('div', {
+    className: 'text-xs mt-1',
+    style: { color: 'var(--tt-text-tertiary)' }
+  }, '3-day avg')
+)
+```
+
+**Specifications**:
+- **Card Container**:
+  - Layout: `flex flex-col` (left-aligned, vertical stack)
+  - Padding: `p-6` (24px)
+  - Border radius: `rounded-2xl` (16px)
+  - Shadow: `shadow-sm`
+  - Background: `var(--tt-card-bg)`
+- **Label** (e.g., "Oz / Feed", "Total Sleep"):
+  - Font size: `text-[15.4px]` (matches status text size)
+  - Font weight: `font-medium` (500)
+  - Color: `var(--tt-text-secondary)`
+  - Margin: `mb-2` (8px bottom)
+  - Alignment: Left (no center classes)
+- **Main Number**:
+  - Font size: `text-2xl` (24px)
+  - Font weight: `font-bold` (700)
+  - Color: Category color (`var(--tt-feed)` or `var(--tt-sleep)`)
+  - Alignment: Left
+- **Unit** (inline with number, e.g., "oz", "hrs"):
+  - Font size: `text-[15.4px]` (matches status text size)
+  - Font weight: `font-normal` (400)
+  - Color: `var(--tt-text-tertiary)`
+  - Margin: `ml-1` (4px left) or `gap-1` (when using flex)
+- **Average Label** (e.g., "3-day avg"):
+  - Font size: `text-xs` (12px)
+  - Font weight: `font-normal` (400, default)
+  - Color: `var(--tt-text-tertiary)`
+  - Margin: `mt-1` (4px top)
+  - Alignment: Left
+
+**Layout**:
+- Grid: `grid grid-cols-2 gap-4` (2-column grid, 16px gap)
+- All content left-aligned (no `text-center` or `items-center` on container)
+
+**Used in**:
+- FeedingAnalyticsTab (4 stat cards: Oz/Feed, Oz/Day, Feedings/Day, Time Between Feeds)
+- SleepAnalyticsTab (4 stat cards: Total Sleep, Day Sleep, Night Sleep, Sleeps/Day)
+
+**Note**: The label and unit both use `text-[15.4px]` to match the status text size used in TrackerCard, ensuring consistency across the app.
+
+### 9. Bar Chart Pattern (Week View)
 
 ```javascript
 // Used in: Highlight cards, analytics detail pages
