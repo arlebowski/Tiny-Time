@@ -4358,7 +4358,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
   );
 };
 
-const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children }) => {
+const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children, isFeeding = false }) => {
   return React.createElement(
     'div',
     {
@@ -4367,25 +4367,30 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
       onClick: onClick
     },
     // Header: icon + label left, chevron right
-    React.createElement(
-      'div',
-      { className: 'flex items-center justify-between mb-3 h-6' },
       React.createElement(
         'div',
-        { className: 'flex items-center gap-2' },
-        React.createElement(Icon, {
-          className: 'w-6 h-6',
-          style: { color: categoryColor }
-        }),
+        { className: 'flex items-center justify-between mb-3 h-6' },
         React.createElement(
-          'span',
-          {
-            className: 'text-base font-semibold leading-6',
-            style: { color: categoryColor }
-          },
-          label
-        )
-      ),
+          'div',
+          { className: 'flex items-center gap-1' },
+          React.createElement(Icon, {
+            className: 'w-5 h-5',
+            style: { 
+              color: categoryColor,
+              strokeWidth: isFeeding ? '1.5' : undefined,
+              fill: isFeeding ? 'none' : categoryColor,
+              transform: isFeeding ? 'rotate(20deg)' : undefined
+            }
+          }),
+          React.createElement(
+            'span',
+            {
+              className: 'text-[17.6px] font-semibold leading-6',
+              style: { color: categoryColor }
+            },
+            label
+          )
+        ),
       React.createElement(ChevronRight, { 
         className: 'w-5 h-5',
         style: { color: 'var(--tt-text-tertiary)', strokeWidth: '3' }

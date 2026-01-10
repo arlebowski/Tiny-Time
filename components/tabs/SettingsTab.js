@@ -38,6 +38,11 @@ const SettingsTab = ({ user, kidId }) => {
   const [showFeedSheet, setShowFeedSheet] = useState(false);
   const [showSleepSheet, setShowSleepSheet] = useState(false);
   const [showInputSheet, setShowInputSheet] = useState(false);
+  const [showAmountPickerTray, setShowAmountPickerTray] = useState(false);
+  const [showDateTimePickerTray, setShowDateTimePickerTray] = useState(false);
+  // Amount picker state
+  const [amountPickerAmount, setAmountPickerAmount] = useState(4);
+  const [amountPickerUnit, setAmountPickerUnit] = useState('oz');
   
   // UI Version - single source of truth (v1, v2, or v3)
   const [uiVersion, setUiVersion] = useState(() => {
@@ -535,7 +540,7 @@ const SettingsTab = ({ user, kidId }) => {
   // ========================================
   const wheelStyles = {
     section: {
-      padding: '16px',
+      padding: '8px 16px 12px 16px', // Reduced padding to fit within 40vh tray
       background: 'transparent', // Transparent for use in half sheets
       borderRadius: '16px',
       overflow: 'hidden'
@@ -587,15 +592,15 @@ const SettingsTab = ({ user, kidId }) => {
       position: 'relative',
       width: '100%',
       maxWidth: '260px',
-      height: '250px',
+      height: '200px', // Reduced to fit within 40vh tray
       overflow: 'hidden',
       cursor: 'grab',
       userSelect: 'none',
       touchAction: 'none' // Prevent page scrolling when scrolling the wheel
     },
     // Fixed width ensures hour / minute / ampm + ":" can be perfectly centered as a group.
-    pickerCompact: { width: 'min(50px, 12vw)', height: '220px' },
-    pickerDateCompact: { width: 'min(65px, 16vw)', height: '220px' },
+    pickerCompact: { width: 'min(50px, 12vw)', height: '180px' }, // Reduced to fit within 40vh tray
+    pickerDateCompact: { width: 'min(65px, 16vw)', height: '180px' }, // Reduced to fit within 40vh tray
     items: { position: 'relative', height: '100%', zIndex: 2 },
     item: {
       position: 'absolute',
@@ -726,7 +731,7 @@ const SettingsTab = ({ user, kidId }) => {
     const ITEM_HEIGHT = 40;
     // Center the "selected" row (40px) inside the picker height.
     // This fixes the subtle mismatch caused by hard-coded padding.
-    const pickerHeight = compact ? 220 : 250;
+    const pickerHeight = compact ? 180 : 200; // Reduced to fit within 40vh tray
     const padY = Math.max(0, (pickerHeight - ITEM_HEIGHT) / 2);
 
     const getCurrentIndex = () => {
@@ -837,6 +842,7 @@ const SettingsTab = ({ user, kidId }) => {
       }
     };
 
+    // Touch event handlers (using native listeners with passive: false to allow preventDefault)
     const handleTouchStart = (e) => {
       e.preventDefault(); // Prevent page scroll
       handleStart(e.touches[0].clientY);
@@ -851,6 +857,23 @@ const SettingsTab = ({ user, kidId }) => {
       e.preventDefault(); // Prevent page scroll
       handleEnd();
     };
+
+    // Add non-passive touch event listeners to allow preventDefault
+    useEffect(() => {
+      const container = containerRef.current;
+      if (!container) return;
+
+      container.addEventListener('touchstart', handleTouchStart, { passive: false });
+      container.addEventListener('touchmove', handleTouchMove, { passive: false });
+      container.addEventListener('touchend', handleTouchEnd, { passive: false });
+
+      return () => {
+        container.removeEventListener('touchstart', handleTouchStart);
+        container.removeEventListener('touchmove', handleTouchMove);
+        container.removeEventListener('touchend', handleTouchEnd);
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isDragging, currentOffset]);
 
     useEffect(() => {
       if (isDragging) {
@@ -890,10 +913,7 @@ const SettingsTab = ({ user, kidId }) => {
             ...(compact && dateCompact ? wheelStyles.pickerDateCompact : compact ? wheelStyles.pickerCompact : {}) 
           },
           ref: containerRef,
-          onMouseDown: handleMouseDown,
-          onTouchStart: handleTouchStart,
-          onTouchMove: handleTouchMove,
-          onTouchEnd: handleTouchEnd
+          onMouseDown: handleMouseDown
         },
         showSelection ? React.createElement('div', { style: wheelStyles.selection }) : null,
         showOverlay ? React.createElement('div', { style: { ...wheelStyles.overlay, height: `${padY}px`, ...wheelStyles.overlayTop } }) : null,
@@ -920,18 +940,8 @@ const SettingsTab = ({ user, kidId }) => {
     );
   };
 
-  const WheelPickersLabSection = () => {
-    const [amount, setAmount] = useState(4);
-    const [unit, setUnit] = useState('oz');
-    const [selectedDate, setSelectedDate] = useState(() => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return today.toISOString();
-    });
-    const [hour, setHour] = useState(2);
-    const [minute, setMinute] = useState(30);
-    const [ampm, setAmpm] = useState('PM');
-
+  // Amount Picker Lab Section
+  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount }) => {
     const snapToStep = (val, step) => {
       const n = Number(val) || 0;
       const s = Number(step) || 1;
@@ -965,113 +975,227 @@ const SettingsTab = ({ user, kidId }) => {
 
     return React.createElement(
       'div',
-      { style: { display: 'grid', gap: 16 } },
+      { style: wheelStyles.section },
+      React.createElement(WheelPicker, {
+        type: 'number',
+        value: amount,
+        onChange: setAmount,
+        min: range.min,
+        max: range.max,
+        step: range.step,
+        unit: unit
+      })
+    );
+  };
+
+  // Date/Time Picker Lab Section
+  const DateTimePickerLabSection = () => {
+    const [selectedDate, setSelectedDate] = useState(() => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return today.toISOString();
+    });
+    const [hour, setHour] = useState(2);
+    const [minute, setMinute] = useState(30);
+    const [ampm, setAmpm] = useState('PM');
+
+    return React.createElement(
+      'div',
+      { style: wheelStyles.section },
       React.createElement(
         'div',
-        { style: wheelStyles.section },
+        { style: { position: 'relative' } },
+        // Single iOS-style selection bar spanning the whole time row
+        React.createElement('div', {
+          style: {
+            position: 'absolute',
+            left: 8,
+            right: 8,
+            top: '50%',
+            height: 40,
+            transform: 'translateY(-50%)',
+            background: 'var(--tt-subtle-surface)',
+            borderRadius: 8,
+            zIndex: 0,
+            pointerEvents: 'none'
+          }
+        }),
         React.createElement(
           'div',
-          { style: wheelStyles.sectionHeader },
-          React.createElement('h3', { style: wheelStyles.sectionTitle }, 'Amount'),
-          window.SegmentedToggle
-            ? React.createElement(window.SegmentedToggle, {
-                value: unit,
-                options: [
-                  { value: 'oz', label: 'oz' },
-                  { value: 'ml', label: 'ml' }
-                ],
-                onChange: (v) => setUnitWithConversion(v),
-                variant: 'body',
-                size: 'medium',
-                // Visual nudge so it aligns with the "Amount" title better
-                style: { transform: 'translateY(-2px)' }
-              })
-            : React.createElement(
-                'button',
-                { style: wheelStyles.unitToggle, onClick: () => setUnitWithConversion(unit === 'oz' ? 'ml' : 'oz'), type: 'button' },
-                React.createElement('span', { style: unit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
-                React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
-                React.createElement('span', { style: unit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
-              )
-        ),
-        React.createElement(WheelPicker, {
-          type: 'number',
-          value: amount,
-          onChange: setAmount,
-          min: range.min,
-          max: range.max,
-          step: range.step,
-          unit: unit
-        })
-      ),
-      React.createElement(
-        'div',
-        { style: wheelStyles.section },
-        React.createElement('h3', { style: wheelStyles.sectionTitle }, 'Time'),
-        React.createElement(
-          'div',
-          { style: { position: 'relative' } },
-          // Single iOS-style selection bar spanning the whole time row
-          React.createElement('div', {
+          {
             style: {
-              position: 'absolute',
-              left: 8,
-              right: 8,
-              top: '50%',
-              height: 40,
-              transform: 'translateY(-50%)',
-              background: 'var(--tt-subtle-surface)',
-              borderRadius: 8,
-              zIndex: 0,
-              pointerEvents: 'none'
+              position: 'relative',
+              zIndex: 1,
+              display: 'grid',
+              gridTemplateColumns: 'min(65px, 16vw) min(50px, 12vw) 8px min(50px, 12vw) min(50px, 12vw)',
+              justifyContent: 'center',
+              alignItems: 'center',
+              columnGap: '0px',
+              padding: '0',
+              maxWidth: '100%'
             }
+          },
+          React.createElement(WheelPicker, { 
+            type: 'date', 
+            value: selectedDate, 
+            onChange: setSelectedDate, 
+            compact: true,
+            dateCompact: true,
+            showSelection: false 
           }),
+          React.createElement(WheelPicker, { type: 'hour', value: hour, onChange: setHour, compact: true, showSelection: false }),
           React.createElement(
             'div',
             {
               style: {
-                position: 'relative',
-                zIndex: 1,
-                display: 'grid',
-                gridTemplateColumns: 'min(65px, 16vw) min(50px, 12vw) 8px min(50px, 12vw) min(50px, 12vw)',
-                justifyContent: 'center',
+                ...wheelStyles.timeColon,
+                width: '8px',
+                fontSize: '20px',
+                height: '40px',
+                lineHeight: '40px',
+                display: 'flex',
                 alignItems: 'center',
-                columnGap: '0px',
-                padding: '0',
-                maxWidth: '100%'
+                justifyContent: 'center',
+                textAlign: 'center',
+                transform: 'translateY(-2.5px)' // Nudge colon up 2.5px for alignment (moved down 1px)
               }
             },
-            React.createElement(WheelPicker, { 
-              type: 'date', 
-              value: selectedDate, 
-              onChange: setSelectedDate, 
-              compact: true,
-              dateCompact: true,
-              showSelection: false 
-            }),
-            React.createElement(WheelPicker, { type: 'hour', value: hour, onChange: setHour, compact: true, showSelection: false }),
-            React.createElement(
-              'div',
-              {
-                style: {
-                  ...wheelStyles.timeColon,
-                  width: '8px',
-                  fontSize: '20px',
-                  height: '40px',
-                  lineHeight: '40px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  textAlign: 'center',
-                  transform: 'translateY(-3.5px)' // Nudge colon up 3.5px for alignment
-                }
-              },
-              ':'
-            ),
-            React.createElement(WheelPicker, { type: 'minute', value: minute, onChange: setMinute, compact: true, showSelection: false }),
-            React.createElement(WheelPicker, { type: 'ampm', value: ampm, onChange: setAmpm, compact: true, showSelection: false })
-          )
+            ':'
+          ),
+          React.createElement(WheelPicker, { type: 'minute', value: minute, onChange: setMinute, compact: true, showSelection: false }),
+          React.createElement(WheelPicker, { type: 'ampm', value: ampm, onChange: setAmpm, compact: true, showSelection: false })
         )
+      )
+    );
+  };
+
+  // TTPickerTray Component - Native keyboard-style tray
+  const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null }) => {
+    const [present, setPresent] = React.useState(false);
+    const sheetRef = React.useRef(null);
+    const backdropRef = React.useRef(null);
+
+    // Set present when isOpen becomes true
+    React.useEffect(() => {
+      if (isOpen) {
+        setPresent(true);
+      }
+    }, [isOpen]);
+
+    // Update transition (set before any transform changes)
+    React.useEffect(() => {
+      if (!present || !sheetRef.current) return;
+      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1)';
+    }, [present]);
+
+    // Animation: Open and Close (same as half sheets)
+    React.useEffect(() => {
+      if (!present || !sheetRef.current) return;
+      
+      if (isOpen) {
+        // Open: slide up
+        requestAnimationFrame(() => {
+          if (sheetRef.current) {
+            sheetRef.current.style.transform = 'translateY(0)';
+          }
+        });
+      } else {
+        // Close: slide down - ensure transition is set first
+        if (sheetRef.current) {
+          sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1)';
+          sheetRef.current.style.transform = 'translateY(100%)';
+        }
+        // After animation, unmount
+        const timer = setTimeout(() => {
+          setPresent(false);
+        }, 250);
+        return () => clearTimeout(timer);
+      }
+    }, [isOpen, present]);
+
+    // Backdrop animation
+    React.useEffect(() => {
+      if (!present || !backdropRef.current) return;
+      if (isOpen) {
+        requestAnimationFrame(() => {
+          if (backdropRef.current) {
+            backdropRef.current.style.opacity = '1';
+          }
+        });
+      } else {
+        backdropRef.current.style.opacity = '0';
+      }
+    }, [isOpen, present]);
+
+    if (!present) return null;
+    
+    return React.createElement(
+      React.Fragment,
+      null,
+      // Backdrop
+      React.createElement('div', {
+        ref: backdropRef,
+        onClick: onClose || (() => {}),
+        style: {
+          position: 'fixed',
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          zIndex: 999,
+          opacity: 0,
+          transition: 'opacity 250ms ease'
+        }
+      }),
+      // Tray
+      React.createElement(
+        'div',
+        {
+          ref: sheetRef,
+          style: {
+            position: 'fixed',
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'var(--tt-card-bg)',
+            borderTopLeftRadius: '20px',
+            borderTopRightRadius: '20px',
+            height: '40vh',
+            paddingTop: '0px',
+            paddingBottom: 'env(safe-area-inset-bottom, 0)',
+            boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+            zIndex: 1000,
+            transform: 'translateY(100%)',
+            willChange: 'transform',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+          }
+        },
+        // Header row (3 columns)
+        header && React.createElement('div', {
+          style: {
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr 1fr',
+            alignItems: 'center',
+            padding: '10px 16px 10px', // Top padding matches bottom padding below toggle
+            borderBottom: '1px solid var(--tt-card-border)'
+          }
+        }, header),
+        // Content
+        React.createElement('div', {
+          style: {
+            paddingTop: '8px',
+            paddingLeft: '16px',
+            paddingRight: '16px',
+            paddingBottom: '12px',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
+            flex: 1,
+            minHeight: 0
+          }
+        }, children)
       )
     );
   };
@@ -1404,6 +1528,232 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
+      // Wheel Pickers section (moved under Input Half Sheet, wrapped in trays)
+      React.createElement('div', { className: "mb-6" },
+        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
+        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-3" }, 'Wheel Pickers'),
+        React.createElement('div', { className: "space-y-4" },
+          // Amount Picker Tray
+          React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-4" },
+            React.createElement('button', {
+              onClick: () => setShowAmountPickerTray(true),
+              className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
+            }, 'Open Amount Picker'),
+            // Static preview
+            React.createElement('div', {
+              style: {
+                position: 'relative',
+                backgroundColor: 'var(--tt-card-bg)',
+                borderTopLeftRadius: '20px',
+                borderTopRightRadius: '20px',
+                paddingTop: '0px',
+                boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                display: 'flex',
+                flexDirection: 'column'
+              }
+            },
+              // Header row (3 columns)
+              React.createElement('div', {
+                style: {
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr',
+                  alignItems: 'center',
+                  padding: '10px 16px 10px', // Top padding matches bottom padding below toggle
+                  borderBottom: '1px solid var(--tt-card-border)'
+                }
+              },
+                // Left: Unit toggle
+                React.createElement('div', {
+                  style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
+                },
+                  window.SegmentedToggle
+                    ? React.createElement(window.SegmentedToggle, {
+                        value: amountPickerUnit,
+                        options: [
+                          { value: 'oz', label: 'oz' },
+                          { value: 'ml', label: 'ml' }
+                        ],
+                        onChange: (v) => {
+                          const snapToStep = (val, step) => {
+                            const n = Number(val) || 0;
+                            const s = Number(step) || 1;
+                            const snapped = Math.round(n / s) * s;
+                            return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+                          };
+                          if (v === 'ml') {
+                            const ml = snapToStep(amountPickerAmount * 29.5735, 10);
+                            setAmountPickerUnit('ml');
+                            setAmountPickerAmount(ml);
+                          } else {
+                            const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
+                            setAmountPickerUnit('oz');
+                            setAmountPickerAmount(oz);
+                          }
+                        },
+                        variant: 'body',
+                        size: 'medium'
+                      })
+                    : React.createElement(
+                        'button',
+                        { 
+                          style: wheelStyles.unitToggle, 
+                          onClick: () => {
+                            const snapToStep = (val, step) => {
+                              const n = Number(val) || 0;
+                              const s = Number(step) || 1;
+                              const snapped = Math.round(n / s) * s;
+                              return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+                            };
+                            if (amountPickerUnit === 'ml') {
+                              const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
+                              setAmountPickerUnit('oz');
+                              setAmountPickerAmount(oz);
+                            } else {
+                              const ml = snapToStep(amountPickerAmount * 29.5735, 10);
+                              setAmountPickerUnit('ml');
+                              setAmountPickerAmount(ml);
+                            }
+                          }, 
+                          type: 'button' 
+                        },
+                        React.createElement('span', { style: amountPickerUnit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
+                        React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
+                        React.createElement('span', { style: amountPickerUnit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
+                      )
+                ),
+                // Center: Title
+                React.createElement('div', {
+                  style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
+                },
+                  React.createElement('h3', { 
+                    style: { 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: 'var(--tt-text-primary)', 
+                      margin: 0 
+                    } 
+                  }, 'Amount')
+                ),
+                // Right: Done button (disabled in preview)
+                React.createElement('div', {
+                  style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
+                },
+                  React.createElement('button', {
+                    disabled: true,
+                    style: {
+                      fontSize: '16px',
+                      fontWeight: '400', // Normal text weight per design system
+                      color: 'var(--tt-text-secondary)',
+                      background: 'none',
+                      border: 'none',
+                      padding: '8px 16px',
+                      cursor: 'not-allowed',
+                      borderRadius: '8px',
+                      opacity: 0.5
+                    }
+                  }, 'Done')
+                )
+              ),
+              // Content
+              React.createElement('div', {
+                style: { 
+                  paddingTop: '10px',
+                  paddingLeft: '16px',
+                  paddingRight: '16px',
+                  paddingBottom: '16px'
+                }
+              },
+                React.createElement(AmountPickerLabSection, {
+                  unit: amountPickerUnit,
+                  setUnit: setAmountPickerUnit,
+                  amount: amountPickerAmount,
+                  setAmount: setAmountPickerAmount
+                })
+              )
+            )
+          ),
+          // Date/Time Picker Tray
+          React.createElement('div', { className: "bg-white rounded-2xl shadow-sm p-4" },
+            React.createElement('button', {
+              onClick: () => setShowDateTimePickerTray(true),
+              className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
+            }, 'Open Date/Time Picker'),
+            // Static preview
+            React.createElement('div', {
+              style: {
+                position: 'relative',
+                backgroundColor: 'var(--tt-card-bg)',
+                borderTopLeftRadius: '20px',
+                borderTopRightRadius: '20px',
+                paddingTop: '0px',
+                boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                display: 'flex',
+                flexDirection: 'column'
+              }
+            },
+              // Header row (3 columns)
+              React.createElement('div', {
+                style: {
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr 1fr',
+                  alignItems: 'center',
+                  padding: '10px 16px 10px', // Top padding matches bottom padding below toggle
+                  borderBottom: '1px solid var(--tt-card-border)'
+                }
+              },
+                // Left: Empty
+                React.createElement('div', {
+                  style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
+                }),
+                // Center: Title
+                React.createElement('div', {
+                  style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
+                },
+                  React.createElement('h3', { 
+                    style: { 
+                      fontSize: '16px', 
+                      fontWeight: '600', 
+                      color: 'var(--tt-text-primary)', 
+                      margin: 0 
+                    } 
+                  }, 'Time')
+                ),
+                // Right: Done button (disabled in preview)
+                React.createElement('div', {
+                  style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
+                },
+                  React.createElement('button', {
+                    disabled: true,
+                    style: {
+                      fontSize: '16px',
+                      fontWeight: '400', // Normal text weight per design system
+                      color: 'var(--tt-text-secondary)',
+                      background: 'none',
+                      border: 'none',
+                      padding: '8px 16px',
+                      cursor: 'not-allowed',
+                      borderRadius: '8px',
+                      opacity: 0.5
+                    }
+                  }, 'Done')
+                )
+              ),
+              // Content
+              React.createElement('div', {
+                style: { 
+                  paddingTop: '10px',
+                  paddingLeft: '16px',
+                  paddingRight: '16px',
+                  paddingBottom: '16px'
+                }
+              },
+                React.createElement(DateTimePickerLabSection)
+              )
+            )
+          )
+        )
+      ),
+
       // Overlay half sheets (conditionally rendered)
       window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
         isOpen: showFeedSheet,
@@ -1418,6 +1768,162 @@ const SettingsTab = ({ user, kidId }) => {
         isOpen: showInputSheet,
         onClose: () => setShowInputSheet(false)
       }),
+      // Overlay amount picker tray
+      React.createElement(TTPickerTray, {
+        isOpen: showAmountPickerTray,
+        onClose: () => setShowAmountPickerTray(false),
+        header: React.createElement(
+          React.Fragment,
+          null,
+          // Left: Unit toggle
+          React.createElement('div', {
+            style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
+          },
+            window.SegmentedToggle
+              ? React.createElement(window.SegmentedToggle, {
+                  value: amountPickerUnit,
+                  options: [
+                    { value: 'oz', label: 'oz' },
+                    { value: 'ml', label: 'ml' }
+                  ],
+                  onChange: (v) => {
+                    const snapToStep = (val, step) => {
+                      const n = Number(val) || 0;
+                      const s = Number(step) || 1;
+                      const snapped = Math.round(n / s) * s;
+                      return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+                    };
+                    if (v === 'ml') {
+                      const ml = snapToStep(amountPickerAmount * 29.5735, 10);
+                      setAmountPickerUnit('ml');
+                      setAmountPickerAmount(ml);
+                    } else {
+                      const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
+                      setAmountPickerUnit('oz');
+                      setAmountPickerAmount(oz);
+                    }
+                  },
+                  variant: 'body',
+                  size: 'medium'
+                })
+              : React.createElement(
+                  'button',
+                  { 
+                    style: wheelStyles.unitToggle, 
+                    onClick: () => {
+                      const snapToStep = (val, step) => {
+                        const n = Number(val) || 0;
+                        const s = Number(step) || 1;
+                        const snapped = Math.round(n / s) * s;
+                        return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+                      };
+                      if (amountPickerUnit === 'ml') {
+                        const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
+                        setAmountPickerUnit('oz');
+                        setAmountPickerAmount(oz);
+                      } else {
+                        const ml = snapToStep(amountPickerAmount * 29.5735, 10);
+                        setAmountPickerUnit('ml');
+                        setAmountPickerAmount(ml);
+                      }
+                    }, 
+                    type: 'button' 
+                  },
+                  React.createElement('span', { style: amountPickerUnit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
+                  React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
+                  React.createElement('span', { style: amountPickerUnit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
+                )
+          ),
+          // Center: Title
+          React.createElement('div', {
+            style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
+          },
+            React.createElement('h3', { 
+              style: { 
+                fontSize: '16px', 
+                fontWeight: '600', 
+                color: 'var(--tt-text-primary)', 
+                margin: 0 
+              } 
+            }, 'Amount')
+          ),
+          // Right: Done button
+          React.createElement('div', {
+            style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
+          },
+            React.createElement('button', {
+              onClick: () => setShowAmountPickerTray(false),
+              style: {
+                fontSize: '16px',
+                fontWeight: '400', // Normal text weight per design system
+                color: 'var(--tt-text-primary)',
+                background: 'none',
+                border: 'none',
+                padding: '8px 16px',
+                cursor: 'pointer',
+                borderRadius: '8px'
+              },
+              onMouseEnter: (e) => e.target.style.backgroundColor = 'var(--tt-subtle-surface)',
+              onMouseLeave: (e) => e.target.style.backgroundColor = 'transparent'
+            }, 'Done')
+          )
+        )
+      },
+        React.createElement(AmountPickerLabSection, {
+          unit: amountPickerUnit,
+          setUnit: setAmountPickerUnit,
+          amount: amountPickerAmount,
+          setAmount: setAmountPickerAmount
+        })
+      ),
+      // Overlay date/time picker tray
+      React.createElement(TTPickerTray, {
+        isOpen: showDateTimePickerTray,
+        onClose: () => setShowDateTimePickerTray(false),
+        header: React.createElement(
+          React.Fragment,
+          null,
+          // Left: Empty
+          React.createElement('div', {
+            style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
+          }),
+          // Center: Title
+          React.createElement('div', {
+            style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
+          },
+            React.createElement('h3', { 
+              style: { 
+                fontSize: '16px', 
+                fontWeight: '600', 
+                color: 'var(--tt-text-primary)', 
+                margin: 0 
+              } 
+            }, 'Time')
+          ),
+          // Right: Done button
+          React.createElement('div', {
+            style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
+          },
+            React.createElement('button', {
+              onClick: () => setShowDateTimePickerTray(false),
+              style: {
+                fontSize: '16px',
+                fontWeight: '400', // Normal text weight per design system
+                color: 'var(--tt-text-primary)',
+                background: 'none',
+                border: 'none',
+                padding: '8px 16px',
+                cursor: 'pointer',
+                borderRadius: '8px'
+              },
+              onMouseEnter: (e) => e.target.style.backgroundColor = 'var(--tt-subtle-surface)',
+              onMouseLeave: (e) => e.target.style.backgroundColor = 'transparent'
+            }, 'Done')
+          )
+        )
+      },
+        React.createElement(DateTimePickerLabSection)
+      ),
 
       // Icons section
       React.createElement('div', { className: "mb-6" },
@@ -3049,13 +3555,6 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement('span', { className: "px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-600" }, 'Error')
           )
         )
-      ),
-
-      // Wheel Pickers section (TinyTrackerDemo)
-      React.createElement('div', { className: "mb-6" },
-        React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
-        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Wheel Pickers'),
-        React.createElement(WheelPickersLabSection)
       ),
 
       // Shared Bottom Sheet for EditableRow

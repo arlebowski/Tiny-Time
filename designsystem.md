@@ -624,7 +624,47 @@ React.createElement('div', {
 )
 ```
 
-### 4. Analytics Highlight Card Pattern
+### 4. Icon + Label Header Pattern (Reusable)
+
+**Use case**: Category headers with icon and label (TrackerCard headers, Analytics highlight cards, section headers, etc.)
+
+```javascript
+// Standard icon + label header
+React.createElement('div', { 
+  className: 'flex items-center gap-1' 
+},
+  React.createElement(IconComponent, {
+    className: 'w-5 h-5', // 20px
+    style: { 
+      color: categoryColor, // 'var(--tt-feed)' or 'var(--tt-sleep)' or custom
+      strokeWidth: isFeeding ? '1.5' : undefined,
+      fill: isFeeding ? 'none' : categoryColor,
+      transform: isFeeding ? 'rotate(20deg)' : undefined
+    }
+  }),
+  React.createElement('span', {
+    className: 'text-[17.6px] font-semibold',
+    style: { color: categoryColor }
+  }, label) // 'Feeding', 'Sleep', 'Daily Activity', etc.
+)
+```
+
+**Specifications**:
+- Icon size: `w-5 h-5` (20px)
+- Gap: `gap-1` (4px)
+- Text: `text-[17.6px] font-semibold`
+- Color: Use category color token (`var(--tt-feed)`, `var(--tt-sleep)`, or custom)
+- Icon styling: 
+  - Feeding icons: `strokeWidth: 1.5`, `fill: none`, `transform: rotate(20deg)`
+  - Sleep icons: `fill: color` (no stroke, no transform)
+  - Other icons: Use appropriate styling for the icon type
+
+**Used in**:
+- TrackerCard headers (v3 variant2)
+- Analytics highlight cards
+- Any category header requiring icon + label consistency
+
+### 5. Analytics Highlight Card Pattern
 
 ```javascript
 // Structure
@@ -644,14 +684,21 @@ React.createElement('div', {
   onClick: openModal
 },
   // Header: icon + label left, chevron right
-  React.createElement('div', { className: 'flex items-center justify-between mb-3' },
-    React.createElement('div', { className: 'flex items-center gap-2' },
+  // Uses Icon + Label Header Pattern (see section 4)
+  // Note: Pass isFeeding={true} for feeding icons to apply rotation and stroke styling
+  React.createElement('div', { className: 'flex items-center justify-between mb-3 h-6' },
+    React.createElement('div', { className: 'flex items-center gap-1' },
       React.createElement(Icon, {
         className: 'w-5 h-5',
-        style: { color: categoryColor }
+        style: { 
+          color: categoryColor,
+          strokeWidth: isFeeding ? '1.5' : undefined,
+          fill: isFeeding ? 'none' : categoryColor,
+          transform: isFeeding ? 'rotate(20deg)' : undefined
+        }
       }),
       React.createElement('span', {
-        className: 'text-sm font-semibold',
+        className: 'text-[17.6px] font-semibold leading-6',
         style: { color: categoryColor }
       }, label)
     ),
@@ -686,9 +733,31 @@ React.createElement('div', {
     chartComponent
   )
 )
+
+// Usage example with feeding icon (requires rotation)
+React.createElement(HighlightCard, {
+  icon: BottleV2Icon,
+  label: 'Feeding',
+  insightText: ['Levi has been eating well this week!'],
+  categoryColor: 'var(--tt-feed)',
+  isFeeding: true, // Applies rotate(20deg), strokeWidth: 1.5, fill: none
+  onClick: () => openModal('feeding')
+}, chartComponent)
+
+// Usage example with sleep icon (no rotation)
+React.createElement(HighlightCard, {
+  icon: MoonV2Icon,
+  label: 'Sleep',
+  insightText: ['Levi has been sleeping great!'],
+  categoryColor: 'var(--tt-sleep)',
+  // isFeeding defaults to false, so no rotation/stroke applied
+  onClick: () => openModal('sleep')
+}, chartComponent)
 ```
 
-### 5. Bar Chart Pattern (Week View)
+**Note**: The `isFeeding` prop is required for feeding icons to apply the 20-degree rotation and stroke styling. This matches the TrackerCard header pattern.
+
+### 6. Bar Chart Pattern (Week View)
 
 ```javascript
 // Used in: Highlight cards, analytics detail pages

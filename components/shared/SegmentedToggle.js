@@ -9,7 +9,8 @@ const SegmentedToggle = ({
   options, 
   onChange, 
   variant = 'body', // 'header' | 'body'
-  size = 'medium'  // 'small' | 'medium' | 'large'
+  size = 'medium',  // 'small' | 'medium' | 'large'
+  fullWidth = false // If true, makes toggle span full width
 }) => {
   // Size-based tokens (maintains HeaderSegmentedToggle proportions)
   const sizeTokens = {
@@ -33,30 +34,27 @@ const SegmentedToggle = ({
   const tokens = sizeTokens[size];
   
   // Base classes - HeaderSegmentedToggle tokens EXACTLY
-  const btnBase = "rounded-lg transition font-semibold";
-  const containerClass = "inline-flex rounded-xl";
+  const btnBase = fullWidth 
+    ? "rounded-lg transition font-semibold flex-1" 
+    : "rounded-lg transition font-semibold";
+  const containerClass = fullWidth ? "flex rounded-xl w-full" : "inline-flex rounded-xl";
   
   // Variant-based colors (structure stays the same)
   const containerStyle = variant === 'header' 
     ? { background: 'rgba(255,255,255,0.2)' }  // HeaderSegmentedToggle EXACT
-    : { backgroundColor: 'var(--tt-input-bg)' };
+    : { backgroundColor: 'var(--tt-subtle-surface)' };
     
   const btnOn = variant === 'header'
     ? "bg-white text-gray-900 shadow-sm"  // HeaderSegmentedToggle EXACT
-    : ""; // Body uses inline styles
+    : "bg-white text-gray-900 shadow-sm"; // Body: match original AnalyticsSubpageToggle
     
   const btnOff = variant === 'header'
     ? "bg-transparent text-white/80"  // HeaderSegmentedToggle EXACT
-    : ""; // Body uses inline styles
+    : "bg-transparent text-gray-600"; // Body: match original AnalyticsSubpageToggle
 
-  // Body variant uses CSS variables but same structure
-  const btnOnStyle = variant === 'body' 
-    ? { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', boxShadow: '0 1px 2px rgba(0,0,0,0.1)' }
-    : undefined;
-    
-  const btnOffStyle = variant === 'body'
-    ? { backgroundColor: 'transparent', color: 'var(--tt-text-secondary)' }
-    : undefined;
+  // Body variant: no inline styles needed, use className only
+  const btnOnStyle = undefined;
+  const btnOffStyle = undefined;
 
   return React.createElement(
     'div',
