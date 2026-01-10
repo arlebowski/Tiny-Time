@@ -4036,20 +4036,20 @@ const SleepChart = ({ data = [], average = 0 }) => {
         ),
         React.createElement(
           'div',
-          { className: 'flex items-baseline space-x-1' },
+          { className: 'flex items-baseline gap-1' },
         React.createElement(
           'span',
           {
-            className: 'text-[2.25rem] font-bold leading-none',
+            className: 'text-[39.6px] font-bold leading-none',
             style: { color: sleepColor }
           },
-          average.toFixed(1)
+          formatV3Number(average)
         ),
         React.createElement(
           'span',
           {
-            className: 'text-sm font-medium',
-            style: { color: secondaryText }
+            className: 'relative -top-[1px] text-[17.6px] leading-none font-normal',
+            style: { color: 'var(--tt-text-secondary)' }
           },
           'hrs'
         )
@@ -4271,20 +4271,20 @@ const FeedingChart = ({ data = [], average = 0 }) => {
         ),
         React.createElement(
           'div',
-          { className: 'flex items-baseline space-x-1' },
+          { className: 'flex items-baseline gap-1' },
         React.createElement(
           'span',
           {
-            className: 'text-[2.25rem] font-bold leading-none',
+            className: 'text-[39.6px] font-bold leading-none',
             style: { color: feedColor }
           },
-          average.toFixed(1)
+          formatV3Number(average)
         ),
         React.createElement(
           'span',
           {
-            className: 'text-sm font-medium',
-            style: { color: secondaryText }
+            className: 'relative -top-[1px] text-[17.6px] leading-none font-normal',
+            style: { color: 'var(--tt-text-secondary)' }
           },
           'oz'
         )
