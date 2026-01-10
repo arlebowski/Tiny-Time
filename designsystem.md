@@ -757,7 +757,138 @@ React.createElement(HighlightCard, {
 
 **Note**: The `isFeeding` prop is required for feeding icons to apply the 20-degree rotation and stroke styling. This matches the TrackerCard header pattern.
 
-### 6. Bar Chart Pattern (Week View)
+### 6. Segmented Toggle Pattern
+
+```javascript
+// Used in: Analytics subtabs (D/W/M timeframe selector)
+// Component: SegmentedToggle (components/shared/SegmentedToggle.js)
+
+// Structure
+┌─────────────────────────────────────────┐
+│ [Track: var(--tt-subtle-surface)]      │
+│  ┌─────┐ ┌─────┐ ┌─────┐              │
+│  │  D  │ │  W  │ │  M  │              │
+│  └─────┘ └─────┘ └─────┘              │
+│  ↑ Selected: semi-transparent white    │
+└─────────────────────────────────────────┘
+
+// Track (container)
+React.createElement('div', {
+  className: 'flex rounded-xl w-full px-1 py-[3px]',
+  style: { backgroundColor: 'var(--tt-subtle-surface)' }
+},
+  // Selected button
+  React.createElement('button', {
+    className: 'rounded-lg transition font-semibold flex-1 text-[13px] px-3 py-[6px] shadow-sm',
+    style: {
+      backgroundColor: 'rgba(255, 255, 255, 0.12)', // Semi-transparent white
+      color: 'var(--tt-text-primary)'
+    }
+  }, 'D'),
+  
+  // Unselected buttons
+  React.createElement('button', {
+    className: 'rounded-lg transition font-semibold flex-1 text-[13px] px-3 py-[6px] bg-transparent text-gray-600'
+  }, 'W'),
+  React.createElement('button', {
+    className: 'rounded-lg transition font-semibold flex-1 text-[13px] px-3 py-[6px] bg-transparent text-gray-600'
+  }, 'M')
+)
+```
+
+**Specifications**:
+- **Track**: `backgroundColor: 'var(--tt-subtle-surface)'` (adapts to dark mode)
+- **Selected button**: 
+  - Background: `rgba(255, 255, 255, 0.12)` (semi-transparent white - lighter than track but not bright)
+  - Text: `var(--tt-text-primary)` (adapts to dark mode)
+  - Shadow: `shadow-sm`
+- **Unselected buttons**: 
+  - Background: `transparent`
+  - Text: `text-gray-600` (light mode) / `var(--tt-text-secondary)` (dark mode via CSS)
+- **Sizing**: 
+  - Container padding: `px-1 py-[3px]`
+  - Button padding: `px-3 py-[6px]`
+  - Text size: `text-[13px]`
+  - Border radius: `rounded-xl` (track), `rounded-lg` (buttons)
+- **Layout**: `flex` with `flex-1` on buttons for equal distribution
+
+**Dark Mode Behavior**:
+- Track uses `var(--tt-subtle-surface)` which is `rgba(255,255,255,0.05)` in dark mode
+- Selected button uses `rgba(255, 255, 255, 0.12)` which provides subtle contrast (2.4x lighter than track)
+- This creates a visible but not harsh selection indicator
+
+**Used in**:
+- Analytics subtabs (FeedingAnalyticsTab, SleepAnalyticsTab, ActivityAnalyticsTab)
+- Any segmented control requiring timeframe or option selection
+
+### 7. Chevron Icon Pattern
+
+```javascript
+// Used in: Navigation indicators, card headers, back buttons
+// Icons: Phosphor ChevronLeftIcon, ChevronRightIcon (from components/shared/icons.js)
+
+// Right Chevron (indicates forward/navigation)
+React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, {
+  className: 'w-5 h-5',
+  style: { color: 'var(--tt-text-tertiary)' }
+})
+
+// Left Chevron (indicates back/previous)
+React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
+  className: 'w-5 h-5',
+  style: { color: 'var(--tt-text-secondary)' }
+})
+```
+
+**Specifications**:
+- **Icon Source**: Use Phosphor icons from `window.TT.shared.icons` with fallback to legacy icons
+- **Size**: Always `w-5 h-5` (20px × 20px)
+- **Colors**:
+  - **Right chevrons** (navigation indicators): `var(--tt-text-tertiary)` - subtle, indicates forward action
+  - **Left chevrons** (back buttons): `var(--tt-text-secondary)` - more visible for primary navigation
+- **No strokeWidth**: Phosphor icons use fill, not stroke (unlike legacy Lucide-style icons)
+- **Fallback pattern**: Always include fallback: `window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight`
+
+**Usage Patterns**:
+
+1. **Card Headers** (Highlight cards, navigation indicators):
+   ```javascript
+   // Right side of header, indicates card is tappable
+   React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, {
+     className: 'w-5 h-5',
+     style: { color: 'var(--tt-text-tertiary)' }
+   })
+   ```
+
+2. **Back Buttons** (Subtab headers):
+   ```javascript
+   // Left side, indicates navigation back
+   React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
+     className: 'w-5 h-5',
+     style: { color: 'var(--tt-text-secondary)' }
+   })
+   ```
+
+3. **Date Navigation** (TrackerTab date picker):
+   ```javascript
+   // Left/right arrows for date navigation
+   React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
+     className: 'w-5 h-5',
+     isTapped: false,
+     selectedWeight: 'bold',
+     style: { color: chevronColor }
+   })
+   ```
+
+**Used in**:
+- Analytics highlight cards (right chevron)
+- Analytics subtab back buttons (left chevron)
+- TrackerTab date navigation (left/right chevrons)
+- Any navigation or tappable card indicator
+
+**Note**: Always use the Phosphor icon system with fallback for backward compatibility. The Phosphor icons are fill-based (no stroke), so remove any `strokeWidth` properties when migrating from legacy icons.
+
+### 8. Bar Chart Pattern (Week View)
 
 ```javascript
 // Used in: Highlight cards, analytics detail pages
