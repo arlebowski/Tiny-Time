@@ -4000,6 +4000,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
     const sleepIntervalRef = React.useRef(null);
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
+    const prevModeRef = React.useRef(mode); // Track previous mode to detect actual mode changes
     
     // Shared photos state
     const [photos, setPhotos] = React.useState([]);
@@ -4186,19 +4187,26 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     // Auto-populate start time when toggle switches to Sleep
     React.useEffect(() => {
-      if (mode === 'sleep' && isOpen) {
-        // Always set startTime to NOW when sleep mode is selected
+      const modeChangedToSleep = prevModeRef.current !== 'sleep' && mode === 'sleep';
+      prevModeRef.current = mode;
+      
+      if (modeChangedToSleep && isOpen) {
+        // Mode just switched to sleep - set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
         if (sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
         }
-        // If not running and not idle_with_times (both times entered), clear end time
+      }
+      
+      // Clear end time when in idle state and not in idle_with_times
+      // This runs whenever relevant state changes, but only clears if needed
+      if (mode === 'sleep' && isOpen && sleepState === 'idle') {
         const hasBothTimes = startTime && endTime;
-        if (sleepState === 'idle' && !hasBothTimes) {
+        if (!hasBothTimes) {
           setEndTime(null);
         }
       }
-    }, [mode, isOpen, sleepState, activeSleepSessionId, startTime, endTime]);
+    }, [mode, isOpen, sleepState, activeSleepSessionId]); // Removed startTime and endTime from deps to fix bug
     
     // Auto-populate start time when toggle switches to Feeding
     React.useEffect(() => {

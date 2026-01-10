@@ -1071,13 +1071,70 @@ const SettingsTab = ({ user, kidId }) => {
 
   // TTPickerTray Component - Native keyboard-style tray
   const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null }) => {
-    if (!isOpen) return null;
+    const [present, setPresent] = React.useState(false);
+    const sheetRef = React.useRef(null);
+    const backdropRef = React.useRef(null);
+
+    // Set present when isOpen becomes true
+    React.useEffect(() => {
+      if (isOpen) {
+        setPresent(true);
+      }
+    }, [isOpen]);
+
+    // Update transition (set before any transform changes)
+    React.useEffect(() => {
+      if (!present || !sheetRef.current) return;
+      sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1)';
+    }, [present]);
+
+    // Animation: Open and Close (same as half sheets)
+    React.useEffect(() => {
+      if (!present || !sheetRef.current) return;
+      
+      if (isOpen) {
+        // Open: slide up
+        requestAnimationFrame(() => {
+          if (sheetRef.current) {
+            sheetRef.current.style.transform = 'translateY(0)';
+          }
+        });
+      } else {
+        // Close: slide down - ensure transition is set first
+        if (sheetRef.current) {
+          sheetRef.current.style.transition = 'transform 250ms cubic-bezier(0.2, 0, 0, 1)';
+          sheetRef.current.style.transform = 'translateY(100%)';
+        }
+        // After animation, unmount
+        const timer = setTimeout(() => {
+          setPresent(false);
+        }, 250);
+        return () => clearTimeout(timer);
+      }
+    }, [isOpen, present]);
+
+    // Backdrop animation
+    React.useEffect(() => {
+      if (!present || !backdropRef.current) return;
+      if (isOpen) {
+        requestAnimationFrame(() => {
+          if (backdropRef.current) {
+            backdropRef.current.style.opacity = '1';
+          }
+        });
+      } else {
+        backdropRef.current.style.opacity = '0';
+      }
+    }, [isOpen, present]);
+
+    if (!present) return null;
     
     return React.createElement(
       React.Fragment,
       null,
       // Backdrop
       React.createElement('div', {
+        ref: backdropRef,
         onClick: onClose || (() => {}),
         style: {
           position: 'fixed',
@@ -1087,14 +1144,15 @@ const SettingsTab = ({ user, kidId }) => {
           bottom: 0,
           backgroundColor: 'rgba(0, 0, 0, 0.3)',
           zIndex: 999,
-          opacity: isOpen ? 1 : 0,
-          transition: 'opacity 0.3s ease'
+          opacity: 0,
+          transition: 'opacity 250ms ease'
         }
       }),
       // Tray
       React.createElement(
         'div',
         {
+          ref: sheetRef,
           style: {
             position: 'fixed',
             left: 0,
@@ -1108,8 +1166,7 @@ const SettingsTab = ({ user, kidId }) => {
             paddingBottom: 'env(safe-area-inset-bottom, 0)',
             boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
             zIndex: 1000,
-            transform: isOpen ? 'translateY(0)' : 'translateY(100%)',
-            transition: 'transform 0.3s cubic-bezier(0.32, 0.72, 0, 1)',
+            transform: 'translateY(100%)',
             willChange: 'transform',
             display: 'flex',
             flexDirection: 'column',
