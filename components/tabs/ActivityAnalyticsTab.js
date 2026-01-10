@@ -47,75 +47,81 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     'div',
     { className: 'min-h-screen pb-24' },
     
-    // Back button header
+    // Back button header + timeframe toggle
     React.createElement(
       'div',
       { 
-        className: 'sticky top-0 z-10 px-4 py-3 grid grid-cols-3 items-center',
-        style: { backgroundColor: 'var(--tt-app-bg)', borderBottom: '1px solid var(--tt-card-border)' }
+        className: 'sticky z-10',
+        style: { 
+          top: 'calc(env(safe-area-inset-top) + var(--tt-main-header-h, 0px))',
+          backgroundColor: 'var(--tt-app-bg)',
+          borderBottom: '1px solid var(--tt-card-border)'
+        }
       },
       React.createElement(
-        'button',
-        {
-          type: 'button',
-          onClick: () => setActiveTab('analytics'),
-          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-start',
-          style: { 
-            color: 'var(--tt-text-secondary)',
-            padding: '8px 12px',
-            minHeight: '44px',
-            minWidth: '44px'
-          }
-        },
-        ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
-          className: 'w-5 h-5',
-          style: { color: 'var(--tt-text-secondary)' }
-        })
-      ),
-      React.createElement(
         'div',
-        { className: 'flex items-center justify-center gap-1' },
-        typeof Kanban !== 'undefined' && React.createElement(Kanban, {
-          className: 'w-5 h-5',
-          style: { color: 'var(--color-daily)' }
-        }),
+        { className: 'px-4 py-3 grid grid-cols-3 items-center' },
         React.createElement(
-          'span',
+          'button',
           {
-            className: 'text-[17.6px] font-semibold leading-6',
-            style: { color: 'var(--color-daily)' }
+            type: 'button',
+            onClick: () => setActiveTab('analytics'),
+            className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-start',
+            style: { 
+              color: 'var(--tt-text-secondary)',
+              padding: '8px 12px',
+              minHeight: '44px',
+              minWidth: '44px'
+            }
           },
-          'Daily Activity'
-        )
+          ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
+            className: 'w-5 h-5',
+            style: { color: 'var(--tt-text-secondary)' }
+          })
+        ),
+        React.createElement(
+          'div',
+          { className: 'flex items-center justify-center gap-1' },
+          typeof Kanban !== 'undefined' && React.createElement(Kanban, {
+            className: 'w-5 h-5',
+            style: { color: 'var(--color-daily)' }
+          }),
+          React.createElement(
+            'span',
+            {
+              className: 'text-[17.6px] font-semibold leading-6',
+              style: { color: 'var(--color-daily)' }
+            },
+            'Daily Activity'
+          )
+        ),
+        React.createElement('div') // Empty spacer for grid balance
       ),
-      React.createElement('div') // Empty spacer for grid balance
-    ),
-
-    // Timeframe toggle
-    React.createElement(
-      'div',
-      { className: 'pt-3 pb-2' },
       React.createElement(
         'div',
-        { className: 'px-4' },
-        window.TT?.shared?.SegmentedToggle && React.createElement(window.TT.shared.SegmentedToggle, {
-          value: timeframe,
-          onChange: (v) => setTimeframe(v),
-          options: [
-            { value: 'day', label: 'D' },
-            { value: 'week', label: 'W' }
-          ],
-          variant: 'body',
-          size: 'medium',
-          fullWidth: true
-        })
+        { className: 'pt-3 pb-2' },
+        React.createElement(
+          'div',
+          { className: 'px-4' },
+          window.TT?.shared?.SegmentedToggle && React.createElement(window.TT.shared.SegmentedToggle, {
+            value: timeframe,
+            onChange: (v) => setTimeframe(v),
+            options: [
+              { value: 'day', label: 'D' },
+              { value: 'week', label: 'W' }
+            ],
+            variant: 'body',
+            size: 'medium',
+            fullWidth: true
+          })
+        )
       )
     ),
 
     // Content
     React.createElement(
       'div',
-      { className: 'px-4 pb-4' },
+      { className: 'px-4 pb-4 pt-2' },
       React.createElement(DailyActivityChart, {
         viewMode: timeframe,
         feedings: allFeedings,
