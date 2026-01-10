@@ -2223,6 +2223,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
   const [navRequestedInputMode, setNavRequestedInputMode] = useState(null); // 'feeding' | 'sleep' | null
+  const mainHeaderRef = useRef(null);
 
   // v3-only navigation changes (center +, settings moved to header, etc.)
   const uiVersion = (window.TT?.shared?.uiVersion?.getUIVersion || (() => {
@@ -2252,6 +2253,34 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
   useEffect(() => {
     document.title = 'Tiny Tracker';
+  }, []);
+
+  useEffect(() => {
+    const headerEl = mainHeaderRef.current;
+    if (!headerEl) return;
+
+    const root = document.documentElement;
+    const updateHeaderVar = () => {
+      const height = headerEl.getBoundingClientRect().height;
+      root.style.setProperty('--tt-main-header-h', `${height}px`);
+    };
+
+    updateHeaderVar();
+
+    const resizeObserver = window.ResizeObserver
+      ? new ResizeObserver(updateHeaderVar)
+      : null;
+    if (resizeObserver) {
+      resizeObserver.observe(headerEl);
+    }
+
+    window.addEventListener('resize', updateHeaderVar);
+    return () => {
+      window.removeEventListener('resize', updateHeaderVar);
+      if (resizeObserver) {
+        resizeObserver.disconnect();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -2423,7 +2452,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         {
           // Must sit above sticky in-tab UI like the TrackerTab date picker.
           className: "sticky top-0 z-[1200]",
-          style: { backgroundColor: "var(--tt-header-bg)" }
+          style: { backgroundColor: "var(--tt-header-bg)" },
+          ref: mainHeaderRef
         },
         React.createElement(
           'div',
