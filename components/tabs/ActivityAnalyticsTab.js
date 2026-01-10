@@ -121,7 +121,7 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     // Content
     React.createElement(
       'div',
-      { className: 'px-4 pb-4' },
+      { className: 'px-4 pb-4 pt-2' },
       React.createElement(DailyActivityChart, {
         viewMode: timeframe,
         feedings: allFeedings,

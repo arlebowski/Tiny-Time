@@ -341,7 +341,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     // Content
     React.createElement(
       'div',
-      { className: 'px-4 pb-4' },
+      { className: 'px-4 pb-4 pt-2' },
       
       // Stat cards (4 cards in 2x2 grid)
       React.createElement(

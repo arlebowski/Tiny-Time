@@ -303,7 +303,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     // Content
     React.createElement(
       'div',
-      { className: 'px-4 pb-4' },
+      { className: 'px-4 pb-4 pt-2' },
       
       // Stat cards
       React.createElement(
