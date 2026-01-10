@@ -9,7 +9,8 @@ const SegmentedToggle = ({
   options, 
   onChange, 
   variant = 'body', // 'header' | 'body'
-  size = 'medium'  // 'small' | 'medium' | 'large'
+  size = 'medium',  // 'small' | 'medium' | 'large'
+  fullWidth = false // If true, makes toggle span full width
 }) => {
   // Size-based tokens (maintains HeaderSegmentedToggle proportions)
   const sizeTokens = {
@@ -33,8 +34,10 @@ const SegmentedToggle = ({
   const tokens = sizeTokens[size];
   
   // Base classes - HeaderSegmentedToggle tokens EXACTLY
-  const btnBase = "rounded-lg transition font-semibold";
-  const containerClass = "inline-flex rounded-xl";
+  const btnBase = fullWidth 
+    ? "rounded-lg transition font-semibold flex-1" 
+    : "rounded-lg transition font-semibold";
+  const containerClass = fullWidth ? "flex rounded-xl w-full" : "inline-flex rounded-xl";
   
   // Variant-based colors (structure stays the same)
   const containerStyle = variant === 'header' 
