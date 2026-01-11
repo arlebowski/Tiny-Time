@@ -2224,11 +2224,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
   const [navRequestedInputMode, setNavRequestedInputMode] = useState(null); // 'feeding' | 'sleep' | null
 
-  // v2-only navigation changes (center +, settings moved to header, etc.)
+  // v2/v3 navigation changes (center +, settings moved to header, etc.) (center +, settings moved to header, etc.)
   const uiVersion = (window.TT?.shared?.uiVersion?.getUIVersion || (() => {
     try {
       const v = window.localStorage?.getItem('tt_ui_version');
-      if (v && ['v1', 'v2'].includes(v)) return v;
+      if (v && ['v1', 'v2', 'v3'].includes(v)) return v;
       const useNewUI = window.localStorage?.getItem('tt_use_new_ui');
       const cardDesign = window.localStorage?.getItem('tt_tracker_card_design');
       if (useNewUI === 'false') return 'v1';
@@ -2238,7 +2238,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       return 'v2';
     }
   }))();
-  const isV2 = uiVersion === 'v2';
+  const isV2OrV3 = uiVersion === 'v2' || uiVersion === 'v3';
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
@@ -2571,18 +2571,18 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowShareMenu((v) => !v);
                     setShowKidMenu(false);
                   },
-                  className: isV2
+                  className: isV2OrV3
                     ? "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
                     : "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
                 },
                 React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || ShareIcon, {
-                  className: isV2 ? "w-6 h-6" : "w-4 h-4",
+                  className: isV2OrV3 ? "w-6 h-6" : "w-4 h-4",
                   isTapped: showShareMenu,
                   selectedWeight: 'fill',
-                  style: { color: isV2 ? 'var(--tt-text-primary)' : theme.accent }
+                  style: { color: isV2OrV3 ? 'var(--tt-text-primary)' : theme.accent }
                 })
               ),
-              isV2
+              isV2OrV3
                 ? React.createElement(
                     'button',
                     {
@@ -2721,7 +2721,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       }
     ),
 
-    // Bottom navigation (v2 uses center + and no Settings; v1 keeps classic 5-tab bar)
+    // Bottom navigation (v2/v3 use center + and no Settings; v1 keeps classic 5-tab bar)
     React.createElement(
       'div',
       {
@@ -2735,7 +2735,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
       },
-      isV2
+      isV2OrV3
         ? React.createElement(
             'div',
             { className: "max-w-2xl mx-auto relative flex items-center justify-around px-4 py-3" },

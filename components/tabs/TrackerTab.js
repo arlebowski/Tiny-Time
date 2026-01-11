@@ -21,7 +21,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
           window.localStorage.setItem('tt_ui_version', 'v2');
           return 'v2';
         }
-        if (version && ['v1', 'v2'].includes(version)) {
+        if (version && ['v1', 'v2', 'v3'].includes(version)) {
           return version;
         }
         // Migration: derive from old flags if version doesn't exist
@@ -34,12 +34,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
       return 'v2';
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v2' ? 'new' : 'current'
+    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current')
   };
 }
 
 const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
-  // UI Version - single source of truth (v1 or v2)
+  // UI Version - single source of truth (v1, v2, or v3)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
   // - v2: New UI with current tracker cards (useNewUI = true, cardDesign = 'current')
@@ -1319,7 +1319,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       
       // Today Card (New UI) — split v2 so v2 can be edited independently.
       // Only show if feature flag is enabled.
-      showTodayCard && (uiVersion === 'v2'
+      showTodayCard && (uiVersion === 'v2' || uiVersion === 'v3'
         ? React.createElement('div', { 
             ref: cardRefCallback, 
             className: "rounded-2xl shadow-sm p-6",

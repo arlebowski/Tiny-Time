@@ -252,7 +252,7 @@ function formatElapsedHmsTT(ms) {
   return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
 }
 
-// v2 number formatting:
+// v3 number formatting:
 // - whole numbers: "7"
 // - non-whole: "7.3" (one decimal)
 function formatV2Number(n) {
@@ -545,7 +545,7 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOv
         style: { ...iconStyle, width: '2.475rem', height: '2.475rem', strokeWidth: '3' } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px), +10% = 2.475rem = 39.6px + 0.5 stroke
       }) : React.createElement('div', { style: { width: '2.475rem', height: '2.475rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
     } else {
-      // In v2 we override the feeding icon with the masked PNG bottle (already mirrored to point right).
+      // In v3 we override the feeding icon with the masked PNG bottle (already mirrored to point right).
       const OverrideIcon = iconOverride || null;
       // Always use BottleV2 for feed timeline items (both variants)
       const BottleIcon = (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null);
@@ -882,17 +882,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
-  // Helper to get UI version (defaults to v2)
+  // Helper to get UI version (defaults to v2 for backward compatibility)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = window.localStorage.getItem('tt_ui_version');
-        if (version === 'v2') {
-          // Old v2 detected - ensure it's set to new v2 (same value, but ensures migration)
-          window.localStorage.setItem('tt_ui_version', 'v2');
-          return 'v2';
-        }
-        if (version && ['v1', 'v2'].includes(version)) {
+        if (version && ['v1', 'v2', 'v3'].includes(version)) {
           return version;
         }
         // Migration: derive from old flags if version doesn't exist
@@ -905,160 +900,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
       return 'v2';
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v2' ? 'new' : 'current'
+    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
   };
 }
-
-const useBodyScrollLock = (isLocked) => {
-  React.useEffect(() => {
-    if (!isLocked) return undefined;
-
-    const body = document.body;
-    const scrollY = window.scrollY || window.pageYOffset;
-    const prevStyles = {
-      position: body.style.position,
-      top: body.style.top,
-      left: body.style.left,
-      right: body.style.right,
-      width: body.style.width,
-      overflow: body.style.overflow
-    };
-
-    body.style.position = 'fixed';
-    body.style.top = `-${scrollY}px`;
-    body.style.left = '0';
-    body.style.right = '0';
-    body.style.width = '100%';
-    body.style.overflow = 'hidden';
-
-    return () => {
-      body.style.position = prevStyles.position;
-      body.style.top = prevStyles.top;
-      body.style.left = prevStyles.left;
-      body.style.right = prevStyles.right;
-      body.style.width = prevStyles.width;
-      body.style.overflow = prevStyles.overflow;
-      window.scrollTo(0, scrollY);
-    };
-  }, [isLocked]);
-};
-
-const sharePhoto = async (photoUrl) => {
-  if (!photoUrl) return;
-
-  try {
-    if (navigator.share) {
-      let shareData = { title: 'Photo', url: photoUrl };
-
-      if (navigator.canShare) {
-        const response = await fetch(photoUrl);
-        const blob = await response.blob();
-        const file = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
-
-        if (navigator.canShare({ files: [file] })) {
-          shareData = { title: 'Photo', files: [file] };
-        }
-      }
-
-      await navigator.share(shareData);
-      return;
-    }
-  } catch (error) {
-    if (error?.name === 'AbortError') {
-      return;
-    }
-    console.warn('Photo share failed:', error);
-  }
-
-  const link = document.createElement('a');
-  link.href = photoUrl;
-  link.download = 'photo';
-  link.rel = 'noopener';
-  link.click();
-};
-
-const PhotoModal = ({ photoUrl, onClose }) => {
-  const touchStartRef = React.useRef({ x: 0, y: 0 });
-
-  useBodyScrollLock(!!photoUrl);
-
-  if (!photoUrl) return null;
-
-  const handleTouchStart = (event) => {
-    const touch = event.touches[0];
-    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-  };
-
-  const handleTouchEnd = (event) => {
-    const touch = event.changedTouches[0];
-    const deltaY = touch.clientY - touchStartRef.current.y;
-    const deltaX = touch.clientX - touchStartRef.current.x;
-
-    if (deltaY > 60 && Math.abs(deltaY) > Math.abs(deltaX)) {
-      onClose();
-    }
-  };
-
-  return ReactDOM.createPortal(
-    React.createElement('div', {
-      onClick: onClose,
-      onTouchStart: handleTouchStart,
-      onTouchEnd: handleTouchEnd,
-      className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
-      style: { zIndex: 20000 }
-    },
-      React.createElement('button', {
-        onClick: async (event) => {
-          event.stopPropagation();
-          await sharePhoto(photoUrl);
-        },
-        className: "absolute top-4 right-16 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors z-[103]",
-        'aria-label': 'Download'
-      },
-        React.createElement('svg', {
-          xmlns: "http://www.w3.org/2000/svg",
-          width: "32",
-          height: "32",
-          fill: "currentColor",
-          viewBox: "0 0 256 256",
-          className: "w-5 h-5 text-white"
-        },
-          React.createElement('path', {
-            d: "M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"
-          })
-        )
-      ),
-      React.createElement('button', {
-        onClick: (event) => {
-          event.stopPropagation();
-          onClose();
-        },
-        className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors z-[103]",
-        'aria-label': 'Close'
-      },
-        React.createElement('svg', {
-          xmlns: "http://www.w3.org/2000/svg",
-          width: "32",
-          height: "32",
-          fill: "#ffffff",
-          viewBox: "0 0 256 256",
-          className: "w-5 h-5"
-        },
-          React.createElement('path', {
-            d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-          })
-        )
-      ),
-      React.createElement('img', {
-        src: photoUrl,
-        alt: "Full size photo",
-        className: "max-w-full max-h-full object-contain",
-        onClick: (event) => event.stopPropagation()
-      })
-    ),
-    document.body
-  );
-};
 
 const TrackerCard = ({ 
   mode = 'sleep',
@@ -1085,14 +929,17 @@ const TrackerCard = ({
     setTimelineFullSizePhoto(photoUrl);
   }, []);
   
-  // UI Version - single source of truth (v1 or v2)
+  // UI Version - single source of truth (v1, v2, or v3)
   // Part of UI Version system:
-  // - v1: Old UI (not used here, TrackerCard only shows in v2)
-  // - v2: useNewUI = true, cardDesign = 'new'
+  // - v1: Old UI (not used here, TrackerCard only shows in v2/v3)
+  // - v2: useNewUI = true, cardDesign = 'current'
+  // - v3: useNewUI = true, cardDesign = 'new'
   const [uiVersion, setUiVersion] = React.useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
-  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v2' ? 'new' : 'current'))(uiVersion);
+  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v3' ? 'v3' : (v === 'v2' ? 'new' : 'current')))(uiVersion);
+  
+
   
   // Listen for changes to the feature flags
   React.useEffect(() => {
@@ -1100,6 +947,7 @@ const TrackerCard = ({
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
         setUiVersion(version);
+
       }
     };
     
@@ -1759,7 +1607,7 @@ const TrackerCard = ({
     ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) || null;
 
-  // v2 "main" icons - use BottleV2 and MoonV2 for both variants
+  // v3 "main" icons - use BottleV2 and MoonV2 for both variants
   const BottleMainIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
@@ -1773,10 +1621,10 @@ const TrackerCard = ({
     HeaderIcon ||
     null;
 
-  // Shared renderer: v2 ("new") design can vary styling without duplicating markup.
+  // Shared renderer: v2 ("current") and v3 ("new") can vary styling without duplicating markup.
   const renderDesign = ({
     showHeaderRow = true,                   // show the old header row (icon + Feed/Sleep + headerRight)
-    iconOverride = null,                    // override icon component (v2 uses bottle-main/moon-main)
+    iconOverride = null,                    // override icon component (v3 uses bottle-main/moon-main)
     headerGapClass = 'gap-2',                 // icon ↔ label spacing
     headerBottomMarginClass = 'mb-6',         // header ↔ big number spacing
     headerLabelClassName = 'text-base font-semibold',
@@ -1791,22 +1639,22 @@ const TrackerCard = ({
     bigNumberIconClassName = null,           // icon size for big number row (defaults to headerIconClassName)
     bigNumberRight = null,                   // optional right-side content in big number row (e.g. status pill)
     bigNumberRowClassName = "flex items-baseline gap-1 mb-1",
-    bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value (v2)
+    bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value (v3)
     bigNumberValueClassName = "text-[40px] leading-none font-bold",
     bigNumberTargetClassName = "relative -top-[1px] text-[16px] leading-none",
     bigNumberTargetColor = 'var(--tt-text-secondary)',
-    bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v2 uses 'unit')
-    bigNumberTopLabel = null,                 // optional icon + label above big number (for v2 feeding)
+    bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v3 uses 'unit')
+    bigNumberTopLabel = null,                 // optional icon + label above big number (for v3 feeding)
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
-    statusRow = null,                         // optional row below progress bar (v2)
+    statusRow = null,                         // optional row below progress bar (v3)
     statusRowClassName = '',                  // spacing wrapper for statusRow
     showDotsRow = true,                       // dots row under progress bar
     progressBottomMarginClass = 'mb-1',       // spacing after progress bar
     dividerMarginClass = 'my-4',              // divider spacing
     timelineTextColor = 'var(--tt-text-secondary)',
-    timelineVariant = 'v2',                   // 'v2' (uses pill + no bullet)
-    timelineCountPill = null                 // optional v2 pill shown inline next to "Timeline"
+    timelineVariant = 'v2',                   // 'v2' | 'v3' (v3 uses pill + no bullet)
+    timelineCountPill = null                 // optional v3 pill shown inline next to "Timeline"
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
     const withFeedingMirror = (t) => {
@@ -1870,7 +1718,7 @@ const TrackerCard = ({
       headerRight
     ) : null,
 
-    // Optional icon + label above big number (for v2 feeding)
+    // Optional icon + label above big number (for v3 feeding)
     bigNumberTopLabel ? React.createElement(
       'div',
       { className: "flex items-center mb-4" },
@@ -1911,7 +1759,7 @@ const TrackerCard = ({
           })
         : null;
 
-      // Default: number + target only.
+      // Default (v2): number + target only.
       if (!showBigNumberIcon && !bigNumberRight) {
         return React.createElement(
           'div',
@@ -1921,7 +1769,7 @@ const TrackerCard = ({
         );
       }
 
-      // v2: icon + number (left) and optional right content (status pill)
+      // v3: icon + number (left) and optional right content (status pill)
       return React.createElement(
         'div',
         { className: bigNumberRowClassName },
@@ -2048,7 +1896,7 @@ const TrackerCard = ({
       React.createElement(
         'span',
         null,
-        timelineVariant === 'v2'
+        timelineVariant === 'v3'
           ? (timelineCountPill 
               ? timelineCountPill  // Feeding: replace "Timeline" with pills
               : React.createElement(  // Sleep: show "Timeline" text
@@ -2097,7 +1945,7 @@ const TrackerCard = ({
                 React.createElement(TimelineItem, { 
                   entry,
                   mode,
-                  mirrorFeedingIcon: timelineVariant === 'v2',
+                  mirrorFeedingIcon: timelineVariant === 'v3',
                   iconOverride: iconOverride,
                   onClick: onItemClick,
                   onDelete: onDelete,
@@ -2114,10 +1962,10 @@ const TrackerCard = ({
     );
   };
 
-  // Legacy renderer (for v1 compatibility, though v1 doesn't use TrackerCard)
+  // v2: current design (production)
   const renderCurrentDesign = () => renderDesign();
 
-  // v2: new design (experimental) — ONLY change styling here
+  // v3: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
     // Prefer PNG icons (if present) with SVG fallback.
     // Drop these files in the project root:
@@ -2262,6 +2110,7 @@ const TrackerCard = ({
           return 'No sleep logged';
         })();
 
+    // Get variant state (will be defined later, but we need it here)
     // Always use variant2 behavior
     const isVariant2ForStatus = true;
     
@@ -2399,8 +2248,8 @@ const TrackerCard = ({
       );
     };
 
-    const v3HeaderLabel = isVariant2 ? createIconLabel(mode) : null;
-    const v3TopLabel = isVariant2 ? createIconLabel(mode) : null;
+    const v2HeaderLabel = isVariant2 ? createIconLabel(mode) : null;
+    const v2TopLabel = isVariant2 ? createIconLabel(mode) : null;
 
     return renderDesign({
       showHeaderRow: isVariant2,                    // show header row for variant 2 (with icon + label)
@@ -2413,7 +2262,7 @@ const TrackerCard = ({
       mirrorFeedingIcon: false,
       showHeaderIcon: false,
       headerRight: isVariant2 ? v2HeaderRight : null,  // variant 2: status pill in header, variant 1: in timeline
-      headerLabel: isVariant2 ? v3HeaderLabel : null,  // variant 2: icon + label in header
+      headerLabel: isVariant2 ? v2HeaderLabel : null,  // variant 2: icon + label in header
       showBigNumberIcon: isVariant1,                // show big icon inline for variant 1
       bigNumberTopLabel: null,                      // not used in header (use headerLabel instead)
       // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px), +10% = 35.739px / 33.858px
@@ -2446,15 +2295,395 @@ const TrackerCard = ({
     });
   };
 
+  // v3: new design (copied from v2, edit independently) — ONLY change styling here
+  const renderV3Design = () => {
+    // Prefer PNG icons (if present) with SVG fallback.
+    // Drop these files in the project root:
+    // - assets/ui-icons/inv bottle-main-right-v3@3x.png.png
+    // - assets/ui-icons/inv moon-main@3x.png
+    //
+    // NOTE: This component must be stable across renders to avoid image flicker
+    // (active sleep re-renders every second).
+    // Use BottleV2 and MoonV2 directly for both variants
+    const v3IconSvg = mode === 'feeding'
+      ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || BottleMainIcon)
+      : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || MoonMainIcon);
+    const v3IconSrc = (mode === 'feeding')
+      ? 'assets/ui-icons/inv bottle-main-right-v3@3x.png.png'
+      : 'assets/ui-icons/inv moon-main@3x.png';
+
+    const V3Icon = React.useMemo(() => {
+      const currentMode = mode; // Capture mode in closure
+      const isVariant2 = true; // Always use variant2
+      // For variant 2, skip PNG and use SVG directly for feeding mode
+      const skipPNG = isVariant2 && currentMode === 'feeding';
+      
+      return function V3IconComponent(props) {
+        const [failed, setFailed] = React.useState(skipPNG ? true : false);
+        // Prefer CSS mask tinting (works great for silhouette PNGs) so icons can use accent tokens.
+        // Fall back to SVG if mask isn't supported or if PNG fails to load.
+        const canMask = (() => {
+          try {
+            if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
+            // Safari uses -webkit-mask-image; other browsers support mask-image.
+            return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
+          } catch {
+            return false;
+          }
+        })();
+
+        // Preload the PNG so we can fall back cleanly if the file is missing.
+        // Skip PNG loading for variant 2 feeding mode
+        React.useEffect(() => {
+          if (skipPNG) return; // Skip PNG loading for variant 2 feeding
+          
+          let cancelled = false;
+          try { setFailed(false); } catch {}
+          try {
+            const img = new Image();
+            img.onload = () => { /* noop */ };
+            img.onerror = () => { if (!cancelled) setFailed(true); };
+            img.src = v3IconSrc;
+          } catch {
+            if (!cancelled) setFailed(true);
+          }
+          return () => { cancelled = true; };
+        }, [v3IconSrc, skipPNG]);
+
+        if (failed || !v3IconSrc || skipPNG) {
+          // When using SVG fallback, ensure correct styling for BottleV2/MoonV2
+          const svgProps = {
+            ...props,
+            style: {
+              ...(props?.style || {}),
+              strokeWidth: currentMode === 'feeding' ? '1.5' : undefined,
+              fill: currentMode === 'feeding' ? 'none' : (currentMode === 'sleep' ? (props?.style?.color || 'var(--tt-sleep)') : undefined)
+            }
+          };
+          return v3IconSvg ? React.createElement(v3IconSvg, svgProps) : null;
+        }
+        const { style, alt, ...rest } = props || {};
+        const baseStyle = { ...(style || {}) };
+        // Bottle PNG is stored already mirrored (points right), so no runtime flip needed here.
+
+        const tintColor = baseStyle.color || 'currentColor';
+
+        if (canMask) {
+          // Safari can be finicky about transforms on elements that also have -webkit-mask-image.
+          // To make mirroring 100% reliable, apply transforms on an outer wrapper and keep the mask on an inner span.
+          const { transform, WebkitTransform, transformOrigin, WebkitTransformOrigin, ...innerBase } = baseStyle;
+
+          const outerStyle = {
+            ...innerBase,
+            display: 'inline-block',
+            // keep transforms only on outer wrapper
+            ...(transform ? { transform } : null),
+            ...(WebkitTransform ? { WebkitTransform } : null),
+            ...(transformOrigin ? { transformOrigin } : null),
+            ...(WebkitTransformOrigin ? { WebkitTransformOrigin } : null)
+          };
+
+          const innerStyle = {
+            width: '100%',
+            height: '100%',
+            display: 'block',
+            backgroundColor: tintColor,
+            // CSS mask (tints the silhouette)
+            WebkitMaskImage: `url("${v3IconSrc}")`,
+            WebkitMaskRepeat: 'no-repeat',
+            WebkitMaskSize: 'contain',
+            WebkitMaskPosition: 'center',
+            maskImage: `url("${v3IconSrc}")`,
+            maskRepeat: 'no-repeat',
+            maskSize: 'contain',
+            maskPosition: 'center'
+          };
+
+          return React.createElement(
+            'span',
+            {
+              ...rest,
+              'aria-hidden': alt ? undefined : true,
+              role: alt ? 'img' : undefined,
+              'aria-label': alt || undefined,
+              style: outerStyle
+            },
+            React.createElement('span', { style: innerStyle })
+          );
+        }
+
+        // No mask support: fall back to SVG (keeps accent colors via currentColor).
+        return v3IconSvg ? React.createElement(v3IconSvg, props) : null;
+      };
+    }, [mode, v3IconSrc, v3IconSvg]);
+
+    const v3StatusText = mode === 'feeding'
+      ? (lastEntryTime ? `Last ate at ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
+      : (() => {
+          const activeEntry = localTimelineItems.find(item => item.isActive && item.startTime);
+          if (activeEntry) {
+            return React.createElement(
+              'span',
+              { className: "inline-flex items-center gap-2" },
+              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
+              React.createElement(
+                'span',
+                { className: "inline-flex items-center font-light", style: { color: 'currentColor' } },
+                zzzElementMemo
+              )
+            );
+          }
+          const lastCompletedSleep = localTimelineItems.find(item => item.endTime && !item.isActive);
+          if (lastCompletedSleep && lastCompletedSleep.endTime) {
+            return `Last woke at ${formatTime12Hour(lastCompletedSleep.endTime)}`;
+          }
+          return 'No sleep logged';
+        })();
+
+    // Always use variant2 behavior
+    const isVariant2ForStatus = true;
+    
+    const v3HeaderRight = (() => {
+      // Active sleep: special tappable/pulsing pill that opens sleep controls.
+      const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
+      
+      // Variant 2: only show pill if there's an active sleep, otherwise plain text
+      if (isVariant2ForStatus && !isActiveSleepPill) {
+        return React.createElement(
+          'span',
+          {
+            className: "text-[15.4px] font-normal leading-none",
+            style: { color: 'var(--tt-text-tertiary)' }
+          },
+          v3StatusText
+        );
+      }
+      
+      // v3 pills: keep a single source of truth so height/radius stays consistent.
+      // Fixed height avoids subtle font/animation differences changing pill size.
+      const v3PillBaseClass =
+        "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
+
+      const pillInner = React.createElement(
+        'span',
+        { className: "inline-flex items-center" },
+        React.createElement('span', null, v3StatusText)
+      );
+
+      // Active sleep: special tappable/pulsing pill that opens sleep controls.
+      if (isActiveSleepPill && typeof onActiveSleepClick === 'function') {
+        return React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: (e) => {
+              try { e.preventDefault(); e.stopPropagation(); } catch {}
+              try { onActiveSleepClick(); } catch {}
+            },
+            className: `${v3PillBaseClass} gap-1 tt-tapable tt-sleep-progress-pulse`,
+            style: {
+              backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
+              color: 'var(--tt-sleep)'
+            },
+            title: "Sleep controls",
+            'aria-label': "Sleep controls"
+          },
+          pillInner
+        );
+      }
+
+      // Default v3 status pill (non-interactive)
+      return React.createElement(
+        'span',
+        {
+          className: `${v3PillBaseClass} gap-1`,
+          style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
+        },
+        pillInner
+      );
+    })();
+
+    // Always use variant2 (small icon + label in header)
+    const isVariant1 = false;
+    const isVariant2 = true;
+
+    const v3CountPill = (() => {
+      const n = Number(entriesTodayCount);
+      const abs = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
+      const nounBase = (mode === 'feeding') ? 'feed' : 'sleep';
+      const noun = abs === 1 ? nounBase : `${nounBase}s`;
+      return React.createElement(
+        'span',
+        {
+          className:
+            "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none",
+          style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
+        },
+        `${abs} ${noun} today`
+      );
+    })();
+
+    // v3 pills: keep a single source of truth so height/radius stays consistent.
+    const v3PillBaseClass =
+      "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
+
+    // For feeding: pills go in timeline (count only for variant 2, count + status for variant 1)
+    const v3FeedingTimelinePills = mode === 'feeding' ? React.createElement(
+      'span',
+      { className: "flex items-center gap-3" },
+      v3CountPill,
+      isVariant1 ? v3HeaderRight : null  // Status pill moved to header for variant 2
+    ) : null;
+
+    // For sleep: pills go in timeline (count only for variant 2, count + status for variant 1)
+    const v3SleepTimelinePills = mode === 'sleep' ? React.createElement(
+      'span',
+      { className: "flex items-center gap-3" },
+      v3CountPill,
+      isVariant1 ? v3HeaderRight : null  // Status pill moved to header for variant 2
+    ) : null;
+
+    // Helper function to create icon + label component (for variant 2)
+    const createIconLabel = (m) => {
+      const isFeed = m === 'feeding';
+      // Variant 2 uses new SVG icons (BottleV2 and MoonV2)
+      const v3Svg = isFeed
+        ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.BottleV2) ||
+           (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-v2"]) ||
+           null)
+        : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
+           (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
+           null);
+      const color = isFeed ? 'var(--tt-feed)' : 'var(--tt-sleep)';
+      const label = isFeed ? 'Feeding' : 'Sleep';
+      
+      // Variant 2 uses SVG icons directly (no PNG mask needed)
+      return React.createElement(
+        'div',
+        { 
+          className: "text-[17.6px] font-semibold inline-flex items-center gap-1",
+          style: { color }
+        },
+        v3Svg ? React.createElement(v3Svg, { 
+          className: "w-5 h-5", 
+          style: { 
+            color, 
+            strokeWidth: isFeed ? '1.5' : undefined,
+            fill: isFeed ? 'none' : color,
+            transform: isFeed ? 'rotate(20deg)' : undefined
+          } 
+        }) : null,
+        React.createElement('span', null, label)
+      );
+    };
+
+    const v3HeaderLabel = isVariant2 ? createIconLabel(mode) : null;
+    const v3TopLabel = isVariant2 ? createIconLabel(mode) : null;
+
+    return renderDesign({
+      showHeaderRow: isVariant2,                    // show header row for variant 2 (with icon + label)
+      headerGapClass: 'gap-2',
+      headerBottomMarginClass: 'mb-8',
+      headerLabelClassName: 'text-[15.4px] font-medium',
+      iconOverride: V3Icon,
+      feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
+      sleepIconTransform: 'translateY(2px)',                // nudge moon down 2px
+      mirrorFeedingIcon: false,
+      showHeaderIcon: false,
+      headerRight: isVariant2 ? v3HeaderRight : null,  // variant 2: status pill in header, variant 1: in timeline
+      headerLabel: isVariant2 ? v3HeaderLabel : null,  // variant 2: icon + label in header
+      showBigNumberIcon: isVariant1,                // show big icon inline for variant 1
+      bigNumberTopLabel: null,                      // not used in header (use headerLabel instead)
+      // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px), +10% = 35.739px / 33.858px
+      bigNumberIconClassName: mode === 'feeding' ? 'h-[35.739px] w-[35.739px]' : 'h-[33.858px] w-[33.858px]',
+      // v3: big-number row is just icon + number + target (left-aligned)
+      bigNumberRight: null,
+      bigNumberRowClassName: isVariant1 
+        ? "flex items-baseline gap-1 mb-[13px]"  // Consistent alignment for both feeding and sleep
+        : "flex items-baseline gap-1 mb-[13px]",  // Consistent alignment for both feeding and sleep
+      // Icons were matched; add +1px only for sleep (moon) per request.
+      bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
+      bigNumberValueClassName: "text-[39.6px] leading-none font-bold",
+      bigNumberTargetClassName: isVariant1 
+        ? "relative -top-[2px] text-[17.6px] leading-none font-normal"  // variant 1: consistent for both feeding and sleep
+        : "relative -top-[1px] text-[17.6px] leading-none font-normal",  // variant 2: consistent for both feeding and sleep
+      bigNumberTargetColor: 'var(--tt-text-secondary)',
+      bigNumberTargetVariant: 'target',
+      // 12px * 1.2 = 14.4px, +10% = 15.84px
+      progressTrackHeightClass: 'h-[15.84px]',
+      progressTrackBg: 'var(--tt-subtle-surface)',
+      // v3: no status row below progress bar (pills moved to timeline/header)
+      statusRow: null,
+      statusRowClassName: "",
+      showDotsRow: false,
+      progressBottomMarginClass: 'mb-0',
+      dividerMarginClass: 'my-4',
+      timelineTextColor: 'var(--tt-text-tertiary)',
+      timelineVariant: 'v3',
+      timelineCountPill: mode === 'feeding' ? v3FeedingTimelinePills : v3SleepTimelinePills  // pills replace "Timeline" for both modes
+    });
+  };
+
   // Timeline photo modal
-  const timelinePhotoModal = React.createElement(PhotoModal, {
-    photoUrl: timelineFullSizePhoto,
-    onClose: () => setTimelineFullSizePhoto(null)
-  });
+  const timelinePhotoModal = timelineFullSizePhoto && React.createElement(
+    React.Fragment,
+    null,
+    React.createElement('div', {
+      onClick: () => setTimelineFullSizePhoto(null),
+      className: "fixed inset-0 bg-black bg-opacity-75 z-[102] flex items-center justify-center p-4"
+    },
+        React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              setTimelineFullSizePhoto(null);
+            },
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
+            'aria-label': 'Close'
+          },
+            React.createElement('svg', {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "32",
+              height: "32",
+              fill: "#ffffff",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5"
+            },
+              React.createElement('path', {
+                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+              })
+            )
+          ),
+      React.createElement('img', {
+        src: timelineFullSizePhoto,
+        alt: "Full size photo",
+        className: "max-w-full max-h-full object-contain",
+        onClick: (e) => e.stopPropagation()
+      })
+    )
+  );
 
   // Conditional render based on feature flag
+  if (uiVersion === 'v1') {
+    return React.createElement(React.Fragment, null,
+      renderCurrentDesign(),
+      timelinePhotoModal
+    );
+  }
+  if (uiVersion === 'v2') {
+    return React.createElement(React.Fragment, null,
+      renderNewDesign(),
+      timelinePhotoModal
+    );
+  }
+  if (uiVersion === 'v3') {
+    return React.createElement(React.Fragment, null,
+      renderV3Design(),
+      timelinePhotoModal
+    );
+  }
+  // Fallback to v2
   return React.createElement(React.Fragment, null,
-    cardDesign === 'new' ? renderNewDesign() : renderCurrentDesign(),
+    renderNewDesign(),
     timelinePhotoModal
   );
 };
@@ -3344,10 +3573,42 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
-      React.createElement(PhotoModal, {
-        photoUrl: fullSizePhoto,
-        onClose: () => setFullSizePhoto(null)
-      })
+      fullSizePhoto && ReactDOM.createPortal(
+        React.createElement('div', {
+          onClick: () => setFullSizePhoto(null),
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
+        },
+          React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              setFullSizePhoto(null);
+            },
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
+            'aria-label': 'Close'
+          },
+            React.createElement('svg', {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "32",
+              height: "32",
+              fill: "#ffffff",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5"
+            },
+              React.createElement('path', {
+                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+              })
+            )
+          ),
+          React.createElement('img', {
+            src: fullSizePhoto,
+            alt: "Full size photo",
+            className: "max-w-full max-h-full object-contain",
+            onClick: (e) => e.stopPropagation()
+          })
+        ),
+        document.body
+      )
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
@@ -3882,10 +4143,42 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
-      React.createElement(PhotoModal, {
-        photoUrl: fullSizePhoto,
-        onClose: () => setFullSizePhoto(null)
-      })
+      fullSizePhoto && ReactDOM.createPortal(
+        React.createElement('div', {
+          onClick: () => setFullSizePhoto(null),
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
+        },
+          React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              setFullSizePhoto(null);
+            },
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
+            'aria-label': 'Close'
+          },
+            React.createElement('svg', {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "32",
+              height: "32",
+              fill: "#ffffff",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5"
+            },
+              React.createElement('path', {
+                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+              })
+            )
+          ),
+          React.createElement('img', {
+            src: fullSizePhoto,
+            alt: "Full size photo",
+            className: "max-w-full max-h-full object-contain",
+            onClick: (e) => e.stopPropagation()
+          })
+        ),
+        document.body
+      )
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
@@ -4039,7 +4332,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
     const sleepIntervalRef = React.useRef(null);
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
-    const [startTimeManuallyEdited, setStartTimeManuallyEdited] = React.useState(false);
     const prevModeRef = React.useRef(mode); // Track previous mode to detect actual mode changes
     
     // Shared photos state
@@ -4137,7 +4429,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Reset all sleep-related state when closing (except if timer is running)
         if (sleepState !== 'running') {
           setEndTimeManuallyEdited(false);
-          setStartTimeManuallyEdited(false);
           setStartTime(new Date().toISOString());
           setEndTime(null);
           setSleepNotes('');
@@ -4158,7 +4449,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // UNLESS sleep is currently running (don't override active sleep)
         if (mode === 'sleep' && sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
-          setStartTimeManuallyEdited(false);
         }
         // When sheet opens in feeding mode, set feedingDateTime to NOW
         if (mode === 'feeding') {
@@ -4237,7 +4527,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // UNLESS sleep is currently running (don't override active sleep)
         if (sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
-          setStartTimeManuallyEdited(false);
         }
       }
       
@@ -4436,11 +4725,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           setEndTime(null);
         } else {
           // IDLE/IDLE_WITH_TIMES → RUNNING:
-          // If start time was NOT manually edited, update it to NOW
-          if (!startTimeManuallyEdited) {
-            effectiveStartIso = new Date().toISOString();
-            setStartTime(effectiveStartIso);
-          }
           // Use the user-selected startTime if present; otherwise default to now.
           const parsed = effectiveStartIso ? new Date(effectiveStartIso).getTime() : NaN;
           if (!effectiveStartIso || !Number.isFinite(parsed)) {
@@ -4536,7 +4820,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Handle start time change
     const handleStartTimeChange = async (newStartTime) => {
       setStartTime(newStartTime);
-      setStartTimeManuallyEdited(true);
       
       if (sleepState === 'running') {
         setEndTime(null);
@@ -5136,10 +5419,42 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
-      React.createElement(PhotoModal, {
-        photoUrl: fullSizePhoto,
-        onClose: () => setFullSizePhoto(null)
-      })
+      fullSizePhoto && ReactDOM.createPortal(
+        React.createElement('div', {
+          onClick: () => setFullSizePhoto(null),
+          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+          style: { zIndex: 20000 }
+        },
+          React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              setFullSizePhoto(null);
+            },
+            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
+            'aria-label': 'Close'
+          },
+            React.createElement('svg', {
+              xmlns: "http://www.w3.org/2000/svg",
+              width: "32",
+              height: "32",
+              fill: "#ffffff",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5"
+            },
+              React.createElement('path', {
+                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+              })
+            )
+          ),
+          React.createElement('img', {
+            src: fullSizePhoto,
+            alt: "Full size photo",
+            className: "max-w-full max-h-full object-contain",
+            onClick: (e) => e.stopPropagation()
+          })
+        ),
+        document.body
+      )
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
