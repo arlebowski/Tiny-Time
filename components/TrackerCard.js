@@ -914,6 +914,154 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   };
 }
 
+const useBodyScrollLock = (isLocked) => {
+  React.useEffect(() => {
+    if (!isLocked) return undefined;
+
+    const body = document.body;
+    const scrollY = window.scrollY || window.pageYOffset;
+    const prevStyles = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      width: body.style.width,
+      overflow: body.style.overflow
+    };
+
+    body.style.position = 'fixed';
+    body.style.top = `-${scrollY}px`;
+    body.style.left = '0';
+    body.style.right = '0';
+    body.style.width = '100%';
+    body.style.overflow = 'hidden';
+
+    return () => {
+      body.style.position = prevStyles.position;
+      body.style.top = prevStyles.top;
+      body.style.left = prevStyles.left;
+      body.style.right = prevStyles.right;
+      body.style.width = prevStyles.width;
+      body.style.overflow = prevStyles.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, [isLocked]);
+};
+
+const sharePhoto = async (photoUrl) => {
+  if (!photoUrl) return;
+
+  try {
+    if (navigator.share) {
+      let shareData = { title: 'Photo', url: photoUrl };
+
+      if (navigator.canShare) {
+        const response = await fetch(photoUrl);
+        const blob = await response.blob();
+        const file = new File([blob], 'photo.jpg', { type: blob.type || 'image/jpeg' });
+
+        if (navigator.canShare({ files: [file] })) {
+          shareData = { title: 'Photo', files: [file] };
+        }
+      }
+
+      await navigator.share(shareData);
+      return;
+    }
+  } catch (error) {
+    console.warn('Photo share failed:', error);
+  }
+
+  const link = document.createElement('a');
+  link.href = photoUrl;
+  link.download = 'photo';
+  link.rel = 'noopener';
+  link.click();
+};
+
+const PhotoModal = ({ photoUrl, onClose }) => {
+  const touchStartRef = React.useRef({ x: 0, y: 0 });
+
+  useBodyScrollLock(!!photoUrl);
+
+  if (!photoUrl) return null;
+
+  const handleTouchStart = (event) => {
+    const touch = event.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+  };
+
+  const handleTouchEnd = (event) => {
+    const touch = event.changedTouches[0];
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    const deltaX = touch.clientX - touchStartRef.current.x;
+
+    if (deltaY > 60 && Math.abs(deltaY) > Math.abs(deltaX)) {
+      onClose();
+    }
+  };
+
+  return ReactDOM.createPortal(
+    React.createElement('div', {
+      onClick: onClose,
+      onTouchStart: handleTouchStart,
+      onTouchEnd: handleTouchEnd,
+      className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+      style: { zIndex: 20000 }
+    },
+      React.createElement('button', {
+        onClick: async (event) => {
+          event.stopPropagation();
+          await sharePhoto(photoUrl);
+        },
+        className: "absolute top-4 right-16 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors z-[103]",
+        'aria-label': 'Download'
+      },
+        React.createElement('svg', {
+          xmlns: "http://www.w3.org/2000/svg",
+          width: "32",
+          height: "32",
+          fill: "currentColor",
+          viewBox: "0 0 256 256",
+          className: "w-5 h-5 text-white"
+        },
+          React.createElement('path', {
+            d: "M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"
+          })
+        )
+      ),
+      React.createElement('button', {
+        onClick: (event) => {
+          event.stopPropagation();
+          onClose();
+        },
+        className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors z-[103]",
+        'aria-label': 'Close'
+      },
+        React.createElement('svg', {
+          xmlns: "http://www.w3.org/2000/svg",
+          width: "32",
+          height: "32",
+          fill: "#ffffff",
+          viewBox: "0 0 256 256",
+          className: "w-5 h-5"
+        },
+          React.createElement('path', {
+            d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+          })
+        )
+      ),
+      React.createElement('img', {
+        src: photoUrl,
+        alt: "Full size photo",
+        className: "max-w-full max-h-full object-contain",
+        onClick: (event) => event.stopPropagation()
+      })
+    ),
+    document.body
+  );
+};
+
 const TrackerCard = ({ 
   mode = 'sleep',
   total = null,           // e.g., 14.5 (oz or hrs)
@@ -2312,42 +2460,10 @@ const TrackerCard = ({
   };
 
   // Timeline photo modal
-  const timelinePhotoModal = timelineFullSizePhoto && ReactDOM.createPortal(
-    React.createElement('div', {
-      onClick: () => setTimelineFullSizePhoto(null),
-      className: "fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center p-4",
-      style: { zIndex: 20000 }
-    },
-      React.createElement('button', {
-        onClick: (e) => {
-          e.stopPropagation();
-          setTimelineFullSizePhoto(null);
-        },
-        className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
-        'aria-label': 'Close'
-      },
-        React.createElement('svg', {
-          xmlns: "http://www.w3.org/2000/svg",
-          width: "32",
-          height: "32",
-          fill: "#ffffff",
-          viewBox: "0 0 256 256",
-          className: "w-5 h-5"
-        },
-          React.createElement('path', {
-            d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-          })
-        )
-      ),
-      React.createElement('img', {
-        src: timelineFullSizePhoto,
-        alt: "Full size photo",
-        className: "max-w-full max-h-full object-contain",
-        onClick: (e) => e.stopPropagation()
-      })
-    ),
-    document.body
-  );
+  const timelinePhotoModal = React.createElement(PhotoModal, {
+    photoUrl: timelineFullSizePhoto,
+    onClose: () => setTimelineFullSizePhoto(null)
+  });
 
   // Conditional render based on feature flag
   return React.createElement(React.Fragment, null,
@@ -3241,42 +3357,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
-      fullSizePhoto && ReactDOM.createPortal(
-        React.createElement('div', {
-          onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
-          style: { zIndex: 20000 }
-        },
-          React.createElement('button', {
-            onClick: (e) => {
-              e.stopPropagation();
-              setFullSizePhoto(null);
-            },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
-            'aria-label': 'Close'
-          },
-            React.createElement('svg', {
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "32",
-              height: "32",
-              fill: "#ffffff",
-              viewBox: "0 0 256 256",
-              className: "w-5 h-5"
-            },
-              React.createElement('path', {
-                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-              })
-            )
-          ),
-          React.createElement('img', {
-            src: fullSizePhoto,
-            alt: "Full size photo",
-            className: "max-w-full max-h-full object-contain",
-            onClick: (e) => e.stopPropagation()
-          })
-        ),
-        document.body
-      )
+      React.createElement(PhotoModal, {
+        photoUrl: fullSizePhoto,
+        onClose: () => setFullSizePhoto(null)
+      })
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
@@ -3811,42 +3895,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
-      fullSizePhoto && ReactDOM.createPortal(
-        React.createElement('div', {
-          onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
-          style: { zIndex: 20000 }
-        },
-          React.createElement('button', {
-            onClick: (e) => {
-              e.stopPropagation();
-              setFullSizePhoto(null);
-            },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
-            'aria-label': 'Close'
-          },
-            React.createElement('svg', {
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "32",
-              height: "32",
-              fill: "#ffffff",
-              viewBox: "0 0 256 256",
-              className: "w-5 h-5"
-            },
-              React.createElement('path', {
-                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-              })
-            )
-          ),
-          React.createElement('img', {
-            src: fullSizePhoto,
-            alt: "Full size photo",
-            className: "max-w-full max-h-full object-contain",
-            onClick: (e) => e.stopPropagation()
-          })
-        ),
-        document.body
-      )
+      React.createElement(PhotoModal, {
+        photoUrl: fullSizePhoto,
+        onClose: () => setFullSizePhoto(null)
+      })
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
@@ -5097,42 +5149,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       ),
 
       // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
-      fullSizePhoto && ReactDOM.createPortal(
-        React.createElement('div', {
-          onClick: () => setFullSizePhoto(null),
-          className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
-          style: { zIndex: 20000 }
-        },
-          React.createElement('button', {
-            onClick: (e) => {
-              e.stopPropagation();
-              setFullSizePhoto(null);
-            },
-            className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors z-[103]",
-            'aria-label': 'Close'
-          },
-            React.createElement('svg', {
-              xmlns: "http://www.w3.org/2000/svg",
-              width: "32",
-              height: "32",
-              fill: "#ffffff",
-              viewBox: "0 0 256 256",
-              className: "w-5 h-5"
-            },
-              React.createElement('path', {
-                d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
-              })
-            )
-          ),
-          React.createElement('img', {
-            src: fullSizePhoto,
-            alt: "Full size photo",
-            className: "max-w-full max-h-full object-contain",
-            onClick: (e) => e.stopPropagation()
-          })
-        ),
-        document.body
-      )
+      React.createElement(PhotoModal, {
+        photoUrl: fullSizePhoto,
+        onClose: () => setFullSizePhoto(null)
+      })
     );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
