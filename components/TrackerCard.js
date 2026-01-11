@@ -882,12 +882,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
-  // Helper to get UI version (defaults to v2 for backward compatibility)
+  // Helper to get UI version (defaults to v3)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = window.localStorage.getItem('tt_ui_version');
-        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+        if (version && ['v1', 'v3'].includes(version)) {
           return version;
         }
         // Migration: derive from old flags if version doesn't exist
@@ -895,22 +895,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
         if (useNewUI === 'false') return 'v1';
         if (cardDesign === 'new') return 'v3';
-        return 'v2'; // default
+        return 'v3'; // default
       }
-      return 'v2';
+      return 'v3';
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'new' : 'current',
-    getV3Variant: () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const variant = window.localStorage.getItem('tt_v3_card_variant');
-        if (variant && ['variant1', 'variant2'].includes(variant)) {
-          return variant;
-        }
-        return 'variant1'; // default: big icon inline
-      }
-      return 'variant1';
-    }
+    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
   };
 }
 
@@ -1090,29 +1080,21 @@ const TrackerCard = ({
     setTimelineFullSizePhoto(photoUrl);
   }, []);
   
-  // UI Version - single source of truth (v1, v2, or v3)
+  // UI Version - single source of truth (v1 or v3)
   // Part of UI Version system:
-  // - v1: Old UI (not used here, TrackerCard only shows in v2/v3)
-  // - v2: useNewUI = true, cardDesign = 'current'
+  // - v1: Old UI (not used here, TrackerCard only shows in v3)
   // - v3: useNewUI = true, cardDesign = 'new'
   const [uiVersion, setUiVersion] = React.useState(() => {
-    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v3'))();
   });
   const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v3' ? 'new' : 'current'))(uiVersion);
-  
-  // V3 Variant - variant1 (big icon inline) or variant2 (small icon + label in header)
-  const [v3Variant, setV3Variant] = React.useState(() => {
-    return (window.TT?.shared?.uiVersion?.getV3Variant || (() => 'variant1'))();
-  });
   
   // Listen for changes to the feature flags
   React.useEffect(() => {
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v3'))();
         setUiVersion(version);
-        const variant = (window.TT?.shared?.uiVersion?.getV3Variant || (() => 'variant1'))();
-        setV3Variant(variant);
       }
     };
     
@@ -1786,7 +1768,7 @@ const TrackerCard = ({
     HeaderIcon ||
     null;
 
-  // Shared renderer: v2 ("current") and v3 ("new") can vary styling without duplicating markup.
+  // Shared renderer: v3 ("new") design can vary styling without duplicating markup.
   const renderDesign = ({
     showHeaderRow = true,                   // show the old header row (icon + Feed/Sleep + headerRight)
     iconOverride = null,                    // override icon component (v3 uses bottle-main/moon-main)
@@ -1818,7 +1800,7 @@ const TrackerCard = ({
     progressBottomMarginClass = 'mb-1',       // spacing after progress bar
     dividerMarginClass = 'my-4',              // divider spacing
     timelineTextColor = 'var(--tt-text-secondary)',
-    timelineVariant = 'v2',                   // 'v2' | 'v3' (v3 uses pill + no bullet)
+    timelineVariant = 'v3',                   // 'v3' (uses pill + no bullet)
     timelineCountPill = null                 // optional v3 pill shown inline next to "Timeline"
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
@@ -1924,7 +1906,7 @@ const TrackerCard = ({
           })
         : null;
 
-      // Default (v2): number + target only.
+      // Default: number + target only.
       if (!showBigNumberIcon && !bigNumberRight) {
         return React.createElement(
           'div',
@@ -2127,7 +2109,7 @@ const TrackerCard = ({
     );
   };
 
-  // v2: current design (production)
+  // Legacy renderer (for v1 compatibility, though v1 doesn't use TrackerCard)
   const renderCurrentDesign = () => renderDesign();
 
   // v3: new design (experimental) — ONLY change styling here
@@ -2149,8 +2131,7 @@ const TrackerCard = ({
 
     const V3Icon = React.useMemo(() => {
       const currentMode = mode; // Capture mode in closure
-      const currentVariant = (window.TT?.shared?.uiVersion?.getV3Variant || (() => 'variant1'))();
-      const isVariant2 = currentVariant === 'variant2';
+      const isVariant2 = true; // Always use variant2
       // For variant 2, skip PNG and use SVG directly for feeding mode
       const skipPNG = isVariant2 && currentMode === 'feeding';
       
@@ -2276,9 +2257,8 @@ const TrackerCard = ({
           return 'No sleep logged';
         })();
 
-    // Get variant state (will be defined later, but we need it here)
-    const currentVariant = (window.TT?.shared?.uiVersion?.getV3Variant || (() => 'variant1'))();
-    const isVariant2ForStatus = currentVariant === 'variant2';
+    // Always use variant2 behavior
+    const isVariant2ForStatus = true;
     
     const v3HeaderRight = (() => {
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
@@ -2340,10 +2320,9 @@ const TrackerCard = ({
       );
     })();
 
-    // Variant 1: Big icon inline with big number (default)
-    // Variant 2: Small icon + label in header
-    const isVariant1 = v3Variant === 'variant1';
-    const isVariant2 = v3Variant === 'variant2';
+    // Always use variant2 (small icon + label in header)
+    const isVariant1 = false;
+    const isVariant2 = true;
 
     const v3CountPill = (() => {
       const n = Number(entriesTodayCount);

@@ -11,12 +11,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
-  // Helper to get UI version (defaults to v2 for backward compatibility)
+  // Helper to get UI version (defaults to v3)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = window.localStorage.getItem('tt_ui_version');
-        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+        if (version && ['v1', 'v3'].includes(version)) {
           return version;
         }
         // Migration: derive from old flags if version doesn't exist
@@ -24,9 +24,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
         if (useNewUI === 'false') return 'v1';
         if (cardDesign === 'new') return 'v3';
-        return 'v2'; // default
+        return 'v3'; // default
       }
-      return 'v2';
+      return 'v3';
     },
     shouldUseNewUI: (version) => version !== 'v1',
     getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
@@ -44,9 +44,9 @@ const SettingsTab = ({ user, kidId }) => {
   const [amountPickerAmount, setAmountPickerAmount] = useState(4);
   const [amountPickerUnit, setAmountPickerUnit] = useState('oz');
   
-  // UI Version - single source of truth (v1, v2, or v3)
+  // UI Version - single source of truth (v1 or v3)
   const [uiVersion, setUiVersion] = useState(() => {
-    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v3'))();
   });
   
   // Today Card toggle state
@@ -56,15 +56,6 @@ const SettingsTab = ({ user, kidId }) => {
       return stored !== null ? stored === 'true' : false;
     }
     return false;
-  });
-  
-  // V3 Variant toggle state
-  const [v3Variant, setV3Variant] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_v3_card_variant');
-      return stored && ['variant1', 'variant2'].includes(stored) ? stored : 'variant1';
-    }
-    return 'variant1';
   });
   
   // Production data for UI Lab
@@ -1215,7 +1206,7 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
       ),
 
-      // UI Version Toggle (single source of truth for v1/v2/v3)
+      // UI Version Toggle (single source of truth for v1/v3)
       React.createElement('div', { className: "mb-4" },
         React.createElement('label', { 
           className: "block text-sm font-medium text-gray-700 mb-2" 
@@ -1224,7 +1215,6 @@ const SettingsTab = ({ user, kidId }) => {
           value: uiVersion,
           options: [
             { value: 'v1', label: 'v1' },
-            { value: 'v2', label: 'v2' },
             { value: 'v3', label: 'v3' }
           ],
           onChange: (value) => {
@@ -1260,37 +1250,13 @@ const SettingsTab = ({ user, kidId }) => {
         })
       ),
 
-      // V3 Card Variant Toggle (only show when v3 is selected)
-      uiVersion === 'v3' && React.createElement('div', { className: "mb-4" },
-        React.createElement('label', { 
-          className: "block text-sm font-medium text-gray-700 mb-2" 
-        }, 'V3 Card Variant'),
-        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-          value: v3Variant,
-          options: [
-            { value: 'variant1', label: 'Variant 1' },
-            { value: 'variant2', label: 'Variant 2' }
-          ],
-          onChange: (value) => {
-            setV3Variant(value);
-            if (typeof window !== 'undefined' && window.localStorage) {
-              window.localStorage.setItem('tt_v3_card_variant', value);
-              // Force reload to apply changes
-              window.location.reload();
-            }
-          }
-        })
-      ),
-
       // Title and subtitle
       React.createElement('div', { className: "mb-6" },
         React.createElement('h2', { className: "text-2xl font-bold text-gray-900 mb-2" }, 'UI Lab'),
         React.createElement('p', { className: "text-sm text-gray-600" }, 
           uiVersion === 'v1'
             ? 'View old tracker UI with production data (v1)'
-            : uiVersion === 'v2'
-              ? 'View new tracker card components with current design (v2)'
-              : 'View new tracker card components with new design (v3)'
+            : 'View new tracker card components with new design (v3)'
         )
       ),
 
@@ -1446,8 +1412,8 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
-      // New UI - TrackerCard components with production data (v2 and v3)
-      (uiVersion === 'v2' || uiVersion === 'v3') && (() => {
+      // New UI - TrackerCard components with production data (v3)
+      uiVersion === 'v3' && (() => {
         if (loading) {
           return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
         }
