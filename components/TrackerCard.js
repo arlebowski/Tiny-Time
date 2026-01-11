@@ -981,7 +981,6 @@ const sharePhoto = async (photoUrl) => {
 
 const PhotoModal = ({ photoUrl, onClose }) => {
   const touchStartRef = React.useRef({ x: 0, y: 0 });
-  const suppressCloseRef = React.useRef(false);
 
   useBodyScrollLock(!!photoUrl);
 
@@ -1002,16 +1001,9 @@ const PhotoModal = ({ photoUrl, onClose }) => {
     }
   };
 
-  const handleBackdropClick = () => {
-    if (suppressCloseRef.current) {
-      return;
-    }
-    onClose();
-  };
-
   return ReactDOM.createPortal(
     React.createElement('div', {
-      onClick: handleBackdropClick,
+      onClick: onClose,
       onTouchStart: handleTouchStart,
       onTouchEnd: handleTouchEnd,
       className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
@@ -1020,14 +1012,7 @@ const PhotoModal = ({ photoUrl, onClose }) => {
       React.createElement('button', {
         onClick: async (event) => {
           event.stopPropagation();
-          suppressCloseRef.current = true;
-          try {
-            await sharePhoto(photoUrl);
-          } finally {
-            window.setTimeout(() => {
-              suppressCloseRef.current = false;
-            }, 300);
-          }
+          await sharePhoto(photoUrl);
         },
         className: "absolute top-4 right-16 w-10 h-10 flex items-center justify-center rounded-full bg-black/50 hover:bg-black/70 transition-colors z-[103]",
         'aria-label': 'Download'
