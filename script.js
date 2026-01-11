@@ -2224,21 +2224,21 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
   const [navRequestedInputMode, setNavRequestedInputMode] = useState(null); // 'feeding' | 'sleep' | null
 
-  // v3-only navigation changes (center +, settings moved to header, etc.)
+  // v2-only navigation changes (center +, settings moved to header, etc.)
   const uiVersion = (window.TT?.shared?.uiVersion?.getUIVersion || (() => {
     try {
       const v = window.localStorage?.getItem('tt_ui_version');
-      if (v && ['v1', 'v2', 'v3'].includes(v)) return v;
+      if (v && ['v1', 'v2'].includes(v)) return v;
       const useNewUI = window.localStorage?.getItem('tt_use_new_ui');
       const cardDesign = window.localStorage?.getItem('tt_tracker_card_design');
       if (useNewUI === 'false') return 'v1';
-      if (cardDesign === 'new') return 'v3';
+      if (cardDesign === 'new') return 'v2';
       return 'v2';
     } catch {
       return 'v2';
     }
   }))();
-  const isV3 = uiVersion === 'v3';
+  const isV2 = uiVersion === 'v2';
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
 
@@ -2557,7 +2557,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 )
             ),
 
-            // RIGHT: Share (+ Settings in v3 only)
+            // RIGHT: Share (+ Settings in v2 only)
             React.createElement(
               'div',
               { className: "flex items-center justify-center gap-0.5" },
@@ -2571,18 +2571,18 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowShareMenu((v) => !v);
                     setShowKidMenu(false);
                   },
-                  className: isV3
+                  className: isV2
                     ? "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
                     : "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
                 },
                 React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || ShareIcon, {
-                  className: isV3 ? "w-6 h-6" : "w-4 h-4",
+                  className: isV2 ? "w-6 h-6" : "w-4 h-4",
                   isTapped: showShareMenu,
                   selectedWeight: 'fill',
-                  style: { color: isV3 ? 'var(--tt-text-primary)' : theme.accent }
+                  style: { color: isV2 ? 'var(--tt-text-primary)' : theme.accent }
                 })
               ),
-              isV3
+              isV2
                 ? React.createElement(
                     'button',
                     {
@@ -2721,7 +2721,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       }
     ),
 
-    // Bottom navigation (v3 uses center + and no Settings; v1/v2 keep classic 5-tab bar)
+    // Bottom navigation (v2 uses center + and no Settings; v1 keeps classic 5-tab bar)
     React.createElement(
       'div',
       {
@@ -2735,7 +2735,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
       },
-      isV3
+      isV2
         ? React.createElement(
             'div',
             { className: "max-w-2xl mx-auto relative flex items-center justify-around px-4 py-3" },

@@ -2,7 +2,7 @@
 
 **Version**: 1.0  
 **Last Updated**: January 2025  
-**Primary Design**: v3 variant2 (production standard)
+**Primary Design**: v2 variant2 (production standard)
 
 ---
 
@@ -66,7 +66,7 @@
 --tt-card-bg: [card background];    /* Card backgrounds */
 --tt-card-border: [card border];    /* Card borders, dividers */
 --tt-input-bg: [input background];  /* Input fields (v2) */
---tt-subtle-surface: [subtle];      /* Timeline items, pills, track (v3) */
+--tt-subtle-surface: [subtle];      /* Timeline items, pills, track (v2) */
 --tt-app-bg: [app background];      /* Main app background */
 ```
 
@@ -111,16 +111,16 @@ backgroundColor: hexToRgba(categoryColor, 0.08) // Subtle backgrounds
 
 ```javascript
 // Headers
-'text-[17.6px] font-semibold'  // Card headers (v3 variant2)
+'text-[17.6px] font-semibold'  // Card headers (v2 variant2)
 'text-[16px] font-semibold'    // Page titles, section headers
 
 // Display Numbers
-'text-[39.6px] font-bold leading-none'  // Main tracker value (v3)
+'text-[39.6px] font-bold leading-none'  // Main tracker value (v2)
 'text-[40px] font-bold leading-none'    // Main tracker value (v2)
 'text-[2.25rem] font-bold leading-none' // Chart average (36px)
 
 // Body
-'text-[17.6px] font-normal'  // Units, target text (v3)
+'text-[17.6px] font-normal'  // Units, target text (v2)
 'text-[15.4px] font-normal'  // Status pills, timeline secondary, stat card units
 'text-[15.4px] font-medium'  // Stat card labels
 'text-2xl font-bold'          // Stat card main numbers (24px)
@@ -141,10 +141,10 @@ font-light (300)     // zZz animation characters
 ### Number Formatting
 
 ```javascript
-// formatV3Number - Production standard
+// formatV2Number - Production standard
 // Whole numbers: no decimal
 // Non-whole: one decimal
-function formatV3Number(n) {
+function formatV2Number(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return '0';
   const rounded = Math.round(x);
@@ -153,9 +153,9 @@ function formatV3Number(n) {
 }
 
 // Examples
-formatV3Number(7) → "7"
-formatV3Number(7.3) → "7.3"
-formatV3Number(7.0) → "7"
+formatV2Number(7) → "7"
+formatV2Number(7.3) → "7.3"
+formatV2Number(7.0) → "7"
 ```
 
 ### Time Formatting
@@ -207,7 +207,7 @@ function formatElapsedHmsTT(ms) {
 ### Card Padding
 
 ```javascript
-'p-5'  // TrackerCard internal (20px) - v3 standard
+'p-5'  // TrackerCard internal (20px) - v2 standard
 'p-6'  // Standard card padding (24px) - Today card, Analytics
 ```
 
@@ -217,7 +217,7 @@ function formatElapsedHmsTT(ms) {
 'mb-8'  // Header to big number (32px)
 'mb-6'  // Section spacing (24px)
 'mb-4'  // Subsection spacing (16px)
-'mb-[13px]' // Big number to progress (v3 specific)
+'mb-[13px]' // Big number to progress (v2 specific)
 'mb-3'  // Divider to content (12px)
 'mb-2'  // Tight row spacing (8px)
 'mb-1'  // Minimal spacing (4px)
@@ -257,7 +257,7 @@ margin: '0 -1rem'  // Break out of px-4 padding
 
 ## Component Patterns
 
-### 1. TrackerCard (v3 variant2) - Production Standard
+### 1. TrackerCard (v2 variant2) - Production Standard
 
 #### Structure
 
@@ -279,7 +279,7 @@ margin: '0 -1rem'  // Break out of px-4 padding
 └─────────────────────────────────────────────────┘
 ```
 
-#### Header Pattern (v3 variant2)
+#### Header Pattern (v2 variant2)
 
 ```javascript
 // Left side: Icon + Label
@@ -309,7 +309,7 @@ React.createElement('span', {
 }, statusText)
 ```
 
-#### Big Number Pattern (v3 variant2)
+#### Big Number Pattern (v2 variant2)
 
 ```javascript
 // No icon in variant2 - just number + target
@@ -320,13 +320,13 @@ React.createElement('div', {
   React.createElement('div', { 
     className: 'text-[39.6px] leading-none font-bold',
     style: { color: 'var(--tt-feed)' or 'var(--tt-sleep)' }
-  }, formatV3Number(total)),
+  }, formatV2Number(total)),
   
   // Target
   React.createElement('div', { 
     className: 'relative -top-[1px] text-[17.6px] leading-none font-normal',
     style: { color: 'var(--tt-text-secondary)' }
-  }, `/ ${formatV3Number(target)} ${unit}`)
+  }, `/ ${formatV2Number(target)} ${unit}`)
 )
 ```
 
@@ -395,7 +395,7 @@ React.createElement('div', { className: 'mb-8 mt-3' },
 )
 ```
 
-#### Timeline Header Pattern (v3 variant2)
+#### Timeline Header Pattern (v2 variant2)
 
 ```javascript
 // Feeding: Replace "Timeline" with pills
@@ -480,7 +480,7 @@ React.createElement('div', {
 ```javascript
 // Toggle: localStorage.getItem('tt_show_today_card') === 'true'
 
-// Structure (v3 variant2)
+// Structure (v2 variant2)
 ┌─────────────────────────────────────────────────┐
 │ [Icon+Label] Feeding                             │
 │ 14.5 / 24.0 oz                                   │
@@ -517,11 +517,11 @@ React.createElement('div', {
         className: 'text-2xl font-semibold',
         style: { color: 'var(--tt-feed)' }
       },
-        `${formatV3Number(total)} `,
+        `${formatV2Number(total)} `,
         React.createElement('span', {
           className: 'text-base font-normal',
           style: { color: 'var(--tt-text-secondary)' }
-        }, `of ${formatV3Number(target)} oz`)
+        }, `of ${formatV2Number(target)} oz`)
       )
     ),
     // Progress bar (22px height in Today card)
@@ -662,7 +662,7 @@ React.createElement('div', {
   - Other icons: Use appropriate styling for the icon type
 
 **Used in**:
-- TrackerCard headers (v3 variant2)
+- TrackerCard headers (v2 variant2)
 - Analytics highlight cards
 - Any category header requiring icon + label consistency
 
@@ -1516,10 +1516,10 @@ width: '80px' // Well above minimum
 ### Numbers
 
 ```javascript
-// formatV3Number - Production standard
+// formatV2Number - Production standard
 // Whole numbers: no decimal ("7")
 // Non-whole: one decimal ("7.3")
-function formatV3Number(n) {
+function formatV2Number(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return '0';
   const rounded = Math.round(x);
@@ -1619,15 +1619,14 @@ function formatDate(date) {
 
 ```javascript
 // Storage keys
-localStorage.getItem('tt_ui_version')        // 'v1' | 'v2' | 'v3'
-localStorage.getItem('tt_v3_card_variant')   // 'variant1' | 'variant2'
+localStorage.getItem('tt_ui_version')        // 'v1' | 'v2'
 localStorage.getItem('tt_show_today_card')   // 'true' | 'false'
 
 // Centralized helpers
 window.TT.shared.uiVersion = {
   getUIVersion: () => {
     const version = localStorage.getItem('tt_ui_version');
-    if (version && ['v1', 'v2', 'v3'].includes(version)) {
+    if (version && ['v1', 'v2'].includes(version)) {
       return version;
     }
     return 'v2'; // default
@@ -1635,15 +1634,8 @@ window.TT.shared.uiVersion = {
   
   shouldUseNewUI: (version) => version !== 'v1',
   
-  getCardDesign: (version) => version === 'v3' ? 'new' : 'current',
+  getCardDesign: (version) => version === 'v2' ? 'new' : 'current',
   
-  getV3Variant: () => {
-    const variant = localStorage.getItem('tt_v3_card_variant');
-    if (variant && ['variant1', 'variant2'].includes(variant)) {
-      return variant;
-    }
-    return 'variant1'; // default
-  }
 };
 
 // Usage in components
@@ -1653,7 +1645,6 @@ const [uiVersion, setUiVersion] = useState(() => {
 
 const useNewUI = window.TT.shared.uiVersion.shouldUseNewUI(uiVersion);
 const cardDesign = window.TT.shared.uiVersion.getCardDesign(uiVersion);
-const v3Variant = window.TT.shared.uiVersion.getV3Variant();
 ```
 
 ### Listening for Changes
@@ -1665,8 +1656,6 @@ useEffect(() => {
     const version = window.TT.shared.uiVersion.getUIVersion();
     setUiVersion(version);
     
-    const variant = window.TT.shared.uiVersion.getV3Variant();
-    setV3Variant(variant);
     
     const showCard = localStorage.getItem('tt_show_today_card') === 'true';
     setShowTodayCard(showCard);
@@ -1822,7 +1811,7 @@ animation: 'ttSleepPulsePillBorder 4.5s linear infinite'
 When asking AI to implement features:
 
 1. **Provide this document** as context
-2. **Specify which pattern** to follow (e.g., "Use v3 variant2 TrackerCard pattern")
+2. **Specify which pattern** to follow (e.g., "Use v2 variant2 TrackerCard pattern")
 3. **Include screenshots** of current state for visual reference
 4. **Point to specific sections** (e.g., "See Animation Standards > Progress Bars")
 
@@ -1831,7 +1820,7 @@ When asking AI to implement features:
 ## Version History
 
 - **v1.0** (January 2025): Initial comprehensive documentation
-  - Codified v3 variant2 as production standard
+  - Codified v2 variant2 as production standard
   - Documented all component patterns, animations, interactions
   - Established token-first color system
   - Created quick reference for common patterns
