@@ -33,20 +33,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   };
 }
 
-const ensureTabCache = (key) => {
-  if (typeof window === 'undefined') return {};
-  window.TT = window.TT || {};
-  window.TT.cache = window.TT.cache || {};
-  if (!window.TT.cache[key]) {
-    window.TT.cache[key] = {};
-  }
-  return window.TT.cache[key];
-};
-
 const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
-  const cache = ensureTabCache('tracker');
-  const cacheScope = `${familyId || 'none'}:${kidId || 'none'}`;
-  const isCacheValid = cache.scope === cacheScope;
   // UI Version - single source of truth (v1, v2, or v3)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
@@ -89,21 +76,21 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     };
   }, []);
   
-  const [babyWeight, setBabyWeight] = useState(() => (isCacheValid ? (cache.babyWeight ?? null) : null));
-  const [multiplier, setMultiplier] = useState(() => (isCacheValid ? (cache.multiplier ?? 2.5) : 2.5));
+  const [babyWeight, setBabyWeight] = useState(null);
+  const [multiplier, setMultiplier] = useState(2.5);
   const [ounces, setOunces] = useState('');
   const [customTime, setCustomTime] = useState('');
-  const [feedings, setFeedings] = useState(() => (isCacheValid ? (cache.feedings || []) : []));
-  const [allFeedings, setAllFeedings] = useState(() => (isCacheValid ? (cache.allFeedings || []) : []));
-  const [sleepSessions, setSleepSessions] = useState(() => (isCacheValid ? (cache.sleepSessions || []) : []));
-  const [allSleepSessions, setAllSleepSessions] = useState(() => (isCacheValid ? (cache.allSleepSessions || []) : []));
-  const [sleepSettings, setSleepSettings] = useState(() => (isCacheValid ? (cache.sleepSettings || null) : null));
-  const [yesterdayConsumed, setYesterdayConsumed] = useState(() => (isCacheValid ? (cache.yesterdayConsumed || 0) : 0));
-  const [yesterdayFeedingCount, setYesterdayFeedingCount] = useState(() => (isCacheValid ? (cache.yesterdayFeedingCount || 0) : 0));
-  const [sleepTodayMs, setSleepTodayMs] = useState(() => (isCacheValid ? (cache.sleepTodayMs || 0) : 0));
-  const [sleepTodayCount, setSleepTodayCount] = useState(() => (isCacheValid ? (cache.sleepTodayCount || 0) : 0));
-  const [sleepYesterdayMs, setSleepYesterdayMs] = useState(() => (isCacheValid ? (cache.sleepYesterdayMs || 0) : 0));
-  const [currentDate, setCurrentDate] = useState(() => (isCacheValid ? (cache.currentDate || new Date()) : new Date()));
+  const [feedings, setFeedings] = useState([]);
+  const [allFeedings, setAllFeedings] = useState([]);
+  const [sleepSessions, setSleepSessions] = useState([]);
+  const [allSleepSessions, setAllSleepSessions] = useState([]);
+  const [sleepSettings, setSleepSettings] = useState(null);
+  const [yesterdayConsumed, setYesterdayConsumed] = useState(0);
+  const [yesterdayFeedingCount, setYesterdayFeedingCount] = useState(0);
+  const [sleepTodayMs, setSleepTodayMs] = useState(0);
+  const [sleepTodayCount, setSleepTodayCount] = useState(0);
+  const [sleepYesterdayMs, setSleepYesterdayMs] = useState(0);
+  const [currentDate, setCurrentDate] = useState(new Date());
   // State for smooth date transitions - preserve previous values while loading
   const [prevFeedingCardData, setPrevFeedingCardData] = useState(null);
   const [prevSleepCardData, setPrevSleepCardData] = useState(null);
@@ -117,7 +104,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [editingSleepId, setEditingSleepId] = useState(null);
   const [sleepEditStartStr, setSleepEditStartStr] = useState('');
   const [sleepEditEndStr, setSleepEditEndStr] = useState('');
-  const [loading, setLoading] = useState(() => (!isCacheValid || !cache.hydrated));
+  const [loading, setLoading] = useState(true);
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [logMode, setLogMode] = useState('feeding');
   const [cardVisible, setCardVisible] = useState(false);
@@ -494,60 +481,6 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   useEffect(() => {
     loadData();
   }, [kidId]);
-
-  useEffect(() => {
-    if (cache.scope !== cacheScope) {
-      cache.scope = cacheScope;
-      cache.hydrated = false;
-      setBabyWeight(null);
-      setMultiplier(2.5);
-      setFeedings([]);
-      setAllFeedings([]);
-      setSleepSessions([]);
-      setAllSleepSessions([]);
-      setSleepSettings(null);
-      setYesterdayConsumed(0);
-      setYesterdayFeedingCount(0);
-      setSleepTodayMs(0);
-      setSleepTodayCount(0);
-      setSleepYesterdayMs(0);
-      setCurrentDate(new Date());
-      setLoading(true);
-    }
-  }, [cacheScope]);
-
-  useEffect(() => {
-    cache.babyWeight = babyWeight;
-    cache.multiplier = multiplier;
-    cache.feedings = feedings;
-    cache.allFeedings = allFeedings;
-    cache.sleepSessions = sleepSessions;
-    cache.allSleepSessions = allSleepSessions;
-    cache.sleepSettings = sleepSettings;
-    cache.yesterdayConsumed = yesterdayConsumed;
-    cache.yesterdayFeedingCount = yesterdayFeedingCount;
-    cache.sleepTodayMs = sleepTodayMs;
-    cache.sleepTodayCount = sleepTodayCount;
-    cache.sleepYesterdayMs = sleepYesterdayMs;
-    cache.currentDate = currentDate;
-    cache.scope = cacheScope;
-    cache.hydrated = true;
-  }, [
-    babyWeight,
-    multiplier,
-    feedings,
-    allFeedings,
-    sleepSessions,
-    allSleepSessions,
-    sleepSettings,
-    yesterdayConsumed,
-    yesterdayFeedingCount,
-    sleepTodayMs,
-    sleepTodayCount,
-    sleepYesterdayMs,
-    currentDate,
-    cacheScope
-  ]);
 
   useEffect(() => {
     if (!kidId) return;

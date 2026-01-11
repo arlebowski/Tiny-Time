@@ -1,33 +1,9 @@
-const ensureTabCache = (key) => {
-  if (typeof window === 'undefined') return {};
-  window.TT = window.TT || {};
-  window.TT.cache = window.TT.cache || {};
-  if (!window.TT.cache[key]) {
-    window.TT.cache[key] = {};
-  }
-  return window.TT.cache[key];
-};
-
 const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
-  const cache = ensureTabCache('analytics');
-  const cacheScope = `${familyId || 'none'}:${kidId || 'none'}`;
-  const isCacheValid = cache.scope === cacheScope;
-  const [allFeedings, setAllFeedings] = useState(() => (isCacheValid ? (cache.allFeedings || []) : []));
-  const [loading, setLoading] = useState(() => (!isCacheValid || !cache.hydrated));
+  const [allFeedings, setAllFeedings] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('day');
-  const [sleepSessions, setSleepSessions] = useState(() => (isCacheValid ? (cache.sleepSessions || []) : []));
-  const [sleepSettings, setSleepSettings] = useState(() => (isCacheValid ? (cache.sleepSettings || null) : null));
-
-  useEffect(() => {
-    if (cache.scope !== cacheScope) {
-      cache.scope = cacheScope;
-      cache.hydrated = false;
-      setAllFeedings([]);
-      setSleepSessions([]);
-      setSleepSettings(null);
-      setLoading(true);
-    }
-  }, [cacheScope]);
+  const [sleepSessions, setSleepSessions] = useState([]);
+  const [sleepSettings, setSleepSettings] = useState(null);
   const sleepHistoryScrollRef = React.useRef(null);
   const [stats, setStats] = useState({
     avgVolumePerFeed: 0,
@@ -41,11 +17,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [kidId]);
-
-  useEffect(() => {
-    calculateStats(allFeedings);
-  }, [timeframe, allFeedings]);
+  }, [timeframe, kidId]);
 
   // Auto-scroll chart to the right (latest data) once data + layout are ready
   useEffect(() => {
@@ -79,6 +51,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     try {
       const feedings = await firestoreStorage.getAllFeedings();
       setAllFeedings(feedings);
+      calculateStats(feedings);
 
       try {
         const sleeps = await firestoreStorage.getAllSleepSessions(kidId);
@@ -99,14 +72,6 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    cache.allFeedings = allFeedings;
-    cache.sleepSessions = sleepSessions;
-    cache.sleepSettings = sleepSettings;
-    cache.scope = cacheScope;
-    cache.hydrated = true;
-  }, [allFeedings, sleepSessions, sleepSettings, cacheScope]);
 
   const calculateStats = (feedings) => {
     if (feedings.length === 0) {

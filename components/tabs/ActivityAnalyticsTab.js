@@ -1,21 +1,8 @@
-const ensureTabCache = (key) => {
-  if (typeof window === 'undefined') return {};
-  window.TT = window.TT || {};
-  window.TT.cache = window.TT.cache || {};
-  if (!window.TT.cache[key]) {
-    window.TT.cache[key] = {};
-  }
-  return window.TT.cache[key];
-};
-
 const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
-  const cache = ensureTabCache('activityAnalytics');
-  const cacheScope = `${familyId || 'none'}:${kidId || 'none'}`;
-  const isCacheValid = cache.scope === cacheScope;
-  const [allFeedings, setAllFeedings] = useState(() => (isCacheValid ? (cache.allFeedings || []) : []));
-  const [sleepSessions, setSleepSessions] = useState(() => (isCacheValid ? (cache.sleepSessions || []) : []));
-  const [sleepSettings, setSleepSettings] = useState(() => (isCacheValid ? (cache.sleepSettings || null) : null));
-  const [loading, setLoading] = useState(() => (!isCacheValid || !cache.hydrated));
+  const [allFeedings, setAllFeedings] = useState([]);
+  const [sleepSessions, setSleepSessions] = useState([]);
+  const [sleepSettings, setSleepSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('day');
   
   // Get chevron icon
@@ -24,17 +11,6 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   useEffect(() => {
     loadAnalytics();
   }, [kidId]);
-
-  useEffect(() => {
-    if (cache.scope !== cacheScope) {
-      cache.scope = cacheScope;
-      cache.hydrated = false;
-      setAllFeedings([]);
-      setSleepSessions([]);
-      setSleepSettings(null);
-      setLoading(true);
-    }
-  }, [cacheScope]);
 
   const loadAnalytics = async () => {
     if (!kidId) {
@@ -58,14 +34,6 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    cache.allFeedings = allFeedings;
-    cache.sleepSessions = sleepSessions;
-    cache.sleepSettings = sleepSettings;
-    cache.scope = cacheScope;
-    cache.hydrated = true;
-  }, [allFeedings, sleepSessions, sleepSettings, cacheScope]);
 
   if (loading) {
     return React.createElement(
