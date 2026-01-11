@@ -16,29 +16,29 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
     getUIVersion: () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = window.localStorage.getItem('tt_ui_version');
-        if (version && ['v1', 'v2', 'v3'].includes(version)) {
+        if (version && ['v1', 'v2', 'v2'].includes(version)) {
           return version;
         }
         // Migration: derive from old flags if version doesn't exist
         const useNewUI = window.localStorage.getItem('tt_use_new_ui');
         const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
         if (useNewUI === 'false') return 'v1';
-        if (cardDesign === 'new') return 'v3';
+        if (cardDesign === 'new') return 'v2';
         return 'v2'; // default
       }
       return 'v2';
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+    getCardDesign: (version) => version === 'v2' ? 'new' : 'current'
   };
 }
 
 const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
-  // UI Version - single source of truth (v1, v2, or v3)
+  // UI Version - single source of truth (v1 or v2)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
   // - v2: New UI with current tracker cards (useNewUI = true, cardDesign = 'current')
-  // - v3: New UI with new tracker cards (useNewUI = true, cardDesign = 'new')
+  // - v2: New UI with new tracker cards (useNewUI = true, cardDesign = 'new')
   const [uiVersion, setUiVersion] = useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
@@ -1097,10 +1097,10 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     return s.endsWith('.0') ? s.slice(0, -2) : s;
   };
 
-  // v3 card number formatting:
+  // v2 card number formatting:
   // - whole numbers: "7"
   // - non-whole: "7.3" (one decimal)
-  const formatV3Number = (n) => {
+  const formatV2Number = (n) => {
     const x = Number(n);
     if (!Number.isFinite(x)) return '0';
     const rounded = Math.round(x);
@@ -1312,15 +1312,15 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         }
       }),
       
-      // Today Card (New UI) — split v2 vs v3 so v3 can be edited independently.
+      // Today Card (New UI) — split v2 so v2 can be edited independently.
       // Only show if feature flag is enabled.
-      showTodayCard && (uiVersion === 'v3'
+      showTodayCard && (uiVersion === 'v2'
         ? React.createElement('div', { 
             ref: cardRefCallback, 
             className: "rounded-2xl shadow-sm p-6",
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
-            // Feeding Progress (v3)
+            // Feeding Progress (v2)
             React.createElement('div', { className: "mb-8" },
               // Icon + label
               React.createElement('div', { className: "flex items-center mb-2" },
@@ -1329,8 +1329,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                   style: { color: 'var(--tt-feed)' }
                 },
                   (() => {
-                    const v3Src = 'assets/ui-icons/bottle-main-right-v3@3x.png';
-                    const v3Svg =
+                    const v2Src = 'assets/ui-icons/bottle-main-right-v3@3x.png';
+                    const v2Svg =
                       (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-main"]) ||
                       (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
                       null;
@@ -1352,11 +1352,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                             height: '100%',
                             display: 'block',
                             backgroundColor: 'var(--tt-feed)',
-                            WebkitMaskImage: `url("${v3Src}")`,
+                            WebkitMaskImage: `url("${v2Src}")`,
                             WebkitMaskRepeat: 'no-repeat',
                             WebkitMaskSize: 'contain',
                             WebkitMaskPosition: 'center',
-                            maskImage: `url("${v3Src}")`,
+                            maskImage: `url("${v2Src}")`,
                             maskRepeat: 'no-repeat',
                             maskSize: 'contain',
                             maskPosition: 'center'
@@ -1365,7 +1365,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                       );
                     }
                     // Fallback: SVG if mask isn't supported
-                    return v3Svg ? React.createElement(v3Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-feed)', strokeWidth: '3' } }) : null;
+                    return v2Svg ? React.createElement(v2Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-feed)', strokeWidth: '3' } }) : null;
                   })(),
                   React.createElement('span', null, "Feeding")
                 )
@@ -1374,12 +1374,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
               // Big number (moved above progress)
               React.createElement('div', { className: "flex items-baseline justify-between mb-2" },
                 React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-feed)' } },
-                  `${formatV3Number(totalConsumed)} `,
+                  `${formatV2Number(totalConsumed)} `,
                   React.createElement('span', { 
                     className: "text-base font-normal",
                     style: { color: 'var(--tt-text-secondary)' }
                   },
-                    `of ${formatV3Number(targetOunces)} oz`
+                    `of ${formatV2Number(targetOunces)} oz`
                   )
                 )
               ),
@@ -1406,12 +1406,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                 style: { color: 'var(--tt-text-tertiary)' }
               },
                 lastFeeding 
-                  ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${formatV3Number(lastFeedingAmount)} oz)`
+                  ? `Last fed at ${formatTime12Hour(lastFeedingTime)} (${formatV2Number(lastFeedingAmount)} oz)`
                   : "No feedings yet"
               )
             ),
 
-            // Sleep Progress (v3)
+            // Sleep Progress (v2)
             React.createElement('div', {},
               // Icon + label
               React.createElement('div', { className: "flex items-center mb-2" },
@@ -1420,8 +1420,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                   style: { color: 'var(--tt-sleep)' }
                 },
                   (() => {
-                    const v3Src = 'assets/ui-icons/moon-main@3x.png';
-                    const v3Svg =
+                    const v2Src = 'assets/ui-icons/moon-main@3x.png';
+                    const v2Svg =
                       (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-main"]) ||
                       (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
                       null;
@@ -1443,11 +1443,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                             height: '100%',
                             display: 'block',
                             backgroundColor: 'var(--tt-sleep)',
-                            WebkitMaskImage: `url("${v3Src}")`,
+                            WebkitMaskImage: `url("${v2Src}")`,
                             WebkitMaskRepeat: 'no-repeat',
                             WebkitMaskSize: 'contain',
                             WebkitMaskPosition: 'center',
-                            maskImage: `url("${v3Src}")`,
+                            maskImage: `url("${v2Src}")`,
                             maskRepeat: 'no-repeat',
                             maskSize: 'contain',
                             maskPosition: 'center'
@@ -1456,7 +1456,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                       );
                     }
                     // Fallback: SVG if mask isn't supported
-                    return v3Svg ? React.createElement(v3Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-sleep)', strokeWidth: '3' } }) : null;
+                    return v2Svg ? React.createElement(v2Svg, { className: "w-[18px] h-[18px]", style: { color: 'var(--tt-sleep)', strokeWidth: '3' } }) : null;
                   })(),
                   React.createElement('span', null, "Sleep")
                 )
@@ -1465,12 +1465,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
               // Big number (moved above progress)
               React.createElement('div', { className: "flex items-baseline justify-between mb-2" },
                 React.createElement('div', { className: "text-2xl font-semibold", style: { color: 'var(--tt-sleep)' } },
-                  `${formatV3Number(sleepTotalHours)} `,
+                  `${formatV2Number(sleepTotalHours)} `,
                   React.createElement('span', { 
                     className: "text-base font-normal",
                     style: { color: 'var(--tt-text-secondary)' }
                   },
-                    `of ${formatV3Number(sleepTargetHours)} hrs`
+                    `of ${formatV2Number(sleepTargetHours)} hrs`
                   )
                 )
               ),
@@ -2305,6 +2305,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       onClose: () => setShowInputSheet(false),
       kidId: kidId,
       initialMode: inputSheetMode,
+      activeSleep: activeSleep,
       onAdd: async (mode) => {
         // Delay refresh until after sheet closes (200ms for close animation)
         await new Promise(resolve => setTimeout(resolve, 250));
@@ -4043,7 +4044,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
             className: 'text-[39.6px] font-bold leading-none',
             style: { color: sleepColor }
           },
-          formatV3Number(average)
+          formatV2Number(average)
         ),
         React.createElement(
           'span',
@@ -4278,7 +4279,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
             className: 'text-[39.6px] font-bold leading-none',
             style: { color: feedColor }
           },
-          formatV3Number(average)
+          formatV2Number(average)
         ),
         React.createElement(
           'span',
