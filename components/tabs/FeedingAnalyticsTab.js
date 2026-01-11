@@ -1,6 +1,19 @@
+const ensureTabCache = (key) => {
+  if (typeof window === 'undefined') return {};
+  window.TT = window.TT || {};
+  window.TT.cache = window.TT.cache || {};
+  if (!window.TT.cache[key]) {
+    window.TT.cache[key] = {};
+  }
+  return window.TT.cache[key];
+};
+
 const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
-  const [allFeedings, setAllFeedings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const cache = ensureTabCache('feedingAnalytics');
+  const cacheScope = `${familyId || 'none'}:${kidId || 'none'}`;
+  const isCacheValid = cache.scope === cacheScope;
+  const [allFeedings, setAllFeedings] = useState(() => (isCacheValid ? (cache.allFeedings || []) : []));
+  const [loading, setLoading] = useState(() => (!isCacheValid || !cache.hydrated));
   const [timeframe, setTimeframe] = useState('day');
   const [stats, setStats] = useState({
     avgVolumePerFeed: 0,
@@ -18,7 +31,20 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [timeframe, kidId]);
+  }, [kidId]);
+
+  useEffect(() => {
+    calculateStats(allFeedings);
+  }, [timeframe, allFeedings]);
+
+  useEffect(() => {
+    if (cache.scope !== cacheScope) {
+      cache.scope = cacheScope;
+      cache.hydrated = false;
+      setAllFeedings([]);
+      setLoading(true);
+    }
+  }, [cacheScope]);
 
   // Auto-scroll chart to the right (latest data) once data + layout are ready
   useEffect(() => {
@@ -50,11 +76,16 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     try {
       const feedings = await firestoreStorage.getAllFeedings();
       setAllFeedings(feedings);
-      calculateStats(feedings);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    cache.allFeedings = allFeedings;
+    cache.scope = cacheScope;
+    cache.hydrated = true;
+  }, [allFeedings, cacheScope]);
 
   const calculateStats = (feedings) => {
     if (feedings.length === 0) {
