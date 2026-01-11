@@ -4000,6 +4000,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
     const sleepIntervalRef = React.useRef(null);
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
+    const [startTimeManuallyEdited, setStartTimeManuallyEdited] = React.useState(false);
     const prevModeRef = React.useRef(mode); // Track previous mode to detect actual mode changes
     
     // Shared photos state
@@ -4097,6 +4098,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Reset all sleep-related state when closing (except if timer is running)
         if (sleepState !== 'running') {
           setEndTimeManuallyEdited(false);
+          setStartTimeManuallyEdited(false);
           setStartTime(new Date().toISOString());
           setEndTime(null);
           setSleepNotes('');
@@ -4117,6 +4119,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // UNLESS sleep is currently running (don't override active sleep)
         if (mode === 'sleep' && sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
+          setStartTimeManuallyEdited(false);
         }
         // When sheet opens in feeding mode, set feedingDateTime to NOW
         if (mode === 'feeding') {
@@ -4195,6 +4198,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // UNLESS sleep is currently running (don't override active sleep)
         if (sleepState !== 'running' && !activeSleepSessionId) {
           setStartTime(new Date().toISOString());
+          setStartTimeManuallyEdited(false);
         }
       }
       
@@ -4393,6 +4397,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           setEndTime(null);
         } else {
           // IDLE/IDLE_WITH_TIMES → RUNNING:
+          // If start time was NOT manually edited, update it to NOW
+          if (!startTimeManuallyEdited) {
+            effectiveStartIso = new Date().toISOString();
+            setStartTime(effectiveStartIso);
+          }
           // Use the user-selected startTime if present; otherwise default to now.
           const parsed = effectiveStartIso ? new Date(effectiveStartIso).getTime() : NaN;
           if (!effectiveStartIso || !Number.isFinite(parsed)) {
@@ -4488,6 +4497,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Handle start time change
     const handleStartTimeChange = async (newStartTime) => {
       setStartTime(newStartTime);
+      setStartTimeManuallyEdited(true);
       
       if (sleepState === 'running') {
         setEndTime(null);
