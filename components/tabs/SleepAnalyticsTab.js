@@ -1,7 +1,20 @@
+const ensureTabCache = (key) => {
+  if (typeof window === 'undefined') return {};
+  window.TT = window.TT || {};
+  window.TT.cache = window.TT.cache || {};
+  if (!window.TT.cache[key]) {
+    window.TT.cache[key] = {};
+  }
+  return window.TT.cache[key];
+};
+
 const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
-  const [sleepSessions, setSleepSessions] = useState([]);
-  const [sleepSettings, setSleepSettings] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const cache = ensureTabCache('sleepAnalytics');
+  const cacheScope = `${familyId || 'none'}:${kidId || 'none'}`;
+  const isCacheValid = cache.scope === cacheScope;
+  const [sleepSessions, setSleepSessions] = useState(() => (isCacheValid ? (cache.sleepSessions || []) : []));
+  const [sleepSettings, setSleepSettings] = useState(() => (isCacheValid ? (cache.sleepSettings || null) : null));
+  const [loading, setLoading] = useState(() => (!isCacheValid || !cache.hydrated));
   const [timeframe, setTimeframe] = useState('day');
   const sleepHistoryScrollRef = React.useRef(null);
 
@@ -11,7 +24,17 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
 
   useEffect(() => {
     loadAnalytics();
-  }, [timeframe, kidId]);
+  }, [kidId]);
+
+  useEffect(() => {
+    if (cache.scope !== cacheScope) {
+      cache.scope = cacheScope;
+      cache.hydrated = false;
+      setSleepSessions([]);
+      setSleepSettings(null);
+      setLoading(true);
+    }
+  }, [cacheScope]);
 
   const loadAnalytics = async () => {
     if (!kidId) {
@@ -32,6 +55,13 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    cache.sleepSessions = sleepSessions;
+    cache.sleepSettings = sleepSettings;
+    cache.scope = cacheScope;
+    cache.hydrated = true;
+  }, [sleepSessions, sleepSettings, cacheScope]);
 
   const sleepByDay = useMemo(() => aggregateSleepByDay(sleepSessions, sleepSettings), [sleepSessions, sleepSettings]);
 

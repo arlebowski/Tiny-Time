@@ -1,3 +1,13 @@
+const ensureTabCache = (key) => {
+  if (typeof window === 'undefined') return {};
+  window.TT = window.TT || {};
+  window.TT.cache = window.TT.cache || {};
+  if (!window.TT.cache[key]) {
+    window.TT.cache[key] = {};
+  }
+  return window.TT.cache[key];
+};
+
 const FamilyTab = ({
   user,
   kidId,
@@ -9,13 +19,16 @@ const FamilyTab = ({
   requestAddChild,
   onRequestAddChildHandled
 }) => {
-  const [kidData, setKidData] = useState(null);
-  const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
+  const cache = ensureTabCache('family');
+  const cacheScope = `${familyId || 'none'}:${kidId || 'none'}`;
+  const isCacheValid = cache.scope === cacheScope;
+  const [kidData, setKidData] = useState(() => (isCacheValid ? (cache.kidData || null) : null));
+  const [members, setMembers] = useState(() => (isCacheValid ? (cache.members || []) : []));
+  const [settings, setSettings] = useState(() => (isCacheValid ? (cache.settings || { babyWeight: null, multiplier: 2.5 }) : { babyWeight: null, multiplier: 2.5 }));
   const [sleepTargetInput, setSleepTargetInput] = useState('');
   const [daySleepStartMin, setDaySleepStartMin] = useState(390);
   const [daySleepEndMin, setDaySleepEndMin] = useState(1170);
-  const [sleepSettings, setSleepSettings] = useState(null);
+  const [sleepSettings, setSleepSettings] = useState(() => (isCacheValid ? (cache.sleepSettings || null) : null));
   const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
   const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
   const [sleepTargetDraftOverride, setSleepTargetDraftOverride] = useState(false);
@@ -23,11 +36,11 @@ const FamilyTab = ({
   const [editingDayEnd, setEditingDayEnd] = useState(false);
   const [tempDayStartInput, setTempDayStartInput] = useState('');
   const [tempDayEndInput, setTempDayEndInput] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => (!isCacheValid || !cache.hydrated));
   const [showInvite, setShowInvite] = useState(false);
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
-  const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
+  const [babyPhotoUrl, setBabyPhotoUrl] = useState(() => (isCacheValid ? (cache.babyPhotoUrl || null) : null));
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
   const TT_ICON_BTN_BASE =
@@ -76,6 +89,29 @@ const FamilyTab = ({
   useEffect(() => {
     loadData();
   }, [kidId, familyId]);
+
+  useEffect(() => {
+    if (cache.scope !== cacheScope) {
+      cache.scope = cacheScope;
+      cache.hydrated = false;
+      setKidData(null);
+      setMembers([]);
+      setSettings({ babyWeight: null, multiplier: 2.5 });
+      setSleepSettings(null);
+      setBabyPhotoUrl(null);
+      setLoading(true);
+    }
+  }, [cacheScope]);
+
+  useEffect(() => {
+    cache.kidData = kidData;
+    cache.members = members;
+    cache.settings = settings;
+    cache.sleepSettings = sleepSettings;
+    cache.babyPhotoUrl = babyPhotoUrl;
+    cache.scope = cacheScope;
+    cache.hydrated = true;
+  }, [kidData, members, settings, sleepSettings, babyPhotoUrl, cacheScope]);
 
   useEffect(() => {
     if (requestAddChild) {
