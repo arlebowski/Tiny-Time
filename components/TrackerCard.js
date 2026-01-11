@@ -969,6 +969,9 @@ const sharePhoto = async (photoUrl) => {
       return;
     }
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      return;
+    }
     console.warn('Photo share failed:', error);
   }
 
