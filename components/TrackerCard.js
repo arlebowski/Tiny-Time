@@ -252,10 +252,10 @@ function formatElapsedHmsTT(ms) {
   return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
 }
 
-// v3 number formatting:
+// v2 number formatting:
 // - whole numbers: "7"
 // - non-whole: "7.3" (one decimal)
-function formatV3Number(n) {
+function formatV2Number(n) {
   const x = Number(n);
   if (!Number.isFinite(x)) return '0';
   const rounded = Math.round(x);
@@ -545,7 +545,7 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOv
         style: { ...iconStyle, width: '2.475rem', height: '2.475rem', strokeWidth: '3' } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px), +10% = 2.475rem = 39.6px + 0.5 stroke
       }) : React.createElement('div', { style: { width: '2.475rem', height: '2.475rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
     } else {
-      // In v3 we override the feeding icon with the masked PNG bottle (already mirrored to point right).
+      // In v2 we override the feeding icon with the masked PNG bottle (already mirrored to point right).
       const OverrideIcon = iconOverride || null;
       // Always use BottleV2 for feed timeline items (both variants)
       const BottleIcon = (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null);
@@ -882,25 +882,30 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
-  // Helper to get UI version (defaults to v3)
+  // Helper to get UI version (defaults to v2)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = window.localStorage.getItem('tt_ui_version');
-        if (version && ['v1', 'v3'].includes(version)) {
+        if (version === 'v2') {
+          // Old v2 detected - ensure it's set to new v2 (same value, but ensures migration)
+          window.localStorage.setItem('tt_ui_version', 'v2');
+          return 'v2';
+        }
+        if (version && ['v1', 'v2'].includes(version)) {
           return version;
         }
         // Migration: derive from old flags if version doesn't exist
         const useNewUI = window.localStorage.getItem('tt_use_new_ui');
         const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
         if (useNewUI === 'false') return 'v1';
-        if (cardDesign === 'new') return 'v3';
-        return 'v3'; // default
+        if (cardDesign === 'new') return 'v2';
+        return 'v2'; // default
       }
-      return 'v3';
+      return 'v2';
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'new' : 'current'
+    getCardDesign: (version) => version === 'v2' ? 'new' : 'current'
   };
 }
 
@@ -1080,20 +1085,20 @@ const TrackerCard = ({
     setTimelineFullSizePhoto(photoUrl);
   }, []);
   
-  // UI Version - single source of truth (v1 or v3)
+  // UI Version - single source of truth (v1 or v2)
   // Part of UI Version system:
-  // - v1: Old UI (not used here, TrackerCard only shows in v3)
-  // - v3: useNewUI = true, cardDesign = 'new'
+  // - v1: Old UI (not used here, TrackerCard only shows in v2)
+  // - v2: useNewUI = true, cardDesign = 'new'
   const [uiVersion, setUiVersion] = React.useState(() => {
-    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v3'))();
+    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
-  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v3' ? 'new' : 'current'))(uiVersion);
+  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v2' ? 'new' : 'current'))(uiVersion);
   
   // Listen for changes to the feature flags
   React.useEffect(() => {
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v3'))();
+        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
         setUiVersion(version);
       }
     };
@@ -1243,7 +1248,7 @@ const TrackerCard = ({
   // Format yesterday's total for display
   const formattedYesterdayTotal = React.useMemo(() => {
     if (!yesterdayTotal || typeof yesterdayTotal.total !== 'number') return '0';
-    return formatV3Number(yesterdayTotal.total);
+    return formatV2Number(yesterdayTotal.total);
   }, [yesterdayTotal]);
   
   // Calculate yesterday's progress percent
@@ -1754,7 +1759,7 @@ const TrackerCard = ({
     ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) || null;
 
-  // v3 "main" icons - use BottleV2 and MoonV2 for both variants
+  // v2 "main" icons - use BottleV2 and MoonV2 for both variants
   const BottleMainIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
@@ -1768,10 +1773,10 @@ const TrackerCard = ({
     HeaderIcon ||
     null;
 
-  // Shared renderer: v3 ("new") design can vary styling without duplicating markup.
+  // Shared renderer: v2 ("new") design can vary styling without duplicating markup.
   const renderDesign = ({
     showHeaderRow = true,                   // show the old header row (icon + Feed/Sleep + headerRight)
-    iconOverride = null,                    // override icon component (v3 uses bottle-main/moon-main)
+    iconOverride = null,                    // override icon component (v2 uses bottle-main/moon-main)
     headerGapClass = 'gap-2',                 // icon ↔ label spacing
     headerBottomMarginClass = 'mb-6',         // header ↔ big number spacing
     headerLabelClassName = 'text-base font-semibold',
@@ -1786,22 +1791,22 @@ const TrackerCard = ({
     bigNumberIconClassName = null,           // icon size for big number row (defaults to headerIconClassName)
     bigNumberRight = null,                   // optional right-side content in big number row (e.g. status pill)
     bigNumberRowClassName = "flex items-baseline gap-1 mb-1",
-    bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value (v3)
+    bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value (v2)
     bigNumberValueClassName = "text-[40px] leading-none font-bold",
     bigNumberTargetClassName = "relative -top-[1px] text-[16px] leading-none",
     bigNumberTargetColor = 'var(--tt-text-secondary)',
-    bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v3 uses 'unit')
-    bigNumberTopLabel = null,                 // optional icon + label above big number (for v3 feeding)
+    bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v2 uses 'unit')
+    bigNumberTopLabel = null,                 // optional icon + label above big number (for v2 feeding)
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
-    statusRow = null,                         // optional row below progress bar (v3)
+    statusRow = null,                         // optional row below progress bar (v2)
     statusRowClassName = '',                  // spacing wrapper for statusRow
     showDotsRow = true,                       // dots row under progress bar
     progressBottomMarginClass = 'mb-1',       // spacing after progress bar
     dividerMarginClass = 'my-4',              // divider spacing
     timelineTextColor = 'var(--tt-text-secondary)',
-    timelineVariant = 'v3',                   // 'v3' (uses pill + no bullet)
-    timelineCountPill = null                 // optional v3 pill shown inline next to "Timeline"
+    timelineVariant = 'v2',                   // 'v2' (uses pill + no bullet)
+    timelineCountPill = null                 // optional v2 pill shown inline next to "Timeline"
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
     const withFeedingMirror = (t) => {
@@ -1865,7 +1870,7 @@ const TrackerCard = ({
       headerRight
     ) : null,
 
-    // Optional icon + label above big number (for v3 feeding)
+    // Optional icon + label above big number (for v2 feeding)
     bigNumberTopLabel ? React.createElement(
       'div',
       { className: "flex items-center mb-4" },
@@ -1880,7 +1885,7 @@ const TrackerCard = ({
           transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
         }
       }, 
-        total !== null ? formatV3Number(total) : '0'
+        total !== null ? formatV2Number(total) : '0'
       );
 
       const targetEl = React.createElement('div', { 
@@ -1890,7 +1895,7 @@ const TrackerCard = ({
         bigNumberTargetVariant === 'unit'
           ? (mode === 'sleep' ? 'hrs' : 'oz')
           : (target !== null 
-              ? (mode === 'sleep' ? `/ ${formatV3Number(target)} hrs` : `/ ${formatV3Number(target)} oz`)
+              ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : `/ ${formatV2Number(target)} oz`)
               : (mode === 'sleep' ? '/ 0 hrs' : '/ 0 oz'))
       );
 
@@ -1916,7 +1921,7 @@ const TrackerCard = ({
         );
       }
 
-      // v3: icon + number (left) and optional right content (status pill)
+      // v2: icon + number (left) and optional right content (status pill)
       return React.createElement(
         'div',
         { className: bigNumberRowClassName },
@@ -2043,7 +2048,7 @@ const TrackerCard = ({
       React.createElement(
         'span',
         null,
-        timelineVariant === 'v3'
+        timelineVariant === 'v2'
           ? (timelineCountPill 
               ? timelineCountPill  // Feeding: replace "Timeline" with pills
               : React.createElement(  // Sleep: show "Timeline" text
@@ -2092,7 +2097,7 @@ const TrackerCard = ({
                 React.createElement(TimelineItem, { 
                   entry,
                   mode,
-                  mirrorFeedingIcon: timelineVariant === 'v3',
+                  mirrorFeedingIcon: timelineVariant === 'v2',
                   iconOverride: iconOverride,
                   onClick: onItemClick,
                   onDelete: onDelete,
@@ -2112,7 +2117,7 @@ const TrackerCard = ({
   // Legacy renderer (for v1 compatibility, though v1 doesn't use TrackerCard)
   const renderCurrentDesign = () => renderDesign();
 
-  // v3: new design (experimental) — ONLY change styling here
+  // v2: new design (experimental) — ONLY change styling here
   const renderNewDesign = () => {
     // Prefer PNG icons (if present) with SVG fallback.
     // Drop these files in the project root:
@@ -2122,20 +2127,20 @@ const TrackerCard = ({
     // NOTE: This component must be stable across renders to avoid image flicker
     // (active sleep re-renders every second).
     // Use BottleV2 and MoonV2 directly for both variants
-    const v3IconSvg = mode === 'feeding'
+    const v2IconSvg = mode === 'feeding'
       ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || BottleMainIcon)
       : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || MoonMainIcon);
-    const v3IconSrc = (mode === 'feeding')
+    const v2IconSrc = (mode === 'feeding')
       ? 'assets/ui-icons/inv bottle-main-right-v3@3x.png.png'
       : 'assets/ui-icons/inv moon-main@3x.png';
 
-    const V3Icon = React.useMemo(() => {
+    const V2Icon = React.useMemo(() => {
       const currentMode = mode; // Capture mode in closure
       const isVariant2 = true; // Always use variant2
       // For variant 2, skip PNG and use SVG directly for feeding mode
       const skipPNG = isVariant2 && currentMode === 'feeding';
       
-      return function V3IconComponent(props) {
+      return function V2IconComponent(props) {
         const [failed, setFailed] = React.useState(skipPNG ? true : false);
         // Prefer CSS mask tinting (works great for silhouette PNGs) so icons can use accent tokens.
         // Fall back to SVG if mask isn't supported or if PNG fails to load.
@@ -2160,14 +2165,14 @@ const TrackerCard = ({
             const img = new Image();
             img.onload = () => { /* noop */ };
             img.onerror = () => { if (!cancelled) setFailed(true); };
-            img.src = v3IconSrc;
+            img.src = v2IconSrc;
           } catch {
             if (!cancelled) setFailed(true);
           }
           return () => { cancelled = true; };
-        }, [v3IconSrc, skipPNG]);
+        }, [v2IconSrc, skipPNG]);
 
-        if (failed || !v3IconSrc || skipPNG) {
+        if (failed || !v2IconSrc || skipPNG) {
           // When using SVG fallback, ensure correct styling for BottleV2/MoonV2
           const svgProps = {
             ...props,
@@ -2177,7 +2182,7 @@ const TrackerCard = ({
               fill: currentMode === 'feeding' ? 'none' : (currentMode === 'sleep' ? (props?.style?.color || 'var(--tt-sleep)') : undefined)
             }
           };
-          return v3IconSvg ? React.createElement(v3IconSvg, svgProps) : null;
+          return v2IconSvg ? React.createElement(v2IconSvg, svgProps) : null;
         }
         const { style, alt, ...rest } = props || {};
         const baseStyle = { ...(style || {}) };
@@ -2206,11 +2211,11 @@ const TrackerCard = ({
             display: 'block',
             backgroundColor: tintColor,
             // CSS mask (tints the silhouette)
-            WebkitMaskImage: `url("${v3IconSrc}")`,
+            WebkitMaskImage: `url("${v2IconSrc}")`,
             WebkitMaskRepeat: 'no-repeat',
             WebkitMaskSize: 'contain',
             WebkitMaskPosition: 'center',
-            maskImage: `url("${v3IconSrc}")`,
+            maskImage: `url("${v2IconSrc}")`,
             maskRepeat: 'no-repeat',
             maskSize: 'contain',
             maskPosition: 'center'
@@ -2230,11 +2235,11 @@ const TrackerCard = ({
         }
 
         // No mask support: fall back to SVG (keeps accent colors via currentColor).
-        return v3IconSvg ? React.createElement(v3IconSvg, props) : null;
+        return v2IconSvg ? React.createElement(v2IconSvg, props) : null;
       };
-    }, [mode, v3IconSrc, v3IconSvg]);
+    }, [mode, v2IconSrc, v2IconSvg]);
 
-    const v3StatusText = mode === 'feeding'
+    const v2StatusText = mode === 'feeding'
       ? (lastEntryTime ? `Last ate at ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
       : (() => {
           const activeEntry = localTimelineItems.find(item => item.isActive && item.startTime);
@@ -2260,7 +2265,7 @@ const TrackerCard = ({
     // Always use variant2 behavior
     const isVariant2ForStatus = true;
     
-    const v3HeaderRight = (() => {
+    const v2HeaderRight = (() => {
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
       const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
       
@@ -2272,19 +2277,19 @@ const TrackerCard = ({
             className: "text-[15.4px] font-normal leading-none",
             style: { color: 'var(--tt-text-tertiary)' }
           },
-          v3StatusText
+          v2StatusText
         );
       }
       
-      // v3 pills: keep a single source of truth so height/radius stays consistent.
+      // v2 pills: keep a single source of truth so height/radius stays consistent.
       // Fixed height avoids subtle font/animation differences changing pill size.
-      const v3PillBaseClass =
+      const v2PillBaseClass =
         "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
 
       const pillInner = React.createElement(
         'span',
         { className: "inline-flex items-center" },
-        React.createElement('span', null, v3StatusText)
+        React.createElement('span', null, v2StatusText)
       );
 
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
@@ -2297,7 +2302,7 @@ const TrackerCard = ({
               try { e.preventDefault(); e.stopPropagation(); } catch {}
               try { onActiveSleepClick(); } catch {}
             },
-            className: `${v3PillBaseClass} gap-1 tt-tapable tt-sleep-progress-pulse`,
+            className: `${v2PillBaseClass} gap-1 tt-tapable tt-sleep-progress-pulse`,
             style: {
               backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
               color: 'var(--tt-sleep)'
@@ -2309,11 +2314,11 @@ const TrackerCard = ({
         );
       }
 
-      // Default v3 status pill (non-interactive)
+      // Default v2 status pill (non-interactive)
       return React.createElement(
         'span',
         {
-          className: `${v3PillBaseClass} gap-1`,
+          className: `${v2PillBaseClass} gap-1`,
           style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
         },
         pillInner
@@ -2324,7 +2329,7 @@ const TrackerCard = ({
     const isVariant1 = false;
     const isVariant2 = true;
 
-    const v3CountPill = (() => {
+    const v2CountPill = (() => {
       const n = Number(entriesTodayCount);
       const abs = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
       const nounBase = (mode === 'feeding') ? 'feed' : 'sleep';
@@ -2340,31 +2345,31 @@ const TrackerCard = ({
       );
     })();
 
-    // v3 pills: keep a single source of truth so height/radius stays consistent.
-    const v3PillBaseClass =
+    // v2 pills: keep a single source of truth so height/radius stays consistent.
+    const v2PillBaseClass =
       "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
 
     // For feeding: pills go in timeline (count only for variant 2, count + status for variant 1)
-    const v3FeedingTimelinePills = mode === 'feeding' ? React.createElement(
+    const v2FeedingTimelinePills = mode === 'feeding' ? React.createElement(
       'span',
       { className: "flex items-center gap-3" },
-      v3CountPill,
-      isVariant1 ? v3HeaderRight : null  // Status pill moved to header for variant 2
+      v2CountPill,
+      isVariant1 ? v2HeaderRight : null  // Status pill moved to header for variant 2
     ) : null;
 
     // For sleep: pills go in timeline (count only for variant 2, count + status for variant 1)
-    const v3SleepTimelinePills = mode === 'sleep' ? React.createElement(
+    const v2SleepTimelinePills = mode === 'sleep' ? React.createElement(
       'span',
       { className: "flex items-center gap-3" },
-      v3CountPill,
-      isVariant1 ? v3HeaderRight : null  // Status pill moved to header for variant 2
+      v2CountPill,
+      isVariant1 ? v2HeaderRight : null  // Status pill moved to header for variant 2
     ) : null;
 
     // Helper function to create icon + label component (for variant 2)
     const createIconLabel = (m) => {
       const isFeed = m === 'feeding';
       // Variant 2 uses new SVG icons (BottleV2 and MoonV2)
-      const v3Svg = isFeed
+      const v2Svg = isFeed
         ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.BottleV2) ||
            (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-v2"]) ||
            null)
@@ -2381,7 +2386,7 @@ const TrackerCard = ({
           className: "text-[17.6px] font-semibold inline-flex items-center gap-1",
           style: { color }
         },
-        v3Svg ? React.createElement(v3Svg, { 
+        v2Svg ? React.createElement(v2Svg, { 
           className: "w-5 h-5", 
           style: { 
             color, 
@@ -2402,18 +2407,18 @@ const TrackerCard = ({
       headerGapClass: 'gap-2',
       headerBottomMarginClass: 'mb-8',
       headerLabelClassName: 'text-[15.4px] font-medium',
-      iconOverride: V3Icon,
+      iconOverride: V2Icon,
       feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
       sleepIconTransform: 'translateY(2px)',                // nudge moon down 2px
       mirrorFeedingIcon: false,
       showHeaderIcon: false,
-      headerRight: isVariant2 ? v3HeaderRight : null,  // variant 2: status pill in header, variant 1: in timeline
+      headerRight: isVariant2 ? v2HeaderRight : null,  // variant 2: status pill in header, variant 1: in timeline
       headerLabel: isVariant2 ? v3HeaderLabel : null,  // variant 2: icon + label in header
       showBigNumberIcon: isVariant1,                // show big icon inline for variant 1
       bigNumberTopLabel: null,                      // not used in header (use headerLabel instead)
       // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px), +10% = 35.739px / 33.858px
       bigNumberIconClassName: mode === 'feeding' ? 'h-[35.739px] w-[35.739px]' : 'h-[33.858px] w-[33.858px]',
-      // v3: big-number row is just icon + number + target (left-aligned)
+      // v2: big-number row is just icon + number + target (left-aligned)
       bigNumberRight: null,
       bigNumberRowClassName: isVariant1 
         ? "flex items-baseline gap-1 mb-[13px]"  // Consistent alignment for both feeding and sleep
@@ -2429,15 +2434,15 @@ const TrackerCard = ({
       // 12px * 1.2 = 14.4px, +10% = 15.84px
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
-      // v3: no status row below progress bar (pills moved to timeline/header)
+      // v2: no status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
       showDotsRow: false,
       progressBottomMarginClass: 'mb-0',
       dividerMarginClass: 'my-4',
       timelineTextColor: 'var(--tt-text-tertiary)',
-      timelineVariant: 'v3',
-      timelineCountPill: mode === 'feeding' ? v3FeedingTimelinePills : v3SleepTimelinePills  // pills replace "Timeline" for both modes
+      timelineVariant: 'v2',
+      timelineCountPill: mode === 'feeding' ? v2FeedingTimelinePills : v2SleepTimelinePills  // pills replace "Timeline" for both modes
     });
   };
 

@@ -136,7 +136,7 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
     'div',
     {
       className: 'flex flex-col',
-      // viewport minus header + nav (nav is taller in v3 now)
+      // viewport minus header + nav (nav is taller in v2 now)
       style: { height: 'calc(100vh - 170px)' }
     },
 

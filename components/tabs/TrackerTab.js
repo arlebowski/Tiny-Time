@@ -16,7 +16,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
     getUIVersion: () => {
       if (typeof window !== 'undefined' && window.localStorage) {
         const version = window.localStorage.getItem('tt_ui_version');
-        if (version && ['v1', 'v2', 'v2'].includes(version)) {
+        if (version === 'v2') {
+          // Old v2 detected - ensure it's set to new v2 (same value, but ensures migration)
+          window.localStorage.setItem('tt_ui_version', 'v2');
+          return 'v2';
+        }
+        if (version && ['v1', 'v2'].includes(version)) {
           return version;
         }
         // Migration: derive from old flags if version doesn't exist
