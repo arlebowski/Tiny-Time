@@ -392,13 +392,19 @@ const deriveAccentVariants = (hex, isDark) => {
   const softerB = isDark ? mix(b, 0, 0.65) : mix(b, 255, 0.88);
   const softerHex = `#${softerR.toString(16).padStart(2, '0')}${softerG.toString(16).padStart(2, '0')}${softerB.toString(16).padStart(2, '0')}`;
 
+  // Soft-medium variant (halfway between softer and soft)
+  const softMediumR = isDark ? mix(r, 0, 0.60) : mix(r, 255, 0.85);
+  const softMediumG = isDark ? mix(g, 0, 0.60) : mix(g, 255, 0.85);
+  const softMediumB = isDark ? mix(b, 0, 0.60) : mix(b, 255, 0.85);
+  const softMediumHex = `#${softMediumR.toString(16).padStart(2, '0')}${softMediumG.toString(16).padStart(2, '0')}${softMediumB.toString(16).padStart(2, '0')}`;
+
   // Strong variant
   const strongR = isDark ? mix(r, 255, 0.15) : mix(r, 0, 0.15);
   const strongG = isDark ? mix(g, 255, 0.15) : mix(g, 0, 0.15);
   const strongB = isDark ? mix(b, 255, 0.15) : mix(b, 0, 0.15);
   const strongHex = `#${strongR.toString(16).padStart(2, '0')}${strongG.toString(16).padStart(2, '0')}${strongB.toString(16).padStart(2, '0')}`;
 
-  return { softer: softerHex, soft: softHex, strong: strongHex };
+  return { softer: softerHex, softMedium: softMediumHex, soft: softHex, strong: strongHex };
 };
 
 // Background theme mapping
@@ -522,6 +528,7 @@ window.TT.applyAppearance = function(appearance) {
     // Sleep accents
     root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
     root.style.setProperty('--tt-sleep-softer', sleepVariants.softer);
+    root.style.setProperty('--tt-sleep-soft-medium', sleepVariants.softMedium);
     root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
     root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
   });
@@ -2819,15 +2826,15 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   className:
                     "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
                   style: {
-                    backgroundColor: theme.accent,
-                    color: '#fff'
+                    backgroundColor: (window.TT?.appearance?.get()?.darkMode) ? '#ffffff' : '#000000',
+                    color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff'
                   },
                   'aria-label': 'Add'
                 },
                 React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
                   className: "w-6 h-6",
                   weight: 'fill',
-                  style: { color: '#fff' }
+                  style: { color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff' }
                 })
               ),
               React.createElement(
