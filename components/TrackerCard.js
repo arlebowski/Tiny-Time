@@ -408,6 +408,46 @@ function ensureTapAnimationStyles() {
         max-height: 200px;
       }
     }
+    
+    @keyframes accordionExpand {
+      0% {
+        opacity: 0;
+        transform: translateY(-4px);
+        max-height: 0;
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 2000px;
+      }
+    }
+    
+    @keyframes accordionCollapse {
+      0% {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 2000px;
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-4px);
+        max-height: 0;
+      }
+    }
+    
+    .accordion-expand {
+      animation: accordionExpand 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      overflow: hidden;
+    }
+    
+    .accordion-collapse {
+      animation: accordionCollapse 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      overflow: hidden;
+    }
+    
+    .chevron-rotate {
+      transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
   `;
   document.head.appendChild(style);
 }
@@ -1208,6 +1248,15 @@ const TrackerCard = ({
         target.closest('.tt-sleep-progress-pulse')) {
       return;
     }
+    // For v3: toggle accordion when card is tapped
+    if (uiVersion === 'v3') {
+      setExpanded(!expanded);
+      // Also show yesterday comparison when expanded
+      if (!expanded && isViewingToday) {
+        setShowYesterdayComparison(true);
+      }
+      return;
+    }
     // Only trigger on direct card area clicks (header, numbers, progress track, etc.)
     // Only allow toggling when viewing today
     if (isViewingToday) {
@@ -1647,6 +1696,7 @@ const TrackerCard = ({
     bigNumberTopLabel = null,                 // optional icon + label above big number (for v3 feeding)
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
+    progressBarGoalText = null,               // Goal text below progress bar (for v3, e.g., "Goal 14.5 oz" or "Goal 12 hours")
     statusRow = null,                         // optional row below progress bar (v3)
     statusRowClassName = '',                  // spacing wrapper for statusRow
     showDotsRow = true,                       // dots row under progress bar
@@ -1654,7 +1704,9 @@ const TrackerCard = ({
     dividerMarginClass = 'my-4',              // divider spacing
     timelineTextColor = 'var(--tt-text-secondary)',
     timelineVariant = 'v2',                   // 'v2' | 'v3' (v3 uses pill + no bullet)
-    timelineCountPill = null                 // optional v3 pill shown inline next to "Timeline"
+    timelineCountPill = null,                 // optional v3 pill shown inline next to "Timeline"
+    hideTimelineBar = false,                   // Hide timeline bar button (for v3)
+    accordionCountPill = null                 // Count pill to show in accordion (for v3)
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
     const withFeedingMirror = (t) => {
@@ -1814,9 +1866,25 @@ const TrackerCard = ({
         }
       })
     ),
+    // Goal text below progress bar (for v3) - hide when expanded
+    progressBarGoalText && React.createElement(
+      'div',
+      {
+        className: "flex justify-end mt-[4px]",
+        style: { 
+          width: '100%',
+          opacity: expanded ? 0 : 0.7,
+          transition: 'opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+        }
+      },
+      React.createElement('span', {
+        className: "text-[15.4px] font-normal leading-none",
+        style: { color: 'var(--tt-text-tertiary)' }
+      }, progressBarGoalText)
+    ),
     // Yesterday comparison section (insert after main progress bar, before status/dots)
-    // Only show when viewing today AND comparison is toggled on
-    (showYesterdayComparison && isViewingToday) && React.createElement(
+    // Only show when viewing today AND comparison is toggled on AND not in accordion (v3 shows it in accordion)
+    (showYesterdayComparison && isViewingToday && !hideTimelineBar) && React.createElement(
       React.Fragment,
       null,
       // Number + label inline, then progress bar below
@@ -1877,8 +1945,8 @@ const TrackerCard = ({
         })
       )
     ),
-    // Divider - always show
-    React.createElement('div', { 
+    // Divider - always show (unless hiding timeline bar for v3)
+    !hideTimelineBar && React.createElement('div', { 
       className: `border-t ${dividerMarginClass}`,
       style: { 
         borderColor: document.documentElement.classList.contains('dark') 
@@ -1886,7 +1954,8 @@ const TrackerCard = ({
           : 'rgb(243, 244, 246)'  // border-gray-100 equivalent for light mode
       }
     }),
-    React.createElement(
+    // Timeline bar button - hide for v3 (chevron moved to header)
+    !hideTimelineBar && React.createElement(
       'button',
       {
         onClick: () => setExpanded(!expanded),
@@ -1920,9 +1989,70 @@ const TrackerCard = ({
             style: { color: timelineTextColor } 
           })
     ),
-    expanded && React.createElement(
+    // Accordion content (always rendered to allow collapse animation)
+    React.createElement(
       'div',
-      { className: "mt-4" },
+      { 
+        className: `mt-4 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        style: { overflow: 'hidden' }
+      },
+      // Show yesterday comparison in accordion for v3 (moved before count pill)
+      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(
+        React.Fragment,
+        null,
+        // Number + label inline, then progress bar below
+        React.createElement('div', {
+          className: "mb-8 mt-3"
+        },
+          // Number + "as of" text inline
+          React.createElement('div', {
+            className: "flex items-center gap-2 mb-2"
+          },
+            React.createElement('span', {
+              className: "text-[15.4px] font-bold leading-none",
+              style: {
+                color: mode === 'feeding' ? 'var(--tt-feed-soft, var(--tt-feed))' : 'var(--tt-sleep-soft, var(--tt-sleep))',
+                opacity: 0.85
+              }
+            }, `${formattedYesterdayTotal}${mode === 'feeding' ? ' oz' : ' hrs'}`),
+            React.createElement('span', {
+              className: "text-[15.4px] font-normal leading-none",
+              style: { color: 'var(--tt-text-tertiary)', opacity: 0.6 }
+            }, `as of ${yesterdayTotal.displayTime} yesterday`)
+          ),
+          // Progress bar with track (40% height of main bar - doubled for visibility)
+          React.createElement('div', {
+            className: "relative w-full rounded-2xl overflow-hidden",
+            style: {
+              height: progressTrackHeightClass === 'h-6' 
+                ? '9.6px'  // 40% of 24px (doubled from 20%)
+                : '6.336px', // 40% of 15.84px (doubled from 20%)
+              backgroundColor: 'var(--tt-subtle-surface)', // Dark mode compatible track
+              minHeight: '4px' // Ensure track is always visible (doubled)
+            }
+          },
+            React.createElement('div', {
+              className: "absolute left-0 top-0 h-full rounded-2xl",
+              style: {
+                width: `${Math.max(0, yesterdayPercent)}%`,
+                backgroundColor: mode === 'feeding' 
+                  ? 'var(--tt-feed-soft, var(--tt-feed))'
+                  : 'var(--tt-sleep-soft, var(--tt-sleep))',
+                opacity: 0.6,
+                transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                minWidth: yesterdayPercent > 0 ? '2px' : '0px' // Ensure fill is visible if there's data (doubled)
+              }
+            })
+          )
+        )
+      ),
+      // Show count pill after yesterday comparison for v3
+      accordionCountPill && React.createElement(
+        'div',
+        { className: "mb-4" },
+        accordionCountPill
+      ),
+      // Timeline items
       ((localTimelineItems && localTimelineItems.length > 0) || exitingIds.size > 0)
         ? (() => {
             return localTimelineItems.map((entry, index) => {
@@ -2297,6 +2427,36 @@ const TrackerCard = ({
 
   // v3: new design (copied from v2, edit independently) — ONLY change styling here
   const renderV3Design = () => {
+    // Helper function to format relative time with "ago" (e.g., "1h 12m ago")
+    const formatRelativeTime = (timestamp) => {
+      if (!timestamp) return '';
+      const now = Date.now();
+      const diff = now - timestamp;
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      
+      if (minutes < 1) return 'just now';
+      if (minutes < 60) return `${minutes}m ago`;
+      if (remainingMinutes === 0) return `${hours}h ago`;
+      return `${hours}h ${remainingMinutes}m ago`;
+    };
+    
+    // Helper function to format relative time without "ago" (e.g., "1h 12m")
+    const formatRelativeTimeNoAgo = (timestamp) => {
+      if (!timestamp) return '';
+      const now = Date.now();
+      const diff = now - timestamp;
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(minutes / 60);
+      const remainingMinutes = minutes % 60;
+      
+      if (minutes < 1) return '0m';
+      if (minutes < 60) return `${minutes}m`;
+      if (remainingMinutes === 0) return `${hours}h`;
+      return `${hours}h ${remainingMinutes}m`;
+    };
+    
     // Prefer PNG icons (if present) with SVG fallback.
     // Drop these files in the project root:
     // - assets/ui-icons/inv bottle-main-right-v3@3x.png.png
@@ -2418,7 +2578,7 @@ const TrackerCard = ({
     }, [mode, v3IconSrc, v3IconSvg]);
 
     const v3StatusText = mode === 'feeding'
-      ? (lastEntryTime ? `Last ate at ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
+      ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No feedings yet')
       : (() => {
           const activeEntry = localTimelineItems.find(item => item.isActive && item.startTime);
           if (activeEntry) {
@@ -2435,7 +2595,7 @@ const TrackerCard = ({
           }
           const lastCompletedSleep = localTimelineItems.find(item => item.endTime && !item.isActive);
           if (lastCompletedSleep && lastCompletedSleep.endTime) {
-            return `Last woke at ${formatTime12Hour(lastCompletedSleep.endTime)}`;
+            return `awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
           }
           return 'No sleep logged';
         })();
@@ -2447,15 +2607,27 @@ const TrackerCard = ({
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
       const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
       
+      // Create chevron element
+      const chevronEl = expanded
+        ? React.createElement(window.TT?.shared?.icons?.ChevronUpIcon || ChevronUp, { 
+            className: "w-5 h-5 chevron-rotate",
+            style: { color: 'var(--tt-text-tertiary)' } 
+          })
+        : React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, { 
+            className: "w-5 h-5 chevron-rotate",
+            style: { color: 'var(--tt-text-tertiary)' } 
+          });
+      
       // Variant 2: only show pill if there's an active sleep, otherwise plain text
       if (isVariant2ForStatus && !isActiveSleepPill) {
         return React.createElement(
           'span',
           {
-            className: "text-[15.4px] font-normal leading-none",
+            className: "inline-flex items-center gap-2",
             style: { color: 'var(--tt-text-tertiary)' }
           },
-          v3StatusText
+          React.createElement('span', { className: "text-[15.4px] font-normal leading-none" }, v3StatusText),
+          chevronEl
         );
       }
       
@@ -2466,8 +2638,9 @@ const TrackerCard = ({
 
       const pillInner = React.createElement(
         'span',
-        { className: "inline-flex items-center" },
-        React.createElement('span', null, v3StatusText)
+        { className: "inline-flex items-center gap-2" },
+        React.createElement('span', null, v3StatusText),
+        chevronEl
       );
 
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
@@ -2607,11 +2780,14 @@ const TrackerCard = ({
       bigNumberTargetClassName: isVariant1 
         ? "relative -top-[2px] text-[17.6px] leading-none font-normal"  // variant 1: consistent for both feeding and sleep
         : "relative -top-[1px] text-[17.6px] leading-none font-normal",  // variant 2: consistent for both feeding and sleep
-      bigNumberTargetColor: 'var(--tt-text-secondary)',
-      bigNumberTargetVariant: 'target',
+      bigNumberTargetColor: 'var(--tt-text-tertiary)',  // v3: match tertiary text color
+      bigNumberTargetVariant: 'unit',  // v3: show just "oz" or "hrs" next to big number
       // 12px * 1.2 = 14.4px, +10% = 15.84px
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
+      progressBarGoalText: target !== null 
+        ? (mode === 'sleep' ? `${formatV2Number(target)} hours goal` : `${formatV2Number(target)} oz goal`)
+        : (mode === 'sleep' ? '0 hours goal' : '0 oz goal'),  // Goal text below progress bar for v3
       // v3: no status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
@@ -2620,7 +2796,8 @@ const TrackerCard = ({
       dividerMarginClass: 'my-4',
       timelineTextColor: 'var(--tt-text-tertiary)',
       timelineVariant: 'v3',
-      timelineCountPill: mode === 'feeding' ? v3FeedingTimelinePills : v3SleepTimelinePills  // pills replace "Timeline" for both modes
+      hideTimelineBar: true,  // Hide the timeline bar button for v3
+      accordionCountPill: v3CountPill  // Pass count pill to show in accordion
     });
   };
 

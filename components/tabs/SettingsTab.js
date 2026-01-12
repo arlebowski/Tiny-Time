@@ -44,6 +44,20 @@ const SettingsTab = ({ user, kidId }) => {
   const [amountPickerAmount, setAmountPickerAmount] = useState(4);
   const [amountPickerUnit, setAmountPickerUnit] = useState('oz');
   
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('tt-picker-flip-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'tt-picker-flip-styles';
+    style.textContent = `
+      @keyframes ttPickerFlip {
+        0% { opacity: 0.75; transform: rotateX(6deg) translateY(6px); }
+        100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+  
   // UI Version - single source of truth (v1, v2, or v3)
   const [uiVersion, setUiVersion] = useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
@@ -470,6 +484,7 @@ const SettingsTab = ({ user, kidId }) => {
         requestAnimationFrame(() => {
           if (sheetRef.current) {
             sheetRef.current.style.transform = 'translateY(0)';
+            setHasEntered(true);
           }
         });
       } else if (!isOpen && sheetRef.current) {
@@ -665,6 +680,7 @@ const SettingsTab = ({ user, kidId }) => {
     const animationRef = React.useRef(null);
     const lastY = React.useRef(0);
     const lastTime = React.useRef(Date.now());
+    const prevUnitRef = React.useRef(unit);
 
     const generateOptions = () => {
       if (type === 'date') {
@@ -719,7 +735,7 @@ const SettingsTab = ({ user, kidId }) => {
       }
     };
 
-    const options = generateOptions();
+        const options = React.useMemo(() => generateOptions(), [type, min, max, step, unit]);
     const ITEM_HEIGHT = 40;
     // Center the "selected" row (40px) inside the picker height.
     // This fixes the subtle mismatch caused by hard-coded padding.
@@ -748,8 +764,22 @@ const SettingsTab = ({ user, kidId }) => {
     // Keep selection + offset aligned to external value changes
     useEffect(() => {
       const idx = Math.max(0, getCurrentIndex());
-      setSelectedIndex(idx);
-      setCurrentOffset(-idx * ITEM_HEIGHT);
+      const unitChanged = prevUnitRef.current !== unit;
+      prevUnitRef.current = unit;
+      
+      // If unit changed and we're not dragging, smoothly animate the transition
+      if (unitChanged && !isDragging) {
+        // Use requestAnimationFrame to ensure smooth transition
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setSelectedIndex(idx);
+            setCurrentOffset(-idx * ITEM_HEIGHT);
+          });
+        });
+      } else {
+        setSelectedIndex(idx);
+        setCurrentOffset(-idx * ITEM_HEIGHT);
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value, type, min, max, step, unit]);
 
@@ -934,6 +964,12 @@ const SettingsTab = ({ user, kidId }) => {
 
   // Amount Picker Lab Section
   const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount }) => {
+    const [flipKey, setFlipKey] = useState(0);
+
+    React.useEffect(() => {
+      setFlipKey((prev) => prev + 1);
+    }, [unit]);
+
     const snapToStep = (val, step) => {
       const n = Number(val) || 0;
       const s = Number(step) || 1;
@@ -968,15 +1004,25 @@ const SettingsTab = ({ user, kidId }) => {
     return React.createElement(
       'div',
       { style: wheelStyles.section },
-      React.createElement(WheelPicker, {
-        type: 'number',
-        value: amount,
-        onChange: setAmount,
-        min: range.min,
-        max: range.max,
-        step: range.step,
-        unit: unit
-      })
+      React.createElement(
+        'div',
+        {
+          key: flipKey,
+          style: {
+            animation: 'ttPickerFlip 180ms ease',
+            transformOrigin: 'center top'
+          }
+        },
+        React.createElement(WheelPicker, {
+          type: 'number',
+          value: amount,
+          onChange: setAmount,
+          min: range.min,
+          max: range.max,
+          step: range.step,
+          unit: unit
+        })
+      )
     );
   };
 
@@ -1064,8 +1110,10 @@ const SettingsTab = ({ user, kidId }) => {
   // TTPickerTray Component - Native keyboard-style tray
   const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null }) => {
     const [present, setPresent] = React.useState(false);
+    const [hasEntered, setHasEntered] = React.useState(false);
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
+    const scrollYRef = React.useRef(0);
 
     // Set present when isOpen becomes true
     React.useEffect(() => {
@@ -1073,6 +1121,42 @@ const SettingsTab = ({ user, kidId }) => {
         setPresent(true);
       }
     }, [isOpen]);
+    
+    React.useEffect(() => {
+      if (!present) {
+        setHasEntered(false);
+      }
+    }, [present]);
+
+    // Lock/unlock body scroll while present
+    React.useEffect(() => {
+      if (!present) return;
+      const body = document.body;
+      const prev = {
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
+        overflow: body.style.overflow,
+      };
+      scrollYRef.current = window.scrollY || window.pageYOffset || 0;
+      body.style.position = 'fixed';
+      body.style.top = `-${scrollYRef.current}px`;
+      body.style.left = '0';
+      body.style.right = '0';
+      body.style.width = '100%';
+      body.style.overflow = 'hidden';
+      return () => {
+        body.style.position = prev.position || '';
+        body.style.top = prev.top || '';
+        body.style.left = prev.left || '';
+        body.style.right = prev.right || '';
+        body.style.width = prev.width || '';
+        body.style.overflow = prev.overflow || '';
+        window.scrollTo(0, scrollYRef.current || 0);
+      };
+    }, [present]);
 
     // Update transition (set before any transform changes)
     React.useEffect(() => {
@@ -1089,6 +1173,7 @@ const SettingsTab = ({ user, kidId }) => {
         requestAnimationFrame(() => {
           if (sheetRef.current) {
             sheetRef.current.style.transform = 'translateY(0)';
+            setHasEntered(true);
           }
         });
       } else {
@@ -1118,6 +1203,14 @@ const SettingsTab = ({ user, kidId }) => {
         backdropRef.current.style.opacity = '0';
       }
     }, [isOpen, present]);
+
+    // Maintain transform when hasEntered is true (prevents reset during re-renders)
+    React.useEffect(() => {
+      if (hasEntered && sheetRef.current && isOpen) {
+        // Ensure transform stays at translateY(0) even during re-renders
+        sheetRef.current.style.transform = 'translateY(0)';
+      }
+    }, [hasEntered, isOpen]);
 
     if (!present) return null;
     
@@ -1158,7 +1251,7 @@ const SettingsTab = ({ user, kidId }) => {
             paddingBottom: 'env(safe-area-inset-bottom, 0)',
             boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
             zIndex: 1000,
-            transform: 'translateY(100%)',
+            transform: isOpen && hasEntered ? 'translateY(0)' : 'translateY(100%)',
             willChange: 'transform',
             display: 'flex',
             flexDirection: 'column',

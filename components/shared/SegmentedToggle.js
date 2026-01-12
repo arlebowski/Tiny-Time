@@ -46,16 +46,15 @@ const SegmentedToggle = ({
     
   const btnOn = variant === 'header'
     ? "bg-white text-gray-900 shadow-sm"  // HeaderSegmentedToggle EXACT
-    : "shadow-sm"; // Body: use inline styles for semi-transparent white
+    : "bg-white dark:bg-[rgba(255,255,255,0.12)] shadow-sm"; // Body: white in light mode, semi-transparent in dark mode
     
   const btnOff = variant === 'header'
     ? "bg-transparent text-white/80"  // HeaderSegmentedToggle EXACT
-    : "bg-transparent text-gray-600"; // Body: match original AnalyticsSubpageToggle
+    : "bg-transparent text-gray-600 dark:text-[var(--tt-text-secondary)]"; // Body: gray-600 in light mode, CSS var in dark mode
 
-  // Body variant: use semi-transparent white for selected button (less bright than pure white)
+  // Body variant: use CSS variable for text color (adapts to light/dark mode)
   const btnOnStyle = variant === 'body'
     ? { 
-        backgroundColor: 'rgba(255, 255, 255, 0.12)', // Semi-transparent white - lighter than track but not bright
         color: 'var(--tt-text-primary)',
       }
     : undefined;
