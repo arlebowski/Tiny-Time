@@ -1113,6 +1113,7 @@ const SettingsTab = ({ user, kidId }) => {
     const [hasEntered, setHasEntered] = React.useState(false);
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
+    const scrollYRef = React.useRef(0);
 
     // Set present when isOpen becomes true
     React.useEffect(() => {
@@ -1125,6 +1126,36 @@ const SettingsTab = ({ user, kidId }) => {
       if (!present) {
         setHasEntered(false);
       }
+    }, [present]);
+
+    // Lock/unlock body scroll while present
+    React.useEffect(() => {
+      if (!present) return;
+      const body = document.body;
+      const prev = {
+        position: body.style.position,
+        top: body.style.top,
+        left: body.style.left,
+        right: body.style.right,
+        width: body.style.width,
+        overflow: body.style.overflow,
+      };
+      scrollYRef.current = window.scrollY || window.pageYOffset || 0;
+      body.style.position = 'fixed';
+      body.style.top = `-${scrollYRef.current}px`;
+      body.style.left = '0';
+      body.style.right = '0';
+      body.style.width = '100%';
+      body.style.overflow = 'hidden';
+      return () => {
+        body.style.position = prev.position || '';
+        body.style.top = prev.top || '';
+        body.style.left = prev.left || '';
+        body.style.right = prev.right || '';
+        body.style.width = prev.width || '';
+        body.style.overflow = prev.overflow || '';
+        window.scrollTo(0, scrollYRef.current || 0);
+      };
     }, [present]);
 
     // Update transition (set before any transform changes)
