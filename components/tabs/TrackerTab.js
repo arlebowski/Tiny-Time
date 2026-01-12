@@ -1368,8 +1368,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const dateNavDividerColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgb(243, 244, 246)';
 
   return React.createElement('div', { className: "space-y-4" },
-    // Date Navigation (moved outside Today Card)
-    React.createElement('div', { 
+    // Date Navigation (moved outside Today Card) - hidden in v3
+    uiVersion !== 'v3' && React.createElement('div', { 
       className: "date-nav-container",
       style: {
         backgroundColor: 'var(--tt-app-bg)', // Match header background
@@ -1446,6 +1446,67 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
 
     // New TrackerCard Components (when useNewUI is true)
     useNewUI && window.TrackerCard && React.createElement(React.Fragment, null,
+      // Date Navigation in v3 (moved to body, above What's Next card)
+      uiVersion === 'v3' && React.createElement('div', { 
+        className: "date-nav",
+        style: {
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          backgroundColor: dateNavTrackBg,
+          padding: '8px 16px',
+          borderRadius: '12px',
+          marginBottom: '16px'
+        }
+      },
+        React.createElement('div', {
+          onClick: goToPreviousDay,
+          className: "nav-arrow",
+          style: {
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            userSelect: 'none',
+            transition: 'opacity 0.2s',
+            WebkitTapHighlightColor: 'transparent'
+          },
+          onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
+          onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
+          onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
+        }, React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: chevronColor } })),
+        React.createElement('div', { 
+          className: "date-text",
+          style: {
+            fontSize: '17px',
+            fontWeight: 600,
+            color: 'var(--tt-text-primary)',
+            flex: 1,
+            textAlign: 'center'
+          }
+        }, formatDate(currentDate)),
+        React.createElement('div', {
+          onClick: isToday() ? null : goToNextDay,
+          className: "nav-arrow",
+          style: {
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: isToday() ? 'not-allowed' : 'pointer',
+            userSelect: 'none',
+            transition: 'opacity 0.2s',
+            WebkitTapHighlightColor: 'transparent'
+          },
+          onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
+          onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
+          onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
+        }, React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: isToday() ? chevronDisabledColor : chevronColor } }))
+      ),
       // What's Next Card - simple card with icon, label, and body (only show on today, v3 only)
       isToday() && uiVersion === 'v3' && React.createElement('div', {
         className: "rounded-2xl px-5 py-4 mb-4 tt-tapable",
