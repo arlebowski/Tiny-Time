@@ -2763,7 +2763,7 @@ const TrackerCard = ({
           }
           const lastCompletedSleep = localTimelineItems.find(item => item.endTime && !item.isActive);
           if (lastCompletedSleep && lastCompletedSleep.endTime) {
-            return `awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
+            return `Awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
           }
           return 'No sleep logged';
         })();
