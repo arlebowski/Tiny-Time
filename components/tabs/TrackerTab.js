@@ -7,35 +7,131 @@
 // UI VERSION HELPERS (Single Source of Truth)
 // ========================================
 // Initialize shared UI version helpers (only once)
+// Note: This is initialized in SettingsTab.js with Firestore support
+// This check ensures it exists, but won't re-initialize if already set
 if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
+  // Cached version (updated from Firestore)
+  let cachedVersion = 'v2';
+  let versionListeners = [];
+  let unsubscribeListener = null;
+  
   // Helper to get UI version (defaults to v2 for backward compatibility)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const version = window.localStorage.getItem('tt_ui_version');
-        if (version === 'v2') {
-          // Old v2 detected - ensure it's set to new v2 (same value, but ensures migration)
-          window.localStorage.setItem('tt_ui_version', 'v2');
-          return 'v2';
-        }
-        if (version && ['v1', 'v2', 'v3'].includes(version)) {
-          return version;
-        }
-        // Migration: derive from old flags if version doesn't exist
-        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
-        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
-        if (useNewUI === 'false') return 'v1';
-        if (cardDesign === 'new') return 'v2';
-        return 'v2'; // default
-      }
-      return 'v2';
+      // Return cached version (will be updated from Firestore)
+      return cachedVersion;
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current')
+    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
+    
+    // Set global UI version in Firestore (for all users)
+    setUIVersion: async (version) => {
+      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
+        console.error('Invalid UI version:', version);
+        return;
+      }
+      
+      try {
+        // Access firebase from global scope
+        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
+          const db = window.firebase.firestore();
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: version,
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          
+          // Update cache immediately
+          cachedVersion = version;
+          // Notify all listeners
+          versionListeners.forEach(listener => listener(version));
+        } else {
+          console.error('Firebase not available');
+        }
+      } catch (error) {
+        console.error('Error setting global UI version:', error);
+        throw error;
+      }
+    },
+    
+    // Subscribe to version changes
+    onVersionChange: (callback) => {
+      versionListeners.push(callback);
+      return () => {
+        versionListeners = versionListeners.filter(cb => cb !== callback);
+      };
+    },
+    
+    // Initialize: fetch from Firestore and set up real-time listener
+    init: async () => {
+      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
+        // Fallback to localStorage if Firebase not available
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+        return;
+      }
+      
+      try {
+        const db = window.firebase.firestore();
+        // First, try to get from Firestore
+        const doc = await db.collection('appConfig').doc('global').get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+            cachedVersion = data.uiVersion;
+            // Notify all listeners
+            versionListeners.forEach(listener => listener(cachedVersion));
+          }
+        } else {
+          // Document doesn't exist, create it with default
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: 'v2',
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          });
+          cachedVersion = 'v2';
+        }
+        
+        // Set up real-time listener
+        unsubscribeListener = db.collection('appConfig').doc('global')
+          .onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+                const newVersion = data.uiVersion;
+                if (newVersion !== cachedVersion) {
+                  cachedVersion = newVersion;
+                  // Notify all listeners
+                  versionListeners.forEach(listener => listener(cachedVersion));
+                }
+              }
+            }
+          });
+      } catch (error) {
+        console.error('Error initializing UI version from Firestore:', error);
+        // Fallback to localStorage
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+      }
+    }
   };
+  
+  // Initialize on load
+  if (typeof window !== 'undefined') {
+    // Wait a bit for Firebase to be available
+    setTimeout(() => {
+      window.TT.shared.uiVersion.init();
+    }, 100);
+  }
 }
 
 const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
@@ -60,10 +156,18 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   
   // Listen for changes to the feature flags
   React.useEffect(() => {
+    // Listen for global UI version changes from Firestore
+    let unsubscribeVersion = null;
+    if (window.TT?.shared?.uiVersion?.onVersionChange) {
+      unsubscribeVersion = window.TT.shared.uiVersion.onVersionChange((newVersion) => {
+        setUiVersion(newVersion);
+        // Force reload to apply changes
+        window.location.reload();
+      });
+    }
+    
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
-        setUiVersion(version);
         const todayCardStored = window.localStorage.getItem('tt_show_today_card');
         setShowTodayCard(todayCardStored !== null ? todayCardStored === 'true' : false);
       }
@@ -76,6 +180,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const interval = setInterval(handleStorageChange, 100);
     
     return () => {
+      if (unsubscribeVersion) unsubscribeVersion();
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
@@ -1343,9 +1448,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     useNewUI && window.TrackerCard && React.createElement(React.Fragment, null,
       // What's Next Card - simple card with icon, label, and body (only show on today, v3 only)
       isToday() && uiVersion === 'v3' && React.createElement('div', {
-        className: "rounded-2xl px-5 py-4 mb-4",
+        className: "rounded-2xl px-5 py-4 mb-4 tt-tapable",
         style: {
-          backgroundColor: "var(--tt-subtle-surface)",
+          backgroundColor: activeSleep && activeSleep.startTime 
+            ? 'var(--tt-sleep-soft-medium, var(--tt-sleep-soft))'
+            : "var(--tt-subtle-surface)",
           borderColor: "var(--tt-card-border)"
         }
       },
@@ -1365,68 +1472,123 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
             }, [startTime]);
             
             const formatWithSeconds = (ms) => {
-              return formatElapsedHmsTT(ms).str;
+              const formatted = formatElapsedHmsTT(ms);
+              // Hide seconds when there are hours
+              if (formatted.h > 0) {
+                return `${formatted.hStr}h ${formatted.mStr}m`;
+              }
+              return formatted.str;
             };
             
             return React.createElement('span', { 
-              className: "font-semibold tabular-nums whitespace-nowrap inline-block text-right", 
-              style: { color: 'var(--tt-sleep)' } 
+              className: "text-[36px] leading-none tabular-nums whitespace-nowrap inline-block text-right", 
+              style: { 
+                color: 'var(--tt-sleep)',
+                fontWeight: '250'
+              } 
             }, formatWithSeconds(elapsed));
           };
 
           // zZz animation element (memoized to prevent animation restart)
-          const zzzElement = React.createElement('span', { className: "zzz" },
+          const zzzElement = React.createElement('span', { 
+            className: "zzz text-[29.07px] leading-none",
+            style: { fontWeight: '75' } // Half step lighter than font-thin (100)
+          },
             React.createElement('span', null, 'z'),
             React.createElement('span', null, 'Z'),
             React.createElement('span', null, 'z')
           );
 
           return React.createElement(React.Fragment, null,
-            // Timer row with timer, zzz, and stop button
-            React.createElement('div', {
-              className: "flex items-center justify-between mb-[5px]"
+            // Outer tappable container (entire blue area)
+            React.createElement('button', {
+              type: 'button',
+              onClick: () => {
+                setInputSheetMode('sleep');
+                setShowInputSheet(true);
+              },
+              className: "w-full mb-[5px]",
+              style: { 
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                textAlign: 'left'
+              },
+              'aria-label': 'Open sleep timer'
             },
+              // Wrapper container (centered, 75% width) - contains timer row and secondary text
               React.createElement('div', {
-                className: "inline-flex items-baseline gap-2 whitespace-nowrap",
-                style: { color: 'var(--tt-sleep)' }
+                className: "mx-auto",
+                style: {
+                  width: '75%'
+                }
               },
-                React.createElement(ActiveSleepTimer, { startTime: activeSleep.startTime }),
-                React.createElement('span', {
-                  className: "inline-flex w-[28px] justify-start font-light leading-none",
-                  style: { color: 'currentColor' }
-                }, zzzElement)
-              ),
-              // Timer button (round button with timer icon - opens half sheet)
-              React.createElement('button', {
-                type: 'button',
-                onClick: () => {
-                  setInputSheetMode('sleep');
-                  setShowInputSheet(true);
+                // Inner container (timer + zzz + button) - 2-column flex row with space-between
+                React.createElement('div', {
+                  className: "flex items-center justify-between",
+                  style: { 
+                    width: '100%',
+                    gap: '12px' // Gap between timer row and button
+                  }
                 },
-                className: "w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:opacity-80 transition-opacity",
-                style: { flexShrink: 0 },
-                'aria-label': 'Open sleep timer'
-              },
-                React.createElement('svg', {
-                  xmlns: "http://www.w3.org/2000/svg",
-                  width: "16",
-                  height: "16",
-                  fill: "currentColor",
-                  viewBox: "0 0 256 256",
-                  className: "w-4 h-4",
-                  style: { color: 'var(--tt-sleep)' }
-                },
-                  React.createElement('path', {
-                    d: "M128,44a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,44Zm0,168a72,72,0,1,1,72-72A72.08,72.08,0,0,1,128,212ZM164.49,99.51a12,12,0,0,1,0,17l-28,28a12,12,0,0,1-17-17l28-28A12,12,0,0,1,164.49,99.51ZM92,16A12,12,0,0,1,104,4h48a12,12,0,0,1,0,24H104A12,12,0,0,1,92,16Z"
-                  })
-                )
+                  // Timer row (time + zzz)
+                  React.createElement('div', {
+                    className: "inline-flex items-baseline gap-2 whitespace-nowrap",
+                    style: { color: 'var(--tt-sleep)' }
+                  },
+                    React.createElement(ActiveSleepTimer, { startTime: activeSleep.startTime }),
+                    React.createElement('span', {
+                      className: "inline-flex justify-start leading-none",
+                      style: { color: 'currentColor' }
+                    }, zzzElement)
+                  ),
+                  // Timer button wrapper (increased hit area, centered vertically)
+                  React.createElement('div', {
+                    className: "flex items-center",
+                    style: { 
+                      padding: '4px', // Increases hit area by 8px on all sides
+                      flexShrink: 0
+                    }
+                  },
+                    React.createElement('button', {
+                      type: 'button',
+                      onClick: (e) => {
+                        e.stopPropagation();
+                        setInputSheetMode('sleep');
+                        setShowInputSheet(true);
+                      },
+                      className: "w-9 h-9 rounded-full flex items-center justify-center shadow-sm hover:opacity-80 transition-opacity",
+                      style: { 
+                        backgroundColor: 'var(--tt-sleep)'
+                      },
+                      'aria-label': 'Open sleep timer'
+                    },
+                      React.createElement('svg', {
+                        xmlns: "http://www.w3.org/2000/svg",
+                        width: "18",
+                        height: "18",
+                        fill: "currentColor",
+                        viewBox: "0 0 256 256",
+                        className: "w-[18px] h-[18px]",
+                        style: { color: '#ffffff' }
+                      },
+                        React.createElement('path', {
+                          d: "M128,44a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,44Zm0,168a72,72,0,1,1,72-72A72.08,72.08,0,0,1,128,212ZM164.49,99.51a12,12,0,0,1,0,17l-28,28a12,12,0,0,1-17-17l28-28A12,12,0,0,1,164.49,99.51ZM92,16A12,12,0,0,1,104,4h48a12,12,0,0,1,0,24H104A12,12,0,0,1,92,16Z"
+                        })
+                      )
+                    )
+                  )
+                ),
+                // Secondary text (below inner container, left-aligned to timer text start)
+                React.createElement('div', {
+                  className: "text-[15.4px] font-normal",
+                  style: { 
+                    color: 'var(--tt-text-tertiary)'
+                  }
+                }, "Content goes here")
               )
-            ),
-            // Simple body
-            React.createElement('div', {
-              className: "text-[15.4px] font-medium",
-              style: { color: 'var(--tt-text-primary)' }
-            }, "Content goes here")
+            )
           );
         })() : (
           // Normal state: show header and body
