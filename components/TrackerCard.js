@@ -2921,8 +2921,8 @@ const TrackerCard = ({
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
       progressBarGoalText: target !== null 
-        ? (mode === 'sleep' ? `${formatV2Number(target)} hours goal` : `${formatV2Number(target)} oz goal`)
-        : (mode === 'sleep' ? '0 hours goal' : '0 oz goal'),  // Goal text below progress bar for v3
+        ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
+        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),  // Goal text below progress bar for v3
       // v3: no status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
