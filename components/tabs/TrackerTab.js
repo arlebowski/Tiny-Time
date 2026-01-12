@@ -220,6 +220,69 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     }
   }, []);
 
+  // Ensure zzz animation styles from TrackerCard are available (for What's Next timer)
+  useEffect(() => {
+    try {
+      if (document.getElementById('tt-zzz-anim')) return;
+      const style = document.createElement('style');
+      style.id = 'tt-zzz-anim';
+      style.textContent = `
+        @keyframes floatingZs {
+          0% {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: translateY(-4px) scale(1.1);
+            opacity: 0.7;
+          }
+          100% {
+            transform: translateY(-8px) scale(1);
+            opacity: 0;
+          }
+        }
+        .zzz {
+          display: inline-block;
+        }
+        .zzz > span {
+          display: inline-block;
+          animation: floatingZs 2s ease-in-out infinite;
+        }
+        .zzz > span:nth-child(1) { animation-delay: 0s; }
+        .zzz > span:nth-child(2) { animation-delay: 0.3s; }
+        .zzz > span:nth-child(3) { animation-delay: 0.6s; }
+      `;
+      document.head.appendChild(style);
+    } catch (e) {
+      // non-fatal
+    }
+  }, []);
+
+  // Format elapsed time for timer display (borrowed from TrackerCard)
+  const formatElapsedHmsTT = (ms) => {
+    const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad2 = (n) => String(Math.max(0, n)).padStart(2, '0');
+
+    if (h > 0) {
+      const hStr = h >= 10 ? pad2(h) : String(h);
+      const mStr = pad2(m);
+      const sStr = pad2(s);
+      return { h, m, s, showH: true, showM: true, showS: true, hStr, mStr, sStr, str: `${hStr}h ${mStr}m ${sStr}s` };
+    }
+
+    if (m > 0) {
+      const mStr = m >= 10 ? pad2(m) : String(m);
+      const sStr = pad2(s);
+      return { h: 0, m, s, showH: false, showM: true, showS: true, mStr, sStr, str: `${mStr}m ${sStr}s` };
+    }
+
+    const sStr = s < 10 ? String(s) : pad2(s);
+    return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
+  };
+
   // Inject BMW-style charging pulse animation for active sleep progress bar
   useEffect(() => {
     try {
@@ -1278,41 +1341,125 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
 
     // New TrackerCard Components (when useNewUI is true)
     useNewUI && window.TrackerCard && React.createElement(React.Fragment, null,
-      // What's Next Card - simple card with icon, label, and body (only show on today)
-      isToday() && React.createElement('div', {
+      // What's Next Card - simple card with icon, label, and body (only show on today, v3 only)
+      isToday() && uiVersion === 'v3' && React.createElement('div', {
         className: "rounded-2xl px-5 py-4 mb-4",
         style: {
           backgroundColor: "var(--tt-subtle-surface)",
           borderColor: "var(--tt-card-border)"
         }
       },
-        // Header with icon and label
-        React.createElement('div', {
-          className: "flex items-center gap-2 mb-[5px]"
-        },
-          React.createElement('svg', {
-            xmlns: "http://www.w3.org/2000/svg",
-            width: "18",
-            height: "18",
-            fill: "currentColor",
-            viewBox: "0 0 256 256",
-            className: "w-[18px] h-[18px]",
-            style: { color: 'var(--tt-text-secondary)' }
-          },
-            React.createElement('path', {
-              d: "M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"
-            })
-          ),
-          React.createElement('div', {
-            className: "text-[14.5px] font-normal",
-            style: { color: 'var(--tt-text-secondary)' }
-          }, "What's Next")
-        ),
-        // Simple body
-        React.createElement('div', {
-          className: "text-[15.4px] font-medium",
-          style: { color: 'var(--tt-text-primary)' }
-        }, "Content goes here")
+        // When sleep timer is running: show timer and timer button (opens half sheet), hide header
+        activeSleep && activeSleep.startTime ? (() => {
+          // Real-time timer component for active sleep
+          const ActiveSleepTimer = ({ startTime }) => {
+            const [elapsed, setElapsed] = React.useState(() => {
+              return Date.now() - startTime;
+            });
+            
+            React.useEffect(() => {
+              const interval = setInterval(() => {
+                setElapsed(Date.now() - startTime);
+              }, 1000);
+              return () => clearInterval(interval);
+            }, [startTime]);
+            
+            const formatWithSeconds = (ms) => {
+              return formatElapsedHmsTT(ms).str;
+            };
+            
+            return React.createElement('span', { 
+              className: "font-semibold tabular-nums whitespace-nowrap inline-block text-right", 
+              style: { color: 'var(--tt-sleep)' } 
+            }, formatWithSeconds(elapsed));
+          };
+
+          // zZz animation element (memoized to prevent animation restart)
+          const zzzElement = React.createElement('span', { className: "zzz" },
+            React.createElement('span', null, 'z'),
+            React.createElement('span', null, 'Z'),
+            React.createElement('span', null, 'z')
+          );
+
+          return React.createElement(React.Fragment, null,
+            // Timer row with timer, zzz, and stop button
+            React.createElement('div', {
+              className: "flex items-center justify-between mb-[5px]"
+            },
+              React.createElement('div', {
+                className: "inline-flex items-baseline gap-2 whitespace-nowrap",
+                style: { color: 'var(--tt-sleep)' }
+              },
+                React.createElement(ActiveSleepTimer, { startTime: activeSleep.startTime }),
+                React.createElement('span', {
+                  className: "inline-flex w-[28px] justify-start font-light leading-none",
+                  style: { color: 'currentColor' }
+                }, zzzElement)
+              ),
+              // Timer button (round button with timer icon - opens half sheet)
+              React.createElement('button', {
+                type: 'button',
+                onClick: () => {
+                  setInputSheetMode('sleep');
+                  setShowInputSheet(true);
+                },
+                className: "w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm hover:opacity-80 transition-opacity",
+                style: { flexShrink: 0 },
+                'aria-label': 'Open sleep timer'
+              },
+                React.createElement('svg', {
+                  xmlns: "http://www.w3.org/2000/svg",
+                  width: "16",
+                  height: "16",
+                  fill: "currentColor",
+                  viewBox: "0 0 256 256",
+                  className: "w-4 h-4",
+                  style: { color: 'var(--tt-sleep)' }
+                },
+                  React.createElement('path', {
+                    d: "M128,44a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,44Zm0,168a72,72,0,1,1,72-72A72.08,72.08,0,0,1,128,212ZM164.49,99.51a12,12,0,0,1,0,17l-28,28a12,12,0,0,1-17-17l28-28A12,12,0,0,1,164.49,99.51ZM92,16A12,12,0,0,1,104,4h48a12,12,0,0,1,0,24H104A12,12,0,0,1,92,16Z"
+                  })
+                )
+              )
+            ),
+            // Simple body
+            React.createElement('div', {
+              className: "text-[15.4px] font-medium",
+              style: { color: 'var(--tt-text-primary)' }
+            }, "Content goes here")
+          );
+        })() : (
+          // Normal state: show header and body
+          React.createElement(React.Fragment, null,
+            // Header with icon and label
+            React.createElement('div', {
+              className: "flex items-center gap-2 mb-[5px]"
+            },
+              React.createElement('svg', {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "18",
+                height: "18",
+                fill: "currentColor",
+                viewBox: "0 0 256 256",
+                className: "w-[18px] h-[18px]",
+                style: { color: 'var(--tt-text-secondary)' }
+              },
+                React.createElement('path', {
+                  d: "M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"
+                })
+              ),
+              React.createElement('div', {
+                className: "text-[14.5px] font-normal",
+                style: { color: 'var(--tt-text-secondary)' }
+              }, "What's Next")
+            ),
+            // Simple body
+            React.createElement('div', {
+              className: "text-[15.4px] font-medium",
+              style: { color: 'var(--tt-text-primary)' }
+            }, "Content goes here")
+          )
+        )
       ),
       React.createElement(window.TrackerCard, {
         mode: 'feeding',
