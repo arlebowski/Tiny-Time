@@ -43,23 +43,46 @@ const SegmentedToggle = ({
   const containerStyle = variant === 'header' 
     ? { background: 'rgba(255,255,255,0.2)' }  // HeaderSegmentedToggle EXACT
     : { backgroundColor: 'var(--tt-subtle-surface)' };
+  
+  // Header variant: use Tailwind classes (unchanged)
+  const btnOnHeader = "bg-white text-gray-900 shadow-sm";
+  const btnOffHeader = "bg-transparent text-white/80";
+  
+  // Body variant: use inline styles with CSS that adapts to light/dark mode
+  // Light mode: white background (#ffffff)
+  // Dark mode: transparent grey (rgba(255,255,255,0.12)) to match other elements
+  // We use a combination: white in light mode, transparent white overlay in dark mode
+  // Since CSS variables don't support conditional logic, we'll use inline style detection
+  const getBodyBtnOnStyle = () => {
+    if (variant !== 'body') return undefined;
     
-  const btnOn = variant === 'header'
-    ? "bg-white text-gray-900 shadow-sm"  // HeaderSegmentedToggle EXACT
-    : "bg-white dark:bg-[rgba(255,255,255,0.12)] shadow-sm"; // Body: white in light mode, semi-transparent in dark mode
+    // Check for dark mode
+    const isDark = typeof document !== 'undefined' && 
+                   document.documentElement.classList.contains('dark');
     
-  const btnOff = variant === 'header'
-    ? "bg-transparent text-white/80"  // HeaderSegmentedToggle EXACT
-    : "bg-transparent text-gray-600 dark:text-[var(--tt-text-secondary)]"; // Body: gray-600 in light mode, CSS var in dark mode
-
-  // Body variant: use CSS variable for text color (adapts to light/dark mode)
-  const btnOnStyle = variant === 'body'
-    ? { 
-        color: 'var(--tt-text-primary)',
+    return {
+      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#ffffff',
+      color: 'var(--tt-text-primary)',
+      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+    };
+  };
+  
+  const btnOnStyle = getBodyBtnOnStyle();
+    
+  const btnOffStyle = variant === 'body'
+    ? {
+        color: 'var(--tt-text-secondary)'
       }
     : undefined;
+  
+  // Class names for body variant (no background classes, handled by inline styles)
+  const btnOn = variant === 'header'
+    ? btnOnHeader
+    : "shadow-sm"; // Only shadow class, background via inline style
     
-  const btnOffStyle = undefined;
+  const btnOff = variant === 'header'
+    ? btnOffHeader
+    : "bg-transparent"; // Transparent background, text color via inline style
 
   return React.createElement(
     'div',
