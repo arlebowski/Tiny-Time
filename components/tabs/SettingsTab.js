@@ -11,26 +11,125 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
+  // Cached version (updated from Firestore)
+  let cachedVersion = 'v2';
+  let versionListeners = [];
+  let unsubscribeListener = null;
+  
   // Helper to get UI version (defaults to v2 for backward compatibility)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const version = window.localStorage.getItem('tt_ui_version');
-        if (version && ['v1', 'v2', 'v3'].includes(version)) {
-          return version;
-        }
-        // Migration: derive from old flags if version doesn't exist
-        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
-        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
-        if (useNewUI === 'false') return 'v1';
-        if (cardDesign === 'new') return 'v2';
-        return 'v2'; // default
-      }
-      return 'v2';
+      // Return cached version (will be updated from Firestore)
+      return cachedVersion;
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current')
+    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
+    
+    // Set global UI version in Firestore (for all users)
+    setUIVersion: async (version) => {
+      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
+        console.error('Invalid UI version:', version);
+        return;
+      }
+      
+      try {
+        // Access firebase from global scope
+        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
+          const db = window.firebase.firestore();
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: version,
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          
+          // Update cache immediately
+          cachedVersion = version;
+          // Notify all listeners
+          versionListeners.forEach(listener => listener(version));
+        } else {
+          console.error('Firebase not available');
+        }
+      } catch (error) {
+        console.error('Error setting global UI version:', error);
+        throw error;
+      }
+    },
+    
+    // Subscribe to version changes
+    onVersionChange: (callback) => {
+      versionListeners.push(callback);
+      return () => {
+        versionListeners = versionListeners.filter(cb => cb !== callback);
+      };
+    },
+    
+    // Initialize: fetch from Firestore and set up real-time listener
+    init: async () => {
+      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
+        // Fallback to localStorage if Firebase not available
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+        return;
+      }
+      
+      try {
+        const db = window.firebase.firestore();
+        // First, try to get from Firestore
+        const doc = await db.collection('appConfig').doc('global').get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+            cachedVersion = data.uiVersion;
+            // Notify all listeners
+            versionListeners.forEach(listener => listener(cachedVersion));
+          }
+        } else {
+          // Document doesn't exist, create it with default
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: 'v2',
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          });
+          cachedVersion = 'v2';
+        }
+        
+        // Set up real-time listener
+        unsubscribeListener = db.collection('appConfig').doc('global')
+          .onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+                const newVersion = data.uiVersion;
+                if (newVersion !== cachedVersion) {
+                  cachedVersion = newVersion;
+                  // Notify all listeners
+                  versionListeners.forEach(listener => listener(cachedVersion));
+                }
+              }
+            }
+          });
+      } catch (error) {
+        console.error('Error initializing UI version from Firestore:', error);
+        // Fallback to localStorage
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+      }
+    }
   };
+  
+  // Initialize on load
+  if (typeof window !== 'undefined') {
+    // Wait a bit for Firebase to be available
+    setTimeout(() => {
+      window.TT.shared.uiVersion.init();
+    }, 100);
+  }
 }
 
 const SettingsTab = ({ user, kidId }) => {
@@ -62,6 +161,19 @@ const SettingsTab = ({ user, kidId }) => {
   const [uiVersion, setUiVersion] = useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
+  
+  // Listen for global UI version changes
+  React.useEffect(() => {
+    if (!window.TT?.shared?.uiVersion?.onVersionChange) return;
+    
+    const unsubscribe = window.TT.shared.uiVersion.onVersionChange((newVersion) => {
+      setUiVersion(newVersion);
+      // Force reload to apply changes
+      window.location.reload();
+    });
+    
+    return unsubscribe;
+  }, []);
   
   // Today Card toggle state
   const [showTodayCard, setShowTodayCard] = useState(() => {
@@ -1312,11 +1424,20 @@ const SettingsTab = ({ user, kidId }) => {
             { value: 'v2', label: 'v2' },
             { value: 'v3', label: 'v3' }
           ],
-          onChange: (value) => {
-            if (typeof window !== 'undefined' && window.localStorage) {
-              window.localStorage.setItem('tt_ui_version', value);
-              // Force reload to apply changes
-              window.location.reload();
+          onChange: async (value) => {
+            try {
+              if (window.TT?.shared?.uiVersion?.setUIVersion) {
+                await window.TT.shared.uiVersion.setUIVersion(value);
+                // The listener will trigger a reload automatically
+              } else {
+                // Fallback to localStorage if Firestore not available
+                if (typeof window !== 'undefined' && window.localStorage) {
+                  window.localStorage.setItem('tt_ui_version', value);
+                  window.location.reload();
+                }
+              }
+            } catch (error) {
+              console.error('Error setting UI version:', error);
             }
           }
         })
