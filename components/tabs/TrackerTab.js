@@ -233,6 +233,9 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [whatsNextText, setWhatsNextText] = useState('Feed around 2:00pm');
   const generatingRef = React.useRef(false);
   const lastDataHashRef = React.useRef('');
+  const [whatsNextAccordionOpen, setWhatsNextAccordionOpen] = useState(false);
+  // Store the fixed predicted time (not recalculated as time passes)
+  const predictedTimeRef = React.useRef(null); // { type: 'feed'|'nap'|'wake', time: Date, text: string }
   
   // Track last AI call time to avoid quota limits (persist across page reloads)
   const getLastAICallTime = () => {
@@ -252,20 +255,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   };
   const lastAICallRef = React.useRef(getLastAICallTime());
 
-  // Format time as h:mma (e.g., "12:30pm"), rounded down to nearest quarter hour
-  // Examples: 9:36 → 9:30, 9:41 → 9:30, 9:15 → 9:15
+  // Format time as h:mma (e.g., "12:30pm") - no rounding
   const formatTimeHmma = (date) => {
     if (!date || !(date instanceof Date)) return '';
-    const roundedDate = new Date(date);
-    const minutes = roundedDate.getMinutes();
-    const roundedMinutes = Math.floor(minutes / 15) * 15;
-    roundedDate.setMinutes(roundedMinutes);
-    roundedDate.setSeconds(0);
-    roundedDate.setMilliseconds(0);
-    
-    // Handle hour rollover (e.g., 11:50pm rounds to 12:00am)
-    const h = roundedDate.getHours();
-    const m = roundedDate.getMinutes();
+    const h = date.getHours();
+    const m = date.getMinutes();
     const hour = h % 12 || 12;
     const minute = String(m).padStart(2, '0');
     const ampm = h >= 12 ? 'pm' : 'am';
@@ -282,38 +276,338 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     );
   };
 
-  // Generate fallback prediction based on age
-  const generateFallbackPrediction = (ageInMonths, isSleepActive, lastFeedingTimeObj) => {
+  // Analyze historical intervals from last 5 days, weighted by recency
+  const analyzeHistoricalIntervals = (feedings, sleepSessions) => {
+    const now = Date.now();
+    const fiveDaysAgo = now - (5 * 24 * 60 * 60 * 1000);
+    const twoDaysAgo = now - (2 * 24 * 60 * 60 * 1000);
+    
+    // Filter to last 5 days and sort chronologically
+    const recentFeedings = (feedings || [])
+      .filter(f => f.timestamp >= fiveDaysAgo)
+      .sort((a, b) => a.timestamp - b.timestamp);
+    
+    const recentSleep = (sleepSessions || [])
+      .filter(s => s.startTime && s.startTime >= fiveDaysAgo && s.endTime && !s.isActive)
+      .sort((a, b) => a.startTime - b.startTime);
+    
+    // Calculate feed intervals
+    const feedIntervals = [];
+    for (let i = 1; i < recentFeedings.length; i++) {
+      const interval = (recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp) / (1000 * 60 * 60); // hours
+      const isRecent = recentFeedings[i].timestamp >= twoDaysAgo;
+      feedIntervals.push({ interval, isRecent, timestamp: recentFeedings[i].timestamp });
+    }
+    
+    // Calculate weighted average interval (recent data weighted 2x)
+    let weightedSum = 0;
+    let totalWeight = 0;
+    feedIntervals.forEach(({ interval, isRecent }) => {
+      const weight = isRecent ? 2 : 1;
+      weightedSum += interval * weight;
+      totalWeight += weight;
+    });
+    
+    const avgInterval = totalWeight > 0 ? weightedSum / totalWeight : null;
+    
+    // Detect if intervals are extending in last 2 days
+    const recentIntervals = feedIntervals.filter(f => f.isRecent).map(f => f.interval);
+    const olderIntervals = feedIntervals.filter(f => !f.isRecent).map(f => f.interval);
+    
+    let adjustedInterval = avgInterval;
+    if (recentIntervals.length > 0 && olderIntervals.length > 0) {
+      const recentAvg = recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length;
+      const olderAvg = olderIntervals.reduce((a, b) => a + b, 0) / olderIntervals.length;
+      
+      // If extending, split the difference and inch toward new interval (70% new, 30% old)
+      if (recentAvg > olderAvg) {
+        adjustedInterval = (recentAvg * 0.7) + (olderAvg * 0.3);
+      }
+    }
+    
+    // Analyze time-of-day patterns using clustering approach
+    // Cluster events within 1 hour of each other across different days, then average them
+    
+    // Helper: Convert timestamp to minutes since midnight (for time comparison across days)
+    const minutesSinceMidnight = (timestamp) => {
+      const date = new Date(timestamp);
+      return date.getHours() * 60 + date.getMinutes();
+    };
+    
+    // Helper: Check if two times are within 1 hour of each other (across days)
+    const withinOneHour = (time1Minutes, time2Minutes) => {
+      // Handle wrap-around (e.g., 11:30pm and 12:15am are close)
+      const diff1 = Math.abs(time1Minutes - time2Minutes);
+      const diff2 = Math.abs(time1Minutes - (time2Minutes + 24 * 60)); // next day
+      const diff3 = Math.abs((time1Minutes + 24 * 60) - time2Minutes); // previous day
+      return Math.min(diff1, diff2, diff3) <= 60; // 1 hour = 60 minutes
+    };
+    
+    // Cluster feedings by time proximity (within 1 hour across days)
+    const feedClusters = [];
+    recentFeedings.forEach(f => {
+      const timeMinutes = minutesSinceMidnight(f.timestamp);
+      // Find existing cluster this feeding belongs to
+      let foundCluster = null;
+      for (const cluster of feedClusters) {
+        // Check if this feeding is within 1 hour of any feeding in the cluster
+        const isClose = cluster.times.some(t => withinOneHour(timeMinutes, t));
+        if (isClose) {
+          foundCluster = cluster;
+          break;
+        }
+      }
+      
+      if (foundCluster) {
+        // Add to existing cluster
+        foundCluster.times.push(timeMinutes);
+        foundCluster.timestamps.push(f.timestamp);
+      } else {
+        // Create new cluster
+        feedClusters.push({
+          times: [timeMinutes],
+          timestamps: [f.timestamp]
+        });
+      }
+    });
+    
+    // Calculate average time for each cluster and find the most common one
+    const feedPatterns = feedClusters
+      .map(cluster => {
+        // Average the times in minutes since midnight
+        const avgMinutes = Math.round(
+          cluster.times.reduce((sum, t) => sum + t, 0) / cluster.times.length
+        );
+        const hour = Math.floor(avgMinutes / 60) % 24;
+        const minute = avgMinutes % 60;
+        return {
+          hour,
+          minute,
+          count: cluster.times.length,
+          avgMinutes
+        };
+      })
+      .filter(pattern => pattern.count >= 3) // Only patterns with 3+ occurrences
+      .sort((a, b) => b.count - a.count); // Sort by frequency
+    
+    // Select the best pattern: prioritize next upcoming pattern today, then most frequent
+    let commonTimePattern = null;
+    if (feedPatterns.length > 0) {
+      const now = new Date();
+      const nowMinutes = now.getHours() * 60 + now.getMinutes();
+      
+      // Find patterns that are upcoming today (in the future)
+      const upcomingPatterns = feedPatterns.filter(p => {
+        const patternMinutes = p.avgMinutes;
+        return patternMinutes > nowMinutes; // Pattern time is later today
+      });
+      
+      if (upcomingPatterns.length > 0) {
+        // Use the closest upcoming pattern (earliest in the day that's still in the future)
+        const nextPattern = upcomingPatterns.reduce((closest, current) => {
+          return current.avgMinutes < closest.avgMinutes ? current : closest;
+        });
+        commonTimePattern = {
+          hour: nextPattern.hour,
+          minute: nextPattern.minute
+        };
+      } else {
+        // No patterns upcoming today - use the most frequent one (will be for tomorrow)
+        commonTimePattern = {
+          hour: feedPatterns[0].hour,
+          minute: feedPatterns[0].minute
+        };
+      }
+    }
+    
+    // Cluster sleep sessions by start time proximity (within 1 hour across days)
+    const sleepClusters = [];
+    recentSleep.forEach(s => {
+      const timeMinutes = minutesSinceMidnight(s.startTime);
+      // Find existing cluster this sleep belongs to
+      let foundCluster = null;
+      for (const cluster of sleepClusters) {
+        const isClose = cluster.times.some(t => withinOneHour(timeMinutes, t));
+        if (isClose) {
+          foundCluster = cluster;
+          break;
+        }
+      }
+      
+      if (foundCluster) {
+        foundCluster.times.push(timeMinutes);
+        foundCluster.timestamps.push(s.startTime);
+      } else {
+        sleepClusters.push({
+          times: [timeMinutes],
+          timestamps: [s.startTime]
+        });
+      }
+    });
+    
+    // Calculate average time for each sleep cluster
+    const sleepPatterns = sleepClusters
+      .map(cluster => {
+        const avgMinutes = Math.round(
+          cluster.times.reduce((sum, t) => sum + t, 0) / cluster.times.length
+        );
+        const hour = Math.floor(avgMinutes / 60) % 24;
+        const minute = avgMinutes % 60;
+        return {
+          hour,
+          minute,
+          count: cluster.times.length,
+          avgMinutes
+        };
+      })
+      .filter(pattern => pattern.count >= 3) // Only patterns with 3+ occurrences
+      .sort((a, b) => b.count - a.count); // Sort by frequency
+    
+    // Debug: Log pattern detection (browser-safe, no process.env)
+    if (recentFeedings.length > 0 || recentSleep.length > 0) {
+      console.log('[WhatsNext] Pattern analysis:', {
+        totalFeedings: recentFeedings.length,
+        totalSleeps: recentSleep.length,
+        feedClusters: feedClusters.length,
+        sleepClusters: sleepClusters.length,
+        feedPatterns: feedPatterns.map(p => ({
+          time: `${p.hour}:${String(p.minute).padStart(2, '0')}`,
+          count: p.count
+        })),
+        sleepPatterns: sleepPatterns.map(p => ({
+          time: `${p.hour}:${String(p.minute).padStart(2, '0')}`,
+          count: p.count
+        })),
+        commonTimePattern: commonTimePattern ? 
+          `${commonTimePattern.hour}:${String(commonTimePattern.minute).padStart(2, '0')}` : 
+          'none (need 3+ occurrences)',
+        avgInterval: adjustedInterval || avgInterval,
+        feedIntervals: feedIntervals.length
+      });
+    }
+    
+    return {
+      avgInterval: adjustedInterval || avgInterval,
+      lastFeedingTime: recentFeedings.length > 0 ? recentFeedings[recentFeedings.length - 1].timestamp : null,
+      commonTimePattern,
+      feedIntervals: feedIntervals.length,
+      recentFeedings, // Return for accordion use
+      feedPatterns, // Return all detected feed patterns for schedule generation
+      sleepPatterns, // Return all detected sleep patterns for schedule generation
+      feedClusters, // Return clusters for debugging
+      sleepClusters // Return sleep clusters for debugging
+    };
+  };
+
+  // Generate fallback prediction based on historical intervals and age
+  const generateFallbackPrediction = (ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, feedings, sleepSessions) => {
     const now = new Date();
     let nextTime = new Date(now);
     
-    if (isSleepActive) {
-      // If sleeping, predict wake in 1-3 hours based on age
+    if (isSleepActive && activeSleep?.startTime) {
+      // If sleeping, predict wake based on age-appropriate sleep duration
       const wakeHours = ageInMonths < 3 ? 1.5 : ageInMonths < 6 ? 2 : 2.5;
-      nextTime.setHours(nextTime.getHours() + Math.round(wakeHours * 2) / 2);
-      return `Wake around ${formatTimeHmma(nextTime)}`;
+      const sleepStart = new Date(activeSleep.startTime);
+      const predictedWakeTime = new Date(sleepStart);
+      // Convert fractional hours to minutes for accurate calculation
+      const totalMinutes = predictedWakeTime.getHours() * 60 + predictedWakeTime.getMinutes() + (wakeHours * 60);
+      predictedWakeTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+      predictedWakeTime.setSeconds(0);
+      predictedWakeTime.setMilliseconds(0);
+      
+      const predictedTimeStr = formatTimeHmma(predictedWakeTime);
+      return {
+        type: 'wake',
+        time: predictedWakeTime,
+        text: `Wake around ${predictedTimeStr}`
+      };
     }
     
-    // Default: predict next feeding based on age-appropriate intervals
-    let feedIntervalHours = 2; // Default 2 hours
-    if (ageInMonths < 1) feedIntervalHours = 2;
-    else if (ageInMonths < 3) feedIntervalHours = 2.5;
-    else if (ageInMonths < 6) feedIntervalHours = 3;
-    else feedIntervalHours = 3.5;
+    // Analyze historical intervals
+    const analysis = analyzeHistoricalIntervals(feedings, sleepSessions);
     
-    if (lastFeedingTimeObj) {
-      const timeSinceLastFeed = (now - lastFeedingTimeObj) / (1000 * 60 * 60); // hours
-      if (timeSinceLastFeed >= feedIntervalHours - 0.25) {
-        const currentTimeStr = formatTimeHmma(now);
-        return `Feed around ${currentTimeStr} (Now!)`;
-      }
-      nextTime = new Date(lastFeedingTimeObj);
-      nextTime.setHours(nextTime.getHours() + feedIntervalHours);
+    // Use historical interval if available, otherwise fall back to age-based
+    let feedIntervalHours;
+    if (analysis.avgInterval && analysis.feedIntervals >= 2) {
+      feedIntervalHours = analysis.avgInterval;
     } else {
-      nextTime.setHours(nextTime.getHours() + feedIntervalHours);
+      // Fallback to age-based intervals
+      if (ageInMonths < 1) feedIntervalHours = 2;
+      else if (ageInMonths < 3) feedIntervalHours = 2.5;
+      else if (ageInMonths < 6) feedIntervalHours = 3;
+      else feedIntervalHours = 3.5;
     }
     
-    return `Feed around ${formatTimeHmma(nextTime)}`;
+    // Base prediction on last feeding time + interval (FIXED, not "now" + interval)
+    // BUT prioritize time-of-day patterns if they exist
+    let predictedFeedTime;
+    
+    // PRIORITY 1: If there's a common time pattern and it's in the future today, use it
+    if (analysis.commonTimePattern) {
+      const today = new Date();
+      const patternTime = new Date(today);
+      patternTime.setHours(analysis.commonTimePattern.hour, analysis.commonTimePattern.minute, 0, 0);
+      patternTime.setSeconds(0);
+      patternTime.setMilliseconds(0);
+      
+      // If pattern time is in the future today, use it as the primary prediction
+      if (patternTime > now) {
+        predictedFeedTime = patternTime;
+        // Debug logging
+        console.log('[WhatsNext] Using time-of-day pattern:', {
+          pattern: `${analysis.commonTimePattern.hour}:${String(analysis.commonTimePattern.minute).padStart(2, '0')}`,
+          predictedTime: formatTimeHmma(predictedFeedTime)
+        });
+      } else {
+        // Pattern time is in the past today, calculate next occurrence (tomorrow)
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setHours(analysis.commonTimePattern.hour, analysis.commonTimePattern.minute, 0, 0);
+        tomorrow.setSeconds(0);
+        tomorrow.setMilliseconds(0);
+        predictedFeedTime = tomorrow;
+        // Debug logging
+        console.log('[WhatsNext] Pattern time passed, using tomorrow:', {
+          pattern: `${analysis.commonTimePattern.hour}:${String(analysis.commonTimePattern.minute).padStart(2, '0')}`,
+          predictedTime: formatTimeHmma(predictedFeedTime)
+        });
+      }
+    } else if (lastFeedingTimeObj) {
+      // PRIORITY 2: No pattern, use last feeding time + interval
+      predictedFeedTime = new Date(lastFeedingTimeObj);
+      // Convert fractional hours to minutes for accurate calculation
+      const totalMinutes = predictedFeedTime.getHours() * 60 + predictedFeedTime.getMinutes() + (feedIntervalHours * 60);
+      predictedFeedTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+      // Debug logging
+      console.log('[WhatsNext] Using interval-based prediction:', {
+        lastFeeding: formatTimeHmma(lastFeedingTimeObj),
+        interval: `${feedIntervalHours.toFixed(2)} hours`,
+        predictedTime: formatTimeHmma(predictedFeedTime)
+      });
+    } else {
+      // PRIORITY 3: No last feeding - use current time as baseline (only for initial prediction)
+      predictedFeedTime = new Date(now);
+      // Convert fractional hours to minutes for accurate calculation
+      const totalMinutes = predictedFeedTime.getHours() * 60 + predictedFeedTime.getMinutes() + (feedIntervalHours * 60);
+      predictedFeedTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+      // Debug logging
+      console.log('[WhatsNext] No history, using current time + interval:', {
+        currentTime: formatTimeHmma(now),
+        interval: `${feedIntervalHours.toFixed(2)} hours`,
+        predictedTime: formatTimeHmma(predictedFeedTime)
+      });
+    }
+    
+    // Set seconds and milliseconds to 0 for clean time
+    predictedFeedTime.setSeconds(0);
+    predictedFeedTime.setMilliseconds(0);
+    
+    const predictedTimeStr = formatTimeHmma(predictedFeedTime);
+    return {
+      type: 'feed',
+      time: predictedFeedTime,
+      text: `Feed around ${predictedTimeStr}`
+    };
   };
 
   // Format AI response according to spec
@@ -357,10 +651,9 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       today.setHours(hour24, minute, 0, 0);
       const predictedTime = today.getTime();
       
-      // Check if overdue
+      // Check if overdue - keep original predicted time, just add (Now!)
       if (now > predictedTime + graceMs) {
-        const currentTimeStr = formatTimeHmma(new Date());
-        return `${verbCap} around ${currentTimeStr} (Now!)`;
+        return `${verbCap} around ${timeStr} (Now!)`;
       }
       
       // Format: "Verb around time" or "Verb time" if too long
@@ -393,18 +686,16 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     
     // Priority 1: If sleep timer is running → show wake guidance
     if (isSleepActive) {
-      // AI should have predicted wake time, but if overdue, show current time with (Now!)
+      // AI should have predicted wake time, but if overdue, keep original time and add (Now!)
       if (now > predictedTime + graceMs) {
-        const currentTimeStr = formatTimeHmma(new Date());
-        return `Wake around ${currentTimeStr} (Now!)`;
+        return `Wake around ${timeStr} (Now!)`;
       }
       return `Wake around ${timeStr}`;
     }
     
-    // Priority 2: If overdue → show current time with (Now!)
+    // Priority 2: If overdue → keep original predicted time, just add (Now!)
     if (now > predictedTime + graceMs) {
-      const currentTimeStr = formatTimeHmma(new Date());
-      return `${verbCap} around ${currentTimeStr} (Now!)`;
+      return `${verbCap} around ${timeStr} (Now!)`;
     }
     
     // Priority 3: Show next predicted event
@@ -522,8 +813,13 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     }
     
     // Create a data hash to detect meaningful changes
-    const lastFeeding = feedings && feedings.length > 0 ? feedings[0] : null;
-    const completedSleepSessions = sleepSessions ? sleepSessions.filter(s => s.endTime && !s.isActive) : [];
+    // Use allFeedings/allSleepSessions (all historical data) not just today's data
+    const lastFeeding = allFeedings && allFeedings.length > 0 
+      ? [...allFeedings].sort((a, b) => b.timestamp - a.timestamp)[0] 
+      : null;
+    const completedSleepSessions = allSleepSessions 
+      ? allSleepSessions.filter(s => s.endTime && !s.isActive).sort((a, b) => b.startTime - a.startTime)
+      : [];
     const lastSleep = completedSleepSessions.length > 0 ? completedSleepSessions[0] : null;
     const lastFeedingId = lastFeeding?.id || 'none';
     const lastFeedingTime = lastFeeding ? new Date(lastFeeding.timestamp).getTime() : 0;
@@ -535,8 +831,33 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     // Create a hash of meaningful data
     const dataHash = `${lastFeedingId}-${lastFeedingTime}-${lastSleepId}-${lastSleepTime}-${activeSleepId}-${activeSleepStart}`;
     
-    // Skip if data hasn't meaningfully changed
-    if (dataHash === lastDataHashRef.current && whatsNextText !== 'No prediction yet') {
+    // Skip if data hasn't meaningfully changed AND we have a stored prediction
+    // Only recalculate if there's a new feeding/sleep event
+    if (dataHash === lastDataHashRef.current && whatsNextText !== 'No prediction yet' && predictedTimeRef.current) {
+      // Check if stored prediction is now overdue and update display accordingly
+      const now = Date.now();
+      const graceMs = 15 * 60 * 1000;
+      const storedPrediction = predictedTimeRef.current;
+      if (now > storedPrediction.time.getTime() + graceMs) {
+        // Prediction is overdue - keep original predicted time, just add (Now!)
+        const originalTimeStr = formatTimeHmma(storedPrediction.time);
+        const verb = storedPrediction.text.split(' around ')[0];
+        // Check if (Now!) is already in the text to avoid duplicates
+        if (!storedPrediction.text.includes('(Now!)')) {
+          const newText = `${verb} around ${originalTimeStr} (Now!)`;
+          if (whatsNextText !== newText) {
+            setWhatsNextText(newText);
+          }
+        } else if (whatsNextText !== storedPrediction.text) {
+          // Already has (Now!), just ensure display matches
+          setWhatsNextText(storedPrediction.text);
+        }
+      } else {
+        // Prediction is still valid - show the stored text
+        if (whatsNextText !== storedPrediction.text) {
+          setWhatsNextText(storedPrediction.text);
+        }
+      }
       return;
     }
     
@@ -586,14 +907,14 @@ Rules:
    - "Wake around {time}" (if sleep timer is running, predict wake time)
    - "Feed around {time}" (predict next feeding)
    - "Nap around {time}" (predict next nap)
-   - "Feed around {currentTime} (Now!)" (if feeding is overdue - show current time)
-   - "Nap around {currentTime} (Now!)" (if nap is overdue - show current time)
+   - "Feed around {predictedTime} (Now!)" (if feeding is overdue - keep original predicted time, add (Now!))
+   - "Nap around {predictedTime} (Now!)" (if nap is overdue - keep original predicted time, add (Now!))
 
 2. Time format: h:mma (e.g., "2:30pm", "11:00am") - no spaces, lowercase
 
 3. Priority:
    - If sleep timer is running → predict wake time
-   - Else if something is overdue → use "around {currentTime} (Now!)" format
+   - Else if something is overdue → use "around {predictedTime} (Now!)" format (keep original predicted time)
    - Else predict next event
 
 4. Base predictions on:
@@ -640,16 +961,57 @@ Output ONLY the formatted string, nothing else.`;
       if (answer) {
         const formatted = formatWhatsNextResponse(answer, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj);
         if (formatted && formatted !== 'No prediction yet') {
+          // Store the predicted time from AI response
+          const timeMatch = formatted.match(/(\d{1,2}:\d{2}(?:am|pm))/i);
+          if (timeMatch && !formatted.includes('(Now!)')) {
+            const timeStr = timeMatch[1].toLowerCase();
+            const timeParts = timeStr.match(/(\d{1,2}):(\d{2})(am|pm)/);
+            if (timeParts) {
+              const hour = parseInt(timeParts[1], 10);
+              const minute = parseInt(timeParts[2], 10);
+              const isPm = timeParts[3] === 'pm';
+              const hour24 = isPm && hour !== 12 ? hour + 12 : (!isPm && hour === 12 ? 0 : hour);
+              const today = new Date();
+              today.setHours(hour24, minute, 0, 0);
+              predictedTimeRef.current = {
+                type: formatted.toLowerCase().includes('wake') ? 'wake' : formatted.toLowerCase().includes('nap') ? 'nap' : 'feed',
+                time: today,
+                text: formatted
+              };
+            }
+          }
           setWhatsNextText(formatted);
         } else {
           // Fallback if AI returned invalid format
-          const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj);
-          setWhatsNextText(fallback);
+          const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, allFeedings, allSleepSessions);
+          predictedTimeRef.current = fallback;
+          // Check if overdue and show "Now!" if so, but keep the base prediction time
+          const now = Date.now();
+          const graceMs = 15 * 60 * 1000;
+          if (now > fallback.time.getTime() + graceMs) {
+            // Keep original predicted time, just add (Now!)
+            const originalTimeStr = formatTimeHmma(fallback.time);
+            const verb = fallback.text.split(' around ')[0];
+            setWhatsNextText(`${verb} around ${originalTimeStr} (Now!)`);
+          } else {
+            setWhatsNextText(fallback.text);
+          }
         }
       } else {
         // Always generate fallback prediction - never show "No prediction yet"
-        const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj);
-        setWhatsNextText(fallback);
+        const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, allFeedings, allSleepSessions);
+        predictedTimeRef.current = fallback;
+        // Check if overdue and show "Now!" if so, but keep the base prediction time
+        const now = Date.now();
+        const graceMs = 15 * 60 * 1000;
+        if (now > fallback.time.getTime() + graceMs) {
+          // Keep original predicted time, just add (Now!)
+          const originalTimeStr = formatTimeHmma(fallback.time);
+          const verb = fallback.text.split(' around ')[0];
+          setWhatsNextText(`${verb} around ${originalTimeStr} (Now!)`);
+        } else {
+          setWhatsNextText(fallback.text);
+        }
       }
     } catch (error) {
       console.error("Error generating what's next:", error);
@@ -658,9 +1020,21 @@ Output ONLY the formatted string, nothing else.`;
         const babyData = await firestoreStorage.getKidData();
         const ageInMonths = babyData?.birthDate ? calculateAgeInMonths(babyData.birthDate) : 0;
         const lastFeedingTimeObj = lastFeeding ? new Date(lastFeeding.timestamp) : null;
+        const lastSleepTimeObj = lastSleep ? new Date(lastSleep.startTime) : null;
         const isSleepActive = !!activeSleep;
-        const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj);
-        setWhatsNextText(fallback);
+        const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, allFeedings, allSleepSessions);
+        predictedTimeRef.current = fallback;
+        // Check if overdue and show "Now!" if so
+        const now = Date.now();
+        const graceMs = 15 * 60 * 1000;
+        if (now > fallback.time.getTime() + graceMs) {
+          // Keep original predicted time, just add (Now!)
+          const originalTimeStr = formatTimeHmma(fallback.time);
+          const verb = fallback.text.split(' around ')[0];
+          setWhatsNextText(`${verb} around ${originalTimeStr} (Now!)`);
+        } else {
+          setWhatsNextText(fallback.text);
+        }
       } catch (fallbackError) {
         // Last resort: simple default
         const now = new Date();
@@ -670,7 +1044,7 @@ Output ONLY the formatted string, nothing else.`;
     } finally {
       generatingRef.current = false;
     }
-  }, [kidId, loading, activeSleep, feedings, sleepSessions, currentDate, whatsNextText, babyWeight]);
+  }, [kidId, loading, activeSleep, feedings, sleepSessions, allFeedings, allSleepSessions, currentDate, whatsNextText, babyWeight]);
   // Generate "what's next" when data changes - optimized to prevent loops
   React.useEffect(() => {
     const isTodayCheck = currentDate.toDateString() === new Date().toDateString();
@@ -681,6 +1055,174 @@ Output ONLY the formatted string, nothing else.`;
     // Removed generateWhatsNext from dependencies to prevent loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, feedings, sleepSessions, activeSleep, currentDate, kidId]);
+
+  // Validation function for debugging prediction calculation
+  // Call from console: window.validateWhatsNext()
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.validateWhatsNext = async () => {
+        const now = Date.now();
+        const fiveDaysAgo = now - (5 * 24 * 60 * 60 * 1000);
+        
+        // IMPORTANT: Use allFeedings/allSleepSessions (all historical data) not just today's data
+        const recentFeedings = (allFeedings || [])
+          .filter(f => f.timestamp >= fiveDaysAgo)
+          .sort((a, b) => a.timestamp - b.timestamp);
+        
+        const recentSleep = (allSleepSessions || [])
+          .filter(s => s.startTime && s.startTime >= fiveDaysAgo && s.endTime && !s.isActive)
+          .sort((a, b) => a.startTime - b.startTime);
+        
+        // Format time helper
+        const formatTime = (timestamp) => {
+          const d = new Date(timestamp);
+          return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+        };
+        
+        // Format date + time helper
+        const formatDateTime = (timestamp) => {
+          const d = new Date(timestamp);
+          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + formatTime(timestamp);
+        };
+        
+        console.log('\n=== WHAT\'S NEXT PREDICTION VALIDATION ===\n');
+        
+        // 1. Show all feeds from last 5 days
+        console.log('📊 FEEDS FROM LAST 5 DAYS:');
+        if (recentFeedings.length === 0) {
+          console.log('  ❌ No feeds found in last 5 days');
+        } else {
+          recentFeedings.forEach((f, idx) => {
+            const timeMinutes = new Date(f.timestamp).getHours() * 60 + new Date(f.timestamp).getMinutes();
+            console.log(`  ${idx + 1}. ${formatDateTime(f.timestamp)} (${timeMinutes} min since midnight)`);
+          });
+        }
+        
+        // 2. Run analysis (use all feedings, not just today's)
+        const analysis = analyzeHistoricalIntervals(allFeedings || [], allSleepSessions || []);
+        
+        // 3. Show clusters
+        console.log('\n🔍 CLUSTERS DETECTED:');
+        if (analysis.feedClusters && analysis.feedClusters.length > 0) {
+          analysis.feedClusters.forEach((cluster, idx) => {
+            const avgMinutes = Math.round(cluster.times.reduce((sum, t) => sum + t, 0) / cluster.times.length);
+            const hour = Math.floor(avgMinutes / 60) % 24;
+            const minute = avgMinutes % 60;
+            const timeStr = `${hour}:${String(minute).padStart(2, '0')}${hour >= 12 ? 'pm' : 'am'}`;
+            console.log(`  Cluster ${idx + 1}: ${cluster.times.length} feeds → Average: ${timeStr}`);
+            cluster.timestamps.forEach((ts, i) => {
+              console.log(`    - ${formatDateTime(ts)} (${cluster.times[i]} min)`);
+            });
+          });
+        } else {
+          console.log('  ❌ No clusters detected');
+        }
+        
+        // 4. Show patterns
+        console.log('\n📈 PATTERNS FOUND (3+ occurrences):');
+        if (analysis.feedPatterns && analysis.feedPatterns.length > 0) {
+          analysis.feedPatterns.forEach((pattern, idx) => {
+            const timeStr = `${pattern.hour}:${String(pattern.minute).padStart(2, '0')}${pattern.hour >= 12 ? 'pm' : 'am'}`;
+            console.log(`  Pattern ${idx + 1}: ${timeStr} (${pattern.count} occurrences)`);
+          });
+          console.log(`  ✅ Using pattern: ${analysis.commonTimePattern ? `${analysis.commonTimePattern.hour}:${String(analysis.commonTimePattern.minute).padStart(2, '0')}${analysis.commonTimePattern.hour >= 12 ? 'pm' : 'am'}` : 'NONE'}`);
+        } else {
+          console.log('  ❌ No patterns found (need 3+ occurrences in a cluster)');
+          console.log(`  ⚠️  This is why the 9:30-10am pattern isn't being used!`);
+          if (recentFeedings.length > 0) {
+            const morningFeeds = recentFeedings.filter(f => {
+              const hour = new Date(f.timestamp).getHours();
+              return hour >= 9 && hour <= 10;
+            });
+            console.log(`  📝 Found ${morningFeeds.length} feeds between 9am-10am in last 5 days`);
+            if (morningFeeds.length < 3) {
+              console.log(`  💡 Need at least 3 feeds in this time window for pattern detection`);
+            }
+          }
+        }
+        
+        // 5. Show interval calculation
+        console.log('\n⏱️  INTERVAL CALCULATION:');
+        console.log(`  Average interval: ${analysis.avgInterval ? analysis.avgInterval.toFixed(2) : 'N/A'} hours`);
+        console.log(`  Feed intervals calculated: ${analysis.feedIntervals}`);
+        
+        // 6. Show last feeding
+        const lastFeedingTimeObj = analysis.lastFeedingTime ? new Date(analysis.lastFeedingTime) : null;
+        console.log(`  Last feeding: ${lastFeedingTimeObj ? formatDateTime(analysis.lastFeedingTime) : 'N/A'}`);
+        
+        // 7. Simulate prediction calculation
+        console.log('\n🎯 PREDICTION CALCULATION:');
+        // Fetch baby data to get birth date
+        let ageInMonths = 0;
+        try {
+          const babyData = await firestoreStorage.getKidData();
+          ageInMonths = calculateAgeInMonths(babyData?.birthDate);
+        } catch (e) {
+          console.warn('  ⚠️  Could not fetch baby data:', e);
+        }
+        let feedIntervalHours;
+        if (analysis.avgInterval && analysis.feedIntervals >= 2) {
+          feedIntervalHours = analysis.avgInterval;
+          console.log(`  Using historical interval: ${feedIntervalHours.toFixed(2)} hours`);
+        } else {
+          if (ageInMonths < 1) feedIntervalHours = 2;
+          else if (ageInMonths < 3) feedIntervalHours = 2.5;
+          else if (ageInMonths < 6) feedIntervalHours = 3;
+          else feedIntervalHours = 3.5;
+          console.log(`  Using age-based interval: ${feedIntervalHours.toFixed(2)} hours (age: ${ageInMonths} months)`);
+        }
+        
+        // Show which method would be used
+        if (analysis.commonTimePattern) {
+          const today = new Date();
+          const patternTime = new Date(today);
+          patternTime.setHours(analysis.commonTimePattern.hour, analysis.commonTimePattern.minute, 0, 0);
+          patternTime.setSeconds(0);
+          patternTime.setMilliseconds(0);
+          
+          if (patternTime > now) {
+            console.log(`  ✅ PRIORITY 1: Using time-of-day pattern: ${formatTime(patternTime.getTime())}`);
+          } else {
+            console.log(`  ⚠️  Pattern time (${formatTime(patternTime.getTime())}) is in the past, would use tomorrow`);
+          }
+        } else if (lastFeedingTimeObj) {
+          const predictedTime = new Date(lastFeedingTimeObj);
+          const totalMinutes = predictedTime.getHours() * 60 + predictedTime.getMinutes() + (feedIntervalHours * 60);
+          predictedTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+          console.log(`  ✅ PRIORITY 2: Using interval-based: ${formatTime(lastFeedingTimeObj.getTime())} + ${feedIntervalHours.toFixed(2)}h = ${formatTime(predictedTime.getTime())}`);
+        } else {
+          const predictedTime = new Date(now);
+          const totalMinutes = predictedTime.getHours() * 60 + predictedTime.getMinutes() + (feedIntervalHours * 60);
+          predictedTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+          console.log(`  ✅ PRIORITY 3: Using current time + interval: ${formatTime(now)} + ${feedIntervalHours.toFixed(2)}h = ${formatTime(predictedTime.getTime())}`);
+        }
+        
+        // 8. Show current prediction
+        console.log('\n📱 CURRENT PREDICTION:');
+        console.log(`  "${whatsNextText}"`);
+        if (predictedTimeRef.current) {
+          console.log(`  Stored time: ${formatTime(predictedTimeRef.current.time.getTime())}`);
+        }
+        
+        console.log('\n=== END VALIDATION ===\n');
+        
+        return {
+          recentFeedings: recentFeedings.map(f => ({
+            time: formatDateTime(f.timestamp),
+            timestamp: f.timestamp,
+            minutesSinceMidnight: new Date(f.timestamp).getHours() * 60 + new Date(f.timestamp).getMinutes()
+          })),
+          clusters: analysis.feedClusters || [],
+          patterns: analysis.feedPatterns || [],
+          commonTimePattern: analysis.commonTimePattern,
+          avgInterval: analysis.avgInterval,
+          currentPrediction: whatsNextText,
+          predictedTime: predictedTimeRef.current
+        };
+      };
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedings, sleepSessions, allFeedings, allSleepSessions, whatsNextText]);
 
   // Inject a calm zZz keyframe animation (used for the Sleep in-progress indicator)
   useEffect(() => {
@@ -2055,27 +2597,67 @@ Output ONLY the formatted string, nothing else.`;
         })() : (
           // Normal state: show header and body
           React.createElement(React.Fragment, null,
-            // Header with icon and label
+            // Header with icon, label, and chevron
             React.createElement('div', {
-              className: "flex items-center gap-2 mb-[5px]"
+              className: "flex items-center justify-between mb-[5px]"
             },
-              React.createElement('svg', {
-                xmlns: "http://www.w3.org/2000/svg",
-                width: "18",
-                height: "18",
-                fill: "currentColor",
-                viewBox: "0 0 256 256",
-                className: "w-[18px] h-[18px]",
-                style: { color: 'var(--tt-text-secondary)' }
-              },
-                React.createElement('path', {
-                  d: "M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"
-                })
-              ),
               React.createElement('div', {
-                className: "text-[14.5px] font-normal",
-                style: { color: 'var(--tt-text-secondary)' }
-              }, "What's Next")
+                className: "flex items-center gap-2"
+              },
+                React.createElement('svg', {
+                  xmlns: "http://www.w3.org/2000/svg",
+                  width: "18",
+                  height: "18",
+                  fill: "currentColor",
+                  viewBox: "0 0 256 256",
+                  className: "w-[18px] h-[18px]",
+                  style: { color: 'var(--tt-text-secondary)' }
+                },
+                  React.createElement('path', {
+                    d: "M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"
+                  })
+                ),
+                React.createElement('div', {
+                  className: "text-[14.5px] font-normal",
+                  style: { color: 'var(--tt-text-secondary)' }
+                }, "What's Next")
+              ),
+              // Chevron button (only when sleep timer is not active)
+              !activeSleep && React.createElement('button', {
+                type: 'button',
+                onClick: (e) => {
+                  e.stopPropagation();
+                  setWhatsNextAccordionOpen(!whatsNextAccordionOpen);
+                },
+                className: "p-1 -mr-1",
+                style: {
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--tt-text-tertiary)',
+                  transition: 'transform 0.2s ease',
+                  transform: whatsNextAccordionOpen ? 'rotate(180deg)' : 'rotate(0deg)'
+                },
+                'aria-label': whatsNextAccordionOpen ? 'Close schedule' : 'Show schedule'
+              },
+                React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || (() => {
+                  // Fallback chevron if icon not available
+                  return React.createElement('svg', {
+                    xmlns: "http://www.w3.org/2000/svg",
+                    width: "20",
+                    height: "20",
+                    fill: "currentColor",
+                    viewBox: "0 0 256 256"
+                  },
+                    React.createElement('path', {
+                      d: "M213.66,101.66l-80,80a8,8,0,0,1-11.32,0l-80-80A8,8,0,0,1,53.66,90.34L128,164.69l74.34-74.35a8,8,0,0,1,11.32,11.32Z"
+                    })
+                  );
+                }), {
+                  className: "w-5 h-5",
+                  style: { color: 'var(--tt-text-tertiary)' }
+                })
+              )
             ),
             // Simple body
             React.createElement('div', {
@@ -2086,7 +2668,225 @@ Output ONLY the formatted string, nothing else.`;
                 overflow: 'hidden',
                 textOverflow: 'ellipsis'
               }
-            }, whatsNextText)
+            }, whatsNextText),
+            // Accordion content
+            whatsNextAccordionOpen && React.createElement('div', {
+              className: "mt-4 pt-4 border-t",
+              style: {
+                borderColor: 'var(--tt-card-border)'
+              }
+            },
+              React.createElement('div', {
+                className: "text-[13px] font-medium mb-2",
+                style: { color: 'var(--tt-text-secondary)' }
+              }, "Today's Schedule"),
+              React.createElement('div', {
+                className: "space-y-2"
+              },
+                // Generate schedule with past events (checkmarks) and future predictions
+                (() => {
+                  const now = Date.now();
+                  const todayStart = new Date();
+                  todayStart.setHours(0, 0, 0, 0);
+                  const todayEnd = new Date();
+                  todayEnd.setHours(23, 59, 59, 999);
+                  
+                  // Get today's feedings and sleep sessions
+                  const todayFeedings = (feedings || [])
+                    .filter(f => f.timestamp >= todayStart.getTime() && f.timestamp <= todayEnd.getTime())
+                    .sort((a, b) => a.timestamp - b.timestamp);
+                  
+                  const todaySleep = (sleepSessions || [])
+                    .filter(s => s.startTime && s.startTime >= todayStart.getTime() && s.startTime <= todayEnd.getTime())
+                    .sort((a, b) => a.startTime - b.startTime);
+                  
+                  // Analyze historical intervals for predictions (use all feedings, not just today's)
+                  const analysis = analyzeHistoricalIntervals(allFeedings || [], allSleepSessions || []);
+                  const feedIntervalHours = analysis.avgInterval || 2.5;
+                  
+                  // Build schedule items from past events
+                  const scheduleItems = [];
+                  
+                  // Add past feedings with checkmarks
+                  todayFeedings.forEach(f => {
+                    const feedTime = new Date(f.timestamp);
+                    scheduleItems.push({
+                      type: 'feed',
+                      time: feedTime,
+                      timeStr: formatTimeHmma(feedTime),
+                      isPast: true,
+                      isCompleted: true
+                    });
+                  });
+                  
+                  // Add past sleep sessions with checkmarks
+                  todaySleep.forEach(s => {
+                    if (s.endTime) {
+                      const sleepStart = new Date(s.startTime);
+                      // Determine if day or night sleep
+                      const isDaySleep = (() => {
+                        if (s.sleepType === 'day' || s.sleepType === 'night') return s.sleepType === 'day';
+                        if (typeof s.isDaySleep === 'boolean') return s.isDaySleep;
+                        const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
+                        const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
+                        const mins = sleepStart.getHours() * 60 + sleepStart.getMinutes();
+                        // Check if within day window (handles midnight wrap)
+                        if (dayStart < dayEnd) {
+                          return mins >= dayStart && mins < dayEnd;
+                        } else {
+                          return mins >= dayStart || mins < dayEnd;
+                        }
+                      })();
+                      scheduleItems.push({
+                        type: isDaySleep ? 'nap' : 'sleep',
+                        time: sleepStart,
+                        timeStr: formatTimeHmma(sleepStart),
+                        isPast: true,
+                        isCompleted: true
+                      });
+                    }
+                  });
+                  
+                  // Generate future predictions
+                  const lastFeeding = todayFeedings.length > 0 ? todayFeedings[todayFeedings.length - 1] : 
+                                    (feedings && feedings.length > 0 ? feedings[0] : null);
+                  
+                  if (lastFeeding || analysis.lastFeedingTime) {
+                    const lastFeedingTime = lastFeeding ? new Date(lastFeeding.timestamp) : new Date(analysis.lastFeedingTime);
+                    let nextTime = new Date(lastFeedingTime);
+                    // Convert fractional hours to minutes for accurate calculation
+                    let totalMinutes = nextTime.getHours() * 60 + nextTime.getMinutes() + (feedIntervalHours * 60);
+                    nextTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+                    
+                    // Round down to nearest quarter hour
+                    const roundToQuarterHour = (date) => {
+                      const rounded = new Date(date);
+                      const minutes = rounded.getMinutes();
+                      rounded.setMinutes(Math.floor(minutes / 15) * 15);
+                      rounded.setSeconds(0);
+                      rounded.setMilliseconds(0);
+                      return rounded;
+                    };
+                    
+                    nextTime = roundToQuarterHour(nextTime);
+                    
+                    // Generate up to 5 future feed predictions or until 8pm
+                    let predictionCount = 0;
+                    while (nextTime.getHours() < 20 && predictionCount < 5 && nextTime.getTime() > now) {
+                      scheduleItems.push({
+                        type: 'feed',
+                        time: new Date(nextTime),
+                        timeStr: formatTimeHmma(nextTime),
+                        isPast: false,
+                        isCompleted: false
+                      });
+                      
+                      nextTime = new Date(nextTime);
+                      // Convert fractional hours to minutes for accurate calculation
+                      totalMinutes = nextTime.getHours() * 60 + nextTime.getMinutes() + (feedIntervalHours * 60);
+                      nextTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+                      nextTime = roundToQuarterHour(nextTime);
+                      predictionCount++;
+                    }
+                    
+                    // Add nap predictions between feeds (1.5 hours after each feed)
+                    const feedPredictions = scheduleItems.filter(s => s.type === 'feed' && !s.isPast);
+                    feedPredictions.forEach((feed, index) => {
+                      if (index < feedPredictions.length - 1) {
+                        const napTime = new Date(feed.time);
+                        // Convert 1.5 hours to minutes for accurate calculation
+                        const totalMinutes = napTime.getHours() * 60 + napTime.getMinutes() + (1.5 * 60);
+                        napTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+                        const roundedNapTime = roundToQuarterHour(napTime);
+                        if (roundedNapTime.getHours() < 20 && roundedNapTime.getTime() > now) {
+                          // Determine if day or night sleep based on time
+                          const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
+                          const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
+                          const mins = roundedNapTime.getHours() * 60 + roundedNapTime.getMinutes();
+                          let isDaySleep = false;
+                          if (dayStart < dayEnd) {
+                            isDaySleep = mins >= dayStart && mins < dayEnd;
+                          } else {
+                            isDaySleep = mins >= dayStart || mins < dayEnd;
+                          }
+                          scheduleItems.push({
+                            type: isDaySleep ? 'nap' : 'sleep',
+                            time: roundedNapTime,
+                            timeStr: formatTimeHmma(roundedNapTime),
+                            isPast: false,
+                            isCompleted: false
+                          });
+                        }
+                      }
+                    });
+                  }
+                  
+                  // Sort all items by time
+                  scheduleItems.sort((a, b) => a.time.getTime() - b.time.getTime());
+                  
+                  if (scheduleItems.length === 0) {
+                    return React.createElement('div', {
+                      className: "text-[13px]",
+                      style: { color: 'var(--tt-text-tertiary)' }
+                    }, 'No schedule available');
+                  }
+                  
+                  return scheduleItems.map((item, idx) => {
+                    const isFeed = item.type === 'feed';
+                    return React.createElement('div', {
+                      key: `${item.type}-${item.time.getTime()}-${idx}`,
+                      className: "flex items-center gap-2 text-[14px]",
+                      style: { 
+                        color: item.isPast ? 'var(--tt-text-secondary)' : 'var(--tt-text-primary)',
+                        marginBottom: idx < scheduleItems.length - 1 ? '8px' : '0',
+                        opacity: item.isPast ? 0.7 : 1
+                      }
+                    },
+                      (() => {
+                        const isNap = item.type === 'nap';
+                        const isSleep = item.type === 'sleep';
+                        const FeedIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.BottleMain || (() => null);
+                        const SleepIcon = window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.MoonMain || (() => null);
+                        
+                        return isFeed ? React.createElement(FeedIcon, {
+                          className: "w-4 h-4",
+                          style: { 
+                            color: 'var(--tt-feed)',
+                            strokeWidth: '1.5'
+                          }
+                        }) : React.createElement(SleepIcon, {
+                          className: "w-4 h-4",
+                          style: { 
+                            color: 'var(--tt-sleep)',
+                            strokeWidth: '1.5'
+                          }
+                        });
+                      })(),
+                      React.createElement('span', null, (() => {
+                        const isNap = item.type === 'nap';
+                        const isSleep = item.type === 'sleep';
+                        let label;
+                        if (isFeed) {
+                          label = item.isPast ? 'Fed' : 'Feed';
+                        } else if (isNap) {
+                          label = item.isPast ? 'Napped' : 'Nap';
+                        } else if (isSleep) {
+                          label = item.isPast ? 'Slept' : 'Sleep';
+                        }
+                        return `${label} around ${item.timeStr}`;
+                      })()),
+                      item.isCompleted && React.createElement('span', {
+                        style: { 
+                          color: 'var(--tt-text-tertiary)',
+                          marginLeft: 'auto',
+                          fontSize: '16px'
+                        }
+                      }, '✓')
+                    );
+                  });
+                })()
+              )
+            )
           )
         )
       ),
