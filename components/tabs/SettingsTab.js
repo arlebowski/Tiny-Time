@@ -659,7 +659,7 @@ const SettingsTab = ({ user, kidId }) => {
     }
   };
 
-  const WheelPicker = ({
+  const WheelPicker = React.useMemo(() => { return ({
     type = 'number',
     value,
     onChange,
@@ -960,10 +960,10 @@ const SettingsTab = ({ user, kidId }) => {
         )
       )
     );
-  };
+  }; }, []);
 
   // Amount Picker Lab Section
-  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount }) => {
+  const AmountPickerLabSection = React.useMemo(() => { return ({ unit, setUnit, amount, setAmount }) => {
     const [flipKey, setFlipKey] = useState(0);
 
     React.useEffect(() => {
@@ -1024,10 +1024,10 @@ const SettingsTab = ({ user, kidId }) => {
         })
       )
     );
-  };
+  }; }, []);
 
   // Date/Time Picker Lab Section
-  const DateTimePickerLabSection = () => {
+  const DateTimePickerLabSection = React.useMemo(() => { return () => {
     const [selectedDate, setSelectedDate] = useState(() => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -1105,10 +1105,10 @@ const SettingsTab = ({ user, kidId }) => {
         )
       )
     );
-  };
+  }; }, []);
 
   // TTPickerTray Component - Native keyboard-style tray
-  const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null }) => {
+  const TTPickerTray = React.useMemo(() => { return ({ children, isOpen = false, onClose = null, header = null }) => {
     const [present, setPresent] = React.useState(false);
     const [hasEntered, setHasEntered] = React.useState(false);
     const sheetRef = React.useRef(null);
@@ -1283,7 +1283,7 @@ const SettingsTab = ({ user, kidId }) => {
         }, children)
       )
     );
-  };
+  }; }, []);
 
   // UI Lab page
   if (showUILab) {
