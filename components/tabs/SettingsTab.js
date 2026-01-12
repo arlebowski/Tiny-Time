@@ -665,6 +665,7 @@ const SettingsTab = ({ user, kidId }) => {
     const animationRef = React.useRef(null);
     const lastY = React.useRef(0);
     const lastTime = React.useRef(Date.now());
+    const prevUnitRef = React.useRef(unit);
 
     const generateOptions = () => {
       if (type === 'date') {
@@ -719,7 +720,7 @@ const SettingsTab = ({ user, kidId }) => {
       }
     };
 
-    const options = generateOptions();
+        const options = React.useMemo(() => generateOptions(), [type, min, max, step, unit]);
     const ITEM_HEIGHT = 40;
     // Center the "selected" row (40px) inside the picker height.
     // This fixes the subtle mismatch caused by hard-coded padding.
@@ -748,8 +749,22 @@ const SettingsTab = ({ user, kidId }) => {
     // Keep selection + offset aligned to external value changes
     useEffect(() => {
       const idx = Math.max(0, getCurrentIndex());
-      setSelectedIndex(idx);
-      setCurrentOffset(-idx * ITEM_HEIGHT);
+      const unitChanged = prevUnitRef.current !== unit;
+      prevUnitRef.current = unit;
+      
+      // If unit changed and we're not dragging, smoothly animate the transition
+      if (unitChanged && !isDragging) {
+        // Use requestAnimationFrame to ensure smooth transition
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setSelectedIndex(idx);
+            setCurrentOffset(-idx * ITEM_HEIGHT);
+          });
+        });
+      } else {
+        setSelectedIndex(idx);
+        setCurrentOffset(-idx * ITEM_HEIGHT);
+      }
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value, type, min, max, step, unit]);
 
@@ -933,7 +948,7 @@ const SettingsTab = ({ user, kidId }) => {
   };
 
   // Amount Picker Lab Section
-  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount }) => {
+  const AmountPickerLabSection = React.memo(({ unit, setUnit, amount, setAmount }) => {
     const snapToStep = (val, step) => {
       const n = Number(val) || 0;
       const s = Number(step) || 1;
@@ -978,7 +993,7 @@ const SettingsTab = ({ user, kidId }) => {
         unit: unit
       })
     );
-  };
+  });
 
   // Date/Time Picker Lab Section
   const DateTimePickerLabSection = () => {
