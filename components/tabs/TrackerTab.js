@@ -1278,8 +1278,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
 
     // New TrackerCard Components (when useNewUI is true)
     useNewUI && window.TrackerCard && React.createElement(React.Fragment, null,
-      // What's Next Card - simple card with icon, label, and body
-      React.createElement('div', {
+      // What's Next Card - simple card with icon, label, and body (only show on today)
+      isToday() && React.createElement('div', {
         className: "rounded-2xl px-5 py-4 mb-4",
         style: {
           backgroundColor: "var(--tt-subtle-surface)",

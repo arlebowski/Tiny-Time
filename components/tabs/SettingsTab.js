@@ -44,6 +44,20 @@ const SettingsTab = ({ user, kidId }) => {
   const [amountPickerAmount, setAmountPickerAmount] = useState(4);
   const [amountPickerUnit, setAmountPickerUnit] = useState('oz');
   
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('tt-picker-flip-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'tt-picker-flip-styles';
+    style.textContent = `
+      @keyframes ttPickerFlip {
+        0% { opacity: 0.75; transform: rotateX(6deg) translateY(6px); }
+        100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
+  
   // UI Version - single source of truth (v1, v2, or v3)
   const [uiVersion, setUiVersion] = useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
@@ -470,6 +484,7 @@ const SettingsTab = ({ user, kidId }) => {
         requestAnimationFrame(() => {
           if (sheetRef.current) {
             sheetRef.current.style.transform = 'translateY(0)';
+            setHasEntered(true);
           }
         });
       } else if (!isOpen && sheetRef.current) {
@@ -948,7 +963,13 @@ const SettingsTab = ({ user, kidId }) => {
   };
 
   // Amount Picker Lab Section
-  const AmountPickerLabSection = React.memo(({ unit, setUnit, amount, setAmount }) => {
+  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount }) => {
+    const [flipKey, setFlipKey] = useState(0);
+
+    React.useEffect(() => {
+      setFlipKey((prev) => prev + 1);
+    }, [unit]);
+
     const snapToStep = (val, step) => {
       const n = Number(val) || 0;
       const s = Number(step) || 1;
@@ -983,17 +1004,27 @@ const SettingsTab = ({ user, kidId }) => {
     return React.createElement(
       'div',
       { style: wheelStyles.section },
-      React.createElement(WheelPicker, {
-        type: 'number',
-        value: amount,
-        onChange: setAmount,
-        min: range.min,
-        max: range.max,
-        step: range.step,
-        unit: unit
-      })
+      React.createElement(
+        'div',
+        {
+          key: flipKey,
+          style: {
+            animation: 'ttPickerFlip 180ms ease',
+            transformOrigin: 'center top'
+          }
+        },
+        React.createElement(WheelPicker, {
+          type: 'number',
+          value: amount,
+          onChange: setAmount,
+          min: range.min,
+          max: range.max,
+          step: range.step,
+          unit: unit
+        })
+      )
     );
-  });
+  };
 
   // Date/Time Picker Lab Section
   const DateTimePickerLabSection = () => {
@@ -1079,6 +1110,7 @@ const SettingsTab = ({ user, kidId }) => {
   // TTPickerTray Component - Native keyboard-style tray
   const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null }) => {
     const [present, setPresent] = React.useState(false);
+    const [hasEntered, setHasEntered] = React.useState(false);
     const sheetRef = React.useRef(null);
     const backdropRef = React.useRef(null);
 
@@ -1088,6 +1120,12 @@ const SettingsTab = ({ user, kidId }) => {
         setPresent(true);
       }
     }, [isOpen]);
+    
+    React.useEffect(() => {
+      if (!present) {
+        setHasEntered(false);
+      }
+    }, [present]);
 
     // Update transition (set before any transform changes)
     React.useEffect(() => {
@@ -1104,6 +1142,7 @@ const SettingsTab = ({ user, kidId }) => {
         requestAnimationFrame(() => {
           if (sheetRef.current) {
             sheetRef.current.style.transform = 'translateY(0)';
+            setHasEntered(true);
           }
         });
       } else {
@@ -1173,7 +1212,7 @@ const SettingsTab = ({ user, kidId }) => {
             paddingBottom: 'env(safe-area-inset-bottom, 0)',
             boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
             zIndex: 1000,
-            transform: 'translateY(100%)',
+            transform: isOpen && hasEntered ? 'translateY(0)' : 'translateY(100%)',
             willChange: 'transform',
             display: 'flex',
             flexDirection: 'column',
