@@ -1173,6 +1173,14 @@ const SettingsTab = ({ user, kidId }) => {
       }
     }, [isOpen, present]);
 
+    // Maintain transform when hasEntered is true (prevents reset during re-renders)
+    React.useEffect(() => {
+      if (hasEntered && sheetRef.current && isOpen) {
+        // Ensure transform stays at translateY(0) even during re-renders
+        sheetRef.current.style.transform = 'translateY(0)';
+      }
+    }, [hasEntered, isOpen]);
+
     if (!present) return null;
     
     return React.createElement(
