@@ -229,6 +229,169 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [showInputSheet, setShowInputSheet] = useState(false);
   const [inputSheetMode, setInputSheetMode] = useState('feeding');
 
+  // AI-generated "What's Next" state
+  const [whatsNextText, setWhatsNextText] = useState('Feed around 2:00pm');
+  const generatingRef = React.useRef(false);
+  const lastDataHashRef = React.useRef('');
+  const lastAICallRef = React.useRef(0); // Track last AI call time to avoid quota limits
+
+  // Format time as h:mma (e.g., "12:30pm")
+  const formatTimeHmma = (date) => {
+    if (!date || !(date instanceof Date)) return '';
+    const h = date.getHours();
+    const m = date.getMinutes();
+    const hour = h % 12 || 12;
+    const minute = String(m).padStart(2, '0');
+    const ampm = h >= 12 ? 'pm' : 'am';
+    return `${hour}:${minute}${ampm}`;
+
+  };
+  // Calculate age in months
+  const calculateAgeInMonths = (birthDate) => {
+    if (!birthDate) return 0;
+    const birth = new Date(birthDate);
+    const now = new Date();
+    return (
+      (now.getFullYear() - birth.getFullYear()) * 12 +
+      (now.getMonth() - birth.getMonth())
+    );
+  };
+
+  // Generate fallback prediction based on age
+  const generateFallbackPrediction = (ageInMonths, isSleepActive, lastFeedingTimeObj) => {
+    const now = new Date();
+    let nextTime = new Date(now);
+    
+    if (isSleepActive) {
+      // If sleeping, predict wake in 1-3 hours based on age
+      const wakeHours = ageInMonths < 3 ? 1.5 : ageInMonths < 6 ? 2 : 2.5;
+      nextTime.setHours(nextTime.getHours() + Math.round(wakeHours * 2) / 2);
+      return `Wake around ${formatTimeHmma(nextTime)}`;
+    }
+    
+    // Default: predict next feeding based on age-appropriate intervals
+    let feedIntervalHours = 2; // Default 2 hours
+    if (ageInMonths < 1) feedIntervalHours = 2;
+    else if (ageInMonths < 3) feedIntervalHours = 2.5;
+    else if (ageInMonths < 6) feedIntervalHours = 3;
+    else feedIntervalHours = 3.5;
+    
+    if (lastFeedingTimeObj) {
+      const timeSinceLastFeed = (now - lastFeedingTimeObj) / (1000 * 60 * 60); // hours
+      if (timeSinceLastFeed >= feedIntervalHours - 0.25) {
+        return 'Feed now';
+      }
+      nextTime = new Date(lastFeedingTimeObj);
+      nextTime.setHours(nextTime.getHours() + feedIntervalHours);
+    } else {
+      nextTime.setHours(nextTime.getHours() + feedIntervalHours);
+    }
+    
+    return `Feed around ${formatTimeHmma(nextTime)}`;
+  };
+
+  // Format AI response according to spec
+  const formatWhatsNextResponse = (aiResponse, isSleepActive, lastFeedingTime, lastSleepTime) => {
+    if (!aiResponse || typeof aiResponse !== 'string') {
+      return 'No prediction yet';
+    }
+
+    const now = Date.now();
+    const graceMinutes = 15;
+    const graceMs = graceMinutes * 60 * 1000;
+
+    // Parse AI response - look for verb (Wake/Feed/Nap) and time
+    const response = aiResponse.trim();
+    
+    // Extract verb and time from patterns like "Feed around 2:30pm" or "Wake around 3:00pm"
+    const verbMatch = response.match(/^(Wake|Feed|Nap)\s+(?:around\s+)?(\d{1,2}:\d{2}(?:am|pm))/i);
+    
+    if (!verbMatch) {
+      // Try to extract just verb and time separately
+      const verb = response.match(/^(Wake|Feed|Nap)/i)?.[1];
+      const timeMatch = response.match(/(\d{1,2}:\d{2}(?:am|pm))/i);
+      
+      if (!verb || !timeMatch) {
+        return 'No prediction yet';
+      }
+      
+      const verbCap = verb.charAt(0).toUpperCase() + verb.slice(1).toLowerCase();
+      const timeStr = timeMatch[1].toLowerCase();
+      
+      // Parse time and check if overdue
+      const timeParts = timeStr.match(/(\d{1,2}):(\d{2})(am|pm)/);
+      if (!timeParts) return 'No prediction yet';
+      
+      const hour = parseInt(timeParts[1], 10);
+      const minute = parseInt(timeParts[2], 10);
+      const isPm = timeParts[3] === 'pm';
+      const hour24 = isPm && hour !== 12 ? hour + 12 : (!isPm && hour === 12 ? 0 : hour);
+      
+      const today = new Date();
+      today.setHours(hour24, minute, 0, 0);
+      const predictedTime = today.getTime();
+      
+      // Check if overdue
+      if (now > predictedTime + graceMs) {
+        return `${verbCap} now`;
+      }
+      
+      // Format: "Verb around time" or "Verb time" if too long
+      let formatted = `${verbCap} around ${timeStr}`;
+      if (formatted.length > 28) {
+        formatted = `${verbCap} ${timeStr}`;
+      }
+      if (formatted.length > 28) {
+        formatted = `${verbCap} soon`;
+      }
+      
+      return formatted;
+    }
+    
+    const verbCap = verbMatch[1].charAt(0).toUpperCase() + verbMatch[1].slice(1).toLowerCase();
+    const timeStr = verbMatch[2].toLowerCase();
+    
+    // Parse time and check if overdue
+    const timeParts = timeStr.match(/(\d{1,2}):(\d{2})(am|pm)/);
+    if (!timeParts) return 'No prediction yet';
+    
+    const hour = parseInt(timeParts[1], 10);
+    const minute = parseInt(timeParts[2], 10);
+    const isPm = timeParts[3] === 'pm';
+    const hour24 = isPm && hour !== 12 ? hour + 12 : (!isPm && hour === 12 ? 0 : hour);
+    
+    const today = new Date();
+    today.setHours(hour24, minute, 0, 0);
+    const predictedTime = today.getTime();
+    
+    // Priority 1: If sleep timer is running → show wake guidance
+    if (isSleepActive) {
+      // AI should have predicted wake time, but if overdue, show "Wake now"
+      if (now > predictedTime + graceMs) {
+        return 'Wake now';
+      }
+      return `Wake around ${timeStr}`;
+    }
+    
+    // Priority 2: If overdue → show "now"
+    if (now > predictedTime + graceMs) {
+      return `${verbCap} now`;
+    }
+    
+    // Priority 3: Show next predicted event
+    let formatted = `${verbCap} around ${timeStr}`;
+    
+    // Character overflow handling
+    if (formatted.length > 28) {
+      formatted = `${verbCap} ${timeStr}`;
+    }
+    if (formatted.length > 28) {
+      formatted = `${verbCap} soon`;
+    }
+    
+    return formatted;
+  };
+
   // Consistent icon-button styling for edit actions (✓ / ✕) — match Family tab
   const TRACKER_ICON_BTN_BASE =
     "h-10 w-full rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center";
@@ -312,6 +475,163 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       setLastActiveSleepId(null);
     }
   }, [activeSleep]);
+
+  // Generate AI "What's Next" copy - optimized to prevent loops, always generates prediction
+  const generateWhatsNext = React.useCallback(async () => {
+    // Prevent multiple simultaneous calls
+    if (generatingRef.current) {
+      return;
+    }
+    
+    // Inline isToday check
+    const isTodayCheck = currentDate.toDateString() === new Date().toDateString();
+    if (!kidId || !isTodayCheck || loading) {
+      // Still generate a fallback even if not today or loading
+      if (!kidId || !isTodayCheck) {
+        return;
+      }
+    }
+    
+    // Create a data hash to detect meaningful changes
+    const lastFeeding = feedings && feedings.length > 0 ? feedings[0] : null;
+    const completedSleepSessions = sleepSessions ? sleepSessions.filter(s => s.endTime && !s.isActive) : [];
+    const lastSleep = completedSleepSessions.length > 0 ? completedSleepSessions[0] : null;
+    const lastFeedingId = lastFeeding?.id || 'none';
+    const lastFeedingTime = lastFeeding ? new Date(lastFeeding.timestamp).getTime() : 0;
+    const lastSleepId = lastSleep?.id || 'none';
+    const lastSleepTime = lastSleep ? new Date(lastSleep.startTime).getTime() : 0;
+    const activeSleepId = activeSleep?.id || 'none';
+    const activeSleepStart = activeSleep?.startTime || 0;
+    
+    // Create a hash of meaningful data
+    const dataHash = `${lastFeedingId}-${lastFeedingTime}-${lastSleepId}-${lastSleepTime}-${activeSleepId}-${activeSleepStart}`;
+    
+    // Skip if data hasn't meaningfully changed
+    if (dataHash === lastDataHashRef.current && whatsNextText !== 'No prediction yet') {
+      return;
+    }
+    
+    lastDataHashRef.current = dataHash;
+    generatingRef.current = true;
+    
+    try {
+      // Fetch baby data for age calculation
+      const babyData = await firestoreStorage.getKidData();
+      const ageInMonths = babyData?.birthDate ? calculateAgeInMonths(babyData.birthDate) : 0;
+      const ageInDays = babyData?.birthDate ? Math.floor((Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24)) : 0;
+      
+      const lastFeedingTimeObj = lastFeeding ? new Date(lastFeeding.timestamp) : null;
+      const lastSleepTimeObj = lastSleep ? new Date(lastSleep.startTime) : null;
+      const isSleepActive = !!activeSleep;
+      
+      // Check AI cooldown (5 minutes) to avoid quota limits
+      const now = Date.now();
+      const aiCooldownMs = 5 * 60 * 1000; // 5 minutes
+      const timeSinceLastAI = now - lastAICallRef.current;
+      const shouldCallAI = timeSinceLastAI >= aiCooldownMs && typeof getAIResponse === 'function';
+      
+      let answer = null;
+      if (shouldCallAI) {
+        try {
+          const currentTime = formatTimeHmma(new Date());
+          const lastFeedingStr = lastFeedingTimeObj ? formatTimeHmma(lastFeedingTimeObj) : 'none';
+          const lastSleepStr = lastSleepTimeObj ? formatTimeHmma(lastSleepTimeObj) : 'none';
+          
+          // Build comprehensive prompt with age and weight
+          const prompt = `You are a baby care assistant. Generate a single-line "what's next" prediction.
+
+Baby's age: ${ageInMonths} months (${ageInDays} days old)
+Baby's weight: ${babyWeight || 'not set'} lbs
+Current time: ${currentTime}
+Last feeding: ${lastFeedingStr}
+Last sleep: ${lastSleepStr}
+Sleep timer active: ${isSleepActive ? 'yes' : 'no'}
+
+Rules:
+1. Output ONLY one of these exact formats:
+   - "Wake around {time}" (if sleep timer is running, predict wake time)
+   - "Feed around {time}" (predict next feeding)
+   - "Nap around {time}" (predict next nap)
+   - "Feed now" (if feeding is overdue)
+   - "Nap now" (if nap is overdue)
+
+2. Time format: h:mma (e.g., "2:30pm", "11:00am") - no spaces, lowercase
+
+3. Priority:
+   - If sleep timer is running → predict wake time
+   - Else if something is overdue → use "now"
+   - Else predict next event
+
+4. Base predictions on:
+   - Feeding/sleep patterns from history (if available)
+   - Baby's age and developmental stage (ALWAYS use this)
+   - Typical intervals for this age (use age-appropriate defaults if no history)
+   - Baby's weight (for feeding amount considerations)
+
+IMPORTANT: Always generate a prediction. If no history, use age-appropriate defaults:
+- 0-1 months: Feed every 2 hours
+- 1-3 months: Feed every 2.5 hours  
+- 3-6 months: Feed every 3 hours
+- 6+ months: Feed every 3.5 hours
+
+Output ONLY the formatted string, nothing else.`;
+
+          answer = await getAIResponse(prompt, kidId);
+          // Only update lastAICallRef on successful call
+          if (answer) {
+            lastAICallRef.current = now;
+          }
+        } catch (aiError) {
+          console.error("AI error (will use fallback):", aiError);
+          // Update cooldown even on error to avoid rapid retries
+          lastAICallRef.current = now;
+        }
+      }
+      
+      if (answer) {
+        const formatted = formatWhatsNextResponse(answer, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj);
+        if (formatted && formatted !== 'No prediction yet') {
+          setWhatsNextText(formatted);
+        } else {
+          // Fallback if AI returned invalid format
+          const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj);
+          setWhatsNextText(fallback);
+        }
+      } else {
+        // Always generate fallback prediction - never show "No prediction yet"
+        const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj);
+        setWhatsNextText(fallback);
+      }
+    } catch (error) {
+      console.error("Error generating what's next:", error);
+      // Always generate fallback - never show "No prediction yet"
+      try {
+        const babyData = await firestoreStorage.getKidData();
+        const ageInMonths = babyData?.birthDate ? calculateAgeInMonths(babyData.birthDate) : 0;
+        const lastFeedingTimeObj = lastFeeding ? new Date(lastFeeding.timestamp) : null;
+        const isSleepActive = !!activeSleep;
+        const fallback = generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj);
+        setWhatsNextText(fallback);
+      } catch (fallbackError) {
+        // Last resort: simple default
+        const now = new Date();
+        now.setHours(now.getHours() + 2);
+        setWhatsNextText(`Feed around ${formatTimeHmma(now)}`);
+      }
+    } finally {
+      generatingRef.current = false;
+    }
+  }, [kidId, loading, activeSleep, feedings, sleepSessions, currentDate, whatsNextText, babyWeight]);
+  // Generate "what's next" when data changes - optimized to prevent loops
+  React.useEffect(() => {
+    const isTodayCheck = currentDate.toDateString() === new Date().toDateString();
+    if (!loading && isTodayCheck && kidId && typeof getAIResponse === 'function') {
+      // Generate immediately without delay for faster loading
+      generateWhatsNext();
+    }
+    // Removed generateWhatsNext from dependencies to prevent loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, feedings, sleepSessions, activeSleep, currentDate, kidId]);
 
   // Inject a calm zZz keyframe animation (used for the Sleep in-progress indicator)
   useEffect(() => {
@@ -1674,9 +1994,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
                 React.createElement('div', {
                   className: "text-[15.4px] font-normal",
                   style: { 
-                    color: 'var(--tt-text-tertiary)'
+                    color: 'var(--tt-text-tertiary)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
                   }
-                }, "Content goes here")
+                }, whatsNextText)
               )
             )
           );
@@ -1708,8 +2031,13 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
             // Simple body
             React.createElement('div', {
               className: "text-[15.4px] font-medium",
-              style: { color: 'var(--tt-text-primary)' }
-            }, "Content goes here")
+              style: { 
+                color: 'var(--tt-text-primary)',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }
+            }, whatsNextText)
           )
         )
       ),
