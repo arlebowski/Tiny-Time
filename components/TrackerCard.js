@@ -918,30 +918,131 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOv
 // UI VERSION HELPERS (Single Source of Truth)
 // ========================================
 // Initialize shared UI version helpers (only once)
+// Note: This is initialized in SettingsTab.js with Firestore support
+// This check ensures it exists, but won't re-initialize if already set
 if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
+  // Cached version (updated from Firestore)
+  let cachedVersion = 'v2';
+  let versionListeners = [];
+  let unsubscribeListener = null;
+  
   // Helper to get UI version (defaults to v2 for backward compatibility)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const version = window.localStorage.getItem('tt_ui_version');
-        if (version && ['v1', 'v2', 'v3'].includes(version)) {
-          return version;
-        }
-        // Migration: derive from old flags if version doesn't exist
-        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
-        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
-        if (useNewUI === 'false') return 'v1';
-        if (cardDesign === 'new') return 'v2';
-        return 'v2'; // default
-      }
-      return 'v2';
+      // Return cached version (will be updated from Firestore)
+      return cachedVersion;
     },
     shouldUseNewUI: (version) => version !== 'v1',
     getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
+    
+    // Set global UI version in Firestore (for all users)
+    setUIVersion: async (version) => {
+      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
+        console.error('Invalid UI version:', version);
+        return;
+      }
+      
+      try {
+        // Access firebase from global scope
+        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
+          const db = window.firebase.firestore();
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: version,
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          
+          // Update cache immediately
+          cachedVersion = version;
+          // Notify all listeners
+          versionListeners.forEach(listener => listener(version));
+        } else {
+          console.error('Firebase not available');
+        }
+      } catch (error) {
+        console.error('Error setting global UI version:', error);
+        throw error;
+      }
+    },
+    
+    // Subscribe to version changes
+    onVersionChange: (callback) => {
+      versionListeners.push(callback);
+      return () => {
+        versionListeners = versionListeners.filter(cb => cb !== callback);
+      };
+    },
+    
+    // Initialize: fetch from Firestore and set up real-time listener
+    init: async () => {
+      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
+        // Fallback to localStorage if Firebase not available
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+        return;
+      }
+      
+      try {
+        const db = window.firebase.firestore();
+        // First, try to get from Firestore
+        const doc = await db.collection('appConfig').doc('global').get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+            cachedVersion = data.uiVersion;
+            // Notify all listeners
+            versionListeners.forEach(listener => listener(cachedVersion));
+          }
+        } else {
+          // Document doesn't exist, create it with default
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: 'v2',
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          });
+          cachedVersion = 'v2';
+        }
+        
+        // Set up real-time listener
+        unsubscribeListener = db.collection('appConfig').doc('global')
+          .onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+                const newVersion = data.uiVersion;
+                if (newVersion !== cachedVersion) {
+                  cachedVersion = newVersion;
+                  // Notify all listeners
+                  versionListeners.forEach(listener => listener(cachedVersion));
+                }
+              }
+            }
+          });
+      } catch (error) {
+        console.error('Error initializing UI version from Firestore:', error);
+        // Fallback to localStorage
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+      }
+    }
   };
+  
+  // Initialize on load
+  if (typeof window !== 'undefined') {
+    // Wait a bit for Firebase to be available
+    setTimeout(() => {
+      window.TT.shared.uiVersion.init();
+    }, 100);
+  }
 }
 
 const TrackerCard = ({ 
@@ -1936,9 +2037,10 @@ const TrackerCard = ({
     progressBarGoalText && React.createElement(
       'div',
       {
-        className: "flex justify-end mt-[4px]",
+        className: `flex justify-end ${expanded ? '' : 'mt-[4px]'}`,
         style: { 
           width: '100%',
+          display: expanded ? 'none' : 'flex',
           opacity: expanded ? 0 : 0.7,
           transition: 'opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
         }
@@ -2059,7 +2161,7 @@ const TrackerCard = ({
     React.createElement(
       'div',
       { 
-        className: `mt-4 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        className: `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
         style: { overflow: 'hidden' }
       },
       // Show yesterday comparison in accordion for v3 (moved before count pill)
@@ -2068,7 +2170,7 @@ const TrackerCard = ({
         null,
         // Number + label inline, then progress bar below
         React.createElement('div', {
-          className: "mb-8 mt-3"
+          className: "mb-8 mt-1.5"
         },
           // Number + "as of" text inline
           React.createElement('div', {
@@ -2684,61 +2786,28 @@ const TrackerCard = ({
             style: { color: 'var(--tt-text-tertiary)' } 
           });
       
-      // Variant 2: only show pill if there's an active sleep, otherwise plain text
-      if (isVariant2ForStatus && !isActiveSleepPill) {
+      // v3: show "Sleeping now" when sleep timer is running, otherwise show typical text
+      if (isActiveSleepPill) {
         return React.createElement(
           'span',
           {
             className: "inline-flex items-center gap-2",
             style: { color: 'var(--tt-text-tertiary)' }
           },
-          React.createElement('span', { className: "text-[15.4px] font-normal leading-none" }, v3StatusText),
+          React.createElement('span', { className: "text-[15.4px] font-normal leading-none" }, "Sleeping now"),
           chevronEl
         );
       }
       
-      // v3 pills: keep a single source of truth so height/radius stays consistent.
-      // Fixed height avoids subtle font/animation differences changing pill size.
-      const v3PillBaseClass =
-        "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
-
-      const pillInner = React.createElement(
-        'span',
-        { className: "inline-flex items-center gap-2" },
-        React.createElement('span', null, v3StatusText),
-        chevronEl
-      );
-
-      // Active sleep: special tappable/pulsing pill that opens sleep controls.
-      if (isActiveSleepPill && typeof onActiveSleepClick === 'function') {
-        return React.createElement(
-          'button',
-          {
-            type: 'button',
-            onClick: (e) => {
-              try { e.preventDefault(); e.stopPropagation(); } catch {}
-              try { onActiveSleepClick(); } catch {}
-            },
-            className: `${v3PillBaseClass} gap-1 tt-tapable tt-sleep-progress-pulse`,
-            style: {
-              backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
-              color: 'var(--tt-sleep)'
-            },
-            title: "Sleep controls",
-            'aria-label': "Sleep controls"
-          },
-          pillInner
-        );
-      }
-
-      // Default v3 status pill (non-interactive)
+      // Typical text when sleep timer is not running
       return React.createElement(
         'span',
         {
-          className: `${v3PillBaseClass} gap-1`,
-          style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
+          className: "inline-flex items-center gap-2",
+          style: { color: 'var(--tt-text-tertiary)' }
         },
-        pillInner
+        React.createElement('span', { className: "text-[15.4px] font-normal leading-none" }, v3StatusText),
+        chevronEl
       );
     })();
 

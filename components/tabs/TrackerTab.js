@@ -7,35 +7,131 @@
 // UI VERSION HELPERS (Single Source of Truth)
 // ========================================
 // Initialize shared UI version helpers (only once)
+// Note: This is initialized in SettingsTab.js with Firestore support
+// This check ensures it exists, but won't re-initialize if already set
 if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
+  // Cached version (updated from Firestore)
+  let cachedVersion = 'v2';
+  let versionListeners = [];
+  let unsubscribeListener = null;
+  
   // Helper to get UI version (defaults to v2 for backward compatibility)
   window.TT.shared.uiVersion = {
     getUIVersion: () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const version = window.localStorage.getItem('tt_ui_version');
-        if (version === 'v2') {
-          // Old v2 detected - ensure it's set to new v2 (same value, but ensures migration)
-          window.localStorage.setItem('tt_ui_version', 'v2');
-          return 'v2';
-        }
-        if (version && ['v1', 'v2', 'v3'].includes(version)) {
-          return version;
-        }
-        // Migration: derive from old flags if version doesn't exist
-        const useNewUI = window.localStorage.getItem('tt_use_new_ui');
-        const cardDesign = window.localStorage.getItem('tt_tracker_card_design');
-        if (useNewUI === 'false') return 'v1';
-        if (cardDesign === 'new') return 'v2';
-        return 'v2'; // default
-      }
-      return 'v2';
+      // Return cached version (will be updated from Firestore)
+      return cachedVersion;
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current')
+    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
+    
+    // Set global UI version in Firestore (for all users)
+    setUIVersion: async (version) => {
+      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
+        console.error('Invalid UI version:', version);
+        return;
+      }
+      
+      try {
+        // Access firebase from global scope
+        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
+          const db = window.firebase.firestore();
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: version,
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          
+          // Update cache immediately
+          cachedVersion = version;
+          // Notify all listeners
+          versionListeners.forEach(listener => listener(version));
+        } else {
+          console.error('Firebase not available');
+        }
+      } catch (error) {
+        console.error('Error setting global UI version:', error);
+        throw error;
+      }
+    },
+    
+    // Subscribe to version changes
+    onVersionChange: (callback) => {
+      versionListeners.push(callback);
+      return () => {
+        versionListeners = versionListeners.filter(cb => cb !== callback);
+      };
+    },
+    
+    // Initialize: fetch from Firestore and set up real-time listener
+    init: async () => {
+      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
+        // Fallback to localStorage if Firebase not available
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+        return;
+      }
+      
+      try {
+        const db = window.firebase.firestore();
+        // First, try to get from Firestore
+        const doc = await db.collection('appConfig').doc('global').get();
+        if (doc.exists) {
+          const data = doc.data();
+          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+            cachedVersion = data.uiVersion;
+            // Notify all listeners
+            versionListeners.forEach(listener => listener(cachedVersion));
+          }
+        } else {
+          // Document doesn't exist, create it with default
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: 'v2',
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          });
+          cachedVersion = 'v2';
+        }
+        
+        // Set up real-time listener
+        unsubscribeListener = db.collection('appConfig').doc('global')
+          .onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+                const newVersion = data.uiVersion;
+                if (newVersion !== cachedVersion) {
+                  cachedVersion = newVersion;
+                  // Notify all listeners
+                  versionListeners.forEach(listener => listener(cachedVersion));
+                }
+              }
+            }
+          });
+      } catch (error) {
+        console.error('Error initializing UI version from Firestore:', error);
+        // Fallback to localStorage
+        if (window.localStorage) {
+          const version = window.localStorage.getItem('tt_ui_version');
+          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+            cachedVersion = version;
+          }
+        }
+      }
+    }
   };
+  
+  // Initialize on load
+  if (typeof window !== 'undefined') {
+    // Wait a bit for Firebase to be available
+    setTimeout(() => {
+      window.TT.shared.uiVersion.init();
+    }, 100);
+  }
 }
 
 const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
@@ -60,10 +156,18 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   
   // Listen for changes to the feature flags
   React.useEffect(() => {
+    // Listen for global UI version changes from Firestore
+    let unsubscribeVersion = null;
+    if (window.TT?.shared?.uiVersion?.onVersionChange) {
+      unsubscribeVersion = window.TT.shared.uiVersion.onVersionChange((newVersion) => {
+        setUiVersion(newVersion);
+        // Force reload to apply changes
+        window.location.reload();
+      });
+    }
+    
     const handleStorageChange = () => {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
-        setUiVersion(version);
         const todayCardStored = window.localStorage.getItem('tt_show_today_card');
         setShowTodayCard(todayCardStored !== null ? todayCardStored === 'true' : false);
       }
@@ -76,6 +180,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const interval = setInterval(handleStorageChange, 100);
     
     return () => {
+      if (unsubscribeVersion) unsubscribeVersion();
       window.removeEventListener('storage', handleStorageChange);
       clearInterval(interval);
     };
@@ -110,6 +215,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [sleepEditStartStr, setSleepEditStartStr] = useState('');
   const [sleepEditEndStr, setSleepEditEndStr] = useState('');
   const [loading, setLoading] = useState(true);
+  const [whatsNextCardAnimating, setWhatsNextCardAnimating] = useState(null); // 'entering' | 'exiting' | null
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [logMode, setLogMode] = useState('feeding');
   const [cardVisible, setCardVisible] = useState(false);
@@ -219,6 +325,69 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       // non-fatal
     }
   }, []);
+
+  // Ensure zzz animation styles from TrackerCard are available (for What's Next timer)
+  useEffect(() => {
+    try {
+      if (document.getElementById('tt-zzz-anim')) return;
+      const style = document.createElement('style');
+      style.id = 'tt-zzz-anim';
+      style.textContent = `
+        @keyframes floatingZs {
+          0% {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+          50% {
+            transform: translateY(-4px) scale(1.1);
+            opacity: 0.7;
+          }
+          100% {
+            transform: translateY(-8px) scale(1);
+            opacity: 0;
+          }
+        }
+        .zzz {
+          display: inline-block;
+        }
+        .zzz > span {
+          display: inline-block;
+          animation: floatingZs 2s ease-in-out infinite;
+        }
+        .zzz > span:nth-child(1) { animation-delay: 0s; }
+        .zzz > span:nth-child(2) { animation-delay: 0.3s; }
+        .zzz > span:nth-child(3) { animation-delay: 0.6s; }
+      `;
+      document.head.appendChild(style);
+    } catch (e) {
+      // non-fatal
+    }
+  }, []);
+
+  // Format elapsed time for timer display (borrowed from TrackerCard)
+  const formatElapsedHmsTT = (ms) => {
+    const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad2 = (n) => String(Math.max(0, n)).padStart(2, '0');
+
+    if (h > 0) {
+      const hStr = h >= 10 ? pad2(h) : String(h);
+      const mStr = pad2(m);
+      const sStr = pad2(s);
+      return { h, m, s, showH: true, showM: true, showS: true, hStr, mStr, sStr, str: `${hStr}h ${mStr}m ${sStr}s` };
+    }
+
+    if (m > 0) {
+      const mStr = m >= 10 ? pad2(m) : String(m);
+      const sStr = pad2(s);
+      return { h: 0, m, s, showH: false, showM: true, showS: true, mStr, sStr, str: `${mStr}m ${sStr}s` };
+    }
+
+    const sStr = s < 10 ? String(s) : pad2(s);
+    return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
+  };
 
   // Inject BMW-style charging pulse animation for active sleep progress bar
   useEffect(() => {
@@ -851,6 +1020,31 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     return currentDate.toDateString() === new Date().toDateString();
   };
 
+  // What's Next card animation state (v3 only)
+  const prevIsTodayRef = React.useRef(isToday());
+  React.useEffect(() => {
+    if (uiVersion !== 'v3') return;
+    
+    const currentlyToday = isToday();
+    const wasToday = prevIsTodayRef.current;
+    
+    if (currentlyToday && !wasToday) {
+      // Entering: show card with enter animation
+      setWhatsNextCardAnimating('entering');
+      setTimeout(() => {
+        setWhatsNextCardAnimating(null);
+      }, 400);
+    } else if (!currentlyToday && wasToday) {
+      // Exiting: start exit animation, then hide
+      setWhatsNextCardAnimating('exiting');
+      setTimeout(() => {
+        setWhatsNextCardAnimating(null);
+      }, 400);
+    }
+    
+    prevIsTodayRef.current = currentlyToday;
+  }, [currentDate, uiVersion]);
+
   const formatDate = (date) => {
     if (isToday()) return 'Today';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -1200,8 +1394,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const dateNavDividerColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgb(243, 244, 246)';
 
   return React.createElement('div', { className: "space-y-4" },
-    // Date Navigation (moved outside Today Card)
-    React.createElement('div', { 
+    // Date Navigation (moved outside Today Card) - hidden in v3
+    uiVersion !== 'v3' && React.createElement('div', { 
       className: "date-nav-container",
       style: {
         backgroundColor: 'var(--tt-app-bg)', // Match header background
@@ -1278,41 +1472,246 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
 
     // New TrackerCard Components (when useNewUI is true)
     useNewUI && window.TrackerCard && React.createElement(React.Fragment, null,
-      // What's Next Card - simple card with icon, label, and body (only show on today)
-      isToday() && React.createElement('div', {
-        className: "rounded-2xl px-5 py-4 mb-4",
+      // Date Navigation in v3 (moved to body, above What's Next card)
+      uiVersion === 'v3' && React.createElement('div', { 
+        className: "date-nav",
         style: {
-          backgroundColor: "var(--tt-subtle-surface)",
-          borderColor: "var(--tt-card-border)"
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
+          backgroundColor: dateNavTrackBg,
+          padding: '8px 16px',
+          borderRadius: '12px',
+          marginBottom: '16px'
         }
       },
-        // Header with icon and label
         React.createElement('div', {
-          className: "flex items-center gap-2 mb-[5px]"
-        },
-          React.createElement('svg', {
-            xmlns: "http://www.w3.org/2000/svg",
-            width: "18",
-            height: "18",
-            fill: "currentColor",
-            viewBox: "0 0 256 256",
-            className: "w-[18px] h-[18px]",
-            style: { color: 'var(--tt-text-secondary)' }
+          onClick: goToPreviousDay,
+          className: "nav-arrow",
+          style: {
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            userSelect: 'none',
+            transition: 'opacity 0.2s',
+            WebkitTapHighlightColor: 'transparent'
           },
-            React.createElement('path', {
-              d: "M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"
-            })
-          ),
-          React.createElement('div', {
-            className: "text-[14.5px] font-normal",
-            style: { color: 'var(--tt-text-secondary)' }
-          }, "What's Next")
-        ),
-        // Simple body
+          onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
+          onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
+          onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
+        }, React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: chevronColor } })),
+        React.createElement('div', { 
+          className: "date-text",
+          style: {
+            fontSize: '17px',
+            fontWeight: 600,
+            color: 'var(--tt-text-primary)',
+            flex: 1,
+            textAlign: 'center'
+          }
+        }, formatDate(currentDate)),
         React.createElement('div', {
-          className: "text-[15.4px] font-medium",
-          style: { color: 'var(--tt-text-primary)' }
-        }, "Content goes here")
+          onClick: isToday() ? null : goToNextDay,
+          className: "nav-arrow",
+          style: {
+            width: '32px',
+            height: '32px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: isToday() ? 'not-allowed' : 'pointer',
+            userSelect: 'none',
+            transition: 'opacity 0.2s',
+            WebkitTapHighlightColor: 'transparent'
+          },
+          onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
+          onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
+          onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
+        }, React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: isToday() ? chevronDisabledColor : chevronColor } }))
+      ),
+      // What's Next Card - simple card with icon, label, and body (only show on today, v3 only)
+      // Show card if it's today OR if it's animating out
+      (isToday() || whatsNextCardAnimating === 'exiting') && uiVersion === 'v3' && React.createElement('div', {
+        className: `rounded-2xl px-5 py-4 tt-tapable ${whatsNextCardAnimating === 'entering' ? 'timeline-item-enter' : whatsNextCardAnimating === 'exiting' ? 'timeline-item-exit' : ''}`,
+        style: {
+          backgroundColor: activeSleep && activeSleep.startTime 
+            ? 'var(--tt-sleep-soft-medium, var(--tt-sleep-soft))'
+            : "var(--tt-subtle-surface)",
+          borderColor: "var(--tt-card-border)",
+          overflow: whatsNextCardAnimating === 'exiting' ? 'hidden' : 'visible',
+          marginBottom: whatsNextCardAnimating === 'exiting' ? '1rem' : '16px' // Start at 1rem for smooth animation to 0
+        }
+      },
+        // When sleep timer is running: show timer and timer button (opens half sheet), hide header
+        activeSleep && activeSleep.startTime ? (() => {
+          // Real-time timer component for active sleep
+          const ActiveSleepTimer = ({ startTime }) => {
+            const [elapsed, setElapsed] = React.useState(() => {
+              return Date.now() - startTime;
+            });
+            
+            React.useEffect(() => {
+              const interval = setInterval(() => {
+                setElapsed(Date.now() - startTime);
+              }, 1000);
+              return () => clearInterval(interval);
+            }, [startTime]);
+            
+            const formatWithSeconds = (ms) => {
+              const formatted = formatElapsedHmsTT(ms);
+              // Hide seconds when there are hours
+              if (formatted.h > 0) {
+                return `${formatted.hStr}h ${formatted.mStr}m`;
+              }
+              return formatted.str;
+            };
+            
+            return React.createElement('span', { 
+              className: "text-[36px] leading-none tabular-nums whitespace-nowrap inline-block text-right", 
+              style: { 
+                color: 'var(--tt-sleep)',
+                fontWeight: '250'
+              } 
+            }, formatWithSeconds(elapsed));
+          };
+
+          // zZz animation element (memoized to prevent animation restart)
+          const zzzElement = React.createElement('span', { 
+            className: "zzz text-[29.07px] leading-none",
+            style: { fontWeight: '75' } // Half step lighter than font-thin (100)
+          },
+            React.createElement('span', null, 'z'),
+            React.createElement('span', null, 'Z'),
+            React.createElement('span', null, 'z')
+          );
+
+          return React.createElement(React.Fragment, null,
+            // Outer tappable container (entire blue area)
+            React.createElement('button', {
+              type: 'button',
+              onClick: () => {
+                setInputSheetMode('sleep');
+                setShowInputSheet(true);
+              },
+              className: "w-full mb-[5px]",
+              style: { 
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                textAlign: 'left'
+              },
+              'aria-label': 'Open sleep timer'
+            },
+              // Wrapper container (centered, 75% width) - contains timer row and secondary text
+              React.createElement('div', {
+                className: "mx-auto",
+                style: {
+                  width: '75%'
+                }
+              },
+                // Inner container (timer + zzz + button) - 2-column flex row with space-between
+                React.createElement('div', {
+                  className: "flex items-center justify-between",
+                  style: { 
+                    width: '100%',
+                    gap: '12px' // Gap between timer row and button
+                  }
+                },
+                  // Timer row (time + zzz)
+                  React.createElement('div', {
+                    className: "inline-flex items-baseline gap-2 whitespace-nowrap",
+                    style: { color: 'var(--tt-sleep)' }
+                  },
+                    React.createElement(ActiveSleepTimer, { startTime: activeSleep.startTime }),
+                    React.createElement('span', {
+                      className: "inline-flex justify-start leading-none",
+                      style: { color: 'currentColor' }
+                    }, zzzElement)
+                  ),
+                  // Timer button wrapper (increased hit area, centered vertically)
+                  React.createElement('div', {
+                    className: "flex items-center",
+                    style: { 
+                      padding: '4px', // Increases hit area by 8px on all sides
+                      flexShrink: 0
+                    }
+                  },
+                    React.createElement('button', {
+                      type: 'button',
+                      onClick: (e) => {
+                        e.stopPropagation();
+                        setInputSheetMode('sleep');
+                        setShowInputSheet(true);
+                      },
+                      className: "w-9 h-9 rounded-full flex items-center justify-center shadow-sm hover:opacity-80 transition-opacity",
+                      style: { 
+                        backgroundColor: 'var(--tt-sleep)'
+                      },
+                      'aria-label': 'Open sleep timer'
+                    },
+                      React.createElement('svg', {
+                        xmlns: "http://www.w3.org/2000/svg",
+                        width: "18",
+                        height: "18",
+                        fill: "currentColor",
+                        viewBox: "0 0 256 256",
+                        className: "w-[18px] h-[18px]",
+                        style: { color: '#ffffff' }
+                      },
+                        React.createElement('path', {
+                          d: "M128,44a96,96,0,1,0,96,96A96.11,96.11,0,0,0,128,44Zm0,168a72,72,0,1,1,72-72A72.08,72.08,0,0,1,128,212ZM164.49,99.51a12,12,0,0,1,0,17l-28,28a12,12,0,0,1-17-17l28-28A12,12,0,0,1,164.49,99.51ZM92,16A12,12,0,0,1,104,4h48a12,12,0,0,1,0,24H104A12,12,0,0,1,92,16Z"
+                        })
+                      )
+                    )
+                  )
+                ),
+                // Secondary text (below inner container, left-aligned to timer text start)
+                React.createElement('div', {
+                  className: "text-[15.4px] font-normal",
+                  style: { 
+                    color: 'var(--tt-text-tertiary)'
+                  }
+                }, "Content goes here")
+              )
+            )
+          );
+        })() : (
+          // Normal state: show header and body
+          React.createElement(React.Fragment, null,
+            // Header with icon and label
+            React.createElement('div', {
+              className: "flex items-center gap-2 mb-[5px]"
+            },
+              React.createElement('svg', {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "18",
+                height: "18",
+                fill: "currentColor",
+                viewBox: "0 0 256 256",
+                className: "w-[18px] h-[18px]",
+                style: { color: 'var(--tt-text-secondary)' }
+              },
+                React.createElement('path', {
+                  d: "M197.58,129.06,146,110l-19-51.62a15.92,15.92,0,0,0-29.88,0L78,110l-51.62,19a15.92,15.92,0,0,0,0,29.88L78,178l19,51.62a15.92,15.92,0,0,0,29.88,0L146,178l51.62-19a15.92,15.92,0,0,0,0-29.88ZM137,164.22a8,8,0,0,0-4.74,4.74L112,223.85,91.78,169A8,8,0,0,0,87,164.22L32.15,144,87,123.78A8,8,0,0,0,91.78,119L112,64.15,132.22,119a8,8,0,0,0,4.74,4.74L191.85,144ZM144,40a8,8,0,0,1,8-8h16V16a8,8,0,0,1,16,0V32h16a8,8,0,0,1,0,16H184V64a8,8,0,0,1-16,0V48H152A8,8,0,0,1,144,40ZM248,88a8,8,0,0,1-8,8h-8v8a8,8,0,0,1-16,0V96h-8a8,8,0,0,1,0-16h8V72a8,8,0,0,1,16,0v8h8A8,8,0,0,1,248,88Z"
+                })
+              ),
+              React.createElement('div', {
+                className: "text-[14.5px] font-normal",
+                style: { color: 'var(--tt-text-secondary)' }
+              }, "What's Next")
+            ),
+            // Simple body
+            React.createElement('div', {
+              className: "text-[15.4px] font-medium",
+              style: { color: 'var(--tt-text-primary)' }
+            }, "Content goes here")
+          )
+        )
       ),
       React.createElement(window.TrackerCard, {
         mode: 'feeding',

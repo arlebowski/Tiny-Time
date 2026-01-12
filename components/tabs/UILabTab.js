@@ -1,189 +1,10 @@
 // ========================================
-// TINY TRACKER - PART 7
-// Settings Tab - Share App, Sign Out, Delete Account
+// UI LAB TAB
+// Extracted from SettingsTab for better organization
 // ========================================
 
-// ========================================
-// UI VERSION HELPERS (Single Source of Truth)
-// ========================================
-// Initialize shared UI version helpers (only once)
-if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
-  window.TT = window.TT || {};
-  window.TT.shared = window.TT.shared || {};
-  
-  // Cached version (updated from Firestore)
-  let cachedVersion = 'v2';
-  let versionListeners = [];
-  let unsubscribeListener = null;
-  
-  // Helper to get UI version (defaults to v2 for backward compatibility)
-  window.TT.shared.uiVersion = {
-    getUIVersion: () => {
-      // Return cached version (will be updated from Firestore)
-      return cachedVersion;
-    },
-    shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
-    
-    // Set global UI version in Firestore (for all users)
-    setUIVersion: async (version) => {
-      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
-        console.error('Invalid UI version:', version);
-        return;
-      }
-      
-      try {
-        // Access firebase from global scope
-        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
-          const db = window.firebase.firestore();
-          await db.collection('appConfig').doc('global').set({
-            uiVersion: version,
-            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          
-          // Update cache immediately
-          cachedVersion = version;
-          // Notify all listeners
-          versionListeners.forEach(listener => listener(version));
-        } else {
-          console.error('Firebase not available');
-        }
-      } catch (error) {
-        console.error('Error setting global UI version:', error);
-        throw error;
-      }
-    },
-    
-    // Subscribe to version changes
-    onVersionChange: (callback) => {
-      versionListeners.push(callback);
-      return () => {
-        versionListeners = versionListeners.filter(cb => cb !== callback);
-      };
-    },
-    
-    // Initialize: fetch from Firestore and set up real-time listener
-    init: async () => {
-      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
-        // Fallback to localStorage if Firebase not available
-        if (window.localStorage) {
-          const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
-            cachedVersion = version;
-          }
-        }
-        return;
-      }
-      
-      try {
-        const db = window.firebase.firestore();
-        // First, try to get from Firestore
-        const doc = await db.collection('appConfig').doc('global').get();
-        if (doc.exists) {
-          const data = doc.data();
-          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
-            cachedVersion = data.uiVersion;
-            // Notify all listeners
-            versionListeners.forEach(listener => listener(cachedVersion));
-          }
-        } else {
-          // Document doesn't exist, create it with default
-          await db.collection('appConfig').doc('global').set({
-            uiVersion: 'v2',
-            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-          });
-          cachedVersion = 'v2';
-        }
-        
-        // Set up real-time listener
-        unsubscribeListener = db.collection('appConfig').doc('global')
-          .onSnapshot((doc) => {
-            if (doc.exists) {
-              const data = doc.data();
-              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
-                const newVersion = data.uiVersion;
-                if (newVersion !== cachedVersion) {
-                  cachedVersion = newVersion;
-                  // Notify all listeners
-                  versionListeners.forEach(listener => listener(cachedVersion));
-                }
-              }
-            }
-          });
-      } catch (error) {
-        console.error('Error initializing UI version from Firestore:', error);
-        // Fallback to localStorage
-        if (window.localStorage) {
-          const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
-            cachedVersion = version;
-          }
-        }
-      }
-    }
-  };
-  
-  // Initialize on load
-  if (typeof window !== 'undefined') {
-    // Wait a bit for Firebase to be available
-    setTimeout(() => {
-      window.TT.shared.uiVersion.init();
-    }, 100);
-  }
-}
-
-const SettingsTab = ({ user, kidId }) => {
-  const [showUILab, setShowUILab] = useState(false);
-  const [showFeedSheet, setShowFeedSheet] = useState(false);
-  const [showSleepSheet, setShowSleepSheet] = useState(false);
-  const [showInputSheet, setShowInputSheet] = useState(false);
-  const [showAmountPickerTray, setShowAmountPickerTray] = useState(false);
-  const [showDateTimePickerTray, setShowDateTimePickerTray] = useState(false);
-  // Amount picker state
-  const [amountPickerAmount, setAmountPickerAmount] = useState(4);
-  const [amountPickerUnit, setAmountPickerUnit] = useState('oz');
-  
-  React.useEffect(() => {
-    if (typeof document === 'undefined') return;
-    if (document.getElementById('tt-picker-flip-styles')) return;
-    const style = document.createElement('style');
-    style.id = 'tt-picker-flip-styles';
-    style.textContent = `
-      @keyframes ttPickerFlip {
-        0% { opacity: 0.75; transform: rotateX(6deg) translateY(6px); }
-        100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
-      }
-    `;
-    document.head.appendChild(style);
-  }, []);
-  
-  // UI Version - single source of truth (v1, v2, or v3)
-  const [uiVersion, setUiVersion] = useState(() => {
-    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
-  });
-  
-  // Listen for global UI version changes
-  React.useEffect(() => {
-    if (!window.TT?.shared?.uiVersion?.onVersionChange) return;
-    
-    const unsubscribe = window.TT.shared.uiVersion.onVersionChange((newVersion) => {
-      setUiVersion(newVersion);
-      // Force reload to apply changes
-      window.location.reload();
-    });
-    
-    return unsubscribe;
-  }, []);
-  
-  // Today Card toggle state
-  const [showTodayCard, setShowTodayCard] = useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_show_today_card');
-      return stored !== null ? stored === 'true' : false;
-    }
-    return false;
-  });
-  
+const UILabTab = ({ kidId, uiVersion, showTodayCard, setShowTodayCard, onClose }) => {
+  const { useState, useEffect, useRef, useMemo } = React;
   
   // Production data for UI Lab
   const [feedings, setFeedings] = useState([]);
@@ -222,7 +43,7 @@ const SettingsTab = ({ user, kidId }) => {
 
   // Fetch production data for UI Lab (always fetch when UI Lab is open)
   React.useEffect(() => {
-    if (!showUILab || !kidId) return;
+    if (!kidId) return;
     
     setLoading(true);
     const fetchData = async () => {
@@ -252,7 +73,7 @@ const SettingsTab = ({ user, kidId }) => {
     };
     
     fetchData();
-  }, [showUILab, uiVersion, kidId]);
+  }, [uiVersion, kidId]);
 
   // Data transformation helpers (same as TrackerTab)
   const formatFeedingsForCard = (feedings, targetOunces, currentDate) => {
@@ -533,13 +354,13 @@ const SettingsTab = ({ user, kidId }) => {
 
   // Cleanup: restore body scroll when UI Lab closes
   React.useEffect(() => {
-    if (!showUILab) {
+    // Component always renders when mounted
       document.body.style.overflow = '';
     }
     return () => {
       document.body.style.overflow = '';
     };
-  }, [showUILab]);
+  }, []);
 
   // Auto-focus textarea when notes editor opens
   React.useEffect(() => {
@@ -1397,16 +1218,16 @@ const SettingsTab = ({ user, kidId }) => {
     );
   }; }, []);
 
-  // UI Lab page
+
   if (showUILab) {
 
     return React.createElement('div', { className: "space-y-4" },
       // Back button header
       React.createElement('div', { className: "flex items-center gap-3 mb-4" },
         React.createElement('button', {
-          onClick: () => setShowUILab(false),
+          onClick: () => onClose(),
           className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-        },
+      ,
           React.createElement(ChevronLeft, { className: "w-5 h-5" })
         ),
         React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
@@ -1416,7 +1237,7 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement('div', { className: "mb-4" },
         React.createElement('label', { 
           className: "block text-sm font-medium text-gray-700 mb-2" 
-        }, 'UI Version'),
+      , 'UI Version'),
         window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
           value: uiVersion,
           options: [
@@ -1424,30 +1245,21 @@ const SettingsTab = ({ user, kidId }) => {
             { value: 'v2', label: 'v2' },
             { value: 'v3', label: 'v3' }
           ],
-          onChange: async (value) => {
-            try {
-              if (window.TT?.shared?.uiVersion?.setUIVersion) {
-                await window.TT.shared.uiVersion.setUIVersion(value);
-                // The listener will trigger a reload automatically
-              } else {
-                // Fallback to localStorage if Firestore not available
-                if (typeof window !== 'undefined' && window.localStorage) {
-                  window.localStorage.setItem('tt_ui_version', value);
-                  window.location.reload();
-                }
-              }
-            } catch (error) {
-              console.error('Error setting UI version:', error);
-            }
-          }
-        })
+          onChange: (value) => {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('tt_ui_version', value);
+              // Force reload to apply changes
+              window.location.reload();
+          
+        
+      )
       ),
 
       // Today Card Toggle (controls feature flag)
       React.createElement('div', { className: "mb-4" },
         React.createElement('label', { 
           className: "block text-sm font-medium text-gray-700 mb-2" 
-        }, 'Show Today Card'),
+      , 'Show Today Card'),
         window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
           value: showTodayCard ? 'on' : 'off',
           options: [
@@ -1461,9 +1273,9 @@ const SettingsTab = ({ user, kidId }) => {
               window.localStorage.setItem('tt_show_today_card', isOn ? 'true' : 'false');
               // Force reload to apply changes
               window.location.reload();
-            }
-          }
-        })
+          
+        
+      )
       ),
 
       // Title and subtitle
@@ -1634,7 +1446,7 @@ const SettingsTab = ({ user, kidId }) => {
       (uiVersion === 'v2' || uiVersion === 'v3') && (() => {
         if (loading) {
           return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
-        }
+      
         
         const targetOunces = (babyWeight || 0) * multiplier;
         const targetHours = sleepSettings?.sleepTargetHours || 14;
@@ -1649,7 +1461,7 @@ const SettingsTab = ({ user, kidId }) => {
             timelineItems: feedingCardData.timelineItems,
             lastEntryTime: feedingCardData.lastEntryTime,
             onItemClick: () => {} // No-op for UI Lab
-          }),
+        ),
           window.TrackerCard && React.createElement(window.TrackerCard, {
             mode: 'sleep',
             total: sleepCardData.total,
@@ -1657,9 +1469,9 @@ const SettingsTab = ({ user, kidId }) => {
             timelineItems: sleepCardData.timelineItems,
             lastEntryTime: sleepCardData.lastEntryTime,
             onItemClick: () => {} // No-op for UI Lab
-          })
+        )
         );
-      })(),
+    )(),
 
       // Old UI Section (v1)
       uiVersion === 'v1' && React.createElement('div', { className: "mt-8" },
@@ -1682,7 +1494,7 @@ const SettingsTab = ({ user, kidId }) => {
           React.createElement('button', {
             onClick: () => setShowFeedSheet(true),
             className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-          }, 'Open Feed Sheet'),
+        , 'Open Feed Sheet'),
           // Static preview (unchanged)
           window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet)
         ),
@@ -1692,7 +1504,7 @@ const SettingsTab = ({ user, kidId }) => {
           React.createElement('button', {
             onClick: () => setShowSleepSheet(true),
             className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-          }, 'Open Sleep Sheet'),
+        , 'Open Sleep Sheet'),
           // Static preview (unchanged)
           window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet)
         )
@@ -1706,7 +1518,7 @@ const SettingsTab = ({ user, kidId }) => {
           React.createElement('button', {
             onClick: () => setShowInputSheet(true),
             className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-          }, 'Open Input Sheet'),
+        , 'Open Input Sheet'),
           // Static preview
           window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet)
         )
@@ -1722,7 +1534,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement('button', {
               onClick: () => setShowAmountPickerTray(true),
               className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-            }, 'Open Amount Picker'),
+          , 'Open Amount Picker'),
             // Static preview
             React.createElement('div', {
               style: {
@@ -1734,8 +1546,8 @@ const SettingsTab = ({ user, kidId }) => {
                 boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
                 display: 'flex',
                 flexDirection: 'column'
-              }
-            },
+            
+          ,
               // Header row (3 columns)
               React.createElement('div', {
                 style: {
@@ -1744,12 +1556,12 @@ const SettingsTab = ({ user, kidId }) => {
                   alignItems: 'center',
                   padding: '10px 16px 10px', // Top padding matches bottom padding below toggle
                   borderBottom: '1px solid var(--tt-card-border)'
-                }
-              },
+              
+            ,
                 // Left: Unit toggle
                 React.createElement('div', {
                   style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
-                },
+              ,
                   window.SegmentedToggle
                     ? React.createElement(window.SegmentedToggle, {
                         value: amountPickerUnit,
@@ -1763,20 +1575,20 @@ const SettingsTab = ({ user, kidId }) => {
                             const s = Number(step) || 1;
                             const snapped = Math.round(n / s) * s;
                             return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-                          };
+                        ;
                           if (v === 'ml') {
                             const ml = snapToStep(amountPickerAmount * 29.5735, 10);
                             setAmountPickerUnit('ml');
                             setAmountPickerAmount(ml);
-                          } else {
+                         else {
                             const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
                             setAmountPickerUnit('oz');
                             setAmountPickerAmount(oz);
-                          }
-                        },
+                        
+                      ,
                         variant: 'body',
                         size: 'medium'
-                      })
+                    )
                     : React.createElement(
                         'button',
                         { 
@@ -1787,19 +1599,19 @@ const SettingsTab = ({ user, kidId }) => {
                               const s = Number(step) || 1;
                               const snapped = Math.round(n / s) * s;
                               return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-                            };
+                          ;
                             if (amountPickerUnit === 'ml') {
                               const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
                               setAmountPickerUnit('oz');
                               setAmountPickerAmount(oz);
-                            } else {
+                           else {
                               const ml = snapToStep(amountPickerAmount * 29.5735, 10);
                               setAmountPickerUnit('ml');
                               setAmountPickerAmount(ml);
-                            }
-                          }, 
+                          
+                        , 
                           type: 'button' 
-                        },
+                      ,
                         React.createElement('span', { style: amountPickerUnit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
                         React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
                         React.createElement('span', { style: amountPickerUnit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
@@ -1808,20 +1620,20 @@ const SettingsTab = ({ user, kidId }) => {
                 // Center: Title
                 React.createElement('div', {
                   style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
-                },
+              ,
                   React.createElement('h3', { 
                     style: { 
                       fontSize: '16px', 
                       fontWeight: '600', 
                       color: 'var(--tt-text-primary)', 
                       margin: 0 
-                    } 
-                  }, 'Amount')
+                   
+                , 'Amount')
                 ),
                 // Right: Done button (disabled in preview)
                 React.createElement('div', {
                   style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
-                },
+              ,
                   React.createElement('button', {
                     disabled: true,
                     style: {
@@ -1834,8 +1646,8 @@ const SettingsTab = ({ user, kidId }) => {
                       cursor: 'not-allowed',
                       borderRadius: '8px',
                       opacity: 0.5
-                    }
-                  }, 'Done')
+                  
+                , 'Done')
                 )
               ),
               // Content
@@ -1845,14 +1657,14 @@ const SettingsTab = ({ user, kidId }) => {
                   paddingLeft: '16px',
                   paddingRight: '16px',
                   paddingBottom: '16px'
-                }
-              },
+              
+            ,
                 React.createElement(AmountPickerLabSection, {
                   unit: amountPickerUnit,
                   setUnit: setAmountPickerUnit,
                   amount: amountPickerAmount,
                   setAmount: setAmountPickerAmount
-                })
+              )
               )
             )
           ),
@@ -1861,7 +1673,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement('button', {
               onClick: () => setShowDateTimePickerTray(true),
               className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-            }, 'Open Date/Time Picker'),
+          , 'Open Date/Time Picker'),
             // Static preview
             React.createElement('div', {
               style: {
@@ -1873,8 +1685,8 @@ const SettingsTab = ({ user, kidId }) => {
                 boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
                 display: 'flex',
                 flexDirection: 'column'
-              }
-            },
+            
+          ,
               // Header row (3 columns)
               React.createElement('div', {
                 style: {
@@ -1883,29 +1695,29 @@ const SettingsTab = ({ user, kidId }) => {
                   alignItems: 'center',
                   padding: '10px 16px 10px', // Top padding matches bottom padding below toggle
                   borderBottom: '1px solid var(--tt-card-border)'
-                }
-              },
+              
+            ,
                 // Left: Empty
                 React.createElement('div', {
                   style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
-                }),
+              ),
                 // Center: Title
                 React.createElement('div', {
                   style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
-                },
+              ,
                   React.createElement('h3', { 
                     style: { 
                       fontSize: '16px', 
                       fontWeight: '600', 
                       color: 'var(--tt-text-primary)', 
                       margin: 0 
-                    } 
-                  }, 'Time')
+                   
+                , 'Time')
                 ),
                 // Right: Done button (disabled in preview)
                 React.createElement('div', {
                   style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
-                },
+              ,
                   React.createElement('button', {
                     disabled: true,
                     style: {
@@ -1918,8 +1730,8 @@ const SettingsTab = ({ user, kidId }) => {
                       cursor: 'not-allowed',
                       borderRadius: '8px',
                       opacity: 0.5
-                    }
-                  }, 'Done')
+                  
+                , 'Done')
                 )
               ),
               // Content
@@ -1929,8 +1741,8 @@ const SettingsTab = ({ user, kidId }) => {
                   paddingLeft: '16px',
                   paddingRight: '16px',
                   paddingBottom: '16px'
-                }
-              },
+              
+            ,
                 React.createElement(DateTimePickerLabSection)
               )
             )
@@ -1942,16 +1754,16 @@ const SettingsTab = ({ user, kidId }) => {
       window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
         isOpen: showFeedSheet,
         onClose: () => setShowFeedSheet(false)
-      }),
+    ),
       window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
         isOpen: showSleepSheet,
         onClose: () => setShowSleepSheet(false)
-      }),
+    ),
       // Overlay input half sheet
       window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
         isOpen: showInputSheet,
         onClose: () => setShowInputSheet(false)
-      }),
+    ),
       // Overlay amount picker tray
       React.createElement(TTPickerTray, {
         isOpen: showAmountPickerTray,
@@ -1962,7 +1774,7 @@ const SettingsTab = ({ user, kidId }) => {
           // Left: Unit toggle
           React.createElement('div', {
             style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
-          },
+        ,
             window.SegmentedToggle
               ? React.createElement(window.SegmentedToggle, {
                   value: amountPickerUnit,
@@ -1976,20 +1788,20 @@ const SettingsTab = ({ user, kidId }) => {
                       const s = Number(step) || 1;
                       const snapped = Math.round(n / s) * s;
                       return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-                    };
+                  ;
                     if (v === 'ml') {
                       const ml = snapToStep(amountPickerAmount * 29.5735, 10);
                       setAmountPickerUnit('ml');
                       setAmountPickerAmount(ml);
-                    } else {
+                   else {
                       const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
                       setAmountPickerUnit('oz');
                       setAmountPickerAmount(oz);
-                    }
-                  },
+                  
+                ,
                   variant: 'body',
                   size: 'medium'
-                })
+              )
               : React.createElement(
                   'button',
                   { 
@@ -2000,19 +1812,19 @@ const SettingsTab = ({ user, kidId }) => {
                         const s = Number(step) || 1;
                         const snapped = Math.round(n / s) * s;
                         return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-                      };
+                    ;
                       if (amountPickerUnit === 'ml') {
                         const oz = snapToStep(amountPickerAmount / 29.5735, 0.25);
                         setAmountPickerUnit('oz');
                         setAmountPickerAmount(oz);
-                      } else {
+                     else {
                         const ml = snapToStep(amountPickerAmount * 29.5735, 10);
                         setAmountPickerUnit('ml');
                         setAmountPickerAmount(ml);
-                      }
-                    }, 
+                    
+                  , 
                     type: 'button' 
-                  },
+                ,
                   React.createElement('span', { style: amountPickerUnit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
                   React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
                   React.createElement('span', { style: amountPickerUnit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
@@ -2021,20 +1833,20 @@ const SettingsTab = ({ user, kidId }) => {
           // Center: Title
           React.createElement('div', {
             style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
-          },
+        ,
             React.createElement('h3', { 
               style: { 
                 fontSize: '16px', 
                 fontWeight: '600', 
                 color: 'var(--tt-text-primary)', 
                 margin: 0 
-              } 
-            }, 'Amount')
+             
+          , 'Amount')
           ),
           // Right: Done button
           React.createElement('div', {
             style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
-          },
+        ,
             React.createElement('button', {
               onClick: () => setShowAmountPickerTray(false),
               style: {
@@ -2046,19 +1858,19 @@ const SettingsTab = ({ user, kidId }) => {
                 padding: '8px 16px',
                 cursor: 'pointer',
                 borderRadius: '8px'
-              },
+            ,
               onMouseEnter: (e) => e.target.style.backgroundColor = 'var(--tt-subtle-surface)',
               onMouseLeave: (e) => e.target.style.backgroundColor = 'transparent'
-            }, 'Done')
+          , 'Done')
           )
         )
-      },
+    ,
         React.createElement(AmountPickerLabSection, {
           unit: amountPickerUnit,
           setUnit: setAmountPickerUnit,
           amount: amountPickerAmount,
           setAmount: setAmountPickerAmount
-        })
+      )
       ),
       // Overlay date/time picker tray
       React.createElement(TTPickerTray, {
@@ -2070,24 +1882,24 @@ const SettingsTab = ({ user, kidId }) => {
           // Left: Empty
           React.createElement('div', {
             style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }
-          }),
+        ),
           // Center: Title
           React.createElement('div', {
             style: { display: 'flex', justifyContent: 'center', alignItems: 'center' }
-          },
+        ,
             React.createElement('h3', { 
               style: { 
                 fontSize: '16px', 
                 fontWeight: '600', 
                 color: 'var(--tt-text-primary)', 
                 margin: 0 
-              } 
-            }, 'Time')
+             
+          , 'Time')
           ),
           // Right: Done button
           React.createElement('div', {
             style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }
-          },
+        ,
             React.createElement('button', {
               onClick: () => setShowDateTimePickerTray(false),
               style: {
@@ -2099,13 +1911,13 @@ const SettingsTab = ({ user, kidId }) => {
                 padding: '8px 16px',
                 cursor: 'pointer',
                 borderRadius: '8px'
-              },
+            ,
               onMouseEnter: (e) => e.target.style.backgroundColor = 'var(--tt-subtle-surface)',
               onMouseLeave: (e) => e.target.style.backgroundColor = 'transparent'
-            }, 'Done')
+          , 'Done')
           )
         )
-      },
+    ,
         React.createElement(DateTimePickerLabSection)
       ),
 
@@ -2264,17 +2076,17 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "flex flex-wrap gap-3 items-center" },
                 React.createElement('button', {
                   className: "bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition"
-                }, 'Primary Button'),
+              , 'Primary Button'),
                 React.createElement('button', {
                   className: "bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-                },
+              ,
                   React.createElement(Plus, { className: "w-5 h-5" }),
                   'With Icon'
                 ),
                 React.createElement('button', {
                   className: "bg-indigo-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-indigo-700 transition opacity-50 cursor-not-allowed",
                   disabled: true
-                }, 'Disabled')
+              , 'Disabled')
               )
             )
           ),
@@ -2286,14 +2098,14 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "flex flex-wrap gap-3 items-center" },
                 React.createElement('button', {
                   className: "bg-gray-100 text-gray-600 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition"
-                }, 'Secondary Button'),
+              , 'Secondary Button'),
                 React.createElement('button', {
                   className: "bg-gray-100 text-gray-600 py-3 px-6 rounded-lg font-semibold hover:bg-gray-200 transition flex items-center justify-center"
-                }, React.createElement(Clock, { className: "w-5 h-5" })),
+              , React.createElement(Clock, { className: "w-5 h-5" })),
                 React.createElement('button', {
                   className: "bg-gray-100 text-gray-600 py-3 px-6 rounded-lg font-semibold opacity-50 cursor-not-allowed",
                   disabled: true
-                }, 'Disabled')
+              , 'Disabled')
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab (time picker), various secondary actions')
@@ -2306,14 +2118,14 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "flex flex-wrap gap-3 items-center" },
                 React.createElement('button', {
                   className: "bg-red-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-red-700 transition"
-                }, 'Delete Account'),
+              , 'Delete Account'),
                 React.createElement('button', {
                   className: "bg-red-50 text-red-600 py-3 px-6 rounded-lg font-semibold hover:bg-red-100 transition"
-                }, 'Sign Out'),
+              , 'Sign Out'),
                 React.createElement('button', {
                   className: "bg-red-600 text-white py-3 px-6 rounded-lg font-semibold opacity-50 cursor-not-allowed",
                   disabled: true
-                }, 'Disabled')
+              , 'Disabled')
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: SettingsTab (Delete Account, Sign Out)')
@@ -2326,17 +2138,17 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "flex flex-wrap gap-3 items-center" },
                 React.createElement('button', {
                   className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-                }, React.createElement(Edit2, { className: "w-5 h-5" })),
+              , React.createElement(Edit2, { className: "w-5 h-5" })),
                 React.createElement('button', {
                   className: "p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
-                }, React.createElement(X, { className: "w-5 h-5" })),
+              , React.createElement(X, { className: "w-5 h-5" })),
                 React.createElement('button', {
                   className: "p-2 text-green-600 hover:bg-green-50 rounded-lg transition"
-                }, React.createElement(Check, { className: "w-5 h-5" })),
+              , React.createElement(Check, { className: "w-5 h-5" })),
                 React.createElement('button', {
                   className: "p-2 text-gray-400 rounded-lg cursor-not-allowed",
                   disabled: true
-                }, React.createElement(Edit2, { className: "w-5 h-5" }))
+              , React.createElement(Edit2, { className: "w-5 h-5" }))
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab (edit/delete actions), FamilyTab (edit fields), various cards')
@@ -2348,13 +2160,13 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement('div', { className: "space-y-3" },
               React.createElement('button', {
                 className: "w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-              },
+            ,
                 React.createElement(Plus, { className: "w-5 h-5" }),
                 'Add Feeding'
               ),
               React.createElement('button', {
                 className: "w-full bg-gray-100 text-gray-600 py-3 rounded-lg font-semibold hover:bg-gray-200 transition"
-              }, 'Cancel')
+            , 'Cancel')
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab (Add Feeding), Input Cards, various forms')
           )
@@ -2374,11 +2186,11 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('button', {
                   type: 'button',
                   className: "h-10 w-full rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center text-green-600"
-                }, React.createElement(Check, { className: "w-5 h-5" })),
+              , React.createElement(Check, { className: "w-5 h-5" })),
                 React.createElement('button', {
                   type: 'button',
                   className: "h-10 w-full rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500"
-                }, React.createElement(X, { className: "w-5 h-5" }))
+              , React.createElement(X, { className: "w-5 h-5" }))
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab (edit feeding/sleep entries)')
@@ -2403,7 +2215,7 @@ const SettingsTab = ({ user, kidId }) => {
                     type: "text",
                     placeholder: "Enter text",
                     className: "w-full px-4 py-2.5 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                  })
+                )
                 ),
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Focused'),
@@ -2411,7 +2223,7 @@ const SettingsTab = ({ user, kidId }) => {
                     type: "text",
                     value: "Sample text",
                     className: "w-full px-4 py-2.5 text-base border-2 border-indigo-400 rounded-lg focus:outline-none focus:border-indigo-500"
-                  })
+                )
                 ),
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Error'),
@@ -2419,7 +2231,7 @@ const SettingsTab = ({ user, kidId }) => {
                     type: "text",
                     value: "Invalid input",
                     className: "w-full px-4 py-2.5 text-base border-2 border-red-300 rounded-lg focus:outline-none focus:border-red-400"
-                  })
+                )
                 ),
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Disabled'),
@@ -2428,7 +2240,7 @@ const SettingsTab = ({ user, kidId }) => {
                     value: "Disabled",
                     disabled: true,
                     className: "w-full px-4 py-2.5 text-base border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
-                  })
+                )
                 )
               )
             ),
@@ -2449,7 +2261,7 @@ const SettingsTab = ({ user, kidId }) => {
                       step: "0.25",
                       placeholder: "0.0",
                       className: "w-full px-4 py-2.5 pr-12 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                    }),
+                  ),
                     React.createElement('span', { className: "absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none" }, 'oz')
                   )
                 ),
@@ -2462,7 +2274,7 @@ const SettingsTab = ({ user, kidId }) => {
                       step: "0.1",
                       placeholder: "0.0",
                       className: "w-full px-4 py-2.5 pr-12 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                    }),
+                  ),
                     React.createElement('span', { className: "absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500 pointer-events-none" }, 'lbs')
                   )
                 )
@@ -2483,7 +2295,7 @@ const SettingsTab = ({ user, kidId }) => {
                     placeholder: "email@example.com",
                     autoComplete: "email",
                     className: "w-full px-4 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                  })
+                )
                 ),
                 React.createElement('div', null,
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Password'),
@@ -2492,7 +2304,7 @@ const SettingsTab = ({ user, kidId }) => {
                     placeholder: "Password",
                     autoComplete: "current-password",
                     className: "w-full px-4 py-2.5 text-sm border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                  })
+                )
                 )
               )
             ),
@@ -2510,7 +2322,7 @@ const SettingsTab = ({ user, kidId }) => {
                     type: "time",
                     defaultValue: "14:30",
                     className: "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                  })
+                )
                 ),
                 React.createElement('div', { className: "min-w-0" },
                   React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Birth Date'),
@@ -2518,7 +2330,7 @@ const SettingsTab = ({ user, kidId }) => {
                     type: "date",
                     defaultValue: "2024-01-15",
                     className: "w-full min-w-0 max-w-full appearance-none box-border px-4 py-3 text-lg border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                  })
+                )
                 )
               )
             ),
@@ -2534,13 +2346,13 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('div', {
                   className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 cursor-pointer hover:bg-gray-100 transition',
                   onClick: () => {}
-                },
+              ,
                   React.createElement('div', { className: 'flex items-center' },
                     React.createElement('div', { className: 'text-xs font-medium text-gray-500' }, 'Target multiplier (oz/lb)'),
                     React.createElement('div', {
                       className: 'ml-2 w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] flex items-center justify-center cursor-help',
                       title: 'Info tooltip'
-                    }, 'i')
+                  , 'i')
                   ),
                   React.createElement('div', { className: 'flex items-center justify-between mt-1' },
                     React.createElement('div', { className: 'text-base font-semibold text-gray-900' }, '2.5x'),
@@ -2550,13 +2362,13 @@ const SettingsTab = ({ user, kidId }) => {
                 // Edit state
                 React.createElement('div', {
                   className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3'
-                },
+              ,
                   React.createElement('div', { className: 'flex items-center' },
                     React.createElement('div', { className: 'text-xs font-medium text-gray-500' }, 'Target multiplier (oz/lb)'),
                     React.createElement('div', {
                       className: 'ml-2 w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] flex items-center justify-center cursor-help',
                       title: 'Info tooltip'
-                    }, 'i')
+                  , 'i')
                   ),
                   React.createElement('div', { className: 'flex items-center gap-2 mt-2' },
                     React.createElement('input', {
@@ -2564,14 +2376,14 @@ const SettingsTab = ({ user, kidId }) => {
                       step: '0.1',
                       defaultValue: '2.5',
                       className: 'w-28 px-3 py-2 border-2 border-indigo-300 rounded-lg text-sm text-right focus:outline-none focus:border-indigo-500'
-                    }),
+                  ),
                     React.createElement('span', { className: 'text-gray-600' }, 'x'),
                     React.createElement('button', {
                       className: 'h-10 w-10 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center text-green-600'
-                    }, React.createElement(Check, { className: 'w-5 h-5' })),
+                  , React.createElement(Check, { className: 'w-5 h-5' })),
                     React.createElement('button', {
                       className: 'h-10 w-10 rounded-lg border border-gray-300 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500'
-                    }, React.createElement(X, { className: 'w-5 h-5' }))
+                  , React.createElement(X, { className: 'w-5 h-5' }))
                   )
                 )
               )
@@ -2586,7 +2398,7 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', {
                 className: 'flex items-center gap-2 bg-white rounded-xl px-3 py-1.5 border border-gray-200',
                 style: { boxShadow: '0 0 0 3px #EEF2FF' }
-              },
+            ,
                 React.createElement('textarea', {
                   placeholder: 'Message',
                   rows: 1,
@@ -2597,12 +2409,12 @@ const SettingsTab = ({ user, kidId }) => {
                     const el = e.target;
                     el.style.height = 'auto';
                     el.style.height = el.scrollHeight + 'px';
-                  }
-                }),
+                
+              ),
                 React.createElement('button', {
                   className: 'flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition',
                   style: { backgroundColor: '#4F46E5' }
-                },
+              ,
                   React.createElement(Send, { className: 'w-4 h-4 text-white' })
                 )
               )
@@ -2639,7 +2451,7 @@ const SettingsTab = ({ user, kidId }) => {
             variant: "pressable",
             className: "rounded-xl",
             onClick: () => alert('Card clicked!')
-          },
+        ,
             React.createElement('div', { className: "text-base font-semibold text-gray-800 mb-2" }, 'Pressable Card'),
             React.createElement('div', { className: "text-sm font-normal text-gray-600 mb-2" }, 'Interactive card with hover/active states. Click or press Enter/Space.'),
             React.createElement('div', { className: "text-xs text-gray-500" }, 'Used in: (none yet; candidate for highlight tiles)')
@@ -2660,11 +2472,11 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "flex items-center justify-between mb-8" },
                 React.createElement('button', {
                   className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
-                }, React.createElement(ChevronLeft, { className: "w-5 h-5" })),
+              , React.createElement(ChevronLeft, { className: "w-5 h-5" })),
                 React.createElement('h2', { className: "text-lg font-semibold text-gray-800" }, 'Today'),
                 React.createElement('button', {
                   className: "p-2 text-indigo-400 hover:bg-indigo-50 rounded-lg transition"
-                }, React.createElement(ChevronRight, { className: "w-5 h-5" }))
+              , React.createElement(ChevronRight, { className: "w-5 h-5" }))
               ),
               React.createElement('div', { className: "mb-8" },
                 React.createElement('div', { className: "flex items-center justify-between mb-2" },
@@ -2675,7 +2487,7 @@ const SettingsTab = ({ user, kidId }) => {
                   React.createElement('div', {
                     className: "absolute left-0 top-0 h-full rounded-full",
                     style: { width: '35%', background: '#EB4899' }
-                  })
+                )
                 ),
                 React.createElement('div', { className: "flex items-baseline justify-between" },
                   React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#EB4899' } },
@@ -2693,7 +2505,7 @@ const SettingsTab = ({ user, kidId }) => {
                   React.createElement('div', {
                     className: "absolute left-0 top-0 h-full rounded-full",
                     style: { width: '42%', background: '#4F47E6' }
-                  })
+                )
                 ),
                 React.createElement('div', { className: "flex items-baseline justify-between" },
                   React.createElement('div', { className: "text-2xl font-semibold", style: { color: '#4F47E6' } },
@@ -2713,10 +2525,10 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "mt-3 mb-4 inline-flex w-full bg-gray-100 rounded-xl p-1" },
                 React.createElement('button', {
                   className: "flex-1 py-2 rounded-lg bg-white shadow text-gray-900 font-semibold"
-                }, 'Feed'),
+              , 'Feed'),
                 React.createElement('button', {
                   className: "flex-1 py-2 rounded-lg text-gray-600"
-                }, 'Sleep')
+              , 'Sleep')
               ),
               React.createElement('div', { className: "space-y-3" },
                 React.createElement('div', { className: "flex gap-3 min-w-0" },
@@ -2724,14 +2536,14 @@ const SettingsTab = ({ user, kidId }) => {
                     type: "number",
                     placeholder: "Ounces",
                     className: "min-w-0 flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-lg focus:outline-none focus:border-indigo-400"
-                  }),
+                ),
                   React.createElement('button', {
                     className: "shrink-0 px-4 py-2.5 rounded-lg bg-gray-100 text-gray-600"
-                  }, React.createElement(Clock, { className: "w-5 h-5" }))
+                , React.createElement(Clock, { className: "w-5 h-5" }))
                 ),
                 React.createElement('button', {
                   className: "w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2"
-                },
+              ,
                   React.createElement(Plus, { className: "w-5 h-5" }),
                   'Add Feeding'
                 )
@@ -2751,7 +2563,7 @@ const SettingsTab = ({ user, kidId }) => {
                     React.createElement('div', { 
                       className: "bg-indigo-100 rounded-full flex items-center justify-center",
                       style: { width: '48px', height: '48px' }
-                    },
+                  ,
                       React.createElement(Milk, { className: "w-6 h-6 text-indigo-600" })
                     ),
                     React.createElement('div', null,
@@ -2773,7 +2585,7 @@ const SettingsTab = ({ user, kidId }) => {
                     React.createElement('div', { 
                       className: "bg-indigo-100 rounded-full flex items-center justify-center",
                       style: { width: '48px', height: '48px' }
-                    },
+                  ,
                       React.createElement(Milk, { className: "w-6 h-6 text-indigo-600" })
                     ),
                     React.createElement('div', null,
@@ -2827,7 +2639,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { 
               variant: "pressable",
               className: "rounded-xl"
-            },
+          ,
               React.createElement('div', { className: "flex items-center justify-between mb-3" },
                 React.createElement('div', { className: "flex items-center gap-2" },
                   React.createElement(Milk, { className: "w-5 h-5", style: { color: '#EC4899' } }),
@@ -2845,7 +2657,7 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { 
                 style: { height: '240px' }, 
                 className: "bg-gray-50 rounded overflow-hidden relative"
-              },
+            ,
                 // Grid lines to suggest chart structure
                 React.createElement('div', { className: "absolute inset-0 flex flex-col justify-between py-4" },
                   React.createElement('div', { className: "border-t border-gray-200" }),
@@ -2877,18 +2689,18 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('div', {
                   className: "overflow-x-auto overflow-y-hidden -mx-6 px-6",
                   style: { scrollBehavior: 'smooth' }
-                },
+              ,
                   React.createElement('div', {
                     className: "flex gap-6 pb-2",
                     style: { minWidth: '560px' }
-                  },
+                ,
                     // Static placeholder bars with fixed heights
                     React.createElement('div', { className: "flex flex-col items-center gap-2 flex-shrink-0" },
                       React.createElement('div', { className: "flex flex-col justify-end items-center", style: { height: '180px', width: '60px' } },
                         React.createElement('div', {
                           className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
                           style: { height: '140px', minHeight: '30px' }
-                        },
+                      ,
                           React.createElement('div', { className: "text-white font-semibold" },
                             React.createElement('span', { className: "text-xs" }, '18.5'),
                             React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
@@ -2903,7 +2715,7 @@ const SettingsTab = ({ user, kidId }) => {
                         React.createElement('div', {
                           className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
                           style: { height: '120px', minHeight: '30px' }
-                        },
+                      ,
                           React.createElement('div', { className: "text-white font-semibold" },
                             React.createElement('span', { className: "text-xs" }, '15.8'),
                             React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
@@ -2918,7 +2730,7 @@ const SettingsTab = ({ user, kidId }) => {
                         React.createElement('div', {
                           className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
                           style: { height: '160px', minHeight: '30px' }
-                        },
+                      ,
                           React.createElement('div', { className: "text-white font-semibold" },
                             React.createElement('span', { className: "text-xs" }, '21.2'),
                             React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
@@ -2933,7 +2745,7 @@ const SettingsTab = ({ user, kidId }) => {
                         React.createElement('div', {
                           className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
                           style: { height: '100px', minHeight: '30px' }
-                        },
+                      ,
                           React.createElement('div', { className: "text-white font-semibold" },
                             React.createElement('span', { className: "text-xs" }, '12.5'),
                             React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
@@ -2948,7 +2760,7 @@ const SettingsTab = ({ user, kidId }) => {
                         React.createElement('div', {
                           className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
                           style: { height: '150px', minHeight: '30px' }
-                        },
+                      ,
                           React.createElement('div', { className: "text-white font-semibold" },
                             React.createElement('span', { className: "text-xs" }, '19.3'),
                             React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
@@ -2963,7 +2775,7 @@ const SettingsTab = ({ user, kidId }) => {
                         React.createElement('div', {
                           className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
                           style: { height: '130px', minHeight: '30px' }
-                        },
+                      ,
                           React.createElement('div', { className: "text-white font-semibold" },
                             React.createElement('span', { className: "text-xs" }, '16.7'),
                             React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
@@ -2978,7 +2790,7 @@ const SettingsTab = ({ user, kidId }) => {
                         React.createElement('div', {
                           className: "w-full bg-indigo-600 rounded-t-lg flex flex-col items-center justify-start pt-2",
                           style: { height: '170px', minHeight: '30px' }
-                        },
+                      ,
                           React.createElement('div', { className: "text-white font-semibold" },
                             React.createElement('span', { className: "text-xs" }, '20.1'),
                             React.createElement('span', { className: "text-[10px] opacity-70 ml-0.5" }, 'oz')
@@ -3081,7 +2893,7 @@ const SettingsTab = ({ user, kidId }) => {
                   React.createElement(Baby, { className: "w-12 h-12 text-indigo-600" }),
                   React.createElement('div', {
                     className: "absolute bottom-0 right-0 w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center border-2 border-white"
-                  },
+                ,
                     React.createElement(Camera, { className: "w-4 h-4 text-white" })
                   )
                 ),
@@ -3120,13 +2932,13 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "space-y-2" },
                 React.createElement('button', {
                   className: "w-full px-4 py-3 rounded-lg border border-indigo-500 bg-indigo-50 text-gray-900 flex items-center justify-between text-sm"
-                },
+              ,
                   React.createElement('span', { className: "font-medium" }, 'Levi'),
                   React.createElement('span', { className: "text-xs font-semibold text-indigo-600" }, 'Active')
                 ),
                 React.createElement('button', {
                   className: "w-full px-4 py-3 rounded-lg border border-gray-200 bg-gray-50 text-gray-700 flex items-center justify-between text-sm"
-                },
+              ,
                   React.createElement('span', { className: "font-medium" }, 'Emma')
                 )
               ),
@@ -3161,7 +2973,7 @@ const SettingsTab = ({ user, kidId }) => {
               ),
               React.createElement('button', {
                 className: "w-full bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2 py-3"
-              },
+            ,
                 React.createElement(UserPlus, { className: "w-5 h-5" }),
                 '+ Invite Partner'
               )
@@ -3184,10 +2996,10 @@ const SettingsTab = ({ user, kidId }) => {
                 ),
                 React.createElement('button', {
                   className: "w-full bg-red-50 text-red-600 py-3 rounded-lg font-semibold hover:bg-red-100 transition"
-                }, 'Sign Out'),
+              , 'Sign Out'),
                 React.createElement('button', {
                   className: "w-full bg-red-600 text-white py-3 rounded-lg font-semibold hover:bg-red-700 transition"
-                }, 'Delete My Account')
+              , 'Delete My Account')
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: SettingsTab')
@@ -3200,7 +3012,7 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('h2', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Share & Support'),
               React.createElement('button', {
                 className: "w-full bg-indigo-50 text-indigo-600 py-3 rounded-lg font-semibold hover:bg-indigo-100 transition flex items-center justify-center gap-2"
-              },
+            ,
                 React.createElement(ShareIcon, { className: "w-5 h-5" }),
                 'Share Tiny Tracker'
               ),
@@ -3228,7 +3040,7 @@ const SettingsTab = ({ user, kidId }) => {
                 value: 'week',
                 onChange: () => {},
                 className: "mb-2"
-              }),
+            ),
               React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab')
             )
           ),
@@ -3247,7 +3059,7 @@ const SettingsTab = ({ user, kidId }) => {
                   onChange: () => {},
                   variant: 'body',
                   size: 'medium'
-                }),
+              ),
                 React.createElement(SegmentedToggle, {
                   value: 'option1',
                   options: [
@@ -3258,7 +3070,7 @@ const SettingsTab = ({ user, kidId }) => {
                   onChange: () => {},
                   variant: 'body',
                   size: 'medium'
-                })
+              )
               ),
               React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab')
             )
@@ -3277,7 +3089,7 @@ const SettingsTab = ({ user, kidId }) => {
                 ],
                 onChange: () => {},
                 ariaLabel: 'Time range'
-              }),
+            ),
               React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: AnalyticsTab subpages (modals)')
             )
           )
@@ -3301,13 +3113,13 @@ const SettingsTab = ({ user, kidId }) => {
                     React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'Start'),
                     React.createElement('div', {
                       className: "inline-block px-3 py-2 rounded-lg bg-gray-50 text-indigo-600 font-semibold text-lg"
-                    }, '10:15 PM')
+                  , '10:15 PM')
                   ),
                   React.createElement('div', null,
                     React.createElement('div', { className: "text-sm text-gray-500 mb-1" }, 'End'),
                     React.createElement('div', {
                       className: "inline-block px-3 py-2 rounded-lg bg-gray-50 text-indigo-600 font-semibold text-lg"
-                    }, '--:--')
+                  , '--:--')
                   )
                 ),
                 // Large elapsed time display
@@ -3315,7 +3127,7 @@ const SettingsTab = ({ user, kidId }) => {
                 // End Sleep button
                 React.createElement('button', {
                   className: "w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold"
-                }, 'End Sleep')
+              , 'End Sleep')
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: TrackerTab (Sleep logging)')
@@ -3376,7 +3188,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { 
               variant: "pressable",
               className: "rounded-xl"
-            },
+          ,
               React.createElement('div', { className: "flex items-center justify-between mb-3" },
                 React.createElement('div', { className: "flex items-center gap-2" },
                   React.createElement(Milk, { className: "w-5 h-5", style: { color: '#EC4899' } }),
@@ -3393,7 +3205,7 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { 
                 style: { height: '240px' }, 
                 className: "bg-gray-50 rounded overflow-hidden relative"
-              },
+            ,
                 React.createElement('div', { className: "absolute inset-0 flex flex-col justify-between py-4" },
                   React.createElement('div', { className: "border-t border-gray-200" }),
                   React.createElement('div', { className: "border-t border-gray-200" }),
@@ -3434,7 +3246,7 @@ const SettingsTab = ({ user, kidId }) => {
                     React.createElement('div', {
                       className: "absolute left-0 top-0 h-full bg-indigo-600 rounded-full",
                       style: { width: '35%', transition: "width 300ms ease-out" }
-                    })
+                  )
                   ),
                   React.createElement('div', { className: "mt-1 flex items-baseline justify-between" },
                     React.createElement('div', { className: "text-base font-semibold text-indigo-600" },
@@ -3454,7 +3266,7 @@ const SettingsTab = ({ user, kidId }) => {
                     React.createElement('div', {
                       className: "absolute left-0 top-0 h-full bg-indigo-600 rounded-full",
                       style: { width: '42%', transition: "width 300ms ease-out" }
-                    })
+                  )
                   ),
                   React.createElement('div', { className: "mt-1 flex items-baseline justify-between" },
                     React.createElement('div', { className: "text-base font-semibold text-indigo-600" },
@@ -3474,7 +3286,7 @@ const SettingsTab = ({ user, kidId }) => {
                     React.createElement('div', {
                       className: "absolute left-0 top-0 h-full bg-green-500 rounded-full",
                       style: { width: '100%', transition: "width 300ms ease-out" }
-                    })
+                  )
                   ),
                   React.createElement('div', { className: "mt-1 flex items-baseline justify-between" },
                     React.createElement('div', { className: "text-base font-semibold text-green-600" },
@@ -3507,7 +3319,7 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('div', { className: "flex justify-end" },
                   React.createElement('div', {
                     className: "max-w-[75%] rounded-lg px-4 py-3 bg-indigo-600 text-white"
-                  },
+                ,
                     React.createElement('div', { className: "whitespace-pre-wrap text-[15px]" }, 'This is a user message'),
                     React.createElement('div', { className: "text-[11px] mt-1 text-indigo-200" }, '2:30 PM')
                   )
@@ -3516,7 +3328,7 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('div', { className: "flex justify-start" },
                   React.createElement('div', {
                     className: "max-w-[75%] rounded-lg px-4 py-3 bg-gray-200 text-gray-900"
-                  },
+                ,
                     React.createElement('div', { className: "font-semibold text-sm text-gray-700 mb-1" }, 'Tiny Tracker'),
                     React.createElement('div', { className: "whitespace-pre-wrap text-[15px]" }, 'This is an assistant message'),
                     React.createElement('div', { className: "text-[11px] mt-1 text-gray-500" }, '2:31 PM')
@@ -3533,14 +3345,14 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('button', {
                   className: "w-8 h-8 rounded-full flex items-center justify-center transition",
                   style: { backgroundColor: '#4F46E5' }
-                },
+              ,
                   React.createElement(Send, { className: "w-4 h-4 text-white" })
                 ),
                 React.createElement('button', {
                   className: "w-8 h-8 rounded-full flex items-center justify-center transition opacity-30",
                   style: { backgroundColor: '#4F46E5' },
                   disabled: true
-                },
+              ,
                   React.createElement(Send, { className: "w-4 h-4 text-white" })
                 )
               )
@@ -3562,35 +3374,35 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('button', {
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: { color: '#4F46E5' }
-                },
+              ,
                   React.createElement(BarChart, { className: "w-6 h-6" }),
                   React.createElement('span', { className: "text-xs font-medium" }, 'Tracker')
                 ),
                 React.createElement('button', {
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: { color: '#9CA3AF' }
-                },
+              ,
                   React.createElement(TrendingUp, { className: "w-6 h-6" }),
                   React.createElement('span', { className: "text-xs font-medium" }, 'Analytics')
                 ),
                 React.createElement('button', {
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: { color: '#9CA3AF' }
-                },
+              ,
                   React.createElement(MessageCircle, { className: "w-6 h-6" }),
                   React.createElement('span', { className: "text-xs font-medium" }, 'AI Chat')
                 ),
                 React.createElement('button', {
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: { color: '#9CA3AF' }
-                },
+              ,
                   React.createElement(Users, { className: "w-6 h-6" }),
                   React.createElement('span', { className: "text-xs font-medium" }, 'Family')
                 ),
                 React.createElement('button', {
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: { color: '#9CA3AF' }
-                },
+              ,
                   React.createElement(Menu, { className: "w-6 h-6" }),
                   React.createElement('span', { className: "text-xs font-medium" }, 'Settings')
                 )
@@ -3612,13 +3424,13 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "flex items-center gap-4" },
                 React.createElement('div', {
                   className: "w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold"
-                }, 'A'),
+              , 'A'),
                 React.createElement('div', {
                   className: "w-10 h-10 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 font-semibold"
-                }, 'M'),
+              , 'M'),
                 React.createElement('div', {
                   className: "w-24 h-24 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-semibold text-2xl"
-                }, 'A')
+              , 'A')
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: FamilyTab (family members), SettingsTab (account)')
@@ -3638,28 +3450,28 @@ const SettingsTab = ({ user, kidId }) => {
                 React.createElement('button', {
                   className: "w-9 h-9 rounded-full border-2 border-indigo-600 flex items-center justify-center",
                   style: { backgroundColor: '#E0E7FF' }
-                },
+              ,
                   React.createElement('div', {
                     className: "w-4 h-4 rounded-full",
                     style: { backgroundColor: '#4F46E5' }
-                  })
+                )
                 ),
                 React.createElement('button', {
                   className: "w-9 h-9 rounded-full border-2 border-transparent flex items-center justify-center",
                   style: { backgroundColor: '#FCE7F3' }
-                }),
+              ),
                 React.createElement('button', {
                   className: "w-9 h-9 rounded-full border-2 border-transparent flex items-center justify-center",
                   style: { backgroundColor: '#D1FAE5' }
-                }),
+              ),
                 React.createElement('button', {
                   className: "w-9 h-9 rounded-full border-2 border-transparent flex items-center justify-center",
                   style: { backgroundColor: '#FEF3C7' }
-                }),
+              ),
                 React.createElement('button', {
                   className: "w-9 h-9 rounded-full border-2 border-transparent flex items-center justify-center",
                   style: { backgroundColor: '#E0E7FF' }
-                })
+              )
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: FamilyTab (app color picker)')
@@ -3681,7 +3493,7 @@ const SettingsTab = ({ user, kidId }) => {
                   React.createElement('div', {
                     className: "w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] flex items-center justify-center cursor-help",
                     title: 'Info tooltip'
-                  }, 'i')
+                , 'i')
                 )
               )
             ),
@@ -3701,7 +3513,7 @@ const SettingsTab = ({ user, kidId }) => {
               React.createElement('div', { className: "flex items-center justify-center py-8" },
                 React.createElement('div', {
                   className: "animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"
-                })
+              )
               )
             ),
             React.createElement('div', { className: "text-xs text-gray-500 mt-2" }, 'Used in: App (initial load)')
@@ -3752,24 +3564,24 @@ const SettingsTab = ({ user, kidId }) => {
               const date = new Date(input.value);
               if (!isNaN(date.getTime())) {
                 handleEditorSave(date.toISOString());
-              } else {
+             else {
                 closeEditor();
-              }
-            } else {
+            
+           else {
               closeEditor();
-            }
-          } else if (editorState.type === 'notes') {
+          
+         else if (editorState.type === 'notes') {
             const textarea = document.getElementById('tt-editor-notes-input');
             if (textarea) {
               handleEditorSave(textarea.value);
-            } else {
+           else {
               closeEditor();
-            }
-          } else {
+          
+         else {
             closeEditor();
-          }
-        }
-      },
+        
+      
+    ,
         editorState.type === 'datetime' && React.createElement('div', { className: "space-y-4" },
           React.createElement('input', {
             id: 'tt-editor-datetime-input',
@@ -3777,7 +3589,7 @@ const SettingsTab = ({ user, kidId }) => {
             defaultValue: editorState.initialValue ? new Date(editorState.initialValue).toISOString().slice(0, 16) : new Date().toISOString().slice(0, 16),
             className: "w-full px-4 py-3 text-base border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-indigo-400",
             style: { fontSize: '16px' } // Prevent zoom on iOS
-          })
+        )
         ),
         editorState.type === 'notes' && React.createElement('div', { className: "space-y-4" },
           React.createElement('textarea', {
@@ -3788,359 +3600,15 @@ const SettingsTab = ({ user, kidId }) => {
             className: "w-full px-4 py-3 text-base border-2 border-gray-200 rounded-2xl focus:outline-none focus:border-indigo-400 resize-none",
             style: { fontSize: '16px' }, // Prevent zoom on iOS
             autoFocus: true
-          })
+        )
         )
       )
     );
-  }
 
-  // Main Settings page
-  return React.createElement('div', { className: "space-y-4" },
 
-    // Appearance Card
-    React.createElement(TTCard, { variant: "default" },
-      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Appearance'),
-      React.createElement('div', { className: "grid grid-cols-2 gap-4" },
-        // Top Left: Background Theme
-        React.createElement('div', null,
-          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Background Theme'),
-          React.createElement('div', { className: "flex gap-2" },
-            React.createElement('button', {
-              type: 'button',
-              onClick: async () => {
-                await handleAppearanceChange({ background: "health-gray" });
-              },
-              className: "w-11 h-11 rounded-full border-2 transition-all",
-              style: { 
-                backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['health-gray'] : BACKGROUND_COLORS.light['health-gray']),
-                borderColor: appearance.background === "health-gray" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
-                boxShadow: appearance.background === "health-gray" 
-                  ? (appearance.darkMode 
-                      ? '0 0 0 1.5px var(--tt-text-primary)' 
-                      : '0 0 0 1.5px var(--tt-card-bg)')
-                  : 'none',
-                transition: 'all 0.12s ease'
-              },
-              title: 'Gray'
-            }),
-            React.createElement('button', {
-              type: 'button',
-              onClick: async () => {
-                await handleAppearanceChange({ background: "eggshell" });
-              },
-              className: "w-11 h-11 rounded-full border-2 transition-all",
-              style: { 
-                backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['eggshell'] : BACKGROUND_COLORS.light['eggshell']),
-                borderColor: appearance.background === "eggshell" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
-                boxShadow: appearance.background === "eggshell" 
-                  ? (appearance.darkMode 
-                      ? '0 0 0 1.5px var(--tt-text-primary)' 
-                      : '0 0 0 1.5px var(--tt-card-bg)')
-                  : 'none',
-                transition: 'all 0.12s ease'
-              },
-              title: 'Coffee'
-            })
-          ),
-          null
-        ),
-
-        // Top Right: Dark Mode
-        React.createElement('div', null,
-          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Dark Mode'),
-          window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-            value: appearance.darkMode ? 'dark' : 'light',
-            options: [
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' }
-            ],
-            onChange: async (value) => {
-              await handleAppearanceChange({ darkMode: value === 'dark' });
-            },
-            variant: 'body',
-            size: 'medium'
-          })
-        ),
-
-        // Bottom Left: Feed Accent
-        React.createElement('div', null,
-          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Feed Accent'),
-          React.createElement('button', {
-            type: 'button',
-            onClick: () => setShowFeedColorModal(true),
-            className: "flex items-center gap-2 py-2 rounded-lg transition w-full justify-start",
-            style: {
-              backgroundColor: 'var(--tt-card-bg)',
-              paddingLeft: '0',
-              paddingRight: '12px'
-            }
-          },
-            React.createElement('div', {
-              className: "w-11 h-11 rounded-full border-2",
-              style: { 
-                backgroundColor: getPreviewColor(appearance.feedAccent, feedVariant, appearance.darkMode),
-                borderColor: 'var(--tt-card-border)'
-              }
-            }),
-            React.createElement(ChevronDown, { 
-              className: "w-4 h-4", 
-              style: { color: 'var(--tt-text-secondary)' } 
-            })
-          )
-        ),
-
-        // Bottom Right: Sleep Accent
-        React.createElement('div', null,
-          React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Sleep Accent'),
-          React.createElement('button', {
-            type: 'button',
-            onClick: () => setShowSleepColorModal(true),
-            className: "flex items-center gap-2 py-2 rounded-lg transition w-full justify-start",
-            style: {
-              backgroundColor: 'var(--tt-card-bg)',
-              paddingLeft: '0',
-              paddingRight: '12px'
-            }
-          },
-            React.createElement('div', {
-              className: "w-11 h-11 rounded-full border-2",
-              style: { 
-                backgroundColor: getPreviewColor(appearance.sleepAccent, sleepVariant, appearance.darkMode),
-                borderColor: 'var(--tt-card-border)'
-              }
-            }),
-            React.createElement(ChevronDown, { 
-              className: "w-4 h-4", 
-              style: { color: 'var(--tt-text-secondary)' } 
-            })
-          )
-        )
-      )
-    ),
-
-    // Feed Color Modal
-    window.TTHalfSheet && React.createElement(window.TTHalfSheet, {
-      isOpen: showFeedColorModal,
-      onClose: () => setShowFeedColorModal(false),
-      title: '',
-      accentColor: getPreviewColor(appearance.feedAccent, feedVariant, appearance.darkMode),
-      titleElement: window.SegmentedToggle ? React.createElement(window.SegmentedToggle, {
-        value: feedVariant,
-        options: [
-          { value: 'normal', label: 'Normal' },
-          { value: 'soft', label: 'Soft' }
-        ],
-        onChange: setFeedVariant,
-        variant: 'header',
-        size: 'medium'
-      }) : null,
-      rightAction: React.createElement('div', { className: "w-6" })
-    },
-      React.createElement('div', { className: "px-6 py-6" },
-        // Color Grid (fixed spacing)
-        React.createElement('div', { 
-          className: "grid grid-cols-5",
-          style: { 
-            gap: '16px',
-            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-            justifyItems: 'center'
-          }
-        },
-          COLOR_DEFINITIONS.map((colorDef) => {
-            const variantColors = colorDef[feedVariant] || colorDef.normal;
-            const displayColor = appearance.darkMode ? variantColors.dark : variantColors.light;
-            const isSelected = appearance.feedAccent === colorDef.normal.light || 
-                              appearance.feedAccent === colorDef.normal.dark ||
-                              appearance.feedAccent === colorDef.soft.light ||
-                              appearance.feedAccent === colorDef.soft.dark;
-            return React.createElement('button', {
-              key: colorDef.name,
-              type: 'button',
-              onClick: async () => {
-                await handleAppearanceChange({ feedAccent: colorDef.normal.light });
-                setShowFeedColorModal(false);
-              },
-              className: `rounded-full border-2 transition-all`,
-              style: { 
-                width: '44px',
-                height: '44px',
-                backgroundColor: displayColor,
-                borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
-                boxShadow: isSelected 
-                  ? (appearance.darkMode 
-                      ? '0 0 0 1.5px var(--tt-text-primary)' 
-                      : '0 0 0 1.5px var(--tt-card-bg)')
-                  : 'none',
-                transform: 'scale(1)',
-                transition: 'all 0.12s ease',
-                position: 'relative'
-              },
-              onMouseEnter: (e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.transform = 'scale(1.2)';
-                  e.currentTarget.style.zIndex = '10';
-                }
-              },
-              onMouseLeave: (e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.zIndex = '1';
-              },
-              title: colorDef.name
-            });
-          })
-        )
-      )
-    ),
-
-    // Sleep Color Modal
-    window.TTHalfSheet && React.createElement(window.TTHalfSheet, {
-      isOpen: showSleepColorModal,
-      onClose: () => setShowSleepColorModal(false),
-      title: '',
-      accentColor: getPreviewColor(appearance.sleepAccent, sleepVariant, appearance.darkMode),
-      titleElement: window.SegmentedToggle ? React.createElement(window.SegmentedToggle, {
-        value: sleepVariant,
-        options: [
-          { value: 'normal', label: 'Normal' },
-          { value: 'soft', label: 'Soft' }
-        ],
-        onChange: setSleepVariant,
-        variant: 'header',
-        size: 'medium'
-      }) : null,
-      rightAction: React.createElement('div', { className: "w-6" })
-    },
-      React.createElement('div', { className: "px-6 py-6" },
-        // Color Grid (fixed spacing)
-        React.createElement('div', { 
-          className: "grid grid-cols-5",
-          style: { 
-            gap: '16px',
-            gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
-            justifyItems: 'center'
-          }
-        },
-          COLOR_DEFINITIONS.map((colorDef) => {
-            const variantColors = colorDef[sleepVariant] || colorDef.normal;
-            const displayColor = appearance.darkMode ? variantColors.dark : variantColors.light;
-            const isSelected = appearance.sleepAccent === colorDef.normal.light || 
-                              appearance.sleepAccent === colorDef.normal.dark ||
-                              appearance.sleepAccent === colorDef.soft.light ||
-                              appearance.sleepAccent === colorDef.soft.dark;
-            return React.createElement('button', {
-              key: colorDef.name,
-              type: 'button',
-              onClick: async () => {
-                await handleAppearanceChange({ sleepAccent: colorDef.normal.light });
-                setShowSleepColorModal(false);
-              },
-              className: `rounded-full border-2 transition-all`,
-              style: { 
-                width: '44px',
-                height: '44px',
-                backgroundColor: displayColor,
-                borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
-                boxShadow: isSelected 
-                  ? (appearance.darkMode 
-                      ? '0 0 0 1.5px var(--tt-text-primary)' 
-                      : '0 0 0 1.5px var(--tt-card-bg)')
-                  : 'none',
-                transform: 'scale(1)',
-                transition: 'all 0.12s ease',
-                position: 'relative'
-              },
-              onMouseEnter: (e) => {
-                if (!isSelected) {
-                  e.currentTarget.style.transform = 'scale(1.2)';
-                  e.currentTarget.style.zIndex = '10';
-                }
-              },
-              onMouseLeave: (e) => {
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.zIndex = '1';
-              },
-              title: colorDef.name
-            });
-          })
-        )
-      )
-    ),
-
-    // Share & Support Card
-    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
-      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Share & Support'),
-      React.createElement('button', {
-        onClick: handleShareApp,
-        className: "w-full py-3 rounded-xl font-semibold transition flex items-center justify-center gap-2",
-        style: {
-          backgroundColor: 'var(--tt-feed-soft)',
-          color: 'var(--tt-feed)'
-        }
-      },
-        React.createElement('span', { className: "text-xl" }, '📱'),
-        'Share Tiny Tracker'
-      ),
-      React.createElement('p', { className: "text-xs mt-2 text-center", style: { color: 'var(--tt-text-secondary)' } }, 
-        'Tell other parents about Tiny Tracker!'
-      )
-    ),
-
-    // Account Card
-    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
-      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Account'),
-      React.createElement('div', { className: "space-y-3" },
-
-        // User Profile Display
-        React.createElement('div', { className: "flex items-center justify-between p-3 rounded-lg", style: { backgroundColor: 'var(--tt-card-bg)' } },
-          React.createElement('div', null,
-            React.createElement('div', { className: "text-sm font-medium", style: { color: 'var(--tt-text-primary)' } }, user.displayName || 'User'),
-            React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, user.email)
-          ),
-          user.photoURL &&
-            React.createElement('img', {
-              src: user.photoURL,
-              alt: user.displayName,
-              className: "w-10 h-10 rounded-full"
-            })
-        ),
-
-        // Sign Out Button
-        React.createElement('button', {
-          onClick: handleSignOut,
-          className: "w-full py-3 rounded-xl font-semibold transition",
-          style: {
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            color: '#ef4444'
-          }
-        }, 'Sign Out'),
-
-        // Delete Account Button (Destructive)
-        React.createElement('button', {
-          onClick: handleDeleteAccount,
-          className: "w-full py-3 rounded-xl font-semibold transition",
-          style: {
-            backgroundColor: '#ef4444',
-            color: 'white'
-          }
-        }, 'Delete My Account')
-      )
-    ),
-
-    // Internal Card (formerly About)
-    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
-      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Internal'),
-      React.createElement('button', {
-        onClick: () => setShowUILab(true),
-        className: "w-full py-3 rounded-xl font-semibold transition",
-        style: {
-          backgroundColor: 'var(--tt-feed-soft)',
-          color: 'var(--tt-feed)'
-        }
-      }, 'UI Lab')
-    )
-  );
 };
 
+// Export
 window.TT = window.TT || {};
 window.TT.tabs = window.TT.tabs || {};
-window.TT.tabs.SettingsTab = SettingsTab;
+window.TT.tabs.UILabTab = UILabTab;
