@@ -233,18 +233,43 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [whatsNextText, setWhatsNextText] = useState('Feed around 2:00pm');
   const generatingRef = React.useRef(false);
   const lastDataHashRef = React.useRef('');
-  const lastAICallRef = React.useRef(0); // Track last AI call time to avoid quota limits
+  
+  // Track last AI call time to avoid quota limits (persist across page reloads)
+  const getLastAICallTime = () => {
+    try {
+      const stored = localStorage.getItem('tt_last_ai_call');
+      return stored ? parseInt(stored, 10) : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const setLastAICallTime = (timestamp) => {
+    try {
+      localStorage.setItem('tt_last_ai_call', String(timestamp));
+    } catch {
+      // Ignore localStorage errors
+    }
+  };
+  const lastAICallRef = React.useRef(getLastAICallTime());
 
-  // Format time as h:mma (e.g., "12:30pm")
+  // Format time as h:mma (e.g., "12:30pm"), rounded down to nearest quarter hour
+  // Examples: 9:36 → 9:30, 9:41 → 9:30, 9:15 → 9:15
   const formatTimeHmma = (date) => {
     if (!date || !(date instanceof Date)) return '';
-    const h = date.getHours();
-    const m = date.getMinutes();
+    const roundedDate = new Date(date);
+    const minutes = roundedDate.getMinutes();
+    const roundedMinutes = Math.floor(minutes / 15) * 15;
+    roundedDate.setMinutes(roundedMinutes);
+    roundedDate.setSeconds(0);
+    roundedDate.setMilliseconds(0);
+    
+    // Handle hour rollover (e.g., 11:50pm rounds to 12:00am)
+    const h = roundedDate.getHours();
+    const m = roundedDate.getMinutes();
     const hour = h % 12 || 12;
     const minute = String(m).padStart(2, '0');
     const ampm = h >= 12 ? 'pm' : 'am';
     return `${hour}:${minute}${ampm}`;
-
   };
   // Calculate age in months
   const calculateAgeInMonths = (birthDate) => {
@@ -279,7 +304,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     if (lastFeedingTimeObj) {
       const timeSinceLastFeed = (now - lastFeedingTimeObj) / (1000 * 60 * 60); // hours
       if (timeSinceLastFeed >= feedIntervalHours - 0.25) {
-        return 'Feed now';
+        const currentTimeStr = formatTimeHmma(now);
+        return `Feed around ${currentTimeStr} (Now!)`;
       }
       nextTime = new Date(lastFeedingTimeObj);
       nextTime.setHours(nextTime.getHours() + feedIntervalHours);
@@ -333,7 +359,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       
       // Check if overdue
       if (now > predictedTime + graceMs) {
-        return `${verbCap} now`;
+        const currentTimeStr = formatTimeHmma(new Date());
+        return `${verbCap} around ${currentTimeStr} (Now!)`;
       }
       
       // Format: "Verb around time" or "Verb time" if too long
@@ -366,16 +393,18 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     
     // Priority 1: If sleep timer is running → show wake guidance
     if (isSleepActive) {
-      // AI should have predicted wake time, but if overdue, show "Wake now"
+      // AI should have predicted wake time, but if overdue, show current time with (Now!)
       if (now > predictedTime + graceMs) {
-        return 'Wake now';
+        const currentTimeStr = formatTimeHmma(new Date());
+        return `Wake around ${currentTimeStr} (Now!)`;
       }
       return `Wake around ${timeStr}`;
     }
     
-    // Priority 2: If overdue → show "now"
+    // Priority 2: If overdue → show current time with (Now!)
     if (now > predictedTime + graceMs) {
-      return `${verbCap} now`;
+      const currentTimeStr = formatTimeHmma(new Date());
+      return `${verbCap} around ${currentTimeStr} (Now!)`;
     }
     
     // Priority 3: Show next predicted event
@@ -524,9 +553,14 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       const lastSleepTimeObj = lastSleep ? new Date(lastSleep.startTime) : null;
       const isSleepActive = !!activeSleep;
       
-      // Check AI cooldown (5 minutes) to avoid quota limits
+      // Check AI cooldown (1 hour) to avoid quota limits (free tier: 20 requests/day)
       const now = Date.now();
-      const aiCooldownMs = 5 * 60 * 1000; // 5 minutes
+      const aiCooldownMs = 60 * 60 * 1000; // 1 hour (reduces daily calls to max 24, well under 20/day limit)
+      // Sync with localStorage in case of page reload
+      const storedLastCall = getLastAICallTime();
+      if (storedLastCall > lastAICallRef.current) {
+        lastAICallRef.current = storedLastCall;
+      }
       const timeSinceLastAI = now - lastAICallRef.current;
       const shouldCallAI = timeSinceLastAI >= aiCooldownMs && typeof getAIResponse === 'function';
       
@@ -552,14 +586,14 @@ Rules:
    - "Wake around {time}" (if sleep timer is running, predict wake time)
    - "Feed around {time}" (predict next feeding)
    - "Nap around {time}" (predict next nap)
-   - "Feed now" (if feeding is overdue)
-   - "Nap now" (if nap is overdue)
+   - "Feed around {currentTime} (Now!)" (if feeding is overdue - show current time)
+   - "Nap around {currentTime} (Now!)" (if nap is overdue - show current time)
 
 2. Time format: h:mma (e.g., "2:30pm", "11:00am") - no spaces, lowercase
 
 3. Priority:
    - If sleep timer is running → predict wake time
-   - Else if something is overdue → use "now"
+   - Else if something is overdue → use "around {currentTime} (Now!)" format
    - Else predict next event
 
 4. Base predictions on:
@@ -580,11 +614,26 @@ Output ONLY the formatted string, nothing else.`;
           // Only update lastAICallRef on successful call
           if (answer) {
             lastAICallRef.current = now;
+            setLastAICallTime(now);
           }
         } catch (aiError) {
-          console.error("AI error (will use fallback):", aiError);
-          // Update cooldown even on error to avoid rapid retries
-          lastAICallRef.current = now;
+          // Check if it's a quota error (429) - if so, use longer cooldown
+          const isQuotaError = aiError?.message?.includes('429') || 
+                               aiError?.message?.includes('quota') ||
+                               aiError?.message?.includes('RESOURCE_EXHAUSTED');
+          
+          if (isQuotaError) {
+            console.warn("AI quota exceeded (will use fallback for extended period):", aiError);
+            // Set cooldown to 2 hours for quota errors to prevent further calls
+            const extendedCooldown = 2 * 60 * 60 * 1000;
+            lastAICallRef.current = now - extendedCooldown + (60 * 60 * 1000); // Set to 1 hour from now
+            setLastAICallTime(lastAICallRef.current);
+          } else {
+            console.error("AI error (will use fallback):", aiError);
+            // Update cooldown even on error to avoid rapid retries
+            lastAICallRef.current = now;
+            setLastAICallTime(now);
+          }
         }
       }
       
