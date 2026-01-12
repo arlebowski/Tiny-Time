@@ -215,6 +215,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [sleepEditStartStr, setSleepEditStartStr] = useState('');
   const [sleepEditEndStr, setSleepEditEndStr] = useState('');
   const [loading, setLoading] = useState(true);
+  const [whatsNextCardAnimating, setWhatsNextCardAnimating] = useState(null); // 'entering' | 'exiting' | null
   const [showCustomTime, setShowCustomTime] = useState(false);
   const [logMode, setLogMode] = useState('feeding');
   const [cardVisible, setCardVisible] = useState(false);
@@ -1019,6 +1020,31 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     return currentDate.toDateString() === new Date().toDateString();
   };
 
+  // What's Next card animation state (v3 only)
+  const prevIsTodayRef = React.useRef(isToday());
+  React.useEffect(() => {
+    if (uiVersion !== 'v3') return;
+    
+    const currentlyToday = isToday();
+    const wasToday = prevIsTodayRef.current;
+    
+    if (currentlyToday && !wasToday) {
+      // Entering: show card with enter animation
+      setWhatsNextCardAnimating('entering');
+      setTimeout(() => {
+        setWhatsNextCardAnimating(null);
+      }, 400);
+    } else if (!currentlyToday && wasToday) {
+      // Exiting: start exit animation, then hide
+      setWhatsNextCardAnimating('exiting');
+      setTimeout(() => {
+        setWhatsNextCardAnimating(null);
+      }, 400);
+    }
+    
+    prevIsTodayRef.current = currentlyToday;
+  }, [currentDate, uiVersion]);
+
   const formatDate = (date) => {
     if (isToday()) return 'Today';
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -1508,13 +1534,16 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         }, React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: isToday() ? chevronDisabledColor : chevronColor } }))
       ),
       // What's Next Card - simple card with icon, label, and body (only show on today, v3 only)
-      isToday() && uiVersion === 'v3' && React.createElement('div', {
-        className: "rounded-2xl px-5 py-4 mb-4 tt-tapable",
+      // Show card if it's today OR if it's animating out
+      (isToday() || whatsNextCardAnimating === 'exiting') && uiVersion === 'v3' && React.createElement('div', {
+        className: `rounded-2xl px-5 py-4 tt-tapable ${whatsNextCardAnimating === 'entering' ? 'timeline-item-enter' : whatsNextCardAnimating === 'exiting' ? 'timeline-item-exit' : ''}`,
         style: {
           backgroundColor: activeSleep && activeSleep.startTime 
             ? 'var(--tt-sleep-soft-medium, var(--tt-sleep-soft))'
             : "var(--tt-subtle-surface)",
-          borderColor: "var(--tt-card-border)"
+          borderColor: "var(--tt-card-border)",
+          overflow: whatsNextCardAnimating === 'exiting' ? 'hidden' : 'visible',
+          marginBottom: whatsNextCardAnimating === 'exiting' ? '1rem' : '16px' // Start at 1rem for smooth animation to 0
         }
       },
         // When sleep timer is running: show timer and timer button (opens half sheet), hide header
