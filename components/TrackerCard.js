@@ -1936,9 +1936,10 @@ const TrackerCard = ({
     progressBarGoalText && React.createElement(
       'div',
       {
-        className: "flex justify-end mt-[4px]",
+        className: `flex justify-end ${expanded ? '' : 'mt-[4px]'}`,
         style: { 
           width: '100%',
+          display: expanded ? 'none' : 'flex',
           opacity: expanded ? 0 : 0.7,
           transition: 'opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
         }
@@ -2059,7 +2060,7 @@ const TrackerCard = ({
     React.createElement(
       'div',
       { 
-        className: `mt-4 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        className: `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
         style: { overflow: 'hidden' }
       },
       // Show yesterday comparison in accordion for v3 (moved before count pill)
@@ -2068,7 +2069,7 @@ const TrackerCard = ({
         null,
         // Number + label inline, then progress bar below
         React.createElement('div', {
-          className: "mb-8 mt-3"
+          className: "mb-8 mt-1.5"
         },
           // Number + "as of" text inline
           React.createElement('div', {
