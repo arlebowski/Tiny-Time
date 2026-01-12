@@ -408,6 +408,46 @@ function ensureTapAnimationStyles() {
         max-height: 200px;
       }
     }
+    
+    @keyframes accordionExpand {
+      0% {
+        opacity: 0;
+        transform: translateY(-4px);
+        max-height: 0;
+      }
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 2000px;
+      }
+    }
+    
+    @keyframes accordionCollapse {
+      0% {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 2000px;
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-4px);
+        max-height: 0;
+      }
+    }
+    
+    .accordion-expand {
+      animation: accordionExpand 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      overflow: hidden;
+    }
+    
+    .accordion-collapse {
+      animation: accordionCollapse 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+      overflow: hidden;
+    }
+    
+    .chevron-rotate {
+      transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
   `;
   document.head.appendChild(style);
 }
@@ -1826,16 +1866,20 @@ const TrackerCard = ({
         }
       })
     ),
-    // Goal text below progress bar (for v3)
+    // Goal text below progress bar (for v3) - hide when expanded
     progressBarGoalText && React.createElement(
       'div',
       {
         className: "flex justify-end mt-[4px]",
-        style: { width: '100%' }
+        style: { 
+          width: '100%',
+          opacity: expanded ? 0 : 0.7,
+          transition: 'opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+        }
       },
       React.createElement('span', {
         className: "text-[15.4px] font-normal leading-none",
-        style: { color: 'var(--tt-text-tertiary)', opacity: 0.7 }
+        style: { color: 'var(--tt-text-tertiary)' }
       }, progressBarGoalText)
     ),
     // Yesterday comparison section (insert after main progress bar, before status/dots)
@@ -1945,17 +1989,14 @@ const TrackerCard = ({
             style: { color: timelineTextColor } 
           })
     ),
-    // Accordion content
-    expanded && React.createElement(
+    // Accordion content (always rendered to allow collapse animation)
+    React.createElement(
       'div',
-      { className: "mt-4" },
-      // Show count pill at top of accordion for v3
-      accordionCountPill && React.createElement(
-        'div',
-        { className: "mb-4" },
-        accordionCountPill
-      ),
-      // Show yesterday comparison in accordion for v3
+      { 
+        className: `mt-4 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        style: { overflow: 'hidden' }
+      },
+      // Show yesterday comparison in accordion for v3 (moved before count pill)
       (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(
         React.Fragment,
         null,
@@ -1971,7 +2012,7 @@ const TrackerCard = ({
               className: "text-[15.4px] font-bold leading-none",
               style: {
                 color: mode === 'feeding' ? 'var(--tt-feed-soft, var(--tt-feed))' : 'var(--tt-sleep-soft, var(--tt-sleep))',
-                opacity: 0.7
+                opacity: 0.85
               }
             }, `${formattedYesterdayTotal}${mode === 'feeding' ? ' oz' : ' hrs'}`),
             React.createElement('span', {
@@ -2004,6 +2045,12 @@ const TrackerCard = ({
             })
           )
         )
+      ),
+      // Show count pill after yesterday comparison for v3
+      accordionCountPill && React.createElement(
+        'div',
+        { className: "mb-4" },
+        accordionCountPill
       ),
       // Timeline items
       ((localTimelineItems && localTimelineItems.length > 0) || exitingIds.size > 0)
@@ -2563,11 +2610,11 @@ const TrackerCard = ({
       // Create chevron element
       const chevronEl = expanded
         ? React.createElement(window.TT?.shared?.icons?.ChevronUpIcon || ChevronUp, { 
-            className: "w-5 h-5",
+            className: "w-5 h-5 chevron-rotate",
             style: { color: 'var(--tt-text-tertiary)' } 
           })
         : React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, { 
-            className: "w-5 h-5",
+            className: "w-5 h-5 chevron-rotate",
             style: { color: 'var(--tt-text-tertiary)' } 
           });
       
