@@ -3113,6 +3113,13 @@ const getAIResponse = async (question, kidId) => {
     if (!response.ok) {
       const text = await response.text();
       console.error("Worker error:", response.status, text);
+      // Preserve 429 status for quota detection
+      if (response.status === 429) {
+        const error = new Error("AI backend error: quota exceeded");
+        error.status = 429;
+        error.quotaExceeded = true;
+        throw error;
+      }
       throw new Error("AI backend error");
     }
 
@@ -3120,7 +3127,13 @@ const getAIResponse = async (question, kidId) => {
 
     if (data && data.error) {
       console.error("AI backend error payload:", data);
-      throw new Error("AI backend error: " + data.error);
+      const error = new Error("AI backend error: " + data.error);
+      // Check if it's a quota error from Gemini
+      if (data.status === 429 || data.body?.includes('429') || data.body?.includes('RESOURCE_EXHAUSTED') || data.body?.includes('quota')) {
+        error.status = 429;
+        error.quotaExceeded = true;
+      }
+      throw error;
     }
 
     const candidate = data?.candidates?.[0];

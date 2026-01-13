@@ -945,22 +945,35 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         return;
       }
       
-      try {
-        // Access firebase from global scope
-        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
-          const db = window.firebase.firestore();
-          await db.collection('appConfig').doc('global').set({
-            uiVersion: version,
-            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          
-          // Update cache immediately
-          cachedVersion = version;
-          // Notify all listeners
-          versionListeners.forEach(listener => listener(version));
-        } else {
-          console.error('Firebase not available');
+      // Check if Firebase is properly initialized
+      const isFirebaseReady = () => {
+        try {
+          return typeof window !== 'undefined' && 
+                 window.firebase && 
+                 window.firebase.apps && 
+                 window.firebase.apps.length > 0 &&
+                 window.firebase.firestore;
+        } catch {
+          return false;
         }
+      };
+      
+      if (!isFirebaseReady()) {
+        console.error('Firebase not initialized, cannot set UI version');
+        return;
+      }
+      
+      try {
+        const db = window.firebase.firestore();
+        await db.collection('appConfig').doc('global').set({
+          uiVersion: version,
+          updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+        
+        // Update cache immediately
+        cachedVersion = version;
+        // Notify all listeners
+        versionListeners.forEach(listener => listener(version));
       } catch (error) {
         console.error('Error setting global UI version:', error);
         throw error;
@@ -977,8 +990,30 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
     
     // Initialize: fetch from Firestore and set up real-time listener
     init: async () => {
-      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
+      // Check if Firebase is properly initialized
+      const isFirebaseReady = () => {
+        try {
+          return typeof window !== 'undefined' && 
+                 window.firebase && 
+                 window.firebase.apps && 
+                 window.firebase.apps.length > 0 &&
+                 window.firebase.firestore;
+        } catch {
+          return false;
+        }
+      };
+      
+      // Wait for Firebase to be initialized (max 5 seconds)
+      let attempts = 0;
+      const maxAttempts = 50; // 50 * 100ms = 5 seconds
+      while (!isFirebaseReady() && attempts < maxAttempts) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        attempts++;
+      }
+      
+      if (!isFirebaseReady()) {
         // Fallback to localStorage if Firebase not available
+        console.warn('Firebase not initialized, using localStorage fallback');
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
           if (version && ['v1', 'v2', 'v3'].includes(version)) {
@@ -1036,12 +1071,26 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
     }
   };
   
-  // Initialize on load
+  // Initialize on load - wait for Firebase to be ready
   if (typeof window !== 'undefined') {
-    // Wait a bit for Firebase to be available
-    setTimeout(() => {
-      window.TT.shared.uiVersion.init();
-    }, 100);
+    // Wait for script.js to load and initialize Firebase
+    const initWhenReady = () => {
+      if (window.TT && window.TT.shared && window.TT.shared.uiVersion) {
+        window.TT.shared.uiVersion.init();
+      } else {
+        // Check if script.js has loaded (it sets up window.TT)
+        if (window.firebase && window.firebase.apps && window.firebase.apps.length > 0) {
+          // Firebase is initialized, but TT might not be set up yet
+          setTimeout(initWhenReady, 100);
+        } else {
+          // Firebase not ready yet, wait a bit more
+          setTimeout(initWhenReady, 100);
+        }
+      }
+    };
+    
+    // Start checking after a short delay to let scripts load
+    setTimeout(initWhenReady, 200);
   }
 }
 
@@ -2763,7 +2812,7 @@ const TrackerCard = ({
           }
           const lastCompletedSleep = localTimelineItems.find(item => item.endTime && !item.isActive);
           if (lastCompletedSleep && lastCompletedSleep.endTime) {
-            return `awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
+            return `Awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
           }
           return 'No sleep logged';
         })();
@@ -2921,8 +2970,8 @@ const TrackerCard = ({
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
       progressBarGoalText: target !== null 
-        ? (mode === 'sleep' ? `${formatV2Number(target)} hours goal` : `${formatV2Number(target)} oz goal`)
-        : (mode === 'sleep' ? '0 hours goal' : '0 oz goal'),  // Goal text below progress bar for v3
+        ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
+        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),  // Goal text below progress bar for v3
       // v3: no status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
