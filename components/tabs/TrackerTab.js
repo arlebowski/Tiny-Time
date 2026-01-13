@@ -1015,6 +1015,18 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     };
   };
 
+  // Helper function to determine if a time is day or night sleep based on settings
+  const getSleepLabel = (time, settings) => {
+    if (!time || !(time instanceof Date)) return 'Sleep';
+    const dayStart = Number(settings?.sleepDayStart ?? settings?.daySleepStartMinutes ?? 390);
+    const dayEnd = Number(settings?.sleepDayEnd ?? settings?.daySleepEndMinutes ?? 1170);
+    const mins = time.getHours() * 60 + time.getMinutes();
+    const isDaySleep = dayStart <= dayEnd
+      ? (mins >= dayStart && mins < dayEnd)
+      : (mins >= dayStart || mins < dayEnd);
+    return isDaySleep ? 'Nap' : 'Sleep';
+  };
+
   // Format AI response according to spec
   const formatWhatsNextResponse = (aiResponse, isSleepActive, lastFeedingTime, lastSleepTime) => {
     if (!aiResponse || typeof aiResponse !== 'string') {
@@ -1028,12 +1040,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     // Parse AI response - look for verb (Wake/Feed/Nap) and time
     const response = aiResponse.trim();
     
-    // Extract verb and time from patterns like "Feed around 2:30pm" or "Nap around 3:00pm"
-    const verbMatch = response.match(/^(Feed|Nap)\s+(?:around\s+)?(\d{1,2}:\d{2}(?:am|pm))/i);
+    // Extract verb and time from patterns like "Feed around 2:30pm" or "Nap around 3:00pm" or "Sleep around 8:00pm"
+    const verbMatch = response.match(/^(Feed|Nap|Sleep)\s+(?:around\s+)?(\d{1,2}:\d{2}(?:am|pm))/i);
     
     if (!verbMatch) {
       // Try to extract just verb and time separately
-      const verb = response.match(/^(Feed|Nap)/i)?.[1];
+      const verb = response.match(/^(Feed|Nap|Sleep)/i)?.[1];
       const timeMatch = response.match(/(\d{1,2}:\d{2}(?:am|pm))/i);
       
       if (!verb || !timeMatch) {
@@ -1335,6 +1347,15 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
           const lastSleepStr = lastSleepTimeObj ? formatTimeHmma(lastSleepTimeObj) : 'none';
           
           // Build comprehensive prompt with age and weight
+          const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
+          const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
+          const dayStartHour = Math.floor(dayStart / 60);
+          const dayStartMin = dayStart % 60;
+          const dayEndHour = Math.floor(dayEnd / 60);
+          const dayEndMin = dayEnd % 60;
+          const dayStartStr = `${dayStartHour}:${String(dayStartMin).padStart(2, '0')}`;
+          const dayEndStr = `${dayEndHour}:${String(dayEndMin).padStart(2, '0')}`;
+          
           const prompt = `You are a baby care assistant. Generate a single-line "what's next" prediction.
 
 Baby's age: ${ageInMonths} months (${ageInDays} days old)
@@ -1343,13 +1364,19 @@ Current time: ${currentTime}
 Last feeding: ${lastFeedingStr}
 Last sleep: ${lastSleepStr}
 Sleep timer active: ${isSleepActive ? 'yes' : 'no'}
+Day sleep window: ${dayStartStr} - ${dayEndStr} (use "Nap" for sleep during this time)
+Night sleep: outside day window (use "Sleep" for sleep outside day window)
 
 Rules:
 1. Output ONLY one of these exact formats:
    - "Feed around {time}" (predict next feeding)
-   - "Nap around {time}" (predict next nap)
+   - "Nap around {time}" (predict next nap - use for daytime sleep, between ${dayStartStr} and ${dayEndStr})
+   - "Sleep around {time}" (predict next sleep - use for nighttime sleep, outside ${dayStartStr}-${dayEndStr} window)
    - "Feed around {predictedTime} (Now!)" (if feeding is overdue - keep original predicted time, add (Now!))
    - "Nap around {predictedTime} (Now!)" (if nap is overdue - keep original predicted time, add (Now!))
+   - "Sleep around {predictedTime} (Now!)" (if sleep is overdue - keep original predicted time, add (Now!))
+   
+   IMPORTANT: Use "Nap" for sleep during day window (${dayStartStr}-${dayEndStr}), "Sleep" for sleep outside this window.
 
 2. Time format: h:mma (e.g., "2:30pm", "11:00am") - no spaces, lowercase
 
@@ -1524,7 +1551,7 @@ Output ONLY the formatted string, nothing else.`;
         time: nextEvent.time,
         text: nextEvent.type === 'feed' 
           ? `Feed around ${formatTimeHmma(nextEvent.time)}`
-          : `Nap around ${formatTimeHmma(nextEvent.time)}`
+          : `${getSleepLabel(nextEvent.time, sleepSettings)} around ${formatTimeHmma(nextEvent.time)}`
       } : generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, allFeedings, allSleepSessions);
       predictedTimeRef.current = fallback;
       // Check if overdue and show "Now!" if so
@@ -1831,6 +1858,97 @@ Output ONLY the formatted string, nothing else.`;
           initialSchedule,
           analysis,
           feedIntervalHours
+        };
+      };
+      
+      // Test function for day/night sleep labels
+      // Call from console: window.testSleepLabels()
+      window.testSleepLabels = () => {
+        // Get current sleep settings
+        const settings = sleepSettings || {};
+        const dayStart = Number(settings?.sleepDayStart ?? settings?.daySleepStartMinutes ?? 390);
+        const dayEnd = Number(settings?.sleepDayEnd ?? settings?.daySleepEndMinutes ?? 1170);
+        
+        const dayStartHour = Math.floor(dayStart / 60);
+        const dayStartMin = dayStart % 60;
+        const dayEndHour = Math.floor(dayEnd / 60);
+        const dayEndMin = dayEnd % 60;
+        
+        console.log('\n=== TESTING SLEEP LABELS ===\n');
+        console.log(`Day sleep window: ${dayStartHour}:${String(dayStartMin).padStart(2, '0')} - ${dayEndHour}:${String(dayEndMin).padStart(2, '0')}`);
+        console.log(`(Minutes: ${dayStart} - ${dayEnd})\n`);
+        
+        // Test various times throughout the day
+        const testTimes = [
+          { hour: 6, minute: 0, label: '6:00 AM (early morning)' },
+          { hour: 9, minute: 30, label: '9:30 AM (morning nap)' },
+          { hour: 12, minute: 0, label: '12:00 PM (noon)' },
+          { hour: 14, minute: 30, label: '2:30 PM (afternoon nap)' },
+          { hour: 18, minute: 0, label: '6:00 PM (evening)' },
+          { hour: 20, minute: 0, label: '8:00 PM (night sleep)' },
+          { hour: 22, minute: 0, label: '10:00 PM (night sleep)' },
+          { hour: 2, minute: 0, label: '2:00 AM (night sleep)' },
+        ];
+        
+        testTimes.forEach(({ hour, minute, label }) => {
+          const testDate = new Date();
+          testDate.setHours(hour, minute, 0, 0);
+          
+          // Use the same logic as getSleepLabel
+          const mins = hour * 60 + minute;
+          const isDaySleep = dayStart <= dayEnd
+            ? (mins >= dayStart && mins < dayEnd)
+            : (mins >= dayStart || mins < dayEnd);
+          const result = isDaySleep ? 'Nap' : 'Sleep';
+          
+          const timeStr = testDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+          console.log(`${timeStr.padEnd(10)} → ${result.padEnd(5)} (${label})`);
+        });
+        
+        console.log('\n=== CURRENT PREDICTION ===');
+        const currentPrediction = whatsNextText;
+        console.log(`"${currentPrediction}"`);
+        
+        if (predictedTimeRef.current) {
+          const predTime = predictedTimeRef.current.time;
+          const predType = predictedTimeRef.current.type;
+          if (predType === 'sleep' || predType === 'nap') {
+            const mins = predTime.getHours() * 60 + predTime.getMinutes();
+            const isDaySleep = dayStart <= dayEnd
+              ? (mins >= dayStart && mins < dayEnd)
+              : (mins >= dayStart || mins < dayEnd);
+            const expectedLabel = isDaySleep ? 'Nap' : 'Sleep';
+            const timeStr = predTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            console.log(`Predicted time: ${timeStr}`);
+            console.log(`Expected label: ${expectedLabel}`);
+            console.log(`Actual text: "${currentPrediction}"`);
+            console.log(`✓ Match: ${currentPrediction.includes(expectedLabel)}`);
+          }
+        }
+        
+        console.log('\n=== SCHEDULE EVENTS ===');
+        const schedule = dailySchedule || dailyScheduleRef.current || [];
+        const sleepEvents = schedule.filter(e => e.type === 'sleep').slice(0, 5);
+        if (sleepEvents.length > 0) {
+          sleepEvents.forEach(event => {
+            const timeStr = event.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            const mins = event.time.getHours() * 60 + event.time.getMinutes();
+            const isDaySleep = dayStart <= dayEnd
+              ? (mins >= dayStart && mins < dayEnd)
+              : (mins >= dayStart || mins < dayEnd);
+            const expectedLabel = isDaySleep ? 'Nap' : 'Sleep';
+            console.log(`${timeStr.padEnd(10)} → ${expectedLabel}`);
+          });
+        } else {
+          console.log('No sleep events in schedule');
+        }
+        
+        console.log('\n=== END TEST ===\n');
+        
+        return {
+          dayWindow: { start: dayStart, end: dayEnd },
+          currentPrediction: whatsNextText,
+          predictedTime: predictedTimeRef.current
         };
       };
     }
