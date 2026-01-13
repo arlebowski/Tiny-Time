@@ -618,13 +618,23 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     // For each actual event, check if it matches a scheduled event (within 30 min)
     allEvents.forEach(actualEvent => {
       let matched = false;
+      let matchedScheduledEvent = null;
       schedule.forEach((scheduledEvent, idx) => {
         if (matchedScheduled.has(idx)) return;
         const timeDiff = Math.abs(actualEvent.time.getTime() - scheduledEvent.time.getTime()) / (1000 * 60); // minutes
         if (timeDiff <= 30 && actualEvent.type === scheduledEvent.type) {
-          // Event occurred within 30 min of prediction - keep schedule as-is
+          // Event occurred within 30 min of prediction - add the scheduled event to adjustedSchedule with actual flag
           matchedScheduled.add(idx);
           matched = true;
+          matchedScheduledEvent = scheduledEvent;
+          
+          // Add the matched scheduled event to adjustedSchedule, marking it as actual/completed
+          adjustedSchedule.push({
+            ...scheduledEvent,
+            actual: true,
+            isCompleted: true
+          });
+          
           if (actualEvent.type === 'feed') {
             lastActualFeedTime = actualEvent.time;
           } else if (actualEvent.type === 'sleep') {
@@ -900,7 +910,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     let nextTime = new Date(now);
     
     if (isSleepActive && activeSleep?.startTime) {
-      // If sleeping, predict wake based on age-appropriate sleep duration
+      // If sleeping, predict next feed after wake (not wake itself)
       const wakeHours = ageInMonths < 3 ? 1.5 : ageInMonths < 6 ? 2 : 2.5;
       const sleepStart = new Date(activeSleep.startTime);
       const predictedWakeTime = new Date(sleepStart);
@@ -910,11 +920,29 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       predictedWakeTime.setSeconds(0);
       predictedWakeTime.setMilliseconds(0);
       
-      const predictedTimeStr = formatTimeHmma(predictedWakeTime);
+      // Predict next feed after wake (use age-based interval)
+      let feedIntervalHours;
+      const analysis = analyzeHistoricalIntervals(feedings, sleepSessions);
+      if (analysis.avgInterval && analysis.feedIntervals >= 2) {
+        feedIntervalHours = analysis.avgInterval;
+      } else {
+        if (ageInMonths < 1) feedIntervalHours = 2;
+        else if (ageInMonths < 3) feedIntervalHours = 2.5;
+        else if (ageInMonths < 6) feedIntervalHours = 3;
+        else feedIntervalHours = 3.5;
+      }
+      
+      const predictedFeedTime = new Date(predictedWakeTime);
+      const feedMinutes = predictedFeedTime.getHours() * 60 + predictedFeedTime.getMinutes() + (feedIntervalHours * 60);
+      predictedFeedTime.setHours(Math.floor(feedMinutes / 60), feedMinutes % 60, 0, 0);
+      predictedFeedTime.setSeconds(0);
+      predictedFeedTime.setMilliseconds(0);
+      
+      const predictedTimeStr = formatTimeHmma(predictedFeedTime);
       return {
-        type: 'wake',
-        time: predictedWakeTime,
-        text: `Wake around ${predictedTimeStr}`
+        type: 'feed',
+        time: predictedFeedTime,
+        text: `Feed around ${predictedTimeStr}`
       };
     }
     
@@ -1000,12 +1028,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     // Parse AI response - look for verb (Wake/Feed/Nap) and time
     const response = aiResponse.trim();
     
-    // Extract verb and time from patterns like "Feed around 2:30pm" or "Wake around 3:00pm"
-    const verbMatch = response.match(/^(Wake|Feed|Nap)\s+(?:around\s+)?(\d{1,2}:\d{2}(?:am|pm))/i);
+    // Extract verb and time from patterns like "Feed around 2:30pm" or "Nap around 3:00pm"
+    const verbMatch = response.match(/^(Feed|Nap)\s+(?:around\s+)?(\d{1,2}:\d{2}(?:am|pm))/i);
     
     if (!verbMatch) {
       // Try to extract just verb and time separately
-      const verb = response.match(/^(Wake|Feed|Nap)/i)?.[1];
+      const verb = response.match(/^(Feed|Nap)/i)?.[1];
       const timeMatch = response.match(/(\d{1,2}:\d{2}(?:am|pm))/i);
       
       if (!verb || !timeMatch) {
@@ -1061,16 +1089,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     today.setHours(hour24, minute, 0, 0);
     const predictedTime = today.getTime();
     
-    // Priority 1: If sleep timer is running → show wake guidance
-    if (isSleepActive) {
-      // AI should have predicted wake time, but if overdue, keep original time and add (Now!)
-      if (now > predictedTime + graceMs) {
-        return `Wake around ${timeStr} (Now!)`;
-      }
-      return `Wake around ${timeStr}`;
-    }
-    
-    // Priority 2: If overdue → keep original predicted time, just add (Now!)
+    // If overdue → keep original predicted time, just add (Now!)
     if (now > predictedTime + graceMs) {
       return `${verbCap} around ${timeStr} (Now!)`;
     }
@@ -1215,12 +1234,16 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const nowDate = new Date(nowMs);
     
     // Check if we've passed the NEXT upcoming event (not just any past event)
+    // Skip wake events - only check feed and sleep events
     const currentSchedule = dailySchedule || dailyScheduleRef.current;
     let hasPassedNextEvent = false;
     if (currentSchedule && Array.isArray(currentSchedule) && currentSchedule.length > 0) {
-      // Find the next upcoming event
+      // Find the next upcoming event (skip wake events)
       const nextEvent = currentSchedule.find(event => 
-        event && event.time && event.time.getTime() > nowDate.getTime()
+        event && 
+        event.time && 
+        (event.type === 'feed' || event.type === 'sleep') &&
+        event.time.getTime() > nowDate.getTime()
       );
       // Only rebuild if we've passed the next event (with 5 min grace period)
       if (nextEvent && nextEvent.time.getTime() < nowDate.getTime() - (5 * 60 * 1000)) {
@@ -1323,7 +1346,6 @@ Sleep timer active: ${isSleepActive ? 'yes' : 'no'}
 
 Rules:
 1. Output ONLY one of these exact formats:
-   - "Wake around {time}" (if sleep timer is running, predict wake time)
    - "Feed around {time}" (predict next feeding)
    - "Nap around {time}" (predict next nap)
    - "Feed around {predictedTime} (Now!)" (if feeding is overdue - keep original predicted time, add (Now!))
@@ -1474,7 +1496,7 @@ Output ONLY the formatted string, nothing else.`;
       let nextEvent = null;
       
       if (isSleepActive && activeSleep?.startTime) {
-        // If sleep timer is active, predict wake time first
+        // If sleep timer is active, find next feed or sleep after predicted wake time
         const wakeHours = ageInMonths < 3 ? 1.5 : ageInMonths < 6 ? 2 : 2.5;
         const sleepStart = new Date(activeSleep.startTime);
         const predictedWakeTime = new Date(sleepStart);
@@ -1483,28 +1505,17 @@ Output ONLY the formatted string, nothing else.`;
         predictedWakeTime.setSeconds(0);
         predictedWakeTime.setMilliseconds(0);
         
-        // After wake, find next feed from schedule
-        const nextFeedAfterWake = schedule.find(e => 
-          e.type === 'feed' && e.time.getTime() > predictedWakeTime.getTime()
+        // Find next feed or sleep after wake (skip wake events)
+        nextEvent = schedule.find(e => 
+          (e.type === 'feed' || e.type === 'sleep') && 
+          e.time.getTime() > predictedWakeTime.getTime()
         );
-        
-        if (nextFeedAfterWake) {
-          nextEvent = {
-            type: 'wake',
-            time: predictedWakeTime,
-            text: `Wake around ${formatTimeHmma(predictedWakeTime)}`,
-            nextFeed: nextFeedAfterWake
-          };
-        } else {
-          nextEvent = {
-            type: 'wake',
-            time: predictedWakeTime,
-            text: `Wake around ${formatTimeHmma(predictedWakeTime)}`
-          };
-        }
       } else {
-        // Find next event from schedule
-        nextEvent = schedule.find(e => e.time.getTime() > nowDate.getTime());
+        // Find next event from schedule (skip wake events - only feed and sleep)
+        nextEvent = schedule.find(e => 
+          (e.type === 'feed' || e.type === 'sleep') && 
+          e.time.getTime() > nowDate.getTime()
+        );
       }
       
       // Fallback to old method if no schedule event found
@@ -1513,8 +1524,6 @@ Output ONLY the formatted string, nothing else.`;
         time: nextEvent.time,
         text: nextEvent.type === 'feed' 
           ? `Feed around ${formatTimeHmma(nextEvent.time)}`
-          : nextEvent.type === 'wake'
-          ? `Wake around ${formatTimeHmma(nextEvent.time)}`
           : `Nap around ${formatTimeHmma(nextEvent.time)}`
       } : generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, allFeedings, allSleepSessions);
       predictedTimeRef.current = fallback;
@@ -3064,17 +3073,34 @@ Output ONLY the formatted string, nothing else.`;
         // When sleep timer is running: show timer and timer button (opens half sheet), hide header
         activeSleep && activeSleep.startTime ? (() => {
           // Real-time timer component for active sleep
-          const ActiveSleepTimer = ({ startTime }) => {
+          const ActiveSleepTimer = ({ startTime, sessionId }) => {
+            // Use a ref to store the initial startTime to prevent timer resets on server refreshes
+            const startTimeRef = React.useRef(startTime);
+            const sessionIdRef = React.useRef(sessionId);
+            
+            // Update refs only when session changes (not on every startTime update)
+            if (sessionIdRef.current !== sessionId) {
+              startTimeRef.current = startTime;
+              sessionIdRef.current = sessionId;
+            }
+            
             const [elapsed, setElapsed] = React.useState(() => {
-              return Date.now() - startTime;
+              return Date.now() - startTimeRef.current;
             });
             
             React.useEffect(() => {
+              // Only reset timer if session actually changed
+              if (sessionIdRef.current !== sessionId) {
+                startTimeRef.current = startTime;
+                sessionIdRef.current = sessionId;
+                setElapsed(Date.now() - startTimeRef.current);
+              }
+              
               const interval = setInterval(() => {
-                setElapsed(Date.now() - startTime);
+                setElapsed(Date.now() - startTimeRef.current);
               }, 1000);
               return () => clearInterval(interval);
-            }, [startTime]);
+            }, [sessionId]); // Use sessionId instead of startTime to prevent resets on server refreshes
             
             const formatWithSeconds = (ms) => {
               const formatted = formatElapsedHmsTT(ms);
@@ -3142,7 +3168,7 @@ Output ONLY the formatted string, nothing else.`;
                     className: "inline-flex items-baseline gap-2 whitespace-nowrap",
                     style: { color: 'var(--tt-sleep)' }
                   },
-                    React.createElement(ActiveSleepTimer, { startTime: activeSleep.startTime }),
+                    React.createElement(ActiveSleepTimer, { startTime: activeSleep.startTime, sessionId: activeSleep.id }),
                     React.createElement('span', {
                       className: "inline-flex justify-start leading-none",
                       style: { color: 'currentColor' }
@@ -3334,7 +3360,7 @@ Output ONLY the formatted string, nothing else.`;
                     }, scheduleReady ? 'No schedule available' : 'Building schedule...');
                   }
                   
-                  // Filter schedule to today's events, and filter out past wake events (they clutter the timeline)
+                  // Filter schedule to today's events, and filter out all wake events
                   const todaySchedule = optimizedSchedule.filter(event => {
                     if (!event || !event.time) return false;
                     // Ensure event.time is a Date object
@@ -3352,9 +3378,8 @@ Output ONLY the formatted string, nothing else.`;
                     const isToday = eventTime >= todayStart.getTime() && eventTime <= todayEnd.getTime();
                     if (!isToday) return false;
                     
-                    // Filter out past wake events (they clutter the timeline)
-                    // Only show wake events if they're in the future (upcoming)
-                    if (event.type === 'wake' && eventTime < now) {
+                    // Filter out all wake events (only show feed and sleep)
+                    if (event.type === 'wake') {
                       return false;
                     }
                     
