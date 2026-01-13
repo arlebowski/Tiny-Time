@@ -1792,17 +1792,34 @@ const TrackerCard = ({
 
   // Real-time timer for active sleep in timeline status
   // Only returns timer text - zZz animation is rendered separately to prevent restart
-  const ActiveSleepTimer = ({ startTime }) => {
+  const ActiveSleepTimer = ({ startTime, sessionId }) => {
+    // Use a ref to store the initial startTime to prevent timer resets on server refreshes
+    const startTimeRef = React.useRef(startTime);
+    const sessionIdRef = React.useRef(sessionId);
+    
+    // Update refs only when session changes (not on every startTime update)
+    if (sessionIdRef.current !== sessionId) {
+      startTimeRef.current = startTime;
+      sessionIdRef.current = sessionId;
+    }
+    
     const [elapsed, setElapsed] = React.useState(() => {
-      return Date.now() - startTime;
+      return Date.now() - startTimeRef.current;
     });
     
     React.useEffect(() => {
+      // Only reset timer if session actually changed
+      if (sessionIdRef.current !== sessionId) {
+        startTimeRef.current = startTime;
+        sessionIdRef.current = sessionId;
+        setElapsed(Date.now() - startTimeRef.current);
+      }
+      
       const interval = setInterval(() => {
-        setElapsed(Date.now() - startTime);
+        setElapsed(Date.now() - startTimeRef.current);
       }, 1000);
       return () => clearInterval(interval);
-    }, [startTime]);
+    }, [sessionId]); // Use sessionId instead of startTime to prevent resets on server refreshes
     
     const formatWithSeconds = (ms) => {
       return formatElapsedHmsTT(ms).str;
@@ -1826,7 +1843,7 @@ const TrackerCard = ({
           return React.createElement(
             'span',
             { className: "inline-flex items-baseline gap-2 whitespace-nowrap" },
-            React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
+            React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime, sessionId: activeEntry.id }),
             React.createElement(
               'span',
               { className: "inline-flex w-[28px] justify-start font-light leading-none", style: { color: 'currentColor' } },
@@ -2442,7 +2459,7 @@ const TrackerCard = ({
             return React.createElement(
               'span',
               { className: "inline-flex items-center gap-2" },
-              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
+              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime, sessionId: activeEntry.id }),
               React.createElement(
                 'span',
                 { className: "inline-flex items-center font-light", style: { color: 'currentColor' } },
@@ -2802,7 +2819,7 @@ const TrackerCard = ({
             return React.createElement(
               'span',
               { className: "inline-flex items-center gap-2" },
-              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
+              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime, sessionId: activeEntry.id }),
               React.createElement(
                 'span',
                 { className: "inline-flex items-center font-light", style: { color: 'currentColor' } },
