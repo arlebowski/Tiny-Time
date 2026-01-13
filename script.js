@@ -2459,7 +2459,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu((v) => !v);
                     setShowShareMenu(false);
                   },
-                  className: "flex items-center gap-2 px-3 focus:outline-none"
+                  className: "flex items-center gap-1 px-3 focus:outline-none"
                 },
                 React.createElement(
                   'span',
@@ -2473,7 +2473,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   activeKid?.name || 'Baby'
                 ),
                 React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, {
-                  className: "w-5 h-5 ml-2",
+                  className: "w-5 h-5",
                   isTapped: showKidMenu,
                   selectedWeight: 'bold',
                   style: { color: 'var(--tt-text-tertiary)' }
@@ -2487,7 +2487,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   {
                     className:
                       // Dropdown: tokenized colors + higher z-index than sticky date nav
-                      "absolute left-0 top-full mt-1 w-60 rounded-2xl shadow-lg border overflow-hidden z-[1000]",
+                      "absolute left-4 top-20 w-60 rounded-2xl shadow-lg border overflow-hidden z-[1000]",
                     onPointerDown: (e) => e.stopPropagation(),
                     onClick: (e) => e.stopPropagation()
                     ,
@@ -2567,8 +2567,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 'svg',
                 {
                   xmlns: "http://www.w3.org/2000/svg",
-                  width: "24",
-                  height: "24",
+                  width: "26.4",
+                  height: "26.4",
                   viewBox: "0 0 256 256",
                   style: { color: 'var(--tt-feed)' }
                 },
