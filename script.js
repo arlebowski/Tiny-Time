@@ -2478,85 +2478,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   selectedWeight: 'bold',
                   style: { color: 'var(--tt-text-tertiary)' }
                 })
-              ),
-
-              // Kid switcher dropdown
-              showKidMenu && kids.length > 0 &&
-                React.createElement(
-                  'div',
-                  {
-                    className:
-                      // Dropdown: tokenized colors + higher z-index than sticky date nav
-                      "absolute left-4 top-20 w-60 rounded-2xl shadow-lg border overflow-hidden z-[1000]",
-                    onPointerDown: (e) => e.stopPropagation(),
-                    onClick: (e) => e.stopPropagation()
-                    ,
-                    style: {
-                      backgroundColor: 'var(--tt-card-bg)',
-                      borderColor: 'var(--tt-card-border)',
-                      color: 'var(--tt-text-primary)'
-                    }
-                  },
-                  kids.map((k) => {
-                    const isCurrent = k.id === kidId;
-                    return React.createElement(
-                      'button',
-                      {
-                        key: k.id,
-                        type: 'button',
-                        onClick: (e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleSelectKid(k.id);
-                        },
-                        className:
-                          "w-full h-11 px-3 text-sm flex items-center justify-between transition " +
-                          (isCurrent ? "" : "hover:bg-black/5 dark:hover:bg-white/10"),
-                        style: isCurrent ? { backgroundColor: 'var(--tt-subtle-surface)' } : undefined
-                      },
-                      React.createElement(
-                        'span',
-                        { className: "font-medium truncate", style: { color: 'var(--tt-text-primary)' } },
-                        k.name || 'Baby'
-                      ),
-                      React.createElement(
-                        'span',
-                        {
-                          className: "w-4 h-4 rounded-full border flex items-center justify-center",
-                          style: { borderColor: 'var(--tt-card-border)' }
-                        },
-                        isCurrent
-                          ? React.createElement('span', {
-                              className: "w-2 h-2 rounded-full",
-                              style: { backgroundColor: 'var(--tt-text-primary)' }
-                            })
-                          : null
-                      )
-                    );
-                  }),
-
-                  // Add child
-                  React.createElement(
-                    'button',
-                    {
-                      type: 'button',
-                      onClick: (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowKidMenu(false);
-                        setActiveTab('family');
-                        setHeaderRequestedAddChild(true);
-                      },
-                      className:
-                        "w-full h-11 px-3 text-sm font-medium text-left border-t transition hover:bg-black/5 dark:hover:bg-white/10",
-                      style: {
-                        color: 'var(--tt-text-primary)',
-                        borderColor: 'var(--tt-card-border)'
-                      }
-                    },
-                    "+ Add child"
-                  )
-                )
+              )
             ),
 
             // MIDDLE COLUMN: Logo
@@ -2578,6 +2500,84 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 })
               )
             ),
+
+            // Kid switcher dropdown
+            showKidMenu && kids.length > 0 &&
+              React.createElement(
+                'div',
+                {
+                  className:
+                    // Dropdown: tokenized colors + higher z-index than sticky date nav
+                    "absolute left-4 top-20 w-60 rounded-2xl shadow-lg border overflow-hidden z-[1000]",
+                  onPointerDown: (e) => e.stopPropagation(),
+                  onClick: (e) => e.stopPropagation()
+                  ,
+                  style: {
+                    backgroundColor: 'var(--tt-card-bg)',
+                    borderColor: 'var(--tt-card-border)',
+                    color: 'var(--tt-text-primary)'
+                  }
+                },
+                kids.map((k) => {
+                  const isCurrent = k.id === kidId;
+                  return React.createElement(
+                    'button',
+                    {
+                      key: k.id,
+                      type: 'button',
+                      onClick: (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleSelectKid(k.id);
+                      },
+                      className:
+                        "w-full h-11 px-3 text-sm flex items-center justify-between transition " +
+                        (isCurrent ? "" : "hover:bg-black/5 dark:hover:bg-white/10"),
+                      style: isCurrent ? { backgroundColor: 'var(--tt-subtle-surface)' } : undefined
+                    },
+                    React.createElement(
+                      'span',
+                      { className: "font-medium truncate", style: { color: 'var(--tt-text-primary)' } },
+                      k.name || 'Baby'
+                    ),
+                    React.createElement(
+                      'span',
+                      {
+                        className: "w-4 h-4 rounded-full border flex items-center justify-center",
+                        style: { borderColor: 'var(--tt-card-border)' }
+                      },
+                      isCurrent
+                        ? React.createElement('span', {
+                            className: "w-2 h-2 rounded-full",
+                            style: { backgroundColor: 'var(--tt-text-primary)' }
+                          })
+                        : null
+                    )
+                  );
+                }),
+
+                // Add child
+                React.createElement(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: (e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setShowKidMenu(false);
+                      setActiveTab('family');
+                      setHeaderRequestedAddChild(true);
+                    },
+                    className:
+                      "w-full h-11 px-3 text-sm font-medium text-left border-t transition hover:bg-black/5 dark:hover:bg-white/10",
+                    style: {
+                      color: 'var(--tt-text-primary)',
+                      borderColor: 'var(--tt-card-border)'
+                    }
+                  },
+                  "+ Add child"
+                )
+              ),
 
             // RIGHT COLUMN: Share + Settings buttons
             React.createElement(
