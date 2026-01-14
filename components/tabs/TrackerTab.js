@@ -4293,7 +4293,6 @@ Output ONLY the formatted string, nothing else.`;
                     const isWake = item.originalType === 'wake';
                     const isNap = item.type === 'nap';
                     const isSleep = item.type === 'sleep';
-                    const ozHint = isFeed ? getFeedOzHint(item) : null;
                     
                     // Get icons
                     const FeedIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.BottleMain || (() => null);
@@ -4352,7 +4351,7 @@ Output ONLY the formatted string, nothing else.`;
                           strokeWidth: '1.5'
                         }
                       }),
-                      React.createElement('span', null, `${label} around ${item.timeStr}${ozHint ? ` · ${ozHint}` : ''}`),
+                      React.createElement('span', null, `${label} around ${item.timeStr}`),
                       item.isCompleted && React.createElement('span', {
                         style: {
                           color: 'var(--tt-text-tertiary)',
