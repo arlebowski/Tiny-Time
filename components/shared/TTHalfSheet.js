@@ -161,8 +161,38 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
       return () => resizeObserver.disconnect();
     }, [present, isOpen, children, contentKey]);
 
+    // Helper to check if tray is open (reads directly from window for latest value)
+    const checkTrayOpen = () => {
+      return !!(typeof window !== 'undefined' && window.TT?.shared?.pickers?.isTrayOpen);
+    };
+
+    // Helper to check if touch target is within a picker tray
+    const isTouchInPickerTray = (e) => {
+      if (!e.target) return false;
+      // Check if the touch target or any parent is within a picker tray
+      // Picker trays are rendered as children of the HalfSheet, so we check for wheel picker elements
+      const target = e.target;
+      let element = target;
+      while (element && element !== sheetRef.current) {
+        // Check for wheel picker container (has touchAction: 'none' style)
+        if (element.style && element.style.touchAction === 'none') {
+          return true;
+        }
+        // Check for picker-related classes or data attributes
+        if (element.classList && (
+          element.classList.contains('wheel-picker') ||
+          element.getAttribute('data-picker-tray') === 'true'
+        )) {
+          return true;
+        }
+        element = element.parentElement;
+      }
+      return false;
+    };
+
     // Drag handlers
     const canDrag = React.useCallback(() => {
+      if (checkTrayOpen()) return false;
       if (!contentRef.current) return false;
       const scrollTop = contentRef.current.scrollTop;
       return scrollTop === 0;
@@ -170,6 +200,11 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
 
     // Touch handlers stored in refs to access latest state values
     const handleTouchStartRef = React.useRef((e) => {
+      // Early return if tray is open or touch is within picker tray
+      if (checkTrayOpen() || isTouchInPickerTray(e)) {
+        isDraggingRef.current = false;
+        return;
+      }
       if (!canDrag()) return;
       const touch = e.touches[0];
       isDraggingRef.current = true;
@@ -183,6 +218,11 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
     });
 
     const handleTouchMoveRef = React.useRef((e) => {
+      // Early return if tray is open or touch is within picker tray
+      if (checkTrayOpen() || isTouchInPickerTray(e)) {
+        isDraggingRef.current = false;
+        return;
+      }
       if (!isDraggingRef.current) return;
       const touch = e.touches[0];
       const deltaY = touch.clientY - dragStartYRef.current;
@@ -195,6 +235,11 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
     });
 
     const handleTouchEndRef = React.useRef((e) => {
+      // Early return if tray is open or touch is within picker tray
+      if (checkTrayOpen() || isTouchInPickerTray(e)) {
+        isDraggingRef.current = false;
+        return;
+      }
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       
