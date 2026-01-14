@@ -945,35 +945,22 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         return;
       }
       
-      // Check if Firebase is properly initialized
-      const isFirebaseReady = () => {
-        try {
-          return typeof window !== 'undefined' && 
-                 window.firebase && 
-                 window.firebase.apps && 
-                 window.firebase.apps.length > 0 &&
-                 window.firebase.firestore;
-        } catch {
-          return false;
-        }
-      };
-      
-      if (!isFirebaseReady()) {
-        console.error('Firebase not initialized, cannot set UI version');
-        return;
-      }
-      
       try {
-        const db = window.firebase.firestore();
-        await db.collection('appConfig').doc('global').set({
-          uiVersion: version,
-          updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        
-        // Update cache immediately
-        cachedVersion = version;
-        // Notify all listeners
-        versionListeners.forEach(listener => listener(version));
+        // Access firebase from global scope
+        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
+          const db = window.firebase.firestore();
+          await db.collection('appConfig').doc('global').set({
+            uiVersion: version,
+            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
+          }, { merge: true });
+          
+          // Update cache immediately
+          cachedVersion = version;
+          // Notify all listeners
+          versionListeners.forEach(listener => listener(version));
+        } else {
+          console.error('Firebase not available');
+        }
       } catch (error) {
         console.error('Error setting global UI version:', error);
         throw error;
@@ -990,30 +977,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
     
     // Initialize: fetch from Firestore and set up real-time listener
     init: async () => {
-      // Check if Firebase is properly initialized
-      const isFirebaseReady = () => {
-        try {
-          return typeof window !== 'undefined' && 
-                 window.firebase && 
-                 window.firebase.apps && 
-                 window.firebase.apps.length > 0 &&
-                 window.firebase.firestore;
-        } catch {
-          return false;
-        }
-      };
-      
-      // Wait for Firebase to be initialized (max 5 seconds)
-      let attempts = 0;
-      const maxAttempts = 50; // 50 * 100ms = 5 seconds
-      while (!isFirebaseReady() && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      
-      if (!isFirebaseReady()) {
+      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
         // Fallback to localStorage if Firebase not available
-        console.warn('Firebase not initialized, using localStorage fallback');
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
           if (version && ['v1', 'v2', 'v3'].includes(version)) {
@@ -1071,26 +1036,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
     }
   };
   
-  // Initialize on load - wait for Firebase to be ready
+  // Initialize on load
   if (typeof window !== 'undefined') {
-    // Wait for script.js to load and initialize Firebase
-    const initWhenReady = () => {
-      if (window.TT && window.TT.shared && window.TT.shared.uiVersion) {
-        window.TT.shared.uiVersion.init();
-      } else {
-        // Check if script.js has loaded (it sets up window.TT)
-        if (window.firebase && window.firebase.apps && window.firebase.apps.length > 0) {
-          // Firebase is initialized, but TT might not be set up yet
-          setTimeout(initWhenReady, 100);
-        } else {
-          // Firebase not ready yet, wait a bit more
-          setTimeout(initWhenReady, 100);
-        }
-      }
-    };
-    
-    // Start checking after a short delay to let scripts load
-    setTimeout(initWhenReady, 200);
+    // Wait a bit for Firebase to be available
+    setTimeout(() => {
+      window.TT.shared.uiVersion.init();
+    }, 100);
   }
 }
 
@@ -1220,27 +1171,6 @@ const TrackerCard = ({
   }, []);
   
   const [expanded, setExpanded] = React.useState(false);
-  const [hasInteracted, setHasInteracted] = React.useState(false); // Track if user has clicked expand/collapse
-  const isInitialMountRef = React.useRef(true);
-  const prevDateRef = React.useRef(currentDate);
-  
-  // Track when component has truly mounted (after first paint)
-  React.useEffect(() => {
-    // Use requestAnimationFrame to ensure we're past the initial paint
-    const rafId = requestAnimationFrame(() => {
-      isInitialMountRef.current = false;
-    });
-    return () => cancelAnimationFrame(rafId);
-  }, []);
-  
-  // Reset expanded state when date changes (without animation)
-  React.useEffect(() => {
-    if (prevDateRef.current !== currentDate) {
-      prevDateRef.current = currentDate;
-      setHasInteracted(false); // Reset interaction tracking
-      setExpanded(false);
-    }
-  }, [currentDate]);
   
   // Check if currentDate is today
   const isViewingToday = React.useMemo(() => {
@@ -1813,34 +1743,17 @@ const TrackerCard = ({
 
   // Real-time timer for active sleep in timeline status
   // Only returns timer text - zZz animation is rendered separately to prevent restart
-  const ActiveSleepTimer = ({ startTime, sessionId }) => {
-    // Use a ref to store the initial startTime to prevent timer resets on server refreshes
-    const startTimeRef = React.useRef(startTime);
-    const sessionIdRef = React.useRef(sessionId);
-    
-    // Update refs only when session changes (not on every startTime update)
-    if (sessionIdRef.current !== sessionId) {
-      startTimeRef.current = startTime;
-      sessionIdRef.current = sessionId;
-    }
-    
+  const ActiveSleepTimer = ({ startTime }) => {
     const [elapsed, setElapsed] = React.useState(() => {
-      return Date.now() - startTimeRef.current;
+      return Date.now() - startTime;
     });
     
     React.useEffect(() => {
-      // Only reset timer if session actually changed
-      if (sessionIdRef.current !== sessionId) {
-        startTimeRef.current = startTime;
-        sessionIdRef.current = sessionId;
-        setElapsed(Date.now() - startTimeRef.current);
-      }
-      
       const interval = setInterval(() => {
-        setElapsed(Date.now() - startTimeRef.current);
+        setElapsed(Date.now() - startTime);
       }, 1000);
       return () => clearInterval(interval);
-    }, [sessionId]); // Use sessionId instead of startTime to prevent resets on server refreshes
+    }, [startTime]);
     
     const formatWithSeconds = (ms) => {
       return formatElapsedHmsTT(ms).str;
@@ -1864,7 +1777,7 @@ const TrackerCard = ({
           return React.createElement(
             'span',
             { className: "inline-flex items-baseline gap-2 whitespace-nowrap" },
-            React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime, sessionId: activeEntry.id }),
+            React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
             React.createElement(
               'span',
               { className: "inline-flex w-[28px] justify-start font-light leading-none", style: { color: 'currentColor' } },
@@ -2213,10 +2126,7 @@ const TrackerCard = ({
     !hideTimelineBar && React.createElement(
       'button',
       {
-        onClick: () => {
-          setHasInteracted(true);
-          setExpanded(!expanded);
-        },
+        onClick: () => setExpanded(!expanded),
         className: "flex w-full items-center justify-between",
         style: { color: timelineTextColor }
       },
@@ -2251,13 +2161,17 @@ const TrackerCard = ({
     React.createElement(
       'div',
       { 
-        className: (isInitialMountRef.current || !hasInteracted) ? 'mt-2' : `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
-        style: !expanded
-          ? { display: 'none' }  // Always use display: none when collapsed (simplest solution)
-          : { overflow: 'hidden' }
+        className: `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        style: { overflow: 'hidden' }
       },
       // Show yesterday comparison in accordion for v3 (moved before count pill)
-      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(React.Fragment, null,
+      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(
+        React.Fragment,
+        null,
+        // Number + label inline, then progress bar below
+        React.createElement('div', {
+          className: "mb-8 mt-1.5"
+        },
           // Number + "as of" text inline
           React.createElement('div', {
             className: "flex items-center gap-2 mb-2"
@@ -2298,7 +2212,8 @@ const TrackerCard = ({
               }
             })
           )
-        ),
+        )
+      ),
       // Show count pill after yesterday comparison for v3
       accordionCountPill && React.createElement(
         'div',
@@ -2342,9 +2257,8 @@ const TrackerCard = ({
             style: { color: 'var(--tt-text-tertiary)' }
           }, mode === 'feeding' ? 'No feedings yet' : 'No sleeps yet')
     )
-  );
+    );
   };
-
 
   // v2: current design (production)
   const renderCurrentDesign = () => renderDesign();
@@ -2479,7 +2393,7 @@ const TrackerCard = ({
             return React.createElement(
               'span',
               { className: "inline-flex items-center gap-2" },
-              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime, sessionId: activeEntry.id }),
+              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
               React.createElement(
                 'span',
                 { className: "inline-flex items-center font-light", style: { color: 'currentColor' } },
@@ -2839,7 +2753,7 @@ const TrackerCard = ({
             return React.createElement(
               'span',
               { className: "inline-flex items-center gap-2" },
-              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime, sessionId: activeEntry.id }),
+              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime }),
               React.createElement(
                 'span',
                 { className: "inline-flex items-center font-light", style: { color: 'currentColor' } },
@@ -2849,7 +2763,7 @@ const TrackerCard = ({
           }
           const lastCompletedSleep = localTimelineItems.find(item => item.endTime && !item.isActive);
           if (lastCompletedSleep && lastCompletedSleep.endTime) {
-            return `Awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
+            return `awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
           }
           return 'No sleep logged';
         })();
@@ -3007,8 +2921,8 @@ const TrackerCard = ({
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-subtle-surface)',
       progressBarGoalText: target !== null 
-        ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
-        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),  // Goal text below progress bar for v3
+        ? (mode === 'sleep' ? `${formatV2Number(target)} hours goal` : `${formatV2Number(target)} oz goal`)
+        : (mode === 'sleep' ? '0 hours goal' : '0 oz goal'),  // Goal text below progress bar for v3
       // v3: no status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
@@ -3122,10 +3036,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [present, setPresent] = React.useState(false); // Controls rendering
     const scrollYRef = React.useRef(0);
     const [needsScroll, setNeedsScroll] = React.useState(false);
-
-    const isTrayOpen = React.useCallback(() => {
-      return !!(typeof window !== 'undefined' && window.TT?.shared?.pickers?.isTrayOpen);
-    }, []);
     
     // Drag state
     const [isDragging, setIsDragging] = React.useState(false);
@@ -3272,38 +3182,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       return () => resizeObserver.disconnect();
     }, [present, isOpen, children]);
 
-    // Helper to check if tray is open (reads directly from window for latest value)
-    const checkTrayOpen = () => {
-      return !!(typeof window !== 'undefined' && window.TT?.shared?.pickers?.isTrayOpen);
-    };
-
-    // Helper to check if touch target is within a picker tray
-    const isTouchInPickerTray = (e) => {
-      if (!e.target) return false;
-      // Check if the touch target or any parent is within a picker tray
-      // Picker trays are rendered as children of the HalfSheet, so we check for wheel picker elements
-      const target = e.target;
-      let element = target;
-      while (element && element !== sheetRef.current) {
-        // Check for wheel picker container (has touchAction: 'none' style)
-        if (element.style && element.style.touchAction === 'none') {
-          return true;
-        }
-        // Check for picker-related classes or data attributes
-        if (element.classList && (
-          element.classList.contains('wheel-picker') ||
-          element.getAttribute('data-picker-tray') === 'true'
-        )) {
-          return true;
-        }
-        element = element.parentElement;
-      }
-      return false;
-    };
-
     // Drag handlers
     const canDrag = React.useCallback(() => {
-      if (checkTrayOpen()) return false;
       if (!contentRef.current) return false;
       const scrollTop = contentRef.current.scrollTop;
       return scrollTop === 0;
@@ -3311,11 +3191,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
     // Touch handlers stored in refs to access latest state values
     const handleTouchStartRef = React.useRef((e) => {
-      // Early return if tray is open or touch is within picker tray
-      if (checkTrayOpen() || isTouchInPickerTray(e)) {
-        isDraggingRef.current = false;
-        return;
-      }
       if (!canDrag()) return;
       const touch = e.touches[0];
       isDraggingRef.current = true;
@@ -3329,11 +3204,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     });
 
     const handleTouchMoveRef = React.useRef((e) => {
-      // Early return if tray is open or touch is within picker tray
-      if (checkTrayOpen() || isTouchInPickerTray(e)) {
-        isDraggingRef.current = false;
-        return;
-      }
       if (!isDraggingRef.current) return;
       const touch = e.touches[0];
       const deltaY = touch.clientY - dragStartYRef.current;
@@ -3346,11 +3216,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     });
 
     const handleTouchEndRef = React.useRef((e) => {
-      // Early return if tray is open or touch is within picker tray
-      if (checkTrayOpen() || isTouchInPickerTray(e)) {
-        isDraggingRef.current = false;
-        return;
-      }
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       
@@ -3504,20 +3369,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     return `${day} ${hours}:${mins} ${ampm}`;
   };
 
-  // Feature flag: Wheel pickers in trays (instead of native keyboard / anchored picker)
-  const _ttUseWheelPickers = () => {
-    try {
-      if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useWheelPickers?.get) {
-        return !!window.TT.shared.flags.useWheelPickers.get();
-      }
-      return localStorage.getItem('tt_use_wheel_pickers') === 'true';
-    } catch (e) {
-      return false;
-    }
-  };
-
   // Input Field Row Component
-  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false, pickerMode = null, onOpenPicker = null }) => {
+  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false }) => {
     
     // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
     // If rawValue is null/empty and placeholder exists, show placeholder as the value
@@ -3532,12 +3385,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       if (e.target.closest('button')) {
         return;
       }
-      if (type === 'datetime') {
+      // For datetime fields, use old picker
+      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
         e.preventDefault();
-        if (_ttUseWheelPickers() && typeof onOpenPicker === 'function' && pickerMode) {
-          onOpenPicker(pickerMode);
-          return;
-        }
         if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
           window.TT.ui.openAnchoredTimePicker({
             anchorEl: timeAnchorRef.current,
@@ -3547,10 +3397,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }
       } else if (inputRef.current) {
         // For other types, focus the input
-        if (_ttUseWheelPickers() && pickerMode === 'amount' && typeof onOpenPicker === 'function') {
-          onOpenPicker('amount');
-          return;
-        }
         inputRef.current.focus();
       }
     };
@@ -3558,11 +3404,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleIconClick = (e) => {
       e.stopPropagation();
       e.preventDefault();
-      if (type === 'datetime') {
-        if (_ttUseWheelPickers() && typeof onOpenPicker === 'function' && pickerMode) {
-          onOpenPicker(pickerMode);
-          return;
-        }
+      if (type === 'datetime' || type === 'datetime-local' || type === 'date' || type === 'time') {
+        // Use old picker
         if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
           window.TT.ui.openAnchoredTimePicker({
             anchorEl: timeAnchorRef.current,
@@ -3573,10 +3416,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       } else {
         // For non-datetime types, focus the input
         if (inputRef.current) {
-          if (_ttUseWheelPickers() && pickerMode === 'amount' && typeof onOpenPicker === 'function') {
-            onOpenPicker('amount');
-            return;
-          }
           inputRef.current.focus();
         }
       }
@@ -3628,8 +3467,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             : React.createElement('input',
                 {
                   ref: type === 'datetime' ? timeAnchorRef : inputRef,
-                  // If this field is driven by a tray picker, keep it as a text input.
-                  type: (type === 'datetime' || (_ttUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
+                  type: type === 'datetime' ? 'text' : type,
                   inputMode: type === 'number' ? 'decimal' : undefined,
                   step: type === 'number' ? '0.25' : undefined,
                   value: displayValue || '',
@@ -3651,7 +3489,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                       ? '#ef4444'
                       : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
                   },
-                  readOnly: (type === 'datetime') || (_ttUseWheelPickers() && pickerMode === 'amount')
+                  readOnly: type === 'datetime'
                 }
               )
         ),
@@ -3685,96 +3523,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Collapsible Notes/Photos state
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
-
-    // Wheel picker trays (feature flagged)
-    const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
-    const TTPickerTray = _pickers.TTPickerTray;
-    const AmountPickerLabSection = _pickers.AmountPickerLabSection;
-    const WheelPicker = _pickers.WheelPicker;
-    const wheelStyles = _pickers.wheelStyles || {};
-
-    const [showAmountTray, setShowAmountTray] = React.useState(false);
-    const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState('oz');
-    const [amountPickerAmountLocal, setAmountPickerAmountLocal] = React.useState(4);
-
-    const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
-    const [dtTarget, setDtTarget] = React.useState('feeding'); // 'feeding'
-    const [dtSelectedDate, setDtSelectedDate] = React.useState(() => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return today.toISOString();
-    });
-    const [dtHour, setDtHour] = React.useState(12);
-    const [dtMinute, setDtMinute] = React.useState(0);
-    const [dtAmpm, setDtAmpm] = React.useState('AM');
-
-    const _formatOz = (n) => {
-      const num = Number(n);
-      if (!Number.isFinite(num)) return '';
-      const fixed = (Math.round(num * 100) / 100);
-      return (fixed % 1 === 0) ? String(fixed) : String(fixed).replace(/0+$/,'').replace(/\.$/,'');
-    };
-
-    const _snapToStep = (val, step) => {
-      const n = Number(val) || 0;
-      const s = Number(step) || 1;
-      const snapped = Math.round(n / s) * s;
-      return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-    };
-
-    const setAmountUnitWithConversion = (nextUnit) => {
-      if (!nextUnit || nextUnit === amountPickerUnitLocal) return;
-      if (nextUnit === 'ml') {
-        const ml = _snapToStep(amountPickerAmountLocal * 29.5735, 10);
-        setAmountPickerUnitLocal('ml');
-        setAmountPickerAmountLocal(ml);
-      } else {
-        const oz = _snapToStep(amountPickerAmountLocal / 29.5735, 0.25);
-        setAmountPickerUnitLocal('oz');
-        setAmountPickerAmountLocal(oz);
-      }
-    };
-
-    const _isoToDateParts = (iso) => {
-      const d = new Date(iso);
-      const day = new Date(d);
-      day.setHours(0, 0, 0, 0);
-      let h24 = d.getHours();
-      const minutes = d.getMinutes();
-      const ampm = h24 >= 12 ? 'PM' : 'AM';
-      let h12 = h24 % 12;
-      h12 = h12 ? h12 : 12;
-      return { dayISO: day.toISOString(), hour: h12, minute: minutes, ampm };
-    };
-
-    const _partsToISO = ({ dayISO, hour, minute, ampm }) => {
-      const base = new Date(dayISO);
-      const h12 = Number(hour) || 12;
-      const m = Number(minute) || 0;
-      const h24 = (ampm === 'PM') ? ((h12 % 12) + 12) : (h12 % 12);
-      base.setHours(h24, m, 0, 0);
-      return base.toISOString();
-    };
-
-    const openTrayPicker = (mode) => {
-      if (!_ttUseWheelPickers()) return;
-      if (mode === 'amount') {
-        const currentOz = parseFloat(ounces);
-        setAmountPickerUnitLocal('oz');
-        setAmountPickerAmountLocal(Number.isFinite(currentOz) ? currentOz : 4);
-        setShowAmountTray(true);
-        return;
-      }
-      if (mode === 'datetime_feeding') {
-        setDtTarget('feeding');
-        const parts = _isoToDateParts(dateTime || new Date().toISOString());
-        setDtSelectedDate(parts.dayISO);
-        setDtHour(parts.hour);
-        setDtMinute(parts.minute);
-        setDtAmpm(parts.ampm);
-        setShowDateTimeTray(true);
-      }
-    };
 
     // Calculate height based on expanded fields
     const calculateHeight = React.useMemo(() => {
@@ -3905,31 +3653,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           );
           console.log('[TTFeedDetailSheet] Feeding created successfully');
         }
-
-        // If this feeding has notes or photos, also post it into the family chat "from @tinytracker"
-        try {
-          const hasNote = !!(notes && String(notes).trim().length > 0);
-          const hasPhotos = Array.isArray(allPhotoURLs) && allPhotoURLs.length > 0;
-          if ((hasNote || hasPhotos) && firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
-            const eventTime = new Date(timestamp);
-            const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            const contentParts = [];
-            if (hasNote) contentParts.push(String(notes).trim());
-            if (!hasNote && hasPhotos) contentParts.push('Photo update');
-            const chatMsg = {
-              role: 'assistant',
-              content: `@tinytracker: Feeding • ${timeLabel}${hasNote ? `\n${contentParts.join('\n')}` : ''}`,
-              timestamp: Date.now(),
-              source: 'log',
-              logType: 'feeding',
-              logTimestamp: timestamp,
-              photoURLs: hasPhotos ? allPhotoURLs : []
-            };
-            await firestoreStorage.saveMessage(chatMsg);
-          }
-        } catch (e) {
-          console.warn('[TTFeedDetailSheet] Failed to post feeding note/photo to chat:', e);
-        }
         
         // Close the sheet first
         console.log('[TTFeedDetailSheet] Closing sheet...');
@@ -4037,9 +3760,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setOunces,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'number',
-          placeholder: '0',
-          pickerMode: 'amount',
-          onOpenPicker: openTrayPicker
+          placeholder: '0'
         }),
 
         // Start time
@@ -4050,8 +3771,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setDateTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime',
-          pickerMode: 'datetime_feeding',
-          onOpenPicker: openTrayPicker,
         }),
 
         // Notes - conditionally render based on expanded state
@@ -4145,7 +3864,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
       // Sticky bottom CTA (Save button)
       // Hide when keyboard is open to prevent overlap with keyboard
-      React.createElement('div', {
+        React.createElement('div', {
         ref: ctaFooterRef,
         className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
         style: { 
@@ -4181,105 +3900,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             }
           }
         }, saving ? 'Saving...' : 'Save')
-      ),
-
-      // Wheel amount tray (feature flagged)
-      TTPickerTray && AmountPickerLabSection && _ttUseWheelPickers() && React.createElement(TTPickerTray, {
-        isOpen: showAmountTray,
-        onClose: () => setShowAmountTray(false),
-        header: React.createElement(React.Fragment, null,
-          React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' } },
-            window.TT?.shared?.SegmentedToggle && React.createElement(window.TT.shared.SegmentedToggle, {
-              value: amountPickerUnitLocal,
-              options: [
-                { value: 'oz', label: 'oz' },
-                { value: 'ml', label: 'ml' }
-              ],
-              onChange: (val) => setAmountUnitWithConversion(val),
-              variant: 'body',
-              size: 'medium'
-            })
-          ),
-          React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
-            React.createElement('div', { style: { fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, 'Amount')
-          ),
-          React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' } },
-            React.createElement('button', {
-              onClick: () => {
-                const oz = (amountPickerUnitLocal === 'ml') ? (amountPickerAmountLocal / 29.5735) : amountPickerAmountLocal;
-                setOunces(_formatOz(oz));
-                setShowAmountTray(false);
-              },
-              style: { background: 'none', border: 'none', padding: 0, color: 'var(--tt-feed)', fontSize: 17, fontWeight: 600 }
-            }, 'Done')
-          )
-        )
-      },
-        React.createElement(AmountPickerLabSection, {
-          unit: amountPickerUnitLocal,
-          setUnit: setAmountPickerUnitLocal,
-          amount: amountPickerAmountLocal,
-          setAmount: setAmountPickerAmountLocal
-        })
-      ),
-
-      // Wheel date/time tray (feature flagged)
-      TTPickerTray && WheelPicker && _ttUseWheelPickers() && React.createElement(TTPickerTray, {
-        isOpen: showDateTimeTray,
-        onClose: () => setShowDateTimeTray(false),
-        header: React.createElement(React.Fragment, null,
-          React.createElement('button', {
-            onClick: () => setShowDateTimeTray(false),
-            style: { justifySelf: 'start', background: 'none', border: 'none', padding: 0, color: 'var(--tt-text-secondary)', fontSize: 17 }
-          }, 'Cancel'),
-          React.createElement('div', { style: { justifySelf: 'center', fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, 'Time'),
-          React.createElement('button', {
-            onClick: () => {
-              const nextISO = _partsToISO({ dayISO: dtSelectedDate, hour: dtHour, minute: dtMinute, ampm: dtAmpm });
-              setDateTime(nextISO);
-              setShowDateTimeTray(false);
-            },
-            style: { justifySelf: 'end', background: 'none', border: 'none', padding: 0, color: 'var(--tt-feed)', fontSize: 17, fontWeight: 600 }
-          }, 'Done')
-        )
-      },
-        React.createElement('div', { style: wheelStyles.section || {} },
-          React.createElement('div', { style: { position: 'relative' } },
-            React.createElement('div', {
-              style: {
-                position: 'absolute',
-                left: 8,
-                right: 8,
-                top: '50%',
-                height: 40,
-                transform: 'translateY(-50%)',
-                background: 'var(--tt-subtle-surface)',
-                borderRadius: 8,
-                zIndex: 0,
-                pointerEvents: 'none'
-              }
-            }),
-            React.createElement('div', {
-              style: {
-                position: 'relative',
-                zIndex: 1,
-                display: 'grid',
-                gridTemplateColumns: 'min(65px, 16vw) min(50px, 12vw) 8px min(50px, 12vw) min(50px, 12vw)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                columnGap: '0px',
-                padding: '0',
-                maxWidth: '100%'
-              }
-            },
-              React.createElement(WheelPicker, { type: 'date', value: dtSelectedDate, onChange: setDtSelectedDate, compact: true, dateCompact: true, showSelection: false }),
-              React.createElement(WheelPicker, { type: 'hour', value: dtHour, onChange: setDtHour, compact: true, showSelection: false }),
-              React.createElement('div', { style: { ...(wheelStyles.timeColon || {}), width: '8px', fontSize: '20px', height: '40px', lineHeight: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', transform: 'translateY(-2.5px)' } }, ':'),
-              React.createElement(WheelPicker, { type: 'minute', value: dtMinute, onChange: setDtMinute, compact: true, showSelection: false }),
-              React.createElement(WheelPicker, { type: 'ampm', value: dtAmpm, onChange: setDtAmpm, compact: true, showSelection: false })
-            )
-          )
-        )
       ),
 
       // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
@@ -4343,8 +3963,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       { 
         className: "rounded-2xl shadow-sm p-6 space-y-0",
         style: {
-          backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
-          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
+          backgroundColor: "var(--tt-card-bg)",
+          borderColor: "var(--tt-card-border)"
         }
       },
       // Header: [X] [Feeding] [Save]
@@ -4390,59 +4010,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     // Collapsible Notes/Photos state
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
-
-    // Wheel picker trays (feature flagged)
-    const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
-    const TTPickerTray = _pickers.TTPickerTray;
-    const WheelPicker = _pickers.WheelPicker;
-    const wheelStyles = _pickers.wheelStyles || {};
-
-    const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
-    const [dtTarget, setDtTarget] = React.useState('start'); // 'start' | 'end'
-    const [dtSelectedDate, setDtSelectedDate] = React.useState(() => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return today.toISOString();
-    });
-    const [dtHour, setDtHour] = React.useState(12);
-    const [dtMinute, setDtMinute] = React.useState(0);
-    const [dtAmpm, setDtAmpm] = React.useState('AM');
-
-    const _isoToDateParts = (iso) => {
-      const d = new Date(iso);
-      const day = new Date(d);
-      day.setHours(0, 0, 0, 0);
-      let h24 = d.getHours();
-      const minutes = d.getMinutes();
-      const ampm = h24 >= 12 ? 'PM' : 'AM';
-      let h12 = h24 % 12;
-      h12 = h12 ? h12 : 12;
-      return { dayISO: day.toISOString(), hour: h12, minute: minutes, ampm };
-    };
-
-    const _partsToISO = ({ dayISO, hour, minute, ampm }) => {
-      const base = new Date(dayISO);
-      const h12 = Number(hour) || 12;
-      const m = Number(minute) || 0;
-      const h24 = (ampm === 'PM') ? ((h12 % 12) + 12) : (h12 % 12);
-      base.setHours(h24, m, 0, 0);
-      return base.toISOString();
-    };
-
-    const openTrayPicker = (mode) => {
-      if (!_ttUseWheelPickers()) return;
-      if (mode === 'datetime_start' || mode === 'datetime_end') {
-        const target = (mode === 'datetime_end') ? 'end' : 'start';
-        setDtTarget(target);
-        const iso = (target === 'end' ? (endTime || new Date().toISOString()) : (startTime || new Date().toISOString()));
-        const parts = _isoToDateParts(iso);
-        setDtSelectedDate(parts.dayISO);
-        setDtHour(parts.hour);
-        setDtMinute(parts.minute);
-        setDtAmpm(parts.ampm);
-        setShowDateTimeTray(true);
-      }
-    };
 
     // Calculate height based on expanded fields
     const calculateHeight = React.useMemo(() => {
@@ -4630,28 +4197,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           }
           console.log('[TTSleepDetailSheet] Sleep session created successfully');
         }
-
-        // If this sleep has notes or photos, also post it into the family chat "from @tinytracker"
-        try {
-          const hasNote = !!(notes && String(notes).trim().length > 0);
-          const hasPhotos = Array.isArray(allPhotoURLs) && allPhotoURLs.length > 0;
-          if ((hasNote || hasPhotos) && firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
-            const eventTime = new Date(startMs);
-            const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            const chatMsg = {
-              role: 'assistant',
-              content: `@tinytracker: Sleep • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
-              timestamp: Date.now(),
-              source: 'log',
-              logType: 'sleep',
-              logTimestamp: startMs,
-              photoURLs: hasPhotos ? allPhotoURLs : []
-            };
-            await firestoreStorage.saveMessage(chatMsg);
-          }
-        } catch (e) {
-          console.warn('[TTSleepDetailSheet] Failed to post sleep note/photo to chat:', e);
-        }
         
         // Close the sheet first
         console.log('[TTSleepDetailSheet] Closing sheet...');
@@ -4783,8 +4328,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setStartTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime',
-          pickerMode: 'datetime_start',
-          onOpenPicker: openTrayPicker,
         }),
 
         // End time
@@ -4795,8 +4338,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setEndTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime',
-          pickerMode: 'datetime_end',
-          onOpenPicker: openTrayPicker,
           invalid: !isValid // Pass invalid flag when end time is before start time
         }),
 
@@ -4931,66 +4472,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, saving ? 'Saving...' : 'Save')
       ),
 
-      // Wheel date/time tray (feature flagged)
-      TTPickerTray && WheelPicker && React.createElement(TTPickerTray, {
-        isOpen: showDateTimeTray,
-        onClose: () => setShowDateTimeTray(false),
-        header: React.createElement(React.Fragment, null,
-          React.createElement('button', {
-            onClick: () => setShowDateTimeTray(false),
-            style: { justifySelf: 'start', background: 'none', border: 'none', padding: 0, color: 'var(--tt-text-secondary)', fontSize: 17 }
-          }, 'Cancel'),
-          React.createElement('div', { style: { justifySelf: 'center', fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, dtTarget === 'end' ? 'End time' : 'Start time'),
-          React.createElement('button', {
-            onClick: () => {
-              const nextISO = _partsToISO({ dayISO: dtSelectedDate, hour: dtHour, minute: dtMinute, ampm: dtAmpm });
-              if (dtTarget === 'end') setEndTime(nextISO);
-              else setStartTime(nextISO);
-              setShowDateTimeTray(false);
-            },
-            style: { justifySelf: 'end', background: 'none', border: 'none', padding: 0, color: 'var(--tt-sleep)', fontSize: 17, fontWeight: 600 }
-          }, 'Done')
-        )
-      },
-        React.createElement('div', { style: wheelStyles.section || {} },
-          React.createElement('div', { style: { position: 'relative' } },
-            React.createElement('div', {
-              style: {
-                position: 'absolute',
-                left: 8,
-                right: 8,
-                top: '50%',
-                height: 40,
-                transform: 'translateY(-50%)',
-                background: 'var(--tt-subtle-surface)',
-                borderRadius: 8,
-                zIndex: 0,
-                pointerEvents: 'none'
-              }
-            }),
-            React.createElement('div', {
-              style: {
-                position: 'relative',
-                zIndex: 1,
-                display: 'grid',
-                gridTemplateColumns: 'min(65px, 16vw) min(50px, 12vw) 8px min(50px, 12vw) min(50px, 12vw)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                columnGap: '0px',
-                padding: '0',
-                maxWidth: '100%'
-              }
-            },
-              React.createElement(WheelPicker, { type: 'date', value: dtSelectedDate, onChange: setDtSelectedDate, compact: true, dateCompact: true, showSelection: false }),
-              React.createElement(WheelPicker, { type: 'hour', value: dtHour, onChange: setDtHour, compact: true, showSelection: false }),
-              React.createElement('div', { style: { ...(wheelStyles.timeColon || {}), width: '8px', fontSize: '20px', height: '40px', lineHeight: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', transform: 'translateY(-2.5px)' } }, ':'),
-              React.createElement(WheelPicker, { type: 'minute', value: dtMinute, onChange: setDtMinute, compact: true, showSelection: false }),
-              React.createElement(WheelPicker, { type: 'ampm', value: dtAmpm, onChange: setDtAmpm, compact: true, showSelection: false })
-            )
-          )
-        )
-      ),
-
       // Full-size photo modal (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
       fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
@@ -5052,8 +4533,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       { 
         className: "rounded-2xl shadow-sm p-6 space-y-0",
         style: {
-          backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
-          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
+          backgroundColor: "var(--tt-card-bg)",
+          borderColor: "var(--tt-card-border)"
         }
       },
       // Header: [ChevronDown] [Sleep] [empty]
@@ -5156,104 +4637,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       // before the user taps Start Sleep. This also makes the sheet height measurement
       // stable across Feed/Sleep toggles (no surprise growth on first toggle).
       return new Date().toISOString();
-    };
-
-    // Wheel picker trays (feature flagged)
-    const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
-    const TTPickerTray = _pickers.TTPickerTray;
-    const AmountPickerLabSection = _pickers.AmountPickerLabSection;
-    const WheelPicker = _pickers.WheelPicker;
-    const wheelStyles = _pickers.wheelStyles || {};
-
-    const [showAmountTray, setShowAmountTray] = React.useState(false);
-    const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState('oz');
-    const [amountPickerAmountLocal, setAmountPickerAmountLocal] = React.useState(4);
-
-    const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
-    const [dtTarget, setDtTarget] = React.useState('feeding'); // 'feeding' | 'sleep_start' | 'sleep_end'
-    const [dtSelectedDate, setDtSelectedDate] = React.useState(() => {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      return today.toISOString();
-    });
-    const [dtHour, setDtHour] = React.useState(12);
-    const [dtMinute, setDtMinute] = React.useState(0);
-    const [dtAmpm, setDtAmpm] = React.useState('AM');
-
-    const _formatOz = (n) => {
-      const num = Number(n);
-      if (!Number.isFinite(num)) return '';
-      const fixed = (Math.round(num * 100) / 100);
-      return (fixed % 1 === 0) ? String(fixed) : String(fixed).replace(/0+$/,'').replace(/\.$/,'');
-    };
-
-    const _snapToStep = (val, step) => {
-      const n = Number(val) || 0;
-      const s = Number(step) || 1;
-      const snapped = Math.round(n / s) * s;
-      return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-    };
-
-    const setAmountUnitWithConversion = (nextUnit) => {
-      if (!nextUnit || nextUnit === amountPickerUnitLocal) return;
-      if (nextUnit === 'ml') {
-        const ml = _snapToStep(amountPickerAmountLocal * 29.5735, 10);
-        setAmountPickerUnitLocal('ml');
-        setAmountPickerAmountLocal(ml);
-      } else {
-        const oz = _snapToStep(amountPickerAmountLocal / 29.5735, 0.25);
-        setAmountPickerUnitLocal('oz');
-        setAmountPickerAmountLocal(oz);
-      }
-    };
-
-    const _isoToDateParts = (iso) => {
-      const d = new Date(iso);
-      const day = new Date(d);
-      day.setHours(0, 0, 0, 0);
-      let h24 = d.getHours();
-      const minutes = d.getMinutes();
-      const ampm = h24 >= 12 ? 'PM' : 'AM';
-      let h12 = h24 % 12;
-      h12 = h12 ? h12 : 12;
-      return { dayISO: day.toISOString(), hour: h12, minute: minutes, ampm };
-    };
-
-    const _partsToISO = ({ dayISO, hour, minute, ampm }) => {
-      const base = new Date(dayISO);
-      const h12 = Number(hour) || 12;
-      const m = Number(minute) || 0;
-      const h24 = (ampm === 'PM') ? ((h12 % 12) + 12) : (h12 % 12);
-      base.setHours(h24, m, 0, 0);
-      return base.toISOString();
-    };
-
-    const openTrayPicker = (mode) => {
-      if (!_ttUseWheelPickers()) return;
-
-      if (mode === 'amount') {
-        const currentOz = parseFloat(ounces);
-        setAmountPickerUnitLocal('oz');
-        setAmountPickerAmountLocal(Number.isFinite(currentOz) ? currentOz : 4);
-        setShowAmountTray(true);
-        return;
-      }
-
-      if (mode === 'datetime_feeding' || mode === 'datetime_sleep_start' || mode === 'datetime_sleep_end') {
-        const target = mode === 'datetime_sleep_start' ? 'sleep_start' : (mode === 'datetime_sleep_end' ? 'sleep_end' : 'feeding');
-        setDtTarget(target);
-        const iso = target === 'feeding'
-          ? (feedingDateTime || new Date().toISOString())
-          : (target === 'sleep_end'
-              ? ((endTime || new Date().toISOString()))
-              : ((startTime || new Date().toISOString())));
-        const parts = _isoToDateParts(iso);
-        setDtSelectedDate(parts.dayISO);
-        setDtHour(parts.hour);
-        setDtMinute(parts.minute);
-        setDtAmpm(parts.ampm);
-        setShowDateTimeTray(true);
-      }
     };
     
     const [mode, setMode] = React.useState(getInitialMode()); // 'feeding' | 'sleep'
@@ -5631,28 +5014,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           photoURLs.length > 0 ? photoURLs : null
         );
         console.log('[TTInputHalfSheet] Feeding saved successfully to Firestore');
-
-        // If this feeding has notes or photos, also post it into the family chat "from @tinytracker"
-        try {
-          const hasNote = !!(feedingNotes && String(feedingNotes).trim().length > 0);
-          const hasPhotos = Array.isArray(photoURLs) && photoURLs.length > 0;
-          if ((hasNote || hasPhotos) && firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
-            const eventTime = new Date(timestamp);
-            const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-            const chatMsg = {
-              role: 'assistant',
-              content: `@tinytracker: Feeding • ${timeLabel}${hasNote ? `\n${String(feedingNotes).trim()}` : ''}`,
-              timestamp: Date.now(),
-              source: 'log',
-              logType: 'feeding',
-              logTimestamp: timestamp,
-              photoURLs: hasPhotos ? photoURLs : []
-            };
-            await firestoreStorage.saveMessage(chatMsg);
-          }
-        } catch (e) {
-          console.warn('[TTInputHalfSheet] Failed to post feeding note/photo to chat:', e);
-        }
         
         // Reset form
         setOunces('');
@@ -5759,27 +5120,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               notes: sleepNotes || null,
               photoURLs: photoURLs.length > 0 ? photoURLs : null
             });
-
-            // Also post to family chat "from @tinytracker"
-            try {
-              if (firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
-                const eventTime = new Date(startTime);
-                const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                const hasNote = !!(sleepNotes && String(sleepNotes).trim().length > 0);
-                const chatMsg = {
-                  role: 'assistant',
-                  content: `@tinytracker: Sleep • ${timeLabel}${hasNote ? `\n${String(sleepNotes).trim()}` : ''}`,
-                  timestamp: Date.now(),
-                  source: 'log',
-                  logType: 'sleep',
-                  logTimestamp: new Date(startTime).getTime(),
-                  photoURLs: (photoURLs && photoURLs.length > 0) ? photoURLs : []
-                };
-                await firestoreStorage.saveMessage(chatMsg);
-              }
-            } catch (e) {
-              console.warn('[TTInputHalfSheet] Failed to post sleep note/photo to chat:', e);
-            }
           }
           
           setActiveSleepSessionId(null);
@@ -5976,27 +5316,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 notes: sleepNotes || null,
                 photoURLs: photoURLs.length > 0 ? photoURLs : null
               });
-
-              // Also post to family chat "from @tinytracker"
-              try {
-                if (firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
-                  const eventTime = new Date(startMs);
-                  const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                  const hasNote = !!(sleepNotes && String(sleepNotes).trim().length > 0);
-                  const chatMsg = {
-                    role: 'assistant',
-                    content: `@tinytracker: Sleep • ${timeLabel}${hasNote ? `\n${String(sleepNotes).trim()}` : ''}`,
-                    timestamp: Date.now(),
-                    source: 'log',
-                    logType: 'sleep',
-                    logTimestamp: startMs,
-                    photoURLs: (photoURLs && photoURLs.length > 0) ? photoURLs : []
-                  };
-                  await firestoreStorage.saveMessage(chatMsg);
-                }
-              } catch (e) {
-                console.warn('[TTInputHalfSheet] Failed to post sleep note/photo to chat:', e);
-              }
             }
             setActiveSleepSessionId(null);
           } else {
@@ -6008,27 +5327,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 notes: sleepNotes || null,
                 photoURLs: photoURLs.length > 0 ? photoURLs : null
               });
-
-              // Also post to family chat "from @tinytracker"
-              try {
-                if (firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
-                  const eventTime = new Date(startMs);
-                  const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-                  const hasNote = !!(sleepNotes && String(sleepNotes).trim().length > 0);
-                  const chatMsg = {
-                    role: 'assistant',
-                    content: `@tinytracker: Sleep • ${timeLabel}${hasNote ? `\n${String(sleepNotes).trim()}` : ''}`,
-                    timestamp: Date.now(),
-                    source: 'log',
-                    logType: 'sleep',
-                    logTimestamp: startMs,
-                    photoURLs: (photoURLs && photoURLs.length > 0) ? photoURLs : []
-                  };
-                  await firestoreStorage.saveMessage(chatMsg);
-                }
-              } catch (e) {
-                console.warn('[TTInputHalfSheet] Failed to post sleep note/photo to chat:', e);
-              }
             }
           }
           
@@ -6067,9 +5365,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setOunces,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'number',
-          placeholder: '0',
-          pickerMode: 'amount',
-          onOpenPicker: openTrayPicker
+          placeholder: '0'
         }),
 
         // Start time
@@ -6080,8 +5376,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onChange: setFeedingDateTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
           type: 'datetime',
-          pickerMode: 'datetime_feeding',
-          onOpenPicker: openTrayPicker,
         }),
 
         // Notes - conditionally render based on expanded state
@@ -6210,8 +5504,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             onChange: handleStartTimeChange,
             icon: timeIcon,
             type: 'datetime',
-            pickerMode: 'datetime_sleep_start',
-            onOpenPicker: openTrayPicker,
             readOnly: false // Always editable
           }),
 
@@ -6223,8 +5515,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             onChange: handleEndTimeChange,
             icon: timeIcon,
             type: 'datetime',
-            pickerMode: 'datetime_sleep_end',
-            onOpenPicker: openTrayPicker,
             placeholder: 'Add...',
             readOnly: false, // Always editable
             invalid: !isSleepValid && isIdleWithTimes
@@ -6458,109 +5748,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             })()
       ),
 
-      // Wheel amount tray (feature flagged)
-      TTPickerTray && AmountPickerLabSection && _ttUseWheelPickers() && React.createElement(TTPickerTray, {
-        isOpen: showAmountTray,
-        onClose: () => setShowAmountTray(false),
-        header: React.createElement(React.Fragment, null,
-          React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-start', alignItems: 'center' } },
-            window.TT?.shared?.SegmentedToggle && React.createElement(window.TT.shared.SegmentedToggle, {
-              value: amountPickerUnitLocal,
-              options: [
-                { value: 'oz', label: 'oz' },
-                { value: 'ml', label: 'ml' }
-              ],
-              onChange: (val) => setAmountUnitWithConversion(val),
-              variant: 'body',
-              size: 'medium'
-            })
-          ),
-          React.createElement('div', { style: { display: 'flex', justifyContent: 'center', alignItems: 'center' } },
-            React.createElement('div', { style: { fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, 'Amount')
-          ),
-          React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center' } },
-            React.createElement('button', {
-              onClick: () => {
-                const oz = (amountPickerUnitLocal === 'ml') ? (amountPickerAmountLocal / 29.5735) : amountPickerAmountLocal;
-                setOunces(_formatOz(oz));
-                setShowAmountTray(false);
-              },
-              style: { background: 'none', border: 'none', padding: 0, color: 'var(--tt-feed)', fontSize: 17, fontWeight: 600 }
-            }, 'Done')
-          )
-        )
-      },
-        React.createElement(AmountPickerLabSection, {
-          unit: amountPickerUnitLocal,
-          setUnit: setAmountPickerUnitLocal,
-          amount: amountPickerAmountLocal,
-          setAmount: setAmountPickerAmountLocal
-        })
-      ),
-
-      // Wheel date/time tray (feature flagged)
-      TTPickerTray && WheelPicker && _ttUseWheelPickers() && React.createElement(TTPickerTray, {
-        isOpen: showDateTimeTray,
-        onClose: () => setShowDateTimeTray(false),
-        header: React.createElement(React.Fragment, null,
-          React.createElement('button', {
-            onClick: () => setShowDateTimeTray(false),
-            style: { justifySelf: 'start', background: 'none', border: 'none', padding: 0, color: 'var(--tt-text-secondary)', fontSize: 17 }
-          }, 'Cancel'),
-          React.createElement('div', { style: { justifySelf: 'center', fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } },
-            dtTarget === 'sleep_end' ? 'End time' : (dtTarget === 'sleep_start' ? 'Start time' : 'Time')
-          ),
-          React.createElement('button', {
-            onClick: () => {
-              const nextISO = _partsToISO({ dayISO: dtSelectedDate, hour: dtHour, minute: dtMinute, ampm: dtAmpm });
-              if (dtTarget === 'sleep_end') setEndTime(nextISO);
-              else if (dtTarget === 'sleep_start') setStartTime(nextISO);
-              else setFeedingDateTime(nextISO);
-              setShowDateTimeTray(false);
-            },
-            style: { justifySelf: 'end', background: 'none', border: 'none', padding: 0, color: (mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)'), fontSize: 17, fontWeight: 600 }
-          }, 'Done')
-        )
-      },
-        React.createElement('div', { style: wheelStyles.section || {} },
-          React.createElement('div', { style: { position: 'relative' } },
-            React.createElement('div', {
-              style: {
-                position: 'absolute',
-                left: 8,
-                right: 8,
-                top: '50%',
-                height: 40,
-                transform: 'translateY(-50%)',
-                background: 'var(--tt-subtle-surface)',
-                borderRadius: 8,
-                zIndex: 0,
-                pointerEvents: 'none'
-              }
-            }),
-            React.createElement('div', {
-              style: {
-                position: 'relative',
-                zIndex: 1,
-                display: 'grid',
-                gridTemplateColumns: 'min(65px, 16vw) min(50px, 12vw) 8px min(50px, 12vw) min(50px, 12vw)',
-                justifyContent: 'center',
-                alignItems: 'center',
-                columnGap: '0px',
-                padding: '0',
-                maxWidth: '100%'
-              }
-            },
-              React.createElement(WheelPicker, { type: 'date', value: dtSelectedDate, onChange: setDtSelectedDate, compact: true, dateCompact: true, showSelection: false }),
-              React.createElement(WheelPicker, { type: 'hour', value: dtHour, onChange: setDtHour, compact: true, showSelection: false }),
-              React.createElement('div', { style: { ...(wheelStyles.timeColon || {}), width: '8px', fontSize: '20px', height: '40px', lineHeight: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', textAlign: 'center', transform: 'translateY(-2.5px)' } }, ':'),
-              React.createElement(WheelPicker, { type: 'minute', value: dtMinute, onChange: setDtMinute, compact: true, showSelection: false }),
-              React.createElement(WheelPicker, { type: 'ampm', value: dtAmpm, onChange: setDtAmpm, compact: true, showSelection: false })
-            )
-          )
-        )
-      ),
-
       // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
       fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
@@ -6629,8 +5816,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       { 
         className: "rounded-2xl shadow-sm p-6 space-y-0",
         style: {
-          backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
-          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
+          backgroundColor: "var(--tt-card-bg)",
+          borderColor: "var(--tt-card-border)"
         }
       },
       // Header: [ChevronDown] [Toggle] [empty] - fixed 60px height
@@ -6665,7 +5852,5 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
 // Make available globally for script.js
 if (typeof window !== 'undefined') {
-  // Debug proof this file executed
-  window.__ttTrackerCardLoadedAt = Date.now();
   window.TrackerCard = TrackerCard;
 }

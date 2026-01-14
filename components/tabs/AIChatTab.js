@@ -108,6 +108,25 @@ const TTSendIcon = (props) =>
     })
   );
 
+const TTXIcon = (props) =>
+  React.createElement(
+    'svg',
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "20",
+      height: "20",
+      viewBox: "0 0 24 24",
+      fill: "none",
+      stroke: "currentColor",
+      strokeWidth: "2.5",
+      strokeLinecap: "round",
+      strokeLinejoin: "round"
+    },
+    React.createElement('path', { d: "M18 6 6 18" }),
+    React.createElement('path', { d: "m6 6 12 12" })
+  );
+
 function ttGetFirebase() {
   return (typeof window !== 'undefined' && window.firebase) ? window.firebase : null;
 }
@@ -206,9 +225,9 @@ function ttAvatarCircle({ label, size = 40 }) {
         alignItems: 'center',
         justifyContent: 'center',
         fontSize: Math.max(12, Math.floor(size * 0.32)),
-        fontWeight: 800,
-        backgroundColor: 'rgba(255,255,255,0.10)',
-        border: '1px solid rgba(255,255,255,0.08)',
+        fontWeight: 600,
+        backgroundColor: 'var(--tt-input-bg)',
+        border: '1px solid var(--tt-divider)',
         color: 'var(--tt-text-primary)',
         flex: '0 0 auto'
       }
@@ -218,651 +237,780 @@ function ttAvatarCircle({ label, size = 40 }) {
 }
 
 function ttChatAvatar(chat) {
-  // iOS-ish: Family looks like a "group" (two stacked circles). Others: single initials circle.
+  // iOS-ish: Family chat gets a special dual-circle icon, others get single initials
   if (chat?.id === 'family') {
     return React.createElement(
       'div',
       { style: { position: 'relative', width: 44, height: 44, flex: '0 0 auto' } },
-      React.createElement('div', { style: { position: 'absolute', left: 10, top: 4 } },
-        ttAvatarCircle({ label: 'TT', size: 28 })
-      ),
-      React.createElement('div', { style: { position: 'absolute', left: 0, top: 14 } },
-        ttAvatarCircle({ label: 'F', size: 28 })
-      )
+      React.createElement('div', { 
+        style: { 
+          position: 'absolute', 
+          left: 0, 
+          top: 0,
+          width: 32,
+          height: 32,
+          borderRadius: 9999,
+          backgroundColor: 'var(--tt-input-bg)',
+          border: '1.5px solid var(--tt-divider)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--tt-text-primary)'
+        } 
+      }, 'F'),
+      React.createElement('div', { 
+        style: { 
+          position: 'absolute', 
+          right: 0, 
+          bottom: 0,
+          width: 32,
+          height: 32,
+          borderRadius: 9999,
+          backgroundColor: 'var(--tt-input-bg)',
+          border: '1.5px solid var(--tt-divider)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontSize: 13,
+          fontWeight: 600,
+          color: 'var(--tt-text-primary)'
+        } 
+      }, 'TT')
     );
   }
   return ttAvatarCircle({ label: ttInitials(chat?.name || 'Chat'), size: 44 });
 }
 
 const ChatRow = ({ chat, isUnread, onOpen, onDelete }) => {
-  const [offset, setOffset] = React.useState(0);
-  const [swiping, setSwiping] = React.useState(false);
-  const ref = React.useRef(null);
-  const startRef = React.useRef(null);
-  const DELETE_W = 84;
-  const THRESH = 72;
+  const [swipeOffset, setSwipeOffset] = React.useState(0);
+  const [isSwiping, setIsSwiping] = React.useState(false);
+  const itemRef = React.useRef(null);
+  const touchStartRef = React.useRef({ x: 0, y: 0 });
+  
+  const SWIPE_THRESHOLD = 80;
+  const DELETE_BUTTON_WIDTH = 80;
+  const DELETE_BUTTON_MAX_WIDTH = 100;
   const canDelete = chat.id !== 'family';
 
-  // If a row re-mounts / changes (e.g., new chat added), never keep it in a half-swiped state
-  React.useEffect(() => { setOffset(0); setSwiping(false); startRef.current = null; }, [chat?.id]);
+  // Reset swipe state when chat changes
+  React.useEffect(() => { 
+    setSwipeOffset(0); 
+    setIsSwiping(false); 
+    touchStartRef.current = { x: 0, y: 0 };
+  }, [chat?.id]);
 
-  const onTouchStart = (e) => {
-    if (!canDelete) return;
-    const t = e.touches[0];
-    startRef.current = { x: t.clientX, y: t.clientY };
-    setSwiping(false);
-  };
-
-  const onTouchMove = (e) => {
-    if (!canDelete) return;
-    if (!startRef.current) return;
-    const t = e.touches[0];
-    const dx = t.clientX - startRef.current.x;
-    const dy = Math.abs(t.clientY - startRef.current.y);
-    // Horizontal intent
-    if (Math.abs(dx) > dy) {
-      if (e.cancelable) e.preventDefault();
-      setSwiping(true);
-      // swipe left => reveal delete
-      if (dx < 0) {
-        const next = Math.max(-DELETE_W * 1.8, dx);
-        setOffset(next);
-      } else {
-        // swipe right => close if open
-        if (offset < 0) {
-          const next = Math.min(0, -DELETE_W + dx);
-          setOffset(next);
-        }
+  // Reset swipe when clicking elsewhere
+  React.useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (itemRef.current && !itemRef.current.contains(e.target) && swipeOffset < 0) {
+        setSwipeOffset(0);
       }
+    };
+    if (swipeOffset < 0) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
     }
-  };
+  }, [swipeOffset]);
 
-  const finalizeSwipe = () => {
+  const handleTouchStart = (e) => {
     if (!canDelete) return;
-    if (!swiping) return;
-    const cur = offset;
-    // hard-swipe left deletes
-    if (cur < -DELETE_W * 1.35) {
-      setOffset(0);
-      onDelete?.(chat);
-    } else if (cur < -THRESH) {
-      setOffset(-DELETE_W);
-    } else {
-      setOffset(0);
-    }
-    setSwiping(false);
-    startRef.current = null;
+    const touch = e.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    setIsSwiping(false);
   };
-  const onTouchEnd = () => finalizeSwipe();
-  const onTouchCancel = () => finalizeSwipe();
 
-  const bg = 'var(--tt-subtle-surface)';
+  const handleTouchMove = (e) => {
+    if (!canDelete || !touchStartRef.current) return;
+    
+    const touch = e.touches[0];
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+    
+    // Only handle horizontal swipes (more horizontal than vertical)
+    if (Math.abs(deltaX) > deltaY && deltaX < 0) {
+      setIsSwiping(true);
+      // Allow swiping beyond delete button for full-swipe delete
+      const newOffset = Math.max(-DELETE_BUTTON_WIDTH * 2, deltaX);
+      setSwipeOffset(newOffset);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (!canDelete || !isSwiping) {
+      touchStartRef.current = { x: 0, y: 0 };
+      return;
+    }
+    
+    // Full swipe delete (swiped past delete button width)
+    if (swipeOffset < -DELETE_BUTTON_WIDTH * 1.5) {
+      if (navigator.vibrate) navigator.vibrate(10);
+      setSwipeOffset(0);
+      setIsSwiping(false);
+      touchStartRef.current = { x: 0, y: 0 };
+      onDelete(chat.id);
+    } else if (swipeOffset < -SWIPE_THRESHOLD) {
+      // Partial swipe - reveal delete button
+      if (navigator.vibrate) navigator.vibrate(5);
+      setSwipeOffset(-DELETE_BUTTON_WIDTH);
+      setIsSwiping(false);
+      touchStartRef.current = { x: 0, y: 0 };
+    } else {
+      // Snap back
+      setSwipeOffset(0);
+      setIsSwiping(false);
+      touchStartRef.current = { x: 0, y: 0 };
+    }
+  };
+
+  // Add non-passive touch listeners
+  React.useEffect(() => {
+    if (!canDelete) return;
+    const element = itemRef.current;
+    if (!element) return;
+    
+    const swipeableElement = element.querySelector('.swipeable-content');
+    if (!swipeableElement) return;
+    
+    const touchMoveHandler = (e) => {
+      if (!touchStartRef.current) return;
+      
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - touchStartRef.current.x;
+      const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+      
+      if (Math.abs(deltaX) > deltaY && deltaX < 0) {
+        setIsSwiping(true);
+        e.preventDefault();
+        const newOffset = Math.max(-DELETE_BUTTON_WIDTH * 2, deltaX);
+        setSwipeOffset(newOffset);
+      }
+    };
+    
+    swipeableElement.addEventListener('touchstart', handleTouchStart, { passive: true });
+    swipeableElement.addEventListener('touchmove', touchMoveHandler, { passive: false });
+    swipeableElement.addEventListener('touchend', handleTouchEnd, { passive: true });
+    
+    return () => {
+      swipeableElement.removeEventListener('touchstart', handleTouchStart);
+      swipeableElement.removeEventListener('touchmove', touchMoveHandler);
+      swipeableElement.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [canDelete, swipeOffset]);
+
+  const handleClick = (e) => {
+    // Don't trigger onClick if swiping or delete button is visible
+    if (isSwiping || swipeOffset < 0) {
+      e.stopPropagation();
+      setSwipeOffset(0);
+      return;
+    }
+    onOpen(chat);
+  };
+
+  const lastMsgText = chat.lastMessage?.text || '';
+  const preview = lastMsgText.length > 50 ? lastMsgText.slice(0, 50) + '…' : lastMsgText;
 
   return React.createElement(
     'div',
-    { ref, className: 'relative overflow-hidden rounded-2xl', style: { touchAction: 'pan-y' } },
-    // delete behind
-    canDelete && React.createElement(
-      'div',
-      {
-        className: 'absolute inset-y-0 right-0 flex items-center justify-center',
-        style: { width: DELETE_W + 'px', backgroundColor: '#ef4444', zIndex: 2 }
-      },
-      React.createElement(
-        'button',
-        {
-          'data-tt-delete': 'true',
-          className: 'text-white font-semibold text-sm',
-          onClick: (e) => { e.stopPropagation(); onDelete?.(chat); }
-        },
-        'Delete'
-      )
-    ),
-    // swipe content
+    {
+      ref: itemRef,
+      className: 'relative overflow-hidden rounded-2xl',
+      style: { touchAction: 'pan-y' }
+    },
+    // Swipeable content wrapper
     React.createElement(
       'div',
       {
-        className: 'tt-tapable rounded-2xl',
-        onClick: () => {
-          // tap closes if delete is revealed
-          if (offset < 0) { setOffset(0); return; }
-          onOpen?.(chat);
-        },
-        onTouchStart,
-        onTouchMove,
-        onTouchEnd,
-        onTouchCancel,
+        className: 'swipeable-content rounded-2xl cursor-pointer transition-colors duration-150 tt-tapable',
         style: {
-          backgroundColor: bg,
-          transform: offset ? `translateX(${offset}px)` : 'translateX(0px)',
-          transition: swiping ? 'none' : 'transform 0.25s cubic-bezier(0.2, 0, 0, 1)',
-          zIndex: offset < 0 ? 1 : 3
-        }
+          backgroundColor: 'var(--tt-subtle-surface)',
+          position: 'relative',
+          transition: isSwiping 
+            ? 'none' 
+            : 'transform 0.4s cubic-bezier(0.2, 0, 0, 1)',
+          zIndex: 1,
+          overflow: 'hidden'
+        },
+        onClick: handleClick
       },
+      // Main content wrapper
       React.createElement(
         'div',
-        { className: 'p-4 flex items-center justify-between gap-3' },
+        {
+          className: 'p-4',
+          style: { 
+            transform: swipeOffset < 0 
+              ? `translateX(${swipeOffset}px)`
+              : 'translateX(0px)',
+            transition: isSwiping 
+              ? 'none' 
+              : 'transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
+          }
+        },
         React.createElement(
           'div',
-          { className: 'flex items-center gap-3 min-w-0' },
-          // unread dot (Apple Messages style)
-          React.createElement('div', {
-            style: {
-              width: 10,
-              height: 10,
-              borderRadius: 9999,
-              backgroundColor: isUnread ? '#3b82f6' : 'transparent',
+          { className: 'flex items-center justify-between' },
+          React.createElement(
+            'div',
+            { className: 'flex items-center gap-3 flex-1 min-w-0' },
+            ttChatAvatar(chat),
+            React.createElement(
+              'div',
+              { className: 'flex-1 min-w-0' },
+              React.createElement(
+                'div',
+                { className: 'flex items-center justify-between mb-1' },
+                React.createElement(
+                  'div',
+                  { 
+                    className: 'font-semibold truncate',
+                    style: { color: 'var(--tt-text-primary)' }
+                  },
+                  chat.name
+                ),
+                chat.lastMessage?.createdAtMs && React.createElement(
+                  'div',
+                  { 
+                    className: 'text-xs ml-2',
+                    style: { color: 'var(--tt-text-secondary)', flex: '0 0 auto' }
+                  },
+                  ttFormatTimeShort(chat.lastMessage.createdAtMs)
+                )
+              ),
+              React.createElement(
+                'div',
+                { className: 'flex items-center gap-2' },
+                React.createElement(
+                  'div',
+                  { 
+                    className: 'text-sm truncate',
+                    style: { color: 'var(--tt-text-secondary)', flex: '1 1 auto' }
+                  },
+                  preview || 'No messages yet'
+                ),
+                isUnread && React.createElement('div', {
+                  style: {
+                    width: 8,
+                    height: 8,
+                    borderRadius: 9999,
+                    backgroundColor: 'var(--tt-primary)',
+                    flex: '0 0 auto'
+                  }
+                })
+              )
+            )
+          ),
+          // Hide chevron when swiped
+          swipeOffset >= -SWIPE_THRESHOLD && React.createElement(TTChevronRight, { 
+            style: { 
+              color: 'var(--tt-text-secondary)',
               flex: '0 0 auto'
             }
-          }),
-          // chat avatar (iOS/WhatsApp-ish)
-          ttChatAvatar(chat),
-          React.createElement(
-            'div',
-            { className: 'min-w-0' },
-            React.createElement(
-              'div',
-              { className: 'font-semibold truncate', style: { color: 'var(--tt-text-secondary)' } },
-              chat.name || 'Chat'
-            ),
-            React.createElement(
-              'div',
-              { className: 'text-[14px] truncate', style: { color: 'var(--tt-text-tertiary)' } },
-              chat.lastMessageText || ''
-            )
-          )
-        ),
+          })
+        )
+      ),
+      // Delete button - absolutely positioned on right, expands inward from right edge
+      canDelete && React.createElement(
+        'div',
+        {
+          className: 'absolute right-0 top-0 bottom-0 flex items-center justify-center rounded-r-2xl',
+          style: {
+            width: swipeOffset < 0 
+              ? (() => {
+                  const absOffset = Math.abs(swipeOffset);
+                  if (absOffset <= DELETE_BUTTON_WIDTH) {
+                    return `${absOffset}px`;
+                  } else {
+                    const extra = absOffset - DELETE_BUTTON_WIDTH;
+                    return `${Math.min(DELETE_BUTTON_MAX_WIDTH, DELETE_BUTTON_WIDTH + extra * 0.3)}px`;
+                  }
+                })()
+              : '0px',
+            backgroundColor: '#ef4444',
+            transition: isSwiping 
+              ? 'none' 
+              : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+            opacity: swipeOffset < 0 ? Math.min(1, Math.abs(swipeOffset) / 60) : 0,
+            overflow: 'hidden'
+          }
+        },
         React.createElement(
-          'div',
-          { className: 'flex items-center gap-2', style: { flex: '0 0 auto' } },
-          React.createElement(
-            'div',
-            { className: 'text-[12px]', style: { color: 'var(--tt-text-tertiary)' } },
-            ttFormatTimeShort(chat.lastMessageAtMs)
-          ),
-          React.createElement(TTChevronRight, { style: { color: 'var(--tt-text-secondary)' } })
+          'button',
+          {
+            onClick: (e) => {
+              e.stopPropagation();
+              onDelete(chat.id);
+            },
+            style: {
+              color: 'white',
+              fontSize: '15px',
+              fontWeight: 600,
+              background: 'none',
+              border: 'none',
+              padding: '0 16px',
+              whiteSpace: 'nowrap',
+              opacity: swipeOffset < -40 ? 1 : 0,
+              transition: 'opacity 0.2s ease-out'
+            }
+          },
+          'Delete'
         )
       )
     )
   );
 };
 
-const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
+const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
   ttEnsureTapStyles();
-  const theme = KID_THEMES?.[themeKey] || KID_THEMES?.indigo || { primary: '#4f46e5' };
-  const db = ttGetDb();
 
-  const uid = user?.uid || null;
-  const myName = user?.displayName || user?.email || 'You';
-
-  const [view, setView] = React.useState('list'); // list | chat
-  const [initializing, setInitializing] = React.useState(true);
+  const [view, setView] = React.useState('list');
   const [chats, setChats] = React.useState([]);
   const [activeChat, setActiveChat] = React.useState(null);
   const [messages, setMessages] = React.useState([]);
   const [input, setInput] = React.useState('');
   const [sending, setSending] = React.useState(false);
-  const [resolvedKidId, setResolvedKidId] = React.useState(kidId || null);
-
+  const [initializing, setInitializing] = React.useState(true);
+  const [lastReadMap, setLastReadMap] = React.useState({});
+  const [pendingPhoto, setPendingPhoto] = React.useState(null);
   const messagesRef = React.useRef(null);
+  const unsubChatsRef = React.useRef(null);
+  const unsubMsgsRef = React.useRef(null);
 
-  const ensureStorageReady = React.useCallback(async () => {
-    if (!familyId) return false;
-    let activeKidId = resolvedKidId || kidId || null;
-    if (!activeKidId) {
-      try {
-        const col = db
-          ?.collection('families')
-          .doc(familyId)
-          .collection('kids');
-        if (col) {
-          const snap = await col.limit(1).get();
-          if (!snap.empty) {
-            activeKidId = snap.docs[0].id;
-            setResolvedKidId(activeKidId);
-          }
+  const db = ttGetDb();
+  const userId = React.useMemo(() => {
+    const fb = ttGetFirebase();
+    const uid = fb?.auth?.()?.currentUser?.uid || null;
+    console.log('AIChatTab: Firebase check', { 
+      hasFirebase: !!fb, 
+      hasAuth: !!fb?.auth, 
+      hasUser: !!fb?.auth?.()?.currentUser,
+      userId: uid 
+    });
+    return uid;
+  }, []);
+
+  // Get user profile info (name and photo from Google)
+  const [userProfiles, setUserProfiles] = React.useState({});
+  
+  React.useEffect(() => {
+    const fb = ttGetFirebase();
+    const currentUser = fb?.auth?.()?.currentUser;
+    if (currentUser) {
+      setUserProfiles(prev => ({
+        ...prev,
+        [currentUser.uid]: {
+          name: currentUser.displayName || 'You',
+          photoURL: currentUser.photoURL || null
         }
-      } catch (e) {
-        console.warn('[ChatTab] Failed to resolve kidId for uploads:', e);
-      }
+      }));
     }
-    if (!activeKidId) return false;
-    if (firestoreStorage && typeof firestoreStorage.initialize === 'function') {
-      await firestoreStorage.initialize(familyId, activeKidId);
-    }
-    return true;
-  }, [db, familyId, kidId, resolvedKidId]);
+  }, [userId]);
 
-  const lastReadKey = React.useCallback(
-    (chatId) => `tt_chat_last_read:${familyId || 'family'}:${chatId}:${uid || 'anon'}`,
-    [familyId, uid]
-  );
-  const getLastReadAt = React.useCallback(
-    (chatId) => Number(localStorage.getItem(lastReadKey(chatId)) || 0),
-    [lastReadKey]
-  );
-  const setLastReadAt = React.useCallback(
-    (chatId, ms) => localStorage.setItem(lastReadKey(chatId), String(ms || Date.now())),
-    [lastReadKey]
-  );
+  React.useEffect(() => {
+    console.log('AIChatTab mounted', { hasDb: !!db, userId });
+  }, []);
+
+  React.useEffect(() => {
+    if (!db || !userId) return;
+    const docRef = db.collection('userPrefs').doc(userId);
+    docRef.get().then((snap) => {
+      if (snap.exists) {
+        const d = snap.data();
+        setLastReadMap(d?.chatLastRead || {});
+      }
+    }).catch(() => {});
+  }, [db, userId]);
 
   const safeLastReadWrite = React.useCallback((chatId, ms) => {
-    const v = Number(ms || 0);
-    if (!v || v < 1000) return; // never write 0 (causes permanent unread)
-    setLastReadAt(chatId, v);
-  }, [setLastReadAt]);
-
-  const chatsCol = React.useCallback(() => {
-    if (!db) return null;
-    if (!familyId) return null;
-    return db.collection('families').doc(familyId).collection('chats');
-  }, [db, familyId]);
-
-  const messagesCol = React.useCallback((chatId) => {
-    const col = chatsCol();
-    if (!col) return null;
-    return col.doc(chatId).collection('messages');
-  }, [chatsCol]);
-
-  const ensureFamilyChat = React.useCallback(async () => {
-    const col = chatsCol();
-    if (!col) return;
-    const docRef = col.doc('family');
-    const snap = await docRef.get();
-    if (!snap.exists) {
-      await docRef.set({
-        name: 'Family',
-        isSystem: true,
-        createdAt: ttServerTimestamp(),
-        lastMessageAt: ttServerTimestamp(),
-        lastMessageText: '',
-        deletedAt: null
-      }, { merge: true });
-    }
-  }, [chatsCol]);
+    if (!db || !userId || !chatId || !ms) return;
+    const docRef = db.collection('userPrefs').doc(userId);
+    docRef.set({ chatLastRead: { [chatId]: ms } }, { merge: true }).catch(() => {});
+  }, [db, userId]);
 
   const loadChats = React.useCallback(async () => {
-    if (!db || !familyId) {
-      setChats([{ id: 'family', name: 'Family', lastMessageAtMs: 0, lastMessageText: '' }]);
-      setInitializing(false);
+    if (!db || !userId) {
+      console.log('loadChats: no db or userId', { db: !!db, userId });
       return;
     }
-    setInitializing(true);
+    if (unsubChatsRef.current) unsubChatsRef.current();
+    
     try {
-      await ensureFamilyChat();
-      const col = chatsCol();
-      const snap = await col.get();
-      const list = [];
-      snap.forEach((d) => {
-        const data = d.data() || {};
-        if (data.deletedAt) return;
-        const lastMs = ttToMillis(data.lastMessageAt);
-        list.push({
-          id: d.id,
-          name: data.name || (d.id === 'family' ? 'Family' : 'Chat'),
-          isSystem: !!data.isSystem || d.id === 'family',
-          lastMessageAtMs: lastMs || 0,
-          lastMessageText: data.lastMessageText || ''
+      // Ensure family chat exists in Firestore
+      const familyRef = db.collection('chats').doc('family');
+      const familySnap = await familyRef.get();
+      if (!familySnap.exists) {
+        console.log('Creating family chat...');
+        await familyRef.set({
+          name: 'Family',
+          members: [userId],
+          createdAt: ttServerTimestamp(),
+          updatedAt: new Date(),
+          lastMessage: null
         });
-      });
-      if (!list.some(c => c.id === 'family')) {
-        list.unshift({ id: 'family', name: 'Family', isSystem: true, lastMessageAtMs: 0, lastMessageText: '' });
+        console.log('Family chat created');
+      } else {
+        console.log('Family chat already exists');
       }
-      list.sort((a, b) => {
-        if (a.id === 'family') return -1;
-        if (b.id === 'family') return 1;
-        return (b.lastMessageAtMs || 0) - (a.lastMessageAtMs || 0);
+      
+      // Query all chats - try without orderBy first to avoid index issues
+      const q = db.collection('chats').where('members', 'array-contains', userId);
+      unsubChatsRef.current = q.onSnapshot((snap) => {
+        console.log('Chats snapshot:', snap.docs.length, 'docs');
+        const arr = snap.docs.map((d) => {
+          const data = d.data();
+          console.log('Chat doc:', d.id, data);
+          return { id: d.id, ...data };
+        });
+        
+        // Sort manually: family first, then by updatedAt
+        const familyChat = arr.find(c => c.id === 'family');
+        const otherChats = arr.filter(c => c.id !== 'family').sort((a, b) => {
+          const aTime = a.updatedAt?.toMillis?.() || a.updatedAt?.getTime?.() || 0;
+          const bTime = b.updatedAt?.toMillis?.() || b.updatedAt?.getTime?.() || 0;
+          return bTime - aTime;
+        });
+        const sortedChats = familyChat ? [familyChat, ...otherChats] : otherChats;
+        
+        console.log('Setting chats:', sortedChats.length, sortedChats.map(c => c.id));
+        setChats(sortedChats);
+        setInitializing(false);
+      }, (error) => { 
+        console.error('Chats snapshot error:', error);
+        setInitializing(false); 
       });
-      setChats(list);
-      const familyChat = list.find((c) => c.id === 'family');
-      if (familyChat) {
-        const lr = Number(getLastReadAt('family') || 0);
-        const lm = Number(familyChat.lastMessageAtMs || 0);
-        if ((!lr || lr < 1000) && lm > 1000) {
-          safeLastReadWrite('family', lm);
-        }
-      }
-    } catch (e) {
-      console.error('[ChatTab] loadChats failed', e);
-      setChats([{ id: 'family', name: 'Family', lastMessageAtMs: 0, lastMessageText: '' }]);
-    } finally {
+    } catch (error) {
+      console.error('loadChats error:', error);
       setInitializing(false);
     }
-  }, [db, familyId, chatsCol, ensureFamilyChat, safeLastReadWrite]);
+  }, [db, userId]);
 
   React.useEffect(() => {
     loadChats();
+    return () => { if (unsubChatsRef.current) unsubChatsRef.current(); };
   }, [loadChats]);
 
-  const isUnread = (chat) => {
-    const lastRead = getLastReadAt(chat.id);
-    const lm = Number(chat.lastMessageAtMs || 0);
-    const lr = Number(lastRead || 0);
-    if (!lm || lm < 1000) return false; // no usable last message time => treat as read
-    if (!lr || lr < 1000) return false; // if we haven't tracked reads yet, don't show a stuck dot
-    return lm > lr;
-  };
-
-  const computeUnreadCount = React.useCallback(() => {
-    const count = chats.filter(isUnread).length;
-    try { window.__TT_UNREAD_CHAT_COUNT = count; } catch {}
-    return count;
-  }, [chats]);
-
-  React.useEffect(() => {
-    computeUnreadCount();
-  }, [computeUnreadCount]);
-
-  const openChat = async (chat) => {
+  const openChat = React.useCallback((chat) => {
+    if (!db || !userId) return;
+    console.log('Opening chat:', chat.id, chat.name);
     setActiveChat(chat);
     setView('chat');
-    await loadMessages(chat.id);
-    // Mark as read using the chat's lastMessageAt if present (prevents stuck unread dot)
-    const lm = Number(chat?.lastMessageAtMs || 0);
-    if (lm && lm > 1000) safeLastReadWrite(chat.id, lm);
-  };
+    setMessages([]);
+    if (unsubMsgsRef.current) unsubMsgsRef.current();
+    const q = db.collection('chats').doc(chat.id).collection('messages').orderBy('createdAt', 'asc');
+    unsubMsgsRef.current = q.onSnapshot((snap) => {
+      console.log('Messages snapshot for', chat.id, ':', snap.docs.length, 'messages');
+      const arr = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id,
+          ...data,
+          createdAtMs: ttToMillis(data.createdAt)
+        };
+      });
+      console.log('Setting messages:', arr);
+      setMessages(arr);
+      setTimeout(() => {
+        if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
+      }, 50);
+    }, (error) => {
+      console.error('Messages snapshot error:', error);
+    });
+  }, [db, userId]);
 
-  const loadMessages = React.useCallback(async (chatId) => {
-    const col = messagesCol(chatId);
-    if (!col) {
-      setMessages([]);
+  const createChat = React.useCallback(async () => {
+    if (!db || !userId) {
+      console.log('createChat: no db or userId');
+      return;
+    }
+    const name = prompt('Chat name:');
+    if (!name || !name.trim()) {
+      console.log('createChat: no name provided');
       return;
     }
     try {
-      const snap = await col.orderBy('createdAt', 'asc').limit(300).get();
-      const list = [];
-      snap.forEach((d) => {
-        const m = d.data() || {};
-        list.push({
-          id: d.id,
-          createdAtMs: ttToMillis(m.createdAt) || m.clientTimestamp || 0,
-          senderId: m.senderId || null,
-          senderName: m.senderName || null,
-          senderType: m.senderType || (m.senderId ? 'user' : 'tinytracker'),
-          text: m.text || '',
-          photoURLs: Array.isArray(m.photoURLs) ? m.photoURLs : []
-        });
-      });
-      setMessages(list);
-      // Use the best timestamp we can; NEVER write 0 (causes permanent unread)
-      const lastMs = list.length
-        ? Math.max(...list.map(m => Number(m.createdAtMs || 0)).filter(v => v > 1000))
-        : 0;
-      if (lastMs && lastMs > 1000) safeLastReadWrite(chatId, lastMs);
-      setTimeout(() => {
-        const el = messagesRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
-      }, 0);
-      // refresh list (timestamps)
-      await loadChats();
-    } catch (e) {
-      console.error('[ChatTab] loadMessages failed', e);
-      setMessages([]);
-    }
-  }, [messagesCol, loadChats]);
-
-  const createChat = async () => {
-    const name = prompt('Name this chat');
-    if (!name || !name.trim()) return;
-    const col = chatsCol();
-    if (!col) return;
-    try {
-      const docRef = await col.add({
+      console.log('Creating new chat:', name.trim());
+      const chatRef = db.collection('chats').doc();
+      await chatRef.set({
         name: name.trim(),
-        isSystem: false,
+        members: [userId],
         createdAt: ttServerTimestamp(),
-        lastMessageAt: ttServerTimestamp(),
-        lastMessageText: '',
-        deletedAt: null
+        updatedAt: new Date(),
+        lastMessage: null
       });
-      await loadChats();
-      const newChat = chats.find(c => c.id === docRef.id) || { id: docRef.id, name: name.trim() };
-      await openChat(newChat);
-    } catch (e) {
-      console.error('[ChatTab] createChat failed', e);
-      alert('Failed to create chat.');
+      console.log('Chat created successfully:', chatRef.id);
+      loadChats();
+    } catch (error) {
+      console.error('createChat error:', error);
+      alert('Failed to create chat: ' + error.message);
     }
-  };
+  }, [db, userId, loadChats]);
 
-  const deleteChat = async (chat) => {
-    if (!chat || chat.id === 'family') return;
-    if (!confirm(`Delete "${chat.name}"?`)) return;
-    const col = chatsCol();
-    if (!col) return;
-    try {
-      await col.doc(chat.id).set({ deletedAt: ttServerTimestamp() }, { merge: true });
-      if (activeChat?.id === chat.id) {
-        setActiveChat(null);
-        setView('list');
-        setMessages([]);
-      }
-      await loadChats();
-    } catch (e) {
-      console.error('[ChatTab] deleteChat failed', e);
-      alert('Failed to delete chat.');
-    }
-  };
+  const deleteChat = React.useCallback(async (chatId) => {
+    if (!db || chatId === 'family') return;
+    const sure = confirm('Delete this chat?');
+    if (!sure) return;
+    await db.collection('chats').doc(chatId).delete();
+    loadChats();
+  }, [db, loadChats]);
 
-  const uploadPhoto = async () => {
-    const ready = await ensureStorageReady();
-    if (!ready) {
-      alert('Select a kid before uploading photos.');
-      return null;
-    }
-    const dataUrl = await ttPickImageAsDataURL();
-    if (!dataUrl) return null;
-    const uploader =
-      (firestoreStorage && typeof firestoreStorage.uploadChatPhoto === 'function')
-        ? firestoreStorage.uploadChatPhoto
-        : (firestoreStorage && typeof firestoreStorage.uploadFeedingPhoto === 'function')
-        ? firestoreStorage.uploadFeedingPhoto
-        : null;
-    if (!uploader) {
-      alert('Photo upload is not available yet.');
-      return null;
-    }
-    return await uploader(dataUrl);
-  };
-
-  const sendMessage = async ({ text = '', photoURLs = [] }) => {
-    if (!activeChat) return;
-    if (sending) return;
-    const trimmed = String(text || '').trim();
-    const hasPhoto = Array.isArray(photoURLs) && photoURLs.length > 0;
-    if (!trimmed && !hasPhoto) return;
-
-    const chatId = activeChat.id;
-    const col = messagesCol(chatId);
-    const chatsCollection = chatsCol();
-    if (!col || !chatsCollection) return;
-
-    const clientTimestamp = Date.now();
-    const shouldCallAI = ttIsTinyMention(trimmed);
-    const optimistic = {
-      id: `local-${clientTimestamp}-${Math.random().toString(16).slice(2)}`,
-      createdAtMs: clientTimestamp,
-      senderId: uid,
-      senderName: myName,
-      senderType: 'user',
-      text: trimmed,
-      photoURLs: photoURLs
-    };
-
-    setMessages(prev => [...prev, optimistic]);
-    setInput('');
+  const sendMessage = React.useCallback(async ({ text, photoURLs }) => {
+    if (!db || !userId || !activeChat) return;
+    if (!text?.trim() && (!photoURLs || photoURLs.length === 0)) return;
     setSending(true);
-
     try {
-      await col.add({
-        senderId: uid,
-        senderName: myName,
-        senderType: 'user',
-        text: trimmed,
-        photoURLs: photoURLs,
-        createdAt: ttServerTimestamp(),
-        clientTimestamp
-      });
-      await chatsCollection.doc(chatId).set({
-        lastMessageAt: ttServerTimestamp(),
-        lastMessageText: hasPhoto ? 'Photo' : trimmed
+      // Upload photo if it's a data URL
+      let finalPhotoURLs = photoURLs || [];
+      if (photoURLs && photoURLs.length > 0) {
+        const uploadedURLs = [];
+        for (const url of photoURLs) {
+          if (url.startsWith('data:')) {
+            // It's a data URL, upload it
+            if (window.firestoreStorage?.uploadBase64) {
+              const uploaded = await window.firestoreStorage.uploadBase64(url, 'chat-photos');
+              uploadedURLs.push(uploaded?.url || url);
+            } else {
+              uploadedURLs.push(url);
+            }
+          } else {
+            uploadedURLs.push(url);
+          }
+        }
+        finalPhotoURLs = uploadedURLs;
+      }
+
+      const chatRef = db.collection('chats').doc(activeChat.id);
+      const msgRef = chatRef.collection('messages').doc();
+      const msgData = {
+        senderId: userId,
+        text: text?.trim() || '',
+        photoURLs: finalPhotoURLs,
+        createdAt: ttServerTimestamp()
+      };
+      await msgRef.set(msgData);
+      await chatRef.set({
+        updatedAt: ttServerTimestamp(),
+        lastMessage: {
+          text: text?.trim() || (finalPhotoURLs?.length ? '[Photo]' : ''),
+          senderId: userId,
+          createdAt: ttServerTimestamp()
+        }
       }, { merge: true });
 
-      setLastReadAt(chatId, clientTimestamp);
-      await loadMessages(chatId);
-
-      if (shouldCallAI) {
-        const prompt = trimmed.replace(/@tinytracker\b/ig, '').trim() || trimmed;
-        const aiText = await getAIResponse(prompt, kidId);
-        await col.add({
-          senderId: null,
-          senderName: 'Tiny Tracker',
-          senderType: 'tinytracker',
+      if (ttIsTinyMention(text)) {
+        const recentMsgs = messages.slice(-5).map(m => m.text).join('\n');
+        const geminiResp = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=AIzaSyAMQF8q_cQ3QK2BsVJvX_d7x_KVEz8KnKU`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: `${recentMsgs}\n${text}` }] }]
+            })
+          }
+        );
+        const geminiData = await geminiResp.json();
+        const aiText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || 'No response.';
+        const aiMsgRef = chatRef.collection('messages').doc();
+        await aiMsgRef.set({
+          senderId: 'ai',
           text: aiText,
           photoURLs: [],
-          createdAt: ttServerTimestamp(),
-          clientTimestamp: Date.now()
+          createdAt: ttServerTimestamp()
         });
-        await chatsCollection.doc(chatId).set({
-          lastMessageAt: ttServerTimestamp(),
-          lastMessageText: aiText
+        await chatRef.set({
+          updatedAt: ttServerTimestamp(),
+          lastMessage: {
+            text: aiText,
+            senderId: 'ai',
+            createdAt: ttServerTimestamp()
+          }
         }, { merge: true });
-        await loadMessages(chatId);
       }
+      setInput('');
+      setPendingPhoto(null);
     } catch (e) {
-      console.error('[ChatTab] sendMessage failed', e);
+      console.error('Send message error:', e);
       alert('Failed to send message.');
-      await loadMessages(chatId);
     } finally {
       setSending(false);
     }
-  };
+  }, [db, userId, activeChat, messages]);
 
-  const onSendPhoto = async () => {
+  const onSendPhoto = React.useCallback(async () => {
     if (sending) return;
-    const url = await uploadPhoto();
-    if (!url) return;
-    await sendMessage({ text: '', photoURLs: [url] });
-  };
+    try {
+      const dataUrl = await ttPickImageAsDataURL();
+      if (!dataUrl) return;
+      setPendingPhoto(dataUrl);
+    } catch (e) {
+      console.error('Photo selection error:', e);
+      alert('Failed to select photo.');
+    }
+  }, [sending]);
+
+  const isUnread = React.useCallback((chat) => {
+    if (!chat.lastMessage) return false;
+    const lastMsgMs = ttToMillis(chat.lastMessage.createdAt);
+    if (!lastMsgMs) return false;
+    const lastRead = lastReadMap[chat.id] || 0;
+    // Only unread if the last message was sent by someone else AND it's newer than last read
+    const wasNotMe = chat.lastMessage.senderId !== userId;
+    return wasNotMe && lastMsgMs > lastRead;
+  }, [lastReadMap, userId]);
 
   const renderBubble = (m) => {
-    const isMe = m.senderType === 'user' && uid && m.senderId === uid;
-    const isTiny = m.senderType === 'tinytracker';
-    const alignStyle = { justifyContent: isMe ? 'flex-end' : 'flex-start' };
-
-    // iMessage-ish palette
-    const incomingBg = 'rgba(255,255,255,0.10)'; // good in dark mode; in light it still reads as subtle
-    const outgoingBg = theme.primary || '#4f46e5';
-    const tinyBg = 'rgba(99,102,241,0.16)'; // slightly tinted "system" bubble
-
-    const bubbleBg = isMe ? outgoingBg : (isTiny ? tinyBg : incomingBg);
-    const bubbleColor = isMe ? 'white' : 'var(--tt-text-primary)';
-    const timeColor = isMe ? 'rgba(255,255,255,0.70)' : 'var(--tt-text-secondary)';
-
-    const showAvatar = !isMe && !isTiny;
-    const header = isTiny ? 'Tiny Tracker' : (m.senderName || 'Family');
+    const isMe = m.senderId === userId;
+    const isAI = m.senderId === 'ai';
+    
+    console.log('Rendering message bubble:', { 
+      messageId: m.id, 
+      senderId: m.senderId, 
+      isMe, 
+      isAI,
+      text: m.text?.substring(0, 20),
+      hasPhotos: !!(m.photoURLs && m.photoURLs.length > 0)
+    });
+    
+    // Get sender info
+    const senderProfile = isAI 
+      ? { name: 'Tiny Tracker', photoURL: null }
+      : userProfiles[m.senderId] || { name: 'Unknown', photoURL: null };
+    
+    console.log('Sender profile:', senderProfile);
+    
+    // Apple Messages bubble styling
+    const bubbleRadius = '18px';
+    const tailSize = 8;
+    
+    // Different colors for sent vs received
+    const bgColor = isMe ? theme.primary : 'var(--tt-subtle-surface)';
+    const textColor = isMe ? 'white' : 'var(--tt-text-primary)';
+    const timeColor = isMe ? 'rgba(255,255,255,0.7)' : 'var(--tt-text-tertiary)';
+    
+    console.log('Bubble colors:', { bgColor, textColor, timeColor });
+    
+    // Avatar component
+    const avatar = React.createElement(
+      'div',
+      {
+        style: {
+          width: 32,
+          height: 32,
+          borderRadius: 9999,
+          overflow: 'hidden',
+          backgroundColor: 'var(--tt-input-bg)',
+          border: '1px solid var(--tt-divider)',
+          flex: '0 0 auto',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }
+      },
+      senderProfile.photoURL 
+        ? React.createElement('img', {
+            src: senderProfile.photoURL,
+            alt: senderProfile.name,
+            style: {
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }
+          })
+        : React.createElement('div', {
+            style: {
+              fontSize: 13,
+              fontWeight: 600,
+              color: 'var(--tt-text-primary)'
+            }
+          }, isAI ? 'TT' : ttInitials(senderProfile.name))
+    );
 
     return React.createElement(
       'div',
-      {
-        key: m.id,
-        style: {
-          display: 'flex',
-          gap: '8px',
-          ...alignStyle
-        }
+      { 
+        key: m.id, 
+        style: { 
+          display: 'flex', 
+          flexDirection: isMe ? 'row-reverse' : 'row',
+          gap: 8,
+          alignItems: 'flex-end',
+          marginBottom: 12
+        } 
       },
-      showAvatar && React.createElement(
-        'div',
-        {
-          style: {
-            width: 32,
-            height: 32,
-            borderRadius: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 12,
-            fontWeight: 700,
-            backgroundColor: 'rgba(255,255,255,0.10)',
-            color: 'var(--tt-text-secondary)',
-            flex: '0 0 auto'
-          }
-        },
-        ttInitials(m.senderName)
-      ),
+      // Avatar (only show for received messages)
+      !isMe && avatar,
+      // Bubble container
       React.createElement(
         'div',
         {
           style: {
-            maxWidth: '78%',
+            maxWidth: '75%',
             display: 'flex',
             flexDirection: 'column',
             alignItems: isMe ? 'flex-end' : 'flex-start'
           }
         },
-        // sender label (small, like WhatsApp group chats)
-        !isMe && React.createElement(
-          'div',
-          {
-            style: {
-              fontSize: 12,
-              fontWeight: 700,
-              marginBottom: 4,
-              paddingLeft: 6,
-              paddingRight: 6,
-              color: 'var(--tt-text-secondary)'
-            }
-          },
-          header
-        ),
-        // bubble
+        // Bubble
         React.createElement(
           'div',
           {
             style: {
-              backgroundColor: bubbleBg,
-              color: bubbleColor,
-              borderRadius: 22,
               padding: '10px 14px',
-              boxShadow: isMe ? '0 1px 0 rgba(0,0,0,0.25)' : 'none',
-              border: isMe ? 'none' : '1px solid rgba(255,255,255,0.06)'
+              borderRadius: bubbleRadius,
+              backgroundColor: bgColor,
+              color: textColor,
+              boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
+              position: 'relative',
+              // Apple Messages tail using pseudo-element approach (simplified)
+              ...(isMe ? {
+                borderTopRightRadius: '4px'
+              } : {
+                borderTopLeftRadius: '4px'
+              })
             }
           },
+          // Photos
           (m.photoURLs && m.photoURLs.length > 0) && React.createElement(
             'div',
-            { style: { display: 'flex', flexDirection: 'column', gap: 8, marginBottom: (m.text && m.text.trim()) ? 8 : 0 } },
+            { style: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: (m.text && m.text.trim()) ? 8 : 0 } },
             m.photoURLs.map((url, i) =>
               React.createElement('img', {
                 key: i,
                 src: url,
                 alt: 'photo',
                 style: {
-                  width: 240,
-                  maxWidth: '100%',
+                  maxWidth: 240,
+                  width: '100%',
                   height: 'auto',
-                  borderRadius: 14,
-                  display: 'block'
+                  borderRadius: 12,
+                  display: 'block',
+                  cursor: 'pointer'
                 }
               })
             )
           ),
+          // Text content
           (m.text && m.text.trim()) && React.createElement(
             'div',
-            { style: { fontSize: 15, whiteSpace: 'pre-wrap' } },
+            { style: { fontSize: 15, lineHeight: '20px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' } },
             ttRenderTextWithMentions(m.text)
-          ),
-          React.createElement(
-            'div',
-            {
-              style: {
-                fontSize: 10,
-                marginTop: 6,
-                color: timeColor,
-                textAlign: isMe ? 'right' : 'left'
-              }
-            },
-            ttFormatTimeShort(m.createdAtMs)
           )
+        ),
+        // Timestamp
+        React.createElement(
+          'div',
+          {
+            style: {
+              fontSize: 11,
+              marginTop: 2,
+              color: 'var(--tt-text-tertiary)',
+              paddingLeft: isMe ? 0 : 4,
+              paddingRight: isMe ? 4 : 0
+            }
+          },
+          ttFormatTimeShort(m.createdAtMs)
         )
       )
     );
@@ -896,13 +1044,11 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
             className: 'tt-tapable rounded-full p-2',
             style: { color: 'var(--tt-text-secondary)' },
             onClick: () => {
-              // when leaving a chat, mark it as read (based on the newest message we have)
               const newest = messages.length
                 ? Math.max(...messages.map(m => Number(m.createdAtMs || 0)).filter(v => v > 1000))
                 : 0;
               if (activeChat?.id && newest) safeLastReadWrite(activeChat.id, newest);
               setView('list'); setActiveChat(null); setMessages([]);
-              // refresh list so dots/timestamps update
               loadChats();
             }
           },
@@ -948,7 +1094,7 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
             'div',
             {
               ref: messagesRef,
-              className: 'flex-1 overflow-y-auto px-4 py-3 space-y-3',
+              className: 'flex-1 overflow-y-auto px-4 py-3',
               style: { minHeight: 0 }
             },
             messages.length === 0 && React.createElement(
@@ -959,7 +1105,45 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
             messages.map(renderBubble)
           ),
 
-          // composer: iMessage style (icons inside pill)
+          // Photo preview (above composer, like Apple Messages)
+          pendingPhoto && React.createElement(
+            'div',
+            { 
+              className: 'border-t px-4 py-3',
+              style: { borderColor: 'var(--tt-divider)' }
+            },
+            React.createElement(
+              'div',
+              {
+                className: 'aspect-square rounded-2xl border relative',
+                style: { 
+                  backgroundColor: 'var(--tt-input-bg)', 
+                  borderColor: 'var(--tt-card-border)', 
+                  width: '80px', 
+                  height: '80px',
+                  cursor: 'pointer'
+                }
+              },
+              React.createElement('img', {
+                src: pendingPhoto,
+                alt: 'Selected photo',
+                className: 'w-full h-full object-cover rounded-2xl'
+              }),
+              React.createElement(
+                'button',
+                {
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    setPendingPhoto(null);
+                  },
+                  className: 'absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10'
+                },
+                React.createElement(TTXIcon, { className: 'w-3.5 h-3.5 text-white' })
+              )
+            )
+          ),
+
+          // composer
           React.createElement(
             'div',
             { className: 'border-t px-4 py-3', style: { borderColor: 'var(--tt-divider)' } },
@@ -979,7 +1163,7 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                 }
               },
 
-              // photo button (inside pill, left)
+              // photo button
               React.createElement(
                 'button',
                 {
@@ -1002,7 +1186,7 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                 React.createElement(TTPhotoIcon, null)
               ),
 
-              // textarea (flexes; autosize)
+              // textarea
               React.createElement('textarea', {
                 value: input,
                 placeholder: 'Message…',
@@ -1010,7 +1194,6 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                 disabled: sending,
                 onChange: (e) => {
                   setInput(e.target.value);
-                  // autosize
                   try {
                     e.target.style.height = '0px';
                     const next = Math.min(120, Math.max(36, e.target.scrollHeight));
@@ -1020,7 +1203,13 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                 onKeyDown: (e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessage({ text: input });
+                    const hasContent = input.trim() || pendingPhoto;
+                    if (hasContent) {
+                      sendMessage({ 
+                        text: input, 
+                        photoURLs: pendingPhoto ? [pendingPhoto] : [] 
+                      });
+                    }
                   }
                 },
                 style: {
@@ -1037,14 +1226,22 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                   maxHeight: '120px',
                   overflowY: 'auto'
                 }
-              })
-,
-              // send button (inside pill, right)
+              }),
+
+              // send button
               React.createElement(
                 'button',
                 {
-                  onClick: () => sendMessage({ text: input }),
-                  disabled: sending || !input.trim(),
+                  onClick: () => {
+                    const hasContent = input.trim() || pendingPhoto;
+                    if (hasContent) {
+                      sendMessage({ 
+                        text: input, 
+                        photoURLs: pendingPhoto ? [pendingPhoto] : [] 
+                      });
+                    }
+                  },
+                  disabled: sending || (!input.trim() && !pendingPhoto),
                   title: 'Send',
                   className: 'tt-tapable',
                   style: {
@@ -1056,7 +1253,7 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                     justifyContent: 'center',
                     backgroundColor: theme.primary,
                     color: 'white',
-                    opacity: (sending || !input.trim()) ? 0.55 : 1,
+                    opacity: (sending || (!input.trim() && !pendingPhoto)) ? 0.55 : 1,
                     flex: '0 0 auto'
                   }
                 },
