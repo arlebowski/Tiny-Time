@@ -132,6 +132,38 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   }
 }
 
+// ========================================
+// FEATURE FLAGS (UI Lab)
+// ========================================
+// Shared, lightweight feature-flag helpers (localStorage-backed)
+if (typeof window !== 'undefined' && !window.TT?.shared?.flags) {
+  window.TT = window.TT || {};
+  window.TT.shared = window.TT.shared || {};
+
+  const readBool = (key, fallback = false) => {
+    try {
+      const v = localStorage.getItem(key);
+      if (v === null || v === undefined) return fallback;
+      return v === 'true';
+    } catch (e) {
+      return fallback;
+    }
+  };
+
+  const writeBool = (key, val) => {
+    try {
+      localStorage.setItem(key, val ? 'true' : 'false');
+    } catch (e) {}
+  };
+
+  window.TT.shared.flags = {
+    useWheelPickers: {
+      get: () => readBool('tt_use_wheel_pickers', false),
+      set: (val) => writeBool('tt_use_wheel_pickers', !!val),
+    }
+  };
+}
+
 const SettingsTab = ({ user, kidId }) => {
   const [showUILab, setShowUILab] = useState(false);
   const [showFeedSheet, setShowFeedSheet] = useState(false);
@@ -182,6 +214,19 @@ const SettingsTab = ({ user, kidId }) => {
       return stored !== null ? stored === 'true' : false;
     }
     return false;
+  });
+
+  // Wheel pickers feature flag (UI Lab)
+  const [useWheelPickers, setUseWheelPickers] = useState(() => {
+    // Prefer shared helper when available
+    if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useWheelPickers?.get) {
+      return !!window.TT.shared.flags.useWheelPickers.get();
+    }
+    try {
+      return localStorage.getItem('tt_use_wheel_pickers') === 'true';
+    } catch (e) {
+      return false;
+    }
   });
   
   
@@ -902,7 +947,9 @@ const SettingsTab = ({ user, kidId }) => {
 
       setCurrentOffset(snappedOffset);
       setSelectedIndex(clampedIndex);
-      onChange(options[clampedIndex].value);
+      if (typeof onChange === 'function') {
+        onChange(options[clampedIndex].value);
+      }
     };
 
     const handleStart = (clientY) => {
@@ -1240,6 +1287,20 @@ const SettingsTab = ({ user, kidId }) => {
       }
     }, [present]);
 
+    // Expose tray open state so other sheets can lock drag when the tray is active
+    React.useEffect(() => {
+      if (typeof window === 'undefined') return;
+      window.TT = window.TT || {};
+      window.TT.shared = window.TT.shared || {};
+      window.TT.shared.pickers = window.TT.shared.pickers || {};
+      window.TT.shared.pickers.isTrayOpen = !!(present && isOpen);
+      return () => {
+        if (window.TT?.shared?.pickers) {
+          window.TT.shared.pickers.isTrayOpen = false;
+        }
+      };
+    }, [present, isOpen]);
+
     // Lock/unlock body scroll while present
     React.useEffect(() => {
       if (!present) return;
@@ -1397,6 +1458,19 @@ const SettingsTab = ({ user, kidId }) => {
     );
   }; }, []);
 
+  // Expose wheel picker components for reuse in TrackerCard (so we don't duplicate the implementation)
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.TT = window.TT || {};
+    window.TT.shared = window.TT.shared || {};
+    window.TT.shared.pickers = window.TT.shared.pickers || {};
+
+    window.TT.shared.pickers.wheelStyles = wheelStyles;
+    window.TT.shared.pickers.WheelPicker = WheelPicker;
+    window.TT.shared.pickers.AmountPickerLabSection = AmountPickerLabSection;
+    window.TT.shared.pickers.TTPickerTray = TTPickerTray;
+  }, [WheelPicker, AmountPickerLabSection, TTPickerTray]);
+
   // UI Lab page
   if (showUILab) {
 
@@ -1461,6 +1535,29 @@ const SettingsTab = ({ user, kidId }) => {
               window.localStorage.setItem('tt_show_today_card', isOn ? 'true' : 'false');
               // Force reload to apply changes
               window.location.reload();
+            }
+          }
+        })
+      ),
+
+      // Wheel Pickers Toggle (controls feature flag)
+      React.createElement('div', { className: "mb-4" },
+        React.createElement('label', { 
+          className: "block text-sm font-medium text-gray-700 mb-2" 
+        }, 'Wheel Pickers in Trays'),
+        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+          value: useWheelPickers ? 'on' : 'off',
+          options: [
+            { value: 'on', label: 'On' },
+            { value: 'off', label: 'Off' }
+          ],
+          onChange: (value) => {
+            const isOn = value === 'on';
+            setUseWheelPickers(isOn);
+            if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useWheelPickers?.set) {
+              window.TT.shared.flags.useWheelPickers.set(isOn);
+            } else {
+              try { localStorage.setItem('tt_use_wheel_pickers', isOn ? 'true' : 'false'); } catch (e) {}
             }
           }
         })
