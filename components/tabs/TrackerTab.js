@@ -971,6 +971,27 @@ IMPORTANT:
       if (!time) return null;
       return time.getTime() > todayEndObj.getTime() ? null : time;
     };
+
+    // Day/night window from Settings:
+    // day = between sleepDayStart -> sleepDayEnd (minutes since midnight)
+    // night = everything outside that window
+    const getDayWindow = (settings) => {
+      const dayStart = Number(settings?.sleepDayStart ?? settings?.daySleepStartMinutes ?? 390);  // default 6:30am
+      const dayEnd   = Number(settings?.sleepDayEnd   ?? settings?.daySleepEndMinutes   ?? 1170); // default 7:30pm
+      return { dayStart, dayEnd };
+    };
+    const isInDayWindow = (mins, dayStart, dayEnd) => {
+      // Supports windows that may wrap midnight
+      return dayStart <= dayEnd
+        ? (mins >= dayStart && mins < dayEnd)
+        : (mins >= dayStart || mins < dayEnd);
+    };
+    const isNightTime = (dateObj, settings) => {
+      if (!dateObj) return false;
+      const { dayStart, dayEnd } = getDayWindow(settings);
+      const mins = dateObj.getHours() * 60 + dateObj.getMinutes();
+      return !isInDayWindow(mins, dayStart, dayEnd);
+    };
     
     // Process events chronologically (only feed and sleep - no wake events)
     const allEvents = [
@@ -1089,6 +1110,7 @@ IMPORTANT:
     const feedSkipWindowMins = 45; // if a pattern feed is within 45m, don't add interval feed
     const minNapAfterFeedMins = 25; // never suggest sleep immediately after feeding
     const napHoursAfterFeed = 1.5;
+    const allowNightIntervals = ageInMonths < 1; // newborn exception
 
     // --- Forward re-solve rules (to avoid nonsense like two sleeps back-to-back) ---
     const MIN_SAME_SLEEP_MIN = 75; // don't allow two "sleep" events within 75 min
@@ -1133,6 +1155,14 @@ IMPORTANT:
         cursor = clamped;
 
         if (clamped.getTime() <= now.getTime()) continue;
+
+        // ✅ Phase 1: No proactive interval feeds overnight (>= 1 month).
+        // Use your Settings day/night window (sleepDayStart/sleepDayEnd).
+        // If next feed time lands in night window, stop generating further feeds.
+        if (!allowNightIntervals && isNightTime(clamped, sleepSettings)) {
+          break;
+        }
+
         // Skip if near an existing feed (pattern or already-added)
         if (hasNearbyEvent(forwardPlan, 'feed', clamped, feedSkipWindowMins)) continue;
 
