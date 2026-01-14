@@ -48,16 +48,12 @@ const TTPhotoIcon = (props) =>
       xmlns: "http://www.w3.org/2000/svg",
       width: "20",
       height: "20",
-      viewBox: "0 0 24 24",
-      fill: "none",
-      stroke: "currentColor",
-      strokeWidth: "2.25",
-      strokeLinecap: "round",
-      strokeLinejoin: "round"
+      viewBox: "0 0 256 256",
+      fill: "currentColor"
     },
-    React.createElement('rect', { x: "3", y: "3", width: "18", height: "18", rx: "3", ry: "3" }),
-    React.createElement('circle', { cx: "8.5", cy: "8.5", r: "1.5" }),
-    React.createElement('path', { d: "M21 15l-5-5L5 21" })
+    React.createElement('path', {
+      d: "M216,40H40A16,16,0,0,0,24,56V200a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A16,16,0,0,0,216,40Zm0,16V158.75l-26.07-26.06a16,16,0,0,0-22.63,0l-20,20-44-44a16,16,0,0,0-22.62,0L40,149.37V56ZM40,172l52-52,80,80H40Zm176,28H194.63l-36-36,20-20L216,181.38V200ZM144,100a12,12,0,1,1,12,12A12,12,0,0,1,144,100Z"
+    })
   );
 
 const TTChevronRight = (props) =>
@@ -94,6 +90,22 @@ const TTBackChevron = (props) =>
       strokeLinejoin: "round"
     },
     React.createElement('polyline', { points: "15 18 9 12 15 6" })
+  );
+
+const TTSendIcon = (props) =>
+  React.createElement(
+    'svg',
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: "18",
+      height: "18",
+      viewBox: "0 0 256 256",
+      fill: "currentColor"
+    },
+    React.createElement('path', {
+      d: "M227.32,28.68a16,16,0,0,0-15.66-4.08l-.15,0L19.57,82.84a16,16,0,0,0-2.49,29.8L102,154l41.3,84.87A15.86,15.86,0,0,0,157.74,248q.69,0,1.38-.06a15.88,15.88,0,0,0,14-11.51l58.2-191.94c0-.05,0-.1,0-.15A16,16,0,0,0,227.32,28.68ZM157.83,231.85l-.05.14,0-.07-40.06-82.3,48-48a8,8,0,0,0-11.31-11.31l-48,48L24.08,98.25l-.07,0,.14,0L216,40Z"
+    })
   );
 
 function ttGetFirebase() {
@@ -1048,12 +1060,7 @@ const AIChatTab = ({ user, kidId, familyId, themeKey = 'indigo' }) => {
                     flex: '0 0 auto'
                   }
                 },
-                React.createElement(
-                  'svg',
-                  { width: 18, height: 18, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
-                  React.createElement('path', { d: 'M22 2L11 13' }),
-                  React.createElement('path', { d: 'M22 2L15 22L11 13L2 9L22 2Z' })
-                )
+                React.createElement(TTSendIcon, null)
               )
             )
           )

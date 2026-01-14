@@ -1220,18 +1220,26 @@ const TrackerCard = ({
   }, []);
   
   const [expanded, setExpanded] = React.useState(false);
+  const [hasInteracted, setHasInteracted] = React.useState(false); // Track if user has clicked expand/collapse
   const isInitialMountRef = React.useRef(true);
+  const prevDateRef = React.useRef(currentDate);
   
-  // Track when component has mounted to prevent initial animation
+  // Track when component has truly mounted (after first paint)
   React.useEffect(() => {
-    if (isInitialMountRef.current) {
+    // Use requestAnimationFrame to ensure we're past the initial paint
+    const rafId = requestAnimationFrame(() => {
       isInitialMountRef.current = false;
-    }
+    });
+    return () => cancelAnimationFrame(rafId);
   }, []);
   
-  // Reset expanded state when date changes
+  // Reset expanded state when date changes (without animation)
   React.useEffect(() => {
-    setExpanded(false);
+    if (prevDateRef.current !== currentDate) {
+      prevDateRef.current = currentDate;
+      setHasInteracted(false); // Reset interaction tracking
+      setExpanded(false);
+    }
   }, [currentDate]);
   
   // Check if currentDate is today
@@ -1967,8 +1975,10 @@ const TrackerCard = ({
     { 
       className: "rounded-2xl p-5 shadow-sm",
       style: {
-        backgroundColor: "var(--tt-card-bg)",
-        borderColor: "var(--tt-card-border)",
+        // In some UI versions / early-load states, token vars may be unset.
+        // Provide fallbacks so cards don't render invisibly.
+        backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
+        border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))",
         cursor: 'pointer',
         transition: 'all 0.3s ease-out'
       },
@@ -2205,7 +2215,10 @@ const TrackerCard = ({
     !hideTimelineBar && React.createElement(
       'button',
       {
-        onClick: () => setExpanded(!expanded),
+        onClick: () => {
+          setHasInteracted(true);
+          setExpanded(!expanded);
+        },
         className: "flex w-full items-center justify-between",
         style: { color: timelineTextColor }
       },
@@ -2240,19 +2253,13 @@ const TrackerCard = ({
     React.createElement(
       'div',
       { 
-        className: isInitialMountRef.current ? 'mt-2' : `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
-        style: isInitialMountRef.current && !expanded 
-          ? { overflow: 'hidden', opacity: 0, maxHeight: 0, transform: 'translateY(-4px)' }
+        className: (isInitialMountRef.current || !hasInteracted) ? 'mt-2' : `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        style: !expanded
+          ? { display: 'none' }  // Always use display: none when collapsed (simplest solution)
           : { overflow: 'hidden' }
       },
       // Show yesterday comparison in accordion for v3 (moved before count pill)
-      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(
-        React.Fragment,
-        null,
-        // Number + label inline, then progress bar below
-        React.createElement('div', {
-          className: "mb-8 mt-1.5"
-        },
+      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(React.Fragment, null,
           // Number + "as of" text inline
           React.createElement('div', {
             className: "flex items-center gap-2 mb-2"
@@ -2293,8 +2300,7 @@ const TrackerCard = ({
               }
             })
           )
-        )
-      ),
+        ),
       // Show count pill after yesterday comparison for v3
       accordionCountPill && React.createElement(
         'div',
@@ -2338,8 +2344,9 @@ const TrackerCard = ({
             style: { color: 'var(--tt-text-tertiary)' }
           }, mode === 'feeding' ? 'No feedings yet' : 'No sleeps yet')
     )
-    );
+  );
   };
+
 
   // v2: current design (production)
   const renderCurrentDesign = () => renderDesign();
@@ -3267,17 +3274,50 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       return () => resizeObserver.disconnect();
     }, [present, isOpen, children]);
 
+    // Helper to check if tray is open (reads directly from window for latest value)
+    const checkTrayOpen = () => {
+      return !!(typeof window !== 'undefined' && window.TT?.shared?.pickers?.isTrayOpen);
+    };
+
+    // Helper to check if touch target is within a picker tray
+    const isTouchInPickerTray = (e) => {
+      if (!e.target) return false;
+      // Check if the touch target or any parent is within a picker tray
+      // Picker trays are rendered as children of the HalfSheet, so we check for wheel picker elements
+      const target = e.target;
+      let element = target;
+      while (element && element !== sheetRef.current) {
+        // Check for wheel picker container (has touchAction: 'none' style)
+        if (element.style && element.style.touchAction === 'none') {
+          return true;
+        }
+        // Check for picker-related classes or data attributes
+        if (element.classList && (
+          element.classList.contains('wheel-picker') ||
+          element.getAttribute('data-picker-tray') === 'true'
+        )) {
+          return true;
+        }
+        element = element.parentElement;
+      }
+      return false;
+    };
+
     // Drag handlers
     const canDrag = React.useCallback(() => {
-      if (isTrayOpen()) return false;
+      if (checkTrayOpen()) return false;
       if (!contentRef.current) return false;
       const scrollTop = contentRef.current.scrollTop;
       return scrollTop === 0;
-    }, [isTrayOpen]);
+    }, []);
 
     // Touch handlers stored in refs to access latest state values
     const handleTouchStartRef = React.useRef((e) => {
-      if (isTrayOpen()) return;
+      // Early return if tray is open or touch is within picker tray
+      if (checkTrayOpen() || isTouchInPickerTray(e)) {
+        isDraggingRef.current = false;
+        return;
+      }
       if (!canDrag()) return;
       const touch = e.touches[0];
       isDraggingRef.current = true;
@@ -3291,7 +3331,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     });
 
     const handleTouchMoveRef = React.useRef((e) => {
-      if (typeof window !== 'undefined' && window.TT?.shared?.pickers?.isTrayOpen) return;
+      // Early return if tray is open or touch is within picker tray
+      if (checkTrayOpen() || isTouchInPickerTray(e)) {
+        isDraggingRef.current = false;
+        return;
+      }
       if (!isDraggingRef.current) return;
       const touch = e.touches[0];
       const deltaY = touch.clientY - dragStartYRef.current;
@@ -3304,7 +3348,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     });
 
     const handleTouchEndRef = React.useRef((e) => {
-      if (typeof window !== 'undefined' && window.TT?.shared?.pickers?.isTrayOpen) return;
+      // Early return if tray is open or touch is within picker tray
+      if (checkTrayOpen() || isTouchInPickerTray(e)) {
+        isDraggingRef.current = false;
+        return;
+      }
       if (!isDraggingRef.current) return;
       isDraggingRef.current = false;
       
@@ -4297,8 +4345,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       { 
         className: "rounded-2xl shadow-sm p-6 space-y-0",
         style: {
-          backgroundColor: "var(--tt-card-bg)",
-          borderColor: "var(--tt-card-border)"
+          backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
+          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
         }
       },
       // Header: [X] [Feeding] [Save]
@@ -5006,8 +5054,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       { 
         className: "rounded-2xl shadow-sm p-6 space-y-0",
         style: {
-          backgroundColor: "var(--tt-card-bg)",
-          borderColor: "var(--tt-card-border)"
+          backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
+          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
         }
       },
       // Header: [ChevronDown] [Sleep] [empty]
@@ -6583,8 +6631,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       { 
         className: "rounded-2xl shadow-sm p-6 space-y-0",
         style: {
-          backgroundColor: "var(--tt-card-bg)",
-          borderColor: "var(--tt-card-border)"
+          backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
+          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
         }
       },
       // Header: [ChevronDown] [Toggle] [empty] - fixed 60px height
@@ -6619,5 +6667,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
 // Make available globally for script.js
 if (typeof window !== 'undefined') {
+  // Debug proof this file executed
+  window.__ttTrackerCardLoadedAt = Date.now();
   window.TrackerCard = TrackerCard;
 }

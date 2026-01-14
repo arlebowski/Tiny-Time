@@ -1,4 +1,15 @@
 /* TrackerTab.js */
+// Debug toggle:
+// In console run: window.__ttDebugCards = true
+// Disable: window.__ttDebugCards = false
+const __ttDebugCardsOn = () => {
+  try { return typeof window !== 'undefined' && !!window.__ttDebugCards; } catch (e) { return false; }
+};
+const __ttDebugCardsLog = (...args) => {
+  try {
+    if (__ttDebugCardsOn()) console.log('[TT][Cards]', ...args);
+  } catch (e) {}
+};
 // --- Feed sessionization: combine nearby small feeds into a single "session" ---
 // This prevents top-off feeds from dragging median volume down and making intervals look too short.
 const buildFeedingSessions = (feedings, windowMinutes = 45) => {
@@ -184,19 +195,25 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   }
 }
 
+// v2 card number formatting:
+// - whole numbers: "7"
+// - non-whole: "7.3" (one decimal)
+// Note: formatV2Number is defined in TrackerCard.js (loaded first), so we use that version
+// const formatV2Number = (n) => { ... } // Removed - using version from TrackerCard.js
+
 const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
   // UI Version - single source of truth (v1, v2, or v3)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
   // - v2: New UI with current tracker cards (useNewUI = true, cardDesign = 'current')
   // - v2: New UI with new tracker cards (useNewUI = true, cardDesign = 'new')
-  const [uiVersion, setUiVersion] = useState(() => {
+  const [uiVersion, setUiVersion] = React.useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
   const useNewUI = (window.TT?.shared?.uiVersion?.shouldUseNewUI || ((v) => v !== 'v1'))(uiVersion);
   
   // Feature flag for TodayCard - controlled by localStorage (can be toggled from UI Lab)
-  const [showTodayCard, setShowTodayCard] = useState(() => {
+  const [showTodayCard, setShowTodayCard] = React.useState(() => {
     if (typeof window !== 'undefined' && window.localStorage) {
       const stored = window.localStorage.getItem('tt_show_today_card');
       return stored !== null ? stored === 'true' : false; // Default to false
@@ -236,55 +253,78 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     };
   }, []);
   
-  const [babyWeight, setBabyWeight] = useState(null);
-  const [multiplier, setMultiplier] = useState(2.5);
-  const [ounces, setOunces] = useState('');
-  const [customTime, setCustomTime] = useState('');
-  const [feedings, setFeedings] = useState([]);
-  const [allFeedings, setAllFeedings] = useState([]);
-  const [sleepSessions, setSleepSessions] = useState([]);
-  const [allSleepSessions, setAllSleepSessions] = useState([]);
-  const [sleepSettings, setSleepSettings] = useState(null);
-  const [yesterdayConsumed, setYesterdayConsumed] = useState(0);
-  const [yesterdayFeedingCount, setYesterdayFeedingCount] = useState(0);
-  const [sleepTodayMs, setSleepTodayMs] = useState(0);
-  const [sleepTodayCount, setSleepTodayCount] = useState(0);
-  const [sleepYesterdayMs, setSleepYesterdayMs] = useState(0);
-  const [currentDate, setCurrentDate] = useState(new Date());
+  const [babyWeight, setBabyWeight] = React.useState(null);
+  const [multiplier, setMultiplier] = React.useState(2.5);
+  const [ounces, setOunces] = React.useState('');
+  const [customTime, setCustomTime] = React.useState('');
+  const [feedings, setFeedings] = React.useState([]);
+  const [allFeedings, setAllFeedings] = React.useState([]);
+  const [sleepSessions, setSleepSessions] = React.useState([]);
+  const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+  const [sleepSettings, setSleepSettings] = React.useState(null);
+  const [yesterdayConsumed, setYesterdayConsumed] = React.useState(0);
+  const [yesterdayFeedingCount, setYesterdayFeedingCount] = React.useState(0);
+  const [sleepTodayMs, setSleepTodayMs] = React.useState(0);
+  const [sleepTodayCount, setSleepTodayCount] = React.useState(0);
+  const [sleepYesterdayMs, setSleepYesterdayMs] = React.useState(0);
+  const [currentDate, setCurrentDate] = React.useState(new Date());
   // State for smooth date transitions - preserve previous values while loading
-  const [prevFeedingCardData, setPrevFeedingCardData] = useState(null);
-  const [prevSleepCardData, setPrevSleepCardData] = useState(null);
-  const [isDateTransitioning, setIsDateTransitioning] = useState(false);
+  const [prevFeedingCardData, setPrevFeedingCardData] = React.useState(null);
+  const [prevSleepCardData, setPrevSleepCardData] = React.useState(null);
+  const [isDateTransitioning, setIsDateTransitioning] = React.useState(false);
   const transitionIdRef = React.useRef(0);
-  const [transitionPending, setTransitionPending] = useState(0);
+  const [transitionPending, setTransitionPending] = React.useState(0);
   const prevDateRef = React.useRef(currentDate);
-  const [editingFeedingId, setEditingFeedingId] = useState(null);
-  const [editOunces, setEditOunces] = useState('');
-  const [editTime, setEditTime] = useState('');
-  const [editingSleepId, setEditingSleepId] = useState(null);
-  const [sleepEditStartStr, setSleepEditStartStr] = useState('');
-  const [sleepEditEndStr, setSleepEditEndStr] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [whatsNextCardAnimating, setWhatsNextCardAnimating] = useState(null); // 'entering' | 'exiting' | null
-  const [showCustomTime, setShowCustomTime] = useState(false);
-  const [logMode, setLogMode] = useState('feeding');
-  const [cardVisible, setCardVisible] = useState(false);
+  const [editingFeedingId, setEditingFeedingId] = React.useState(null);
+  const [editOunces, setEditOunces] = React.useState('');
+  const [editTime, setEditTime] = React.useState('');
+  const [editingSleepId, setEditingSleepId] = React.useState(null);
+  const [sleepEditStartStr, setSleepEditStartStr] = React.useState('');
+  const [sleepEditEndStr, setSleepEditEndStr] = React.useState('');
+  const [loading, setLoading] = React.useState(true);
+  const [whatsNextCardAnimating, setWhatsNextCardAnimating] = React.useState(null); // 'entering' | 'exiting' | null
+  const [showCustomTime, setShowCustomTime] = React.useState(false);
+  const [logMode, setLogMode] = React.useState('feeding');
+  const [cardVisible, setCardVisible] = React.useState(false);
   const cardRef = React.useRef(null);
   
   // Detail sheet state
-  const [showFeedDetailSheet, setShowFeedDetailSheet] = useState(false);
-  const [showSleepDetailSheet, setShowSleepDetailSheet] = useState(false);
-  const [selectedFeedEntry, setSelectedFeedEntry] = useState(null);
-  const [selectedSleepEntry, setSelectedSleepEntry] = useState(null);
-  const [showInputSheet, setShowInputSheet] = useState(false);
-  const [inputSheetMode, setInputSheetMode] = useState('feeding');
+  const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
+  const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
+  const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
+  const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
+  const [showInputSheet, setShowInputSheet] = React.useState(false);
+
+  // One-shot "gates" log whenever key render inputs change.
+  React.useEffect(() => {
+    if (!__ttDebugCardsOn()) return;
+    __ttDebugCardsLog('gates', {
+      uiVersion,
+      useNewUI,
+      hasTrackerCard: typeof window !== 'undefined' && !!window.TrackerCard,
+      kidId: kidId || null,
+      loading,
+      // These names should exist in your component; if not, the log will show "undefined".
+      feedingsCount: Array.isArray(feedings) ? feedings.length : typeof feedings,
+      sleepSessionsCount: Array.isArray(sleepSessions) ? sleepSessions.length : typeof sleepSessions
+    });
+  }, [
+    uiVersion,
+    useNewUI,
+    kidId,
+    loading,
+    typeof window !== 'undefined' && window.TrackerCard,
+    feedings,
+    sleepSessions
+  ]);
+  const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
 
   // AI-generated "What's Next" state
-  const [whatsNextText, setWhatsNextText] = useState('Feed around 2:00pm');
+  const [whatsNextText, setWhatsNextText] = React.useState('Feed around 2:00pm');
   const generatingRef = React.useRef(false);
   const lastDataHashRef = React.useRef('');
-  const [whatsNextAccordionOpen, setWhatsNextAccordionOpen] = useState(false);
-  const [scheduleReady, setScheduleReady] = useState(false); // Track when schedule is built
+  const [whatsNextAccordionOpen, setWhatsNextAccordionOpen] = React.useState(false);
+  const [scheduleReady, setScheduleReady] = React.useState(false); // Track when schedule is built
   // Store the fixed predicted time (not recalculated as time passes)
   const predictedTimeRef = React.useRef(null); // { type: 'feed'|'nap'|'wake', time: Date, text: string }
   
@@ -1736,13 +1776,13 @@ IMPORTANT:
     );
 
   // Sleep logging state
-  const [activeSleep, setActiveSleep] = useState(null);
-  const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
-  const [sleepStartStr, setSleepStartStr] = useState('');
-  const [sleepEndStr, setSleepEndStr] = useState('');
-  const [editingSleepField, setEditingSleepField] = useState(null); // 'start' | 'end' | null
+  const [activeSleep, setActiveSleep] = React.useState(null);
+  const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
+  const [sleepStartStr, setSleepStartStr] = React.useState('');
+  const [sleepEndStr, setSleepEndStr] = React.useState('');
+  const [editingSleepField, setEditingSleepField] = React.useState(null); // 'start' | 'end' | null
   const sleepIntervalRef = React.useRef(null);
-  const [lastActiveSleepId, setLastActiveSleepId] = useState(null);
+  const [lastActiveSleepId, setLastActiveSleepId] = React.useState(null);
 
   useEffect(() => {
     if (!kidId) return;
@@ -3252,7 +3292,12 @@ Output ONLY the formatted string, nothing else.`;
   };
 
   const loadData = async () => {
-    if (!kidId) return;
+    // Never leave the tab stuck in "Loading..." if kidId isn't ready yet.
+    setLoading(true);
+    if (!kidId) {
+      setLoading(false);
+      return;
+    }
     try {
       const settings = await firestoreStorage.getSettings();
       if (settings) {
@@ -3709,16 +3754,6 @@ Output ONLY the formatted string, nothing else.`;
     return s.endsWith('.0') ? s.slice(0, -2) : s;
   };
 
-  // v2 card number formatting:
-  // - whole numbers: "7"
-  // - non-whole: "7.3" (one decimal)
-  const formatV2Number = (n) => {
-    const x = Number(n);
-    if (!Number.isFinite(x)) return '0';
-    const rounded = Math.round(x);
-    if (Math.abs(x - rounded) < 1e-9) return String(rounded);
-    return x.toFixed(1);
-  };
   const feedingDeltaLabel = `${feedingDeltaOz >= 0 ? '+' : '-'}${_fmtDelta(feedingDeltaOz)} oz`;
   const feedingDeltaIsGood = feedingDeltaOz >= 0;
   const sleepDeltaLabel = `${sleepDeltaHours >= 0 ? '+' : '-'}${_fmtDelta(sleepDeltaHours)} hrs`;
@@ -3806,7 +3841,8 @@ Output ONLY the formatted string, nothing else.`;
   const dateNavTrackBg = 'var(--tt-subtle-surface)';
   const dateNavDividerColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgb(243, 244, 246)';
 
-  return React.createElement('div', { className: "space-y-4" },
+  // Add a little bottom padding so the last card isn't obscured by mobile safe-area / nav.
+  return React.createElement('div', { className: "space-y-4 pb-24" },
     // Date Navigation (moved outside Today Card) - hidden in v3
     uiVersion !== 'v3' && React.createElement('div', { 
       className: "date-nav-container",
@@ -3885,6 +3921,22 @@ Output ONLY the formatted string, nothing else.`;
 
     // New TrackerCard Components (when useNewUI is true)
     useNewUI && window.TrackerCard && React.createElement(React.Fragment, null,
+      // DEBUG: a visible marker that proves we entered the tracker-cards block.
+      __ttDebugCardsOn() && React.createElement(
+        'div',
+        {
+          id: 'tt-debug-cards-marker',
+          style: {
+            padding: '8px 12px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255,255,255,0.18)',
+            fontSize: 12,
+            opacity: 0.9,
+            marginBottom: 12
+          }
+        },
+        `DEBUG cards block: ui=${uiVersion} useNewUI=${!!useNewUI} hasTrackerCard=${!!window.TrackerCard} feedings=${Array.isArray(feedings) ? feedings.length : '?'} sleepSessions=${Array.isArray(sleepSessions) ? sleepSessions.length : '?'} loading=${!!loading}`
+      ),
       // Date Navigation in v3 (moved to body, above What's Next card)
       uiVersion === 'v3' && React.createElement('div', { 
         className: "date-nav",
@@ -7190,7 +7242,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
   const refLineY = chartHeight - (average / maxHours) * chartHeight;
   
   // Animation state
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = React.useState(false);
   const chartRef = React.useRef(null);
   
   // Intersection Observer to detect when card scrolls into view
@@ -7425,7 +7477,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
   const refLineY = chartHeight - (average / maxVolume) * chartHeight;
   
   // Animation state
-  const [isVisible, setIsVisible] = useState(false);
+  const [isVisible, setIsVisible] = React.useState(false);
   const chartRef = React.useRef(null);
   
   // Intersection Observer to detect when card scrolls into view
@@ -7637,6 +7689,19 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
 window.TT = window.TT || {};
 window.TT.tabs = window.TT.tabs || {};
 window.TT.tabs.TrackerTab = TrackerTab;
+// DEBUG helper you can run manually in console:
+// window.__ttDumpCardsDom()
+if (typeof window !== 'undefined' && !window.__ttDumpCardsDom) {
+  window.__ttDumpCardsDom = () => {
+    const marker = document.getElementById('tt-debug-cards-marker');
+    const divs = document.querySelectorAll('#tt-debug-cards-marker, [data-tt-card], .tt-tracker-card, .rounded-2xl');
+    console.log('[TT][Cards][DOM]', {
+      hasMarker: !!marker,
+      count: divs ? divs.length : 0
+    });
+    return { hasMarker: !!marker, count: divs ? divs.length : 0 };
+  };
+}
 // Helper: is there already a sleep event near a given time?
 const hasNearbySleep = (events, t, windowMin = 45) => {
   const tMs = t.getTime();
