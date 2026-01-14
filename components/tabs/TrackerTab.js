@@ -260,6 +260,24 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     }
   };
   const lastAICallRef = React.useRef(getLastAICallTime());
+  
+  // Separate cooldown tracker for schedule building (independent from "what's next")
+  const getLastScheduleAICallTime = () => {
+    try {
+      const stored = localStorage.getItem('tt_last_schedule_ai_call');
+      return stored ? parseInt(stored, 10) : 0;
+    } catch {
+      return 0;
+    }
+  };
+  const setLastScheduleAICallTime = (timestamp) => {
+    try {
+      localStorage.setItem('tt_last_schedule_ai_call', String(timestamp));
+    } catch {
+      // Ignore localStorage errors
+    }
+  };
+  const lastScheduleAICallRef = React.useRef(getLastScheduleAICallTime());
 
   // Format time as h:mma (e.g., "12:30pm") - no rounding
   const formatTimeHmma = (date) => {
@@ -285,6 +303,16 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   // Analyze historical intervals from last 7 days, weighted by recency
   const analyzeHistoricalIntervals = (feedings, sleepSessions) => {
     const now = Date.now();
+    const _getOunces = (f) => {
+      const v = Number(f?.ounces ?? f?.amountOz ?? f?.amount ?? f?.volumeOz);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    };
+    const _getSleepDurationHours = (s) => {
+      const start = Number(s?.startTime);
+      const end = Number(s?.endTime);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+      return (end - start) / (1000 * 60 * 60);
+    };
     const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
     const twoDaysAgo = now - (2 * 24 * 60 * 60 * 1000);
     
@@ -353,6 +381,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const feedClusters = [];
     recentFeedings.forEach(f => {
       const timeMinutes = minutesSinceMidnight(f.timestamp);
+      const oz = _getOunces(f);
       // Find existing cluster this feeding belongs to
       let foundCluster = null;
       for (const cluster of feedClusters) {
@@ -368,11 +397,13 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         // Add to existing cluster
         foundCluster.times.push(timeMinutes);
         foundCluster.timestamps.push(f.timestamp);
+        if (oz !== null) foundCluster.ounces.push(oz);
       } else {
         // Create new cluster
         feedClusters.push({
           times: [timeMinutes],
-          timestamps: [f.timestamp]
+          timestamps: [f.timestamp],
+          ounces: oz !== null ? [oz] : []
         });
       }
     });
@@ -386,11 +417,15 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         );
         const hour = Math.floor(avgMinutes / 60) % 24;
         const minute = avgMinutes % 60;
+        const avgOunces = (cluster.ounces && cluster.ounces.length > 0)
+          ? Math.round((cluster.ounces.reduce((sum, v) => sum + v, 0) / cluster.ounces.length) * 10) / 10
+          : null;
         return {
           hour,
           minute,
           count: cluster.times.length,
-          avgMinutes
+          avgMinutes,
+          avgOunces
         };
       })
       .filter(pattern => pattern.count >= 3) // Only patterns with 3+ occurrences
@@ -430,6 +465,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const sleepClusters = [];
     recentSleep.forEach(s => {
       const timeMinutes = minutesSinceMidnight(s.startTime);
+      const durHrs = _getSleepDurationHours(s);
       // Find existing cluster this sleep belongs to
       let foundCluster = null;
       for (const cluster of sleepClusters) {
@@ -443,10 +479,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       if (foundCluster) {
         foundCluster.times.push(timeMinutes);
         foundCluster.timestamps.push(s.startTime);
+        if (durHrs !== null) foundCluster.durations.push(durHrs);
       } else {
         sleepClusters.push({
           times: [timeMinutes],
-          timestamps: [s.startTime]
+          timestamps: [s.startTime],
+          durations: durHrs !== null ? [durHrs] : []
         });
       }
     });
@@ -459,11 +497,15 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         );
         const hour = Math.floor(avgMinutes / 60) % 24;
         const minute = avgMinutes % 60;
+        const avgDurationHours = (cluster.durations && cluster.durations.length > 0)
+          ? Math.round((cluster.durations.reduce((sum, v) => sum + v, 0) / cluster.durations.length) * 10) / 10
+          : null;
         return {
           hour,
           minute,
           count: cluster.times.length,
-          avgMinutes
+          avgMinutes,
+          avgDurationHours
         };
       })
       .filter(pattern => pattern.count >= 3) // Only patterns with 3+ occurrences
@@ -486,6 +528,199 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   };
 
   // Build optimal schedule for today from patterns
+  // Build schedule using AI to consolidate patterns into a single timeline
+  const buildAISchedule = async (analysis, feedIntervalHours, ageInMonths = 0, kidId) => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    today.setMilliseconds(0);
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    // Format patterns for AI
+    const feedPatternsList = (analysis.feedPatterns || [])
+      .filter(p => p.avgMinutes >= nowMinutes - 30) // Only future or recent patterns
+      .map(p => {
+        const timeStr = `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`;
+        const period = p.hour >= 12 ? (p.hour === 12 ? 'pm' : p.hour > 12 ? `${p.hour - 12}pm` : 'am') : `${p.hour}am`;
+        const displayTime = p.hour === 0 ? `12:${String(p.minute).padStart(2, '0')}am` :
+                          p.hour < 12 ? `${p.hour}:${String(p.minute).padStart(2, '0')}am` :
+                          p.hour === 12 ? `12:${String(p.minute).padStart(2, '0')}pm` :
+                          `${p.hour - 12}:${String(p.minute).padStart(2, '0')}pm`;
+        return `- ${displayTime} (${p.count} occurrences)`;
+      })
+      .join('\n');
+    
+    const sleepPatternsList = (analysis.sleepPatterns || [])
+      .filter(p => p.avgMinutes >= nowMinutes - 30) // Only future or recent patterns
+      .map(p => {
+        const displayTime = p.hour === 0 ? `12:${String(p.minute).padStart(2, '0')}am` :
+                          p.hour < 12 ? `${p.hour}:${String(p.minute).padStart(2, '0')}am` :
+                          p.hour === 12 ? `12:${String(p.minute).padStart(2, '0')}pm` :
+                          `${p.hour - 12}:${String(p.minute).padStart(2, '0')}pm`;
+        return `- ${displayTime} (${p.count} occurrences)`;
+      })
+      .join('\n');
+    
+    const currentTime = formatTimeHmma(now);
+    const avgInterval = analysis.avgInterval || feedIntervalHours;
+    
+    // Build AI prompt
+    const prompt = `You are a baby care assistant. I need you to create a single optimal timeline for TODAY based on detected patterns.
+
+Current time: ${currentTime}
+Baby's age: ${ageInMonths} months
+Typical feed interval: ${avgInterval.toFixed(1)} hours
+
+DETECTED FEED PATTERNS (from last 7 days):
+${feedPatternsList || 'None detected'}
+
+DETECTED SLEEP PATTERNS (from last 7 days):
+${sleepPatternsList || 'None detected'}
+
+TASK: Create a single, consolidated timeline for TODAY starting from now (${currentTime}).
+
+Rules:
+1. Consolidate overlapping patterns (if multiple patterns suggest the same time, pick the most frequent one)
+2. Account for typical intervals (${avgInterval.toFixed(1)} hours between feeds)
+3. Only include feed and sleep events - DO NOT include wake events
+4. Only include events from now onwards (don't include past events)
+5. Make it realistic for a ${ageInMonths}-month-old baby
+6. Each time should appear only once - consolidate all duplicates
+
+OUTPUT FORMAT (JSON array):
+[
+  {"type": "feed", "time": "9:30am", "patternCount": 6},
+  {"type": "sleep", "time": "11:00am", "patternCount": 5},
+  {"type": "feed", "time": "1:00pm", "patternCount": 7}
+]
+
+IMPORTANT:
+- Output ONLY valid JSON, no other text
+- Time format: "h:mma" (e.g., "9:30am", "2:15pm", "12:00pm")
+- DO NOT include wake events - only "feed" and "sleep" types
+- Don't include events in the past
+- Consolidate duplicates - each time should appear only once per event type`;
+
+    try {
+      // Check AI cooldown - use separate shorter cooldown for schedule building (15 min, independent from "what's next")
+      const nowMs = Date.now();
+      const scheduleAICooldownMs = 15 * 60 * 1000; // 15 minutes for schedule building
+      const storedLastScheduleCall = getLastScheduleAICallTime();
+      const lastScheduleAICall = lastScheduleAICallRef.current > storedLastScheduleCall ? lastScheduleAICallRef.current : storedLastScheduleCall;
+      const timeSinceLastScheduleAI = nowMs - lastScheduleAICall;
+      
+      console.log('[Schedule] AI cooldown check:', {
+        timeSinceLastScheduleAI: Math.round(timeSinceLastScheduleAI / 1000 / 60) + ' minutes',
+        cooldownRequired: Math.round(scheduleAICooldownMs / 1000 / 60) + ' minutes',
+        canCallAI: timeSinceLastScheduleAI >= scheduleAICooldownMs
+      });
+      
+      if (timeSinceLastScheduleAI >= scheduleAICooldownMs && typeof getAIResponse === 'function' && kidId) {
+        console.log('[Schedule] Calling AI to generate schedule...');
+        const aiResponse = await getAIResponse(prompt, kidId);
+        console.log('[Schedule] AI response received:', aiResponse ? 'Yes' : 'No');
+        
+        // Update schedule-specific cooldown (separate from "what's next" cooldown)
+        if (aiResponse) {
+          lastScheduleAICallRef.current = nowMs;
+          setLastScheduleAICallTime(nowMs);
+        }
+        
+        if (aiResponse) {
+          // Try to parse JSON from response
+          let scheduleData = null;
+          try {
+            // Extract JSON from response (might have markdown code blocks)
+            const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+              scheduleData = JSON.parse(jsonMatch[0]);
+            } else {
+              scheduleData = JSON.parse(aiResponse);
+            }
+          } catch (e) {
+            console.warn('[Schedule] Failed to parse AI response as JSON:', e);
+            // Fall through to fallback
+          }
+          
+          if (scheduleData && Array.isArray(scheduleData)) {
+            // Convert AI response to schedule format
+            const schedule = [];
+            scheduleData.forEach(item => {
+              if (!item.type || !item.time) return;
+              
+              // Parse time string (e.g., "9:30am" or "2:15pm")
+              const timeMatch = item.time.match(/(\d{1,2}):(\d{2})(am|pm)/i);
+              if (!timeMatch) return;
+              
+              let hour = parseInt(timeMatch[1], 10);
+              const minute = parseInt(timeMatch[2], 10);
+              const isPm = timeMatch[3].toLowerCase() === 'pm';
+              
+              if (isPm && hour !== 12) hour += 12;
+              if (!isPm && hour === 12) hour = 0;
+              
+              const scheduleTime = new Date(today);
+              scheduleTime.setHours(hour, minute, 0, 0);
+              scheduleTime.setSeconds(0);
+              scheduleTime.setMilliseconds(0);
+              
+              // Skip wake events entirely
+              if (item.type === 'wake') {
+                return; // Skip wake events
+              }
+              
+              // Only add if in the future or within last 30 minutes
+              if (scheduleTime.getTime() >= now.getTime() - (30 * 60 * 1000)) {
+                const event = {
+                  type: item.type,
+                  time: scheduleTime,
+                  patternBased: true,
+                  patternCount: item.patternCount || 0
+                };
+                
+                schedule.push(event);
+              }
+            });
+            
+            // Sort by time
+            schedule.sort((a, b) => a.time.getTime() - b.time.getTime());
+            
+            // Filter out any wake events that might have been included
+            const filteredSchedule = schedule.filter(e => e.type !== 'wake');
+            
+            if (filteredSchedule.length > 0) {
+              console.log('[Schedule] AI generated schedule with', filteredSchedule.length, 'events (after filtering wakes)');
+              return filteredSchedule;
+            }
+          }
+        }
+      }
+    } catch (error) {
+      // Check if it's a quota error (429) - if so, use longer cooldown
+      const isQuotaError = error?.status === 429 || 
+                          error?.quotaExceeded ||
+                          error?.message?.includes('429') ||
+                          error?.message?.includes('quota') ||
+                          error?.message?.includes('RESOURCE_EXHAUSTED');
+      
+      if (isQuotaError) {
+        console.warn('[Schedule] AI quota exceeded (will use fallback for extended period):', error);
+        // Set cooldown to 2 hours for quota errors to prevent further calls
+        const extendedCooldown = 2 * 60 * 60 * 1000; // 2 hours
+        lastScheduleAICallRef.current = nowMs - extendedCooldown + (15 * 60 * 1000); // Set to 15 min from now (so it waits 2 hours total)
+        setLastScheduleAICallTime(lastScheduleAICallRef.current);
+      } else {
+        console.warn('[Schedule] AI schedule generation failed:', error);
+      }
+      // Fall through to fallback
+    }
+    
+    // Fallback to programmatic schedule building
+    console.log('[Schedule] Using fallback programmatic schedule');
+    return buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
+  };
+
+  // Fallback: Build schedule programmatically (used when AI fails or is on cooldown)
   const buildDailySchedule = (analysis, feedIntervalHours, ageInMonths = 0) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -493,7 +728,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     
-    const schedule = [];
+    let schedule = [];
     
     // Add all feed patterns for today
     (analysis.feedPatterns || []).forEach(pattern => {
@@ -506,7 +741,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
           time: scheduleTime,
           patternBased: true,
           patternCount: pattern.count,
-          avgMinutes: pattern.avgMinutes
+          avgMinutes: pattern.avgMinutes,
+          avgOunces: pattern.avgOunces ?? null
         });
       }
     });
@@ -522,45 +758,103 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
           time: scheduleTime,
           patternBased: true,
           patternCount: pattern.count,
-          avgMinutes: pattern.avgMinutes
+          avgMinutes: pattern.avgMinutes,
+          avgDurationHours: pattern.avgDurationHours ?? null
         });
         
-        // Add wake event after sleep (use age-based duration to match active sleep calculation)
-        const sleepDurationHours = ageInMonths < 3 ? 1.5 : ageInMonths < 6 ? 2 : 2.5;
-        const wakeTime = new Date(scheduleTime);
-        const totalMinutes = wakeTime.getHours() * 60 + wakeTime.getMinutes() + (sleepDurationHours * 60);
-        wakeTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-        wakeTime.setSeconds(0);
-        wakeTime.setMilliseconds(0);
-        
-        // Log late wake events for debugging
-        const wakeHour = wakeTime.getHours();
-        if (wakeHour >= 22 || wakeHour <= 1) {
-          console.log('[Schedule] Late wake from pattern:', {
-            wakeTime: wakeTime.toISOString(),
-            wakeTimeFormatted: formatTimeHmma(wakeTime),
-            relatedSleep: scheduleTime.toISOString(),
-            relatedSleepFormatted: formatTimeHmma(scheduleTime),
-            source: 'pattern',
-            patternCount: pattern.count,
-            sleepDurationHours
-          });
-        }
-        schedule.push({
-          type: 'wake',
-          time: wakeTime,
-          patternBased: true,
-          patternCount: pattern.count,
-          relatedSleep: scheduleTime,
-          source: `wake after sleep pattern (${sleepDurationHours}h duration)`
-        });
+        // Wake events removed - no longer creating wake events
       }
     });
     
     // Sort by time
     schedule.sort((a, b) => a.time.getTime() - b.time.getTime());
+
+    // ------------------------------------------------------------
+    // Guardrails: prevent impossible back-to-back transitions
+    // Example: Feed at 4:20 then Sleep at 4:27 is nonsense.
+    // We treat clusters as "soft" and push the later event forward.
+    // ------------------------------------------------------------
+    const FEED_DURATION_MIN = 20;   // how long a feed typically takes
+    const TRANSITION_BUFFER_MIN = 10; // diaper/burp/settle
+    const FEED_TO_SLEEP_MIN_GAP = FEED_DURATION_MIN + TRANSITION_BUFFER_MIN; // 30 min
+    const MIN_GENERIC_GAP_MIN = 10; // for any other too-close transitions
+
+    const resolveCollisions = (events) => {
+      if (!events || events.length < 2) return events;
+      const out = [...events].sort((a, b) => a.time.getTime() - b.time.getTime());
+
+      for (let i = 1; i < out.length; i++) {
+        const prev = out[i - 1];
+        const cur = out[i];
+        if (!prev?.time || !cur?.time) continue;
+
+        const diffMin = (cur.time.getTime() - prev.time.getTime()) / (1000 * 60);
+        if (diffMin >= MIN_GENERIC_GAP_MIN) continue;
+
+        // Feed -> Sleep: push sleep later by feed duration + buffer
+        if (prev.type === 'feed' && cur.type === 'sleep') {
+          const minStart = new Date(prev.time.getTime() + FEED_TO_SLEEP_MIN_GAP * 60 * 1000);
+          if (cur.time.getTime() < minStart.getTime()) {
+            cur.time = minStart;
+            cur.adjusted = true;
+            cur.adjustReason = 'feed->sleep gap';
+          }
+          continue;
+        }
+
+        // Sleep -> Feed (or anything else too close): push later event forward by generic gap
+        const minStart = new Date(prev.time.getTime() + MIN_GENERIC_GAP_MIN * 60 * 1000);
+        if (cur.time.getTime() < minStart.getTime()) {
+          cur.time = minStart;
+          cur.adjusted = true;
+          cur.adjustReason = 'min gap';
+        }
+      }
+      return out;
+    };
+
+    schedule = resolveCollisions(schedule);
+
+    // Deduplicate events at the same time (within 5 minutes)
+    // Keep the event with the highest pattern count
+    const deduplicatedSchedule = [];
+    const timeWindowMs = 5 * 60 * 1000; // 5 minutes
     
-    return schedule;
+    schedule.forEach(event => {
+      // Find if there's already an event at this time (within 5 min window)
+      const existingIndex = deduplicatedSchedule.findIndex(existing => {
+        if (existing.type !== event.type) return false;
+        const timeDiff = Math.abs(existing.time.getTime() - event.time.getTime());
+        return timeDiff <= timeWindowMs;
+      });
+      
+      if (existingIndex === -1) {
+        // No duplicate found, add it
+        deduplicatedSchedule.push(event);
+      } else {
+        // Duplicate found - keep the one with higher pattern count
+        const existing = deduplicatedSchedule[existingIndex];
+        const existingCount = existing.patternCount || 0;
+        const newCount = event.patternCount || 0;
+        
+        if (newCount > existingCount) {
+          // Replace with the one that has more pattern occurrences
+          deduplicatedSchedule[existingIndex] = event;
+        } else if (newCount === existingCount && event.patternBased && !existing.patternBased) {
+          // Same count, prefer pattern-based over interval-based
+          deduplicatedSchedule[existingIndex] = event;
+        }
+        // Otherwise keep the existing one
+      }
+    });
+    
+    // Re-sort after deduplication
+    deduplicatedSchedule.sort((a, b) => a.time.getTime() - b.time.getTime());
+    
+    // Filter out any wake events (shouldn't be any, but just in case)
+    const finalSchedule = deduplicatedSchedule.filter(e => e.type !== 'wake');
+    
+    return finalSchedule;
   };
 
   // Adjust schedule based on actual logged events
@@ -589,7 +883,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     let lastActualFeedTime = null;
     let lastActualSleepTime = null;
     
-    // Process events chronologically
+    // Process events chronologically (only feed and sleep - no wake events)
     const allEvents = [
       ...todayFeedings.map(f => ({ type: 'feed', time: new Date(f.timestamp), actual: true, data: f })),
       ...todaySleeps.map(s => ({ 
@@ -598,18 +892,8 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         actual: true, 
         data: s,
         endTime: s.endTime ? new Date(s.endTime) : null
-      })),
-      // Add wake events from completed sleeps
-      ...todaySleeps
-        .filter(s => s.endTime && !s.isActive)
-        .map(s => ({ 
-          type: 'wake', 
-          time: new Date(s.endTime), 
-          actual: true, 
-          data: s,
-          relatedSleep: new Date(s.startTime),
-          source: 'wake after actual sleep'
-        }))
+      }))
+      // Wake events removed - no longer including wake events
     ].sort((a, b) => a.time.getTime() - b.time.getTime());
     
     // Track which scheduled events have been matched
@@ -639,17 +923,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
             lastActualFeedTime = actualEvent.time;
           } else if (actualEvent.type === 'sleep') {
             lastActualSleepTime = actualEvent.time;
-            // If this sleep has an end time, also add the wake event
-            if (actualEvent.endTime && actualEvent.endTime.getTime() > now.getTime()) {
-              adjustedSchedule.push({
-                type: 'wake',
-                time: actualEvent.endTime,
-                patternBased: false,
-                actual: true,
-                relatedSleep: actualEvent.time,
-                source: 'wake after actual sleep'
-              });
-            }
+            // Wake events removed - no longer creating wake events
           }
         }
       });
@@ -670,40 +944,16 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
           lastActualFeedTime = actualEvent.time;
         } else if (actualEvent.type === 'sleep') {
           lastActualSleepTime = actualEvent.time;
-          // If this sleep has an end time, also add the wake event
-          if (actualEvent.endTime && actualEvent.endTime.getTime() > now.getTime()) {
-            adjustedSchedule.push({
-              type: 'wake',
-              time: actualEvent.endTime,
-              patternBased: false,
-              actual: true,
-              relatedSleep: actualEvent.time,
-              source: 'wake after actual sleep'
-            });
-          }
+          // Wake events removed - no longer creating wake events
         }
       }
     });
     
     // Add remaining scheduled events that haven't passed and weren't matched
-    // Also track which wake events correspond to matched sleeps
-    const matchedWakeEvents = new Set();
-    schedule.forEach((event, idx) => {
-      if (matchedScheduled.has(idx) && event.type === 'sleep' && event.relatedSleep) {
-        // If a sleep was matched, also mark its wake event as matched (if it exists)
-        schedule.forEach((wakeEvent, wakeIdx) => {
-          if (wakeEvent.type === 'wake' && 
-              wakeEvent.relatedSleep && 
-              wakeEvent.relatedSleep.getTime() === event.time.getTime()) {
-            matchedWakeEvents.add(wakeIdx);
-          }
-        });
-      }
-    });
-    
+    // Filter out wake events entirely
     const remainingScheduled = schedule.filter((event, idx) => {
       if (matchedScheduled.has(idx)) return false;
-      if (matchedWakeEvents.has(idx)) return false; // Skip wake events for matched sleeps
+      if (event.type === 'wake') return false; // Skip all wake events
       if (event.time.getTime() < now.getTime() - (30 * 60 * 1000)) return false; // More than 30 min past
       return true;
     });
@@ -788,85 +1038,12 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
               source: 'interval-based (1.5h after feed)'
             });
             
-            // Add wake event after the nap (use age-based duration)
-            const wakeAfterNap = new Date(napTime);
-            const wakeMinutes = wakeAfterNap.getHours() * 60 + wakeAfterNap.getMinutes() + (wakeDurationHours * 60);
-            wakeAfterNap.setHours(Math.floor(wakeMinutes / 60), wakeMinutes % 60, 0, 0);
-            wakeAfterNap.setSeconds(0);
-            wakeAfterNap.setMilliseconds(0);
-            
-            if (wakeAfterNap.getTime() < nextEvent.time.getTime() && wakeAfterNap.getTime() > now.getTime()) {
-              // Log late wake events for debugging
-              const wakeHour = wakeAfterNap.getHours();
-              if (wakeHour >= 22 || wakeHour <= 1) {
-                console.log('[Schedule] Late wake from interval nap:', {
-                  wakeTime: wakeAfterNap.toISOString(),
-                  wakeTimeFormatted: formatTimeHmma(wakeAfterNap),
-                  relatedSleep: napTime.toISOString(),
-                  relatedSleepFormatted: formatTimeHmma(napTime),
-                  source: 'interval-based nap',
-                  wakeDurationHours
-                });
-              }
-              finalSchedule.push({
-                type: 'wake',
-                time: wakeAfterNap,
-                patternBased: false,
-                intervalBased: true,
-                relatedSleep: napTime,
-                source: `wake after interval-based nap (${wakeDurationHours}h duration)`
-              });
-            }
+            // Wake events removed - no longer creating wake events after naps
           }
         }
       }
       
-      // If this is a sleep event, ensure there's a wake event after it (if not already present)
-      if (currentEvent.type === 'sleep' && i < adjustedSchedule.length - 1) {
-        const nextEvent = adjustedSchedule[i + 1];
-        // Check if next event is not a wake for this sleep
-        const hasWakeEvent = adjustedSchedule.some(e => 
-          e.type === 'wake' && 
-          e.relatedSleep && 
-          e.relatedSleep.getTime() === currentEvent.time.getTime()
-        );
-        
-        if (!hasWakeEvent) {
-          // Add wake event after sleep (use age-based duration)
-          const wakeTime = new Date(currentEvent.time);
-          const totalMinutes = wakeTime.getHours() * 60 + wakeTime.getMinutes() + (wakeDurationHours * 60);
-          wakeTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-          wakeTime.setSeconds(0);
-          wakeTime.setMilliseconds(0);
-          
-          // Only add if wake time is before next event and in the future
-          if (wakeTime.getTime() < nextEvent.time.getTime() && wakeTime.getTime() > now.getTime()) {
-            // Log wake events around 10pm to debug suspicious times
-            const wakeHour = wakeTime.getHours();
-            if (wakeHour >= 22 || wakeHour <= 1) {
-              console.log('[Schedule] Late wake event created:', {
-                wakeTime: wakeTime.toISOString(),
-                wakeTimeFormatted: formatTimeHmma(wakeTime),
-                relatedSleep: currentEvent.time.toISOString(),
-                relatedSleepFormatted: formatTimeHmma(currentEvent.time),
-                source: currentEvent.patternBased ? 'pattern' : 'interval',
-                patternCount: currentEvent.patternCount,
-                wakeDurationHours,
-                sleepType: currentEvent.type
-              });
-            }
-            finalSchedule.push({
-              type: 'wake',
-              time: wakeTime,
-              patternBased: currentEvent.patternBased || false,
-              patternCount: currentEvent.patternCount,
-              intervalBased: !currentEvent.patternBased,
-              relatedSleep: currentEvent.time,
-              source: currentEvent.patternBased ? `wake after sleep pattern (${wakeDurationHours}h duration)` : `wake after interval-based sleep (${wakeDurationHours}h duration)`
-            });
-          }
-        }
-      }
+      // Wake events removed - no longer creating wake events after sleeps
     }
     
     // Also add nap after last feed if there's time left in the day
@@ -895,13 +1072,128 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     // Sort final schedule by time
     finalSchedule.sort((a, b) => a.time.getTime() - b.time.getTime());
     
+    // Filter out any wake events (shouldn't be any, but ensure they're removed)
+    const filteredFinalSchedule = finalSchedule.filter(e => e.type !== 'wake');
+    
+    // Deduplicate events at the same time (within 5 minutes)
+    // Keep the event with the highest pattern count, or actual events over predicted
+    const deduplicatedFinal = [];
+    const timeWindowMs = 5 * 60 * 1000; // 5 minutes
+    
+    filteredFinalSchedule.forEach(event => {
+      // Find if there's already an event at this time (within 5 min window)
+      const existingIndex = deduplicatedFinal.findIndex(existing => {
+        if (existing.type !== event.type) return false;
+        const timeDiff = Math.abs(existing.time.getTime() - event.time.getTime());
+        return timeDiff <= timeWindowMs;
+      });
+      
+      if (existingIndex === -1) {
+        // No duplicate found, add it
+        deduplicatedFinal.push(event);
+      } else {
+        // Duplicate found - prioritize actual events, then higher pattern count
+        const existing = deduplicatedFinal[existingIndex];
+        if (event.actual && !existing.actual) {
+          // Replace with actual event
+          deduplicatedFinal[existingIndex] = event;
+        } else if (!event.actual && existing.actual) {
+          // Keep existing actual event
+        } else {
+          // Both are same type (actual or predicted) - keep higher pattern count
+          const existingCount = existing.patternCount || 0;
+          const newCount = event.patternCount || 0;
+          if (newCount > existingCount) {
+            deduplicatedFinal[existingIndex] = event;
+          } else if (newCount === existingCount && event.patternBased && !existing.patternBased) {
+            // Same count, prefer pattern-based over interval-based
+            deduplicatedFinal[existingIndex] = event;
+          }
+        }
+      }
+    });
+    
+    // Re-sort after deduplication
+    deduplicatedFinal.sort((a, b) => a.time.getTime() - b.time.getTime());
+
+    // ------------------------------------------------------------
+    // V2 fix: ensure we always have remaining FEEDS.
+    // If there are no future feed patterns, we generate interval-based future feeds
+    // starting from the last actual feed today (or last feed in schedule).
+    // ------------------------------------------------------------
+    const ensureFutureFeeds = () => {
+      const intervalHrs = Number(feedIntervalHours);
+      if (!Number.isFinite(intervalHrs) || intervalHrs <= 0) return;
+
+      const dayEnd = new Date(today);
+      dayEnd.setHours(23, 59, 59, 999);
+
+      // Find last feed time we can anchor from: prefer last actual feed today, else last feed in schedule <= now
+      let anchor = lastActualFeedTime;
+      if (!anchor) {
+        for (let i = deduplicatedFinal.length - 1; i >= 0; i--) {
+          const ev = deduplicatedFinal[i];
+          if (ev?.type === 'feed' && ev?.time instanceof Date && ev.time.getTime() <= now.getTime()) {
+            anchor = ev.time;
+            break;
+          }
+        }
+      }
+      if (!anchor) return;
+
+      const existingFutureFeeds = deduplicatedFinal
+        .filter(ev => ev?.type === 'feed' && ev?.time instanceof Date && ev.time.getTime() > now.getTime())
+        .map(ev => ev.time.getTime())
+        .sort((a, b) => a - b);
+
+      const tooCloseMs = 35 * 60 * 1000; // don't add if within ~35 min of an existing feed
+      const intervalMs = intervalHrs * 60 * 60 * 1000;
+
+      // Generate candidate feeds forward until end of day
+      let t = new Date(anchor.getTime() + intervalMs);
+      t.setSeconds(0);
+      t.setMilliseconds(0);
+
+      // If we're already way past the next interval, step forward until it's in the future
+      while (t.getTime() <= now.getTime()) {
+        t = new Date(t.getTime() + intervalMs);
+        t.setSeconds(0);
+        t.setMilliseconds(0);
+      }
+
+      while (t.getTime() < dayEnd.getTime()) {
+        // Skip if close to an existing future feed
+        const close = existingFutureFeeds.some(ft => Math.abs(ft - t.getTime()) <= tooCloseMs);
+        if (!close) {
+          deduplicatedFinal.push({
+            type: 'feed',
+            time: new Date(t),
+            patternBased: false,
+            intervalBased: true,
+            source: 'interval-based (after last feed)'
+          });
+          existingFutureFeeds.push(t.getTime());
+          existingFutureFeeds.sort((a, b) => a - b);
+        }
+        t = new Date(t.getTime() + intervalMs);
+        t.setSeconds(0);
+        t.setMilliseconds(0);
+      }
+    };
+
+    ensureFutureFeeds();
+
+    // Re-sort after injecting interval feeds
+    deduplicatedFinal.sort((a, b) => a.time.getTime() - b.time.getTime());
+
     // If no events logged yet today, add interval-based predictions for remaining day
     if (allEvents.length === 0 && schedule.length > 0) {
-      // Use the schedule as-is but add interval-based fills
-      return finalSchedule.length > 0 ? finalSchedule : schedule;
+      // Use the schedule as-is but add interval-based fills (filter wakes from schedule too)
+      const filteredSchedule = schedule.filter(e => e.type !== 'wake');
+      return deduplicatedFinal.length > 0 ? deduplicatedFinal : filteredSchedule;
     }
     
-    return finalSchedule;
+    return deduplicatedFinal;
   };
 
   // Generate fallback prediction based on historical intervals and age
@@ -1498,7 +1790,7 @@ Output ONLY the formatted string, nothing else.`;
       // Schedule rebuild already determined above
       
       if (shouldRebuildSchedule) {
-        // Build initial schedule from patterns (pass age for consistent wake duration calculation)
+        // Build initial schedule deterministically from patterns (no AI)
         const initialSchedule = buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
         // Adjust based on actual events
         const adjustedSchedule = adjustScheduleForActualEvents(
@@ -1782,12 +2074,16 @@ Output ONLY the formatted string, nothing else.`;
         // Run analysis
         const analysis = analyzeHistoricalIntervals(allFeedingsData, allSleepSessionsData);
         
-        // Get feed interval
+        // Get feed interval and kidId
         let feedIntervalHours;
         let ageInMonths = 0;
+        let currentKidId = kidId;
         try {
           const babyData = await firestoreStorage.getKidData();
           ageInMonths = calculateAgeInMonths(babyData?.birthDate);
+          if (!currentKidId && babyData?.id) {
+            currentKidId = babyData.id;
+          }
         } catch (e) {
           console.warn('Could not fetch baby data:', e);
         }
@@ -1801,7 +2097,7 @@ Output ONLY the formatted string, nothing else.`;
           else feedIntervalHours = 3.5;
         }
         
-        // Build schedule
+        // Build schedule deterministically from patterns (no AI)
         const initialSchedule = buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
         const adjustedSchedule = adjustScheduleForActualEvents(
           initialSchedule,
@@ -1949,6 +2245,114 @@ Output ONLY the formatted string, nothing else.`;
           dayWindow: { start: dayStart, end: dayEnd },
           currentPrediction: whatsNextText,
           predictedTime: predictedTimeRef.current
+        };
+      };
+      
+      // Debug function for timeline/accordion
+      // Call from console: window.debugTimeline()
+      window.debugTimeline = () => {
+        console.log('\n=== TIMELINE DEBUG ===\n');
+        
+        // Check schedule state
+        const refSchedule = dailyScheduleRef.current;
+        const stateSchedule = dailySchedule;
+        const isScheduleReady = scheduleReady;
+        const isAccordionOpen = whatsNextAccordionOpen;
+        
+        console.log('📊 STATE:');
+        console.log(`  scheduleReady: ${isScheduleReady}`);
+        console.log(`  accordionOpen: ${isAccordionOpen}`);
+        console.log(`  refSchedule exists: ${!!refSchedule}`);
+        console.log(`  refSchedule length: ${refSchedule?.length || 0}`);
+        console.log(`  stateSchedule exists: ${!!stateSchedule}`);
+        console.log(`  stateSchedule length: ${stateSchedule?.length || 0}`);
+        
+        // Get the schedule source
+        const scheduleSource = (refSchedule && Array.isArray(refSchedule) && refSchedule.length > 0) 
+          ? refSchedule 
+          : (stateSchedule && Array.isArray(stateSchedule) && stateSchedule.length > 0)
+            ? stateSchedule
+            : null;
+        
+        console.log(`\n📅 SCHEDULE SOURCE: ${scheduleSource ? 'Found' : 'Missing'}`);
+        
+        if (scheduleSource) {
+          console.log(`  Total events: ${scheduleSource.length}`);
+          
+          // Filter to today
+          const now = Date.now();
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          const todayEnd = new Date();
+          todayEnd.setHours(23, 59, 59, 999);
+          
+          const todayEvents = scheduleSource.filter(event => {
+            if (!event || !event.time) return false;
+            const eventTime = event.time instanceof Date ? event.time.getTime() : new Date(event.time).getTime();
+            return eventTime >= todayStart.getTime() && eventTime <= todayEnd.getTime();
+          });
+          
+          console.log(`  Today's events: ${todayEvents.length}`);
+          
+          // Filter out wake events
+          const withoutWake = todayEvents.filter(e => e.type !== 'wake');
+          console.log(`  After filtering wake events: ${withoutWake.length}`);
+          
+          // Show event breakdown
+          const feedCount = withoutWake.filter(e => e.type === 'feed').length;
+          const sleepCount = withoutWake.filter(e => e.type === 'sleep').length;
+          console.log(`    Feeds: ${feedCount}`);
+          console.log(`    Sleeps: ${sleepCount}`);
+          
+          // Show first 5 events
+          console.log('\n📋 FIRST 5 EVENTS:');
+          withoutWake.slice(0, 5).forEach((event, idx) => {
+            const timeStr = event.time instanceof Date 
+              ? event.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+              : new Date(event.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+            const isPast = (event.time instanceof Date ? event.time.getTime() : new Date(event.time).getTime()) < now;
+            console.log(`  ${idx + 1}. ${event.type} at ${timeStr} ${isPast ? '(PAST)' : '(UPCOMING)'}`);
+          });
+          
+          // Check feedings and sleep sessions
+          console.log('\n🍼 DATA:');
+          console.log(`  feedings length: ${feedings?.length || 0}`);
+          console.log(`  sleepSessions length: ${sleepSessions?.length || 0}`);
+          console.log(`  allFeedings length: ${allFeedings?.length || 0}`);
+          console.log(`  allSleepSessions length: ${allSleepSessions?.length || 0}`);
+          
+          // Check if events match
+          if (feedings && feedings.length > 0) {
+            const todayFeedings = feedings.filter(f => {
+              const feedTime = f.timestamp;
+              return feedTime >= todayStart.getTime() && feedTime <= todayEnd.getTime();
+            });
+            console.log(`  Today's feedings: ${todayFeedings.length}`);
+          }
+          
+          if (sleepSessions && sleepSessions.length > 0) {
+            const todaySleep = sleepSessions.filter(s => {
+              if (!s.startTime) return false;
+              return s.startTime >= todayStart.getTime() && s.startTime <= todayEnd.getTime();
+            });
+            console.log(`  Today's sleep sessions: ${todaySleep.length}`);
+          }
+        } else {
+          console.log('❌ No schedule found!');
+          console.log('  This might mean:');
+          console.log('    - Schedule hasn\'t been built yet');
+          console.log('    - generateWhatsNext() hasn\'t run');
+          console.log('    - There was an error building the schedule');
+        }
+        
+        console.log('\n=== END DEBUG ===\n');
+        
+        return {
+          scheduleReady: isScheduleReady,
+          accordionOpen: isAccordionOpen,
+          refSchedule: refSchedule?.length || 0,
+          stateSchedule: stateSchedule?.length || 0,
+          scheduleSource: scheduleSource?.length || 0
         };
       };
     }
