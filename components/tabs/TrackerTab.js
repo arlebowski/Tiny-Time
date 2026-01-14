@@ -1067,14 +1067,16 @@ IMPORTANT:
     const forwardPlan = [];
     adjustedSchedule.forEach(e => forwardPlan.push(e));
     remainingPatternScheduled.forEach(e => {
-      // NEW: don’t allow a pattern feed too soon after the last ACTUAL feed.
-      // If it’s too soon, skip it and let the interval feed chain handle the next feed.
-      if (e?.type === 'feed' && lastActualFeedTime && e.time instanceof Date) {
-        const earliestOk = lastActualFeedTime.getTime() + minFeedGapMs;
-        if (e.time.getTime() < earliestOk) {
-          return; // skip too-soon pattern feed
+      if (!e || !e.time) return;
+
+      // 🚫 Guard: skip pattern feeds that are too soon after the last ACTUAL feed
+      if (e.type === 'feed' && lastActualFeedTime && e.time instanceof Date) {
+        const earliestAllowed = lastActualFeedTime.getTime() + minFeedGapMs;
+        if (e.time.getTime() < earliestAllowed) {
+          return;
         }
       }
+
       forwardPlan.push({
         ...e,
         actual: false,
@@ -2310,6 +2312,8 @@ Output ONLY the formatted string, nothing else.`;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         today.setMilliseconds(0);
+        const todayEnd = new Date(today);
+        todayEnd.setHours(23, 59, 59, 999);
         
         // Get all data
         let allFeedingsData = [];
@@ -2325,31 +2329,40 @@ Output ONLY the formatted string, nothing else.`;
         
         // Run analysis
         const analysis = analyzeHistoricalIntervals(allFeedingsData, allSleepSessionsData);
+
+        // Explainability: show the feeding sessions the model uses (not raw logs)
+        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+        const recentFeedLogs = (allFeedingsData || []).filter(f => f && Number(f.timestamp) >= sevenDaysAgo);
+        const recentFeedingSessions = buildFeedingSessions(recentFeedLogs, 45);
+        const todayFeedingSessions = recentFeedingSessions.filter(s => {
+          const ts = Number(s.timestamp);
+          return ts >= today.getTime() && ts <= todayEnd.getTime();
+        });
         
         // Get feed interval and kidId
-        let feedIntervalHours;
         let ageInMonths = 0;
-        let currentKidId = kidId;
         try {
           const babyData = await firestoreStorage.getKidData();
           ageInMonths = calculateAgeInMonths(babyData?.birthDate);
-          if (!currentKidId && babyData?.id) {
-            currentKidId = babyData.id;
-          }
         } catch (e) {
           console.warn('Could not fetch baby data:', e);
         }
         
-        if (analysis.avgInterval && analysis.feedIntervals >= 2) {
-          feedIntervalHours = analysis.avgInterval;
-        } else {
+        // Prefer analysis-derived interval (session-based + robust) if present
+        let feedIntervalHours = Number(analysis?.feedIntervalHours);
+        if (!Number.isFinite(feedIntervalHours) || feedIntervalHours <= 0) {
           if (ageInMonths < 1) feedIntervalHours = 2;
           else if (ageInMonths < 3) feedIntervalHours = 2.5;
           else if (ageInMonths < 6) feedIntervalHours = 3;
           else feedIntervalHours = 3.5;
         }
+
+        const minFeedGapHours = Number(analysis?.minFeedGapHours);
+        const effectiveMinFeedGapHours = Number.isFinite(minFeedGapHours) && minFeedGapHours > 0
+          ? minFeedGapHours
+          : Math.max(2.5, feedIntervalHours * 0.75);
         
-        // Build schedule deterministically from patterns (no AI)
+        // Build schedule deterministically (no AI)
         const initialSchedule = buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
         const adjustedSchedule = adjustScheduleForActualEvents(
           initialSchedule,
@@ -2364,9 +2377,47 @@ Output ONLY the formatted string, nothing else.`;
         const formatTime = (date) => {
           return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
         };
+
+        const fmtDateTime = (ms) => {
+          const d = new Date(ms);
+          return d.toLocaleString('en-US', {
+            weekday: 'short', month: 'short', day: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
+          });
+        };
         
-        console.log('\n=== FULL OPTIMIZED SCHEDULE FOR TODAY ===\n');
+        console.log('\n=== SCHEDULE DEBUG (EXPLAINABLE) ===\n');
         console.log(`Current time: ${formatTime(now)}\n`);
+
+        // 1) Feeding sessions used for learning
+        console.log('🧩 FEEDING SESSIONS (last 7 days, merged within 45m):');
+        if (recentFeedingSessions.length === 0) {
+          console.log('  (none)');
+        } else {
+          recentFeedingSessions.slice(-30).forEach((s) => {
+            const n = s?._sessionCount ? ` (${s._sessionCount} logs)` : '';
+            console.log(`  - ${fmtDateTime(s.timestamp)} • ${s.ounces ?? '?'} oz${n}`);
+          });
+          if (recentFeedingSessions.length > 30) {
+            console.log(`  … (${recentFeedingSessions.length - 30} more)`);
+          }
+        }
+
+        console.log('\n🧾 TODAY FEEDING SESSIONS:');
+        if (todayFeedingSessions.length === 0) {
+          console.log('  (none today yet)');
+        } else {
+          todayFeedingSessions.forEach(s => {
+            const n = s?._sessionCount ? ` (${s._sessionCount} logs)` : '';
+            console.log(`  - ${formatTime(new Date(s.timestamp))} • ${s.ounces ?? '?'} oz${n}`);
+          });
+        }
+
+        // 2) Key stats the engine is using
+        console.log('\n📊 MODEL STATS:');
+        console.log(`  feedIntervalHours (learned): ${Number(feedIntervalHours).toFixed(2)}h`);
+        console.log(`  minFeedGapHours (effective): ${Number(effectiveMinFeedGapHours).toFixed(2)}h`);
+        console.log(`  feedPatterns: ${(analysis?.feedPatterns || []).length} | sleepPatterns: ${(analysis?.sleepPatterns || []).length}`);
         
         if (adjustedSchedule.length === 0) {
           console.log('❌ No schedule events found. This might mean:');
@@ -2381,12 +2432,31 @@ Output ONLY the formatted string, nothing else.`;
             const status = isNow ? '🟢 NOW' : isPast ? '✅ PAST' : '⏰ UPCOMING';
             const typeIcon = event.type === 'feed' ? '🍼' : event.type === 'wake' ? '⏰' : '😴';
             const typeLabel = event.type === 'feed' ? 'Feed' : event.type === 'wake' ? 'Wake' : 'Sleep';
-            const source = event.patternBased ? `(Pattern: ${event.patternCount} occurrences)` : 
-                          event.actual ? '(Actual event)' : 
-                          event.intervalBased ? event.source || '(Interval-based)' :
-                          event.adjusted ? '(Adjusted)' : '(Interval-based)';
+
+            // Explain why it exists
+            let reason = '';
+            if (event.actual) reason = '(Actual)';
+            else if (event.patternBased) reason = `(Pattern: ${event.patternCount ?? event.count ?? '?'} occ)`;
+            else if (event.intervalBased) reason = `(${event.source || 'Interval'})`;
+            else if (event.adjusted) reason = '(Adjusted)';
+            else reason = '(Unknown)';
+
+            // If feed, show target oz ONLY in console
+            let extra = '';
+            if (event.type === 'feed') {
+              const t = Number(event.targetOz);
+              const r = event.targetOzRange;
+              const rMin = Array.isArray(r) ? Number(r[0]) : Number(r?.min);
+              const rMax = Array.isArray(r) ? Number(r[1]) : Number(r?.max);
+              const fmt = (n) => (Number.isFinite(n) ? String(Math.round(n * 10) / 10).replace(/\.0$/, '') : null);
+              const tS = fmt(t);
+              const rMinS = fmt(rMin);
+              const rMaxS = fmt(rMax);
+              if (rMinS && rMaxS) extra = ` • target ${tS ? `~${tS}` : ''}${tS ? ' ' : ''}(${rMinS}-${rMaxS} oz)`;
+              else if (tS) extra = ` • target ~${tS} oz`;
+            }
             
-            console.log(`  ${idx + 1}. ${status} ${typeIcon} ${typeLabel} at ${formatTime(event.time)} ${source}`);
+            console.log(`  ${idx + 1}. ${status} ${typeIcon} ${typeLabel} at ${formatTime(event.time)} ${reason}${extra}`);
           });
           
           // Show next event
@@ -2399,7 +2469,19 @@ Output ONLY the formatted string, nothing else.`;
           }
         }
         
-        console.log('\n=== END SCHEDULE ===\n');
+        console.log('\n=== END SCHEDULE DEBUG ===\n');
+
+        // Stash last debug payload for quick inspection
+        window.__ttScheduleDebug = {
+          now,
+          analysis,
+          feedIntervalHours,
+          minFeedGapHours: effectiveMinFeedGapHours,
+          recentFeedingSessions,
+          todayFeedingSessions,
+          initialSchedule,
+          schedule: adjustedSchedule
+        };
         
         return {
           schedule: adjustedSchedule,
@@ -2408,6 +2490,9 @@ Output ONLY the formatted string, nothing else.`;
           feedIntervalHours
         };
       };
+
+      // Alias: more explicit name for explainability (same output)
+      window.explainSchedule = window.showDailySchedule;
       
       // Test function for day/night sleep labels
       // Call from console: window.testSleepLabels()
@@ -4293,7 +4378,6 @@ Output ONLY the formatted string, nothing else.`;
                     const isWake = item.originalType === 'wake';
                     const isNap = item.type === 'nap';
                     const isSleep = item.type === 'sleep';
-                    const ozHint = isFeed ? getFeedOzHint(item) : null;
                     
                     // Get icons
                     const FeedIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.BottleMain || (() => null);
@@ -4352,7 +4436,7 @@ Output ONLY the formatted string, nothing else.`;
                           strokeWidth: '1.5'
                         }
                       }),
-                      React.createElement('span', null, `${label} around ${item.timeStr}${ozHint ? ` · ${ozHint}` : ''}`),
+                      React.createElement('span', null, `${label} around ${item.timeStr}`),
                       item.isCompleted && React.createElement('span', {
                         style: {
                           color: 'var(--tt-text-tertiary)',
