@@ -1,3 +1,53 @@
+/* TrackerTab.js */
+// --- Feed sessionization: combine nearby small feeds into a single "session" ---
+// This prevents top-off feeds from dragging median volume down and making intervals look too short.
+const buildFeedingSessions = (feedings, windowMinutes = 45) => {
+  const getOz = (f) => {
+    const oz = Number(f?.ounces ?? f?.amountOz ?? f?.amount ?? f?.volumeOz ?? f?.volume);
+    return Number.isFinite(oz) && oz > 0 ? oz : 0;
+  };
+  const sorted = [...(feedings || [])]
+    .filter(f => f && Number.isFinite(Number(f.timestamp)))
+    .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+
+  const sessions = [];
+  const windowMs = windowMinutes * 60 * 1000;
+  let cur = null;
+
+  for (const f of sorted) {
+    const ts = Number(f.timestamp);
+    const oz = getOz(f);
+    if (!cur) {
+      cur = { startTime: ts, endTime: ts, totalOz: oz, items: [f] };
+      continue;
+    }
+    if (ts - cur.endTime <= windowMs) {
+      cur.endTime = ts;
+      cur.totalOz += oz;
+      cur.items.push(f);
+    } else {
+      sessions.push(cur);
+      cur = { startTime: ts, endTime: ts, totalOz: oz, items: [f] };
+    }
+  }
+  if (cur) sessions.push(cur);
+
+  // Represent session time as startTime (simple, stable)
+  return sessions.map(s => ({
+    timestamp: s.startTime,
+    startTime: s.startTime,
+    endTime: s.endTime,
+    ounces: Math.round(s.totalOz * 10) / 10,
+    _sessionCount: s.items.length
+  }));
+};
+
+const percentile = (arr, p) => {
+  if (!arr || arr.length === 0) return null;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p)));
+  return sorted[idx];
+};
 // ========================================
 // TINY TRACKER - PART 4  
 // Tracker Tab - Main Feeding Interface
@@ -314,50 +364,38 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
       return (end - start) / (1000 * 60 * 60);
     };
     const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
+
+    // IMPORTANT: use feeding sessions, not raw feed logs
+    const recentFeedingsRaw = (feedings || []).filter(f => f && f.timestamp >= sevenDaysAgo);
+    const recentFeedingSessions = buildFeedingSessions(recentFeedingsRaw, 45);
+
     const twoDaysAgo = now - (2 * 24 * 60 * 60 * 1000);
     
     // Filter to last 7 days and sort chronologically
-    const recentFeedings = (feedings || [])
-      .filter(f => f.timestamp >= sevenDaysAgo)
-      .sort((a, b) => a.timestamp - b.timestamp);
+    const recentFeedings = recentFeedingSessions;
+
+    // Overall session volume stats (useful for floors / sanity)
+    const allSessionOz = recentFeedings.map(f => Number(f.ounces)).filter(v => Number.isFinite(v) && v > 0);
+    const overallSessionMedianOz = percentile(allSessionOz, 0.5);
     
     const recentSleep = (sleepSessions || [])
       .filter(s => s.startTime && s.startTime >= sevenDaysAgo && s.endTime && !s.isActive)
       .sort((a, b) => a.startTime - b.startTime);
     
-    // Calculate feed intervals
-    const feedIntervals = [];
+    // Calculate feed intervals (in hours) between SESSIONS (not raw logs)
+    const feedingIntervals = [];
     for (let i = 1; i < recentFeedings.length; i++) {
-      const interval = (recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp) / (1000 * 60 * 60); // hours
-      const isRecent = recentFeedings[i].timestamp >= twoDaysAgo;
-      feedIntervals.push({ interval, isRecent, timestamp: recentFeedings[i].timestamp });
-    }
-    
-    // Calculate weighted average interval (recent data weighted 2x)
-    let weightedSum = 0;
-    let totalWeight = 0;
-    feedIntervals.forEach(({ interval, isRecent }) => {
-      const weight = isRecent ? 2 : 1;
-      weightedSum += interval * weight;
-      totalWeight += weight;
-    });
-    
-    const avgInterval = totalWeight > 0 ? weightedSum / totalWeight : null;
-    
-    // Detect if intervals are extending in last 2 days
-    const recentIntervals = feedIntervals.filter(f => f.isRecent).map(f => f.interval);
-    const olderIntervals = feedIntervals.filter(f => !f.isRecent).map(f => f.interval);
-    
-    let adjustedInterval = avgInterval;
-    if (recentIntervals.length > 0 && olderIntervals.length > 0) {
-      const recentAvg = recentIntervals.reduce((a, b) => a + b, 0) / recentIntervals.length;
-      const olderAvg = olderIntervals.reduce((a, b) => a + b, 0) / olderIntervals.length;
-      
-      // If extending, split the difference and inch toward new interval (70% new, 30% old)
-      if (recentAvg > olderAvg) {
-        adjustedInterval = (recentAvg * 0.7) + (olderAvg * 0.3);
+      const intervalHours = (recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp) / (1000 * 60 * 60);
+      if (intervalHours > 0.5 && intervalHours < 8) { // Filter out weird intervals
+        feedingIntervals.push(intervalHours);
       }
     }
+    const feedIntervalHours = feedingIntervals.length > 0
+      ? percentile(feedingIntervals, 0.5) // median is more robust than mean
+      : 3.5;
+
+    // Minimum plausible gap between feeds (used later when building schedule)
+    const minFeedGapHours = Math.max(2.5, feedIntervalHours * 0.75);
     
     // Analyze time-of-day patterns using clustering approach
     // Cluster events within 1 hour of each other across different days, then average them
@@ -366,6 +404,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const minutesSinceMidnight = (timestamp) => {
       const date = new Date(timestamp);
       return date.getHours() * 60 + date.getMinutes();
+    };
+
+    const getFeedOz = (f) => {
+      const oz = Number(f?.ounces ?? f?.volume ?? f?.amount ?? 0);
+      return Number.isFinite(oz) && oz > 0 ? oz : null;
     };
     
     // Helper: Check if two times are within 1 hour of each other (across days)
@@ -381,7 +424,7 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     const feedClusters = [];
     recentFeedings.forEach(f => {
       const timeMinutes = minutesSinceMidnight(f.timestamp);
-      const oz = _getOunces(f);
+      const oz = getFeedOz(f);
       // Find existing cluster this feeding belongs to
       let foundCluster = null;
       for (const cluster of feedClusters) {
@@ -397,13 +440,13 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
         // Add to existing cluster
         foundCluster.times.push(timeMinutes);
         foundCluster.timestamps.push(f.timestamp);
-        if (oz !== null) foundCluster.ounces.push(oz);
+        if (oz != null) foundCluster.ounces.push(oz);
       } else {
         // Create new cluster
         feedClusters.push({
           times: [timeMinutes],
           timestamps: [f.timestamp],
-          ounces: oz !== null ? [oz] : []
+          ounces: oz != null ? [oz] : []
         });
       }
     });
@@ -411,21 +454,35 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     // Calculate average time for each cluster and find the most common one
     const feedPatterns = feedClusters
       .map(cluster => {
-        // Average the times in minutes since midnight
-        const avgMinutes = Math.round(
-          cluster.times.reduce((sum, t) => sum + t, 0) / cluster.times.length
-        );
+        // Robust time center (median), plus window (p10..p90)
+        const centerMinutes = percentile(cluster.times, 0.5);
+        const windowStartMinutes = percentile(cluster.times, 0.10);
+        const windowEndMinutes = percentile(cluster.times, 0.90);
+
+        const avgMinutes = Math.round(centerMinutes); // keep field name for downstream compatibility
         const hour = Math.floor(avgMinutes / 60) % 24;
         const minute = avgMinutes % 60;
-        const avgOunces = (cluster.ounces && cluster.ounces.length > 0)
-          ? Math.round((cluster.ounces.reduce((sum, v) => sum + v, 0) / cluster.ounces.length) * 10) / 10
-          : null;
+
+        // Robust volume stats for this time cluster
+        const volumeMedianOz = percentile(cluster.ounces || [], 0.5);
+        const volumeP10Oz = percentile(cluster.ounces || [], 0.10);
+        const volumeP90Oz = percentile(cluster.ounces || [], 0.90);
+
+        // Floor volume guidance so we don't suggest tiny feeds.
+        // This works well once sessions are used (top-offs are merged).
+        const flooredMedian = (overallSessionMedianOz && volumeMedianOz)
+          ? Math.max(volumeMedianOz, overallSessionMedianOz * 0.85)
+          : (volumeMedianOz ?? overallSessionMedianOz ?? null);
         return {
           hour,
           minute,
           count: cluster.times.length,
           avgMinutes,
-          avgOunces
+          windowStartMinutes,
+          windowEndMinutes,
+          volumeMedianOz: flooredMedian,
+          volumeP10Oz,
+          volumeP90Oz
         };
       })
       .filter(pattern => pattern.count >= 3) // Only patterns with 3+ occurrences
@@ -515,10 +572,11 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     // Removed constant logging - use window.validateWhatsNext() or window.showDailySchedule() for debugging
     
     return {
-      avgInterval: adjustedInterval || avgInterval,
+      avgInterval: feedIntervalHours,
+      minFeedGapHours,
       lastFeedingTime: recentFeedings.length > 0 ? recentFeedings[recentFeedings.length - 1].timestamp : null,
       commonTimePattern,
-      feedIntervals: feedIntervals.length,
+      feedIntervals: feedingIntervals.length,
       recentFeedings, // Return for accordion use
       feedPatterns, // Return all detected feed patterns for schedule generation
       sleepPatterns, // Return all detected sleep patterns for schedule generation
@@ -729,6 +787,17 @@ IMPORTANT:
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     
     let schedule = [];
+
+    // Enforce minimum feed spacing using analysis.minFeedGapHours
+    const minFeedGapMs = (Math.max(analysis?.minFeedGapHours ?? 0, 2.5)) * 60 * 60 * 1000;
+    const tooCloseToAnotherFeed = (t) => {
+      const tMs = t.getTime();
+      return schedule.some(e =>
+        e?.type === 'feed' &&
+        e?.time instanceof Date &&
+        Math.abs(e.time.getTime() - tMs) < minFeedGapMs
+      );
+    };
     
     // Add all feed patterns for today
     (analysis.feedPatterns || []).forEach(pattern => {
@@ -736,13 +805,20 @@ IMPORTANT:
       scheduleTime.setHours(pattern.hour, pattern.minute, 0, 0);
       // Only include if it's in the future or within last 30 minutes (might be happening now)
       if (pattern.avgMinutes >= nowMinutes - 30) {
+        // Don’t add a pattern feed if it would create unrealistically short intervals
+        if (tooCloseToAnotherFeed(scheduleTime)) return;
+
         schedule.push({
           type: 'feed',
           time: scheduleTime,
           patternBased: true,
           patternCount: pattern.count,
           avgMinutes: pattern.avgMinutes,
-          avgOunces: pattern.avgOunces ?? null
+          // Volume guidance for UI (median + typical range)
+          targetOz: pattern.volumeMedianOz ?? null,
+          targetOzRange: (pattern.volumeP10Oz != null && pattern.volumeP90Oz != null)
+            ? [pattern.volumeP10Oz, pattern.volumeP90Oz]
+            : null
         });
       }
     });
@@ -883,6 +959,19 @@ IMPORTANT:
     let lastActualFeedTime = null;
     let lastActualSleepTime = null;
     
+    // Helpers for "re-solve forward"
+    const minutesBetween = (a, b) => Math.abs(a.getTime() - b.getTime()) / (1000 * 60);
+    const hasNearbyEvent = (events, type, time, windowMins) => {
+      return events.some(e => e && e.type === type && e.time && minutesBetween(e.time, time) <= windowMins);
+    };
+    const hasNearbyAnyEvent = (events, time, windowMins) => {
+      return events.some(e => e && e.time && minutesBetween(e.time, time) <= windowMins);
+    };
+    const clampToTodayEnd = (time, todayEndObj) => {
+      if (!time) return null;
+      return time.getTime() > todayEndObj.getTime() ? null : time;
+    };
+    
     // Process events chronologically (only feed and sleep - no wake events)
     const allEvents = [
       ...todayFeedings.map(f => ({ type: 'feed', time: new Date(f.timestamp), actual: true, data: f })),
@@ -949,172 +1038,308 @@ IMPORTANT:
       }
     });
     
+    /**
+     * RE-SOLVE FORWARD:
+     * - Keep actual events (and matched scheduled events marked actual)
+     * - Rebuild the rest of the day from "now" using:
+     *   1) remaining pattern-based events (ignore old interval-based predictions)
+     *   2) interval feed chain anchored to last actual feed
+     *   3) optional interval nap fills, but NEVER right after a feed (min gap)
+     */
+
     // Add remaining scheduled events that haven't passed and weren't matched
-    // Filter out wake events entirely
-    const remainingScheduled = schedule.filter((event, idx) => {
+    // Filter out wake events entirely and drop old interval-based fills
+    const remainingPatternScheduled = schedule.filter((event, idx) => {
       if (matchedScheduled.has(idx)) return false;
-      if (event.type === 'wake') return false; // Skip all wake events
-      if (event.time.getTime() < now.getTime() - (30 * 60 * 1000)) return false; // More than 30 min past
+      if (!event || !event.time) return false;
+      if (event.type === 'wake') return false;
+      if (event.intervalBased) return false;
+      if (typeof event.source === 'string' && event.source.startsWith('interval-based')) return false;
+      if (!event.patternBased) return false;
+      if (event.time.getTime() < now.getTime() - (30 * 60 * 1000)) return false; // >30min past
       return true;
     });
-    
-    // For remaining scheduled events, adjust if we have actual events that shifted timing
-    remainingScheduled.forEach(scheduledEvent => {
-      let adjustedTime = scheduledEvent.time;
-      
-      if (scheduledEvent.type === 'feed' && lastActualFeedTime) {
-        // Check if we should adjust based on actual feed time
-        const timeSinceLastFeed = (scheduledEvent.time.getTime() - lastActualFeedTime.getTime()) / (1000 * 60 * 60); // hours
-        const expectedInterval = feedIntervalHours;
-        
-        // If scheduled time is close to expected interval from last feed, keep it
-        // Otherwise, blend pattern time with interval-based calculation
-        const intervalBasedTime = new Date(lastActualFeedTime);
-        const totalMinutes = intervalBasedTime.getHours() * 60 + intervalBasedTime.getMinutes() + (expectedInterval * 60);
-        intervalBasedTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-        
-        // Blend: 70% pattern time, 30% interval-based (if pattern is still reasonable)
-        if (scheduledEvent.avgMinutes !== undefined) {
-          const patternMinutes = scheduledEvent.avgMinutes;
-          const intervalMinutes = intervalBasedTime.getHours() * 60 + intervalBasedTime.getMinutes();
-          const timeDiff = Math.abs(patternMinutes - intervalMinutes) / 60; // hours difference
-          
-          if (timeDiff < 2) {
-            // Pattern and interval are close - use pattern time
-            adjustedTime = scheduledEvent.time;
-          } else {
-            // They're far apart - use interval-based (actual timing takes priority)
-            adjustedTime = intervalBasedTime;
-          }
-        } else {
-          // No pattern minutes available - use interval-based
-          adjustedTime = intervalBasedTime;
+
+    const minFeedGapHours = Math.max(analysis?.minFeedGapHours ?? 0, 2.5);
+    const minFeedGapMs = minFeedGapHours * 60 * 60 * 1000;
+
+    // Start the forward plan with (a) actuals + (b) remaining pattern-based schedule
+    const forwardPlan = [];
+    adjustedSchedule.forEach(e => forwardPlan.push(e));
+    remainingPatternScheduled.forEach(e => {
+      // NEW: don’t allow a pattern feed too soon after the last ACTUAL feed.
+      // If it’s too soon, skip it and let the interval feed chain handle the next feed.
+      if (e?.type === 'feed' && lastActualFeedTime && e.time instanceof Date) {
+        const earliestOk = lastActualFeedTime.getTime() + minFeedGapMs;
+        if (e.time.getTime() < earliestOk) {
+          return; // skip too-soon pattern feed
         }
-      } else if (scheduledEvent.type === 'sleep' && lastActualSleepTime) {
-        // Similar logic for sleep - for now, keep pattern time
-        adjustedTime = scheduledEvent.time;
       }
-      
-      adjustedSchedule.push({
-        ...scheduledEvent,
-        time: adjustedTime,
-        adjusted: lastActualFeedTime !== null || lastActualSleepTime !== null
+      forwardPlan.push({
+        ...e,
+        actual: false,
+        adjusted: true
       });
     });
-    
-    // Sort by time
-    adjustedSchedule.sort((a, b) => a.time.getTime() - b.time.getTime());
-    
-    // Fill gaps with interval-based predictions (especially sleep after feeds)
-    const finalSchedule = [];
-    const napHoursAfterFeed = 1.5; // Typical nap is 1.5 hours after feed
-    // Use age-based wake duration to match active sleep calculation (same as buildDailySchedule)
-    const wakeDurationHours = ageInMonths < 3 ? 1.5 : ageInMonths < 6 ? 2 : 2.5;
-    
-    for (let i = 0; i < adjustedSchedule.length; i++) {
-      const currentEvent = adjustedSchedule[i];
-      finalSchedule.push(currentEvent);
-      
-      // If this is a feed and there's a next event, check if we should add a nap
-      if (currentEvent.type === 'feed' && i < adjustedSchedule.length - 1) {
-        const nextEvent = adjustedSchedule[i + 1];
-        const timeUntilNext = (nextEvent.time.getTime() - currentEvent.time.getTime()) / (1000 * 60 * 60); // hours
-        
-        // If gap is > 2 hours, add a nap prediction 1.5 hours after this feed
-        if (timeUntilNext > 2) {
-          const napTime = new Date(currentEvent.time);
-          const totalMinutes = napTime.getHours() * 60 + napTime.getMinutes() + (napHoursAfterFeed * 60);
-          napTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-          napTime.setSeconds(0);
-          napTime.setMilliseconds(0);
-          
-          // Only add if nap time is before next event and in the future
-          if (napTime.getTime() < nextEvent.time.getTime() && napTime.getTime() > now.getTime()) {
-            finalSchedule.push({
-              type: 'sleep',
-              time: napTime,
-              patternBased: false,
-              intervalBased: true,
-              source: 'interval-based (1.5h after feed)'
-            });
-            
-            // Wake events removed - no longer creating wake events after naps
-          }
-        }
-      }
-      
-      // Wake events removed - no longer creating wake events after sleeps
-    }
-    
-    // Also add nap after last feed if there's time left in the day
-    if (adjustedSchedule.length > 0) {
-      const lastEvent = adjustedSchedule[adjustedSchedule.length - 1];
-      if (lastEvent.type === 'feed') {
-        const napTime = new Date(lastEvent.time);
-        const totalMinutes = napTime.getHours() * 60 + napTime.getMinutes() + (napHoursAfterFeed * 60);
-        napTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-        napTime.setSeconds(0);
-        napTime.setMilliseconds(0);
-        
-        // Only add if it's before end of day and in the future
-        if (napTime.getTime() < todayEnd.getTime() && napTime.getTime() > now.getTime()) {
-          finalSchedule.push({
-            type: 'sleep',
-            time: napTime,
-            patternBased: false,
-            intervalBased: true,
-            source: 'interval-based (1.5h after feed)'
-          });
-        }
+
+    // Rebuild interval-based feeds from the last actual feed (fallback only)
+    const todayEndObj = todayEnd; // existing todayEnd Date in scope above
+    const feedSkipWindowMins = 45; // if a pattern feed is within 45m, don't add interval feed
+    const minNapAfterFeedMins = 25; // never suggest sleep immediately after feeding
+    const napHoursAfterFeed = 1.5;
+
+    // --- Forward re-solve rules (to avoid nonsense like two sleeps back-to-back) ---
+    const MIN_SAME_SLEEP_MIN = 75; // don't allow two "sleep" events within 75 min
+    const MIN_SAME_FEED_MIN = 90; // don't allow two "feed" events within 90 min
+    const MIN_DIFF_TYPE_MIN = 20; // keep at least 20 min between feed<->sleep predictions
+
+    const _eventPriority = (e) => {
+      if (!e) return 0;
+      if (e.actual) return 3;
+      if (e.patternBased) return 2;
+      if (e.intervalBased) return 1;
+      return 0;
+    };
+
+    const _eventStrength = (e) => {
+      // used to break ties between pattern events
+      const n = (e && (e.patternCount ?? e.occurrences ?? e.count ?? e.sampleCount)) || 0;
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const _hasNearbySleep = (tMs, withinMin, events) => {
+      const w = withinMin * 60 * 1000;
+      return (events || []).some(ev => {
+        if (!ev || ev.type !== 'sleep' || !ev.time) return false;
+        const evMs = ev.time.getTime();
+        return Math.abs(evMs - tMs) <= w;
+      });
+    };
+
+    if (lastActualFeedTime) {
+      // Generate feed chain: lastActual + interval, until end of day
+      let cursor = new Date(lastActualFeedTime);
+      while (true) {
+        const nextFeed = new Date(cursor);
+        const totalMinutes = nextFeed.getHours() * 60 + nextFeed.getMinutes() + (feedIntervalHours * 60);
+        nextFeed.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+        nextFeed.setSeconds(0);
+        nextFeed.setMilliseconds(0);
+
+        const clamped = clampToTodayEnd(nextFeed, todayEndObj);
+        if (!clamped) break;
+        cursor = clamped;
+
+        if (clamped.getTime() <= now.getTime()) continue;
+        // Skip if near an existing feed (pattern or already-added)
+        if (hasNearbyEvent(forwardPlan, 'feed', clamped, feedSkipWindowMins)) continue;
+
+        forwardPlan.push({
+          type: 'feed',
+          time: clamped,
+          patternBased: false,
+          intervalBased: true,
+          source: 'interval-based (last actual feed + interval)',
+          adjusted: true
+        });
       }
     }
+
+    // Sort forward plan before adding naps
+    forwardPlan.sort((a, b) => a.time.getTime() - b.time.getTime());
+
+    // Add interval nap fills after feeds ONLY if there isn't already a sleep nearby,
+    // and never if it would land too close to the feed or another event.
+    const planWithNaps = [...forwardPlan];
+    for (let i = 0; i < forwardPlan.length; i++) {
+      const ev = forwardPlan[i];
+      if (!ev || ev.type !== 'feed' || !ev.time) continue;
+
+      const napTime = new Date(ev.time);
+      const napTotalMinutes = napTime.getHours() * 60 + napTime.getMinutes() + (napHoursAfterFeed * 60);
+      napTime.setHours(Math.floor(napTotalMinutes / 60), napTotalMinutes % 60, 0, 0);
+      napTime.setSeconds(0);
+      napTime.setMilliseconds(0);
+
+      const clampedNap = clampToTodayEnd(napTime, todayEndObj);
+      if (!clampedNap) continue;
+      if (clampedNap.getTime() <= now.getTime()) continue;
+
+      // Never suggest a nap too soon after the feed
+      if (minutesBetween(ev.time, clampedNap) < minNapAfterFeedMins) continue;
+
+      // If there's already a pattern-based sleep near this nap, skip the interval nap.
+      const napMs = clampedNap.getTime();
+      const nearPatternSleep =
+        _hasNearbySleep(napMs, 60, adjustedSchedule) || _hasNearbySleep(napMs, 60, planWithNaps);
+      if (nearPatternSleep) continue;
+
+      // Skip if it would collide with any event (feed or sleep) within 25m
+      if (hasNearbyAnyEvent(planWithNaps, clampedNap, 25)) continue;
+
+      planWithNaps.push({
+        type: 'sleep',
+        time: clampedNap,
+        patternBased: false,
+        intervalBased: true,
+        source: 'interval-based (1.5h after feed)',
+        adjusted: true
+      });
+    }
+
+    // Sort the final schedule candidate
+    planWithNaps.sort((a, b) => a.time.getTime() - b.time.getTime());
+
+    // Use the re-solved plan as the final schedule candidate for dedupe logic below
+    const finalSchedule = planWithNaps;
+
+    // Also add nap after last feed if there's time left in the day (handled by loop above)
+    // (No-op here; kept to preserve surrounding structure)
+    if (false) {
+      const _noop = true;
+      void _noop;
+    }
     
-    // Sort final schedule by time
+    // --- Re-solve forward (only affects predicted events; keeps actual events fixed) ---
     finalSchedule.sort((a, b) => a.time.getTime() - b.time.getTime());
-    
-    // Filter out any wake events (shouldn't be any, but ensure they're removed)
-    const filteredFinalSchedule = finalSchedule.filter(e => e.type !== 'wake');
-    
-    // Deduplicate events at the same time (within 5 minutes)
-    // Keep the event with the highest pattern count, or actual events over predicted
-    const deduplicatedFinal = [];
-    const timeWindowMs = 5 * 60 * 1000; // 5 minutes
-    
-    filteredFinalSchedule.forEach(event => {
-      // Find if there's already an event at this time (within 5 min window)
-      const existingIndex = deduplicatedFinal.findIndex(existing => {
-        if (existing.type !== event.type) return false;
-        const timeDiff = Math.abs(existing.time.getTime() - event.time.getTime());
-        return timeDiff <= timeWindowMs;
-      });
-      
-      if (existingIndex === -1) {
-        // No duplicate found, add it
-        deduplicatedFinal.push(event);
+    const resolved = [];
+    for (let i = 0; i < finalSchedule.length; i++) {
+      const ev = finalSchedule[i];
+      if (!ev || !ev.time) continue;
+
+      // Always keep the first
+      if (resolved.length === 0) {
+        resolved.push(ev);
+        continue;
+      }
+
+      const prev = resolved[resolved.length - 1];
+      const evMs = ev.time.getTime();
+      const prevMs = prev.time.getTime();
+      const diffMin = Math.abs(evMs - prevMs) / (1000 * 60);
+
+      // If same type too close, keep the better one
+      if (ev.type === prev.type) {
+        const minSame = (ev.type === 'sleep') ? MIN_SAME_SLEEP_MIN : (ev.type === 'feed' ? MIN_SAME_FEED_MIN : 0);
+        if (minSame > 0 && diffMin < minSame) {
+          const pPrev = _eventPriority(prev);
+          const pEv = _eventPriority(ev);
+          if (pEv > pPrev) {
+            resolved[resolved.length - 1] = ev;
+          } else if (pEv === pPrev) {
+            // tie-breaker: stronger pattern wins
+            if (_eventStrength(ev) > _eventStrength(prev)) {
+              resolved[resolved.length - 1] = ev;
+            }
+          }
+          continue;
+        }
       } else {
-        // Duplicate found - prioritize actual events, then higher pattern count
-        const existing = deduplicatedFinal[existingIndex];
-        if (event.actual && !existing.actual) {
-          // Replace with actual event
-          deduplicatedFinal[existingIndex] = event;
-        } else if (!event.actual && existing.actual) {
-          // Keep existing actual event
-        } else {
-          // Both are same type (actual or predicted) - keep higher pattern count
-          const existingCount = existing.patternCount || 0;
-          const newCount = event.patternCount || 0;
-          if (newCount > existingCount) {
-            deduplicatedFinal[existingIndex] = event;
-          } else if (newCount === existingCount && event.patternBased && !existing.patternBased) {
-            // Same count, prefer pattern-based over interval-based
-            deduplicatedFinal[existingIndex] = event;
+        // If different types too close, push the *predicted* one later (never move actual)
+        if (diffMin < MIN_DIFF_TYPE_MIN) {
+          if (!ev.actual) {
+            const pushed = new Date(prev.time.getTime() + MIN_DIFF_TYPE_MIN * 60 * 1000);
+            ev.time = pushed;
+          } else if (!prev.actual) {
+            // rare: actual comes after predicted but very close -> pull predicted earlier is risky; drop predicted instead
+            resolved.pop();
           }
         }
       }
-    });
+
+      resolved.push(ev);
+    }
+
+    // Use resolved schedule for downstream logic
+    const deduplicatedFinal = resolved;
     
     // Re-sort after deduplication
     deduplicatedFinal.sort((a, b) => a.time.getTime() - b.time.getTime());
+
+    // Enforce a minimum transition gap between FEED and SLEEP so we don't get impossible back-to-back events.
+    // Example: "Nap at 6:00pm" + "Feed at 6:21pm" should not both survive as-is.
+    // Policy:
+    // - Actual events never move.
+    // - Between predicted events, FEED wins (SLEEP gets shifted).
+    // - If a predicted event collides with an actual event, drop/shift the predicted one.
+    const MIN_TRANSITION_GAP_MIN = 30; // ~20m feed + ~10m settle
+    const MIN_TRANSITION_GAP_MS = MIN_TRANSITION_GAP_MIN * 60 * 1000;
+
+    const _normalizeTransitions = (events) => {
+      if (!Array.isArray(events) || events.length <= 1) return events || [];
+      // Work on a shallow copy so we don't mutate callers unexpectedly
+      let out = events.slice();
+
+      const isFeed = (e) => e && e.type === 'feed';
+      const isSleep = (e) => e && e.type === 'sleep';
+
+      // Loop until stable (max iterations to avoid infinite loops)
+      for (let pass = 0; pass < 8; pass++) {
+        out.sort((a, b) => a.time.getTime() - b.time.getTime());
+        let changed = false;
+
+        for (let i = 1; i < out.length; i++) {
+          const prev = out[i - 1];
+          const cur = out[i];
+          if (!prev || !cur || !prev.time || !cur.time) continue;
+
+          // Only care about FEED<->SLEEP adjacency
+          if (!((isFeed(prev) && isSleep(cur)) || (isSleep(prev) && isFeed(cur)))) continue;
+
+          const gapMs = cur.time.getTime() - prev.time.getTime();
+          if (gapMs >= MIN_TRANSITION_GAP_MS) continue;
+
+          // Decide which event to move (or drop): prefer keeping actual, then prefer keeping FEED
+          let mover = null;
+          let anchor = null;
+
+          if (prev.actual && !cur.actual) {
+            mover = cur;
+            anchor = prev;
+          } else if (!prev.actual && cur.actual) {
+            mover = prev;
+            anchor = cur;
+          } else if (prev.actual && cur.actual) {
+            // Can't reconcile two actuals; leave as-is
+            continue;
+          } else {
+            // Both predicted: move SLEEP
+            if (isSleep(prev) && isFeed(cur)) {
+              mover = prev; // move sleep to after feed
+              anchor = cur;
+            } else {
+              mover = cur; // feed then sleep: move sleep later
+              anchor = prev;
+            }
+          }
+
+          // If the mover is predicted, shift it later to after the anchor
+          if (mover && !mover.actual) {
+            const newTime = new Date(anchor.time.getTime() + MIN_TRANSITION_GAP_MS);
+            // If we push past end-of-day, drop it
+            if (newTime.getTime() > todayEnd.getTime()) {
+              out.splice(out.indexOf(mover), 1);
+            } else {
+              mover.time = newTime;
+              mover.adjusted = true;
+              if (typeof mover.source === 'string' && !mover.source.includes('collision-shifted')) {
+                mover.source = mover.source + ' • collision-shifted';
+              } else if (!mover.source) {
+                mover.source = 'collision-shifted';
+              }
+            }
+            changed = true;
+          }
+        }
+
+        if (!changed) break;
+      }
+
+      out.sort((a, b) => a.time.getTime() - b.time.getTime());
+      return out;
+    };
+
+    const normalizedFinal = _normalizeTransitions(deduplicatedFinal);
 
     // ------------------------------------------------------------
     // V2 fix: ensure we always have remaining FEEDS.
@@ -1190,10 +1415,10 @@ IMPORTANT:
     if (allEvents.length === 0 && schedule.length > 0) {
       // Use the schedule as-is but add interval-based fills (filter wakes from schedule too)
       const filteredSchedule = schedule.filter(e => e.type !== 'wake');
-      return deduplicatedFinal.length > 0 ? deduplicatedFinal : filteredSchedule;
+      return normalizedFinal.length > 0 ? normalizedFinal : filteredSchedule;
     }
     
-    return deduplicatedFinal;
+    return normalizedFinal;
   };
 
   // Generate fallback prediction based on historical intervals and age
@@ -1317,6 +1542,39 @@ IMPORTANT:
       ? (mins >= dayStart && mins < dayEnd)
       : (mins >= dayStart || mins < dayEnd);
     return isDaySleep ? 'Nap' : 'Sleep';
+  };
+
+  // Format predicted feeding volume hint (optional)
+  const getFeedOzHint = (event) => {
+    const fmt = (n) => {
+      if (typeof n !== 'number' || !isFinite(n)) return null;
+      const v = Math.round(n * 10) / 10;
+      return String(v).replace(/\.0$/, '');
+    };
+
+    const target = fmt(event?.targetOz);
+
+    // Allow ranges as {min,max} or [min,max]
+    const range = event?.targetOzRange;
+    const minRaw = Array.isArray(range) ? range[0] : range?.min;
+    const maxRaw = Array.isArray(range) ? range[1] : range?.max;
+    const min = fmt(minRaw);
+    const max = fmt(maxRaw);
+
+    if (min && max) return `${min}–${max} oz`;
+    if (target) return `~${target} oz`;
+    return null;
+  };
+
+  const withNowTag = (text) => {
+    if (!text || typeof text !== 'string') return text;
+    if (text.includes('(Now!)')) return text;
+    return `${text} (Now!)`;
+  };
+
+  const withoutNowTag = (text) => {
+    if (!text || typeof text !== 'string') return text;
+    return text.replace(/\s*\(Now!\)\s*$/i, '');
   };
 
   // Format AI response according to spec
@@ -1585,19 +1843,9 @@ IMPORTANT:
       const graceMs = 15 * 60 * 1000;
       const storedPrediction = predictedTimeRef.current;
       if (nowMs > storedPrediction.time.getTime() + graceMs) {
-        // Prediction is overdue - keep original predicted time, just add (Now!)
-        const originalTimeStr = formatTimeHmma(storedPrediction.time);
-        const verb = storedPrediction.text.split(' around ')[0];
-        // Check if (Now!) is already in the text to avoid duplicates
-        if (!storedPrediction.text.includes('(Now!)')) {
-          const newText = `${verb} around ${originalTimeStr} (Now!)`;
-          if (whatsNextText !== newText) {
-            setWhatsNextText(newText);
-          }
-        } else if (whatsNextText !== storedPrediction.text) {
-          // Already has (Now!), just ensure display matches
-          setWhatsNextText(storedPrediction.text);
-        }
+        // Prediction is overdue - keep full stored text (including any volume hint), just add (Now!)
+        const newText = withNowTag(storedPrediction.text);
+        if (whatsNextText !== newText) setWhatsNextText(newText);
       } else {
         // Prediction is still valid - show the stored text
         if (whatsNextText !== storedPrediction.text) {
@@ -1841,18 +2089,22 @@ Output ONLY the formatted string, nothing else.`;
       const fallback = nextEvent ? {
         type: nextEvent.type,
         time: nextEvent.time,
-        text: nextEvent.type === 'feed' 
-          ? `Feed around ${formatTimeHmma(nextEvent.time)}`
-          : `${getSleepLabel(nextEvent.time, sleepSettings)} around ${formatTimeHmma(nextEvent.time)}`
+        text: (() => {
+          if (nextEvent.type === 'feed') {
+            const hint = getFeedOzHint(nextEvent);
+            return hint
+              ? `Feed around ${formatTimeHmma(nextEvent.time)} (${hint})`
+              : `Feed around ${formatTimeHmma(nextEvent.time)}`;
+          }
+          return `${getSleepLabel(nextEvent.time, sleepSettings)} around ${formatTimeHmma(nextEvent.time)}`;
+        })()
       } : generateFallbackPrediction(ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, allFeedings, allSleepSessions);
       predictedTimeRef.current = fallback;
       // Check if overdue and show "Now!" if so
       const graceMs = 15 * 60 * 1000;
       if (nowMs > fallback.time.getTime() + graceMs) {
-        // Keep original predicted time, just add (Now!)
-        const originalTimeStr = formatTimeHmma(fallback.time);
-        const verb = fallback.text.split(' around ')[0];
-        setWhatsNextText(`${verb} around ${originalTimeStr} (Now!)`);
+        // Keep full text (including any volume hint), just add (Now!)
+        setWhatsNextText(withNowTag(fallback.text));
       } else {
         setWhatsNextText(fallback.text);
       }
@@ -4026,6 +4278,8 @@ Output ONLY the formatted string, nothing else.`;
                       timeStr: formatTimeHmma(event.time),
                       isPast,
                       isCompleted,
+                      targetOz: event.targetOz,
+                      targetOzRange: event.targetOzRange,
                       patternBased: event.patternBased || false,
                       actual: event.actual || false
                     };
@@ -4039,6 +4293,7 @@ Output ONLY the formatted string, nothing else.`;
                     const isWake = item.originalType === 'wake';
                     const isNap = item.type === 'nap';
                     const isSleep = item.type === 'sleep';
+                    const ozHint = isFeed ? getFeedOzHint(item) : null;
                     
                     // Get icons
                     const FeedIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.BottleMain || (() => null);
@@ -4092,14 +4347,14 @@ Output ONLY the formatted string, nothing else.`;
                         }
                       }) : React.createElement(SleepIcon, {
                         className: "w-4 h-4",
-                        style: { 
+                        style: {
                           color: 'var(--tt-sleep)',
                           strokeWidth: '1.5'
                         }
                       }),
-                      React.createElement('span', null, `${label} around ${item.timeStr}`),
+                      React.createElement('span', null, `${label} around ${item.timeStr}${ozHint ? ` · ${ozHint}` : ''}`),
                       item.isCompleted && React.createElement('span', {
-                        style: { 
+                        style: {
                           color: 'var(--tt-text-tertiary)',
                           marginLeft: 'auto',
                           fontSize: '16px'
@@ -7268,3 +7523,13 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
 window.TT = window.TT || {};
 window.TT.tabs = window.TT.tabs || {};
 window.TT.tabs.TrackerTab = TrackerTab;
+// Helper: is there already a sleep event near a given time?
+const hasNearbySleep = (events, t, windowMin = 45) => {
+  const tMs = t.getTime();
+  const wMs = windowMin * 60 * 1000;
+  return (events || []).some(e =>
+    e?.type === 'sleep' &&
+    e?.time instanceof Date &&
+    Math.abs(e.time.getTime() - tMs) <= wMs
+  );
+};
