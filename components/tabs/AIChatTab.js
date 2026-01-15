@@ -1078,10 +1078,13 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
     // header
     React.createElement(
       'div',
-      { className: 'flex items-center justify-between px-4 pt-2 pb-2' },
+      { className: 'flex items-center justify-between pt-2 pb-2' },
       React.createElement(
         'div',
-        { className: 'flex items-center gap-2' },
+        { 
+          className: 'flex items-center gap-2',
+          style: view === 'list' ? { paddingLeft: 12 } : undefined
+        },
         view === 'chat' && React.createElement(
           'button',
           {
@@ -1112,7 +1115,7 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
         'button',
         {
           className: 'tt-tapable rounded-full p-2',
-          style: { color: 'var(--tt-text-secondary)' },
+          style: { color: 'var(--tt-text-primary)', marginRight: 3 },
           onClick: createChat,
           title: 'New chat'
         },
@@ -1124,7 +1127,7 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
     view === 'list'
       ? React.createElement(
           'div',
-          { className: 'flex-1 overflow-y-auto px-4 pb-4 space-y-3', style: { minHeight: 0 } },
+          { className: 'flex-1 overflow-y-auto pb-4 space-y-3', style: { minHeight: 0 } },
           chats.map((c) =>
             React.createElement(ChatRow, {
               key: c.id,
