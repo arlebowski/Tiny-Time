@@ -3955,9 +3955,7 @@ const checkDailyCheckIn = async () => {
       await window.TT.api.sendDailyCheckIn();
       localStorage.setItem('tt_last_checkin', today);
     } else {
-      console.log('✅ Daily check-in already sent today');
-    }
-  } catch (error) {
+      console.log('✅ Daily check-in already sent tod
     console.error('Error in daily check-in:', error);
   }
 };
