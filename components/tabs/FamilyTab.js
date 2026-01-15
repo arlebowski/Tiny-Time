@@ -29,6 +29,10 @@ const FamilyTab = ({
   const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
+  const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
+  const DatePickerTray = window.TT?.shared?.pickers?.DatePickerTray || null;
+  const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
+  const TTEditIcon = window.TT?.shared?.icons?.Edit2 || window.Edit2;
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
   const TT_ICON_BTN_BASE =
@@ -53,6 +57,8 @@ const FamilyTab = ({
   const [tempUserName, setTempUserName] = useState('');
 
   const fileInputRef = React.useRef(null);
+  const weightSaveTimeoutRef = React.useRef(null);
+  const multiplierSaveTimeoutRef = React.useRef(null);
 
   // Add Child modal state
   const [showAddChild, setShowAddChild] = useState(false);
@@ -60,6 +66,9 @@ const FamilyTab = ({
   const [newBabyWeight, setNewBabyWeight] = useState('');
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
   const [savingChild, setSavingChild] = useState(false);
+  const [showBirthDatePicker, setShowBirthDatePicker] = useState(false);
+  const [showDayStartPicker, setShowDayStartPicker] = useState(false);
+  const [showDayEndPicker, setShowDayEndPicker] = useState(false);
 
   const autoSleepTargetHrs = Number(sleepSettings?.sleepTargetAutoHours || 14);
   const sleepTargetOverride = !!sleepSettings?.sleepTargetIsOverride;
@@ -136,6 +145,43 @@ const FamilyTab = ({
 
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
+  const dateStringToIso = (value) => {
+    if (!value) return null;
+    try {
+      return new Date(`${value}T12:00:00`).toISOString();
+    } catch {
+      return null;
+    }
+  };
+
+  const isoToDateString = (value) => {
+    if (!value) return '';
+    try {
+      return new Date(value).toISOString().slice(0, 10);
+    } catch {
+      return '';
+    }
+  };
+
+  const timeValueToIso = (value) => {
+    const mins = parseTimeInput(value);
+    if (mins == null) return null;
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setMinutes(mins);
+    return d.toISOString();
+  };
+
+  const isoToMinutes = (value) => {
+    if (!value) return null;
+    try {
+      const d = new Date(value);
+      return d.getHours() * 60 + d.getMinutes();
+    } catch {
+      return null;
+    }
+  };
+
   const saveDaySleepWindow = async (startMin, endMin) => {
     const startVal = clamp(Number(startMin), 0, 1439);
     const endVal = clamp(Number(endMin), 0, 1439);
@@ -207,6 +253,38 @@ const FamilyTab = ({
 
   const updateKidPartial = async (updates) => {
     await firestoreStorage.updateKidData(updates);
+  };
+
+  const saveBirthDateFromIso = async (iso) => {
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return;
+      const birthTimestamp = d.getTime();
+      await updateKidPartial({ birthDate: birthTimestamp });
+      await loadData();
+    } catch (error) {
+      console.error('Error updating birth date:', error);
+    }
+  };
+
+  const scheduleWeightSave = (nextValue) => {
+    setTempWeight(nextValue);
+    if (weightSaveTimeoutRef.current) {
+      clearTimeout(weightSaveTimeoutRef.current);
+    }
+    weightSaveTimeoutRef.current = setTimeout(() => {
+      handleUpdateWeight();
+    }, 400);
+  };
+
+  const scheduleMultiplierSave = (nextValue) => {
+    setTempMultiplier(nextValue);
+    if (multiplierSaveTimeoutRef.current) {
+      clearTimeout(multiplierSaveTimeoutRef.current);
+    }
+    multiplierSaveTimeoutRef.current = setTimeout(() => {
+      handleUpdateMultiplier();
+    }, 400);
   };
 
   // --------------------------------------
@@ -594,193 +672,59 @@ const handleInvite = async () => {
         )
       )
     ),
-    // Start/End “editable boxes”
+    // Start/End time rows (TTInputRow + time picker)
     React.createElement(
       "div",
       { className: "grid grid-cols-2 gap-3 mt-4 items-start min-w-0" },
-
-      // Start (match the affordance style used above in settings rows)
       React.createElement(
         "div",
-        {
-          className: "rounded-xl border px-4 py-3 min-w-0 overflow-hidden",
-          style: { 
-            borderColor: 'var(--tt-card-border)',
-            backgroundColor: 'var(--tt-input-bg)'
+        { className: "min-w-0" },
+        TTInputRow && React.createElement(TTInputRow, {
+          label: "Start",
+          type: "datetime",
+          icon: TTEditIcon,
+          rawValue: timeValueToIso(tempDayStartInput || minutesToTimeValue(dayStart)),
+          placeholder: minutesToLabel(dayStart),
+          formatDateTime: (iso) => {
+            if (!iso) return minutesToLabel(dayStart);
+            return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
           },
-          onClick: editingDayStart
-            ? undefined
-            : () => {
-                setEditingDayStart(true);
-                setTempDayStartInput(minutesToTimeValue(dayStart));
-              }
-        },
-        React.createElement(
-          "div",
-          { 
-            className: "text-xs font-medium",
-            style: { color: 'var(--tt-text-secondary)' }
+          useWheelPickers: () => true,
+          pickerMode: "time",
+          onOpenPicker: () => {
+            setEditingDayStart(true);
+            if (!tempDayStartInput) {
+              setTempDayStartInput(minutesToTimeValue(dayStart));
+            }
+            setShowDayStartPicker(true);
           },
-          "Start"
-        ),
-        editingDayStart
-          ? React.createElement(
-              "div",
-              // single grid controls both input + actions so edges ALWAYS match
-              { className: "mt-2 grid grid-cols-2 gap-2 w-full" },
-              React.createElement("input", {
-                type: "time",
-                value: tempDayStartInput,
-                onChange: (e) => setTempDayStartInput(e.target.value),
-                // Force the time input to obey the grid width on iOS
-                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none px-3 py-2 border-2 rounded-lg text-sm",
-                style: {
-                  backgroundColor: 'var(--tt-input-bg)',
-                  borderColor: 'var(--tt-feed)',
-                  color: 'var(--tt-text-primary)'
-                },
-                // iOS Safari: hard-force intrinsic control sizing
-                style: { width: "100%", maxWidth: "100%", minWidth: 0, WebkitAppearance: "none", appearance: "none" }
-              }),
-              React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    const mins = parseTimeInput(tempDayStartInput);
-                    if (mins == null) {
-                      alert("Please enter a valid start time.");
-                      return;
-                    }
-                    setDaySleepStartMin(mins);
-                    saveDaySleepWindow(mins, daySleepEndMin);
-                    setEditingDayStart(false);
-                  },
-                  className: `${TT_ICON_BTN_OK} w-full`,
-                  type: "button"
-                },
-                React.createElement(Check, { className: TT_ICON_SIZE })
-              ),
-              React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    setTempDayStartInput(minutesToTimeValue(dayStart));
-                    setEditingDayStart(false);
-                  },
-                  className: `${TT_ICON_BTN_CANCEL} w-full`,
-                  type: "button"
-                },
-                React.createElement(X, { className: TT_ICON_SIZE })
-              )
-            )
-          : React.createElement(
-              "div",
-              { className: "flex items-center justify-between mt-1" },
-              React.createElement(
-                "div",
-                { 
-                  className: "text-base font-semibold",
-                  style: { color: 'var(--tt-text-primary)' }
-                },
-                minutesToLabel(dayStart)
-              ),
-              React.createElement(Edit2, {
-                className: "w-4 h-4",
-                style: { color: 'var(--tt-feed)' }
-              })
-            )
+          onChange: () => {}
+        })
       ),
-
-      // End (match the affordance style used above in settings rows)
       React.createElement(
         "div",
-        {
-          className: "rounded-xl border px-4 py-3 min-w-0 overflow-hidden",
-          style: { 
-            borderColor: 'var(--tt-card-border)',
-            backgroundColor: 'var(--tt-input-bg)'
+        { className: "min-w-0" },
+        TTInputRow && React.createElement(TTInputRow, {
+          label: "End",
+          type: "datetime",
+          icon: TTEditIcon,
+          rawValue: timeValueToIso(tempDayEndInput || minutesToTimeValue(dayEnd)),
+          placeholder: minutesToLabel(dayEnd),
+          formatDateTime: (iso) => {
+            if (!iso) return minutesToLabel(dayEnd);
+            return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
           },
-          onClick: editingDayEnd
-            ? undefined
-            : () => {
-                setEditingDayEnd(true);
-                setTempDayEndInput(minutesToTimeValue(dayEnd));
-              }
-        },
-        React.createElement(
-          "div",
-          { 
-            className: "text-xs font-medium",
-            style: { color: 'var(--tt-text-secondary)' }
+          useWheelPickers: () => true,
+          pickerMode: "time",
+          onOpenPicker: () => {
+            setEditingDayEnd(true);
+            if (!tempDayEndInput) {
+              setTempDayEndInput(minutesToTimeValue(dayEnd));
+            }
+            setShowDayEndPicker(true);
           },
-          "End"
-        ),
-        editingDayEnd
-          ? React.createElement(
-              "div",
-              // single grid controls both input + actions so edges ALWAYS match
-              { className: "mt-2 grid grid-cols-2 gap-2 w-full" },
-              React.createElement("input", {
-                type: "time",
-                value: tempDayEndInput,
-                onChange: (e) => setTempDayEndInput(e.target.value),
-                // Force the time input to obey the grid width on iOS
-                className: "col-span-2 block w-full max-w-full min-w-0 box-border appearance-none px-3 py-2 border-2 rounded-lg text-sm",
-                style: {
-                  backgroundColor: 'var(--tt-input-bg)',
-                  borderColor: 'var(--tt-feed)',
-                  color: 'var(--tt-text-primary)'
-                },
-                // iOS Safari: hard-force intrinsic control sizing
-                style: { width: "100%", maxWidth: "100%", minWidth: 0, WebkitAppearance: "none", appearance: "none" }
-              }),
-              React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    const mins = parseTimeInput(tempDayEndInput);
-                    if (mins == null) {
-                      alert("Please enter a valid end time.");
-                      return;
-                    }
-                    setDaySleepEndMin(mins);
-                    saveDaySleepWindow(daySleepStartMin, mins);
-                    setEditingDayEnd(false);
-                  },
-                  className: `${TT_ICON_BTN_OK} w-full`,
-                  type: "button"
-                },
-                React.createElement(Check, { className: TT_ICON_SIZE })
-              ),
-              React.createElement(
-                "button",
-                {
-                  onClick: () => {
-                    setTempDayEndInput(minutesToTimeValue(dayEnd));
-                    setEditingDayEnd(false);
-                  },
-                  className: `${TT_ICON_BTN_CANCEL} w-full`,
-                  type: "button"
-                },
-                React.createElement(X, { className: TT_ICON_SIZE })
-              )
-            )
-          : React.createElement(
-              "div",
-              { className: "flex items-center justify-between mt-1" },
-              React.createElement(
-                "div",
-                { 
-                  className: "text-base font-semibold",
-                  style: { color: 'var(--tt-text-primary)' }
-                },
-                minutesToLabel(dayEnd)
-              ),
-              React.createElement(Edit2, {
-                className: "w-4 h-4",
-                style: { color: 'var(--tt-feed)' }
-              })
-            )
+          onChange: () => {}
+        })
       )
     ),
     // Slider track + selection + handles
@@ -1154,226 +1098,69 @@ const handleInvite = async () => {
       React.createElement(
         'div',
         { className: 'space-y-2 mb-3' },
-        // Birth date
         React.createElement(
           'div',
-          {
-            className: 'rounded-xl border px-4 py-3',
-            style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' },
-            onClick: editingBirthDate
-              ? undefined
-              : () => {
-                  if (kidData?.birthDate) {
-                    const d = new Date(kidData.birthDate);
-                    const iso = d.toISOString().slice(0, 10);
-                    setTempBirthDate(iso);
-                  } else {
-                    setTempBirthDate('');
-                  }
-                  setEditingBirthDate(true);
-                }
-          },
-          React.createElement(
-            'div',
-            { className: 'text-xs font-medium', style: { color: 'var(--tt-text-secondary)' } },
-            'Birth date'
-          ),
-          editingBirthDate
-            ? React.createElement(
-                'div',
-                { className: 'flex items-center gap-2 mt-2' },
-                React.createElement('input', {
-                  type: 'date',
-                  value: tempBirthDate,
-                  onChange: (e) => setTempBirthDate(e.target.value),
-                  className:
-                    'flex-1 px-3 py-2 border rounded-lg text-sm',
-                  style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
-                }),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: handleUpdateBirthDate,
-                    className: TT_ICON_BTN_OK
-                  },
-                  React.createElement(Check, { className: TT_ICON_SIZE })
-                ),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: () => setEditingBirthDate(false),
-                    className: TT_ICON_BTN_CANCEL
-                  },
-                  React.createElement(X, { className: TT_ICON_SIZE })
-                )
-              )
-            : React.createElement(
-                'div',
-                { className: 'flex items-center justify-between mt-1' },
-                React.createElement(
-                  'div',
-                  { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
-                  kidData?.birthDate
-                    ? new Date(kidData.birthDate).toLocaleDateString()
-                    : 'Not set'
-                ),
-                React.createElement(Edit2, {
-                  className: 'w-4 h-4',
-                  style: { color: 'var(--tt-feed)' }
-                })
-              )
-        ),
-        // Current weight
-        React.createElement(
-          'div',
-          {
-            className: 'rounded-xl border px-4 py-3',
-            style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' },
-            onClick: editingWeight
-              ? undefined
-              : () => {
-                  setTempWeight(settings.babyWeight?.toString() || '');
-                  setEditingWeight(true);
-                }
-          },
-          React.createElement(
-            'div',
-            { className: 'text-xs font-medium', style: { color: 'var(--tt-text-secondary)' } },
-            'Current weight'
-          ),
-          editingWeight
-            ? React.createElement(
-                'div',
-                { className: 'flex items-center gap-2 mt-2' },
-                React.createElement('input', {
-                  type: 'number',
-                  step: '0.1',
-                  value: tempWeight,
-                  onChange: (e) => setTempWeight(e.target.value),
-                  placeholder: '8.5',
-                  className:
-                    'w-28 px-3 py-2 border rounded-lg text-sm text-right',
-                  style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
-                }),
-                React.createElement(
-                  'span',
-                  { className: '', style: { color: 'var(--tt-text-secondary)' } },
-                  'lbs'
-                ),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: handleUpdateWeight,
-                    className: TT_ICON_BTN_OK
-                  },
-                  React.createElement(Check, { className: TT_ICON_SIZE })
-                ),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: () => setEditingWeight(false),
-                    className: TT_ICON_BTN_CANCEL
-                  },
-                  React.createElement(X, { className: TT_ICON_SIZE })
-                )
-              )
-            : React.createElement(
-                'div',
-                { className: 'flex items-center justify-between mt-1' },
-                React.createElement(
-                  'div',
-                  { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
-                  settings.babyWeight ? `${settings.babyWeight} lbs` : 'Not set'
-                ),
-                React.createElement(Edit2, {
-                  className: 'w-4 h-4',
-                  style: { color: 'var(--tt-feed)' }
-                })
-              )
-        )
-      ),
-      // Target multiplier (full-width row)
-      React.createElement(
-        'div',
-        {
-          className: 'rounded-xl border px-4 py-3 mt-2',
-          style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' },
-          onClick: editingMultiplier
-            ? undefined
-            : () => {
-                setTempMultiplier(settings.multiplier?.toString() || '2.5');
-                setEditingMultiplier(true);
+          null,
+          TTInputRow && React.createElement(TTInputRow, {
+            label: 'Birth date',
+            type: 'datetime',
+            icon: TTEditIcon,
+            rawValue: editingBirthDate
+              ? dateStringToIso(tempBirthDate)
+              : (kidData?.birthDate ? new Date(kidData.birthDate).toISOString() : null),
+            placeholder: kidData?.birthDate ? new Date(kidData.birthDate).toLocaleDateString() : 'Not set',
+            formatDateTime: (iso) => new Date(iso).toLocaleDateString(),
+            useWheelPickers: () => true,
+            pickerMode: 'date',
+            onOpenPicker: () => {
+              if (kidData?.birthDate && !tempBirthDate) {
+                setTempBirthDate(isoToDateString(new Date(kidData.birthDate).toISOString()));
               }
-        },
-        React.createElement(
-          'div',
-          { className: 'flex items-center' },
-          React.createElement(
-            'div',
-            { className: 'text-xs font-medium', style: { color: 'var(--tt-text-secondary)' } },
-            'Target multiplier (oz/lb)'
-          ),
-          React.createElement(InfoDot, {
-            onClick: (e) => {
-              if (e && e.stopPropagation) e.stopPropagation();
-              alert(
-                'Target multiplier (oz/lb)\n\n' +
-                  'This is used to estimate a daily feeding target:\n' +
-                  'weight (lb) × multiplier (oz/lb).\n\n' +
-                  'Common rule-of-thumb for formula is ~2.5 oz per lb per day, but needs vary. If your pediatrician gave you a different plan, use that.'
-              );
-            }
+              setEditingBirthDate(true);
+              setShowBirthDatePicker(true);
+            },
+            onChange: () => {}
           })
         ),
-        editingMultiplier
-          ? React.createElement(
-              'div',
-              { className: 'flex items-center gap-2 mt-2' },
-              React.createElement('input', {
-                type: 'number',
-                step: '0.1',
-                value: tempMultiplier,
-                onChange: (e) => setTempMultiplier(e.target.value),
-                placeholder: '2.5',
-                className:
-                  'w-28 px-3 py-2 border rounded-lg text-sm text-right',
-                style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
-              }),
-              React.createElement(
-                'span',
-                { className: '', style: { color: 'var(--tt-text-secondary)' } },
-                'x'
-              ),
-              React.createElement(
-                'button',
-                {
-                  onClick: handleUpdateMultiplier,
-                  className: TT_ICON_BTN_OK
-                },
-                React.createElement(Check, { className: TT_ICON_SIZE })
-              ),
-              React.createElement(
-                'button',
-                {
-                  onClick: () => setEditingMultiplier(false),
-                  className: TT_ICON_BTN_CANCEL
-                },
-                React.createElement(X, { className: TT_ICON_SIZE })
-              )
-            )
-          : React.createElement(
-              'div',
-              { className: 'flex items-center justify-between mt-1' },
-              React.createElement(
-                'div',
-                { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
-                `${settings.multiplier}x`
-              ),
-              React.createElement(Edit2, {
-                className: 'w-4 h-4',
-                style: { color: 'var(--tt-feed)' }
-              })
-            )
+        React.createElement(
+          'div',
+          null,
+          TTInputRow && React.createElement(TTInputRow, {
+            label: 'Current weight (lbs)',
+            type: 'number',
+            icon: TTEditIcon,
+            value: tempWeight || (settings.babyWeight?.toString() || ''),
+            placeholder: 'Not set',
+            onChange: scheduleWeightSave
+          })
+        )
+      ),
+      React.createElement(
+        'div',
+        { className: 'mt-2' },
+        TTInputRow && React.createElement(TTInputRow, {
+          label: React.createElement(
+            'span',
+            { className: 'inline-flex items-center gap-2' },
+            'Target multiplier (oz/lb)',
+            React.createElement(InfoDot, {
+              onClick: (e) => {
+                if (e && e.stopPropagation) e.stopPropagation();
+                alert(
+                  'Target multiplier (oz/lb)\n\n' +
+                    'This is used to estimate a daily feeding target:\n' +
+                    'weight (lb) × multiplier (oz/lb).\n\n' +
+                    'Common rule-of-thumb for formula is ~2.5 oz per lb per day, but needs vary. If your pediatrician gave you a different plan, use that.'
+                );
+              }
+            })
+          ),
+          type: 'number',
+          icon: TTEditIcon,
+          value: tempMultiplier || (settings.multiplier?.toString() || ''),
+          placeholder: '2.5',
+          onChange: scheduleMultiplierSave
+        })
       ),
 
       sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t", style: { borderColor: 'var(--tt-card-border)' } },
@@ -1545,6 +1332,58 @@ const handleInvite = async () => {
           'Close'
         )
       ),
+
+    DatePickerTray && React.createElement(DatePickerTray, {
+      isOpen: showBirthDatePicker,
+      onClose: () => {
+        setShowBirthDatePicker(false);
+        setEditingBirthDate(false);
+      },
+      title: 'Birth date',
+      value: dateStringToIso(tempBirthDate || (kidData?.birthDate ? new Date(kidData.birthDate).toISOString().slice(0, 10) : '')),
+      onChange: (iso) => {
+        const dateStr = isoToDateString(iso);
+        setTempBirthDate(dateStr);
+        setEditingBirthDate(true);
+        saveBirthDateFromIso(iso);
+      }
+    }),
+
+    TimePickerTray && React.createElement(TimePickerTray, {
+      isOpen: showDayStartPicker,
+      onClose: () => {
+        setShowDayStartPicker(false);
+        setEditingDayStart(false);
+      },
+      title: 'Start time',
+      value: timeValueToIso(tempDayStartInput || minutesToTimeValue(dayStart)),
+      onChange: (iso) => {
+        const mins = isoToMinutes(iso);
+        if (mins == null) return;
+        setTempDayStartInput(minutesToTimeValue(mins));
+        setEditingDayStart(true);
+        setDaySleepStartMin(mins);
+        saveDaySleepWindow(mins, daySleepEndMin);
+      }
+    }),
+
+    TimePickerTray && React.createElement(TimePickerTray, {
+      isOpen: showDayEndPicker,
+      onClose: () => {
+        setShowDayEndPicker(false);
+        setEditingDayEnd(false);
+      },
+      title: 'End time',
+      value: timeValueToIso(tempDayEndInput || minutesToTimeValue(dayEnd)),
+      onChange: (iso) => {
+        const mins = isoToMinutes(iso);
+        if (mins == null) return;
+        setTempDayEndInput(minutesToTimeValue(mins));
+        setEditingDayEnd(true);
+        setDaySleepEndMin(mins);
+        saveDaySleepWindow(daySleepStartMin, mins);
+      }
+    }),
 
     // Add Child Modal
     showAddChild &&

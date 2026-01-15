@@ -3,6 +3,8 @@ const TTInputRow = ({
   value,
   onChange,
   icon,
+  showIcon = true,
+  showChevron = false,
   type = 'text',
   placeholder = '',
   rawValue,
@@ -13,6 +15,36 @@ const TTInputRow = ({
   useWheelPickers = null,
   openAnchoredTimePicker = null
 }) => {
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (document.getElementById('tt-tap-anim')) return;
+    const style = document.createElement('style');
+    style.id = 'tt-tap-anim';
+    style.textContent = `
+      .tt-tapable {
+        position: relative;
+        overflow: hidden;
+      }
+      .tt-tapable::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.05);
+        opacity: 0;
+        transition: opacity 0.1s ease-out;
+        pointer-events: none;
+        border-radius: inherit;
+        z-index: 1;
+      }
+      .tt-tapable:active::before {
+        opacity: 1;
+      }
+      .dark .tt-tapable::before {
+        background: rgba(255, 255, 255, 0.1);
+      }
+    `;
+    document.head.appendChild(style);
+  }, []);
   const formatValue = (v) => {
     if (typeof formatDateTime === 'function') return formatDateTime(v);
     if (!v) return '';
@@ -72,10 +104,19 @@ const TTInputRow = ({
     openPicker();
   };
 
+  const defaultIcon =
+    (typeof window !== 'undefined' && window.TT?.shared?.icons?.Edit2) ||
+    (typeof window !== 'undefined' && window.Edit2) ||
+    null;
+  const chevronIcon =
+    (typeof window !== 'undefined' && (window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon)) ||
+    null;
+  const resolvedIcon = icon === undefined ? defaultIcon : icon;
+
   return React.createElement(
     'div',
     {
-      className: "rounded-2xl mb-2 transition-all duration-200",
+      className: "rounded-2xl mb-2 transition-all duration-200 tt-tapable",
       style: {
         backgroundColor: 'var(--tt-input-bg)',
         position: 'relative',
@@ -142,11 +183,15 @@ const TTInputRow = ({
               readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
             })
       ),
-      icon && React.createElement('button', {
+      showIcon && resolvedIcon && React.createElement('button', {
         onClick: handleIconClick,
         className: "ml-4",
-        style: { marginLeft: '17px' }
-      }, icon)
+        style: { marginLeft: '17px', color: 'var(--tt-text-tertiary)' }
+      }, resolvedIcon),
+      showChevron && chevronIcon && React.createElement(chevronIcon, {
+        className: "w-4 h-4 ml-2",
+        style: { color: 'var(--tt-text-tertiary)' }
+      })
     )
   );
 };
