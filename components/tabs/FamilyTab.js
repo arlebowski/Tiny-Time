@@ -28,6 +28,7 @@ const FamilyTab = ({
   const [inviteLink, setInviteLink] = useState('');
   const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
+  const TTCard = window.TT?.shared?.TTCard || window.TTCard;
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
   const TT_ICON_BTN_BASE =
@@ -870,11 +871,8 @@ const handleInvite = async () => {
     // Kids Card (multi-kid)
     kids && kids.length > 0 &&
       React.createElement(
-        'div',
-        { 
-          className: 'rounded-2xl shadow-lg p-6',
-          style: { backgroundColor: 'var(--tt-card-bg)' }
-        },
+        TTCard,
+        { variant: 'tracker' },
         React.createElement(
           'div',
           { className: 'flex items-center justify-between mb-3' },
@@ -954,11 +952,8 @@ const handleInvite = async () => {
 
     // Baby Info Card
     React.createElement(
-      'div',
-      { 
-        className: 'rounded-2xl shadow-lg p-6 border',
-        style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)' }
-      },
+      TTCard,
+      { variant: 'tracker' },
       React.createElement(
         'h2',
         { className: 'text-lg font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
@@ -1430,8 +1425,8 @@ const handleInvite = async () => {
 
     // Family Members Card
     React.createElement(
-      'div',
-      { className: 'rounded-2xl shadow-lg p-6 border', style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)' } },
+      TTCard,
+      { variant: 'tracker' },
       React.createElement(
         'h2',
         { className: 'text-lg font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
@@ -1512,8 +1507,8 @@ const handleInvite = async () => {
     // Invite link panel
     showInvite &&
       React.createElement(
-        'div',
-        { className: 'rounded-2xl p-4 border', style: { backgroundColor: 'var(--tt-subtle-surface)', borderColor: 'var(--tt-card-border)' } },
+        TTCard,
+        { variant: 'tracker', className: 'p-4' },
         React.createElement(
           'div',
           { className: 'text-sm mb-2', style: { color: 'var(--tt-text-secondary)' } },
@@ -1560,11 +1555,11 @@ const handleInvite = async () => {
             'fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 px-4'
         },
         React.createElement(
-          'div',
+          TTCard,
           {
+            variant: 'tracker',
             className:
-              'rounded-2xl shadow-2xl p-6 w-full max-w-sm border',
-            style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)' }
+              'shadow-2xl p-6 w-full max-w-sm'
           },
           React.createElement(
             'h2',

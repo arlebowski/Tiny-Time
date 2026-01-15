@@ -4,10 +4,12 @@ const TTCard = ({ variant = "default", className = "", onClick, children }) => {
   const variantClasses = {
     default: "shadow-sm p-6",
     inset: "shadow-sm overflow-hidden flex flex-col", // No padding for chart-like content
-    pressable: "shadow-sm p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg"
+    pressable: "shadow-sm p-6 cursor-pointer transition-shadow transition-colors hover:shadow-xl hover:bg-black/5 active:shadow-lg",
+    tracker: "shadow-sm p-5 transition-all duration-300 ease-out"
   };
   
-  const combinedClassName = `${baseClasses} ${variantClasses[variant]} ${className}`.trim();
+  const clickableClass = onClick ? "cursor-pointer" : "";
+  const combinedClassName = `${baseClasses} ${variantClasses[variant]} ${clickableClass} ${className}`.trim();
   
   // Keyboard support for clickable cards
   const handleKeyDown = (e) => {
