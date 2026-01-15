@@ -3,6 +3,8 @@ const TTInputRow = ({
   value,
   onChange,
   icon,
+  showIcon = true,
+  showChevron = false,
   type = 'text',
   placeholder = '',
   rawValue,
@@ -102,6 +104,15 @@ const TTInputRow = ({
     openPicker();
   };
 
+  const defaultIcon =
+    (typeof window !== 'undefined' && window.TT?.shared?.icons?.Edit2) ||
+    (typeof window !== 'undefined' && window.Edit2) ||
+    null;
+  const chevronIcon =
+    (typeof window !== 'undefined' && (window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon)) ||
+    null;
+  const resolvedIcon = icon === undefined ? defaultIcon : icon;
+
   return React.createElement(
     'div',
     {
@@ -172,11 +183,15 @@ const TTInputRow = ({
               readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
             })
       ),
-      icon && React.createElement('button', {
+      showIcon && resolvedIcon && React.createElement('button', {
         onClick: handleIconClick,
         className: "ml-4",
-        style: { marginLeft: '17px' }
-      }, icon)
+        style: { marginLeft: '17px', color: 'var(--tt-text-tertiary)' }
+      }, resolvedIcon),
+      showChevron && chevronIcon && React.createElement(chevronIcon, {
+        className: "w-4 h-4 ml-2",
+        style: { color: 'var(--tt-text-tertiary)' }
+      })
     )
   );
 };

@@ -32,6 +32,7 @@ const FamilyTab = ({
   const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
   const DatePickerTray = window.TT?.shared?.pickers?.DatePickerTray || null;
   const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
+  const TTEditIcon = window.TT?.shared?.icons?.Edit2 || window.Edit2;
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
   const TT_ICON_BTN_BASE =
@@ -681,6 +682,7 @@ const handleInvite = async () => {
         TTInputRow && React.createElement(TTInputRow, {
           label: "Start",
           type: "datetime",
+          icon: TTEditIcon,
           rawValue: timeValueToIso(tempDayStartInput || minutesToTimeValue(dayStart)),
           placeholder: minutesToLabel(dayStart),
           formatDateTime: (iso) => {
@@ -705,6 +707,7 @@ const handleInvite = async () => {
         TTInputRow && React.createElement(TTInputRow, {
           label: "End",
           type: "datetime",
+          icon: TTEditIcon,
           rawValue: timeValueToIso(tempDayEndInput || minutesToTimeValue(dayEnd)),
           placeholder: minutesToLabel(dayEnd),
           formatDateTime: (iso) => {
@@ -1101,6 +1104,7 @@ const handleInvite = async () => {
           TTInputRow && React.createElement(TTInputRow, {
             label: 'Birth date',
             type: 'datetime',
+            icon: TTEditIcon,
             rawValue: editingBirthDate
               ? dateStringToIso(tempBirthDate)
               : (kidData?.birthDate ? new Date(kidData.birthDate).toISOString() : null),
@@ -1124,6 +1128,7 @@ const handleInvite = async () => {
           TTInputRow && React.createElement(TTInputRow, {
             label: 'Current weight (lbs)',
             type: 'number',
+            icon: TTEditIcon,
             value: tempWeight || (settings.babyWeight?.toString() || ''),
             placeholder: 'Not set',
             onChange: scheduleWeightSave
@@ -1151,6 +1156,7 @@ const handleInvite = async () => {
             })
           ),
           type: 'number',
+          icon: TTEditIcon,
           value: tempMultiplier || (settings.multiplier?.toString() || ''),
           placeholder: '2.5',
           onChange: scheduleMultiplierSave
