@@ -3792,3 +3792,182 @@ ReactDOM.render(
   React.createElement(App),
   document.getElementById('root')
 );
+
+
+// ========================================
+// Cloudfare worker: daily check-in used for AI chat tab
+// ========================================
+
+// API endpoint for daily check-ins
+// This runs in your app where Firebase is already set up
+window.TT = window.TT || {};
+window.TT.api = window.TT.api || {};
+
+window.TT.api.sendDailyCheckIn = async function() {
+  console.log('📨 Sending daily check-in...');
+  
+  try {
+    const db = window.firebase.firestore();
+    const userId = window.firebase.auth().currentUser?.uid;
+    
+    if (!userId) {
+      throw new Error('Not logged in');
+    }
+    
+    // Get family and kid data
+    const familiesSnapshot = await db.collection('families')
+      .where('members', 'array-contains', userId)
+      .limit(1)
+      .get();
+    
+    if (familiesSnapshot.empty) {
+      throw new Error('No family found');
+    }
+    
+    const familyDoc = familiesSnapshot.docs[0];
+    const familyId = familyDoc.id;
+    
+    // Get kids
+    const kidsSnapshot = await db.collection('families')
+      .doc(familyId)
+      .collection('kids')
+      .get();
+    
+    if (kidsSnapshot.empty) {
+      throw new Error('No kids found');
+    }
+    
+    const kidDoc = kidsSnapshot.docs[0];
+    const kidData = kidDoc.data();
+    const kidId = kidDoc.id;
+    const babyName = kidData.name || 'Baby';
+    
+    // Get last 7 days of data
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    
+    // Get feedings
+    const feedingsSnapshot = await db.collection('families')
+      .doc(familyId)
+      .collection('kids')
+      .doc(kidId)
+      .collection('feedings')
+      .where('timestamp', '>', sevenDaysAgo)
+      .orderBy('timestamp', 'desc')
+      .limit(50)
+      .get();
+    
+    const feedings = [];
+    feedingsSnapshot.forEach(doc => {
+      feedings.push(doc.data());
+    });
+    
+    console.log(`Found ${feedings.length} feedings in last 7 days`);
+    
+    // Analyze data
+    const now = Date.now();
+    const oneDayAgo = now - (24 * 60 * 60 * 1000);
+    const yesterday = feedings.filter(f => f.timestamp > oneDayAgo);
+    
+    const totalOzYesterday = yesterday.reduce((sum, f) => sum + (f.ounces || 0), 0);
+    const feedCount = yesterday.length;
+    const avgOzPerFeed = feedCount > 0 ? totalOzYesterday / feedCount : 0;
+    
+    const stats = {
+      babyName,
+      totalOz: Math.round(totalOzYesterday * 10) / 10,
+      feedCount,
+      avgOzPerFeed: Math.round(avgOzPerFeed * 10) / 10
+    };
+    
+    console.log('Stats:', stats);
+    
+    // Generate message with Gemini
+    const prompt = `You are Tiny Tracker, a friendly baby tracking assistant. Generate a warm daily check-in message.
+
+Baby's name: ${babyName}
+Yesterday: ${stats.totalOz}oz over ${stats.feedCount} feeds
+
+Guidelines:
+- Be warm and reassuring
+- Use baby's name naturally (once)
+- Share ONE specific insight
+- End with a thoughtful question
+- Keep it 2-3 sentences
+- Be conversational
+
+Generate the message:`;
+
+    const geminiResp = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=AIzaSyAMQF8q_cQ3QK2BsVJvX_d7x_KVEz8KnKU`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      }
+    );
+    
+    const geminiData = await geminiResp.json();
+    const message = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || 
+      `${babyName} had ${stats.totalOz}oz yesterday over ${stats.feedCount} feeds. You're doing great! How are things going?`;
+    
+    console.log('Generated message:', message);
+    
+    // Send to family chat
+    const chatRef = db.collection('chats').doc('family');
+    const messageRef = chatRef.collection('messages').doc();
+    
+    await messageRef.set({
+      senderId: 'ai',
+      text: message.trim(),
+      photoURLs: [],
+      createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    await chatRef.set({
+      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
+      lastMessage: {
+        text: message.trim(),
+        senderId: 'ai',
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
+      }
+    }, { merge: true });
+    
+    console.log('✅ Daily check-in sent!');
+    return { success: true, message };
+    
+  } catch (error) {
+    console.error('❌ Error sending daily check-in:', error);
+    throw error;
+  }
+};
+
+// Auto-send daily check-in (once per day)
+const checkDailyCheckIn = async () => {
+  try {
+    const lastCheckIn = localStorage.getItem('tt_last_checkin');
+    const today = new Date().toDateString();
+    
+    // Only send if we haven't sent today
+    if (lastCheckIn !== today) {
+      console.log('📨 Time for daily check-in...');
+      await window.TT.api.sendDailyCheckIn();
+      localStorage.setItem('tt_last_checkin', today);
+    } else {
+      console.log('✅ Daily check-in already sent today');
+    }
+  } catch (error) {
+    console.error('Error in daily check-in:', error);
+  }
+};
+
+// Run check-in after user is authenticated
+window.firebase.auth().onAuthStateChanged((user) => {
+  if (user) {
+    // Wait 5 seconds after login, then check
+    setTimeout(checkDailyCheckIn, 5000);
+  }
+});
+
+// Test it manually: window.TT.api.sendDailyCheckIn()

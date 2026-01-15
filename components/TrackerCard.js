@@ -3519,83 +3519,91 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     }
   };
 
-  // Input Field Row Component
-  const InputRow = ({ label, value, onChange, icon, type = 'text', placeholder = '', rawValue, invalid = false, pickerMode = null, onOpenPicker = null }) => {
-    
-    // For datetime fields, use rawValue (ISO string) for the picker, but display formatted value
-    // If rawValue is null/empty and placeholder exists, show placeholder as the value
-    const displayValue = type === 'datetime' 
-      ? (rawValue ? formatDateTime(rawValue) : (placeholder || ''))
+  const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
+  const LegacyInputRow = ({
+    label,
+    value,
+    onChange,
+    icon,
+    type = 'text',
+    placeholder = '',
+    rawValue,
+    invalid = false,
+    pickerMode = null,
+    onOpenPicker = null,
+    formatDateTime: formatDateTimeProp = null,
+    useWheelPickers = null,
+    openAnchoredTimePicker = null
+  }) => {
+    const formatValue = (v) => {
+      if (typeof formatDateTimeProp === 'function') return formatDateTimeProp(v);
+      if (!v) return '';
+      try {
+        return new Date(v).toLocaleString();
+      } catch {
+        return String(v);
+      }
+    };
+
+    const displayValue = type === 'datetime'
+      ? (rawValue ? formatValue(rawValue) : (placeholder || ''))
       : value;
+
     const inputRef = React.useRef(null);
     const timeAnchorRef = React.useRef(null);
-    
-    const handleRowClick = (e) => {
-      // Don't focus if clicking the icon button or done button
-      if (e.target.closest('button')) {
-        return;
-      }
+
+    const shouldUseWheelPickers = () => {
+      if (typeof useWheelPickers === 'function') return !!useWheelPickers();
+      return !!useWheelPickers;
+    };
+
+    const openPicker = () => {
       if (type === 'datetime') {
-        e.preventDefault();
-        if (_ttUseWheelPickers() && typeof onOpenPicker === 'function' && pickerMode) {
+        if (shouldUseWheelPickers() && typeof onOpenPicker === 'function' && pickerMode) {
           onOpenPicker(pickerMode);
           return;
         }
-        if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
-          window.TT.ui.openAnchoredTimePicker({
+        if (typeof openAnchoredTimePicker === 'function') {
+          openAnchoredTimePicker({
             anchorEl: timeAnchorRef.current,
             rawValue,
             onChange
           });
         }
-      } else if (inputRef.current) {
-        // For other types, focus the input
-        if (_ttUseWheelPickers() && pickerMode === 'amount' && typeof onOpenPicker === 'function') {
+        return;
+      }
+
+      if (inputRef.current) {
+        if (shouldUseWheelPickers() && pickerMode === 'amount' && typeof onOpenPicker === 'function') {
           onOpenPicker('amount');
           return;
         }
         inputRef.current.focus();
       }
     };
-    
+
+    const handleRowClick = (e) => {
+      if (e.target.closest('button')) return;
+      e.preventDefault();
+      openPicker();
+    };
+
     const handleIconClick = (e) => {
       e.stopPropagation();
       e.preventDefault();
-      if (type === 'datetime') {
-        if (_ttUseWheelPickers() && typeof onOpenPicker === 'function' && pickerMode) {
-          onOpenPicker(pickerMode);
-          return;
-        }
-        if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
-          window.TT.ui.openAnchoredTimePicker({
-            anchorEl: timeAnchorRef.current,
-            rawValue,
-            onChange
-          });
-        }
-      } else {
-        // For non-datetime types, focus the input
-        if (inputRef.current) {
-          if (_ttUseWheelPickers() && pickerMode === 'amount' && typeof onOpenPicker === 'function') {
-            onOpenPicker('amount');
-            return;
-          }
-          inputRef.current.focus();
-        }
-      }
+      openPicker();
     };
 
     return React.createElement(
       'div',
-      { 
+      {
         className: "rounded-2xl mb-2 transition-all duration-200",
-        style: { 
-          backgroundColor: 'var(--tt-input-bg)', 
+        style: {
+          backgroundColor: 'var(--tt-input-bg)',
           position: 'relative',
           overflow: 'hidden'
         }
       },
-      // Header row with label
       React.createElement(
         'div',
         {
@@ -3603,60 +3611,58 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           onClick: handleRowClick
         },
         React.createElement('div', { className: "flex-1" },
-          React.createElement('div', { 
+          React.createElement('div', {
             className: "text-xs mb-1",
-            style: { color: 'var(--tt-text-secondary)' } 
-          },
-            React.createElement('span', {}, label)
-          ),
-          type === 'text' 
-            ? React.createElement('textarea',
-                {
-                  ref: inputRef,
-                  value: displayValue || '',
-                  onChange: (e) => {
-                    if (onChange) {
+            style: { color: 'var(--tt-text-secondary)' }
+          }, React.createElement('span', {}, label)),
+          type === 'text'
+            ? React.createElement('textarea', {
+                ref: inputRef,
+                value: displayValue || '',
+                onChange: (e) => {
+                  if (onChange) {
+                    onChange(e.target.value);
+                    const el = e.target;
+                    el.style.height = 'auto';
+                    el.style.height = el.scrollHeight + 'px';
+                  }
+                },
+                placeholder: placeholder,
+                rows: 1,
+                className: "tt-placeholder-tertiary text-base font-normal w-full outline-none resize-none",
+                style: {
+                  background: 'transparent',
+                  maxHeight: '4.5rem',
+                  overflowY: 'auto',
+                  color: invalid ? '#ef4444' : 'var(--tt-text-primary)'
+                }
+              })
+            : React.createElement('input', {
+                ref: type === 'datetime' ? timeAnchorRef : inputRef,
+                type: (type === 'datetime' || (shouldUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
+                inputMode: type === 'number' ? 'decimal' : undefined,
+                step: type === 'number' ? '0.25' : undefined,
+                value: displayValue || '',
+                placeholder: placeholder,
+                onChange: (e) => {
+                  if (type !== 'datetime' && onChange) {
+                    if (type === 'number') {
+                      const nextValue = e.target.value.replace(/[^0-9.]/g, '');
+                      onChange(nextValue);
+                    } else {
                       onChange(e.target.value);
-                      const el = e.target;
-                      el.style.height = 'auto';
-                      el.style.height = el.scrollHeight + 'px';
                     }
-                  },
-                  placeholder: placeholder,
-                  rows: 1,
-                  className: "tt-placeholder-tertiary text-base font-normal w-full outline-none resize-none",
-                  style: { background: 'transparent', maxHeight: '4.5rem', overflowY: 'auto', color: invalid ? '#ef4444' : 'var(--tt-text-primary)' }
-                }
-              )
-            : React.createElement('input',
-                {
-                  ref: type === 'datetime' ? timeAnchorRef : inputRef,
-                  // If this field is driven by a tray picker, keep it as a text input.
-                  type: (type === 'datetime' || (_ttUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
-                  inputMode: type === 'number' ? 'decimal' : undefined,
-                  step: type === 'number' ? '0.25' : undefined,
-                  value: displayValue || '',
-                  onChange: (e) => {
-                    if (type !== 'datetime' && onChange) {
-                      if (type === 'number') {
-                        const value = e.target.value.replace(/[^0-9.]/g, '');
-                        onChange(value);
-                      } else {
-                        onChange(e.target.value);
-                      }
-                    }
-                  },
-                  placeholder: placeholder,
-                  className: `tt-placeholder-tertiary text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
-                  style: { 
-                    background: 'transparent', 
-                    color: invalid 
-                      ? '#ef4444'
-                      : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
-                  },
-                  readOnly: (type === 'datetime') || (_ttUseWheelPickers() && pickerMode === 'amount')
-                }
-              )
+                  }
+                },
+                className: `tt-placeholder-tertiary text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
+                style: {
+                  background: 'transparent',
+                  color: invalid
+                    ? '#ef4444'
+                    : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
+                },
+                readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
+              })
         ),
         icon && React.createElement('button', {
           onClick: handleIconClick,
@@ -3665,6 +3671,24 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         }, icon)
       )
     );
+  };
+
+  const InputRow = (props) => {
+    const Component = TTInputRow || LegacyInputRow;
+    return React.createElement(Component, {
+      ...props,
+      formatDateTime,
+      useWheelPickers: _ttUseWheelPickers,
+      openAnchoredTimePicker: ({ anchorEl, rawValue, onChange }) => {
+        if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
+          window.TT.ui.openAnchoredTimePicker({
+            anchorEl,
+            rawValue,
+            onChange
+          });
+        }
+      }
+    });
   };
 
   // TTFeedDetailSheet Component

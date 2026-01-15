@@ -172,7 +172,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
   };
   
   // WheelPicker Component (UPDATED to use absolute positioning like SettingsTab)
-  const WheelPicker = React.memo(({ type, value, onChange, compact = false, showSelection = true, dateCompact = false, showOverlay = true }) => {
+  const WheelPicker = React.memo(({ type, value, onChange, compact = false, showSelection = true, dateCompact = false, showOverlay = true, containerStyle = null }) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [startY, setStartY] = React.useState(0);
     const [velocity, setVelocity] = React.useState(0);
@@ -218,8 +218,22 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
           value: i
         }));
       } else if (type === 'month') {
-        return Array.from({ length: 12 }, (_, i) => ({
-          display: (i + 1).toString(),
+        const monthNames = [
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December'
+        ];
+        return monthNames.map((name, i) => ({
+          display: name,
           value: i + 1
         }));
       } else if (type === 'day') {
@@ -237,7 +251,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       return [];
     };
 
-    const shouldLoop = type === 'hour' || type === 'minute';
+    const shouldLoop = type === 'hour' || type === 'minute' || type === 'month';
     const baseOptions = React.useMemo(() => generateOptions(), [type]);
     const options = React.useMemo(() => {
       if (!shouldLoop) return baseOptions;
@@ -464,9 +478,10 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       React.createElement(
         'div',
         {
-          style: { 
-            ...wheelStyles.picker, 
-            ...(compact && dateCompact ? wheelStyles.pickerDateCompact : compact ? wheelStyles.pickerCompact : {}) 
+          style: {
+            ...wheelStyles.picker,
+            ...(compact && dateCompact ? wheelStyles.pickerDateCompact : compact ? wheelStyles.pickerCompact : {}),
+            ...(containerStyle || {})
           },
           ref: containerRef,
           onMouseDown: handleMouseDown
@@ -609,6 +624,295 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       )
     );
   };
+
+  const DatePickerSection = ({ value, onChange, title = 'Date', showHeader = true, contentStyle = null }) => {
+    const initialDate = (() => {
+      if (!value) return new Date();
+      try {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return new Date();
+        return d;
+      } catch {
+        return new Date();
+      }
+    })();
+
+    const [month, setMonth] = React.useState(initialDate.getMonth() + 1);
+    const [day, setDay] = React.useState(initialDate.getDate());
+    const [year, setYear] = React.useState(initialDate.getFullYear());
+
+    React.useEffect(() => {
+      const d = (() => {
+        if (!value) return null;
+        try {
+          const next = new Date(value);
+          if (Number.isNaN(next.getTime())) return null;
+          return next;
+        } catch {
+          return null;
+        }
+      })();
+      if (!d) return;
+      setMonth(d.getMonth() + 1);
+      setDay(d.getDate());
+      setYear(d.getFullYear());
+    }, [value]);
+
+    const emitChange = (nextMonth, nextDay, nextYear) => {
+      const nextDate = new Date(nextYear, nextMonth - 1, nextDay, 0, 0, 0, 0);
+      if (typeof onChange === 'function') {
+        onChange(nextDate.toISOString());
+      }
+    };
+
+    return React.createElement(
+      'div',
+      { style: wheelStyles.section },
+      showHeader && React.createElement(
+        'div',
+        { style: wheelStyles.sectionHeader },
+        React.createElement('h3', { style: wheelStyles.sectionTitle }, title)
+      ),
+      React.createElement(
+        'div',
+        { style: { display: 'flex', justifyContent: 'center', gap: '2px', marginTop: '0px', width: '100%', ...(contentStyle || {}) } },
+        React.createElement(
+          'div',
+          { style: { width: 'min(110px, 34vw)' } },
+          React.createElement(WheelPicker, {
+            type: 'month',
+            value: month,
+            onChange: (val) => {
+              setMonth(val);
+              emitChange(val, day, year);
+            },
+            compact: true,
+            showSelection: false,
+            dateCompact: true,
+            containerStyle: { width: '100%' }
+          })
+        ),
+        React.createElement(WheelPicker, {
+          type: 'day',
+          value: day,
+          onChange: (val) => {
+            setDay(val);
+            emitChange(month, val, year);
+          },
+          compact: true,
+          dateCompact: true,
+          showSelection: false,
+          containerStyle: { width: 'min(48px, 12vw)' }
+        }),
+        React.createElement(WheelPicker, {
+          type: 'year',
+          value: year,
+          onChange: (val) => {
+            setYear(val);
+            emitChange(month, day, val);
+          },
+          compact: true,
+          dateCompact: true,
+          showSelection: false,
+          containerStyle: { width: 'min(70px, 18vw)' }
+        })
+      )
+    );
+  };
+
+  const TimePickerSection = ({ value, onChange, title = 'Time', showHeader = true, contentStyle = null }) => {
+    const initialDate = (() => {
+      if (!value) return new Date();
+      try {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return new Date();
+        return d;
+      } catch {
+        return new Date();
+      }
+    })();
+
+    const initialHour24 = initialDate.getHours();
+    const initialMinute = initialDate.getMinutes();
+    const initialAmpm = initialHour24 >= 12 ? 'PM' : 'AM';
+    const initialHour = (() => {
+      const h = initialHour24 % 12;
+      return h === 0 ? 12 : h;
+    })();
+
+    const [hour, setHour] = React.useState(initialHour);
+    const [minute, setMinute] = React.useState(initialMinute);
+    const [ampm, setAmpm] = React.useState(initialAmpm);
+
+    React.useEffect(() => {
+      const d = (() => {
+        if (!value) return null;
+        try {
+          const next = new Date(value);
+          if (Number.isNaN(next.getTime())) return null;
+          return next;
+        } catch {
+          return null;
+        }
+      })();
+      if (!d) return;
+      const hour24 = d.getHours();
+      const nextAmpm = hour24 >= 12 ? 'PM' : 'AM';
+      const nextHour = (() => {
+        const h = hour24 % 12;
+        return h === 0 ? 12 : h;
+      })();
+      setHour(nextHour);
+      setMinute(d.getMinutes());
+      setAmpm(nextAmpm);
+    }, [value]);
+
+    const emitChange = (nextHour, nextMinute, nextAmpm) => {
+      const base = (() => {
+        if (!value) return new Date();
+        try {
+          const d = new Date(value);
+          if (Number.isNaN(d.getTime())) return new Date();
+          return d;
+        } catch {
+          return new Date();
+        }
+      })();
+
+      let hour24 = Number(nextHour) % 12;
+      if (nextAmpm === 'PM') hour24 += 12;
+      base.setHours(hour24, Number(nextMinute) || 0, 0, 0);
+
+      if (typeof onChange === 'function') {
+        onChange(base.toISOString());
+      }
+    };
+
+    return React.createElement(
+      'div',
+      { style: wheelStyles.section },
+      showHeader && React.createElement(
+        'div',
+        { style: wheelStyles.sectionHeader },
+        React.createElement('h3', { style: wheelStyles.sectionTitle }, title)
+      ),
+      React.createElement(
+        'div',
+        { style: { ...wheelStyles.timePicker, marginTop: '0px', width: '100%', justifyContent: 'center', ...(contentStyle || {}) } },
+        React.createElement(WheelPicker, {
+          type: 'hour',
+          value: hour,
+          onChange: (val) => {
+            setHour(val);
+            emitChange(val, minute, ampm);
+          },
+          compact: true,
+          showSelection: false
+        }),
+        React.createElement('span', { style: { ...wheelStyles.timeColon, transform: 'translateY(-2px)' } }, ':'),
+        React.createElement(WheelPicker, {
+          type: 'minute',
+          value: minute,
+          onChange: (val) => {
+            setMinute(val);
+            emitChange(hour, val, ampm);
+          },
+          compact: true,
+          showSelection: false
+        }),
+        React.createElement(WheelPicker, {
+          type: 'ampm',
+          value: ampm,
+          onChange: (val) => {
+            setAmpm(val);
+            emitChange(hour, minute, val);
+          },
+          compact: true,
+          showSelection: false
+        })
+      )
+    );
+  };
+
+  const DatePickerTray = ({ isOpen = false, onClose = null, value, onChange, title = 'Date' }) =>
+    React.createElement(
+      TTPickerTray,
+      {
+        isOpen,
+        onClose,
+        header: React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(
+            'button',
+            {
+              onClick: () => { if (onClose) onClose(); },
+              style: { justifySelf: 'start', background: 'none', border: 'none', padding: 0, color: 'var(--tt-text-secondary)', fontSize: 17 }
+            },
+            'Cancel'
+          ),
+          React.createElement('div', { style: { textAlign: 'center', fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, title),
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => { if (onClose) onClose(); },
+              style: {
+                justifySelf: 'end',
+                fontWeight: 600,
+                color: 'var(--tt-feed)',
+                background: 'transparent',
+                border: 'none'
+              }
+            },
+            'Done'
+          )
+        )
+      },
+      React.createElement('div', { style: { marginTop: '-16px' } },
+        React.createElement(DatePickerSection, { value, onChange, title, showHeader: false })
+      )
+    );
+
+  const TimePickerTray = ({ isOpen = false, onClose = null, value, onChange, title = 'Time' }) =>
+    React.createElement(
+      TTPickerTray,
+      {
+        isOpen,
+        onClose,
+        header: React.createElement(
+          React.Fragment,
+          null,
+          React.createElement(
+            'button',
+            {
+              onClick: () => { if (onClose) onClose(); },
+              style: { justifySelf: 'start', background: 'none', border: 'none', padding: 0, color: 'var(--tt-text-secondary)', fontSize: 17 }
+            },
+            'Cancel'
+          ),
+          React.createElement('div', { style: { textAlign: 'center', fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, title),
+          React.createElement(
+            'button',
+            {
+              type: 'button',
+              onClick: () => { if (onClose) onClose(); },
+              style: {
+                justifySelf: 'end',
+                fontWeight: 600,
+                color: 'var(--tt-feed)',
+                background: 'transparent',
+                border: 'none'
+              }
+            },
+            'Done'
+          )
+        )
+      },
+      React.createElement('div', { style: { marginTop: '-16px' } },
+        React.createElement(TimePickerSection, { value, onChange, title, showHeader: false })
+      )
+    );
   
   // TTPickerTray Component - Native keyboard-style tray (unchanged - already sets isTrayOpen flag)
   const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null }) => {
@@ -749,5 +1053,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
   window.TT.shared.pickers.AmountPickerLabSection = AmountPickerLabSection;
   window.TT.shared.pickers.DateTimePickerLabSection = DateTimePickerLabSection;
   window.TT.shared.pickers.TTPickerTray = TTPickerTray;
+  window.TT.shared.pickers.DatePickerSection = DatePickerSection;
+  window.TT.shared.pickers.TimePickerSection = TimePickerSection;
+  window.TT.shared.pickers.DatePickerTray = DatePickerTray;
+  window.TT.shared.pickers.TimePickerTray = TimePickerTray;
   
   } // End guard
