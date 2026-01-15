@@ -1487,6 +1487,7 @@ const TrackerCard = ({
     }
     // For v3: toggle accordion when card is tapped
     if (uiVersion === 'v3') {
+      setHasInteracted(true);
       setExpanded(!expanded);
       // Also show yesterday comparison when expanded
       if (!expanded && isViewingToday) {
@@ -2250,9 +2251,13 @@ const TrackerCard = ({
     // Accordion content (always rendered to allow collapse animation)
     React.createElement(
       'div',
-      { 
-        className: `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
-        style: { overflow: 'hidden' }
+      {
+        className: !hasInteracted
+          ? 'mt-2'
+          : `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        style: !hasInteracted && !expanded
+          ? { overflow: 'hidden', maxHeight: 0, opacity: 0 }
+          : { overflow: 'hidden' }
       },
       // Show yesterday comparison in accordion for v3 (moved before count pill)
       (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(React.Fragment, null, React.createElement('div', { className: "mb-8 mt-1.5" },
