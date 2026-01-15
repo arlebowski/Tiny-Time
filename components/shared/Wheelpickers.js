@@ -132,14 +132,15 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     }
   };
   
-  // NEW: Helper to generate date options (7 days back from today, then next 3 days)
+  // NEW: Helper to generate date options (7 days back from today)
   const generateDateOptions = () => {
     const dates = [];
     const today = new Date();
     today.setHours(0, 0, 0, 0);
+    const daysBack = 7;
     
     // 7 days back
-    for (let i = 7; i > 0; i--) {
+    for (let i = daysBack; i > 0; i--) {
       const date = new Date(today);
       date.setDate(date.getDate() - i);
       dates.push(date.toISOString());
@@ -147,13 +148,6 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     
     // Today
     dates.push(today.toISOString());
-    
-    // Next 3 days
-    for (let i = 1; i <= 3; i++) {
-      const date = new Date(today);
-      date.setDate(date.getDate() + i);
-      dates.push(date.toISOString());
-    }
     
     return dates;
   };
@@ -169,15 +163,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     const diffDays = Math.round((dateOnly - today) / (1000 * 60 * 60 * 24));
     
     if (diffDays === 0) return 'Today';
-    if (diffDays === -1) return 'Yesterday';
-    if (diffDays === 1) return 'Tomorrow';
     
-    // Format as "Mon 1/13"
+    // Format as "Mon 8"
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const dayName = dayNames[date.getDay()];
-    const month = date.getMonth() + 1;
     const day = date.getDate();
-    return `${dayName} ${month}/${day}`;
+    return `${dayName} ${day}`;
   };
   
   // WheelPicker Component (UPDATED to use absolute positioning like SettingsTab)
@@ -246,38 +237,67 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       return [];
     };
 
-    const options = React.useMemo(() => generateOptions(), [type]);
+    const shouldLoop = type === 'hour' || type === 'minute';
+    const baseOptions = React.useMemo(() => generateOptions(), [type]);
+    const options = React.useMemo(() => {
+      if (!shouldLoop) return baseOptions;
+      return [...baseOptions, ...baseOptions, ...baseOptions];
+    }, [baseOptions, shouldLoop]);
+    const baseLength = baseOptions.length;
     const ITEM_HEIGHT = 40;
     const pickerHeight = compact ? 180 : 200;
     const padY = Math.max(0, (pickerHeight - ITEM_HEIGHT) / 2);
 
-    const getCurrentIndex = () => {
+    const getBaseIndex = () => {
       if (type === 'date' && value) {
         const valDate = new Date(value);
         valDate.setHours(0, 0, 0, 0);
         const valISO = valDate.toISOString();
-        return options.findIndex(opt => {
+        return baseOptions.findIndex(opt => {
           const optDate = new Date(opt.value);
           optDate.setHours(0, 0, 0, 0);
           return optDate.toISOString() === valISO;
         });
       }
-      return options.findIndex(opt => opt.value === value);
+      if (type === 'date') {
+        return baseOptions.findIndex(opt => opt.display === 'Today');
+      }
+      return baseOptions.findIndex(opt => opt.value === value);
     };
 
-    const initialIndex = Math.max(0, getCurrentIndex());
+    const baseIndex = Math.max(0, getBaseIndex());
+    const initialIndex = shouldLoop ? baseIndex + baseLength : baseIndex;
     const [selectedIndex, setSelectedIndex] = React.useState(initialIndex);
     const [currentOffset, setCurrentOffset] = React.useState(-initialIndex * ITEM_HEIGHT);
 
     // Keep selection + offset aligned to external value changes
     React.useEffect(() => {
-      const idx = Math.max(0, getCurrentIndex());
-      setSelectedIndex(idx);
-      setCurrentOffset(-idx * ITEM_HEIGHT);
+      const idx = Math.max(0, getBaseIndex());
+      const nextIndex = shouldLoop ? idx + baseLength : idx;
+      setSelectedIndex(nextIndex);
+      setCurrentOffset(-nextIndex * ITEM_HEIGHT);
     }, [value, type]);
 
     const snapToNearest = (offset) => {
       const index = Math.round(-offset / ITEM_HEIGHT);
+      if (shouldLoop) {
+        let adjustedIndex = index;
+        if (adjustedIndex < baseLength) {
+          adjustedIndex += baseLength;
+        } else if (adjustedIndex >= baseLength * 2) {
+          adjustedIndex -= baseLength;
+        }
+        const baseIndexForValue = ((adjustedIndex % baseLength) + baseLength) % baseLength;
+        const snappedOffset = -adjustedIndex * ITEM_HEIGHT;
+
+        setCurrentOffset(snappedOffset);
+        setSelectedIndex(adjustedIndex);
+        if (typeof onChange === 'function') {
+          onChange(baseOptions[baseIndexForValue].value);
+        }
+        return;
+      }
+
       const clampedIndex = Math.max(0, Math.min(options.length - 1, index));
       const snappedOffset = -clampedIndex * ITEM_HEIGHT;
 
@@ -316,6 +336,20 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       lastY.current = clientY;
       lastTime.current = now;
 
+      if (shouldLoop) {
+        const cycleHeight = baseLength * ITEM_HEIGHT;
+        const maxLoopOffset = -baseLength * ITEM_HEIGHT;
+        const minLoopOffset = -(baseLength * 2 - 1) * ITEM_HEIGHT;
+        let adjustedOffset = newOffset;
+        if (adjustedOffset > maxLoopOffset) {
+          adjustedOffset -= cycleHeight;
+        } else if (adjustedOffset < minLoopOffset) {
+          adjustedOffset += cycleHeight;
+        }
+        setCurrentOffset(adjustedOffset);
+        return;
+      }
+
       const maxOffset = 0;
       const minOffset = -(options.length - 1) * ITEM_HEIGHT;
 
@@ -334,9 +368,17 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
 
       let finalOffset = currentOffset + velocity * 200;
 
-      const maxOffset = 0;
-      const minOffset = -(options.length - 1) * ITEM_HEIGHT;
-      finalOffset = Math.max(minOffset, Math.min(maxOffset, finalOffset));
+      if (shouldLoop) {
+        const cycleHeight = baseLength * ITEM_HEIGHT;
+        const maxLoopOffset = -baseLength * ITEM_HEIGHT;
+        const minLoopOffset = -(baseLength * 2 - 1) * ITEM_HEIGHT;
+        while (finalOffset > maxLoopOffset) finalOffset -= cycleHeight;
+        while (finalOffset < minLoopOffset) finalOffset += cycleHeight;
+      } else {
+        const maxOffset = 0;
+        const minOffset = -(options.length - 1) * ITEM_HEIGHT;
+        finalOffset = Math.max(minOffset, Math.min(maxOffset, finalOffset));
+      }
 
       snapToNearest(finalOffset);
     };
