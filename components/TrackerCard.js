@@ -2124,7 +2124,7 @@ const TrackerCard = ({
     progressBarGoalText && React.createElement(
       'div',
       {
-        className: `flex justify-end ${expanded ? '' : 'mt-[4px]'}`,
+        className: `flex justify-end ${expanded ? '' : 'mt-[5px]'}`,
         style: { 
           width: '100%',
           display: expanded ? 'none' : 'flex',
@@ -2251,13 +2251,11 @@ const TrackerCard = ({
     React.createElement(
       'div',
       { 
-        className: (isInitialMountRef.current || !hasInteracted) ? 'mt-2' : `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
-        style: !expanded
-          ? { display: 'none' }  // Always use display: none when collapsed (simplest solution)
-          : { overflow: 'hidden' }
+        className: `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+        style: { overflow: 'hidden' }
       },
       // Show yesterday comparison in accordion for v3 (moved before count pill)
-      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(React.Fragment, null,
+      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(React.Fragment, null, React.createElement('div', { className: "mb-8 mt-1.5" },
           // Number + "as of" text inline
           React.createElement('div', {
             className: "flex items-center gap-2 mb-2"
@@ -2298,7 +2296,7 @@ const TrackerCard = ({
               }
             })
           )
-        ),
+        )),
       // Show count pill after yesterday comparison for v3
       accordionCountPill && React.createElement(
         'div',

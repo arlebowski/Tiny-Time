@@ -495,7 +495,7 @@ const ChatRow = ({ chat, isUnread, onOpen, onDelete }) => {
                     width: 8,
                     height: 8,
                     borderRadius: 9999,
-                    backgroundColor: 'var(--tt-primary)',
+                    backgroundColor: '#007AFF', // iOS blue
                     flex: '0 0 auto'
                   }
                 })
@@ -574,9 +574,11 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
   const [initializing, setInitializing] = React.useState(true);
   const [lastReadMap, setLastReadMap] = React.useState({});
   const [pendingPhoto, setPendingPhoto] = React.useState(null);
+  const [familyReadReceipts, setFamilyReadReceipts] = React.useState({}); // { userId: timestamp }
   const messagesRef = React.useRef(null);
   const unsubChatsRef = React.useRef(null);
   const unsubMsgsRef = React.useRef(null);
+  const unsubReadReceiptsRef = React.useRef(null);
 
   const db = ttGetDb();
   const userId = React.useMemo(() => {
@@ -697,7 +699,14 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
     setActiveChat(chat);
     setView('chat');
     setMessages([]);
+    
+    // Unsubscribe from previous chat messages
     if (unsubMsgsRef.current) unsubMsgsRef.current();
+    
+    // Unsubscribe from previous read receipts
+    if (unsubReadReceiptsRef.current) unsubReadReceiptsRef.current();
+    
+    // Subscribe to messages
     const q = db.collection('chats').doc(chat.id).collection('messages').orderBy('createdAt', 'asc');
     unsubMsgsRef.current = q.onSnapshot((snap) => {
       console.log('Messages snapshot for', chat.id, ':', snap.docs.length, 'messages');
@@ -717,6 +726,35 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
     }, (error) => {
       console.error('Messages snapshot error:', error);
     });
+    
+    // Subscribe to all family members' read receipts
+    // Get all members from the chat
+    if (chat.members && Array.isArray(chat.members)) {
+      const unsubscribers = [];
+      
+      chat.members.forEach(memberId => {
+        if (memberId === userId) return; // Skip current user
+        
+        const unsubMember = db.collection('userPrefs').doc(memberId)
+          .onSnapshot((doc) => {
+            if (doc.exists) {
+              const data = doc.data();
+              const memberLastRead = data?.chatLastRead?.[chat.id] || 0;
+              setFamilyReadReceipts(prev => ({
+                ...prev,
+                [memberId]: memberLastRead
+              }));
+            }
+          });
+        
+        unsubscribers.push(unsubMember);
+      });
+      
+      // Store combined unsubscriber
+      unsubReadReceiptsRef.current = () => {
+        unsubscribers.forEach(unsub => unsub());
+      };
+    }
   }, [db, userId]);
 
   const createChat = React.useCallback(async () => {
@@ -864,32 +902,19 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
     const isMe = m.senderId === userId;
     const isAI = m.senderId === 'ai';
     
-    console.log('Rendering message bubble:', { 
-      messageId: m.id, 
-      senderId: m.senderId, 
-      isMe, 
-      isAI,
-      text: m.text?.substring(0, 20),
-      hasPhotos: !!(m.photoURLs && m.photoURLs.length > 0)
-    });
-    
     // Get sender info
     const senderProfile = isAI 
       ? { name: 'Tiny Tracker', photoURL: null }
       : userProfiles[m.senderId] || { name: 'Unknown', photoURL: null };
     
-    console.log('Sender profile:', senderProfile);
-    
     // Apple Messages bubble styling
     const bubbleRadius = '18px';
-    const tailSize = 8;
     
     // Different colors for sent vs received
-    const bgColor = isMe ? theme.primary : 'var(--tt-subtle-surface)';
+    // Use --tt-feed as the accent color for sent messages (matches app's primary color)
+    const bgColor = isMe ? 'var(--tt-feed)' : 'var(--tt-subtle-surface)';
     const textColor = isMe ? 'white' : 'var(--tt-text-primary)';
     const timeColor = isMe ? 'rgba(255,255,255,0.7)' : 'var(--tt-text-tertiary)';
-    
-    console.log('Bubble colors:', { bgColor, textColor, timeColor });
     
     // Avatar component
     const avatar = React.createElement(
@@ -959,16 +984,12 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
             style: {
               padding: '10px 14px',
               borderRadius: bubbleRadius,
+              borderTopRightRadius: isMe ? '4px' : bubbleRadius,
+              borderTopLeftRadius: isMe ? bubbleRadius : '4px',
               backgroundColor: bgColor,
               color: textColor,
               boxShadow: '0 1px 2px rgba(0,0,0,0.1)',
-              position: 'relative',
-              // Apple Messages tail using pseudo-element approach (simplified)
-              ...(isMe ? {
-                borderTopRightRadius: '4px'
-              } : {
-                borderTopLeftRadius: '4px'
-              })
+              position: 'relative'
             }
           },
           // Photos
@@ -1011,7 +1032,30 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
             }
           },
           ttFormatTimeShort(m.createdAtMs)
-        )
+        ),
+        // Read receipt (only for messages you sent)
+        isMe && (() => {
+          // Check if anyone has read this message
+          const readBy = Object.entries(familyReadReceipts).filter(([memberId, lastRead]) => {
+            return lastRead >= m.createdAtMs;
+          });
+          
+          if (readBy.length > 0) {
+            return React.createElement(
+              'div',
+              {
+                style: {
+                  fontSize: 11,
+                  marginTop: 2,
+                  color: 'var(--tt-text-tertiary)',
+                  paddingRight: 4
+                }
+              },
+              'Read'
+            );
+          }
+          return null;
+        })()
       )
     );
   };
@@ -1048,7 +1092,11 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
                 ? Math.max(...messages.map(m => Number(m.createdAtMs || 0)).filter(v => v > 1000))
                 : 0;
               if (activeChat?.id && newest) safeLastReadWrite(activeChat.id, newest);
-              setView('list'); setActiveChat(null); setMessages([]);
+              setView('list'); 
+              setActiveChat(null); 
+              setMessages([]);
+              setFamilyReadReceipts({}); // Clear read receipts
+              if (unsubReadReceiptsRef.current) unsubReadReceiptsRef.current(); // Cleanup
               loadChats();
             }
           },
@@ -1251,7 +1299,7 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    backgroundColor: theme.primary,
+                    backgroundColor: 'var(--tt-feed)',
                     color: 'white',
                     opacity: (sending || (!input.trim() && !pendingPhoto)) ? 0.55 : 1,
                     flex: '0 0 auto'
@@ -1268,3 +1316,116 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
 window.TT = window.TT || {};
 window.TT.tabs = window.TT.tabs || {};
 window.TT.tabs.AIChatTab = AIChatTab;
+
+// Helper function to get unread chat count (for nav badge)
+// This can be called from your main app to show a badge on the Chat tab icon
+window.TT.tabs.getUnreadChatCount = async () => {
+  try {
+    const fb = typeof window !== 'undefined' && window.firebase ? window.firebase : null;
+    if (!fb || !fb.firestore) return 0;
+    
+    const db = fb.firestore();
+    const userId = fb.auth?.()?.currentUser?.uid;
+    if (!userId) return 0;
+    
+    // Get user's last read times
+    const userPrefsDoc = await db.collection('userPrefs').doc(userId).get();
+    const lastReadMap = userPrefsDoc.exists ? (userPrefsDoc.data()?.chatLastRead || {}) : {};
+    
+    // Get all chats
+    const chatsSnapshot = await db.collection('chats')
+      .where('members', 'array-contains', userId)
+      .get();
+    
+    let unreadCount = 0;
+    chatsSnapshot.forEach(doc => {
+      const chat = doc.data();
+      if (!chat.lastMessage) return;
+      
+      const lastMsgMs = chat.lastMessage.createdAt?.toMillis?.() || 
+                       (chat.lastMessage.createdAt?.seconds * 1000) || 0;
+      if (!lastMsgMs) return;
+      
+      const lastRead = lastReadMap[doc.id] || 0;
+      const wasNotMe = chat.lastMessage.senderId !== userId;
+      
+      if (wasNotMe && lastMsgMs > lastRead) {
+        unreadCount++;
+      }
+    });
+    
+    return unreadCount;
+  } catch (error) {
+    console.error('Error getting unread count:', error);
+    return 0;
+  }
+};
+
+// Real-time subscription for unread count (better for nav badge)
+// Usage: const unsubscribe = window.TT.tabs.subscribeToUnreadCount((count) => { setBadgeCount(count); });
+window.TT.tabs.subscribeToUnreadCount = (callback) => {
+  try {
+    const fb = typeof window !== 'undefined' && window.firebase ? window.firebase : null;
+    if (!fb || !fb.firestore) {
+      callback(0);
+      return () => {};
+    }
+    
+    const db = fb.firestore();
+    const userId = fb.auth?.()?.currentUser?.uid;
+    if (!userId) {
+      callback(0);
+      return () => {};
+    }
+    
+    let lastReadMap = {};
+    let chatsData = [];
+    
+    // Subscribe to user prefs for last read times
+    const unsubPrefs = db.collection('userPrefs').doc(userId)
+      .onSnapshot((doc) => {
+        if (doc.exists) {
+          lastReadMap = doc.data()?.chatLastRead || {};
+          calculateAndNotify();
+        }
+      });
+    
+    // Subscribe to chats
+    const unsubChats = db.collection('chats')
+      .where('members', 'array-contains', userId)
+      .onSnapshot((snapshot) => {
+        chatsData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        calculateAndNotify();
+      });
+    
+    const calculateAndNotify = () => {
+      let unreadCount = 0;
+      chatsData.forEach(chat => {
+        if (!chat.lastMessage) return;
+        
+        const lastMsgMs = chat.lastMessage.createdAt?.toMillis?.() || 
+                         (chat.lastMessage.createdAt?.seconds * 1000) || 0;
+        if (!lastMsgMs) return;
+        
+        const lastRead = lastReadMap[chat.id] || 0;
+        const wasNotMe = chat.lastMessage.senderId !== userId;
+        
+        if (wasNotMe && lastMsgMs > lastRead) {
+          unreadCount++;
+        }
+      });
+      
+      callback(unreadCount);
+    };
+    
+    // Return cleanup function
+    return () => {
+      unsubPrefs();
+      unsubChats();
+    };
+  } catch (error) {
+    console.error('Error subscribing to unread count:', error);
+    callback(0);
+    return () => {};
+  }
+};
