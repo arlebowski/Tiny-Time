@@ -1788,6 +1788,16 @@ IMPORTANT:
     if (!kidId) return;
     return firestoreStorage.subscribeActiveSleep((session) => {
       setActiveSleep(session);
+      if (session && session.startTime) {
+        const normalized = _normalizeSleepStartMs(session.startTime);
+        if (normalized) {
+          setSleepElapsedMs(Date.now() - normalized);
+        } else {
+          setSleepElapsedMs(0);
+        }
+      } else {
+        setSleepElapsedMs(0);
+      }
     });
   }, [kidId]);
 
