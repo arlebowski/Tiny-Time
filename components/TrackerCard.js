@@ -454,6 +454,18 @@ function ensureTapAnimationStyles() {
 
 const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOverride = null, onClick = null, onActiveSleepClick = null, onDelete = null, onPhotoClick = null }) => {
   if (!entry) return null;
+  if (window.TT?.shared?.TTSwipeRow) {
+    return React.createElement(window.TT.shared.TTSwipeRow, {
+      entry,
+      mode,
+      mirrorFeedingIcon,
+      iconOverride,
+      onClick,
+      onActiveSleepClick,
+      onDelete,
+      onPhotoClick
+    });
+  }
   
   const isSleep = mode === 'sleep';
   const timelineBg = 'var(--tt-subtle-surface)';
