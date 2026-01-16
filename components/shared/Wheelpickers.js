@@ -512,12 +512,14 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     );
   });
   
-  // AmountPickerLabSection Component (unchanged)
-  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount }) => {
+  // AmountPickerLabSection Component
+  // NOTE: When rendered inside a tray that already provides a header (title + unit toggle),
+  // pass showHeader={false} to avoid a duplicated toggle/title row.
+  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount, showHeader = true }) => {
     return React.createElement(
       'div',
       { style: wheelStyles.section },
-      React.createElement(
+      showHeader ? React.createElement(
         'div',
         { style: wheelStyles.sectionHeader },
         React.createElement('h3', { style: wheelStyles.sectionTitle }, 'Amount'),
@@ -550,8 +552,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
             })
           : React.createElement(
               'button',
-              { 
-                style: wheelStyles.unitToggle, 
+              {
+                style: wheelStyles.unitToggle,
                 onClick: () => {
                   const snapToStep = (val, step) => {
                     const n = Number(val) || 0;
@@ -568,19 +570,19 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
                     setUnit('ml');
                     setAmount(ml);
                   }
-                }, 
-                type: 'button' 
+                },
+                type: 'button'
               },
               React.createElement('span', { style: unit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
               React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
               React.createElement('span', { style: unit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
             )
-      ),
+      ) : null,
       React.createElement(
         'div',
         { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '8px' } },
         React.createElement(WheelPicker, {
-          type: unit,
+          type: (unit === 'oz' ? 'ounce' : unit),
           value: amount,
           onChange: setAmount,
           compact: true,
