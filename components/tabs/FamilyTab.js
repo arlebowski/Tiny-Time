@@ -47,14 +47,12 @@ const FamilyTab = ({
   const [editingBirthDate, setEditingBirthDate] = useState(false);
   const [editingWeight, setEditingWeight] = useState(false);
   const [editingMultiplier, setEditingMultiplier] = useState(false);
-  const [editingUserName, setEditingUserName] = useState(false);
 
   // Temp fields
   const [tempBabyName, setTempBabyName] = useState('');
   const [tempBirthDate, setTempBirthDate] = useState('');
   const [tempWeight, setTempWeight] = useState('');
   const [tempMultiplier, setTempMultiplier] = useState('');
-  const [tempUserName, setTempUserName] = useState('');
 
   const fileInputRef = React.useRef(null);
   const weightSaveTimeoutRef = React.useRef(null);
@@ -180,6 +178,20 @@ const FamilyTab = ({
     } catch {
       return null;
     }
+  };
+
+  const formatAgeFromDate = (birthDate) => {
+    if (!birthDate) return '';
+    const birth = birthDate instanceof Date ? birthDate : new Date(birthDate);
+    if (Number.isNaN(birth.getTime())) return '';
+    const today = new Date();
+    const diffMs = today.getTime() - birth.getTime();
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays < 0) return '';
+    if (diffDays < 7) return `${diffDays} days old`;
+    if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks old`;
+    const months = Math.floor(diffDays / 30);
+    return `${months} month${months === 1 ? '' : 's'} old`;
   };
 
   const saveDaySleepWindow = async (startMin, endMin) => {
@@ -425,16 +437,6 @@ const FamilyTab = ({
     }
   };
 
-  const handleUpdateUserName = async () => {
-    if (!tempUserName.trim()) return;
-    try {
-      await firestoreStorage.updateUserProfile({ displayName: tempUserName.trim() });
-      setEditingUserName(false);
-      await loadData();
-    } catch (error) {
-      console.error('Error updating user name:', error);
-    }
-  };
 
   const saveSleepTargetOverride = async () => {
     const hrs = parseFloat(sleepTargetInput);
@@ -626,7 +628,6 @@ const handleInvite = async () => {
     );
   }
 
-  const isOwner = kidData?.ownerId === user.uid;
   const activeThemeKey = settings.themeKey || themeKey || 'indigo';
 
   // Day sleep window (slider UI)
@@ -906,7 +907,7 @@ const handleInvite = async () => {
 
       React.createElement(
         'div',
-        { className: 'flex items-start gap-4 mb-6' },
+        { className: 'flex items-center gap-4 mb-6' },
         // Photo
         React.createElement(
           'div',
@@ -952,145 +953,28 @@ const handleInvite = async () => {
           )
         ),
 
-        // Name + age + owner
+        // Name row
         React.createElement(
           'div',
-          { className: 'flex-1 space-y-2 min-w-0' },
-
-          // Name row
-          editingName
-            ? React.createElement(
-                'div',
-                { className: 'flex items-center gap-2' },
-                React.createElement('input', {
-                  type: 'text',
-                  value: tempBabyName,
-                  onChange: (e) => setTempBabyName(e.target.value),
-                  className:
-                    'flex-1 px-3 py-2 text-lg font-medium border-2 border-indigo-300 rounded-lg focus:outline-none focus:border-indigo-500',
-                  style: { minWidth: 0 }
-                }),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: handleUpdateBabyName,
-                    className: TT_ICON_BTN_OK
-                  },
-                  React.createElement(Check, { className: TT_ICON_SIZE })
-                ),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: () => setEditingName(false),
-                    className: TT_ICON_BTN_CANCEL
-                  },
-                  React.createElement(X, { className: TT_ICON_SIZE })
-                )
-              )
-            : React.createElement(
-                'div',
-                { className: 'flex items-center gap-2' },
-                React.createElement(
-                  'h3',
-                  {
-                    className:
-                      'text-lg font-semibold truncate',
-                      style: { color: 'var(--tt-text-primary)' }
-                  },
-                  kidData?.name || 'Baby'
-                ),
-                React.createElement(
-                  'button',
-                  {
-                    onClick: () => {
-                      setTempBabyName(kidData?.name || '');
-                      setEditingName(true);
-                    },
-                    className: 'hover:opacity-80',
-                    style: { color: 'var(--tt-feed)' }
-                  },
-                  React.createElement(Edit2, { className: 'w-4 h-4' })
-                )
-              ),
-
-          // Age
-          React.createElement(
-            'div',
-            { 
-              className: 'text-sm',
-              style: { color: 'var(--tt-text-secondary)' }
-            },
-            kidData?.birthDate
-              ? (() => {
-                  const today = new Date();
-                  const birth = new Date(kidData.birthDate);
-                  const diffMs = today.getTime() - birth.getTime();
-                  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                  if (diffDays < 7) return `${diffDays} days old`;
-                  if (diffDays < 30)
-                    return `${Math.floor(diffDays / 7)} weeks old`;
-                  const months = Math.floor(diffDays / 30);
-                  return `${months} month${months === 1 ? '' : 's'} old`;
-                })()
-              : 'Birth date not set'
-          ),
-
-          // Owner display / your name
-          React.createElement(
-            'div',
-            { className: 'mt-1 text-sm', style: { color: 'var(--tt-text-secondary)' } },
-            'Owner: ',
-            editingUserName
-              ? React.createElement(
-                  'span',
-                  null,
-                  React.createElement('input', {
-                    type: 'text',
-                    value: tempUserName,
-                    onChange: (e) => setTempUserName(e.target.value),
-                    className:
-                      'px-2 py-1 text-sm border rounded-lg focus:outline-none',
-                    style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' }
-                  }),
-                  React.createElement(
-                    'button',
-                    {
-                      onClick: handleUpdateUserName,
-                      className:
-                        'ml-2 text-green-600 hover:opacity-80'
-                    },
-                    React.createElement(Check, { className: 'w-4 h-4' })
-                  ),
-                  React.createElement(
-                    'button',
-                    {
-                      onClick: () => setEditingUserName(false),
-                      className: 'ml-1',
-                      style: { color: 'var(--tt-text-tertiary)' }
-                    },
-                    React.createElement(X, { className: 'w-4 h-4' })
-                  )
-                )
-              : React.createElement(
-                  'span',
-                  null,
-                  kidData?.ownerName || 'You',
-                  isOwner &&
-                    React.createElement(
-                      'button',
-                      {
-                        onClick: () => {
-                          setTempUserName(kidData?.ownerName || '');
-                          setEditingUserName(true);
-                        },
-                        className:
-                          'ml-2 hover:opacity-80',
-                        style: { color: 'var(--tt-feed)' }
-                      },
-                      'Edit'
-                    )
-                )
-          )
+          { className: 'flex-1 min-w-0', style: { marginTop: '10px' } },
+          TTInputRow && React.createElement(TTInputRow, {
+            label: 'Name',
+            type: 'text',
+            size: 'compact',
+            icon: TTEditIcon,
+            value: tempBabyName || (kidData?.name || ''),
+            placeholder: 'Baby',
+            onChange: async (val) => {
+              setTempBabyName(val);
+              if (!val || !val.trim()) return;
+              try {
+                await updateKidPartial({ name: val.trim() });
+                await loadData();
+              } catch (error) {
+                console.error('Error updating name:', error);
+              }
+            }
+          })
         )
       ),
 
@@ -1108,8 +992,30 @@ const handleInvite = async () => {
             rawValue: editingBirthDate
               ? dateStringToIso(tempBirthDate)
               : (kidData?.birthDate ? new Date(kidData.birthDate).toISOString() : null),
-            placeholder: kidData?.birthDate ? new Date(kidData.birthDate).toLocaleDateString() : 'Not set',
-            formatDateTime: (iso) => new Date(iso).toLocaleDateString(),
+            placeholder: kidData?.birthDate
+              ? `${new Date(kidData.birthDate).toLocaleDateString()} • ${formatAgeFromDate(kidData.birthDate)}`
+              : 'Not set',
+            formatDateTime: (iso) => {
+              const d = new Date(iso);
+              const dateLabel = d.toLocaleDateString();
+              const ageLabel = formatAgeFromDate(d);
+              return ageLabel ? `${dateLabel} • ${ageLabel}` : dateLabel;
+            },
+            renderValue: (valueText) => {
+              const [dateText, ageText] = String(valueText || '').split(' • ');
+              return React.createElement(
+                'span',
+                null,
+                React.createElement('span', null, dateText || valueText || ''),
+                ageText
+                  ? React.createElement(
+                      'span',
+                      { style: { color: 'var(--tt-text-secondary)' } },
+                      ` • ${ageText}`
+                    )
+                  : null
+              );
+            },
             useWheelPickers: () => true,
             pickerMode: 'date',
             onOpenPicker: () => {
@@ -1163,51 +1069,36 @@ const handleInvite = async () => {
         })
       ),
 
-      sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t", style: { borderColor: 'var(--tt-card-border)' } },
-        React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Sleep settings'),
-        React.createElement( 'div', { className: 'rounded-xl border px-4 py-3', style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)' }, onClick: isEditingSleepTarget ? undefined : () => { setIsEditingSleepTarget(true); } },
-          React.createElement('div', { className: "flex items-center" },
-            React.createElement('div', { className: "text-xs font-medium", style: { color: 'var(--tt-text-secondary)' } }, 'Daily sleep target (hrs)'),
-            React.createElement(InfoDot, { onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); alert( "Daily sleep target\n\n" + "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" + "If your baby’s clinician suggested a different target, you can override it here." ); } })
+        sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t", style: { borderColor: 'var(--tt-card-border)' } },
+          React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Sleep settings'),
+          TTInputRow && React.createElement(TTInputRow, {
+            label: React.createElement(
+              'span',
+              { className: 'inline-flex items-center gap-2' },
+              'Daily sleep target (hrs)',
+              React.createElement(InfoDot, { onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); alert( "Daily sleep target\n\n" + "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" + "If your baby’s clinician suggested a different target, you can override it here." ); } })
+            ),
+            type: 'number',
+            value: sleepTargetInput || formatSleepTargetDisplay(autoSleepTargetHrs),
+            placeholder: formatSleepTargetDisplay(autoSleepTargetHrs),
+            onChange: async (val) => {
+              setSleepTargetInput(val);
+              const n = parseFloat(val);
+              if (!n || n <= 0) {
+                setSleepTargetDraftOverride(false);
+                return;
+              }
+              setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
+              await saveSleepTargetOverride();
+              setSleepTargetLastSaved(val);
+            }
+          }),
+          sleepSettings?.sleepTargetIsOverride && Math.abs(Number(sleepSettings.sleepTargetHours ?? 0) - Number(sleepSettings.sleepTargetAutoHours ?? 0)) >= 0.05 && React.createElement('div', { className: "flex items-center justify-between mt-2 text-xs", style: { color: 'var(--tt-text-secondary)' } },
+            React.createElement('div', null, `Recommended: ${formatSleepTargetDisplay(sleepSettings.sleepTargetAutoHours)} hrs`),
+            React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "font-medium hover:opacity-80", style: { color: 'var(--tt-feed)' } }, 'Revert to recommended')
           ),
-          isEditingSleepTarget ? React.createElement('div', { className: "flex items-center gap-3 mt-2" },
-            React.createElement('input', {
-              type: 'number',
-              inputMode: 'decimal',
-              value: sleepTargetInput,
-              onChange: (e) => {
-                const v = e.target.value;
-                setSleepTargetInput(v);
-                const n = parseFloat(v);
-                if (!n || n <= 0) {
-                  setSleepTargetDraftOverride(false);
-                  return;
-                }
-                setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
-              },
-              onFocus: () => {
-                const n = parseFloat(sleepTargetInput);
-                if (!n || n <= 0) setSleepTargetDraftOverride(false);
-                else setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
-              },
-              className: "w-28 h-10 px-3 rounded-lg border text-base focus:outline-none",
-              style: { backgroundColor: 'var(--tt-card-bg)', color: 'var(--tt-text-primary)', borderColor: 'var(--tt-card-border)' },
-              step: "0.1",
-              min: "0"
-            }),
-            React.createElement('button', { type: 'button', disabled: !sleepTargetDraftOverride && (sleepTargetInput === sleepTargetLastSaved), onClick: async () => { await saveSleepTargetOverride(); setSleepTargetLastSaved(sleepTargetInput); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_OK }, React.createElement(Check, { className: TT_ICON_SIZE })),
-            React.createElement('button', { type: 'button', onClick: () => { setSleepTargetInput(sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs)); setSleepTargetDraftOverride(false); setIsEditingSleepTarget(false); }, className: TT_ICON_BTN_CANCEL }, React.createElement(X, { className: TT_ICON_SIZE }))
-          ) : React.createElement( 'div', { className: 'flex items-center justify-between mt-1' },
-            React.createElement( 'div', { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } }, sleepTargetInput || formatSleepTargetDisplay(autoSleepTargetHrs) ),
-            React.createElement(Edit2, { className: 'w-4 h-4', style: { color: 'var(--tt-feed)' } })
-          )
-        ),
-        sleepSettings?.sleepTargetIsOverride && Math.abs(Number(sleepSettings.sleepTargetHours ?? 0) - Number(sleepSettings.sleepTargetAutoHours ?? 0)) >= 0.05 && React.createElement('div', { className: "flex items-center justify-between mt-2 text-xs", style: { color: 'var(--tt-text-secondary)' } },
-          React.createElement('div', null, `Recommended: ${formatSleepTargetDisplay(sleepSettings.sleepTargetAutoHours)} hrs`),
-          React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "font-medium hover:opacity-80", style: { color: 'var(--tt-feed)' } }, 'Revert to recommended')
-        ),
-        DaySleepWindowCard
-      )
+          DaySleepWindowCard
+        )
     ),
 
     // Family Members Card

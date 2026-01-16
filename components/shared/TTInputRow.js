@@ -5,6 +5,11 @@ const TTInputRow = ({
   icon,
   showIcon = true,
   showChevron = false,
+  chevronDirection = 'right',
+  enableTapAnimation = true,
+  showLabel = true,
+  renderValue = null,
+  size = 'default',
   type = 'text',
   placeholder = '',
   rawValue,
@@ -105,18 +110,35 @@ const TTInputRow = ({
   };
 
   const defaultIcon =
+    (typeof window !== 'undefined' && window.PenIcon) ||
     (typeof window !== 'undefined' && window.TT?.shared?.icons?.Edit2) ||
     (typeof window !== 'undefined' && window.Edit2) ||
     null;
-  const chevronIcon =
+  const chevronRight =
     (typeof window !== 'undefined' && (window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon)) ||
     null;
+  const chevronDown =
+    (typeof window !== 'undefined' && (window.TT?.shared?.icons?.ChevronDownIcon || window.ChevronDownIcon)) ||
+    null;
   const resolvedIcon = icon === undefined ? defaultIcon : icon;
+  const iconElement = React.isValidElement(resolvedIcon)
+    ? resolvedIcon
+    : (resolvedIcon ? React.createElement(resolvedIcon, {
+        className: "w-4 h-4",
+        style: { color: 'var(--tt-text-secondary)' }
+      }) : null);
+
+  const chevronIcon = chevronDirection === 'down' ? chevronDown : chevronRight;
+
+  const isCompact = size === 'compact';
+  const paddingClass = isCompact ? 'p-3' : 'p-4';
+  const labelClass = isCompact ? 'text-[11px] mb-0.5' : 'text-xs mb-1';
+  const valueClass = isCompact ? 'text-[15px]' : 'text-base';
 
   return React.createElement(
     'div',
     {
-      className: "rounded-2xl mb-2 transition-all duration-200 tt-tapable",
+      className: `rounded-2xl mb-2 transition-all duration-200${enableTapAnimation ? ' tt-tapable' : ''}`,
       style: {
         backgroundColor: 'var(--tt-input-bg)',
         position: 'relative',
@@ -126,71 +148,84 @@ const TTInputRow = ({
     React.createElement(
       'div',
       {
-        className: "flex items-center justify-between p-4 cursor-pointer",
+        className: `flex items-center justify-between cursor-pointer ${paddingClass}`,
         onClick: handleRowClick
       },
       React.createElement('div', { className: "flex-1" },
-        React.createElement('div', {
-          className: "text-xs mb-1",
+        showLabel && React.createElement('div', {
+          className: labelClass,
           style: { color: 'var(--tt-text-secondary)' }
         }, React.createElement('span', {}, label)),
-        type === 'text'
-          ? React.createElement('textarea', {
-              ref: inputRef,
-              value: displayValue || '',
-              onChange: (e) => {
-                if (onChange) {
-                  onChange(e.target.value);
-                  const el = e.target;
-                  el.style.height = 'auto';
-                  el.style.height = el.scrollHeight + 'px';
+        (typeof renderValue === 'function')
+          ? React.createElement(
+              'div',
+              {
+                className: `${valueClass} font-normal w-full`,
+                style: {
+                  color: invalid
+                    ? '#ef4444'
+                    : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
                 }
               },
-              placeholder: placeholder,
-              rows: 1,
-              className: "tt-placeholder-tertiary text-base font-normal w-full outline-none resize-none",
-              style: {
-                background: 'transparent',
-                maxHeight: '4.5rem',
-                overflowY: 'auto',
-                color: invalid ? '#ef4444' : 'var(--tt-text-primary)'
-              }
-            })
-          : React.createElement('input', {
-              ref: type === 'datetime' ? timeAnchorRef : inputRef,
-              type: (type === 'datetime' || (shouldUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
-              inputMode: type === 'number' ? 'decimal' : undefined,
-              step: type === 'number' ? '0.25' : undefined,
-              value: displayValue || '',
-              placeholder: placeholder,
-              onChange: (e) => {
-                if (type !== 'datetime' && onChange) {
-                  if (type === 'number') {
-                    const nextValue = e.target.value.replace(/[^0-9.]/g, '');
-                    onChange(nextValue);
-                  } else {
-                    onChange(e.target.value);
+              renderValue(displayValue, { rawValue, placeholder })
+            )
+          : (type === 'text'
+              ? React.createElement('textarea', {
+                  ref: inputRef,
+                  value: displayValue || '',
+                  onChange: (e) => {
+                    if (onChange) {
+                      onChange(e.target.value);
+                      const el = e.target;
+                      el.style.height = 'auto';
+                      el.style.height = el.scrollHeight + 'px';
+                    }
+                  },
+                  placeholder: placeholder,
+                  rows: 1,
+                  className: `tt-placeholder-tertiary ${valueClass} font-normal w-full outline-none resize-none`,
+                  style: {
+                    background: 'transparent',
+                    maxHeight: '4.5rem',
+                    overflowY: 'auto',
+                    color: invalid ? '#ef4444' : 'var(--tt-text-primary)'
                   }
-                }
-              },
-              className: `tt-placeholder-tertiary text-base font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
-              style: {
-                background: 'transparent',
-                color: invalid
-                  ? '#ef4444'
-                  : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
-              },
-              readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
-            })
+                })
+              : React.createElement('input', {
+                  ref: type === 'datetime' ? timeAnchorRef : inputRef,
+                  type: (type === 'datetime' || (shouldUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
+                  inputMode: type === 'number' ? 'decimal' : undefined,
+                  step: type === 'number' ? '0.25' : undefined,
+                  value: displayValue || '',
+                  placeholder: placeholder,
+                  onChange: (e) => {
+                    if (type !== 'datetime' && onChange) {
+                      if (type === 'number') {
+                        const nextValue = e.target.value.replace(/[^0-9.]/g, '');
+                        onChange(nextValue);
+                      } else {
+                        onChange(e.target.value);
+                      }
+                    }
+                  },
+                  className: `tt-placeholder-tertiary ${valueClass} font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
+                  style: {
+                    background: 'transparent',
+                    color: invalid
+                      ? '#ef4444'
+                      : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
+                  },
+                  readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
+                }))
       ),
-      showIcon && resolvedIcon && React.createElement('button', {
+      showIcon && iconElement && React.createElement('button', {
         onClick: handleIconClick,
         className: "ml-4",
-        style: { marginLeft: '17px', color: 'var(--tt-text-tertiary)' }
-      }, resolvedIcon),
+        style: { marginLeft: '17px' }
+      }, iconElement),
       showChevron && chevronIcon && React.createElement(chevronIcon, {
         className: "w-4 h-4 ml-2",
-        style: { color: 'var(--tt-text-tertiary)' }
+        style: { color: 'var(--tt-text-secondary)' }
       })
     )
   );

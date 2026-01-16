@@ -454,6 +454,18 @@ function ensureTapAnimationStyles() {
 
 const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOverride = null, onClick = null, onActiveSleepClick = null, onDelete = null, onPhotoClick = null }) => {
   if (!entry) return null;
+  if (window.TT?.shared?.TTSwipeRow) {
+    return React.createElement(window.TT.shared.TTSwipeRow, {
+      entry,
+      mode,
+      mirrorFeedingIcon,
+      iconOverride,
+      onClick,
+      onActiveSleepClick,
+      onDelete,
+      onPhotoClick
+    });
+  }
   
   const isSleep = mode === 'sleep';
   const timelineBg = 'var(--tt-subtle-surface)';
@@ -3719,6 +3731,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const AmountPickerLabSection = _pickers.AmountPickerLabSection;
     const WheelPicker = _pickers.WheelPicker;
     const wheelStyles = _pickers.wheelStyles || {};
+    const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
 
     const [showAmountTray, setShowAmountTray] = React.useState(false);
     const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState('oz');
@@ -4098,77 +4111,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             }, '+ Add notes')
       ),
 
-      // Photos - conditionally render based on expanded state
-      photosExpanded 
-        ? React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
-          // Render existing photos (from Firebase Storage)
-          existingPhotoURLs.map((photoUrl, i) =>
-            React.createElement('div', {
-              key: `existing-${i}`,
-              className: "aspect-square rounded-2xl border relative",
-              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-            },
-              React.createElement('img', { 
-                src: photoUrl, 
-                alt: `Photo ${i + 1}`, 
-                className: "w-full h-full object-cover rounded-2xl",
-                onClick: () => setFullSizePhoto(photoUrl)
-              }),
-              React.createElement('button', {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  handleRemovePhoto(i, true);
-                },
-                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
-              },
-                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
-              )
-            )
-          ),
-          // Render new photos (base64, not yet uploaded)
-          photos.map((photo, i) =>
-            React.createElement('div', {
-              key: `new-${i}`,
-              className: "aspect-square rounded-2xl border relative",
-              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-            },
-              React.createElement('img', { 
-                src: photo, 
-                alt: `Photo ${i + 1}`, 
-                className: "w-full h-full object-cover rounded-2xl",
-                onClick: () => setFullSizePhoto(photo)
-              }),
-              React.createElement('button', {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  handleRemovePhoto(i, false);
-                },
-                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
-              },
-                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
-              )
-            )
-          ),
-          // Render placeholder (only one, always at the end)
-          React.createElement('div', {
-            onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-          },
-            React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
-          )
-        )
-      )
-        : React.createElement('div', {
-            onClick: () => setPhotosExpanded(true),
-            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-            style: { color: 'var(--tt-text-tertiary)' }
-          }, '+ Add photos')
-      ),
+      TTPhotoRow && React.createElement(TTPhotoRow, {
+        expanded: photosExpanded,
+        onExpand: () => setPhotosExpanded(true),
+        existingPhotos: existingPhotoURLs,
+        newPhotos: photos,
+        onAddPhoto: handleAddPhoto,
+        onRemovePhoto: handleRemovePhoto,
+        onPreviewPhoto: setFullSizePhoto
+      }),
 
       // Sticky bottom CTA (Save button)
       // Hide when keyboard is open to prevent overlap with keyboard
@@ -4346,7 +4297,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         ),
         document.body
       )
-    );
+    )
+  );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
@@ -4423,6 +4375,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const TTPickerTray = _pickers.TTPickerTray;
     const WheelPicker = _pickers.WheelPicker;
     const wheelStyles = _pickers.wheelStyles || {};
+    const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
 
     const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
     const [dtTarget, setDtTarget] = React.useState('start'); // 'start' | 'end'
@@ -4844,77 +4797,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             }, '+ Add notes')
       ),
 
-      // Photos - conditionally render based on expanded state
-      photosExpanded 
-        ? React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
-          // Render existing photos (from Firebase Storage)
-          existingPhotoURLs.map((photoUrl, i) =>
-            React.createElement('div', {
-              key: `existing-${i}`,
-              className: "aspect-square rounded-2xl border relative",
-              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-            },
-              React.createElement('img', { 
-                src: photoUrl, 
-                alt: `Photo ${i + 1}`, 
-                className: "w-full h-full object-cover rounded-2xl",
-                onClick: () => setFullSizePhoto(photoUrl)
-              }),
-              React.createElement('button', {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  handleRemovePhoto(i, true);
-                },
-                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
-              },
-                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
-              )
-            )
-          ),
-          // Render new photos (base64, not yet uploaded)
-          photos.map((photo, i) =>
-            React.createElement('div', {
-              key: `new-${i}`,
-              className: "aspect-square rounded-2xl border relative",
-              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-            },
-              React.createElement('img', { 
-                src: photo, 
-                alt: `Photo ${i + 1}`, 
-                className: "w-full h-full object-cover rounded-2xl",
-                onClick: () => setFullSizePhoto(photo)
-              }),
-              React.createElement('button', {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  handleRemovePhoto(i, false);
-                },
-                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
-              },
-                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
-              )
-            )
-          ),
-          // Render placeholder (only one, always at the end)
-          React.createElement('div', {
-            onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-          },
-            React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
-          )
-        )
-      )
-        : React.createElement('div', {
-            onClick: () => setPhotosExpanded(true),
-            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-            style: { color: 'var(--tt-text-tertiary)' }
-          }, '+ Add photos')
-      ),
+      TTPhotoRow && React.createElement(TTPhotoRow, {
+        expanded: photosExpanded,
+        onExpand: () => setPhotosExpanded(true),
+        existingPhotos: existingPhotoURLs,
+        newPhotos: photos,
+        onAddPhoto: handleAddPhoto,
+        onRemovePhoto: handleRemovePhoto,
+        onPreviewPhoto: setFullSizePhoto
+      }),
 
       // Sticky bottom CTA (Save button)
       // Hide when keyboard is open to prevent overlap with keyboard
@@ -5055,7 +4946,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         ),
         document.body
       )
-    );
+    )
+  );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
@@ -6128,52 +6020,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             }, '+ Add notes')
       ),
 
-      // Photos - conditionally render based on expanded state
-      photosExpanded 
-        ? React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
-          // Render photos
-          photos.map((photo, i) =>
-            React.createElement('div', {
-              key: i,
-              className: "aspect-square rounded-2xl border relative",
-              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-            },
-              React.createElement('img', { 
-                src: photo, 
-                alt: `Photo ${i + 1}`, 
-                className: "w-full h-full object-cover rounded-2xl",
-                onClick: () => setFullSizePhoto(photo)
-              }),
-              React.createElement('button', {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  handleRemovePhoto(i);
-                },
-                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
-              },
-                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
-              )
-            )
-          ),
-          // Render placeholder (only one, always at the end)
-          React.createElement('div', {
-            onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-          },
-            React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
-          )
-        )
-      )
-        : React.createElement('div', {
-            onClick: () => setPhotosExpanded(true),
-            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-            style: { color: 'var(--tt-text-tertiary)' }
-          }, '+ Add photos'),
+      TTPhotoRow && React.createElement(TTPhotoRow, {
+        expanded: photosExpanded,
+        onExpand: () => setPhotosExpanded(true),
+        existingPhotos: [],
+        newPhotos: photos,
+        onAddPhoto: handleAddPhoto,
+        onRemovePhoto: (index) => handleRemovePhoto(index),
+        onPreviewPhoto: setFullSizePhoto
+      }),
 
       // Reserve space for sticky footer CTA
       React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
@@ -6274,52 +6129,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               }, '+ Add notes')
         ),
 
-      // Photos - conditionally render based on expanded state
-      photosExpanded 
-        ? React.createElement('div', { className: "py-3" },
-        React.createElement('div', { className: "mb-3" },
-          React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Photos')
-        ),
-        React.createElement('div', { className: "flex gap-2" },
-          // Render photos
-          photos.map((photo, i) =>
-            React.createElement('div', {
-              key: i,
-              className: "aspect-square rounded-2xl border relative",
-              style: { backgroundColor: 'var(--tt-input-bg)', borderColor: 'var(--tt-card-border)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-            },
-              React.createElement('img', { 
-                src: photo, 
-                alt: `Photo ${i + 1}`, 
-                className: "w-full h-full object-cover rounded-2xl",
-                onClick: () => setFullSizePhoto(photo)
-              }),
-              React.createElement('button', {
-                onClick: (e) => {
-                  e.stopPropagation();
-                  handleRemovePhoto(i);
-                },
-                className: "absolute -top-2 -right-2 w-6 h-6 bg-black rounded-full flex items-center justify-center z-10"
-              },
-                React.createElement(XIcon, { className: "w-3.5 h-3.5 text-white" })
-              )
-            )
-          ),
-          // Render placeholder (only one, always at the end)
-          React.createElement('div', {
-            onClick: handleAddPhoto,
-            className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-            style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
-          },
-            React.createElement(PlusIconLocal, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
-          )
-        )
-      )
-        : React.createElement('div', {
-            onClick: () => setPhotosExpanded(true),
-            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-            style: { color: 'var(--tt-text-tertiary)' }
-          }, '+ Add photos'),
+      TTPhotoRow && React.createElement(TTPhotoRow, {
+        expanded: photosExpanded,
+        onExpand: () => setPhotosExpanded(true),
+        existingPhotos: [],
+        newPhotos: photos,
+        onAddPhoto: handleAddPhoto,
+        onRemovePhoto: (index) => handleRemovePhoto(index),
+        onPreviewPhoto: setFullSizePhoto
+      }),
 
       // Reserve space for sticky footer CTA
       React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
