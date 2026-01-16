@@ -284,6 +284,32 @@ function ttChatAvatar(chat) {
 }
 
 const ChatRow = ({ chat, isUnread, onOpen, onDelete }) => {
+  if (window.TT?.shared?.TTSwipeRow) {
+    const Row = window.TT.shared.TTSwipeRow;
+    return React.createElement(Row, {
+      entry: {
+        id: chat.id,
+        notes: null,
+        photoURLs: [],
+        timestamp: chat.lastMessage?.createdAtMs || null,
+        startTime: null,
+        endTime: null,
+        isActive: false,
+        sleepType: null,
+        ounces: 0
+      },
+      mode: 'feed',
+      variant: 'chat',
+      chat: { ...chat, isUnread },
+      showIcon: false,
+      showText: false,
+      showChevron: true,
+      enableExpansion: false,
+      enableSwipeDelete: !!onDelete,
+      onClick: () => onOpen(chat),
+      onDelete: onDelete ? () => onDelete(chat.id) : null
+    });
+  }
   const [swipeOffset, setSwipeOffset] = React.useState(0);
   const [isSwiping, setIsSwiping] = React.useState(false);
   const itemRef = React.useRef(null);
