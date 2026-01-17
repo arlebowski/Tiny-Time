@@ -1006,7 +1006,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
             className: "fixed left-0 right-0 bottom-0 shadow-2xl",
             onClick: (e) => e.stopPropagation(),
             style: {
-              backgroundColor: 'var(--tt-card-bg)',
+              backgroundColor: 'var(--tt-tray-bg)',
               transform: 'translateY(100%)',
               transition: 'transform 250ms cubic-bezier(0.2, 0, 0, 1)',
               willChange: 'transform',
@@ -1017,7 +1017,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
               overflow: 'hidden',
               borderTopLeftRadius: '20px',
               borderTopRightRadius: '20px',
-              boxShadow: '0 -10px 28px rgba(0,0,0,0.18)',
+              boxShadow: 'var(--tt-tray-shadow)',
               zIndex: 10001
             }
           },
@@ -1040,7 +1040,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
             'div',
             {
               style: {
-                borderTop: '1px solid rgba(255, 255, 255, 0.03)',
+                borderTop: '1px solid var(--tt-tray-divider)',
                 paddingTop: '12px',
                 paddingBottom: '12px',
                 overflowY: 'auto',
