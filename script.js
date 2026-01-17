@@ -2763,7 +2763,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         ? React.createElement(
             'div',
             { className: "max-w-2xl mx-auto relative flex items-center justify-around px-4 py-3" },
-            // Order: tracker | analytics | plus | AI Chat | Family
+            // Order v4: Today | Schedule | Trends | + | Family
+            // Order v1/v2/v3: Today | Trends | + | Chat | Family
             React.createElement(
               React.Fragment,
               null,
@@ -2830,6 +2831,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   }
                 }, 'Schedule')
               ),
+              // Trends/Analytics
               React.createElement(
                 'button',
                 {
@@ -2861,6 +2863,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   }
                 }, 'Trends')
               ),
+              // Plus button (center)
               React.createElement(
                 'button',
                 {
