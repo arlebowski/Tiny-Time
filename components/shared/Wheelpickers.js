@@ -10,6 +10,19 @@
 // Guard to prevent redeclaration
 if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
 
+  // Inject ttPickerFlip animation styles if not already present
+  if (!document.getElementById('tt-picker-flip-anim')) {
+    const style = document.createElement('style');
+    style.id = 'tt-picker-flip-anim';
+    style.textContent = `
+      @keyframes ttPickerFlip {
+        0% { opacity: 0.75; transform: rotateX(6deg) translateY(6px); }
+        100% { opacity: 1; transform: rotateX(0deg) translateY(0); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+
   // WHEEL PICKERS (ported from TinyTrackerDemo.jsx for UI Lab)
   // ========================================
   const wheelStyles = {
@@ -172,7 +185,21 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
   };
   
   // WheelPicker Component (UPDATED to use absolute positioning like SettingsTab)
-  const WheelPicker = React.memo(({ type, value, onChange, compact = false, showSelection = true, dateCompact = false, showOverlay = true, containerStyle = null }) => {
+  const WheelPicker = React.memo(({ 
+    type = 'number', 
+    value, 
+    onChange, 
+    min = 0, 
+    max = 32, 
+    step = 0.25, 
+    label = '', 
+    unit = 'oz', 
+    compact = false, 
+    showSelection = true, 
+    dateCompact = false, 
+    showOverlay = true, 
+    containerStyle = null 
+  }) => {
     const [isDragging, setIsDragging] = React.useState(false);
     const [startY, setStartY] = React.useState(0);
     const [velocity, setVelocity] = React.useState(0);
@@ -180,6 +207,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     const animationRef = React.useRef(null);
     const lastY = React.useRef(0);
     const lastTime = React.useRef(Date.now());
+    const prevUnitRef = React.useRef(unit);
 
     // Convert getOptions to return {display, value} format like SettingsTab
     const generateOptions = () => {
@@ -204,19 +232,6 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
           { display: 'AM', value: 'AM' },
           { display: 'PM', value: 'PM' }
         ];
-      } else if (type === 'ounce') {
-        return Array.from({ length: 101 }, (_, i) => {
-          const val = i * 0.25;
-          return {
-            display: val.toFixed(2) + ' oz',
-            value: val
-          };
-        });
-      } else if (type === 'ml') {
-        return Array.from({ length: 751 }, (_, i) => ({
-          display: i.toString() + ' ml',
-          value: i
-        }));
       } else if (type === 'month') {
         const monthNames = [
           'January',
@@ -247,12 +262,19 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
           display: (currentYear - 5 + i).toString(),
           value: currentYear - 5 + i
         }));
+      } else {
+        // Generic number type with min/max/step
+        const options = [];
+        for (let i = min; i <= max; i += step) {
+          const displayValue = i % 1 === 0 ? i.toString() : i.toFixed(2);
+          options.push({ display: `${displayValue} ${unit}`, value: i });
+        }
+        return options;
       }
-      return [];
     };
 
     const shouldLoop = type === 'hour' || type === 'minute' || type === 'month';
-    const baseOptions = React.useMemo(() => generateOptions(), [type]);
+    const baseOptions = React.useMemo(() => generateOptions(), [type, min, max, step, unit]);
     const options = React.useMemo(() => {
       if (!shouldLoop) return baseOptions;
       return [...baseOptions, ...baseOptions, ...baseOptions];
@@ -288,9 +310,23 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     React.useEffect(() => {
       const idx = Math.max(0, getBaseIndex());
       const nextIndex = shouldLoop ? idx + baseLength : idx;
-      setSelectedIndex(nextIndex);
-      setCurrentOffset(-nextIndex * ITEM_HEIGHT);
-    }, [value, type]);
+      const unitChanged = prevUnitRef.current !== unit;
+      prevUnitRef.current = unit;
+      
+      // If unit changed and we're not dragging, smoothly animate the transition
+      if (unitChanged && !isDragging) {
+        // Use requestAnimationFrame to ensure smooth transition
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            setSelectedIndex(nextIndex);
+            setCurrentOffset(-nextIndex * ITEM_HEIGHT);
+          });
+        });
+      } else {
+        setSelectedIndex(nextIndex);
+        setCurrentOffset(-nextIndex * ITEM_HEIGHT);
+      }
+    }, [value, type, min, max, step, unit]);
 
     const snapToNearest = (offset) => {
       const index = Math.round(-offset / ITEM_HEIGHT);
@@ -474,7 +510,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     return React.createElement(
       'div',
       { style: wheelStyles.pickerContainer },
-      !compact && React.createElement('div', { style: wheelStyles.label }, type.toUpperCase()),
+      label ? React.createElement('div', { style: wheelStyles.label }, label) : null,
       React.createElement(
         'div',
         {
@@ -513,80 +549,53 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
   });
   
   // AmountPickerLabSection Component
-  // NOTE: When rendered inside a tray that already provides a header (title + unit toggle),
-  // pass showHeader={false} to avoid a duplicated toggle/title row.
-  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount, showHeader = true }) => {
+  // This component only renders the WheelPicker itself.
+  // The header (title + unit toggle) should be provided by the parent tray/container.
+  const AmountPickerLabSection = ({ unit, setUnit, amount, setAmount }) => {
+    const [flipKey, setFlipKey] = React.useState(0);
+
+    React.useEffect(() => {
+      setFlipKey((prev) => prev + 1);
+    }, [unit]);
+
+    const snapToStep = (val, step) => {
+      const n = Number(val) || 0;
+      const s = Number(step) || 1;
+      const snapped = Math.round(n / s) * s;
+      // Normalize float noise for 0.25 step
+      return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+    };
+
+    const getAmountRange = () => {
+      if (unit === 'oz') {
+        return { min: 0, max: 12, step: 0.25 };
+      } else {
+        return { min: 0, max: 360, step: 10 };
+      }
+    };
+
+    const range = getAmountRange();
+
     return React.createElement(
       'div',
-      { style: wheelStyles.section },
-      showHeader ? React.createElement(
-        'div',
-        { style: wheelStyles.sectionHeader },
-        React.createElement('h3', { style: wheelStyles.sectionTitle }, 'Amount'),
-        window.SegmentedToggle
-          ? React.createElement(window.SegmentedToggle, {
-              value: unit,
-              options: [
-                { value: 'oz', label: 'oz' },
-                { value: 'ml', label: 'ml' }
-              ],
-              onChange: (v) => {
-                const snapToStep = (val, step) => {
-                  const n = Number(val) || 0;
-                  const s = Number(step) || 1;
-                  const snapped = Math.round(n / s) * s;
-                  return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-                };
-                if (v === 'ml') {
-                  const ml = snapToStep(amount * 29.5735, 10);
-                  setUnit('ml');
-                  setAmount(ml);
-                } else {
-                  const oz = snapToStep(amount / 29.5735, 0.25);
-                  setUnit('oz');
-                  setAmount(oz);
-                }
-              },
-              variant: 'body',
-              size: 'medium'
-            })
-          : React.createElement(
-              'button',
-              {
-                style: wheelStyles.unitToggle,
-                onClick: () => {
-                  const snapToStep = (val, step) => {
-                    const n = Number(val) || 0;
-                    const s = Number(step) || 1;
-                    const snapped = Math.round(n / s) * s;
-                    return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
-                  };
-                  if (unit === 'ml') {
-                    const oz = snapToStep(amount / 29.5735, 0.25);
-                    setUnit('oz');
-                    setAmount(oz);
-                  } else {
-                    const ml = snapToStep(amount * 29.5735, 10);
-                    setUnit('ml');
-                    setAmount(ml);
-                  }
-                },
-                type: 'button'
-              },
-              React.createElement('span', { style: unit === 'oz' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'oz'),
-              React.createElement('span', { style: wheelStyles.unitDivider }, '|'),
-              React.createElement('span', { style: unit === 'ml' ? wheelStyles.unitActive : wheelStyles.unitInactive }, 'ml')
-            )
-      ) : null,
+      { style: { ...wheelStyles.section, paddingTop: '0px', marginTop: '-12px' } },
       React.createElement(
         'div',
-        { style: { display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '8px' } },
+        {
+          key: flipKey,
+          style: {
+            animation: 'ttPickerFlip 180ms ease',
+            transformOrigin: 'center top'
+          }
+        },
         React.createElement(WheelPicker, {
-          type: (unit === 'oz' ? 'ounce' : unit),
+          type: 'number',
           value: amount,
           onChange: setAmount,
-          compact: true,
-          showSelection: false
+          min: range.min,
+          max: range.max,
+          step: range.step,
+          unit: unit
         })
       )
     );
