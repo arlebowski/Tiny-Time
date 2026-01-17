@@ -1030,7 +1030,6 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
       
       if (!isFirebaseReady()) {
         // Fallback to localStorage if Firebase not available
-        console.warn('Firebase not initialized, using localStorage fallback');
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
           if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
@@ -1466,26 +1465,6 @@ const TrackerCard = ({
         
         filteredCount = (rawSleepSessions || []).filter(s => s.endTime).length;
       }
-      
-      console.log('Yesterday calculation debug:', {
-        mode,
-        currentDate: currentDate?.toString(),
-        currentDateType: typeof currentDate,
-        currentTime: `${currentHour}:${currentMinute}`,
-        roundedTime: `${roundedHour}:${finalMinutes}`,
-        yesterdayStart: new Date(yesterdayStart).toLocaleString(),
-        yesterdayStartMs: yesterdayStart,
-        yesterdayCutoff: new Date(yesterdayCutoff).toLocaleString(),
-        yesterdayCutoffMs: yesterdayCutoff,
-        yesterdayTotal,
-        yesterdayPercent,
-        formattedYesterdayTotal,
-        target,
-        rawFeedingsCount: rawFeedings?.length,
-        rawSleepSessionsCount: rawSleepSessions?.length,
-        filteredCount,
-        sampleData
-      });
     } else if (!showYesterdayComparison) {
       hasLoggedRef.current = false;
     }
@@ -3949,22 +3928,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleSave = async () => {
       const amount = parseFloat(ounces);
       if (!amount || amount <= 0) {
-        console.log('[TTFeedDetailSheet] Save blocked: invalid amount', amount);
         return;
       }
       
-      console.log('[TTFeedDetailSheet] Starting save...', { amount, photosCount: photos?.length || 0, existingPhotosCount: existingPhotoURLs?.length || 0 });
       setSaving(true);
       try {
         const timestamp = new Date(dateTime).getTime();
-        console.log('[TTFeedDetailSheet] Timestamp:', timestamp);
         
         // Track removed photos for soft delete (optional cleanup later)
         const originalURLs = originalPhotoURLsRef.current || [];
         const removedPhotoURLs = originalURLs.filter(url => !existingPhotoURLs.includes(url));
         
         if (removedPhotoURLs.length > 0) {
-          console.log('[TTFeedDetailSheet] Photos removed (soft delete):', removedPhotoURLs.length);
           // Photos are removed from photoURLs array - no Supabase deletion
           // Files remain in Supabase Storage for optional cleanup later
         }
@@ -3972,13 +3947,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Upload new photos to Supabase Storage
         const newPhotoURLs = [];
         if (photos && photos.length > 0) {
-          console.log('[TTFeedDetailSheet] Starting photo uploads...', photos.length);
           for (let i = 0; i < photos.length; i++) {
             const photoBase64 = photos[i];
           try {
-              console.log(`[TTFeedDetailSheet] Uploading photo ${i + 1}/${photos.length}...`);
             const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
-              console.log(`[TTFeedDetailSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
             newPhotoURLs.push(downloadURL);
           } catch (error) {
               console.error(`[TTFeedDetailSheet] Failed to upload photo ${i + 1}:`, error);
@@ -3990,31 +3962,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             // Continue with other photos even if one fails
           }
           }
-          console.log('[TTFeedDetailSheet] Photo uploads complete. Success:', newPhotoURLs.length, 'Failed:', photos.length - newPhotoURLs.length);
-        } else {
-          console.log('[TTFeedDetailSheet] No photos to upload');
         }
         
         // Combine existing and new photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
-        console.log('[TTFeedDetailSheet] Photo URL arrays:', {
-          originalCount: originalURLs.length,
-          originalURLs: originalURLs,
-          existingCount: existingPhotoURLs.length,
-          existingURLs: existingPhotoURLs,
-          newCount: newPhotoURLs.length,
-          newURLs: newPhotoURLs,
-          allCount: allPhotoURLs.length,
-          allURLs: allPhotoURLs,
-          removedCount: removedPhotoURLs.length,
-          removedURLs: removedPhotoURLs
-        });
-        console.log('[TTFeedDetailSheet] Total photo URLs:', allPhotoURLs.length, { existing: existingPhotoURLs.length, new: newPhotoURLs.length });
         
         if (entry && entry.id) {
           // Update existing feeding
-          console.log('[TTFeedDetailSheet] Updating existing feeding:', entry.id);
-          console.log('[TTFeedDetailSheet] Saving photoURLs to Firestore:', allPhotoURLs.length > 0 ? allPhotoURLs : []);
           await firestoreStorage.updateFeedingWithNotes(
             entry.id,
             amount,
@@ -4022,17 +3976,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             notes || null,
             allPhotoURLs.length > 0 ? allPhotoURLs : []
           );
-          console.log('[TTFeedDetailSheet] Feeding updated successfully');
         } else {
           // Create new feeding
-          console.log('[TTFeedDetailSheet] Creating new feeding');
           await firestoreStorage.addFeedingWithNotes(
             amount,
             timestamp,
             notes || null,
             allPhotoURLs.length > 0 ? allPhotoURLs : []
           );
-          console.log('[TTFeedDetailSheet] Feeding created successfully');
         }
 
         // If this feeding has notes or photos, also post it into the family chat "from @tinytracker"
@@ -4056,20 +4007,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             };
             await firestoreStorage.saveMessage(chatMsg);
           }
-        } catch (e) {
-          console.warn('[TTFeedDetailSheet] Failed to post feeding note/photo to chat:', e);
-        }
+        } catch (e) {}
         
         // Close the sheet first
-        console.log('[TTFeedDetailSheet] Closing sheet...');
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
         if (onSave) {
-          console.log('[TTFeedDetailSheet] Calling onSave callback...');
           await onSave();
-          console.log('[TTFeedDetailSheet] onSave callback complete');
         }
-        console.log('[TTFeedDetailSheet] Save completed successfully');
       } catch (error) {
         console.error('[TTFeedDetailSheet] Failed to save feeding:', error);
         console.error('[TTFeedDetailSheet] Error details:', {
@@ -4080,7 +4025,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         });
         alert(`Failed to save feeding: ${error.message || 'Please try again.'}`);
       } finally {
-        console.log('[TTFeedDetailSheet] Setting saving to false');
         setSaving(false);
       }
     };
@@ -4143,8 +4087,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleClose = () => {
       if (onClose) {
         onClose();
-      } else {
-        console.log('Close clicked');
       }
     };
 
@@ -4612,35 +4554,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
     const handleSave = async () => {
       if (!isValid) {
-        console.log('[TTSleepDetailSheet] Save blocked: invalid times');
         return; // Don't save if invalid
       }
       
-      console.log('[TTSleepDetailSheet] Starting save...', { startTime, endTime, photosCount: photos?.length || 0, existingPhotosCount: existingPhotoURLs?.length || 0 });
       setSaving(true);
       try {
         const startMs = new Date(startTime).getTime();
         const endMs = new Date(endTime).getTime();
-        console.log('[TTSleepDetailSheet] Times:', { startMs, endMs });
         
         // Check for overlaps (exclude current entry if editing)
         const excludeId = entry && entry.id ? entry.id : null;
-        console.log('[TTSleepDetailSheet] Checking for overlaps...', { excludeId });
         const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
         if (hasOverlap) {
-          console.log('[TTSleepDetailSheet] Overlap detected, aborting save');
           alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
           setSaving(false);
           return;
         }
-        console.log('[TTSleepDetailSheet] No overlap detected');
         
         // Track removed photos for soft delete (optional cleanup later)
         const originalURLs = originalPhotoURLsRef.current || [];
         const removedPhotoURLs = originalURLs.filter(url => !existingPhotoURLs.includes(url));
         
         if (removedPhotoURLs.length > 0) {
-          console.log('[TTSleepDetailSheet] Photos removed (soft delete):', removedPhotoURLs.length);
           // Photos are removed from photoURLs array - no Supabase deletion
           // Files remain in Supabase Storage for optional cleanup later
         }
@@ -4648,13 +4583,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Upload new photos to Supabase Storage
         const newPhotoURLs = [];
         if (photos && photos.length > 0) {
-          console.log('[TTSleepDetailSheet] Starting photo uploads...', photos.length);
           for (let i = 0; i < photos.length; i++) {
             const photoBase64 = photos[i];
           try {
-              console.log(`[TTSleepDetailSheet] Uploading photo ${i + 1}/${photos.length}...`);
             const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
-              console.log(`[TTSleepDetailSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
             newPhotoURLs.push(downloadURL);
           } catch (error) {
               console.error(`[TTSleepDetailSheet] Failed to upload photo ${i + 1}:`, error);
@@ -4667,18 +4599,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             // Continue with other photos even if one fails
           }
           }
-          console.log('[TTSleepDetailSheet] Photo uploads complete. Success:', newPhotoURLs.length, 'Failed:', photos.length - newPhotoURLs.length);
-        } else {
-          console.log('[TTSleepDetailSheet] No photos to upload');
         }
         
         // Combine existing and new photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
-        console.log('[TTSleepDetailSheet] Total photo URLs:', allPhotoURLs.length, { existing: existingPhotoURLs.length, new: newPhotoURLs.length });
         
         if (entry && entry.id) {
           // Update existing sleep session
-          console.log('[TTSleepDetailSheet] Updating existing sleep session:', entry.id);
           await firestoreStorage.updateSleepSession(entry.id, {
             startTime: startMs,
             endTime: endMs,
@@ -4686,10 +4613,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             notes: notes || null,
             photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : []
           });
-          console.log('[TTSleepDetailSheet] Sleep session updated successfully');
         } else {
           // Create new sleep session (shouldn't happen from detail sheet, but handle it)
-          console.log('[TTSleepDetailSheet] Creating new sleep session');
           const session = await firestoreStorage.startSleep(startMs);
           await firestoreStorage.endSleep(session.id, endMs);
           if (notes || allPhotoURLs.length > 0) {
@@ -4698,7 +4623,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
               photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : []
             });
           }
-          console.log('[TTSleepDetailSheet] Sleep session created successfully');
         }
 
         // If this sleep has notes or photos, also post it into the family chat "from @tinytracker"
@@ -4719,20 +4643,14 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             };
             await firestoreStorage.saveMessage(chatMsg);
           }
-        } catch (e) {
-          console.warn('[TTSleepDetailSheet] Failed to post sleep note/photo to chat:', e);
-        }
+        } catch (e) {}
         
         // Close the sheet first
-        console.log('[TTSleepDetailSheet] Closing sheet...');
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
         if (onSave) {
-          console.log('[TTSleepDetailSheet] Calling onSave callback...');
           await onSave();
-          console.log('[TTSleepDetailSheet] onSave callback complete');
         }
-        console.log('[TTSleepDetailSheet] Save completed successfully');
       } catch (error) {
         console.error('[TTSleepDetailSheet] Failed to save sleep session:', error);
         console.error('[TTSleepDetailSheet] Error details:', {
@@ -4743,7 +4661,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         });
         alert(`Failed to save sleep session: ${error.message || 'Please try again.'}`);
       } finally {
-        console.log('[TTSleepDetailSheet] Setting saving to false');
         setSaving(false);
       }
     };
@@ -4805,8 +4722,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleClose = () => {
       if (onClose) {
         onClose();
-      } else {
-        console.log('Close clicked');
       }
     };
 
@@ -5637,25 +5552,19 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleAddFeeding = async () => {
       const amount = parseFloat(ounces);
       if (!amount || amount <= 0) {
-        console.log('[TTInputHalfSheet] Add feeding blocked: invalid amount', amount);
         return;
       }
       
-      console.log('[TTInputHalfSheet] Starting add feeding...', { amount, photosCount: photos?.length || 0 });
       try {
         const timestamp = new Date(feedingDateTime).getTime();
-        console.log('[TTInputHalfSheet] Timestamp:', timestamp);
         
         // Upload photos to Firebase Storage
         const photoURLs = [];
         if (photos && photos.length > 0) {
-          console.log('[TTInputHalfSheet] Starting photo uploads...', photos.length);
           for (let i = 0; i < photos.length; i++) {
             const photoBase64 = photos[i];
           try {
-              console.log(`[TTInputHalfSheet] Uploading photo ${i + 1}/${photos.length}...`);
             const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
-              console.log(`[TTInputHalfSheet] Photo ${i + 1} uploaded successfully:`, downloadURL);
             photoURLs.push(downloadURL);
           } catch (error) {
               console.error(`[TTInputHalfSheet] Failed to upload photo ${i + 1}:`, error);
@@ -5668,20 +5577,15 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             // Continue with other photos even if one fails
           }
           }
-          console.log('[TTInputHalfSheet] Photo uploads complete. Success:', photoURLs.length, 'Failed:', photos.length - photoURLs.length);
-        } else {
-          console.log('[TTInputHalfSheet] No photos to upload');
         }
         
         // Save to Firebase
-        console.log('[TTInputHalfSheet] Saving to Firestore...', { photoURLsCount: photoURLs.length });
         await firestoreStorage.addFeedingWithNotes(
           amount,
           timestamp,
           feedingNotes || null,
           photoURLs.length > 0 ? photoURLs : null
         );
-        console.log('[TTInputHalfSheet] Feeding saved successfully to Firestore');
 
         // If this feeding has notes or photos, also post it into the family chat "from @tinytracker"
         try {
@@ -5701,9 +5605,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
             };
             await firestoreStorage.saveMessage(chatMsg);
           }
-        } catch (e) {
-          console.warn('[TTInputHalfSheet] Failed to post feeding note/photo to chat:', e);
-        }
+        } catch (e) {}
         
         // Reset form
         setOunces('');
@@ -5711,15 +5613,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setPhotos([]);
         setFeedingDateTime(new Date().toISOString());
         // Close the sheet first
-        console.log('[TTInputHalfSheet] Closing sheet...');
         if (onClose) onClose();
         // Then refresh timeline after sheet closes (onAdd callback handles the delay)
         if (onAdd) {
-          console.log('[TTInputHalfSheet] Calling onAdd callback...');
           await onAdd('feeding');
-          console.log('[TTInputHalfSheet] onAdd callback complete');
         }
-        console.log('[TTInputHalfSheet] Add feeding completed successfully');
       } catch (error) {
         console.error('[TTInputHalfSheet] Failed to add feeding:', error);
         console.error('[TTInputHalfSheet] Error details:', {
@@ -5828,9 +5726,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                 };
                 await firestoreStorage.saveMessage(chatMsg);
               }
-            } catch (e) {
-              console.warn('[TTInputHalfSheet] Failed to post sleep note/photo to chat:', e);
-            }
+            } catch (e) {}
           }
           
           setActiveSleepSessionId(null);
@@ -6045,9 +5941,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                   };
                   await firestoreStorage.saveMessage(chatMsg);
                 }
-              } catch (e) {
-                console.warn('[TTInputHalfSheet] Failed to post sleep note/photo to chat:', e);
-              }
+              } catch (e) {}
             }
             setActiveSleepSessionId(null);
           } else {
@@ -6077,9 +5971,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
                   };
                   await firestoreStorage.saveMessage(chatMsg);
                 }
-              } catch (e) {
-                console.warn('[TTInputHalfSheet] Failed to post sleep note/photo to chat:', e);
-              }
+              } catch (e) {}
             }
           }
           
