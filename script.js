@@ -496,6 +496,9 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-bg-hover', 'rgba(0,0,0,0.03)');
       root.style.setProperty('--tt-border-subtle', 'rgba(0,0,0,0.08)');
       root.style.setProperty('--tt-border-strong', 'rgba(0,0,0,0.16)');
+      root.style.setProperty('--tt-tray-bg', theme.cardBg);
+      root.style.setProperty('--tt-tray-shadow', '0 -10px 28px rgba(0,0,0,0.18)');
+      root.style.setProperty('--tt-tray-divider', 'rgba(0,0,0,0.06)');
     } else if (isClaudeDark) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
       root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
@@ -507,6 +510,9 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-bg-hover', '#2A2A2A');
       root.style.setProperty('--tt-border-subtle', '#2E2E2E');
       root.style.setProperty('--tt-border-strong', '#3A3A3A');
+      root.style.setProperty('--tt-tray-bg', '#262626');
+      root.style.setProperty('--tt-tray-shadow', '0 -10px 28px rgba(0,0,0,0.35)');
+      root.style.setProperty('--tt-tray-divider', 'rgba(255,255,255,0.08)');
     } else {
       // Dark mode: existing palette (current behavior)
       root.style.setProperty('--tt-input-bg', '#2C2C2E');
@@ -518,6 +524,9 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-bg-hover', 'rgba(255,255,255,0.08)');
       root.style.setProperty('--tt-border-subtle', 'rgba(255,255,255,0.10)');
       root.style.setProperty('--tt-border-strong', 'rgba(255,255,255,0.16)');
+      root.style.setProperty('--tt-tray-bg', '#222224');
+      root.style.setProperty('--tt-tray-shadow', '0 -10px 28px rgba(0,0,0,0.35)');
+      root.style.setProperty('--tt-tray-divider', 'rgba(255,255,255,0.08)');
     }
 
     // Feed accents
