@@ -610,12 +610,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
   const userId = React.useMemo(() => {
     const fb = ttGetFirebase();
     const uid = fb?.auth?.()?.currentUser?.uid || null;
-    console.log('AIChatTab: Firebase check', { 
-      hasFirebase: !!fb, 
-      hasAuth: !!fb?.auth, 
-      hasUser: !!fb?.auth?.()?.currentUser,
-      userId: uid 
-    });
     return uid;
   }, []);
 
@@ -637,10 +631,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
   }, [userId]);
 
   React.useEffect(() => {
-    console.log('AIChatTab mounted', { hasDb: !!db, userId });
-  }, []);
-
-  React.useEffect(() => {
     if (!db || !userId) return;
     const docRef = db.collection('userPrefs').doc(userId);
     docRef.get().then((snap) => {
@@ -659,7 +649,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
 
   const loadChats = React.useCallback(async () => {
     if (!db || !userId) {
-      console.log('loadChats: no db or userId', { db: !!db, userId });
       return;
     }
     if (unsubChatsRef.current) unsubChatsRef.current();
@@ -669,7 +658,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
       const familyRef = db.collection('chats').doc('family');
       const familySnap = await familyRef.get();
       if (!familySnap.exists) {
-        console.log('Creating family chat...');
         await familyRef.set({
           name: 'Family',
           members: [userId],
@@ -677,18 +665,13 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
           updatedAt: new Date(),
           lastMessage: null
         });
-        console.log('Family chat created');
-      } else {
-        console.log('Family chat already exists');
       }
       
       // Query all chats - try without orderBy first to avoid index issues
       const q = db.collection('chats').where('members', 'array-contains', userId);
       unsubChatsRef.current = q.onSnapshot((snap) => {
-        console.log('Chats snapshot:', snap.docs.length, 'docs');
         const arr = snap.docs.map((d) => {
           const data = d.data();
-          console.log('Chat doc:', d.id, data);
           return { id: d.id, ...data };
         });
         
@@ -701,7 +684,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
         });
         const sortedChats = familyChat ? [familyChat, ...otherChats] : otherChats;
         
-        console.log('Setting chats:', sortedChats.length, sortedChats.map(c => c.id));
         setChats(sortedChats);
         setInitializing(false);
       }, (error) => { 
@@ -721,7 +703,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
 
   const openChat = React.useCallback((chat) => {
     if (!db || !userId) return;
-    console.log('Opening chat:', chat.id, chat.name);
     setActiveChat(chat);
     setView('chat');
     setMessages([]);
@@ -735,7 +716,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
     // Subscribe to messages
     const q = db.collection('chats').doc(chat.id).collection('messages').orderBy('createdAt', 'asc');
     unsubMsgsRef.current = q.onSnapshot((snap) => {
-      console.log('Messages snapshot for', chat.id, ':', snap.docs.length, 'messages');
       const arr = snap.docs.map((d) => {
         const data = d.data();
         return {
@@ -744,7 +724,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
           createdAtMs: ttToMillis(data.createdAt)
         };
       });
-      console.log('Setting messages:', arr);
       setMessages(arr);
       setTimeout(() => {
         if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
@@ -785,16 +764,13 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
 
   const createChat = React.useCallback(async () => {
     if (!db || !userId) {
-      console.log('createChat: no db or userId');
       return;
     }
     const name = prompt('Chat name:');
     if (!name || !name.trim()) {
-      console.log('createChat: no name provided');
       return;
     }
     try {
-      console.log('Creating new chat:', name.trim());
       const chatRef = db.collection('chats').doc();
       await chatRef.set({
         name: name.trim(),
@@ -803,7 +779,6 @@ const AIChatTab = ({ theme = { primary: 'var(--tt-primary)' } }) => {
         updatedAt: new Date(),
         lastMessage: null
       });
-      console.log('Chat created successfully:', chatRef.id);
       loadChats();
     } catch (error) {
       console.error('createChat error:', error);
