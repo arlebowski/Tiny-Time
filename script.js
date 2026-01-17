@@ -2701,6 +2701,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         activeTab === 'analytics-sleep' && React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'analytics-activity' && React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
+        activeTab === 'schedule' && window.TT?.tabs?.ScheduleTab && React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId }),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
           kidId,
@@ -2797,6 +2798,38 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   }
                 }, 'Today')
               ),
+              // Schedule tab - only in v4
+              uiVersion === 'v4' && React.createElement(
+                'button',
+                {
+                  key: 'schedule',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('schedule');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: {
+                    color: 'var(--tt-text-primary)',
+                    transform: 'translateY(-10px)'
+                  }
+                },
+                React.createElement(window.TT?.shared?.icons?.ScheduleIcon || (() => null), {
+                  className: "w-6 h-6",
+                  isSelected: activeTab === 'schedule',
+                  selectedWeight: 'fill',
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-light",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Schedule')
+              ),
               React.createElement(
                 'button',
                 {
@@ -2853,7 +2886,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   style: { color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff' }
                 })
               ),
-              React.createElement(
+              // AI Chat tab - hidden in v4
+              uiVersion !== 'v4' && React.createElement(
                 'button',
                 {
                   key: 'chat',
