@@ -1,4 +1,5 @@
 const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
+  const uiVersion = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('day');
@@ -649,8 +650,8 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         })
       ),
 
-      // Daily Activity highlight
-      React.createElement(
+      // Daily Activity highlight (hide in v4)
+      uiVersion !== 'v4' && React.createElement(
         HighlightCard,
         {
           icon: Kanban,

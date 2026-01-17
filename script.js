@@ -2763,7 +2763,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         ? React.createElement(
             'div',
             { className: "max-w-2xl mx-auto relative flex items-center justify-around px-4 py-3" },
-            // Order v4: Today | Schedule | Trends | + | Family
+            // Order v4: Today | Schedule | + | Trends | Family
             // Order v1/v2/v3: Today | Trends | + | Chat | Family
             React.createElement(
               React.Fragment,
@@ -2831,6 +2831,32 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   }
                 }, 'Schedule')
               ),
+              // Plus button (center)
+              React.createElement(
+                'button',
+                {
+                  key: 'plus',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('tracker');
+                    setNavRequestedInputMode('feeding');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className:
+                    "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
+                  style: {
+                    backgroundColor: (window.TT?.appearance?.get()?.darkMode) ? '#ffffff' : '#000000',
+                    color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff'
+                  },
+                  'aria-label': 'Add'
+                },
+                React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
+                  className: "w-6 h-6",
+                  weight: 'fill',
+                  style: { color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff' }
+                })
+              ),
               // Trends/Analytics
               React.createElement(
                 'button',
@@ -2862,32 +2888,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     color: 'var(--tt-text-primary)'
                   }
                 }, 'Trends')
-              ),
-              // Plus button (center)
-              React.createElement(
-                'button',
-                {
-                  key: 'plus',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('tracker');
-                    setNavRequestedInputMode('feeding');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className:
-                    "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
-                  style: {
-                    backgroundColor: (window.TT?.appearance?.get()?.darkMode) ? '#ffffff' : '#000000',
-                    color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff'
-                  },
-                  'aria-label': 'Add'
-                },
-                React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
-                  className: "w-6 h-6",
-                  weight: 'fill',
-                  style: { color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff' }
-                })
               ),
               // AI Chat tab - hidden in v4
               uiVersion !== 'v4' && React.createElement(

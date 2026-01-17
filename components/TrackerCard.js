@@ -1508,8 +1508,8 @@ const TrackerCard = ({
         target.closest('.tt-sleep-progress-pulse')) {
       return;
     }
-    // For v3: toggle accordion when card is tapped
-    if (uiVersion === 'v3') {
+    // For v3/v4: toggle accordion when card is tapped
+    if (uiVersion === 'v3' || uiVersion === 'v4') {
       setHasInteracted(true);
       setExpanded(!expanded);
       // Also show yesterday comparison when expanded
