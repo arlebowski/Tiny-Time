@@ -7630,7 +7630,29 @@ const FeedingChart = ({ data = [], average = 0 }) => {
   );
 };
 
-const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children, isFeeding = false }) => {
+const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children, isFeeding = false, showInsightText = true }) => {
+  const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
+  const headerIconEl = React.createElement(Icon, {
+    className: 'w-5 h-5',
+    style: { 
+      color: categoryColor,
+      strokeWidth: isFeeding ? '1.5' : undefined,
+      fill: isFeeding ? 'none' : categoryColor,
+      transform: isFeeding ? 'rotate(20deg)' : undefined
+    }
+  });
+  const headerTitleEl = React.createElement(
+    'span',
+    {
+      className: 'text-[17.6px] font-semibold leading-6',
+      style: { color: categoryColor }
+    },
+    label
+  );
+  const headerRightEl = React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { 
+    className: 'w-5 h-5',
+    style: { color: 'var(--tt-text-tertiary)' }
+  });
   return React.createElement(
     'div',
     {
@@ -7639,53 +7661,49 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
       onClick: onClick
     },
     // Header: icon + label left, chevron right
-      React.createElement(
-        'div',
-        { className: 'flex items-center justify-between mb-3 h-6' },
-        React.createElement(
+    TTCardHeader
+      ? React.createElement(TTCardHeader, {
+          icon: headerIconEl,
+          title: headerTitleEl,
+          right: headerRightEl,
+          gapClass: 'gap-1',
+          className: 'mb-3 h-6'
+        })
+      : React.createElement(
           'div',
-          { className: 'flex items-center gap-1' },
-          React.createElement(Icon, {
-            className: 'w-5 h-5',
-            style: { 
-              color: categoryColor,
-              strokeWidth: isFeeding ? '1.5' : undefined,
-              fill: isFeeding ? 'none' : categoryColor,
-              transform: isFeeding ? 'rotate(20deg)' : undefined
-            }
-          }),
+          { className: 'flex items-center justify-between mb-3 h-6' },
           React.createElement(
-            'span',
-            {
-              className: 'text-[17.6px] font-semibold leading-6',
-              style: { color: categoryColor }
-            },
-            label
-          )
+            'div',
+            { className: 'flex items-center gap-1' },
+            headerIconEl,
+            headerTitleEl
+          ),
+          headerRightEl
         ),
-      React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { 
-        className: 'w-5 h-5',
-        style: { color: 'var(--tt-text-tertiary)' }
-      })
-    ),
-    // Insight Text: single block, bold, clamped to 2 lines
-    React.createElement(
-      'div',
-      { className: 'mb-3' },
-      React.createElement(
-        'div',
-        { 
-          className: 'text-base font-bold leading-tight insight-text-clamp',
-          style: { color: 'var(--tt-text-primary)' }
-        },
-        insightText.join(' ')
-      )
-    ),
-    // Divider
-    React.createElement('div', { 
-      className: 'border-t mb-3',
-      style: { borderColor: 'var(--tt-card-border)' }
-    }),
+    showInsightText
+      ? React.createElement(
+          React.Fragment,
+          null,
+          // Insight Text: single block, bold, clamped to 2 lines
+          React.createElement(
+            'div',
+            { className: 'mb-3' },
+            React.createElement(
+              'div',
+              { 
+                className: 'text-base font-bold leading-tight insight-text-clamp',
+                style: { color: 'var(--tt-text-primary)' }
+              },
+              (insightText || []).join(' ')
+            )
+          ),
+          // Divider
+          React.createElement('div', { 
+            className: 'border-t mb-3',
+            style: { borderColor: 'var(--tt-card-border)' }
+          })
+        )
+      : null,
     // Mini Viz Area: fixed height (240px). Any clipping/scroll pinning is handled
     // by HighlightMiniVizViewport (used only by highlight mini-viz).
     React.createElement(

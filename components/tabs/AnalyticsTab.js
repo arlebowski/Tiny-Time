@@ -614,6 +614,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         {
           icon: feedLabelIcon,
           label: 'Feeding',
+          showInsightText: false,
           insightText: [
             'Levi has been eating a bit less in the last three days.',
             'But that\'s totally fine!'
@@ -634,6 +635,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         {
           icon: sleepLabelIcon,
           label: 'Sleep',
+          showInsightText: false,
           insightText: [
             'Levi has been sleeping great this week!',
             ''
@@ -653,6 +655,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         {
           icon: Kanban,
           label: 'Daily Activity',
+          showInsightText: false,
           insightText: [
             'Levi has been eating and sleeping like a champ this week!',
             'Great work, Levi!'
