@@ -23,11 +23,16 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
       return cachedVersion;
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
+    getCardDesign: (version) => {
+      if (version === 'v4') return 'v4';
+      if (version === 'v3') return 'v3';
+      if (version === 'v2') return 'new';
+      return 'current';
+    },
     
     // Set global UI version in Firestore (for all users)
     setUIVersion: async (version) => {
-      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
+      if (!version || !['v1', 'v2', 'v3', 'v4'].includes(version)) {
         console.error('Invalid UI version:', version);
         return;
       }
@@ -68,7 +73,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         // Fallback to localStorage if Firebase not available
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
             cachedVersion = version;
           }
         }
@@ -81,7 +86,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         const doc = await db.collection('appConfig').doc('global').get();
         if (doc.exists) {
           const data = doc.data();
-          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+          if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
             cachedVersion = data.uiVersion;
             // Notify all listeners
             versionListeners.forEach(listener => listener(cachedVersion));
@@ -100,7 +105,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
           .onSnapshot((doc) => {
             if (doc.exists) {
               const data = doc.data();
-              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+              if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
                 const newVersion = data.uiVersion;
                 if (newVersion !== cachedVersion) {
                   cachedVersion = newVersion;
@@ -115,7 +120,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         // Fallback to localStorage
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
             cachedVersion = version;
           }
         }
@@ -1496,7 +1501,8 @@ const SettingsTab = ({ user, kidId }) => {
           options: [
             { value: 'v1', label: 'v1' },
             { value: 'v2', label: 'v2' },
-            { value: 'v3', label: 'v3' }
+            { value: 'v3', label: 'v3' },
+            { value: 'v4', label: 'v4' }
           ],
           onChange: async (value) => {
             try {
@@ -1571,7 +1577,9 @@ const SettingsTab = ({ user, kidId }) => {
             ? 'View old tracker UI with production data (v1)'
             : uiVersion === 'v2'
               ? 'View new tracker card components with current design (v2)'
-              : 'View new tracker card components with new design (v3)'
+              : uiVersion === 'v3'
+                ? 'View new tracker card components with new design (v3)'
+                : 'View experimental v4 UI with latest design changes (v4)'
         )
       ),
 
@@ -1727,8 +1735,8 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
-      // New UI - TrackerCard components with production data (v2 and v3)
-      (uiVersion === 'v2' || uiVersion === 'v3') && (() => {
+      // New UI - TrackerCard components with production data (v2, v3, and v4)
+      (uiVersion === 'v2' || uiVersion === 'v3' || uiVersion === 'v4') && (() => {
         if (loading) {
           return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
         }

@@ -1243,7 +1243,8 @@ const UILabTab = ({ kidId, uiVersion, showTodayCard, setShowTodayCard, onClose }
           options: [
             { value: 'v1', label: 'v1' },
             { value: 'v2', label: 'v2' },
-            { value: 'v3', label: 'v3' }
+            { value: 'v3', label: 'v3' },
+            { value: 'v4', label: 'v4' }
           ],
           onChange: (value) => {
             if (typeof window !== 'undefined' && window.localStorage) {
@@ -1286,7 +1287,9 @@ const UILabTab = ({ kidId, uiVersion, showTodayCard, setShowTodayCard, onClose }
             ? 'View old tracker UI with production data (v1)'
             : uiVersion === 'v2'
               ? 'View new tracker card components with current design (v2)'
-              : 'View new tracker card components with new design (v3)'
+              : uiVersion === 'v3'
+                ? 'View new tracker card components with new design (v3)'
+                : 'View experimental v4 UI with latest design changes (v4)'
         )
       ),
 
@@ -1442,8 +1445,8 @@ const UILabTab = ({ kidId, uiVersion, showTodayCard, setShowTodayCard, onClose }
         )
       ),
 
-      // New UI - TrackerCard components with production data (v2 and v3)
-      (uiVersion === 'v2' || uiVersion === 'v3') && (() => {
+      // New UI - TrackerCard components with production data (v2, v3, and v4)
+      (uiVersion === 'v2' || uiVersion === 'v3' || uiVersion === 'v4') && (() => {
         if (loading) {
           return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
       
