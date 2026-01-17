@@ -12,7 +12,7 @@ const FamilyTab = ({
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
-  const [sleepTargetInput, setSleepTargetInput] = useState('');
+  const [sleepTargetInput, setSleepTargetInput] = useState(null);
   const [daySleepStartMin, setDaySleepStartMin] = useState(390);
   const [daySleepEndMin, setDaySleepEndMin] = useState(1170);
   const [sleepSettings, setSleepSettings] = useState(null);
@@ -50,15 +50,12 @@ const FamilyTab = ({
   const [editingMultiplier, setEditingMultiplier] = useState(false);
 
   // Temp fields
-  const [tempBabyName, setTempBabyName] = useState('');
+  const [tempBabyName, setTempBabyName] = useState(null);
   const [tempBirthDate, setTempBirthDate] = useState('');
-  const [tempWeight, setTempWeight] = useState('');
-  const [tempMultiplier, setTempMultiplier] = useState('');
+  const [tempWeight, setTempWeight] = useState(null);
+  const [tempMultiplier, setTempMultiplier] = useState(null);
 
   const fileInputRef = React.useRef(null);
-  const weightSaveTimeoutRef = React.useRef(null);
-  const multiplierSaveTimeoutRef = React.useRef(null);
-
   // Add Child modal state
   const [showAddChild, setShowAddChild] = useState(false);
   const [newBabyName, setNewBabyName] = useState('');
@@ -280,24 +277,14 @@ const FamilyTab = ({
     }
   };
 
-  const scheduleWeightSave = (nextValue) => {
+  const handleWeightChange = (nextValue) => {
+    if (!editingWeight) setEditingWeight(true);
     setTempWeight(nextValue);
-    if (weightSaveTimeoutRef.current) {
-      clearTimeout(weightSaveTimeoutRef.current);
-    }
-    weightSaveTimeoutRef.current = setTimeout(() => {
-      handleUpdateWeight();
-    }, 400);
   };
 
-  const scheduleMultiplierSave = (nextValue) => {
+  const handleMultiplierChange = (nextValue) => {
+    if (!editingMultiplier) setEditingMultiplier(true);
     setTempMultiplier(nextValue);
-    if (multiplierSaveTimeoutRef.current) {
-      clearTimeout(multiplierSaveTimeoutRef.current);
-    }
-    multiplierSaveTimeoutRef.current = setTimeout(() => {
-      handleUpdateMultiplier();
-    }, 400);
   };
 
   // --------------------------------------
@@ -381,12 +368,27 @@ const FamilyTab = ({
   // Updates: name, dates, settings
   // --------------------------------------
 
+  const handleBabyNameChange = (nextValue) => {
+    if (!editingName) setEditingName(true);
+    setTempBabyName(nextValue);
+  };
+
   const handleUpdateBabyName = async () => {
-    if (!tempBabyName.trim()) return;
-    try {
-      await updateKidPartial({ name: tempBabyName.trim() });
+    if (tempBabyName === null) {
       setEditingName(false);
-      await loadData();
+      return;
+    }
+    const raw = String(tempBabyName).trim();
+    if (!raw) {
+      setTempBabyName(kidData?.name || null);
+      setEditingName(false);
+      return;
+    }
+    try {
+      await updateKidPartial({ name: raw });
+      setKidData((prev) => (prev ? { ...prev, name: raw } : prev));
+      setTempBabyName(null);
+      setEditingName(false);
     } catch (error) {
       console.error('Error updating name:', error);
     }
@@ -409,38 +411,68 @@ const FamilyTab = ({
   };
 
   const handleUpdateWeight = async () => {
-    const weight = parseFloat(tempWeight);
-    if (!weight || weight <= 0) return;
+    if (tempWeight === null) {
+      setEditingWeight(false);
+      return;
+    }
+    const raw = String(tempWeight).trim();
+    if (!raw) {
+      setTempWeight(null);
+      setEditingWeight(false);
+      return;
+    }
+    const weight = parseFloat(raw);
+    if (!weight || weight <= 0) {
+      setTempWeight(settings.babyWeight?.toString() || null);
+      setEditingWeight(false);
+      return;
+    }
     try {
       await firestoreStorage.saveSettings({
         ...settings,
         babyWeight: weight
       });
+      setSettings((prev) => ({ ...prev, babyWeight: weight }));
+      setTempWeight(null);
       setEditingWeight(false);
-      await loadData();
     } catch (error) {
       console.error('Error updating weight:', error);
     }
   };
 
   const handleUpdateMultiplier = async () => {
-    const mult = parseFloat(tempMultiplier);
-    if (!mult || mult <= 0) return;
+    if (tempMultiplier === null) {
+      setEditingMultiplier(false);
+      return;
+    }
+    const raw = String(tempMultiplier).trim();
+    if (!raw) {
+      setTempMultiplier(null);
+      setEditingMultiplier(false);
+      return;
+    }
+    const mult = parseFloat(raw);
+    if (!mult || mult <= 0) {
+      setTempMultiplier(settings.multiplier?.toString() || null);
+      setEditingMultiplier(false);
+      return;
+    }
     try {
       await firestoreStorage.saveSettings({
         ...settings,
         multiplier: mult
       });
+      setSettings((prev) => ({ ...prev, multiplier: mult }));
+      setTempMultiplier(null);
       setEditingMultiplier(false);
-      await loadData();
     } catch (error) {
       console.error('Error updating multiplier:', error);
     }
   };
 
 
-  const saveSleepTargetOverride = async () => {
-    const hrs = parseFloat(sleepTargetInput);
+  const saveSleepTargetOverride = async (value) => {
+    const hrs = parseFloat(value);
     const fallback = formatSleepTargetDisplay(autoSleepTargetHrs);
 
     if (!hrs || hrs <= 0) {
@@ -472,6 +504,36 @@ const FamilyTab = ({
     } catch (error) {
       console.error('Error reverting to recommended sleep target:', error);
     }
+  };
+
+  const handleSleepTargetChange = (nextValue) => {
+    if (!isEditingSleepTarget) setIsEditingSleepTarget(true);
+    setSleepTargetInput(nextValue);
+  };
+
+  const handleUpdateSleepTarget = async () => {
+    if (sleepTargetInput === null) {
+      setIsEditingSleepTarget(false);
+      return;
+    }
+    const raw = String(sleepTargetInput).trim();
+    if (!raw) {
+      const fallback = sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs);
+      setSleepTargetInput(fallback);
+      setIsEditingSleepTarget(false);
+      return;
+    }
+    const n = parseFloat(raw);
+    if (!n || n <= 0) {
+      const fallback = sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs);
+      setSleepTargetInput(fallback);
+      setIsEditingSleepTarget(false);
+      return;
+    }
+    setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
+    await saveSleepTargetOverride(raw);
+    setSleepTargetLastSaved(raw);
+    setIsEditingSleepTarget(false);
   };
 
   // --------------------------------------
@@ -998,16 +1060,15 @@ const handleInvite = async () => {
             type: 'text',
             size: 'compact',
             icon: TTEditIcon,
-            value: tempBabyName || (kidData?.name || ''),
+            value: tempBabyName !== null ? tempBabyName : (kidData?.name || ''),
             placeholder: 'Baby',
-            onChange: async (val) => {
-              setTempBabyName(val);
-              if (!val || !val.trim()) return;
-              try {
-                await updateKidPartial({ name: val.trim() });
-                await loadData();
-              } catch (error) {
-                console.error('Error updating name:', error);
+            onChange: handleBabyNameChange,
+            onFocus: () => setEditingName(true),
+            onBlur: handleUpdateBabyName,
+            onKeyDown: (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
               }
             }
           })
@@ -1071,9 +1132,17 @@ const handleInvite = async () => {
             label: 'Current weight (lbs)',
             type: 'number',
             icon: TTEditIcon,
-            value: tempWeight || (settings.babyWeight?.toString() || ''),
+            value: tempWeight !== null ? tempWeight : (settings.babyWeight?.toString() || ''),
             placeholder: 'Not set',
-            onChange: scheduleWeightSave
+            onChange: handleWeightChange,
+            onFocus: () => setEditingWeight(true),
+            onBlur: handleUpdateWeight,
+            onKeyDown: (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
+              }
+            }
           })
         )
       ),
@@ -1099,9 +1168,17 @@ const handleInvite = async () => {
           ),
           type: 'number',
           icon: TTEditIcon,
-          value: tempMultiplier || (settings.multiplier?.toString() || ''),
+          value: tempMultiplier !== null ? tempMultiplier : (settings.multiplier?.toString() || ''),
           placeholder: '2.5',
-          onChange: scheduleMultiplierSave
+          onChange: handleMultiplierChange,
+          onFocus: () => setEditingMultiplier(true),
+          onBlur: handleUpdateMultiplier,
+          onKeyDown: (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
+          }
         })
       ),
 
@@ -1115,18 +1192,18 @@ const handleInvite = async () => {
               React.createElement(InfoDot, { onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); alert( "Daily sleep target\n\n" + "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" + "If your baby’s clinician suggested a different target, you can override it here." ); } })
             ),
             type: 'number',
-            value: sleepTargetInput || formatSleepTargetDisplay(autoSleepTargetHrs),
+            value: sleepTargetInput !== null
+              ? sleepTargetInput
+              : (sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs)),
             placeholder: formatSleepTargetDisplay(autoSleepTargetHrs),
-            onChange: async (val) => {
-              setSleepTargetInput(val);
-              const n = parseFloat(val);
-              if (!n || n <= 0) {
-                setSleepTargetDraftOverride(false);
-                return;
+            onChange: handleSleepTargetChange,
+            onFocus: () => setIsEditingSleepTarget(true),
+            onBlur: handleUpdateSleepTarget,
+            onKeyDown: (e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.currentTarget.blur();
               }
-              setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
-              await saveSleepTargetOverride();
-              setSleepTargetLastSaved(val);
             }
           }),
           sleepSettings?.sleepTargetIsOverride && Math.abs(Number(sleepSettings.sleepTargetHours ?? 0) - Number(sleepSettings.sleepTargetAutoHours ?? 0)) >= 0.05 && React.createElement('div', { className: "flex items-center justify-between mt-2 text-xs", style: { color: 'var(--tt-text-secondary)' } },

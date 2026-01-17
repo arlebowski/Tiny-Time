@@ -18,7 +18,10 @@ const TTInputRow = ({
   onOpenPicker = null,
   formatDateTime = null,
   useWheelPickers = null,
-  openAnchoredTimePicker = null
+  openAnchoredTimePicker = null,
+  onBlur = null,
+  onFocus = null,
+  onKeyDown = null
 }) => {
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -181,6 +184,9 @@ const TTInputRow = ({
                       el.style.height = el.scrollHeight + 'px';
                     }
                   },
+                  onBlur,
+                  onFocus,
+                  onKeyDown,
                   placeholder: placeholder,
                   rows: 1,
                   className: `tt-placeholder-tertiary ${valueClass} font-normal w-full outline-none resize-none`,
@@ -208,6 +214,9 @@ const TTInputRow = ({
                       }
                     }
                   },
+                  onBlur,
+                  onFocus,
+                  onKeyDown,
                   className: `tt-placeholder-tertiary ${valueClass} font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
                   style: {
                     background: 'transparent',
