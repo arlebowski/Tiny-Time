@@ -948,11 +948,16 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
       return cachedVersion;
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
+    getCardDesign: (version) => {
+      if (version === 'v4') return 'v4';
+      if (version === 'v3') return 'v3';
+      if (version === 'v2') return 'new';
+      return 'current';
+    },
     
     // Set global UI version in Firestore (for all users)
     setUIVersion: async (version) => {
-      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
+      if (!version || !['v1', 'v2', 'v3', 'v4'].includes(version)) {
         console.error('Invalid UI version:', version);
         return;
       }
@@ -1028,7 +1033,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         console.warn('Firebase not initialized, using localStorage fallback');
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
             cachedVersion = version;
           }
         }
@@ -1041,7 +1046,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         const doc = await db.collection('appConfig').doc('global').get();
         if (doc.exists) {
           const data = doc.data();
-          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+          if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
             cachedVersion = data.uiVersion;
             // Notify all listeners
             versionListeners.forEach(listener => listener(cachedVersion));
@@ -1060,7 +1065,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
           .onSnapshot((doc) => {
             if (doc.exists) {
               const data = doc.data();
-              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+              if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
                 const newVersion = data.uiVersion;
                 if (newVersion !== cachedVersion) {
                   cachedVersion = newVersion;
@@ -1075,7 +1080,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         // Fallback to localStorage
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
             cachedVersion = version;
           }
         }
@@ -1197,15 +1202,21 @@ const TrackerCard = ({
     }
   }, [timelineFullSizePhoto]);
   
-  // UI Version - single source of truth (v1, v2, or v3)
+  // UI Version - single source of truth (v1, v2, v3, or v4)
   // Part of UI Version system:
-  // - v1: Old UI (not used here, TrackerCard only shows in v2/v3)
+  // - v1: Old UI (not used here, TrackerCard only shows in v2/v3/v4)
   // - v2: useNewUI = true, cardDesign = 'current'
-  // - v3: useNewUI = true, cardDesign = 'new'
+  // - v3: useNewUI = true, cardDesign = 'v3'
+  // - v4: useNewUI = true, cardDesign = 'v4' (experimental)
   const [uiVersion, setUiVersion] = React.useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
-  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => v === 'v3' ? 'v3' : (v === 'v2' ? 'new' : 'current')))(uiVersion);
+  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => {
+    if (v === 'v4') return 'v4';
+    if (v === 'v3') return 'v3';
+    if (v === 'v2') return 'new';
+    return 'current';
+  }))(uiVersion);
   
 
   
@@ -3064,6 +3075,12 @@ const TrackerCard = ({
     });
   };
 
+  // v4: experimental design (clone of v3, edit independently for testing)
+  const renderV4Design = () => {
+    // For now, v4 is identical to v3 - you can customize this later
+    return renderV3Design();
+  };
+
   // Timeline photo modal (PORTAL to body so it isn't trapped inside transform/stacking contexts)
   const timelinePhotoModal = timelineFullSizePhoto && ReactDOM.createPortal(
     React.createElement('div', {
@@ -3136,6 +3153,12 @@ const TrackerCard = ({
   if (uiVersion === 'v3') {
     return React.createElement(React.Fragment, null,
       renderV3Design(),
+      timelinePhotoModal
+    );
+  }
+  if (uiVersion === 'v4') {
+    return React.createElement(React.Fragment, null,
+      renderV4Design(),
       timelinePhotoModal
     );
   }

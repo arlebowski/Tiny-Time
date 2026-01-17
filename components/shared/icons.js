@@ -1,10 +1,6 @@
 // Ensure React is available (UMD build exposes it as window.React)
 const React = window.React;
 
-if (!React) {
-  console.error('icons.js: React is not available! window.React =', window.React);
-}
-
 // Edit icon
 const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" },
   React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
@@ -404,25 +400,14 @@ try {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
-  console.log('icons.js: About to export icons. TodayIcon type:', typeof TodayIcon);
-  console.log('icons.js: makeIcon type:', typeof makeIcon);
-  console.log('icons.js: React type:', typeof React);
-  
   window.TT.shared.icons = { Edit2, Check, X, Plus, Bottle1, Bottle2, Bottle3, Calendar1, Calendar2, Chat, DaySleep1, DaySleep, Family1, Family2, Moon2, NightSleep, Paci1, Paci2, Sun, Today, Trends, BottleMain, MoonMain, BottleV2, MoonV2, CustomIcon1, CustomIcon2, TodayIcon, TrendsIcon, ChatIcon, HomeIcon, PlusIcon, MenuIcon, ShareIconPhosphor, BabyIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon };
-  
-  console.log('icons.js: Successfully exported icons. window.TT.shared.icons =', window.TT.shared.icons);
-  console.log('icons.js: TodayIcon in exported object:', typeof window.TT.shared.icons.TodayIcon);
-  
+ 
   // Aliases with hyphenated names (must be accessed via bracket notation)
   window.TT.shared.icons["bottle-main"] = window.TT.shared.icons.BottleMain;
   window.TT.shared.icons["moon-main"] = window.TT.shared.icons.MoonMain;
   window.TT.shared.icons["bottle-v2"] = window.TT.shared.icons.BottleV2;
   window.TT.shared.icons["moon-v2"] = window.TT.shared.icons.MoonV2;
-} catch (error) {
-  console.error('icons.js: Error exporting icons:', error);
-  console.error('icons.js: Error stack:', error.stack);
-  console.error('icons.js: Error message:', error.message);
-}
+} catch (error) {}
 
 // Temporary backward compatibility (will remove later)
 window.Edit2 = Edit2;

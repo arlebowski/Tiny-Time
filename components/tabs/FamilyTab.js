@@ -29,6 +29,7 @@ const FamilyTab = ({
   const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
+  const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
   const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
   const DatePickerTray = window.TT?.shared?.pickers?.DatePickerTray || null;
   const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
@@ -650,13 +651,13 @@ const handleInvite = async () => {
         "div",
         null,
         React.createElement("div", { 
-          className: "text-sm font-semibold",
+          className: "text-base font-semibold",
           style: { color: 'var(--tt-text-primary)' }
         }, "Day sleep window"),
         React.createElement(
           "div",
           { 
-            className: "text-sm mt-1",
+            className: "text-xs mt-1",
             style: { color: 'var(--tt-text-secondary)' }
           },
           "Sleep that starts between these times counts as ",
@@ -818,28 +819,52 @@ const handleInvite = async () => {
       React.createElement(
         TTCard,
         { variant: 'tracker' },
-        React.createElement(
-          'div',
-          { className: 'flex items-center justify-between mb-3' },
-          React.createElement(
-            'h2',
-            { 
-              className: 'text-lg font-semibold',
-              style: { color: 'var(--tt-text-primary)' }
-            },
-            'Kids'
-          ),
-          React.createElement(
-            'button',
-            {
-              type: 'button',
-              onClick: () => setShowAddChild(true),
-              className: 'text-sm font-medium',
-              style: { color: 'var(--tt-feed)' }
-            },
-            '+ Add Child'
-          )
-        ),
+        TTCardHeader
+          ? React.createElement(TTCardHeader, {
+              title: React.createElement(
+                'div',
+                { 
+                  className: 'text-base font-semibold',
+                  style: { color: 'var(--tt-text-primary)' }
+                },
+                'Kids'
+              ),
+              right: React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: () => setShowAddChild(true),
+                  className: 'text-sm font-medium',
+                  style: { color: 'var(--tt-feed)' }
+                },
+                '+ Add Child'
+              ),
+              showIcon: false,
+              showTitle: true,
+              className: 'mb-3'
+            })
+          : React.createElement(
+              'div',
+              { className: 'flex items-center justify-between mb-3' },
+              React.createElement(
+                'h2',
+                { 
+                  className: 'text-lg font-semibold',
+                  style: { color: 'var(--tt-text-primary)' }
+                },
+                'Kids'
+              ),
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: () => setShowAddChild(true),
+                  className: 'text-sm font-medium',
+                  style: { color: 'var(--tt-feed)' }
+                },
+                '+ Add Child'
+              )
+            ),
         React.createElement(
           'div',
           { className: 'space-y-2' },
@@ -899,11 +924,22 @@ const handleInvite = async () => {
     React.createElement(
       TTCard,
       { variant: 'tracker' },
-      React.createElement(
-        'h2',
-        { className: 'text-lg font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
-        'Baby Info'
-      ),
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            title: React.createElement(
+              'div',
+              { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
+              'Baby Info'
+            ),
+            showIcon: false,
+            showTitle: true,
+            className: 'mb-4'
+          })
+        : React.createElement(
+            'h2',
+            { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
+            'Baby Info'
+          ),
 
       React.createElement(
         'div',
@@ -1105,11 +1141,22 @@ const handleInvite = async () => {
     React.createElement(
       TTCard,
       { variant: 'tracker' },
-      React.createElement(
-        'h2',
-        { className: 'text-lg font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
-        'Family Members'
-      ),
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            title: React.createElement(
+              'div',
+              { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
+              'Family Members'
+            ),
+            showIcon: false,
+            showTitle: true,
+            className: 'mb-4'
+          })
+        : React.createElement(
+            'h2',
+            { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
+            'Family Members'
+          ),
       React.createElement(
         'div',
         { className: 'space-y-3 mb-4' },

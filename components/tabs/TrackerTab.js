@@ -86,11 +86,16 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
       return cachedVersion;
     },
     shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => version === 'v3' ? 'v3' : (version === 'v2' ? 'new' : 'current'),
+    getCardDesign: (version) => {
+      if (version === 'v4') return 'v4';
+      if (version === 'v3') return 'v3';
+      if (version === 'v2') return 'new';
+      return 'current';
+    },
     
     // Set global UI version in Firestore (for all users)
     setUIVersion: async (version) => {
-      if (!version || !['v1', 'v2', 'v3'].includes(version)) {
+      if (!version || !['v1', 'v2', 'v3', 'v4'].includes(version)) {
         console.error('Invalid UI version:', version);
         return;
       }
@@ -131,7 +136,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         // Fallback to localStorage if Firebase not available
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
             cachedVersion = version;
           }
         }
@@ -144,7 +149,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         const doc = await db.collection('appConfig').doc('global').get();
         if (doc.exists) {
           const data = doc.data();
-          if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+          if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
             cachedVersion = data.uiVersion;
             // Notify all listeners
             versionListeners.forEach(listener => listener(cachedVersion));
@@ -163,7 +168,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
           .onSnapshot((doc) => {
             if (doc.exists) {
               const data = doc.data();
-              if (data.uiVersion && ['v1', 'v2', 'v3'].includes(data.uiVersion)) {
+              if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
                 const newVersion = data.uiVersion;
                 if (newVersion !== cachedVersion) {
                   cachedVersion = newVersion;
@@ -178,7 +183,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
         // Fallback to localStorage
         if (window.localStorage) {
           const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3'].includes(version)) {
+          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
             cachedVersion = version;
           }
         }
@@ -202,11 +207,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
 // const formatV2Number = (n) => { ... } // Removed - using version from TrackerCard.js
 
 const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
-  // UI Version - single source of truth (v1, v2, or v3)
+  // UI Version - single source of truth (v1, v2, v3, or v4)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
   // - v2: New UI with current tracker cards (useNewUI = true, cardDesign = 'current')
-  // - v2: New UI with new tracker cards (useNewUI = true, cardDesign = 'new')
+  // - v3: New UI with v3 tracker cards (useNewUI = true, cardDesign = 'v3')
+  // - v4: New UI with v4 tracker cards (useNewUI = true, cardDesign = 'v4') (experimental)
   const [uiVersion, setUiVersion] = React.useState(() => {
     return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
   });
@@ -3488,10 +3494,10 @@ Output ONLY the formatted string, nothing else.`;
     return currentDate.toDateString() === new Date().toDateString();
   };
 
-  // What's Next card animation state (v3 only)
+  // What's Next card animation state (v3 and v4)
   const prevIsTodayRef = React.useRef(isToday());
   React.useEffect(() => {
-    if (uiVersion !== 'v3') return;
+    if (uiVersion !== 'v3' && uiVersion !== 'v4') return;
     
     const currentlyToday = isToday();
     const wasToday = prevIsTodayRef.current;
@@ -3853,8 +3859,8 @@ Output ONLY the formatted string, nothing else.`;
 
   // Add a little bottom padding so the last card isn't obscured by mobile safe-area / nav.
   return React.createElement('div', { className: "space-y-4 pb-24" },
-    // Date Navigation (moved outside Today Card) - hidden in v3
-    uiVersion !== 'v3' && React.createElement('div', { 
+    // Date Navigation (moved outside Today Card) - hidden in v3 and v4
+    uiVersion !== 'v3' && uiVersion !== 'v4' && React.createElement('div', { 
       className: "date-nav-container",
       style: {
         backgroundColor: 'var(--tt-app-bg)', // Match header background
@@ -3947,8 +3953,8 @@ Output ONLY the formatted string, nothing else.`;
         },
         `DEBUG cards block: ui=${uiVersion} useNewUI=${!!useNewUI} hasTrackerCard=${!!window.TrackerCard} feedings=${Array.isArray(feedings) ? feedings.length : '?'} sleepSessions=${Array.isArray(sleepSessions) ? sleepSessions.length : '?'} loading=${!!loading}`
       ),
-      // Date Navigation in v3 (moved to body, above What's Next card)
-      uiVersion === 'v3' && React.createElement('div', { 
+      // Date Navigation in v3 and v4 (moved to body, above What's Next card)
+      (uiVersion === 'v3' || uiVersion === 'v4') && React.createElement('div', { 
         className: "date-nav",
         style: {
           display: 'flex',
@@ -4008,9 +4014,9 @@ Output ONLY the formatted string, nothing else.`;
           onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
         }, React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: isToday() ? chevronDisabledColor : chevronColor } }))
       ),
-      // What's Next Card - simple card with icon, label, and body (only show on today, v3 only)
+      // What's Next Card - simple card with icon, label, and body (only show on today, v3 and v4)
       // Show card if it's today OR if it's animating out
-      (isToday() || whatsNextCardAnimating === 'exiting') && uiVersion === 'v3' && React.createElement('div', {
+      (isToday() || whatsNextCardAnimating === 'exiting') && (uiVersion === 'v3' || uiVersion === 'v4') && React.createElement('div', {
         className: `rounded-2xl px-5 py-4 tt-tapable ${whatsNextCardAnimating === 'entering' ? 'timeline-item-enter' : whatsNextCardAnimating === 'exiting' ? 'timeline-item-exit' : ''}`,
         style: {
           backgroundColor: activeSleep && activeSleep.startTime 
@@ -4585,7 +4591,7 @@ Output ONLY the formatted string, nothing else.`;
       
       // Today Card (New UI) — split v2 so v2 can be edited independently.
       // Only show if feature flag is enabled.
-      showTodayCard && (uiVersion === 'v2' || uiVersion === 'v3'
+      showTodayCard && (uiVersion === 'v2' || uiVersion === 'v3' || uiVersion === 'v4'
         ? React.createElement('div', { 
             ref: cardRefCallback, 
             className: "rounded-2xl shadow-sm p-6",
@@ -7630,7 +7636,29 @@ const FeedingChart = ({ data = [], average = 0 }) => {
   );
 };
 
-const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children, isFeeding = false }) => {
+const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children, isFeeding = false, showInsightText = true }) => {
+  const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
+  const headerIconEl = React.createElement(Icon, {
+    className: 'w-5 h-5',
+    style: { 
+      color: categoryColor,
+      strokeWidth: isFeeding ? '1.5' : undefined,
+      fill: isFeeding ? 'none' : categoryColor,
+      transform: isFeeding ? 'rotate(20deg)' : undefined
+    }
+  });
+  const headerTitleEl = React.createElement(
+    'span',
+    {
+      className: 'text-[17.6px] font-semibold leading-6',
+      style: { color: categoryColor }
+    },
+    label
+  );
+  const headerRightEl = React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { 
+    className: 'w-5 h-5',
+    style: { color: 'var(--tt-text-tertiary)' }
+  });
   return React.createElement(
     'div',
     {
@@ -7639,53 +7667,49 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
       onClick: onClick
     },
     // Header: icon + label left, chevron right
-      React.createElement(
-        'div',
-        { className: 'flex items-center justify-between mb-3 h-6' },
-        React.createElement(
+    TTCardHeader
+      ? React.createElement(TTCardHeader, {
+          icon: headerIconEl,
+          title: headerTitleEl,
+          right: headerRightEl,
+          gapClass: 'gap-1',
+          className: 'mb-3 h-6'
+        })
+      : React.createElement(
           'div',
-          { className: 'flex items-center gap-1' },
-          React.createElement(Icon, {
-            className: 'w-5 h-5',
-            style: { 
-              color: categoryColor,
-              strokeWidth: isFeeding ? '1.5' : undefined,
-              fill: isFeeding ? 'none' : categoryColor,
-              transform: isFeeding ? 'rotate(20deg)' : undefined
-            }
-          }),
+          { className: 'flex items-center justify-between mb-3 h-6' },
           React.createElement(
-            'span',
-            {
-              className: 'text-[17.6px] font-semibold leading-6',
-              style: { color: categoryColor }
-            },
-            label
-          )
+            'div',
+            { className: 'flex items-center gap-1' },
+            headerIconEl,
+            headerTitleEl
+          ),
+          headerRightEl
         ),
-      React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { 
-        className: 'w-5 h-5',
-        style: { color: 'var(--tt-text-tertiary)' }
-      })
-    ),
-    // Insight Text: single block, bold, clamped to 2 lines
-    React.createElement(
-      'div',
-      { className: 'mb-3' },
-      React.createElement(
-        'div',
-        { 
-          className: 'text-base font-bold leading-tight insight-text-clamp',
-          style: { color: 'var(--tt-text-primary)' }
-        },
-        insightText.join(' ')
-      )
-    ),
-    // Divider
-    React.createElement('div', { 
-      className: 'border-t mb-3',
-      style: { borderColor: 'var(--tt-card-border)' }
-    }),
+    showInsightText
+      ? React.createElement(
+          React.Fragment,
+          null,
+          // Insight Text: single block, bold, clamped to 2 lines
+          React.createElement(
+            'div',
+            { className: 'mb-3' },
+            React.createElement(
+              'div',
+              { 
+                className: 'text-base font-bold leading-tight insight-text-clamp',
+                style: { color: 'var(--tt-text-primary)' }
+              },
+              (insightText || []).join(' ')
+            )
+          ),
+          // Divider
+          React.createElement('div', { 
+            className: 'border-t mb-3',
+            style: { borderColor: 'var(--tt-card-border)' }
+          })
+        )
+      : null,
     // Mini Viz Area: fixed height (240px). Any clipping/scroll pinning is handled
     // by HighlightMiniVizViewport (used only by highlight mini-viz).
     React.createElement(
