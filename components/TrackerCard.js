@@ -1922,6 +1922,7 @@ const TrackerCard = ({
   const HeaderIcon = mode === 'feeding' 
     ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) || null;
+  const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
 
   // v3 "main" icons - use BottleV2 and MoonV2 for both variants
   const BottleMainIcon =
@@ -1983,6 +1984,25 @@ const TrackerCard = ({
       return `scaleX(-1) ${s}`;
     };
     const effectiveFeedingTransform = mirrorFeedingIcon ? withFeedingMirror(feedingIconTransform) : feedingIconTransform;
+    const headerIconEl = showHeaderIcon
+      ? (IconComp ? React.createElement(IconComp, {
+          className: headerIconClassName,
+          style: {
+            color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+            transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
+            strokeWidth: mode === 'feeding' ? '1.5' : undefined,
+            fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
+          }
+        }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
+      : null;
+    const headerTitleEl = (headerLabel || (!headerRight || showHeaderIcon))
+      ? (headerLabel
+          ? headerLabel
+          : React.createElement('div', {
+              className: headerLabelClassName,
+              style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+            }, mode === 'feeding' ? 'Feed' : 'Sleep'))
+      : null;
     return React.createElement(
     'div',
     { 
@@ -1995,46 +2015,53 @@ const TrackerCard = ({
       },
       onClick: handleCardTap
     },
-    showHeaderRow ? React.createElement(
-      'div',
-      { 
-        className: `flex items-center w-full ${(headerRight && !showHeaderIcon && !headerLabel) ? 'justify-end' : 'justify-between'} ${headerBottomMarginClass} ${(headerRight && !showHeaderIcon && !headerLabel) ? '' : 'h-6'}`,
-        style: (headerRight && !showHeaderIcon && !headerLabel) ? { 
-          width: '100%',
-          marginLeft: 0,
-          marginRight: 0,
-          paddingLeft: 0,
-          paddingRight: 0,
-          boxSizing: 'border-box',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end'
-        } : {}
-      },
-      (showHeaderIcon || headerLabel || (!headerRight)) ? React.createElement(
-        'div',
-        { className: `flex items-center ${headerGapClass}` },
-        showHeaderIcon
-          ? (IconComp ? React.createElement(IconComp, { 
-              className: headerIconClassName,
-              style: { 
-                color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-                transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
-                strokeWidth: mode === 'feeding' ? '1.5' : undefined,
-                fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
-              }
-            }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
-          : null,
-        (headerLabel || (!headerRight || showHeaderIcon)) ? (
-          headerLabel 
-            ? headerLabel  // variant 2: show icon + label in header
-            : React.createElement('div', { 
-                className: headerLabelClassName,
-                style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-              }, mode === 'feeding' ? 'Feed' : 'Sleep')
-        ) : null
-      ) : null,
-      headerRight
+    showHeaderRow ? (
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            icon: headerIconEl,
+            title: headerTitleEl,
+            right: headerRight,
+            showIcon: !!headerIconEl,
+            showTitle: !!headerTitleEl,
+            gapClass: headerGapClass,
+            className: `${headerBottomMarginClass} ${(headerRight && !showHeaderIcon && !headerLabel) ? '' : 'h-6'}`,
+            align: (headerRight && !showHeaderIcon && !headerLabel) ? 'end' : 'between',
+            style: (headerRight && !showHeaderIcon && !headerLabel) ? {
+              width: '100%',
+              marginLeft: 0,
+              marginRight: 0,
+              paddingLeft: 0,
+              paddingRight: 0,
+              boxSizing: 'border-box',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'flex-end'
+            } : null
+          })
+        : React.createElement(
+            'div',
+            { 
+              className: `flex items-center w-full ${(headerRight && !showHeaderIcon && !headerLabel) ? 'justify-end' : 'justify-between'} ${headerBottomMarginClass} ${(headerRight && !showHeaderIcon && !headerLabel) ? '' : 'h-6'}`,
+              style: (headerRight && !showHeaderIcon && !headerLabel) ? { 
+                width: '100%',
+                marginLeft: 0,
+                marginRight: 0,
+                paddingLeft: 0,
+                paddingRight: 0,
+                boxSizing: 'border-box',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'flex-end'
+              } : {}
+            },
+            (showHeaderIcon || headerLabel || (!headerRight)) ? React.createElement(
+              'div',
+              { className: `flex items-center ${headerGapClass}` },
+              headerIconEl,
+              headerTitleEl
+            ) : null,
+            headerRight
+          )
     ) : null,
 
     // Optional icon + label above big number (for v3 feeding)
@@ -3748,6 +3775,27 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [dtMinute, setDtMinute] = React.useState(0);
     const [dtAmpm, setDtAmpm] = React.useState('AM');
 
+    // Tray coordination: close current tray before opening another
+    const [pendingTray, setPendingTray] = React.useState(null);
+    const TRAY_SWITCH_DELAY_MS = 260;
+
+    React.useEffect(() => {
+      if (!pendingTray) return;
+      if (showAmountTray || showDateTimeTray) return;
+      const timer = setTimeout(() => {
+        const nextTray = pendingTray;
+        setPendingTray(null);
+        if (nextTray === 'amount') {
+          setShowAmountTray(true);
+          return;
+        }
+        if (nextTray === 'datetime_feeding') {
+          setShowDateTimeTray(true);
+        }
+      }, TRAY_SWITCH_DELAY_MS);
+      return () => clearTimeout(timer);
+    }, [pendingTray, showAmountTray, showDateTimeTray]);
+
     const _formatOz = (n) => {
       const num = Number(n);
       if (!Number.isFinite(num)) return '';
@@ -3798,20 +3846,38 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
     const openTrayPicker = (mode) => {
       if (!_ttUseWheelPickers()) return;
-      if (mode === 'amount') {
+      const wantsAmount = mode === 'amount';
+      const wantsDateTime = mode === 'datetime_feeding';
+
+      if (wantsAmount) {
         const currentOz = parseFloat(ounces);
         setAmountPickerUnitLocal('oz');
         setAmountPickerAmountLocal(Number.isFinite(currentOz) ? currentOz : 4);
-        setShowAmountTray(true);
-        return;
       }
-      if (mode === 'datetime_feeding') {
+      if (wantsDateTime) {
         setDtTarget('feeding');
         const parts = _isoToDateParts(dateTime || new Date().toISOString());
         setDtSelectedDate(parts.dayISO);
         setDtHour(parts.hour);
         setDtMinute(parts.minute);
         setDtAmpm(parts.ampm);
+      }
+
+      if (wantsAmount && showAmountTray && !showDateTimeTray) return;
+      if (wantsDateTime && showDateTimeTray && !showAmountTray) return;
+
+      if (showAmountTray || showDateTimeTray) {
+        setPendingTray(mode);
+        if (showAmountTray) setShowAmountTray(false);
+        if (showDateTimeTray) setShowDateTimeTray(false);
+        return;
+      }
+
+      if (wantsAmount) {
+        setShowAmountTray(true);
+        return;
+      }
+      if (wantsDateTime) {
         setShowDateTimeTray(true);
       }
     };
@@ -5100,6 +5166,27 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [dtMinute, setDtMinute] = React.useState(0);
     const [dtAmpm, setDtAmpm] = React.useState('AM');
 
+    // Tray coordination: close current tray before opening another
+    const [pendingTray, setPendingTray] = React.useState(null);
+    const TRAY_SWITCH_DELAY_MS = 260;
+
+    React.useEffect(() => {
+      if (!pendingTray) return;
+      if (showAmountTray || showDateTimeTray) return;
+      const timer = setTimeout(() => {
+        const nextTray = pendingTray;
+        setPendingTray(null);
+        if (nextTray === 'amount') {
+          setShowAmountTray(true);
+          return;
+        }
+        if (nextTray === 'datetime_feeding' || nextTray === 'datetime_sleep_start' || nextTray === 'datetime_sleep_end') {
+          setShowDateTimeTray(true);
+        }
+      }, TRAY_SWITCH_DELAY_MS);
+      return () => clearTimeout(timer);
+    }, [pendingTray, showAmountTray, showDateTimeTray]);
+
     const _formatOz = (n) => {
       const num = Number(n);
       if (!Number.isFinite(num)) return '';
@@ -5150,16 +5237,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
 
     const openTrayPicker = (mode) => {
       if (!_ttUseWheelPickers()) return;
+      const wantsAmount = mode === 'amount';
+      const wantsDateTime = mode === 'datetime_feeding' || mode === 'datetime_sleep_start' || mode === 'datetime_sleep_end';
 
-      if (mode === 'amount') {
+      if (wantsAmount) {
         const currentOz = parseFloat(ounces);
         setAmountPickerUnitLocal('oz');
         setAmountPickerAmountLocal(Number.isFinite(currentOz) ? currentOz : 4);
-        setShowAmountTray(true);
-        return;
       }
 
-      if (mode === 'datetime_feeding' || mode === 'datetime_sleep_start' || mode === 'datetime_sleep_end') {
+      if (wantsDateTime) {
         const target = mode === 'datetime_sleep_start' ? 'sleep_start' : (mode === 'datetime_sleep_end' ? 'sleep_end' : 'feeding');
         setDtTarget(target);
         const iso = target === 'feeding'
@@ -5172,6 +5259,23 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setDtHour(parts.hour);
         setDtMinute(parts.minute);
         setDtAmpm(parts.ampm);
+      }
+
+      if (wantsAmount && showAmountTray && !showDateTimeTray) return;
+      if (wantsDateTime && showDateTimeTray && !showAmountTray) return;
+
+      if (showAmountTray || showDateTimeTray) {
+        setPendingTray(mode);
+        if (showAmountTray) setShowAmountTray(false);
+        if (showDateTimeTray) setShowDateTimeTray(false);
+        return;
+      }
+
+      if (wantsAmount) {
+        setShowAmountTray(true);
+        return;
+      }
+      if (wantsDateTime) {
         setShowDateTimeTray(true);
       }
     };
@@ -5499,6 +5603,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     
     // Handle close - always close immediately (state reset happens in useEffect)
     const handleClose = () => {
+      // Prevent closing half sheet if any tray is open
+      if (showAmountTray || showDateTimeTray) {
+        return;
+      }
       if (onClose) onClose();
     };
 
