@@ -111,8 +111,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       willChange: 'transform, opacity'
     },
     itemSelected: { 
-      color: 'var(--tt-text-primary)', 
-      fontWeight: '400' 
+      color: 'rgba(255, 255, 255, 0.95)',
+      fontWeight: '400',
+      fontSize: '17px'
     },
     // iOS-style selection bar (behind content)
     selection: {
@@ -1016,6 +1017,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
               overflow: 'hidden',
               borderTopLeftRadius: '20px',
               borderTopRightRadius: '20px',
+              boxShadow: '0 -10px 28px rgba(0,0,0,0.18)',
               zIndex: 10001
             }
           },
@@ -1038,6 +1040,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
             'div',
             {
               style: {
+                borderTop: '1px solid rgba(255, 255, 255, 0.03)',
                 paddingTop: '12px',
                 paddingBottom: '12px',
                 overflowY: 'auto',
