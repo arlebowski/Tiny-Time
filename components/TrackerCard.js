@@ -4195,9 +4195,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       },
         React.createElement(AmountPickerLabSection, {
           unit: amountPickerUnitLocal,
-          setUnit: setAmountPickerUnitLocal,
+          setUnit: setAmountUnitWithConversion,
           amount: amountPickerAmountLocal,
-          setAmount: setAmountPickerAmountLocal
+          setAmount: setAmountPickerAmountLocal,
+          showHeader: false
         })
       ),
 
@@ -6337,9 +6338,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       },
         React.createElement(AmountPickerLabSection, {
           unit: amountPickerUnitLocal,
-          setUnit: setAmountPickerUnitLocal,
+          setUnit: setAmountUnitWithConversion,
           amount: amountPickerAmountLocal,
-          setAmount: setAmountPickerAmountLocal
+          setAmount: setAmountPickerAmountLocal,
+          showHeader: false
         })
       ),
 
