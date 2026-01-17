@@ -2701,6 +2701,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         activeTab === 'analytics-sleep' && React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'analytics-activity' && React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
+        activeTab === 'schedule' && window.TT?.tabs?.ScheduleTab && React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId }),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
           kidId,
@@ -2762,7 +2763,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         ? React.createElement(
             'div',
             { className: "max-w-2xl mx-auto relative flex items-center justify-around px-4 py-3" },
-            // Order: tracker | analytics | plus | AI Chat | Family
+            // Order v4: Today | Schedule | + | Trends | Family
+            // Order v1/v2/v3: Today | Trends | + | Chat | Family
             React.createElement(
               React.Fragment,
               null,
@@ -2797,6 +2799,65 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   }
                 }, 'Today')
               ),
+              // Schedule tab - only in v4
+              uiVersion === 'v4' && React.createElement(
+                'button',
+                {
+                  key: 'schedule',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('schedule');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                  style: {
+                    color: 'var(--tt-text-primary)',
+                    transform: 'translateY(-10px)'
+                  }
+                },
+                React.createElement(window.TT?.shared?.icons?.ScheduleIcon || (() => null), {
+                  className: "w-6 h-6",
+                  isSelected: activeTab === 'schedule',
+                  selectedWeight: 'fill',
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }),
+                React.createElement('span', { 
+                  className: "text-xs font-light",
+                  style: {
+                    color: 'var(--tt-text-primary)'
+                  }
+                }, 'Schedule')
+              ),
+              // Plus button (center)
+              React.createElement(
+                'button',
+                {
+                  key: 'plus',
+                  type: 'button',
+                  onClick: () => {
+                    setActiveTab('tracker');
+                    setNavRequestedInputMode('feeding');
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                  },
+                  className:
+                    "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
+                  style: {
+                    backgroundColor: (window.TT?.appearance?.get()?.darkMode) ? '#ffffff' : '#000000',
+                    color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff'
+                  },
+                  'aria-label': 'Add'
+                },
+                React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
+                  className: "w-6 h-6",
+                  weight: 'fill',
+                  style: { color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff' }
+                })
+              ),
+              // Trends/Analytics
               React.createElement(
                 'button',
                 {
@@ -2828,32 +2889,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   }
                 }, 'Trends')
               ),
-              React.createElement(
-                'button',
-                {
-                  key: 'plus',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('tracker');
-                    setNavRequestedInputMode('feeding');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className:
-                    "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
-                  style: {
-                    backgroundColor: (window.TT?.appearance?.get()?.darkMode) ? '#ffffff' : '#000000',
-                    color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff'
-                  },
-                  'aria-label': 'Add'
-                },
-                React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
-                  className: "w-6 h-6",
-                  weight: 'fill',
-                  style: { color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff' }
-                })
-              ),
-              React.createElement(
+              // AI Chat tab - hidden in v4
+              uiVersion !== 'v4' && React.createElement(
                 'button',
                 {
                   key: 'chat',

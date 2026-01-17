@@ -713,16 +713,8 @@ IMPORTANT:
       const lastScheduleAICall = lastScheduleAICallRef.current > storedLastScheduleCall ? lastScheduleAICallRef.current : storedLastScheduleCall;
       const timeSinceLastScheduleAI = nowMs - lastScheduleAICall;
       
-      console.log('[Schedule] AI cooldown check:', {
-        timeSinceLastScheduleAI: Math.round(timeSinceLastScheduleAI / 1000 / 60) + ' minutes',
-        cooldownRequired: Math.round(scheduleAICooldownMs / 1000 / 60) + ' minutes',
-        canCallAI: timeSinceLastScheduleAI >= scheduleAICooldownMs
-      });
-      
       if (timeSinceLastScheduleAI >= scheduleAICooldownMs && typeof getAIResponse === 'function' && kidId) {
-        console.log('[Schedule] Calling AI to generate schedule...');
         const aiResponse = await getAIResponse(prompt, kidId);
-        console.log('[Schedule] AI response received:', aiResponse ? 'Yes' : 'No');
         
         // Update schedule-specific cooldown (separate from "what's next" cooldown)
         if (aiResponse) {
@@ -741,10 +733,7 @@ IMPORTANT:
             } else {
               scheduleData = JSON.parse(aiResponse);
             }
-          } catch (e) {
-            console.warn('[Schedule] Failed to parse AI response as JSON:', e);
-            // Fall through to fallback
-          }
+          } catch (e) {}
           
           if (scheduleData && Array.isArray(scheduleData)) {
             // Convert AI response to schedule format
@@ -793,7 +782,6 @@ IMPORTANT:
             const filteredSchedule = schedule.filter(e => e.type !== 'wake');
             
             if (filteredSchedule.length > 0) {
-              console.log('[Schedule] AI generated schedule with', filteredSchedule.length, 'events (after filtering wakes)');
               return filteredSchedule;
             }
           }
@@ -808,19 +796,15 @@ IMPORTANT:
                           error?.message?.includes('RESOURCE_EXHAUSTED');
       
       if (isQuotaError) {
-        console.warn('[Schedule] AI quota exceeded (will use fallback for extended period):', error);
         // Set cooldown to 2 hours for quota errors to prevent further calls
         const extendedCooldown = 2 * 60 * 60 * 1000; // 2 hours
         lastScheduleAICallRef.current = nowMs - extendedCooldown + (15 * 60 * 1000); // Set to 15 min from now (so it waits 2 hours total)
         setLastScheduleAICallTime(lastScheduleAICallRef.current);
-      } else {
-        console.warn('[Schedule] AI schedule generation failed:', error);
       }
       // Fall through to fallback
     }
     
     // Fallback to programmatic schedule building
-    console.log('[Schedule] Using fallback programmatic schedule');
     return buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
   };
 
@@ -1907,18 +1891,6 @@ IMPORTANT:
       dataChanged ||
       hasPassedNextEvent; // Rebuild if we've passed the next scheduled event
     
-    // Only log rebuild decision if it's actually rebuilding (to reduce spam)
-    if (shouldRebuildSchedule) {
-      console.log('[Schedule] Rebuild decision:', {
-        hasCurrentSchedule: !!currentSchedule,
-        currentScheduleLength: currentSchedule?.length || 0,
-        timeSinceUpdate: nowMs - lastScheduleUpdateRef.current,
-        dataChanged,
-        hasPassedNextEvent,
-        shouldRebuildSchedule
-      });
-    }
-    
     if (dataChanged) {
       dailyScheduleRef.current = null; // Force rebuild
       lastScheduleUpdateRef.current = 0;
@@ -2141,8 +2113,6 @@ Output ONLY the formatted string, nothing else.`;
         setDailySchedule(adjustedSchedule); // Update state to trigger re-render
         lastScheduleUpdateRef.current = nowMs;
         setScheduleReady(true); // Mark schedule as ready
-          // Log schedule build completion (only when actually building)
-          console.log('[Schedule] Schedule built:', adjustedSchedule.length, 'events');
       }
       
       // Get next event from schedule (use state, fallback to ref)
@@ -2227,6 +2197,7 @@ Output ONLY the formatted string, nothing else.`;
     }
   }, [whatsNextAccordionOpen, dailySchedule]); // Re-sync when accordion opens
 
+  /*
   // Validation function for debugging prediction calculation
   // Call from console: window.validateWhatsNext()
   React.useEffect(() => {
@@ -2781,6 +2752,7 @@ Output ONLY the formatted string, nothing else.`;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feedings, sleepSessions, allFeedings, allSleepSessions, whatsNextText]);
+  */
 
   // Inject a calm zZz keyframe animation (used for the Sleep in-progress indicator)
   useEffect(() => {
