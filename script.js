@@ -488,6 +488,7 @@ window.TT.applyAppearance = function(appearance) {
       // Light mode (unchanged)
       root.style.setProperty('--tt-input-bg', '#f5f5f5');
       root.style.setProperty('--tt-subtle-surface', 'rgba(0,0,0,0.03)');
+      root.style.setProperty('--tt-swipe-row-bg', '#F7F7F7');
       root.style.setProperty('--tt-selected-surface', 'rgba(0,0,0,0.08)');
       root.style.setProperty('--tt-plus-bg', '#000000');
       root.style.setProperty('--tt-plus-fg', '#ffffff');
@@ -506,6 +507,7 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
       root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
       root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
+      root.style.setProperty('--tt-swipe-row-bg', '#272727');
       root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-plus-bg', '#ffffff');
       root.style.setProperty('--tt-plus-fg', '#000000');
@@ -523,6 +525,7 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: existing palette (current behavior)
       root.style.setProperty('--tt-input-bg', '#2C2C2E');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-swipe-row-bg', '#272727');
       root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-plus-bg', '#ffffff');
       root.style.setProperty('--tt-plus-fg', '#000000');
@@ -2247,7 +2250,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [showKidMenu, setShowKidMenu] = useState(false);
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
-  const [navRequestedInputMode, setNavRequestedInputMode] = useState(null); // 'feeding' | 'sleep' | null
+  const [inputSheetOpen, setInputSheetOpen] = useState(false);
+  const [inputSheetMode, setInputSheetMode] = useState('feeding');
 
   // v2/v3 navigation changes (center +, settings moved to header, etc.) (center +, settings moved to header, etc.)
   const uiVersion = (window.TT?.shared?.uiVersion?.getUIVersion || (() => {
@@ -2267,6 +2271,25 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const isV2OrV3OrV4 = uiVersion === 'v2' || uiVersion === 'v3' || uiVersion === 'v4';
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
+  const openInputSheet = React.useCallback((mode = 'feeding') => {
+    setInputSheetMode(mode || 'feeding');
+    setInputSheetOpen(true);
+  }, []);
+  const closeInputSheet = React.useCallback(() => {
+    setInputSheetOpen(false);
+  }, []);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.TT = window.TT || {};
+    window.TT.actions = window.TT.actions || {};
+    window.TT.actions.openInputSheet = openInputSheet;
+    return () => {
+      if (window.TT?.actions?.openInputSheet === openInputSheet) {
+        delete window.TT.actions.openInputSheet;
+      }
+    };
+  }, [openInputSheet]);
 
   useEffect(() => {
     try {
@@ -2711,8 +2734,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           user, 
           kidId, 
           familyId,
-          requestOpenInputSheetMode: navRequestedInputMode,
-          onRequestOpenInputSheetHandled: () => setNavRequestedInputMode(null)
+          onRequestOpenInputSheet: openInputSheet
         }),
         activeTab === 'analytics' && React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'analytics-feeding' && React.createElement(window.TT.tabs.FeedingAnalyticsTab, { user, kidId, familyId, setActiveTab }),
@@ -2748,6 +2770,21 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           setShowKidMenu(false);
         }
       }),
+
+    window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
+      isOpen: inputSheetOpen,
+      onClose: closeInputSheet,
+      kidId: kidId,
+      initialMode: inputSheetMode,
+      onAdd: async (mode) => {
+        try {
+          const event = new CustomEvent('tt-input-sheet-added', { detail: { mode } });
+          window.dispatchEvent(event);
+        } catch (e) {
+          // Non-fatal if CustomEvent is unavailable
+        }
+      }
+    }),
 
     // Gradient fade above footer for smooth content fade
     React.createElement(
@@ -2856,8 +2893,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   key: 'plus',
                   type: 'button',
                   onClick: () => {
-                    setActiveTab('tracker');
-                    setNavRequestedInputMode('feeding');
+                    openInputSheet('feeding');
                     setShowShareMenu(false);
                     setShowKidMenu(false);
                   },

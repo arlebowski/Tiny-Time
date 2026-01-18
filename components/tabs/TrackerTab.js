@@ -206,7 +206,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
 // Note: formatV2Number is defined in TrackerCard.js (loaded first), so we use that version
 // const formatV2Number = (n) => { ... } // Removed - using version from TrackerCard.js
 
-const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, onRequestOpenInputSheetHandled = null }) => {
+const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) => {
   // UI Version - single source of truth (v1, v2, v3, or v4)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
@@ -293,13 +293,17 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
   const [logMode, setLogMode] = React.useState('feeding');
   const [cardVisible, setCardVisible] = React.useState(false);
   const cardRef = React.useRef(null);
+  const requestInputSheetOpen = React.useCallback((mode = 'feeding') => {
+    if (typeof onRequestOpenInputSheet === 'function') {
+      onRequestOpenInputSheet(mode);
+    }
+  }, [onRequestOpenInputSheet]);
   
   // Detail sheet state
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
-  const [showInputSheet, setShowInputSheet] = React.useState(false);
 
   // One-shot "gates" log whenever key render inputs change.
   React.useEffect(() => {
@@ -323,7 +327,6 @@ const TrackerTab = ({ user, kidId, familyId, requestOpenInputSheetMode = null, o
     feedings,
     sleepSessions
   ]);
-  const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
 
   // AI-generated "What's Next" state
   const [whatsNextText, setWhatsNextText] = React.useState('Feed around 2:00pm');
@@ -3279,6 +3282,21 @@ Output ONLY the formatted string, nothing else.`;
     }
   };
 
+  React.useEffect(() => {
+    const handleInputSheetAdded = (event) => {
+      const mode = event?.detail?.mode;
+      if (mode === 'feeding') {
+        loadFeedings();
+        return;
+      }
+      if (mode === 'sleep') {
+        loadSleepSessions();
+      }
+    };
+    window.addEventListener('tt-input-sheet-added', handleInputSheetAdded);
+    return () => window.removeEventListener('tt-input-sheet-added', handleInputSheetAdded);
+  }, [loadFeedings, loadSleepSessions]);
+
   const loadData = async () => {
     // Never leave the tab stuck in "Loading..." if kidId isn't ready yet.
     setLoading(true);
@@ -3784,24 +3802,14 @@ Output ONLY the formatted string, nothing else.`;
   const handleSleepItemClick = (entry) => {
     // If it's an active sleep entry, open input sheet in sleep mode
     if (entry && entry.isActive) {
-      setInputSheetMode('sleep');
-      setShowInputSheet(true);
+      if (typeof onRequestOpenInputSheet === 'function') {
+        onRequestOpenInputSheet('sleep');
+      }
       return;
     }
     setSelectedSleepEntry(entry);
     setShowSleepDetailSheet(true);
   };
-
-  // Allow global nav "+" button (outside this tab) to open the input half sheet.
-  React.useEffect(() => {
-    if (!requestOpenInputSheetMode) return;
-    try {
-      setInputSheetMode(requestOpenInputSheetMode);
-      setShowInputSheet(true);
-    } finally {
-      try { if (typeof onRequestOpenInputSheetHandled === 'function') onRequestOpenInputSheetHandled(); } catch {}
-    }
-  }, [requestOpenInputSheetMode, onRequestOpenInputSheetHandled]);
 
   if (loading) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
@@ -4063,10 +4071,7 @@ Output ONLY the formatted string, nothing else.`;
             // Outer tappable container (entire blue area)
             React.createElement('button', {
               type: 'button',
-              onClick: () => {
-                setInputSheetMode('sleep');
-                setShowInputSheet(true);
-              },
+              onClick: () => requestInputSheetOpen('sleep'),
               className: "w-full mb-[5px]",
               style: { 
                 background: 'transparent',
@@ -4115,8 +4120,7 @@ Output ONLY the formatted string, nothing else.`;
                       type: 'button',
                       onClick: (e) => {
                         e.stopPropagation();
-                        setInputSheetMode('sleep');
-                        setShowInputSheet(true);
+                        requestInputSheetOpen('sleep');
                       },
                       className: "w-9 h-9 rounded-full flex items-center justify-center shadow-sm hover:opacity-80 transition-opacity",
                       style: { 
@@ -4550,10 +4554,7 @@ Output ONLY the formatted string, nothing else.`;
         rawSleepSessions: allSleepSessions,
         currentDate: currentDate,
         onItemClick: handleSleepItemClick,
-        onActiveSleepClick: () => {
-          setInputSheetMode('sleep');
-          setShowInputSheet(true);
-        },
+        onActiveSleepClick: () => requestInputSheetOpen('sleep'),
         onDelete: async () => {
           // Small delay for animation
           await new Promise(resolve => setTimeout(resolve, 200));
@@ -5547,22 +5548,6 @@ Output ONLY the formatted string, nothing else.`;
         // Small delay for sheet close animation (animation handled locally in TrackerCard)
         await new Promise(resolve => setTimeout(resolve, 200));
         await loadSleepSessions();
-      }
-    }),
-    window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
-      isOpen: showInputSheet,
-      onClose: () => setShowInputSheet(false),
-      kidId: kidId,
-      initialMode: inputSheetMode,
-      activeSleep: activeSleep,
-      onAdd: async (mode) => {
-        // Delay refresh until after sheet closes (200ms for close animation)
-        await new Promise(resolve => setTimeout(resolve, 250));
-        if (mode === 'feeding') {
-          await loadFeedings();
-        } else {
-          await loadSleepSessions();
-        }
       }
     })
   );

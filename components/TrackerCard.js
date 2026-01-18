@@ -252,6 +252,13 @@ function formatElapsedHmsTT(ms) {
   return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
 }
 
+// Expose formatElapsedHmsTT globally for extracted components
+if (typeof window !== 'undefined') {
+  window.TT = window.TT || {};
+  window.TT.utils = window.TT.utils || {};
+  window.TT.utils.formatElapsedHmsTT = formatElapsedHmsTT;
+}
+
 // v3 number formatting:
 // - whole numbers: "7"
 // - non-whole: "7.3" (one decimal)
@@ -309,6 +316,13 @@ const checkSleepOverlap = async (startMs, endMs, excludeId = null) => {
     return false;
   }
 };
+
+// Expose checkSleepOverlap globally for extracted components
+if (typeof window !== 'undefined') {
+  window.TT = window.TT || {};
+  window.TT.utils = window.TT.utils || {};
+  window.TT.utils.checkSleepOverlap = checkSleepOverlap;
+}
 
 function ensureTapAnimationStyles() {
   if (document.getElementById('tt-tap-anim')) return;
@@ -3148,9 +3162,9 @@ const TrackerCard = ({
   );
 };
 
-// Detail Sheet Components
-// Guard to prevent redeclaration
-if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
+// Detail Sheet Components (moved to components/halfsheets/*.js)
+// Guard remains for legacy reference, but is disabled to avoid duplicates.
+if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
   
   // Height constants (82% of viewport height)
   const DETAIL_SHEET_HEIGHT_VH = 82;
@@ -3547,6 +3561,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const mins = minutes < 10 ? '0' + minutes : minutes;
     return `${day} ${hours}:${mins} ${ampm}`;
   };
+  
+  // Expose formatDateTime globally for extracted components
+  if (typeof window !== 'undefined') {
+    window.TT = window.TT || {};
+    window.TT.utils = window.TT.utils || {};
+    window.TT.utils.formatDateTime = formatDateTime;
+  }
 
   // Feature flag: Wheel pickers in trays (instead of native keyboard / anchored picker)
   const _ttUseWheelPickers = () => {
@@ -3559,6 +3580,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       return false;
     }
   };
+  
+  // Expose _ttUseWheelPickers globally for extracted components
+  if (typeof window !== 'undefined') {
+    window.TT = window.TT || {};
+    window.TT.utils = window.TT.utils || {};
+    window.TT.utils.useWheelPickers = _ttUseWheelPickers;
+  }
 
   const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
   const LegacyInputRow = ({
@@ -3731,6 +3759,32 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       }
     });
   };
+  
+  // Expose InputRow factory globally for extracted components
+  if (typeof window !== 'undefined') {
+    window.TT = window.TT || {};
+    window.TT.utils = window.TT.utils || {};
+    // Create InputRow factory that uses the current formatDateTime and _ttUseWheelPickers
+    window.TT.utils.createInputRow = () => {
+      return (props) => {
+        const Component = TTInputRow || LegacyInputRow;
+        return React.createElement(Component, {
+          ...props,
+          formatDateTime: formatDateTime,
+          useWheelPickers: _ttUseWheelPickers,
+          openAnchoredTimePicker: ({ anchorEl, rawValue, onChange }) => {
+            if (window.TT && window.TT.ui && window.TT.ui.openAnchoredTimePicker) {
+              window.TT.ui.openAnchoredTimePicker({
+                anchorEl,
+                rawValue,
+                onChange
+              });
+            }
+          }
+        });
+      };
+    };
+  }
 
   // TTFeedDetailSheet Component
   const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
@@ -5241,6 +5295,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
     const sleepIntervalRef = React.useRef(null);
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
+    const endTimeManuallyEditedRef = React.useRef(false); // Track manual edits in ref for Firebase subscription
     const prevModeRef = React.useRef(mode); // Track previous mode to detect actual mode changes
     
     // Shared photos state
@@ -5289,9 +5344,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
           if (session.startTime) {
             setStartTime(new Date(session.startTime).toISOString());
           }
-          setEndTime(null);
-          setEndTimeManuallyEdited(false);
-          if (sleepState !== 'running') {
+          // Don't clear end time if user has manually edited it
+          if (!endTimeManuallyEditedRef.current) {
+            setEndTime(null);
+            setEndTimeManuallyEdited(false);
+          }
+          // Don't reset to running if user has manually edited end time (which stops the timer)
+          if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
             setSleepState('running');
           }
         } else {
@@ -5338,6 +5397,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         // Reset all sleep-related state when closing (except if timer is running)
         if (sleepState !== 'running') {
           setEndTimeManuallyEdited(false);
+          endTimeManuallyEditedRef.current = false;
           setStartTime(new Date().toISOString());
           setEndTime(null);
           setSleepNotes('');
@@ -5347,6 +5407,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         } else {
           // Timer is running - only reset manual edit flag
           setEndTimeManuallyEdited(false);
+          endTimeManuallyEditedRef.current = false;
         }
         // Reset feeding state when closing
         setFeedingDateTime(new Date().toISOString());
@@ -5740,6 +5801,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setPhotos([]);
         setSleepElapsedMs(0);
         setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
         
         // Close the sheet first
         if (onClose) onClose();
@@ -5761,6 +5823,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
       if (sleepState === 'running') {
         setEndTime(null);
         setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
         const normalizedStartTime = normalizeIsoTime(newStartTime);
         if (normalizedStartTime) {
           try {
@@ -5792,6 +5855,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     const handleEndTimeChange = (newEndTime) => {
         setEndTime(newEndTime);
       setEndTimeManuallyEdited(true);
+      endTimeManuallyEditedRef.current = true; // Update ref
       
       if (sleepState === 'running') {
         // RUNNING: Editing end time stops timer
@@ -5857,6 +5921,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
         setSleepElapsedMs(0);
         setActiveSleepSessionId(null);
         setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false; // Reset ref
         
         // Auto-close after save
         if (onClose) onClose();
@@ -6530,6 +6595,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSlee
     window.TTFeedDetailSheet = TTFeedDetailSheet;
     window.TTSleepDetailSheet = TTSleepDetailSheet;
     window.TTInputHalfSheet = TTInputHalfSheet;
+    // Also expose InputRow and utilities for extracted components
+    window.TT = window.TT || {};
+    window.TT.utils = window.TT.utils || {};
+    window.TT.utils.InputRow = InputRow;
+    window.TT.utils.HalfSheet = HalfSheet;
   }
 }
 

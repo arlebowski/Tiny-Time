@@ -228,6 +228,12 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
     setWeeksOffset(prev => prev + newDirection);
   };
 
+  React.useEffect(() => {
+    if (days.length > 0) {
+      setSelectedDate(days[6]); // Auto-select rightmost date
+    }
+  }, [weeksOffset]);
+
   const handleDragEnd = (event, info) => {
     const threshold = 30;
     if (info.offset.x > threshold) {
@@ -264,7 +270,20 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
         stiffness: 400,
         damping: 25
       }
+    }
+  };
+
+  const selectionVariants = {
+    selected: {
+      scale: 1.02,
+      y: -1,
+      transition: { type: "spring", stiffness: 300, damping: 26 }
     },
+    unselected: {
+      scale: 1,
+      y: 0,
+      transition: { type: "spring", stiffness: 300, damping: 26 }
+    }
   };
 
   const progressVariants = {
@@ -347,17 +366,22 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
               return (
                 React.createElement(__ttHorizontalMotion.button, {
                   key: date.toISOString(),
+                  layout: true,
                   variants: itemVariants,
+                  transition: {
+                    layout: { type: "spring", stiffness: 400, damping: 30 }
+                  },
                   onClick: () => {
                     setSelectedDate(date);
                     if (onDateSelect) onDateSelect(getMetricsForDate(date));
                   },
                   className: __ttHorizontalCn(
-                    "relative flex flex-col items-center justify-center flex-1 h-[80px] transition-colors duration-300 group focus:outline-none shrink-0",
+                    "relative flex flex-col items-center justify-center flex-1 h-[80px] group focus:outline-none shrink-0",
                     isSelected ? "rounded-xl shadow-sm" : "rounded-2xl hover:bg-white/5"
                   ),
                   style: {
                     willChange: 'transform, opacity',
+                    transformOrigin: 'center',
                     backgroundColor: isSelected ? 'var(--tt-selected-surface)' : undefined,
                     paddingLeft: isSelected ? '8px' : undefined,
                     paddingRight: isSelected ? '8px' : undefined,
@@ -367,7 +391,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                 },
                   React.createElement('span', {
                     className: __ttHorizontalCn(
-                      "text-xs font-semibold mb-1"
+                      "text-xs font-semibold mb-1 block"
                     ),
                     style: {
                       color: isSelected ? 'var(--tt-text-primary)' : 'var(--tt-text-tertiary)'
@@ -376,33 +400,33 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                   React.createElement('span', {
                     className: __ttHorizontalCn(
                       isSelected
-                        ? "text-[17.6px] font-bold mb-[22px] leading-none"
-                        : "text-sm font-medium mb-[22px] leading-none"
+                        ? "text-[17.6px] font-bold mb-[22px] leading-none block"
+                        : "text-sm font-medium mb-[22px] leading-none block"
                     ),
                     style: {
                       color: isSelected ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
                     }
                   }, __ttHorizontalFormat(date, "d")),
                   React.createElement('div', { className: "absolute bottom-3 flex flex-col gap-1 w-full px-2" },
-                    React.createElement('div', {
-                      className: "h-1.5 w-full rounded-full overflow-hidden",
-                      style: { backgroundColor: 'var(--tt-subtle-surface)' }
-                    },
-                      React.createElement(__ttHorizontalMotion.div, {
-                        variants: progressVariants,
-                        className: "h-full rounded-full origin-left",
-                        style: { width: `${metrics.feedPct}%`, backgroundColor: 'var(--tt-feed)' }
-                      })
-                    ),
-                    React.createElement('div', {
-                      className: "h-1.5 w-full rounded-full overflow-hidden",
-                      style: { backgroundColor: 'var(--tt-subtle-surface)' }
-                    },
-                      React.createElement(__ttHorizontalMotion.div, {
-                        variants: progressVariants,
-                        transition: { delay: 0.7 },
-                        className: "h-full rounded-full origin-left",
-                        style: { width: `${metrics.sleepPct}%`, backgroundColor: 'var(--tt-sleep)' }
+                      React.createElement('div', {
+                        className: "h-1.5 w-full rounded-full overflow-hidden",
+                        style: { backgroundColor: 'var(--tt-subtle-surface)' }
+                      },
+                        React.createElement(__ttHorizontalMotion.div, {
+                          variants: progressVariants,
+                          className: "h-full rounded-full origin-left",
+                          style: { width: `${metrics.feedPct}%`, backgroundColor: 'var(--tt-feed)' }
+                        })
+                      ),
+                      React.createElement('div', {
+                        className: "h-1.5 w-full rounded-full overflow-hidden",
+                        style: { backgroundColor: 'var(--tt-subtle-surface)' }
+                      },
+                        React.createElement(__ttHorizontalMotion.div, {
+                          variants: progressVariants,
+                          transition: { delay: 0.7 },
+                          className: "h-full rounded-full origin-left",
+                          style: { width: `${metrics.sleepPct}%`, backgroundColor: 'var(--tt-sleep)' }
                       })
                     )
                   )
