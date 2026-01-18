@@ -331,6 +331,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
             initial: "hidden",
             animate: "show",
             exit: "exit",
+            style: { willChange: 'transform, opacity' },
             drag: "x",
             dragConstraints: { left: 0, right: 0 },
             dragElastic: 0.4,
@@ -347,6 +348,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                   key: date.toISOString(),
                   variants: itemVariants,
                   layout: true,
+                  style: { willChange: 'transform, opacity' },
                   onClick: () => {
                     setSelectedDate(date);
                     if (onDateSelect) onDateSelect(getMetricsForDate(date));

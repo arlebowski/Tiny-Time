@@ -235,32 +235,19 @@ const TimelineMock = () => {
         'div',
         { className: "flex justify-between items-center mb-4" },
         React.createElement(
-          'div',
-          { className: "flex bg-gray-800 rounded-2xl p-1" },
-          React.createElement(
-            'button',
-            {
-              onClick: () => handleFilterChange('all'),
-              className: `px-6 py-2 rounded-2xl font-medium transition-all duration-300 ${filter === 'all' ? 'bg-gray-600 text-white' : 'text-gray-400'}`
-            },
-            'All'
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: () => handleFilterChange('feed'),
-              className: `px-6 py-2 rounded-2xl font-medium transition-all duration-300 ${filter === 'feed' ? 'bg-gray-600 text-white' : 'text-gray-400'}`
-            },
-            'Feed'
-          ),
-          React.createElement(
-            'button',
-            {
-              onClick: () => handleFilterChange('sleep'),
-              className: `px-6 py-2 rounded-2xl font-medium transition-all duration-300 ${filter === 'sleep' ? 'bg-gray-600 text-white' : 'text-gray-400'}`
-            },
-            'Sleep'
-          )
+          (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
+          {
+            value: filter,
+            options: [
+              { label: 'All', value: 'all' },
+              { label: 'Feed', value: 'feed' },
+              { label: 'Sleep', value: 'sleep' }
+            ],
+            onChange: handleFilterChange,
+            variant: 'body',
+            size: 'medium',
+            fullWidth: false
+          }
         ),
         React.createElement(
           'button',
