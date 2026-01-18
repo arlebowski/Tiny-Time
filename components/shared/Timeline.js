@@ -192,9 +192,9 @@ const Timeline = () => {
   const __ttTimelineMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
   const __ttTimelineAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
-  return React.createElement('div', { className: "bg-black relative" },
+  return React.createElement('div', { className: "relative", style: { backgroundColor: 'var(--tt-app-bg)' } },
     React.createElement('div', { className: "w-full select-none" },
-      React.createElement('div', { className: "sticky top-0 z-[100] bg-black/80 backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all" },
+      React.createElement('div', { className: "sticky top-0 z-[100] backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all", style: { backgroundColor: 'var(--tt-app-bg)' } },
         React.createElement(
           (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
           {
