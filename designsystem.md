@@ -118,6 +118,7 @@ backgroundColor: hexToRgba(categoryColor, 0.08) // Subtle backgrounds
 'text-[39.6px] font-bold leading-none'  // Main tracker value (v2)
 'text-[40px] font-bold leading-none'    // Main tracker value (v2)
 'text-[2.25rem] font-bold leading-none' // Chart average (36px)
+'text-[24px] font-bold leading-none'    // Compact metric value (half-height cards)
 
 // Body
 'text-[17.6px] font-normal'  // Units, target text (v2)
