@@ -488,6 +488,9 @@ window.TT.applyAppearance = function(appearance) {
       // Light mode (unchanged)
       root.style.setProperty('--tt-input-bg', '#f5f5f5');
       root.style.setProperty('--tt-subtle-surface', 'rgba(0,0,0,0.03)');
+      root.style.setProperty('--tt-selected-surface', 'rgba(0,0,0,0.08)');
+      root.style.setProperty('--tt-plus-bg', '#000000');
+      root.style.setProperty('--tt-plus-fg', '#ffffff');
       root.style.setProperty('--tt-text-primary', 'rgba(0,0,0,0.87)');
       root.style.setProperty('--tt-text-secondary', 'rgba(0,0,0,0.60)');
       root.style.setProperty('--tt-text-tertiary', 'rgba(0,0,0,0.38)');
@@ -503,6 +506,9 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
       root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
       root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
+      root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
+      root.style.setProperty('--tt-plus-bg', '#ffffff');
+      root.style.setProperty('--tt-plus-fg', '#000000');
       root.style.setProperty('--tt-text-primary', '#EDEDED');
       root.style.setProperty('--tt-text-secondary', '#B3B3B3');
       root.style.setProperty('--tt-text-tertiary', '#8A8A8A');
@@ -517,6 +523,9 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: existing palette (current behavior)
       root.style.setProperty('--tt-input-bg', '#2C2C2E');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
+      root.style.setProperty('--tt-plus-bg', '#ffffff');
+      root.style.setProperty('--tt-plus-fg', '#000000');
       root.style.setProperty('--tt-text-primary', 'rgba(255,255,255,0.87)');
       root.style.setProperty('--tt-text-secondary', 'rgba(255,255,255,0.60)');
       root.style.setProperty('--tt-text-tertiary', 'rgba(255,255,255,0.38)');
@@ -2855,15 +2864,15 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   className:
                     "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
                   style: {
-                    backgroundColor: (window.TT?.appearance?.get()?.darkMode) ? '#ffffff' : '#000000',
-                    color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff'
+                    backgroundColor: 'var(--tt-plus-bg)',
+                    color: 'var(--tt-plus-fg)'
                   },
                   'aria-label': 'Add'
                 },
                 React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
                   className: "w-6 h-6",
                   weight: 'fill',
-                  style: { color: (window.TT?.appearance?.get()?.darkMode) ? '#000000' : '#ffffff' }
+                  style: { color: 'var(--tt-plus-fg)' }
                 })
               ),
               // Trends/Analytics

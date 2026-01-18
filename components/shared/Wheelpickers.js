@@ -111,7 +111,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       willChange: 'transform, opacity'
     },
     itemSelected: { 
-      color: 'rgba(255, 255, 255, 0.95)',
+      color: 'var(--tt-text-primary)',
       fontWeight: '400',
       fontSize: '17px'
     },
