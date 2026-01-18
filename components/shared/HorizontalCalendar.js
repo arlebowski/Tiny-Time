@@ -281,7 +281,8 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
 
   return (
     React.createElement('div', {
-      className: "w-full text-white font-sans select-none overflow-visible"
+      className: "w-full font-sans select-none overflow-visible",
+      style: { color: 'var(--tt-text-primary)' }
     },
       React.createElement('header', { className: "mb-1 flex items-center justify-between pl-3 pr-4" },
         React.createElement(__ttHorizontalMotion.h1, {
@@ -373,10 +374,12 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                   React.createElement('span', {
                     className: __ttHorizontalCn(
                       isSelected
-                        ? "text-[17.6px] font-bold mb-[22px] leading-none text-white"
+                        ? "text-[17.6px] font-bold mb-[22px] leading-none"
                         : "text-sm font-medium mb-[22px] leading-none"
                     ),
-                    style: !isSelected ? { color: 'var(--tt-text-secondary)' } : undefined
+                    style: {
+                      color: isSelected ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
+                    }
                   }, __ttHorizontalFormat(date, "d")),
                   React.createElement('div', { className: "absolute bottom-3 flex flex-col gap-1 w-full px-2" },
                     React.createElement('div', {

@@ -130,18 +130,9 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
         rotateIcon: false
       })
     ),
-    TTCard
-      ? React.createElement(TTCard, {
-          variant: "tracker",
-          className: "min-h-[120px]"
-        })
-      : React.createElement('div', {
-          className: "rounded-2xl shadow-sm min-h-[120px]",
-          style: {
-            backgroundColor: "var(--tt-card-bg)",
-            borderColor: "var(--tt-card-border)"
-          }
-        })
+    (window.TT?.shared?.TimelineMock
+      ? React.createElement(window.TT.shared.TimelineMock)
+      : null)
   );
 };
 
