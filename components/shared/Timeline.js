@@ -195,17 +195,20 @@ const Timeline = () => {
   return React.createElement('div', { className: "bg-black relative" },
     React.createElement('div', { className: "w-full select-none" },
       React.createElement('div', { className: "sticky top-0 z-[100] bg-black/80 backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all" },
-        React.createElement('div', { className: "flex bg-zinc-900/90 rounded-2xl p-1 gap-1 border border-white/5" },
-          ['all', 'feed', 'sleep'].map((f) =>
-            React.createElement('button', {
-              key: f,
-              onClick: () => handleFilterChange(f),
-              className: __ttTimelineCn(
-                "px-4 py-1.5 rounded-xl font-medium text-sm capitalize transition-all duration-300",
-                filter === f ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'
-              )
-            }, f)
-          )
+        React.createElement(
+          (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
+          {
+            value: filter,
+            options: [
+              { label: 'All', value: 'all' },
+              { label: 'Feed', value: 'feed' },
+              { label: 'Sleep', value: 'sleep' }
+            ],
+            onChange: handleFilterChange,
+            variant: 'body',
+            size: 'medium',
+            fullWidth: false
+          }
         ),
         React.createElement('button', {
           onClick: handleToggleExpanded,
