@@ -9,7 +9,9 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
-  const AnimatedValue = __ttMotion ? __ttMotion.div : 'div';
+  const __ttAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence)
+    ? window.Motion.AnimatePresence
+    : null;
 
   const formatV2NumberSafe = (n) => {
     try {
@@ -41,48 +43,84 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
           className: "rounded-2xl shadow-sm min-h-[60px] p-5",
           style: { backgroundColor: "var(--tt-card-bg)", borderColor: "var(--tt-card-border)" }
         };
-    const animatedProps = __ttMotion
-      ? {
-          key: selectedSummaryKey,
-          initial: { opacity: 0, y: -6, scale: 0.99 },
-          animate: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 240, damping: 32, mass: 0.8 } }
-        }
-      : { key: selectedSummaryKey };
 
     return React.createElement(
       Card,
       cardProps,
       React.createElement('div', { className: "flex items-center justify-center" },
-        React.createElement(AnimatedValue, { className: "flex items-baseline gap-2 min-w-0", ...animatedProps },
-          icon
-            ? React.createElement(icon, {
-                style: {
-                  color,
-                  width: '1.5rem',
-                  height: '1.5rem',
-                  strokeWidth: rotateIcon ? '1.5' : undefined,
-                  fill: rotateIcon ? 'none' : undefined,
-                  transform: rotateIcon ? 'translateY(3px) rotate(20deg)' : 'translateY(3px)'
-                }
-              })
-            : React.createElement('div', {
-                style: {
-                  width: '1.5rem',
-                  height: '1.5rem',
-                  borderRadius: '1rem',
-                backgroundColor: 'var(--tt-input-bg)',
-                transform: 'translateY(3px)'
-                }
-              }),
-          React.createElement('div', {
-            className: "text-[24px] font-bold leading-none whitespace-nowrap",
-            style: { color }
-          }, value),
-          React.createElement('div', {
-            className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
-            style: { color: 'var(--tt-text-secondary)' }
-          }, unit)
-        )
+        __ttMotion && __ttAnimatePresence
+          ? React.createElement(__ttAnimatePresence, { mode: "wait" },
+              React.createElement(__ttMotion.div, {
+                key: selectedSummaryKey,
+                className: "flex items-baseline gap-2 min-w-0",
+                initial: { opacity: 0, y: -10, scale: 0.95 },
+                animate: { opacity: 1, y: 0, scale: 1 },
+                exit: { opacity: 0, y: 10, scale: 0.95 },
+                transition: { type: "spring", stiffness: 400, damping: 30 }
+              },
+                icon
+                  ? React.createElement(icon, {
+                      style: {
+                        color,
+                        width: '1.5rem',
+                        height: '1.5rem',
+                        strokeWidth: rotateIcon ? '1.5' : undefined,
+                        fill: rotateIcon ? 'none' : undefined,
+                        transform: rotateIcon ? 'translateY(3px) rotate(20deg)' : 'translateY(3px)'
+                      }
+                    })
+                  : React.createElement('div', {
+                      style: {
+                        width: '1.5rem',
+                        height: '1.5rem',
+                        borderRadius: '1rem',
+                        backgroundColor: 'var(--tt-input-bg)',
+                        transform: 'translateY(3px)'
+                      }
+                    }),
+                React.createElement('div', {
+                  className: "text-[24px] font-bold leading-none whitespace-nowrap",
+                  style: { color }
+                }, value),
+                React.createElement('div', {
+                  className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
+                  style: { color: 'var(--tt-text-secondary)' }
+                }, unit)
+              )
+            )
+          : React.createElement('div', { 
+              key: selectedSummaryKey,
+              className: "flex items-baseline gap-2 min-w-0"
+            },
+              icon
+                ? React.createElement(icon, {
+                    style: {
+                      color,
+                      width: '1.5rem',
+                      height: '1.5rem',
+                      strokeWidth: rotateIcon ? '1.5' : undefined,
+                      fill: rotateIcon ? 'none' : undefined,
+                      transform: rotateIcon ? 'translateY(3px) rotate(20deg)' : 'translateY(3px)'
+                    }
+                  })
+                : React.createElement('div', {
+                    style: {
+                      width: '1.5rem',
+                      height: '1.5rem',
+                      borderRadius: '1rem',
+                      backgroundColor: 'var(--tt-input-bg)',
+                      transform: 'translateY(3px)'
+                    }
+                  }),
+              React.createElement('div', {
+                className: "text-[24px] font-bold leading-none whitespace-nowrap",
+                style: { color }
+              }, value),
+              React.createElement('div', {
+                className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
+                style: { color: 'var(--tt-text-secondary)' }
+              }, unit)
+            )
       )
     );
   };
