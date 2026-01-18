@@ -488,6 +488,7 @@ window.TT.applyAppearance = function(appearance) {
       // Light mode (unchanged)
       root.style.setProperty('--tt-input-bg', '#f5f5f5');
       root.style.setProperty('--tt-subtle-surface', 'rgba(0,0,0,0.03)');
+      root.style.setProperty('--tt-swipe-row-bg', '#F7F7F7');
       root.style.setProperty('--tt-selected-surface', 'rgba(0,0,0,0.08)');
       root.style.setProperty('--tt-plus-bg', '#000000');
       root.style.setProperty('--tt-plus-fg', '#ffffff');
@@ -506,6 +507,7 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
       root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
       root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
+      root.style.setProperty('--tt-swipe-row-bg', '#272727');
       root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-plus-bg', '#ffffff');
       root.style.setProperty('--tt-plus-fg', '#000000');
@@ -523,6 +525,7 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: existing palette (current behavior)
       root.style.setProperty('--tt-input-bg', '#2C2C2E');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-swipe-row-bg', '#272727');
       root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-plus-bg', '#ffffff');
       root.style.setProperty('--tt-plus-fg', '#000000');

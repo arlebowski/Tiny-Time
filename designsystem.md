@@ -67,6 +67,7 @@
 --tt-card-border: [card border];    /* Card borders, dividers */
 --tt-input-bg: [input background];  /* Input fields (v2) */
 --tt-subtle-surface: [subtle];      /* Timeline items, pills, track (v2) */
+--tt-swipe-row-bg: [opaque];        /* Swipe row background (opaque) */
 --tt-app-bg: [app background];      /* Main app background */
 ```
 

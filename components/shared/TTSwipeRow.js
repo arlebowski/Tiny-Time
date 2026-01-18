@@ -77,7 +77,7 @@ const TTSwipeRow = ({
   ttEnsureTapAnimationStyles();
 
   const isSleep = mode === 'sleep';
-  const timelineBg = variant === 'outline' ? 'transparent' : 'var(--tt-subtle-surface)';
+  const timelineBg = variant === 'outline' ? 'transparent' : 'var(--tt-swipe-row-bg)';
   const outlineBorder = variant === 'outline' ? '2px solid var(--tt-border-strong)' : 'none';
 
   // Swipe state
