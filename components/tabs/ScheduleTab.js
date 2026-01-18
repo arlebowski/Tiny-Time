@@ -33,6 +33,30 @@ const startOfDay = __ttDateFns.startOfDay || ((date) => {
   return d;
 });
 
+const __ttDateKeyLocal = (date) => {
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const __ttNormalizeSleepInterval = (startMs, endMs, nowMs = Date.now()) => {
+  let sMs = Number(startMs);
+  let eMs = Number(endMs);
+  if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+  if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+  if (eMs < sMs) sMs -= 86400000;
+  if (eMs < sMs) return null;
+  return { startMs: sMs, endMs: eMs };
+};
+
+const __ttOverlapMs = (rangeStartMs, rangeEndMs, winStartMs, winEndMs) => {
+  const a = Math.max(rangeStartMs, winStartMs);
+  const b = Math.min(rangeEndMs, winEndMs);
+  return Math.max(0, b - a);
+};
+
 const __ttResolveFramer = () => {
   if (typeof window === 'undefined') return {};
   const candidates = [
@@ -97,6 +121,8 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
   const [selectedDate, setSelectedDate] = React.useState(today);
   const [weeksOffset, setWeeksOffset] = React.useState(0);
   const [direction, setDirection] = React.useState(0);
+  const [allFeedings, setAllFeedings] = React.useState([]);
+  const [allSleepSessions, setAllSleepSessions] = React.useState([]);
 
   const days = React.useMemo(() => {
     const endDate = subDays(today, weeksOffset * 7);
@@ -107,11 +133,83 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
     [days]
   );
 
-  const getIndicators = (date) => {
-    const day = date.getDate();
-    if (day % 2 === 0) return { pink: true, blue: true };
-    return { pink: true, blue: false };
-  };
+  React.useEffect(() => {
+    let isActive = true;
+    const load = async () => {
+      try {
+        if (typeof firestoreStorage === 'undefined') return;
+        const [feedings, sleeps] = await Promise.all([
+          firestoreStorage.getAllFeedings(),
+          firestoreStorage.getAllSleepSessions()
+        ]);
+        if (!isActive) return;
+        setAllFeedings(feedings || []);
+        setAllSleepSessions(sleeps || []);
+      } catch (e) {
+        console.error('[ScheduleTab] Failed loading data', e);
+      }
+    };
+    load();
+    return () => { isActive = false; };
+  }, []);
+
+  const dayMetrics = React.useMemo(() => {
+    const metrics = {};
+    const dayWindows = days.map((d) => {
+      const start = startOfDay(d);
+      const end = new Date(start);
+      end.setHours(23, 59, 59, 999);
+      return {
+        date: d,
+        key: __ttDateKeyLocal(d),
+        startMs: start.getTime(),
+        endMs: end.getTime() + 1
+      };
+    });
+
+    dayWindows.forEach(({ key }) => {
+      metrics[key] = { feedOz: 0, sleepMs: 0 };
+    });
+
+    const getOz = (f) => {
+      const oz = Number(f?.ounces ?? f?.amountOz ?? f?.amount ?? f?.volumeOz ?? f?.volume);
+      return Number.isFinite(oz) && oz > 0 ? oz : 0;
+    };
+
+    (allFeedings || []).forEach((f) => {
+      if (!f || !Number.isFinite(Number(f.timestamp))) return;
+      const ts = Number(f.timestamp);
+      const key = __ttDateKeyLocal(ts);
+      if (!metrics[key]) return;
+      metrics[key].feedOz += getOz(f);
+    });
+
+    const normSleeps = (allSleepSessions || [])
+      .map((s) => {
+        const end = s?.endTime ? Number(s.endTime) : Date.now();
+        const norm = __ttNormalizeSleepInterval(s?.startTime, end);
+        return norm ? { ...s, _normStartTime: norm.startMs, _normEndTime: norm.endMs } : null;
+      })
+      .filter(Boolean);
+
+    dayWindows.forEach(({ key, startMs, endMs }) => {
+      const total = normSleeps.reduce(
+        (sum, s) => sum + __ttOverlapMs(s._normStartTime, s._normEndTime, startMs, endMs),
+        0
+      );
+      metrics[key].sleepMs = total;
+    });
+
+    const feedMax = Math.max(1, ...Object.values(metrics).map(m => m.feedOz || 0));
+    const sleepMax = Math.max(1, ...Object.values(metrics).map(m => m.sleepMs || 0));
+
+    dayWindows.forEach(({ key }) => {
+      metrics[key].feedPct = Math.min(100, (metrics[key].feedOz / feedMax) * 100);
+      metrics[key].sleepPct = Math.min(100, (metrics[key].sleepMs / sleepMax) * 100);
+    });
+
+    return metrics;
+  }, [days, allFeedings, allSleepSessions]);
 
   const paginate = (newDirection) => {
     if (newDirection === -1 && weeksOffset === 0) return;
@@ -229,7 +327,8 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
           },
             days.map((date, index) => {
               const isSelected = isSameDay(date, selectedDate);
-              const indicators = getIndicators(date);
+              const key = __ttDateKeyLocal(date);
+              const metrics = dayMetrics[key] || { feedPct: 0, sleepPct: 0 };
 
               return (
                 React.createElement(motion.button, {
@@ -265,15 +364,27 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                     )
                   }, format(date, "d")),
                   React.createElement('div', { className: "absolute bottom-1 flex flex-col gap-1 w-full px-2" },
-                    indicators.pink && React.createElement(motion.div, {
-                      variants: progressVariants,
-                      className: "h-1.5 w-full bg-[#D6406C] rounded-full origin-left"
-                    }),
-                    indicators.blue && React.createElement(motion.div, {
-                      variants: progressVariants,
-                      transition: { delay: 0.7 },
-                      className: "h-1.5 w-full bg-[#4185C6] rounded-full origin-left"
-                    })
+                    React.createElement('div', {
+                      className: "h-1.5 w-full rounded-full overflow-hidden",
+                      style: { backgroundColor: 'var(--tt-subtle-surface)' }
+                    },
+                      React.createElement(motion.div, {
+                        variants: progressVariants,
+                        className: "h-full rounded-full origin-left",
+                        style: { width: `${metrics.feedPct}%`, backgroundColor: 'var(--tt-feed)' }
+                      })
+                    ),
+                    React.createElement('div', {
+                      className: "h-1.5 w-full rounded-full overflow-hidden",
+                      style: { backgroundColor: 'var(--tt-subtle-surface)' }
+                    },
+                      React.createElement(motion.div, {
+                        variants: progressVariants,
+                        transition: { delay: 0.7 },
+                        className: "h-full rounded-full origin-left",
+                        style: { width: `${metrics.sleepPct}%`, backgroundColor: 'var(--tt-sleep)' }
+                      })
+                    )
                   )
                 )
               );
