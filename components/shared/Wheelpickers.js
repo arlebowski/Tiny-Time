@@ -138,11 +138,11 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     },
     overlayTop: {
       top: 0,
-      background: 'linear-gradient(to bottom, var(--tt-card-bg) 0%, var(--tt-card-bg) 55%, transparent 100%)'
+      background: 'linear-gradient(to bottom, var(--tt-tray-bg) 0%, var(--tt-tray-bg) 55%, transparent 100%)'
     },
     overlayBottom: {
       bottom: 0,
-      background: 'linear-gradient(to top, var(--tt-card-bg) 0%, var(--tt-card-bg) 55%, transparent 100%)'
+      background: 'linear-gradient(to top, var(--tt-tray-bg) 0%, var(--tt-tray-bg) 55%, transparent 100%)'
     }
   };
   
