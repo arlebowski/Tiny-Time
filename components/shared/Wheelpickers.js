@@ -1011,7 +1011,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
               transition: 'transform 250ms cubic-bezier(0.2, 0, 0, 1)',
               willChange: 'transform',
               paddingBottom: 'env(safe-area-inset-bottom, 0)',
-              maxHeight: '40vh',
+              height: '40vh',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
