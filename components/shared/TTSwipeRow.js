@@ -77,7 +77,8 @@ const TTSwipeRow = ({
   ttEnsureTapAnimationStyles();
 
   const isSleep = mode === 'sleep';
-  const timelineBg = 'var(--tt-subtle-surface)';
+  const timelineBg = variant === 'outline' ? 'transparent' : 'var(--tt-subtle-surface)';
+  const outlineBorder = variant === 'outline' ? '2px solid var(--tt-border-strong)' : 'none';
 
   // Swipe state
   const [swipeOffset, setSwipeOffset] = React.useState(0);
@@ -453,6 +454,7 @@ const TTSwipeRow = ({
         className: `swipeable-content rounded-2xl cursor-pointer transition-colors duration-150${enableTapAnimation ? ' tt-tapable' : ''}`,
         style: {
           backgroundColor: timelineBg,
+          border: outlineBorder,
           position: 'relative',
           transition: isSwiping
             ? 'none'

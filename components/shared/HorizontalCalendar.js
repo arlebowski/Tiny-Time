@@ -247,17 +247,18 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
     },
     exit: (direction) => ({
       opacity: 0,
-      scale: 0.95,
+      rotateX: -15,
       transition: { duration: 0.2 },
     }),
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, scale: 0.5, y: 20 },
+    hidden: { opacity: 0, scale: 0.5, y: 20, rotateX: -45 },
     show: {
       opacity: 1,
       scale: 1,
       y: 0,
+      rotateX: 0,
       transition: {
         type: "spring",
         stiffness: 400,
@@ -282,7 +283,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
   return (
     React.createElement('div', {
       className: "w-full font-sans select-none overflow-visible",
-      style: { color: 'var(--tt-text-primary)' }
+      style: { color: 'var(--tt-text-primary)', perspective: '1000px' }
     },
       React.createElement('header', { className: "mb-1 flex items-center justify-between pl-3 pr-4" },
         React.createElement(__ttHorizontalMotion.h1, {
@@ -347,17 +348,16 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                 React.createElement(__ttHorizontalMotion.button, {
                   key: date.toISOString(),
                   variants: itemVariants,
-                  layout: true,
-                  style: { willChange: 'transform, opacity' },
                   onClick: () => {
                     setSelectedDate(date);
                     if (onDateSelect) onDateSelect(getMetricsForDate(date));
                   },
                   className: __ttHorizontalCn(
-                    "relative flex flex-col items-center justify-center flex-1 h-[80px] transition-all duration-300 group focus:outline-none shrink-0",
+                    "relative flex flex-col items-center justify-center flex-1 h-[80px] transition-colors duration-300 group focus:outline-none shrink-0",
                     isSelected ? "rounded-xl shadow-sm" : "rounded-2xl hover:bg-white/5"
                   ),
                   style: {
+                    willChange: 'transform, opacity',
                     backgroundColor: isSelected ? 'var(--tt-selected-surface)' : undefined,
                     paddingLeft: isSelected ? '8px' : undefined,
                     paddingRight: isSelected ? '8px' : undefined,

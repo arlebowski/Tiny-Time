@@ -129,10 +129,7 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
         unit: 'hrs',
         rotateIcon: false
       })
-    ),
-    (window.TT?.shared?.TimelineMock
-      ? React.createElement(window.TT.shared.TimelineMock)
-      : null)
+    )
   );
 };
 
