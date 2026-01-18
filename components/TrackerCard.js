@@ -3162,9 +3162,9 @@ const TrackerCard = ({
   );
 };
 
-// Detail Sheet Components
-// Guard to prevent redeclaration
-if (typeof window !== 'undefined' && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
+// Detail Sheet Components (moved to components/halfsheets/*.js)
+// Guard remains for legacy reference, but is disabled to avoid duplicates.
+if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !window.TTSleepDetailSheet) {
   
   // Height constants (82% of viewport height)
   const DETAIL_SHEET_HEIGHT_VH = 82;
