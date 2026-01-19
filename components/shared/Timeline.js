@@ -8,6 +8,18 @@ const Timeline = () => {
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [filter, setFilter] = React.useState('all');
   const [isCompiling, setIsCompiling] = React.useState(false);
+
+  // Access app icons
+  const bottleIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
+    null;
+  const moonIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
+    null;
   const [cards, setCards] = React.useState([
     { id: 1, time: '4:23 AM', hour: 4, minute: 23, completed: true, type: 'feed' },
     { id: 2, time: '6:45 AM', hour: 6, minute: 45, completed: true, type: 'sleep' },
@@ -130,10 +142,12 @@ const Timeline = () => {
     const timelineRect = timelineRef.current.getBoundingClientRect();
     const relativeY = clientY - timelineRect.top;
     const newCardTop = relativeY - touchOffset.current;
+    const maxTop = Math.max(0, timelineRect.height - 1);
+    const clampedTop = Math.max(0, Math.min(maxTop, newCardTop));
     
-    setDragY(newCardTop);
+    setDragY(clampedTop);
     
-    const percentage = Math.max(0, Math.min(100, (newCardTop / timelineRect.height) * 100));
+    const percentage = Math.max(0, Math.min(100, (clampedTop / timelineRect.height) * 100));
     const newTime = positionToTime(percentage);
     
     window.requestAnimationFrame(() => {
@@ -152,7 +166,7 @@ const Timeline = () => {
       setCards(prevCards => prevCards.map(card => {
         if (card.id === draggingCard) {
           const totalMinutes = card.hour * 60 + card.minute;
-          const snappedMinutes = Math.round(totalMinutes / 15) * 15;
+          const snappedMinutes = Math.min(23 * 60 + 55, Math.round(totalMinutes / 15) * 15);
           const snappedHour = Math.floor(snappedMinutes / 60) % 24;
           const snappedMinute = snappedMinutes % 60;
           const period = snappedHour >= 12 ? 'PM' : 'AM';
@@ -229,7 +243,7 @@ const Timeline = () => {
                 className: "absolute left-0 text-zinc-600 text-[10px] font-bold",
                 style: { 
                   top: `${h.position}%`,
-                  transform: 'translateY(-50%)',
+                  transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
                   opacity: isExpanded ? 1 : 0,
                 }
               }, h.label),
@@ -284,21 +298,54 @@ const Timeline = () => {
               },
                 React.createElement('div', {
                   className: __ttTimelineCn(
-                    "w-10 h-10 rounded-full flex items-center justify-center text-xl shadow-inner relative",
-                    card.type === 'feed' ? 'bg-orange-500/20 text-orange-500' : 'bg-indigo-500/20 text-indigo-500',
+                    "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative",
                     !card.completed && "grayscale opacity-50"
-                  )
+                  ),
+                  style: {
+                    backgroundColor: card.type === 'feed' 
+                      ? 'color-mix(in srgb, var(--tt-feed) 20%, transparent)'
+                      : 'color-mix(in srgb, var(--tt-sleep) 20%, transparent)'
+                  }
                 },
-                  card.type === 'feed' ? '🍼' : '💤',
+                  card.type === 'feed' && bottleIcon
+                    ? React.createElement(bottleIcon, {
+                        style: {
+                          color: 'var(--tt-feed)',
+                          width: '1.5rem',
+                          height: '1.5rem',
+                          strokeWidth: '1.5',
+                          fill: 'none',
+                          transform: 'rotate(20deg)'
+                        }
+                      })
+                    : card.type === 'sleep' && moonIcon
+                      ? React.createElement(moonIcon, {
+                          style: {
+                            color: 'var(--tt-sleep)',
+                            width: '1.5rem',
+                            height: '1.5rem',
+                            strokeWidth: '1.5'
+                          }
+                        })
+                      : card.type === 'feed' ? '🍼' : '💤',
                   React.createElement('div', { className: "absolute -bottom-1 -right-1 bg-black rounded-full p-0.5" },
                     card.completed ? (
-                      React.createElement('svg', { className: "w-3 h-3 text-green-500", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" },
-                        React.createElement('path', { d: "M20 6L9 17l-5-5", strokeLinecap: "round", strokeLinejoin: "round" })
+                      React.createElement('svg', { 
+                        className: "w-3 h-3 text-green-500", 
+                        viewBox: "0 0 256 256", 
+                        fill: "currentColor",
+                        xmlns: "http://www.w3.org/2000/svg"
+                      },
+                        React.createElement('path', { d: "M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z" })
                       )
                     ) : (
-                      React.createElement('svg', { className: "w-3 h-3 text-zinc-500", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2" },
-                        React.createElement('circle', { cx: "12", cy: "12", r: "10" }),
-                        React.createElement('polyline', { points: "12 6 12 12 16 14" })
+                      React.createElement('svg', { 
+                        className: "w-3 h-3 text-zinc-500", 
+                        viewBox: "0 0 256 256", 
+                        fill: "currentColor",
+                        xmlns: "http://www.w3.org/2000/svg"
+                      },
+                        React.createElement('path', { d: "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z" })
                       )
                     )
                   )
@@ -308,29 +355,18 @@ const Timeline = () => {
                     React.createElement('div', { className: "flex items-center gap-2" },
                       React.createElement('h3', {
                         className: __ttTimelineCn(
-                          "font-bold capitalize",
-                          card.completed ? "text-white" : "text-zinc-500"
-                        )
+                          "font-semibold capitalize",
+                          !card.completed && "text-zinc-500"
+                        ),
+                        style: card.completed ? { color: 'var(--tt-text-primary)' } : undefined
                       }, card.type)
                     ),
                     React.createElement('span', {
                       className: __ttTimelineCn(
-                        "text-xs font-mono",
+                        "text-xs",
                         card.completed ? "text-zinc-500" : "text-zinc-700"
                       )
                     }, card.time)
-                  ),
-                  React.createElement('div', { className: "mt-2 w-full h-1.5 bg-black/40 rounded-full overflow-hidden" },
-                    __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
-                      initial: { width: 0 },
-                      animate: { width: card.completed ? '100%' : '0%' },
-                      transition: { delay: 0.5, duration: 1, ease: "circOut" },
-                      className: __ttTimelineCn(
-                        "h-full rounded-full",
-                        card.type === 'feed' ? 'bg-orange-500' : 'bg-indigo-500',
-                        !card.completed && "opacity-20"
-                      )
-                    })
                   )
                 )
               );
