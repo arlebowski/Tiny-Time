@@ -106,10 +106,22 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               : { color: 'var(--tt-text-tertiary)' }
           }, card.time),
           showChevron && ChevronIcon
-            ? React.createElement(ChevronIcon, {
-                className: "w-5 h-5",
-                style: { color: 'var(--tt-text-secondary)' }
-              })
+            ? (__ttTimelineItemMotion
+                ? React.createElement(__ttTimelineItemMotion.div, {
+                    animate: { rotate: isExpanded ? 180 : 0 },
+                    transition: { type: "spring", stiffness: 300, damping: 26 },
+                    style: { display: 'flex', alignItems: 'center' }
+                  },
+                    React.createElement(ChevronIcon, {
+                      className: "w-5 h-5",
+                      style: { color: 'var(--tt-text-secondary)' }
+                    })
+                  )
+                : React.createElement(ChevronIcon, {
+                    className: "w-5 h-5",
+                    style: { color: 'var(--tt-text-secondary)' }
+                  })
+              )
             : null
         )
       ),
