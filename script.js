@@ -413,25 +413,25 @@ const BACKGROUND_THEMES = {
     "health-gray": {
       appBg: "#f3f4f6",
       cardBg: "#ffffff",
-      cardBorder: "rgba(0,0,0,0.08)"
+      cardBorder: "transparent"
     },
     "eggshell": {
       appBg: "#f6f1e7",
       cardBg: "#ffffff",
-      cardBorder: "rgba(0,0,0,0.08)"
+      cardBorder: "transparent"
     }
   },
   dark: {
     "health-gray": {
       appBg: "#121212",      // Clubhouse app background
       cardBg: "#1C1C1E",     // Clubhouse card/nav background
-      cardBorder: "rgba(255,255,255,0.10)"
+      cardBorder: "transparent"
     },
     "eggshell": {
       // Claude-inspired dark background palette
       appBg: "#1C1C1C",      // --tt-bg-app
       cardBg: "#202020",     // --tt-bg-surface
-      cardBorder: "#2E2E2E"  // --tt-border-subtle
+      cardBorder: "transparent"  // --tt-border-subtle
     }
   }
 };

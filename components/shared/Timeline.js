@@ -284,16 +284,18 @@ const Timeline = () => {
                   damping: 35,
                 },
                 className: __ttTimelineCn(
-                  "absolute w-full h-20 bg-zinc-900/80 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border border-white/5",
+                  "absolute w-full h-20 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border",
                   isDragging && "shadow-2xl ring-2 ring-blue-500/50 cursor-grabbing",
                   isHolding && "shadow-xl ring-2 ring-blue-500/30",
-                  !card.completed && "bg-zinc-950/40 border-dashed border-zinc-800"
+                  !card.completed && "border-dashed"
                 ),
                 onMouseDown: (e) => handleDragStart(e, card),
                 onTouchStart: (e) => handleDragStart(e, card),
                 style: { 
                   touchAction: isExpanded ? 'none' : 'auto',
-                  userSelect: 'none'
+                  userSelect: 'none',
+                  backgroundColor: card.completed ? 'var(--tt-card-bg)' : 'rgba(9,9,11,0.4)',
+                  borderColor: card.completed ? 'var(--tt-card-border)' : '#27272a'
                 }
               },
                 React.createElement('div', {
