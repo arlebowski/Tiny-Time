@@ -10,7 +10,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
     React.createElement('div', {
       className: __ttTimelineItemCn(
         "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative",
-        !card.completed && "grayscale opacity-50"
+        card.variant === 'scheduled' && "grayscale opacity-50"
       ),
       style: {
         backgroundColor: card.type === 'feed'
@@ -43,7 +43,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
         className: "absolute -bottom-1 -right-1 rounded-full p-0.5",
         style: { backgroundColor: 'var(--tt-card-bg)' }
       },
-        card.completed ? (
+        card.variant === 'logged' ? (
           React.createElement('svg', {
             className: "w-3 h-3 text-green-500",
             viewBox: "0 0 256 256",
@@ -70,14 +70,14 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
         React.createElement('div', { className: "flex items-center gap-2" },
           React.createElement('h3', {
             className: "font-semibold capitalize",
-            style: card.completed
+            style: card.variant === 'logged'
               ? { color: 'var(--tt-text-primary)' }
               : { color: 'var(--tt-text-tertiary)' }
           }, card.type)
         ),
         React.createElement('span', {
           className: "text-xs",
-          style: card.completed
+          style: card.variant === 'logged'
             ? { color: 'var(--tt-text-secondary)' }
             : { color: 'var(--tt-text-tertiary)' }
         }, card.time)

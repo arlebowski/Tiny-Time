@@ -24,16 +24,16 @@ const Timeline = () => {
     (window.TT && window.TT.shared && window.TT.shared.TimelineItem) ||
     null;
   const [cards, setCards] = React.useState([
-    { id: 1, time: '4:23 AM', hour: 4, minute: 23, completed: true, type: 'feed' },
-    { id: 2, time: '6:45 AM', hour: 6, minute: 45, completed: true, type: 'sleep' },
-    { id: 3, time: '8:12 AM', hour: 8, minute: 12, completed: true, type: 'feed' },
-    { id: 4, time: '10:30 AM', hour: 10, minute: 30, completed: true, type: 'sleep' },
-    { id: 5, time: '1:15 PM', hour: 13, minute: 15, completed: true, type: 'feed' },
-    { id: 6, time: '3:47 PM', hour: 15, minute: 47, completed: false, type: 'sleep' },
-    { id: 7, time: '5:20 PM', hour: 17, minute: 20, completed: false, type: 'feed' },
-    { id: 8, time: '7:55 PM', hour: 19, minute: 55, completed: false, type: 'sleep' },
-    { id: 9, time: '9:08 PM', hour: 21, minute: 8, completed: false, type: 'feed' },
-    { id: 10, time: '11:33 PM', hour: 23, minute: 33, completed: false, type: 'sleep' }
+    { id: 1, time: '4:23 AM', hour: 4, minute: 23, variant: 'logged', type: 'feed' },
+    { id: 2, time: '6:45 AM', hour: 6, minute: 45, variant: 'logged', type: 'sleep' },
+    { id: 3, time: '8:12 AM', hour: 8, minute: 12, variant: 'logged', type: 'feed' },
+    { id: 4, time: '10:30 AM', hour: 10, minute: 30, variant: 'logged', type: 'sleep' },
+    { id: 5, time: '1:15 PM', hour: 13, minute: 15, variant: 'logged', type: 'feed' },
+    { id: 6, time: '3:47 PM', hour: 15, minute: 47, variant: 'scheduled', type: 'sleep' },
+    { id: 7, time: '5:20 PM', hour: 17, minute: 20, variant: 'scheduled', type: 'feed' },
+    { id: 8, time: '7:55 PM', hour: 19, minute: 55, variant: 'scheduled', type: 'sleep' },
+    { id: 9, time: '9:08 PM', hour: 21, minute: 8, variant: 'scheduled', type: 'feed' },
+    { id: 10, time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep' }
   ]);
   const [draggingCard, setDraggingCard] = React.useState(null);
   const [holdingCard, setHoldingCard] = React.useState(null);
@@ -270,6 +270,7 @@ const Timeline = () => {
               const isDragging = draggingCard === card.id;
               const isHolding = holdingCard === card.id;
 
+              const isLogged = card.variant === 'logged';
               return __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
                 key: card.id,
                 layout: !isDragging && !isHolding,
@@ -290,18 +291,18 @@ const Timeline = () => {
                   "absolute w-full h-18 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border",
                   isDragging && "shadow-2xl cursor-grabbing",
                   isHolding && "shadow-xl",
-                  !card.completed && "border-dashed"
+                  !isLogged && "border-dashed"
                 ),
                 onMouseDown: (e) => handleDragStart(e, card),
                 onTouchStart: (e) => handleDragStart(e, card),
                 style: { 
                   touchAction: isExpanded ? 'none' : 'auto',
                   userSelect: 'none',
-                  backgroundColor: card.completed ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
-                  borderColor: card.completed ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)',
+                  backgroundColor: isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
+                  borderColor: isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)',
                   boxShadow: (() => {
                     if (!isDragging && !isHolding) return undefined;
-                    const baseColor = !card.completed
+                    const baseColor = !isLogged
                       ? 'var(--tt-text-secondary)'
                       : (card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)');
                     const mixPct = isDragging ? '50%' : '30%';
