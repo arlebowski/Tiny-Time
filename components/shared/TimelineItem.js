@@ -166,7 +166,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
             transition: { type: "spring", stiffness: 300, damping: 30 },
             style: { overflow: 'hidden' }
           },
-          React.createElement('div', { className: "pt-2 flex flex-col gap-1.5 text-xs" },
+          React.createElement('div', { className: "pt-2 flex flex-col gap-3 text-xs" },
             hasNote && React.createElement('div', {
               className: "italic",
               style: { color: 'var(--tt-text-secondary)' }
