@@ -24,16 +24,16 @@ const Timeline = () => {
     (window.TT && window.TT.shared && window.TT.shared.TimelineItem) ||
     null;
   const [cards, setCards] = React.useState([
-    { id: 1, time: '4:23 AM', hour: 4, minute: 23, variant: 'logged', type: 'feed' },
-    { id: 2, time: '6:45 AM', hour: 6, minute: 45, variant: 'logged', type: 'sleep' },
-    { id: 3, time: '8:12 AM', hour: 8, minute: 12, variant: 'logged', type: 'feed' },
-    { id: 4, time: '10:30 AM', hour: 10, minute: 30, variant: 'logged', type: 'sleep' },
-    { id: 5, time: '1:15 PM', hour: 13, minute: 15, variant: 'logged', type: 'feed' },
-    { id: 6, time: '3:47 PM', hour: 15, minute: 47, variant: 'scheduled', type: 'sleep' },
-    { id: 7, time: '5:20 PM', hour: 17, minute: 20, variant: 'scheduled', type: 'feed' },
-    { id: 8, time: '7:55 PM', hour: 19, minute: 55, variant: 'scheduled', type: 'sleep' },
-    { id: 9, time: '9:08 PM', hour: 21, minute: 8, variant: 'scheduled', type: 'feed' },
-    { id: 10, time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep' }
+    { id: 1, time: '4:23 AM', hour: 4, minute: 23, variant: 'logged', type: 'feed', amount: 4, unit: 'oz' },
+    { id: 2, time: '6:45 AM', hour: 6, minute: 45, variant: 'logged', type: 'sleep', amount: 3, unit: 'hrs' },
+    { id: 3, time: '8:12 AM', hour: 8, minute: 12, variant: 'logged', type: 'feed', amount: 5, unit: 'oz' },
+    { id: 4, time: '10:30 AM', hour: 10, minute: 30, variant: 'logged', type: 'sleep', amount: 2, unit: 'hrs' },
+    { id: 5, time: '1:15 PM', hour: 13, minute: 15, variant: 'logged', type: 'feed', amount: 6, unit: 'oz' },
+    { id: 6, time: '3:47 PM', hour: 15, minute: 47, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
+    { id: 7, time: '5:20 PM', hour: 17, minute: 20, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
+    { id: 8, time: '7:55 PM', hour: 19, minute: 55, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
+    { id: 9, time: '9:08 PM', hour: 21, minute: 8, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
+    { id: 10, time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep', amount: 2, unit: 'hrs' }
   ]);
   const [draggingCard, setDraggingCard] = React.useState(null);
   const [holdingCard, setHoldingCard] = React.useState(null);

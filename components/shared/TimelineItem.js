@@ -4,6 +4,17 @@ const __ttTimelineItemCn = (...classes) => classes.filter(Boolean).join(' ');
 const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
   if (!card) return null;
 
+  const unitText = (card.unit || '').toLowerCase();
+  const amountText = typeof card.amount === 'number' || typeof card.amount === 'string'
+    ? `${card.amount} ${unitText}`.trim()
+    : '';
+  const prefix = card.type === 'feed' ? 'Feed' : 'Sleep';
+  const labelText = amountText
+    ? (card.variant === 'logged'
+        ? amountText
+        : `${prefix} ~${amountText}`)
+    : (card.variant === 'logged' ? '' : prefix);
+
   return React.createElement(
     React.Fragment,
     null,
@@ -69,11 +80,11 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
       React.createElement('div', { className: "flex justify-between items-baseline" },
         React.createElement('div', { className: "flex items-center gap-2" },
           React.createElement('h3', {
-            className: "font-semibold capitalize",
+            className: "font-semibold",
             style: card.variant === 'logged'
               ? { color: 'var(--tt-text-primary)' }
               : { color: 'var(--tt-text-tertiary)' }
-          }, card.type)
+          }, labelText)
         ),
         React.createElement('span', {
           className: "text-xs",
