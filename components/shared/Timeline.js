@@ -389,6 +389,7 @@ const Timeline = () => {
                   const isDragging = draggingCard === card.id;
                   const isHolding = holdingCard === card.id;
                   const isLogged = card.variant === 'logged';
+                  const isEditMode = isExpanded;
                   const hasDetails = isLogged && getHasDetails(card);
                   const isExpandedCard = expandedCardId === card.id;
                   const extraOffset = expandedCardId && expandedCardTopBase !== null && expandedTopPx > expandedCardTopBase
@@ -426,7 +427,7 @@ const Timeline = () => {
                     onMouseDown: (e) => handleDragStart(e, card),
                     onTouchStart: (e) => handleDragStart(e, card),
                     onClick: () => {
-                      if (!isLogged || !hasDetails || isDragging || isHolding) return;
+                      if (!isLogged || isEditMode || !hasDetails || isDragging || isHolding) return;
                       setExpandedCardId((prev) => (prev === card.id ? null : card.id));
                     },
                     style: {
@@ -452,7 +453,8 @@ const Timeline = () => {
                           isExpanded: isExpandedCard,
                           detailsHeight: expandedContentHeight,
                           hasDetails,
-                          onPhotoClick: handleTimelinePhotoClick
+                          onPhotoClick: handleTimelinePhotoClick,
+                          isEditMode
                         })
                       : null
                   );
