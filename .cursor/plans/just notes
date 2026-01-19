@@ -1,0 +1,27 @@
+let's take a step back and let me explain the functionality im thinking of. then let's make a plan. 
+
+In default retracted mode (non-edit): 
+- rows are slimmer and in a collapsed state.
+- if the there are no pictures or notes, then the row isn't expandable.
+- [icon] [label] - [amount] on left. 
+- [time] on right. 
+- if there's notes or photos, then there's also a down chevron to the right of time
+- if expanded, the row opens like an accordion, pushing other items down and displays the cotnents
+- more than one row can be opened at once
+- opened rows reset when naving away and back or when changing the filter.
+
+when the timeline is in edit mode: 
+- all rows become editable in 2 ways: 
+1. you can tap and hold to drag and drop them on the timeline, like now no changes
+2. each row also has the pen icon where the chevron would be on the right. if you tap the pen it opens @components/halfsheets/TTFeedDetailSheet.js or @components/halfsheets/TTSleepDetailSheet.js and you can edit the info. 
+- rows cannot be expanded from their collapsed default state in edit mode
+
+for future scheduled items
+- i want to keep the styling exactly the same as what is currently in the timeline
+- they have no contents so cannot be expanded
+- only their time can be edited in edit mode via drag and drop
+
+is this a good plan? am i missing anything? 
+
+
+
