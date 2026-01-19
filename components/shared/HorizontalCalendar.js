@@ -124,19 +124,35 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
 
+  // Track the initial date from props to detect intentional external changes
+  const initialDateRef = React.useRef(initialDate);
+
   // Sync selectedDate and weeksOffset with initialDate prop changes
+  // Only sync if initialDate was explicitly changed from outside (not just re-renders with default value)
   React.useEffect(() => {
-    if (initialDate) {
-      const normalizedInitial = __ttHorizontalStartOfDay(initialDate);
-      if (!__ttHorizontalIsSameDay(selectedDate, normalizedInitial)) {
-        setSelectedDate(normalizedInitial);
-        
-        // Calculate the week offset to show the correct week
-        const daysDiff = Math.floor((today.getTime() - normalizedInitial.getTime()) / (1000 * 60 * 60 * 24));
-        const weeksDiff = Math.floor(daysDiff / 7);
-        if (weeksDiff !== weeksOffset && weeksDiff >= 0) {
-          setWeeksOffset(weeksDiff);
-        }
+    // Skip if initialDate hasn't meaningfully changed (same day as what we already tracked)
+    if (!initialDate) return;
+
+    const normalizedInitial = __ttHorizontalStartOfDay(initialDate);
+    const normalizedRef = initialDateRef.current ? __ttHorizontalStartOfDay(initialDateRef.current) : null;
+
+    // Only sync if the initial date actually changed to a different day from what was tracked
+    if (normalizedRef && __ttHorizontalIsSameDay(normalizedInitial, normalizedRef)) {
+      return; // Same day, no sync needed
+    }
+
+    // Update our ref to track this new initial date
+    initialDateRef.current = initialDate;
+
+    // Only sync if different from current selection
+    if (!__ttHorizontalIsSameDay(selectedDate, normalizedInitial)) {
+      setSelectedDate(normalizedInitial);
+
+      // Calculate the week offset to show the correct week
+      const daysDiff = Math.floor((today.getTime() - normalizedInitial.getTime()) / (1000 * 60 * 60 * 24));
+      const weeksDiff = Math.floor(daysDiff / 7);
+      if (weeksDiff !== weeksOffset && weeksDiff >= 0) {
+        setWeeksOffset(weeksDiff);
       }
     }
   }, [initialDate]);

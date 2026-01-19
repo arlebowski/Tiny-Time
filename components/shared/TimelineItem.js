@@ -126,7 +126,13 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
             style: card.variant === 'logged'
               ? { color: 'var(--tt-text-secondary)' }
               : { color: 'var(--tt-text-tertiary)' }
-          }, card.time),
+          },
+            // For sleep items, show "[start] – [end]" format
+            // For cross-day sleeps, card.time already has "YD" prefix
+            card.type === 'sleep' && card.endTime
+              ? `${card.time} – ${card.endTime}`
+              : card.time
+          ),
           showChevron && ChevronIcon
             ? (__ttTimelineItemMotion
                 ? React.createElement(__ttTimelineItemMotion.div, {

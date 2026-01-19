@@ -6,12 +6,204 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
   const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
+  const [selectedDate, setSelectedDate] = React.useState(new Date());
+  const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
+  const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
   const __ttAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence)
     ? window.Motion.AnimatePresence
     : null;
+
+  // Helper: format timestamp to 12-hour time string (e.g., "4:23 AM")
+  const formatTime12Hour = (timestamp) => {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const mins = minutes < 10 ? '0' + minutes : minutes;
+    return `${hours}:${mins} ${ampm}`;
+  };
+
+  // Helper: normalize sleep interval to handle midnight crossing
+  // Same logic as TrackerTab.js _normalizeSleepInterval
+  const normalizeSleepInterval = (startMs, endMs, nowMs = Date.now()) => {
+    let sMs = Number(startMs);
+    let eMs = Number(endMs);
+    if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+    // If start time accidentally landed in the future (common around midnight), pull it back one day
+    if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+    // If end < start, assume the sleep crossed midnight and the start belongs to the previous day
+    if (eMs < sMs) sMs -= 86400000;
+    if (eMs < sMs) return null; // still invalid
+    return { startMs: sMs, endMs: eMs };
+  };
+
+  // Helper: calculate overlap between two time ranges in milliseconds
+  // Same logic as TrackerTab.js _overlapMs
+  const overlapMs = (rangeStartMs, rangeEndMs, winStartMs, winEndMs) => {
+    const a = Math.max(rangeStartMs, winStartMs);
+    const b = Math.min(rangeEndMs, winEndMs);
+    return Math.max(0, b - a);
+  };
+
+  // Helper: calculate sleep duration in hours (only for the portion within a day window)
+  const calculateSleepDurationHours = (startTime, endTime, dayStartMs = null, dayEndMs = null) => {
+    if (!startTime || !endTime) return 0;
+
+    // If day boundaries provided, calculate overlap only
+    if (dayStartMs !== null && dayEndMs !== null) {
+      const norm = normalizeSleepInterval(startTime, endTime);
+      if (!norm) return 0;
+      const overlap = overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs);
+      return Math.round((overlap / 3600000) * 10) / 10; // Round to 1 decimal
+    }
+
+    // Otherwise, calculate full duration
+    const diffMs = endTime - startTime;
+    if (diffMs <= 0) return 0;
+    return Math.round((diffMs / 3600000) * 10) / 10; // Round to 1 decimal
+  };
+
+  // Transform Firebase feeding to Timeline card format
+  const feedingToCard = (f) => {
+    const d = new Date(f.timestamp);
+    return {
+      id: f.id,
+      time: formatTime12Hour(f.timestamp),
+      hour: d.getHours(),
+      minute: d.getMinutes(),
+      variant: 'logged',
+      type: 'feed',
+      amount: f.ounces || 0,
+      unit: 'oz',
+      note: f.notes || null,
+      notes: f.notes || null,
+      photoURLs: f.photoURLs || null
+    };
+  };
+
+  // Transform Firebase sleep session to Timeline card format
+  // Accepts optional day boundaries for cross-day handling
+  const sleepToCard = (s, dayStartMs = null, dayEndMs = null) => {
+    const norm = normalizeSleepInterval(s.startTime, s.endTime);
+    if (!norm) return null;
+
+    // Check if this sleep crosses from yesterday into the selected day
+    const crossesFromYesterday = dayStartMs !== null && norm.startMs < dayStartMs && norm.endMs > dayStartMs;
+
+    // For cross-day sleeps on the current day, position at start of day (00:00)
+    // For normal sleeps, use actual start time
+    let displayHour, displayMinute, displayTime, endDisplayTime;
+
+    if (crossesFromYesterday) {
+      // Sleep started yesterday - on current day view, show as starting at midnight
+      displayHour = 0;
+      displayMinute = 0;
+      // Format: "YD [start time] – [end time]"
+      displayTime = `YD ${formatTime12Hour(s.startTime)}`;
+      endDisplayTime = formatTime12Hour(s.endTime);
+    } else {
+      const d = new Date(s.startTime);
+      displayHour = d.getHours();
+      displayMinute = d.getMinutes();
+      displayTime = formatTime12Hour(s.startTime);
+      endDisplayTime = formatTime12Hour(s.endTime);
+    }
+
+    // Calculate duration - only the portion within the day if boundaries provided
+    const durationHours = calculateSleepDurationHours(s.startTime, s.endTime, dayStartMs, dayEndMs);
+
+    return {
+      id: s.id,
+      time: displayTime,
+      endTime: endDisplayTime,
+      hour: displayHour,
+      minute: displayMinute,
+      variant: 'logged',
+      type: 'sleep',
+      amount: durationHours,
+      unit: 'hrs',
+      note: s.notes || null,
+      notes: s.notes || null,
+      photoURLs: s.photoURLs || null,
+      crossesFromYesterday: crossesFromYesterday,
+      // Store original timestamps for reference
+      originalStartTime: s.startTime,
+      originalEndTime: s.endTime
+    };
+  };
+
+  // Load timeline data for selected date
+  const loadTimelineData = React.useCallback(async (date) => {
+    if (!firestoreStorage || !firestoreStorage.currentFamilyId || !firestoreStorage.currentKidId) {
+      return;
+    }
+
+    setIsLoadingTimeline(true);
+    try {
+      // Get start and end of the selected day
+      const startOfDay = new Date(date);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(date);
+      endOfDay.setHours(23, 59, 59, 999);
+      const dayStartMs = startOfDay.getTime();
+      const dayEndMs = endOfDay.getTime() + 1; // +1 to make end inclusive (same as TrackerTab)
+
+      // Fetch all feedings and sleep sessions
+      const [allFeedings, allSleepSessions] = await Promise.all([
+        firestoreStorage.getAllFeedings(),
+        firestoreStorage.getAllSleepSessions()
+      ]);
+
+      // Filter feedings for the selected day
+      const dayFeedings = (allFeedings || []).filter(f => {
+        const ts = f.timestamp || 0;
+        return ts >= dayStartMs && ts <= dayEndMs;
+      });
+
+      // Filter sleep sessions that overlap with the selected day using normalization
+      // This properly handles cross-day sleep sessions
+      const daySleepSessions = (allSleepSessions || []).filter(s => {
+        if (!s.startTime || !s.endTime) return false; // Skip active/incomplete
+        const norm = normalizeSleepInterval(s.startTime, s.endTime);
+        if (!norm) return false;
+        // Check if normalized session overlaps with the day
+        return overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs) > 0;
+      });
+
+      // Transform to Timeline card format
+      const feedingCards = dayFeedings.map(feedingToCard);
+      // Pass day boundaries to sleepToCard for cross-day handling
+      const sleepCards = daySleepSessions
+        .map(s => sleepToCard(s, dayStartMs, dayEndMs))
+        .filter(Boolean); // Filter out any null results
+
+      // Combine and sort by time (hour * 60 + minute)
+      // Cross-day sleeps will naturally sort first (hour=0, minute=0)
+      const allCards = [...feedingCards, ...sleepCards].sort((a, b) => {
+        const aMinutes = a.hour * 60 + a.minute;
+        const bMinutes = b.hour * 60 + b.minute;
+        return aMinutes - bMinutes;
+      });
+
+      setLoggedTimelineItems(allCards);
+    } catch (error) {
+      console.error('[ScheduleTab] Error loading timeline data:', error);
+      setLoggedTimelineItems([]);
+    } finally {
+      setIsLoadingTimeline(false);
+    }
+  }, []);
+
+  // Load timeline data when date changes
+  React.useEffect(() => {
+    loadTimelineData(selectedDate);
+  }, [selectedDate, loadTimelineData]);
 
   const formatV2NumberSafe = (n) => {
     try {
@@ -144,7 +336,9 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
             });
             if (payload.date) {
               try {
-                setSelectedSummaryKey(new Date(payload.date).toDateString());
+                const newDate = new Date(payload.date);
+                setSelectedSummaryKey(newDate.toDateString());
+                setSelectedDate(newDate);
               } catch (e) {
                 setSelectedSummaryKey(String(Date.now()));
               }
@@ -170,7 +364,10 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
         rotateIcon: false
       })
     ),
-    Timeline ? React.createElement(Timeline) : null
+    Timeline ? React.createElement(Timeline, {
+      key: selectedDate.toDateString(),
+      initialLoggedItems: loggedTimelineItems
+    }) : null
   );
 };
 
