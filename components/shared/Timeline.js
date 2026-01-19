@@ -294,8 +294,8 @@ const Timeline = () => {
                 style: { 
                   touchAction: isExpanded ? 'none' : 'auto',
                   userSelect: 'none',
-                  backgroundColor: card.completed ? 'var(--tt-card-bg)' : 'rgba(9,9,11,0.4)',
-                  borderColor: card.completed ? 'var(--tt-card-border)' : '#27272a'
+                  backgroundColor: card.completed ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
+                  borderColor: card.completed ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)'
                 }
               },
                 React.createElement('div', {
@@ -330,7 +330,7 @@ const Timeline = () => {
                           }
                         })
                       : card.type === 'feed' ? '🍼' : '💤',
-                  React.createElement('div', { className: "absolute -bottom-1 -right-1 bg-black rounded-full p-0.5" },
+                  React.createElement('div', { className: "absolute -bottom-1 -right-1 rounded-full p-0.5", style: { backgroundColor: 'var(--tt-card-bg)' } },
                     card.completed ? (
                       React.createElement('svg', { 
                         className: "w-3 h-3 text-green-500", 
@@ -342,10 +342,11 @@ const Timeline = () => {
                       )
                     ) : (
                       React.createElement('svg', { 
-                        className: "w-3 h-3 text-zinc-500", 
+                        className: "w-3 h-3", 
                         viewBox: "0 0 256 256", 
                         fill: "currentColor",
-                        xmlns: "http://www.w3.org/2000/svg"
+                        xmlns: "http://www.w3.org/2000/svg",
+                        style: { color: 'var(--tt-text-secondary)' }
                       },
                         React.createElement('path', { d: "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z" })
                       )
@@ -356,18 +357,17 @@ const Timeline = () => {
                   React.createElement('div', { className: "flex justify-between items-baseline" },
                     React.createElement('div', { className: "flex items-center gap-2" },
                       React.createElement('h3', {
-                        className: __ttTimelineCn(
-                          "font-semibold capitalize",
-                          !card.completed && "text-zinc-500"
-                        ),
-                        style: card.completed ? { color: 'var(--tt-text-primary)' } : undefined
+                        className: "font-semibold capitalize",
+                        style: card.completed
+                          ? { color: 'var(--tt-text-primary)' }
+                          : { color: 'var(--tt-text-tertiary)' }
                       }, card.type)
                     ),
                     React.createElement('span', {
-                      className: __ttTimelineCn(
-                        "text-xs",
-                        card.completed ? "text-zinc-500" : "text-zinc-700"
-                      )
+                      className: "text-xs",
+                      style: card.completed
+                        ? { color: 'var(--tt-text-secondary)' }
+                        : { color: 'var(--tt-text-tertiary)' }
                     }, card.time)
                   )
                 )
