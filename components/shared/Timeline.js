@@ -9,6 +9,8 @@ const Timeline = () => {
   const [filter, setFilter] = React.useState('all');
   const [isCompiling, setIsCompiling] = React.useState(false);
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
+  const [editingCard, setEditingCard] = React.useState(null);
+  const [deletingCard, setDeletingCard] = React.useState(null);
 
   // Access app icons
   const bottleIcon =
@@ -44,7 +46,7 @@ const Timeline = () => {
   const [dragY, setDragY] = React.useState(null);
   const touchOffset = React.useRef(0);
   const initialClientY = React.useRef(null);
-  const expandedContentHeight = 160;
+  const expandedContentHeight = 190;
 
   const handleTimelinePhotoClick = React.useCallback((photoUrl) => {
     setTimelineFullSizePhoto(photoUrl);
@@ -79,6 +81,20 @@ const Timeline = () => {
       document.body.removeChild(a);
     }
   }, [timelineFullSizePhoto]);
+
+  const handleEditCard = React.useCallback((card) => {
+    setEditingCard(card);
+  }, []);
+
+  const handleDeleteCard = React.useCallback((card) => {
+    setDeletingCard(card);
+  }, []);
+
+  const confirmDelete = React.useCallback(() => {
+    if (!deletingCard) return;
+    setCards(prev => prev.filter(c => c.id !== deletingCard.id));
+    setDeletingCard(null);
+  }, [deletingCard]);
 
   React.useEffect(() => {
     setTimeout(() => setHasLoaded(true), 100);
@@ -454,7 +470,9 @@ const Timeline = () => {
                           detailsHeight: expandedContentHeight,
                           hasDetails,
                           onPhotoClick: handleTimelinePhotoClick,
-                          isEditMode
+                          isEditMode,
+                          onEdit: handleEditCard,
+                          onDelete: handleDeleteCard
                         })
                       : null
                   );
@@ -465,7 +483,77 @@ const Timeline = () => {
         )
       )
     ),
-    timelinePhotoModal
+    timelinePhotoModal,
+    deletingCard && ReactDOM.createPortal(
+      React.createElement('div', {
+        onClick: () => setDeletingCard(null),
+        className: "fixed inset-0 bg-black/60 flex items-center justify-center p-4 backdrop-blur-sm",
+        style: { zIndex: 30000 }
+      },
+        React.createElement('div', {
+          onClick: (e) => e.stopPropagation(),
+          className: "rounded-3xl shadow-2xl p-6 max-w-sm w-full",
+          style: { backgroundColor: 'var(--tt-card-bg)' }
+        },
+          React.createElement('h2', {
+            className: "text-xl font-semibold mb-2",
+            style: { color: 'var(--tt-text-primary)' }
+          }, `Delete ${deletingCard.type === 'feed' ? 'Feeding' : 'Sleep'}?`),
+          React.createElement('p', {
+            className: "text-base mb-6",
+            style: { color: 'var(--tt-text-secondary)' }
+          }, `Are you sure you want to delete this ${deletingCard.type} at ${deletingCard.time}?`),
+          React.createElement('div', { className: "flex gap-3" },
+            React.createElement('button', {
+              onClick: () => setDeletingCard(null),
+              className: "flex-1 px-4 py-3 rounded-xl font-semibold text-base transition-all",
+              style: {
+                backgroundColor: 'var(--tt-subtle-surface)',
+                color: 'var(--tt-text-primary)'
+              }
+            }, 'Cancel'),
+            React.createElement('button', {
+              onClick: confirmDelete,
+              className: "flex-1 px-4 py-3 rounded-xl font-semibold text-base transition-all shadow-lg",
+              style: {
+                backgroundColor: '#ef4444',
+                color: '#ffffff'
+              }
+            }, 'Delete')
+          )
+        )
+      ),
+      document.body
+    ),
+    editingCard && ReactDOM.createPortal(
+      React.createElement('div', {
+        className: "fixed inset-0 bg-black/60 flex items-center justify-center p-4",
+        style: { zIndex: 30000 }
+      },
+        React.createElement('div', {
+          className: "rounded-3xl shadow-2xl p-6 max-w-sm w-full",
+          style: { backgroundColor: 'var(--tt-card-bg)' }
+        },
+          React.createElement('h2', {
+            className: "text-xl font-semibold mb-4",
+            style: { color: 'var(--tt-text-primary)' }
+          }, `Edit ${editingCard.type === 'feed' ? 'Feeding' : 'Sleep'}`),
+          React.createElement('p', {
+            className: "text-base mb-4",
+            style: { color: 'var(--tt-text-secondary)' }
+          }, 'Detail sheets (TTFeedDetailSheet / TTSleepDetailSheet) will be integrated here.'),
+          React.createElement('button', {
+            onClick: () => setEditingCard(null),
+            className: "w-full px-4 py-3 rounded-xl font-semibold text-base",
+            style: {
+              backgroundColor: 'var(--tt-subtle-surface)',
+              color: 'var(--tt-text-primary)'
+            }
+          }, 'Close')
+        )
+      ),
+      document.body
+    )
   );
 };
 

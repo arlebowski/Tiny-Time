@@ -1,7 +1,7 @@
 // Timeline Item Component (shared)
 const __ttTimelineItemCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false }) => {
+const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false, onEdit = null, onDelete = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -100,8 +100,8 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               : { color: 'var(--tt-text-tertiary)' }
           }, labelText)
         ),
-        React.createElement('div', { className: "flex items-center gap-1.5" },
-          card.variant === 'logged' && hasDetails && React.createElement('div', { className: "flex items-center gap-1 mr-2" },
+        React.createElement('div', { className: "flex items-center gap-2" },
+          card.variant === 'logged' && hasDetails && loggedState === 'default' && React.createElement('div', { className: "flex items-center gap-1 mr-2" },
             hasNote && React.createElement('svg', {
               className: "w-4 h-4",
               viewBox: "0 0 256 256",
@@ -146,11 +146,49 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               )
             : null
           ,
-          (card.variant === 'logged' && loggedState === 'edit' && PenIcon)
-            ? React.createElement(PenIcon, {
-                className: "w-3 h-3",
-                style: { color: 'var(--tt-text-secondary)' }
-              })
+          (card.variant === 'logged' && loggedState === 'edit')
+            ? React.createElement('div', { className: "flex items-center gap-2" },
+                onEdit && React.createElement('button', {
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    onEdit(card);
+                  },
+                  className: "w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
+                  style: { 
+                    backgroundColor: 'color-mix(in srgb, #3b82f6 15%, var(--tt-card-bg))',
+                    color: '#3b82f6'
+                  }
+                },
+                  React.createElement('svg', {
+                    className: "w-4 h-4",
+                    viewBox: "0 0 256 256",
+                    fill: "currentColor",
+                    xmlns: "http://www.w3.org/2000/svg"
+                  },
+                    React.createElement('path', { d: "M227.31,73.37,182.63,28.68a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H92.69A15.86,15.86,0,0,0,104,219.31L227.31,96a16,16,0,0,0,0-22.63ZM51.31,160,136,75.31,152.69,92,68,176.68ZM48,179.31,76.69,208H48Zm48,25.38L79.31,188,164,103.31,180.69,120Zm96-96L147.31,64l24-24L216,84.68Z" })
+                  )
+                ),
+                onDelete && React.createElement('button', {
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    onDelete(card);
+                  },
+                  className: "w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
+                  style: { 
+                    backgroundColor: 'color-mix(in srgb, #ef4444 15%, var(--tt-card-bg))',
+                    color: '#ef4444'
+                  }
+                },
+                  React.createElement('svg', {
+                    className: "w-4 h-4",
+                    viewBox: "0 0 256 256",
+                    fill: "currentColor",
+                    xmlns: "http://www.w3.org/2000/svg"
+                  },
+                    React.createElement('path', { d: "M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z" })
+                  )
+                )
+              )
             : null
         )
       ),
@@ -166,7 +204,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
             transition: { type: "spring", stiffness: 300, damping: 30 },
             style: { overflow: 'hidden' }
           },
-          React.createElement('div', { className: "pt-2 flex flex-col gap-3 text-xs" },
+          React.createElement('div', { className: "pt-2 pb-2 flex flex-col gap-3 text-xs" },
             hasNote && React.createElement('div', {
               className: "italic",
               style: { color: 'var(--tt-text-secondary)' }
