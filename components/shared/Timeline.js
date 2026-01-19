@@ -20,6 +20,9 @@ const Timeline = () => {
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"])) ||
     (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
     null;
+  const TimelineItem =
+    (window.TT && window.TT.shared && window.TT.shared.TimelineItem) ||
+    null;
   const [cards, setCards] = React.useState([
     { id: 1, time: '4:23 AM', hour: 4, minute: 23, completed: true, type: 'feed' },
     { id: 2, time: '6:45 AM', hour: 6, minute: 45, completed: true, type: 'sleep' },
@@ -306,79 +309,9 @@ const Timeline = () => {
                   })()
                 }
               },
-                React.createElement('div', {
-                  className: __ttTimelineCn(
-                    "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative",
-                    !card.completed && "grayscale opacity-50"
-                  ),
-                  style: {
-                    backgroundColor: card.type === 'feed' 
-                      ? 'color-mix(in srgb, var(--tt-feed) 20%, transparent)'
-                      : 'color-mix(in srgb, var(--tt-sleep) 20%, transparent)'
-                  }
-                },
-                  card.type === 'feed' && bottleIcon
-                    ? React.createElement(bottleIcon, {
-                        style: {
-                          color: 'var(--tt-feed)',
-                          width: '1.5rem',
-                          height: '1.5rem',
-                          strokeWidth: '1.5',
-                          fill: 'none',
-                          transform: 'rotate(20deg)'
-                        }
-                      })
-                    : card.type === 'sleep' && moonIcon
-                      ? React.createElement(moonIcon, {
-                          style: {
-                            color: 'var(--tt-sleep)',
-                            width: '1.5rem',
-                            height: '1.5rem',
-                            strokeWidth: '1.5'
-                          }
-                        })
-                      : card.type === 'feed' ? '🍼' : '💤',
-                  React.createElement('div', { className: "absolute -bottom-1 -right-1 rounded-full p-0.5", style: { backgroundColor: 'var(--tt-card-bg)' } },
-                    card.completed ? (
-                      React.createElement('svg', { 
-                        className: "w-3 h-3 text-green-500", 
-                        viewBox: "0 0 256 256", 
-                        fill: "currentColor",
-                        xmlns: "http://www.w3.org/2000/svg"
-                      },
-                        React.createElement('path', { d: "M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z" })
-                      )
-                    ) : (
-                      React.createElement('svg', { 
-                        className: "w-3 h-3", 
-                        viewBox: "0 0 256 256", 
-                        fill: "currentColor",
-                        xmlns: "http://www.w3.org/2000/svg",
-                        style: { color: 'var(--tt-text-secondary)' }
-                      },
-                        React.createElement('path', { d: "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z" })
-                      )
-                    )
-                  )
-                ),
-                React.createElement('div', { className: "flex-1" },
-                  React.createElement('div', { className: "flex justify-between items-baseline" },
-                    React.createElement('div', { className: "flex items-center gap-2" },
-                      React.createElement('h3', {
-                        className: "font-semibold capitalize",
-                        style: card.completed
-                          ? { color: 'var(--tt-text-primary)' }
-                          : { color: 'var(--tt-text-tertiary)' }
-                      }, card.type)
-                    ),
-                    React.createElement('span', {
-                      className: "text-xs",
-                      style: card.completed
-                        ? { color: 'var(--tt-text-secondary)' }
-                        : { color: 'var(--tt-text-tertiary)' }
-                    }, card.time)
-                  )
-                )
+                TimelineItem
+                  ? React.createElement(TimelineItem, { card, bottleIcon, moonIcon })
+                  : null
               );
             })
           )
