@@ -8,6 +8,7 @@ const Timeline = () => {
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [filter, setFilter] = React.useState('all');
   const [isCompiling, setIsCompiling] = React.useState(false);
+  const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
 
   // Access app icons
   const bottleIcon =
@@ -23,8 +24,9 @@ const Timeline = () => {
   const TimelineItem =
     (window.TT && window.TT.shared && window.TT.shared.TimelineItem) ||
     null;
+  const [expandedCardId, setExpandedCardId] = React.useState(null);
   const [cards, setCards] = React.useState([
-    { id: 1, time: '4:23 AM', hour: 4, minute: 23, variant: 'logged', type: 'feed', amount: 4, unit: 'oz' },
+    { id: 1, time: '4:23 AM', hour: 4, minute: 23, variant: 'logged', type: 'feed', amount: 4, unit: 'oz', notes: 'Placeholder note for testing.', photoURLs: ['assets/ui-icons/baby-placeholder.jpg'] },
     { id: 2, time: '6:45 AM', hour: 6, minute: 45, variant: 'logged', type: 'sleep', amount: 3, unit: 'hrs' },
     { id: 3, time: '8:12 AM', hour: 8, minute: 12, variant: 'logged', type: 'feed', amount: 5, unit: 'oz' },
     { id: 4, time: '10:30 AM', hour: 10, minute: 30, variant: 'logged', type: 'sleep', amount: 2, unit: 'hrs' },
@@ -42,6 +44,41 @@ const Timeline = () => {
   const [dragY, setDragY] = React.useState(null);
   const touchOffset = React.useRef(0);
   const initialClientY = React.useRef(null);
+  const expandedContentHeight = 160;
+
+  const handleTimelinePhotoClick = React.useCallback((photoUrl) => {
+    setTimelineFullSizePhoto(photoUrl);
+  }, []);
+
+  const handleDownloadPhoto = React.useCallback(async (e) => {
+    e.stopPropagation();
+    if (!timelineFullSizePhoto) return;
+
+    try {
+      const response = await fetch(timelineFullSizePhoto);
+      const blob = await response.blob();
+      const urlParts = timelineFullSizePhoto.split('.');
+      const extension = urlParts.length > 1 ? urlParts[urlParts.length - 1].split('?')[0] : 'jpg';
+      const filename = `photo_${Date.now()}.${extension}`;
+
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      const a = document.createElement('a');
+      a.href = timelineFullSizePhoto;
+      a.download = `photo_${Date.now()}.jpg`;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  }, [timelineFullSizePhoto]);
 
   React.useEffect(() => {
     setTimeout(() => setHasLoaded(true), 100);
@@ -85,6 +122,14 @@ const Timeline = () => {
     return (totalMinutes / (24 * 60)) * 100;
   };
 
+  const getHasDetails = (card) => {
+    if (!card) return false;
+    const photoList = card.photoURLs || card.photoUrls || card.photos;
+    const hasPhotos = Array.isArray(photoList) ? photoList.length > 0 : Boolean(photoList);
+    const hasNote = Boolean(card.note || card.notes);
+    return hasPhotos || hasNote;
+  };
+
   const positionToTime = (percentage) => {
     const totalMinutes = Math.round((percentage / 100) * 24 * 60);
     const hour = Math.floor(totalMinutes / 60) % 24;
@@ -111,7 +156,11 @@ const Timeline = () => {
     const timelineRect = timelineRef.current.getBoundingClientRect();
     const currentY = clientY - timelineRect.top;
     
-    const cardTop = (getCardPosition(card) / 100) * 1400;
+    const cardTopBase = (getCardPosition(card) / 100) * 1400;
+    const expandedCard = expandedCardId ? cards.find((c) => c.id === expandedCardId) : null;
+    const expandedCardTopBase = expandedCard ? (getCardPosition(expandedCard) / 100) * 1400 : null;
+    const needsExpandedOffset = isExpanded && expandedCard && card.id !== expandedCardId && cardTopBase > expandedCardTopBase;
+    const cardTop = needsExpandedOffset ? cardTopBase + expandedContentHeight : cardTopBase;
     touchOffset.current = currentY - cardTop;
     
     dragTimer.current = setTimeout(() => {
@@ -150,7 +199,7 @@ const Timeline = () => {
     
     setDragY(clampedTop);
     
-    const percentage = Math.max(0, Math.min(100, (clampedTop / timelineRect.height) * 100));
+    const percentage = Math.max(0, Math.min(100, (clampedTop / 1400) * 100));
     const newTime = positionToTime(percentage);
     
     window.requestAnimationFrame(() => {
@@ -209,116 +258,212 @@ const Timeline = () => {
   const __ttTimelineMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
   const __ttTimelineAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
-  return React.createElement('div', { className: "relative", style: { backgroundColor: 'var(--tt-app-bg)' } },
-    React.createElement('div', { className: "w-full select-none" },
-      React.createElement('div', { className: "sticky top-0 z-[100] backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all", style: { backgroundColor: 'var(--tt-app-bg)' } },
-        React.createElement(
-          (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
-          {
-            value: filter,
-            options: [
-              { label: 'All', value: 'all' },
-              { label: 'Feed', value: 'feed' },
-              { label: 'Sleep', value: 'sleep' }
-            ],
-            onChange: handleFilterChange,
-            variant: 'body',
-            size: 'medium',
-            fullWidth: false
-          }
-        ),
-        React.createElement('button', {
-          onClick: handleToggleExpanded,
-          className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
-        }, isExpanded ? 'Done' : 'Edit')
-      ),
-      React.createElement('div', {
-        ref: timelineRef,
-        className: "relative transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
-        style: { 
-          height: isExpanded ? '1400px' : `${filteredCards.length * 84 + 20}px`,
-        }
+  const timelinePhotoModal = timelineFullSizePhoto && ReactDOM.createPortal(
+    React.createElement('div', {
+      onClick: () => setTimelineFullSizePhoto(null),
+      className: "fixed inset-0 bg-black/75 flex items-center justify-center p-4",
+      style: { zIndex: 20000 }
+    },
+      React.createElement('button', {
+        onClick: handleDownloadPhoto,
+        className: "absolute top-4 right-20 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors",
+        'aria-label': 'Download'
       },
-        isExpanded && React.createElement('div', { className: "absolute left-0 top-0 w-16 h-full" },
-          hours.map((h, idx) =>
-            React.createElement('div', { key: idx },
-              React.createElement('div', {
-                className: "absolute left-0 text-zinc-600 text-[10px] font-bold",
-                style: { 
-                  top: `${h.position}%`,
-                  transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
-                  opacity: isExpanded ? 1 : 0,
-                }
-              }, h.label),
-              React.createElement('div', {
-                className: "absolute left-16 w-full border-t border-zinc-900/50",
-                style: { 
-                  top: `${h.position}%`,
-                  opacity: isExpanded ? 0.3 : 0,
-                }
-              })
-            )
-          )
-        ),
-        React.createElement('div', { className: __ttTimelineCn("relative transition-all duration-700", isExpanded ? 'ml-20 h-full' : 'w-full') },
-          __ttTimelineAnimatePresence && React.createElement(__ttTimelineAnimatePresence, { initial: false },
-            filteredCards.map((card, index) => {
-              const expandedTop = getCardPosition(card);
-              const compressedTop = index * 84;
-              const timelineHeight = 1400;
-              const expandedTopPx = (expandedTop / 100) * timelineHeight;
-              const isDragging = draggingCard === card.id;
-              const isHolding = holdingCard === card.id;
+        React.createElement('svg', {
+          xmlns: "http://www.w3.org/2000/svg",
+          width: "32",
+          height: "32",
+          fill: "#ffffff",
+          viewBox: "0 0 256 256",
+          className: "w-5 h-5"
+        },
+          React.createElement('path', {
+            d: "M224,144v64a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V144a8,8,0,0,1,16,0v56H208V144a8,8,0,0,1,16,0Zm-101.66,5.66a8,8,0,0,0,11.32,0l40-40a8,8,0,0,0-11.32-11.32L136,124.69V32a8,8,0,0,0-16,0v92.69L93.66,98.34a8,8,0,0,0-11.32,11.32Z"
+          })
+        )
+      ),
+      React.createElement('button', {
+        onClick: (e) => {
+          e.stopPropagation();
+          setTimelineFullSizePhoto(null);
+        },
+        className: "absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-black bg-opacity-50 hover:bg-opacity-70 transition-colors",
+        'aria-label': 'Close'
+      },
+        React.createElement('svg', {
+          xmlns: "http://www.w3.org/2000/svg",
+          width: "32",
+          height: "32",
+          fill: "#ffffff",
+          viewBox: "0 0 256 256",
+          className: "w-5 h-5"
+        },
+          React.createElement('path', {
+            d: "M205.66,194.34a8,8,0,0,1-11.32,11.32L128,139.31,61.66,205.66a8,8,0,0,1-11.32-11.32L116.69,128,50.34,61.66A8,8,0,0,1,61.66,50.34L128,116.69l66.34-66.35a8,8,0,0,1,11.32,11.32L139.31,128Z"
+          })
+        )
+      ),
+      React.createElement('img', {
+        src: timelineFullSizePhoto,
+        alt: "Full size photo",
+        className: "max-w-full max-h-full object-contain",
+        onClick: (e) => e.stopPropagation()
+      })
+    ),
+    document.body
+  );
 
-              const isLogged = card.variant === 'logged';
-              return __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
-                key: card.id,
-                layout: !isDragging && !isHolding,
-                initial: { opacity: 0, y: 20 },
-                animate: { 
-                  opacity: 1, 
-                  y: (isDragging && dragY !== null) ? dragY : (isExpanded ? expandedTopPx : compressedTop),
-                  scale: (isDragging || isHolding) ? 1.05 : 1,
-                  zIndex: (isDragging || isHolding) ? 50 : 1,
-                },
-                exit: { opacity: 0, scale: 0.8 },
-                transition: {
-                  type: isDragging ? "just" : "spring",
-                  stiffness: 500,
-                  damping: 35,
-                },
-                className: __ttTimelineCn(
-                  "absolute w-full h-18 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border",
-                  isDragging && "shadow-2xl cursor-grabbing",
-                  isHolding && "shadow-xl",
-                  !isLogged && "border-dashed"
-                ),
-                onMouseDown: (e) => handleDragStart(e, card),
-                onTouchStart: (e) => handleDragStart(e, card),
-                style: { 
-                  touchAction: isExpanded ? 'none' : 'auto',
-                  userSelect: 'none',
-                  backgroundColor: isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
-                  borderColor: isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)',
-                  boxShadow: (() => {
-                    if (!isDragging && !isHolding) return undefined;
-                    const baseColor = !isLogged
-                      ? 'var(--tt-text-secondary)'
-                      : (card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)');
-                    const mixPct = isDragging ? '50%' : '30%';
-                    return `0 0 0 2px color-mix(in srgb, ${baseColor} ${mixPct}, transparent)`;
-                  })()
-                }
-              },
-                TimelineItem
-                  ? React.createElement(TimelineItem, { card, bottleIcon, moonIcon })
-                  : null
-              );
-            })
+  return React.createElement(
+    React.Fragment,
+    null,
+    React.createElement('div', { className: "relative", style: { backgroundColor: 'var(--tt-app-bg)' } },
+      React.createElement('div', { className: "w-full select-none" },
+        React.createElement('div', { className: "sticky top-0 z-[100] backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all", style: { backgroundColor: 'var(--tt-app-bg)' } },
+          React.createElement(
+            (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
+            {
+              value: filter,
+              options: [
+                { label: 'All', value: 'all' },
+                { label: 'Feed', value: 'feed' },
+                { label: 'Sleep', value: 'sleep' }
+              ],
+              onChange: handleFilterChange,
+              variant: 'body',
+              size: 'medium',
+              fullWidth: false
+            }
+          ),
+          React.createElement('button', {
+            onClick: handleToggleExpanded,
+            className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
+          }, isExpanded ? 'Done' : 'Edit')
+        ),
+        React.createElement('div', {
+          ref: timelineRef,
+          className: "relative transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          style: {
+            height: isExpanded
+              ? '1400px'
+              : `${filteredCards.length * 84 + 20 + (expandedCardId ? expandedContentHeight : 0)}px`,
+          }
+        },
+          isExpanded && React.createElement('div', { className: "absolute left-0 top-0 w-16 h-full" },
+            hours.map((h, idx) =>
+              React.createElement('div', { key: idx },
+                React.createElement('div', {
+                  className: "absolute left-0 text-zinc-600 text-[10px] font-bold",
+                  style: {
+                    top: `${h.position}%`,
+                    transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
+                    opacity: isExpanded ? 1 : 0,
+                  }
+                }, h.label),
+                React.createElement('div', {
+                  className: "absolute left-16 w-full border-t border-zinc-900/50",
+                  style: {
+                    top: `${h.position}%`,
+                    opacity: isExpanded ? 0.3 : 0,
+                  }
+                })
+              )
+            )
+          ),
+          React.createElement('div', { className: __ttTimelineCn("relative transition-all duration-700", isExpanded ? 'ml-20 h-full' : 'w-full') },
+            __ttTimelineAnimatePresence && React.createElement(__ttTimelineAnimatePresence, { initial: false },
+              (() => {
+                const expandedCard = expandedCardId
+                  ? filteredCards.find((c) => c.id === expandedCardId)
+                  : null;
+                const expandedCardIndex = expandedCardId
+                  ? filteredCards.findIndex((c) => c.id === expandedCardId)
+                  : -1;
+                const timelineHeight = 1400;
+                const expandedCardTopBase = expandedCard
+                  ? (getCardPosition(expandedCard) / 100) * timelineHeight
+                  : null;
+                return filteredCards.map((card, index) => {
+                  const expandedTop = getCardPosition(card);
+                  const compressedTop = index * 84;
+                  const expandedTopPx = (expandedTop / 100) * timelineHeight;
+                  const isDragging = draggingCard === card.id;
+                  const isHolding = holdingCard === card.id;
+                  const isLogged = card.variant === 'logged';
+                  const hasDetails = isLogged && getHasDetails(card);
+                  const isExpandedCard = expandedCardId === card.id;
+                  const extraOffset = expandedCardId && expandedCardTopBase !== null && expandedTopPx > expandedCardTopBase
+                    ? expandedContentHeight
+                    : 0;
+                  const compressedExtraOffset = expandedCardIndex !== -1 && index > expandedCardIndex
+                    ? expandedContentHeight
+                    : 0;
+                  const targetY = (isDragging && dragY !== null)
+                    ? dragY
+                    : (isExpanded ? expandedTopPx + extraOffset : compressedTop + compressedExtraOffset);
+
+                  return __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
+                    key: card.id,
+                    layout: !isDragging && !isHolding,
+                    initial: { opacity: 0, y: 20 },
+                    animate: {
+                      opacity: 1,
+                      y: targetY,
+                      scale: (isDragging || isHolding) ? 1.05 : 1,
+                      zIndex: (isDragging || isHolding) ? 50 : 1,
+                    },
+                    exit: { opacity: 0, scale: 0.8 },
+                    transition: {
+                      type: isDragging ? "just" : "spring",
+                      stiffness: 500,
+                      damping: 35,
+                    },
+                    className: __ttTimelineCn(
+                      "absolute w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 border",
+                      isDragging && "shadow-2xl cursor-grabbing",
+                      isHolding && "shadow-xl",
+                      !isLogged && "border-dashed"
+                    ),
+                    onMouseDown: (e) => handleDragStart(e, card),
+                    onTouchStart: (e) => handleDragStart(e, card),
+                    onClick: () => {
+                      if (!isLogged || !hasDetails || isDragging || isHolding) return;
+                      setExpandedCardId((prev) => (prev === card.id ? null : card.id));
+                    },
+                    style: {
+                      touchAction: isExpanded ? 'none' : 'auto',
+                      userSelect: 'none',
+                      backgroundColor: isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
+                      borderColor: isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)',
+                      boxShadow: (() => {
+                        if (!isDragging && !isHolding) return undefined;
+                        const baseColor = !isLogged
+                          ? 'var(--tt-text-secondary)'
+                          : (card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)');
+                        const mixPct = isDragging ? '50%' : '30%';
+                        return `0 0 0 2px color-mix(in srgb, ${baseColor} ${mixPct}, transparent)`;
+                      })()
+                    }
+                  },
+                    TimelineItem
+                      ? React.createElement(TimelineItem, {
+                          card,
+                          bottleIcon,
+                          moonIcon,
+                          isExpanded: isExpandedCard,
+                          detailsHeight: expandedContentHeight,
+                          hasDetails,
+                          onPhotoClick: handleTimelinePhotoClick
+                        })
+                      : null
+                  );
+                });
+              })()
+            )
           )
         )
       )
-    )
+    ),
+    timelinePhotoModal
   );
 };
 

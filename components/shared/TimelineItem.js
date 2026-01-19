@@ -1,8 +1,11 @@
 // Timeline Item Component (shared)
 const __ttTimelineItemCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
+const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null }) => {
   if (!card) return null;
+
+  const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
+  const __ttTimelineItemAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
   const unitText = (card.unit || '').toLowerCase();
   const amountText = typeof card.amount === 'number' || typeof card.amount === 'string'
@@ -18,8 +21,11 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
   const photoList = card.photoURLs || card.photoUrls || card.photos;
   const hasPhotos = Array.isArray(photoList) ? photoList.length > 0 : Boolean(photoList);
   const hasNote = Boolean(card.note || card.notes);
-  const showChevron = card.variant === 'logged' && (hasNote || hasPhotos);
-  const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.ChevronRightIcon || window.TT.shared.icons.ChevronDownIcon)) || null;
+  const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos);
+  const showChevron = card.variant === 'logged' && hasDetails;
+  const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.ChevronDownIcon) || null;
+  const noteText = card.note || card.notes || '';
+  const photoUrls = Array.isArray(photoList) ? photoList : (photoList ? [photoList] : []);
 
   return React.createElement(
     React.Fragment,
@@ -83,7 +89,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
       )
     ),
     React.createElement('div', { className: "flex-1" },
-      React.createElement('div', { className: "flex justify-between items-baseline" },
+      React.createElement('div', { className: "flex items-center justify-between min-h-[40px]" },
         React.createElement('div', { className: "flex items-center gap-2" },
           React.createElement('h3', {
             className: "font-semibold",
@@ -105,6 +111,41 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
                 style: { color: 'var(--tt-text-secondary)' }
               })
             : null
+        )
+      ),
+      hasDetails && __ttTimelineItemAnimatePresence && __ttTimelineItemMotion && React.createElement(
+        __ttTimelineItemAnimatePresence,
+        { initial: false },
+        isExpanded && React.createElement(
+          __ttTimelineItemMotion.div,
+          {
+            initial: { height: 0, opacity: 0 },
+            animate: { height: detailsHeight, opacity: 1 },
+            exit: { height: 0, opacity: 0 },
+            transition: { type: "spring", stiffness: 300, damping: 30 },
+            style: { overflow: 'hidden' }
+          },
+          React.createElement('div', { className: "pt-2 flex flex-col gap-1.5 text-xs" },
+            hasNote && React.createElement('div', {
+              className: "italic",
+              style: { color: 'var(--tt-text-secondary)' }
+            }, noteText),
+            hasPhotos && React.createElement('div', { className: "flex gap-2" },
+              photoUrls.slice(0, 3).map((url, idx) => (
+                React.createElement('img', {
+                  key: `${card.id || 'photo'}-${idx}`,
+                  src: url,
+                  alt: "Timeline attachment",
+                  className: "w-32 h-32 rounded-2xl object-cover",
+                  style: { backgroundColor: 'var(--tt-input-bg)' },
+                  onClick: (e) => {
+                    e.stopPropagation();
+                    if (onPhotoClick) onPhotoClick(url);
+                  }
+                })
+              ))
+            )
+          )
         )
       )
     )
