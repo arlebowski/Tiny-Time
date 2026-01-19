@@ -15,6 +15,12 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
         : `${prefix} ~${amountText}`)
     : (card.variant === 'logged' ? '' : prefix);
 
+  const photoList = card.photoURLs || card.photoUrls || card.photos;
+  const hasPhotos = Array.isArray(photoList) ? photoList.length > 0 : Boolean(photoList);
+  const hasNote = Boolean(card.note || card.notes);
+  const showChevron = card.variant === 'logged' && (hasNote || hasPhotos);
+  const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.ChevronRightIcon || window.TT.shared.icons.ChevronDownIcon)) || null;
+
   return React.createElement(
     React.Fragment,
     null,
@@ -86,12 +92,20 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon }) => {
               : { color: 'var(--tt-text-tertiary)' }
           }, labelText)
         ),
-        React.createElement('span', {
-          className: "text-xs",
-          style: card.variant === 'logged'
-            ? { color: 'var(--tt-text-secondary)' }
-            : { color: 'var(--tt-text-tertiary)' }
-        }, card.time)
+        React.createElement('div', { className: "flex items-center gap-1.5" },
+          React.createElement('span', {
+            className: "text-xs",
+            style: card.variant === 'logged'
+              ? { color: 'var(--tt-text-secondary)' }
+              : { color: 'var(--tt-text-tertiary)' }
+          }, card.time),
+          showChevron && ChevronIcon
+            ? React.createElement(ChevronIcon, {
+                className: "w-5 h-5",
+                style: { color: 'var(--tt-text-secondary)' }
+              })
+            : null
+        )
       )
     )
   );
