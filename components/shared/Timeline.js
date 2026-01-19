@@ -3,11 +3,12 @@
 
 const __ttTimelineCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const Timeline = () => {
+const Timeline = ({ initialLoggedItems = null }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [filter, setFilter] = React.useState('all');
   const [isCompiling, setIsCompiling] = React.useState(false);
+  const [sortOrder, setSortOrder] = React.useState('desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
   const [editingCard, setEditingCard] = React.useState(null);
   const [deletingCard, setDeletingCard] = React.useState(null);
@@ -27,18 +28,34 @@ const Timeline = () => {
     (window.TT && window.TT.shared && window.TT.shared.TimelineItem) ||
     null;
   const [expandedCardId, setExpandedCardId] = React.useState(null);
-  const [cards, setCards] = React.useState([
-    { id: 1, time: '4:23 AM', hour: 4, minute: 23, variant: 'logged', type: 'feed', amount: 4, unit: 'oz', notes: 'Placeholder note for testing.', photoURLs: ['assets/ui-icons/baby-placeholder.jpg'] },
-    { id: 2, time: '6:45 AM', hour: 6, minute: 45, variant: 'logged', type: 'sleep', amount: 3, unit: 'hrs' },
-    { id: 3, time: '8:12 AM', hour: 8, minute: 12, variant: 'logged', type: 'feed', amount: 5, unit: 'oz' },
-    { id: 4, time: '10:30 AM', hour: 10, minute: 30, variant: 'logged', type: 'sleep', amount: 2, unit: 'hrs' },
-    { id: 5, time: '1:15 PM', hour: 13, minute: 15, variant: 'logged', type: 'feed', amount: 6, unit: 'oz' },
-    { id: 6, time: '3:47 PM', hour: 15, minute: 47, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
-    { id: 7, time: '5:20 PM', hour: 17, minute: 20, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
-    { id: 8, time: '7:55 PM', hour: 19, minute: 55, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
-    { id: 9, time: '9:08 PM', hour: 21, minute: 8, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
-    { id: 10, time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep', amount: 2, unit: 'hrs' }
-  ]);
+
+  // Default scheduled items (kept as fallback/placeholder)
+  const defaultScheduledItems = [
+    { id: 'sched-1', time: '3:47 PM', hour: 15, minute: 47, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
+    { id: 'sched-2', time: '5:20 PM', hour: 17, minute: 20, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
+    { id: 'sched-3', time: '7:55 PM', hour: 19, minute: 55, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
+    { id: 'sched-4', time: '9:08 PM', hour: 21, minute: 8, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
+    { id: 'sched-5', time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep', amount: 2, unit: 'hrs' }
+  ];
+
+  // Start with just scheduled items - production logged data comes via prop
+  const [cards, setCards] = React.useState(() => {
+    // If initialLoggedItems provided on mount, use it
+    if (Array.isArray(initialLoggedItems)) {
+      return [...initialLoggedItems, ...defaultScheduledItems];
+    }
+    return [...defaultScheduledItems];
+  });
+
+  // Update cards when initialLoggedItems changes (e.g., date change)
+  React.useEffect(() => {
+    // Handle all cases: array with items, empty array, or null
+    if (Array.isArray(initialLoggedItems)) {
+      // Production data provided (may be empty for days with no logs)
+      setCards([...initialLoggedItems, ...defaultScheduledItems]);
+    }
+    // If null/undefined, keep current cards (don't clear on unmount scenarios)
+  }, [initialLoggedItems]);
   const [draggingCard, setDraggingCard] = React.useState(null);
   const [holdingCard, setHoldingCard] = React.useState(null);
   const dragTimer = React.useRef(null);
