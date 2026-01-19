@@ -284,9 +284,9 @@ const Timeline = () => {
                   damping: 35,
                 },
                 className: __ttTimelineCn(
-                  "absolute w-full h-20 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border",
-                  isDragging && "shadow-2xl ring-2 ring-blue-500/50 cursor-grabbing",
-                  isHolding && "shadow-xl ring-2 ring-blue-500/30",
+                  "absolute w-full h-18 backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border",
+                  isDragging && "shadow-2xl cursor-grabbing",
+                  isHolding && "shadow-xl",
                   !card.completed && "border-dashed"
                 ),
                 onMouseDown: (e) => handleDragStart(e, card),
@@ -295,7 +295,15 @@ const Timeline = () => {
                   touchAction: isExpanded ? 'none' : 'auto',
                   userSelect: 'none',
                   backgroundColor: card.completed ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
-                  borderColor: card.completed ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)'
+                  borderColor: card.completed ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)',
+                  boxShadow: (() => {
+                    if (!isDragging && !isHolding) return undefined;
+                    const baseColor = !card.completed
+                      ? 'var(--tt-text-secondary)'
+                      : (card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)');
+                    const mixPct = isDragging ? '50%' : '30%';
+                    return `0 0 0 2px color-mix(in srgb, ${baseColor} ${mixPct}, transparent)`;
+                  })()
                 }
               },
                 React.createElement('div', {
