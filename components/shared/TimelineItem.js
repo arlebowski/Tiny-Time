@@ -94,7 +94,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
       React.createElement('div', { className: "flex items-center justify-between min-h-[40px]" },
         React.createElement('div', { className: "flex items-center gap-2" },
           React.createElement('h3', {
-            className: "font-semibold",
+            className: card.variant === 'logged' ? "font-semibold" : "font-medium",
             style: card.variant === 'logged'
               ? { color: 'var(--tt-text-primary)' }
               : { color: 'var(--tt-text-tertiary)' }
