@@ -118,11 +118,28 @@ const __ttHorizontalChevronRightIcon =
 
 const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
   const today = React.useMemo(() => __ttHorizontalStartOfDay(new Date()), []);
-  const [selectedDate, setSelectedDate] = React.useState(today);
+  const [selectedDate, setSelectedDate] = React.useState(() => __ttHorizontalStartOfDay(initialDate || new Date()));
   const [weeksOffset, setWeeksOffset] = React.useState(0);
   const [direction, setDirection] = React.useState(0);
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+
+  // Sync selectedDate and weeksOffset with initialDate prop changes
+  React.useEffect(() => {
+    if (initialDate) {
+      const normalizedInitial = __ttHorizontalStartOfDay(initialDate);
+      if (!__ttHorizontalIsSameDay(selectedDate, normalizedInitial)) {
+        setSelectedDate(normalizedInitial);
+        
+        // Calculate the week offset to show the correct week
+        const daysDiff = Math.floor((today.getTime() - normalizedInitial.getTime()) / (1000 * 60 * 60 * 24));
+        const weeksDiff = Math.floor(daysDiff / 7);
+        if (weeksDiff !== weeksOffset && weeksDiff >= 0) {
+          setWeeksOffset(weeksDiff);
+        }
+      }
+    }
+  }, [initialDate]);
 
   const days = React.useMemo(() => {
     const endDate = __ttHorizontalSubDays(today, weeksOffset * 7);

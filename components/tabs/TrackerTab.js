@@ -3484,6 +3484,12 @@ Output ONLY the formatted string, nothing else.`;
     return currentDate.toDateString() === new Date().toDateString();
   };
 
+  const handleDateSelectFromCalendar = React.useCallback((metrics) => {
+    if (metrics && metrics.date) {
+      setCurrentDate(metrics.date);
+    }
+  }, []);
+
   // What's Next card animation state (v3 and v4)
   const prevIsTodayRef = React.useRef(isToday());
   React.useEffect(() => {
@@ -3838,13 +3844,14 @@ Output ONLY the formatted string, nothing else.`;
   const dateNavDividerColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgb(243, 244, 246)';
 
   // Add a little bottom padding so the last card isn't obscured by mobile safe-area / nav.
+  const HorizontalCalendar = (window.TT && window.TT.shared && window.TT.shared.HorizontalCalendar) || null;
+  
   return React.createElement('div', { className: "space-y-4 pb-24" },
-    // Date Navigation (moved outside Today Card) - hidden in v3 and v4
-    uiVersion !== 'v3' && uiVersion !== 'v4' && React.createElement('div', { 
-      className: "date-nav-container",
+    // HorizontalCalendar (for v1 and v2) - hidden in v3 and v4
+    uiVersion !== 'v3' && uiVersion !== 'v4' && HorizontalCalendar && React.createElement('div', { 
+      className: "horizontal-calendar-container",
       style: {
-        backgroundColor: 'var(--tt-app-bg)', // Match header background
-        // Match the horizontal inset used by the cards (`script.js` page content uses `px-4` = 16px)
+        backgroundColor: 'var(--tt-app-bg)',
         padding: '16px 16px',
         position: 'sticky',
         top: 0,
@@ -3853,66 +3860,10 @@ Output ONLY the formatted string, nothing else.`;
         margin: '0 -1rem 1rem -1rem'
       }
     },
-      React.createElement('div', { 
-        className: "date-nav",
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          // Match TrackerCards: full available width within the tab content.
-          width: '100%',
-          backgroundColor: dateNavTrackBg, // tokenized for dark mode
-          padding: '8px 16px',
-          borderRadius: '12px' // rounded-xl (matches toggle)
-        }
-      },
-        React.createElement('div', {
-          onClick: goToPreviousDay,
-          className: "nav-arrow",
-          style: {
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            userSelect: 'none',
-            transition: 'opacity 0.2s',
-            WebkitTapHighlightColor: 'transparent'
-          },
-          onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
-          onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
-          onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: chevronColor } })),
-        React.createElement('div', { 
-          className: "date-text",
-          style: {
-            fontSize: '17px',
-            fontWeight: 600,
-            color: 'var(--tt-text-primary)',
-            flex: 1,
-            textAlign: 'center'
-          }
-        }, formatDate(currentDate)),
-        React.createElement('div', {
-          onClick: isToday() ? null : goToNextDay,
-          className: "nav-arrow",
-          style: {
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: isToday() ? 'not-allowed' : 'pointer',
-            userSelect: 'none',
-            transition: 'opacity 0.2s',
-            WebkitTapHighlightColor: 'transparent'
-          },
-          onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
-          onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
-          onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: isToday() ? chevronDisabledColor : chevronColor } }))
-      )
+      React.createElement(HorizontalCalendar, {
+        initialDate: currentDate,
+        onDateSelect: handleDateSelectFromCalendar
+      })
     ),
 
     // New TrackerCard Components (when useNewUI is true)
@@ -3933,66 +3884,14 @@ Output ONLY the formatted string, nothing else.`;
         },
         `DEBUG cards block: ui=${uiVersion} useNewUI=${!!useNewUI} hasTrackerCard=${!!window.TrackerCard} feedings=${Array.isArray(feedings) ? feedings.length : '?'} sleepSessions=${Array.isArray(sleepSessions) ? sleepSessions.length : '?'} loading=${!!loading}`
       ),
-      // Date Navigation in v3 and v4 (moved to body, above What's Next card)
-      (uiVersion === 'v3' || uiVersion === 'v4') && React.createElement('div', { 
-        className: "date-nav",
-        style: {
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '100%',
-          backgroundColor: dateNavTrackBg,
-          padding: '8px 16px',
-          borderRadius: '12px',
-          marginBottom: '16px'
-        }
+      // HorizontalCalendar in v3 and v4 (moved to body, above What's Next card)
+      (uiVersion === 'v3' || uiVersion === 'v4') && HorizontalCalendar && React.createElement('div', { 
+        style: { marginBottom: '16px' }
       },
-        React.createElement('div', {
-          onClick: goToPreviousDay,
-          className: "nav-arrow",
-          style: {
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            userSelect: 'none',
-            transition: 'opacity 0.2s',
-            WebkitTapHighlightColor: 'transparent'
-          },
-          onMouseDown: (e) => { e.currentTarget.style.opacity = '0.4'; },
-          onMouseUp: (e) => { e.currentTarget.style.opacity = '1'; },
-          onMouseLeave: (e) => { e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: chevronColor } })),
-        React.createElement('div', { 
-          className: "date-text",
-          style: {
-            fontSize: '17px',
-            fontWeight: 600,
-            color: 'var(--tt-text-primary)',
-            flex: 1,
-            textAlign: 'center'
-          }
-        }, formatDate(currentDate)),
-        React.createElement('div', {
-          onClick: isToday() ? null : goToNextDay,
-          className: "nav-arrow",
-          style: {
-            width: '32px',
-            height: '32px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: isToday() ? 'not-allowed' : 'pointer',
-            userSelect: 'none',
-            transition: 'opacity 0.2s',
-            WebkitTapHighlightColor: 'transparent'
-          },
-          onMouseDown: (e) => { if (!isToday()) e.currentTarget.style.opacity = '0.4'; },
-          onMouseUp: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; },
-          onMouseLeave: (e) => { if (!isToday()) e.currentTarget.style.opacity = '1'; }
-        }, React.createElement(window.TT?.shared?.icons?.ChevronRightIcon || ChevronRight, { className: "w-5 h-5", isTapped: false, selectedWeight: 'bold', style: { color: isToday() ? chevronDisabledColor : chevronColor } }))
+        React.createElement(HorizontalCalendar, {
+          initialDate: currentDate,
+          onDateSelect: handleDateSelectFromCalendar
+        })
       ),
       // What's Next Card - simple card with icon, label, and body (only show on today, v3 and v4)
       // Show card if it's today OR if it's animating out
