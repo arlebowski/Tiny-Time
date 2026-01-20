@@ -301,10 +301,12 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
   }, [onRequestOpenInputSheet]);
   const handleV4CardTap = React.useCallback((e, payload) => {
     if (typeof window === 'undefined') return;
+    const nextFilter = payload?.mode === 'feeding' ? 'feed' : payload?.mode || null;
     window.TT = window.TT || {};
     window.TT.shared = window.TT.shared || {};
-    if (payload && payload.mode) {
-      window.TT.shared.trackerDetailFilter = payload.mode === 'feeding' ? 'feed' : payload.mode;
+    if (nextFilter) {
+      window.TT.shared.trackerDetailFilter = nextFilter;
+      window.dispatchEvent(new CustomEvent('tt:tracker-detail-filter', { detail: { filter: nextFilter } }));
     }
     const setActiveTab = window.TT?.actions?.setActiveTab;
     if (typeof setActiveTab === 'function') {

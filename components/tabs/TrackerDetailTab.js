@@ -31,6 +31,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   })();
   const [initialTimelineFilter, setInitialTimelineFilter] = React.useState(__ttInitialFilter);
   const [summaryLayoutMode, setSummaryLayoutMode] = React.useState(__ttInitialFilter || 'all');
+  const [filterEpoch, setFilterEpoch] = React.useState(0);
   const [projectedTargets, setProjectedTargets] = React.useState({ feedTarget: 0, sleepTarget: 0 });
   const [summaryAnimationEpoch, setSummaryAnimationEpoch] = React.useState(0);
   const [summaryCardsEpoch, setSummaryCardsEpoch] = React.useState(0);
@@ -647,9 +648,26 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     if (nextFilter) {
       setInitialTimelineFilter(nextFilter);
       setSummaryLayoutMode(nextFilter);
+      setFilterEpoch((prev) => prev + 1);
       delete window.TT.shared.trackerDetailFilter;
     }
   }, [__ttInitialFilter]);
+  
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleFilterEvent = (event) => {
+      const nextFilter = event?.detail?.filter;
+      if (!nextFilter) return;
+      setInitialTimelineFilter(nextFilter);
+      setSummaryLayoutMode(nextFilter);
+      setFilterEpoch((prev) => prev + 1);
+      if (window.TT?.shared?.trackerDetailFilter === nextFilter) {
+        delete window.TT.shared.trackerDetailFilter;
+      }
+    };
+    window.addEventListener('tt:tracker-detail-filter', handleFilterEvent);
+    return () => window.removeEventListener('tt:tracker-detail-filter', handleFilterEvent);
+  }, []);
 
   const handleTimelineFilterChange = React.useCallback((nextFilter) => {
     if (!nextFilter) return;
@@ -856,6 +874,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       );
     })(),
     Timeline ? React.createElement(Timeline, {
+      key: `tracker-detail-timeline-${filterEpoch}`,
       initialLoggedItems: loggedTimelineItems,
       initialScheduledItems: Array.isArray(scheduledTimelineItems) ? scheduledTimelineItems : [],
       disableExpanded: true,
