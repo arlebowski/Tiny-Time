@@ -3930,6 +3930,18 @@ Output ONLY the formatted string, nothing else.`;
   const HorizontalCalendar = (window.TT && window.TT.shared && window.TT.shared.HorizontalCalendar) || null;
   
   return React.createElement('div', { className: "space-y-4 pb-24" },
+    (loading && hasLoadedOnce) && React.createElement('div', {
+      className: "flex items-center justify-center",
+      style: { marginTop: '-6px' }
+    },
+      React.createElement('div', {
+        className: "text-[12px] font-medium px-3 py-1 rounded-full",
+        style: {
+          backgroundColor: 'var(--tt-subtle-surface)',
+          color: 'var(--tt-text-secondary)'
+        }
+      }, 'Updating…')
+    ),
     // HorizontalCalendar (for v1 and v2) - hidden in v3 and v4
     uiVersion !== 'v3' && uiVersion !== 'v4' && HorizontalCalendar && React.createElement('div', { 
       className: "horizontal-calendar-container",
