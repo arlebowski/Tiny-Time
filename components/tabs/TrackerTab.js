@@ -298,8 +298,13 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
       onRequestOpenInputSheet(mode);
     }
   }, [onRequestOpenInputSheet]);
-  const handleV4CardTap = React.useCallback(() => {
+  const handleV4CardTap = React.useCallback((e, payload) => {
     if (typeof window === 'undefined') return;
+    window.TT = window.TT || {};
+    window.TT.shared = window.TT.shared || {};
+    if (payload && payload.mode) {
+      window.TT.shared.trackerDetailFilter = payload.mode === 'feeding' ? 'feed' : payload.mode;
+    }
     const setActiveTab = window.TT?.actions?.setActiveTab;
     if (typeof setActiveTab === 'function') {
       setActiveTab('tracker-detail');

@@ -21,6 +21,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
+  const [initialTimelineFilter, setInitialTimelineFilter] = React.useState('all');
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
@@ -534,6 +535,15 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
   }, [HorizontalCalendar]);
+  
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const nextFilter = window.TT?.shared?.trackerDetailFilter;
+    if (nextFilter) {
+      setInitialTimelineFilter(nextFilter);
+      delete window.TT.shared.trackerDetailFilter;
+    }
+  }, []);
 
   return React.createElement('div', {
     className: "space-y-4 pb-24"
@@ -654,6 +664,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       initialScheduledItems: Array.isArray(scheduledTimelineItems) ? scheduledTimelineItems : [],
       disableExpanded: true,
       allowItemExpand: true,
+      initialFilter: initialTimelineFilter,
       editMode: timelineEditMode,
       onEditModeChange: setTimelineEditMode,
       onEditCard: handleTimelineEditCard,

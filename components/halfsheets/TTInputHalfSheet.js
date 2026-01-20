@@ -388,6 +388,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     const CTA_BOTTOM_OFFSET_PX = 30;
     const CTA_SPACER_PX = 86 + CTA_BOTTOM_OFFSET_PX; // base + offset
     const [ctaHeightPx, setCtaHeightPx] = React.useState(CTA_SPACER_PX);
+    const ctaPaddingPx = __ttUseV4Sheet
+      ? (Math.max(ctaHeightPx || 0, CTA_SPACER_PX) + CTA_BOTTOM_OFFSET_PX + 24)
+      : CTA_SPACER_PX;
     
     const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
       if (!startMs) return null;
@@ -1430,7 +1433,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       { style: { minHeight: __ttUseV4Sheet ? undefined : '100%', display: 'flex', flexDirection: 'column', position: __ttUseV4Sheet ? 'relative' : undefined } },
       // Wrapper to ensure proper clipping of absolutely positioned children
       React.createElement('div', {
-        style: { position: 'relative', overflow: __ttUseV4Sheet ? 'visible' : 'hidden', width: '100%', flex: __ttUseV4Sheet ? undefined : 1, minHeight: 0, paddingBottom: __ttUseV4Sheet ? `${ctaHeightPx + CTA_BOTTOM_OFFSET_PX + 8}px` : undefined }
+        style: { position: 'relative', overflow: __ttUseV4Sheet ? 'visible' : 'hidden', width: '100%', flex: __ttUseV4Sheet ? undefined : 1, minHeight: 0, paddingBottom: __ttUseV4Sheet ? `${ctaPaddingPx}px` : undefined }
       }, animatedContent),
 
       // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)

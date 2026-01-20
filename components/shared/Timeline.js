@@ -8,6 +8,7 @@ const Timeline = ({
   initialScheduledItems = null,
   disableExpanded = false,
   allowItemExpand = true,
+  initialFilter = 'all',
   editMode = null,
   onEditModeChange = null,
   onEditCard = null,
@@ -15,7 +16,7 @@ const Timeline = ({
 }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
-  const [filter, setFilter] = React.useState('all');
+  const [filter, setFilter] = React.useState(initialFilter || 'all');
   const [isCompiling, setIsCompiling] = React.useState(false);
   const [sortOrder, setSortOrder] = React.useState('desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
@@ -143,6 +144,13 @@ const Timeline = ({
   React.useEffect(() => {
     setTimeout(() => setHasLoaded(true), 100);
   }, []);
+  
+  React.useEffect(() => {
+    if (!initialFilter) return;
+    if (initialFilter !== filter) {
+      setFilter(initialFilter);
+    }
+  }, [initialFilter, filter]);
   
   React.useEffect(() => {
     if (disableExpanded && isExpanded) {
