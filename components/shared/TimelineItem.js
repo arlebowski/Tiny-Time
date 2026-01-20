@@ -28,6 +28,20 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
   const PenIcon = (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.PenIcon || window.TT.shared.icons.Edit2)) || null;
   const noteText = card.note || card.notes || '';
   const photoUrls = Array.isArray(photoList) ? photoList : (photoList ? [photoList] : []);
+  const formatTime12Hour = (timestamp) => {
+    if (!timestamp) return '';
+    const d = new Date(timestamp);
+    let hours = d.getHours();
+    const minutes = d.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const mins = minutes < 10 ? `0${minutes}` : String(minutes);
+    return `${hours}:${mins} ${ampm}`;
+  };
+  const resolvedEndTime = typeof card.endTime === 'number'
+    ? formatTime12Hour(card.endTime)
+    : card.endTime;
 
   return React.createElement(
     React.Fragment,
@@ -129,8 +143,8 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
           },
             // For sleep items, show "[start] – [end]" format
             // For cross-day sleeps, card.time already has "YD" prefix
-            card.type === 'sleep' && card.endTime
-              ? `${card.time} – ${card.endTime}`
+            card.type === 'sleep' && resolvedEndTime
+              ? `${card.time} – ${resolvedEndTime}`
               : card.time
           ),
           showChevron && ChevronIcon

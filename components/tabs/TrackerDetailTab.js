@@ -10,10 +10,17 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
   const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
+  const projectedScheduleRef = React.useRef(null);
+  const latestActualEventsRef = React.useRef({ dateKey: null, feedings: [], sleeps: [] });
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
   const calendarContainerRef = React.useRef(null);
   const weekToggleHostRef = React.useRef(null);
   const [calendarSideWidth, setCalendarSideWidth] = React.useState(null);
+  const [timelineEditMode, setTimelineEditMode] = React.useState(false);
+  const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
+  const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
+  const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
+  const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
@@ -42,52 +49,98 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     return `${year}-${month}-${day}`;
   };
 
+  const buildScheduledCard = (item, dateKey, index) => {
+    const timeMs = Number(item?.timeMs);
+    if (!Number.isFinite(timeMs)) return null;
+    const d = new Date(timeMs);
+    const isFeed = item.type === 'feed';
+    let amount = isFeed ? Number(item?.targetOz) : Number(item?.avgDurationHours);
+    if (!Number.isFinite(amount) && isFeed && Array.isArray(item?.targetOzRange)) {
+      const [low, high] = item.targetOzRange;
+      if (Number.isFinite(low) && Number.isFinite(high)) {
+        amount = Math.round(((low + high) / 2) * 10) / 10;
+      }
+    }
+    return {
+      id: `sched-${dateKey}-${item.type}-${index}`,
+      time: formatTime12Hour(timeMs),
+      hour: d.getHours(),
+      minute: d.getMinutes(),
+      variant: 'scheduled',
+      type: item.type,
+      amount: Number.isFinite(amount) ? amount : null,
+      unit: isFeed ? 'oz' : 'hrs',
+      timeMs
+    };
+  };
+
+  const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions) => {
+    const dateKey = getScheduleDateKey(date);
+    const todayKey = getScheduleDateKey(new Date());
+    if (dateKey !== todayKey || !Array.isArray(projectedItems) || projectedItems.length === 0) {
+      setScheduledTimelineItems([]);
+      return;
+    }
+
+    const actualEvents = [
+      ...(dayFeedings || []).map((f) => ({ type: 'feed', timeMs: Number(f.timestamp) })),
+      ...(daySleepSessions || []).map((s) => ({ type: 'sleep', timeMs: Number(s.startTime) }))
+    ].filter((e) => Number.isFinite(e.timeMs));
+
+    const completionWindowMs = 30 * 60 * 1000;
+    const nowMs = Date.now();
+    const upcomingFloorMs = nowMs - completionWindowMs;
+
+    const sortedProjected = projectedItems
+      .map((item, idx) => {
+        const card = buildScheduledCard(item, dateKey, idx);
+        if (!card) return null;
+        const isCompleted = actualEvents.some((evt) => {
+          if (evt.type !== card.type) return false;
+          return Math.abs(evt.timeMs - card.timeMs) <= completionWindowMs;
+        });
+        return { card, isCompleted };
+      })
+      .filter(Boolean)
+      .sort((a, b) => a.card.timeMs - b.card.timeMs);
+
+    const nextItem = sortedProjected.find(({ card, isCompleted }) => {
+      if (isCompleted) return false;
+      return card.timeMs >= upcomingFloorMs;
+    });
+
+    setScheduledTimelineItems(nextItem ? [nextItem.card] : []);
+  };
+
   const loadProjectedSchedule = React.useCallback((date) => {
     const dateKey = getScheduleDateKey(date);
     const todayKey = getScheduleDateKey(new Date());
     if (dateKey !== todayKey) {
-      setScheduledTimelineItems(null);
+      projectedScheduleRef.current = null;
+      setScheduledTimelineItems([]);
       return;
     }
     try {
       const raw = localStorage.getItem(scheduleStorageKey);
       if (!raw) {
-        setScheduledTimelineItems(null);
+        projectedScheduleRef.current = null;
+        setScheduledTimelineItems([]);
         return;
       }
       const parsed = JSON.parse(raw);
       if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) {
-        setScheduledTimelineItems(null);
+        projectedScheduleRef.current = null;
+        setScheduledTimelineItems([]);
         return;
       }
-      const scheduledCards = parsed.items
-        .map((item, idx) => {
-          const timeMs = Number(item?.timeMs);
-          if (!Number.isFinite(timeMs)) return null;
-          const d = new Date(timeMs);
-          const isFeed = item.type === 'feed';
-          let amount = isFeed ? Number(item?.targetOz) : Number(item?.avgDurationHours);
-          if (!Number.isFinite(amount) && isFeed && Array.isArray(item?.targetOzRange)) {
-            const [low, high] = item.targetOzRange;
-            if (Number.isFinite(low) && Number.isFinite(high)) {
-              amount = Math.round(((low + high) / 2) * 10) / 10;
-            }
-          }
-          return {
-            id: `sched-${dateKey}-${item.type}-${idx}`,
-            time: formatTime12Hour(timeMs),
-            hour: d.getHours(),
-            minute: d.getMinutes(),
-            variant: 'scheduled',
-            type: item.type,
-            amount: Number.isFinite(amount) ? amount : null,
-            unit: isFeed ? 'oz' : 'hrs'
-          };
-        })
-        .filter(Boolean);
-      setScheduledTimelineItems(scheduledCards.length > 0 ? scheduledCards : null);
+      projectedScheduleRef.current = parsed.items;
+      const latest = latestActualEventsRef.current;
+      const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
+      const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
+      updateNextScheduledItem(date, parsed.items, feedings, sleeps);
     } catch (error) {
-      setScheduledTimelineItems(null);
+      projectedScheduleRef.current = null;
+      setScheduledTimelineItems([]);
     }
   }, []);
 
@@ -136,6 +189,10 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     const d = new Date(f.timestamp);
     return {
       id: f.id,
+      timestamp: f.timestamp,
+      ounces: f.ounces ?? f.amountOz ?? f.amount ?? f.volumeOz ?? f.volume ?? 0,
+      notes: f.notes || null,
+      photoURLs: f.photoURLs || null,
       time: formatTime12Hour(f.timestamp),
       hour: d.getHours(),
       minute: d.getMinutes(),
@@ -143,9 +200,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       type: 'feed',
       amount: f.ounces || 0,
       unit: 'oz',
-      note: f.notes || null,
-      notes: f.notes || null,
-      photoURLs: f.photoURLs || null
+      note: f.notes || null
     };
   };
 
@@ -182,8 +237,13 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
 
     return {
       id: s.id,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      notes: s.notes || null,
+      photoURLs: s.photoURLs || null,
+      sleepType: s.sleepType || null,
       time: displayTime,
-      endTime: endDisplayTime,
+      endTimeDisplay: endDisplayTime,
       hour: displayHour,
       minute: displayMinute,
       variant: 'logged',
@@ -191,8 +251,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       amount: durationHours,
       unit: 'hrs',
       note: s.notes || null,
-      notes: s.notes || null,
-      photoURLs: s.photoURLs || null,
       crossesFromYesterday: crossesFromYesterday,
       // Store original timestamps for reference
       originalStartTime: s.startTime,
@@ -254,6 +312,13 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       });
 
       setLoggedTimelineItems(allCards);
+      const dateKey = getScheduleDateKey(date);
+      latestActualEventsRef.current = {
+        dateKey,
+        feedings: dayFeedings,
+        sleeps: daySleepSessions
+      };
+      updateNextScheduledItem(date, projectedScheduleRef.current, dayFeedings, daySleepSessions);
     } catch (error) {
       console.error('[ScheduleTab] Error loading timeline data:', error);
       setLoggedTimelineItems([]);
@@ -413,6 +478,32 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     } catch (e) {}
     return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
   };
+  const handleTimelineEditCard = React.useCallback((card) => {
+    if (!card || card.variant !== 'logged') return;
+    if (card.type === 'feed') {
+      setSelectedFeedEntry(card);
+      setShowFeedDetailSheet(true);
+      return;
+    }
+    if (card.type === 'sleep') {
+      setSelectedSleepEntry(card);
+      setShowSleepDetailSheet(true);
+    }
+  }, []);
+  const handleTimelineDeleteCard = React.useCallback(async (card) => {
+    if (!card || !card.id) return;
+    try {
+      if (card.type === 'feed') {
+        await firestoreStorage.deleteFeeding(card.id);
+      } else if (card.type === 'sleep') {
+        await firestoreStorage.deleteSleepSession(card.id);
+      }
+      await loadTimelineData(selectedDate);
+    } catch (error) {
+      console.error('[TrackerDetailTab] Failed to delete timeline entry:', error);
+      alert('Failed to delete. Please try again.');
+    }
+  }, [selectedDate, loadTimelineData]);
 
   React.useEffect(() => {
     if (!calendarContainerRef.current || !weekToggleHostRef.current) return;
@@ -546,8 +637,44 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     Timeline ? React.createElement(Timeline, {
       key: selectedDate.toDateString(),
       initialLoggedItems: loggedTimelineItems,
-      initialScheduledItems: scheduledTimelineItems
-    }) : null
+      initialScheduledItems: Array.isArray(scheduledTimelineItems) ? scheduledTimelineItems : [],
+      disableExpanded: true,
+      allowItemExpand: true,
+      editMode: timelineEditMode,
+      onEditModeChange: setTimelineEditMode,
+      onEditCard: handleTimelineEditCard,
+      onDeleteCard: handleTimelineDeleteCard
+    }) : null,
+    window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
+      isOpen: showFeedDetailSheet,
+      onClose: () => {
+        setShowFeedDetailSheet(false);
+        setSelectedFeedEntry(null);
+      },
+      entry: selectedFeedEntry,
+      __ttUseV4Sheet: true,
+      onDelete: async () => {
+        await loadTimelineData(selectedDate);
+      },
+      onSave: async () => {
+        await loadTimelineData(selectedDate);
+      }
+    }),
+    window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
+      isOpen: showSleepDetailSheet,
+      onClose: () => {
+        setShowSleepDetailSheet(false);
+        setSelectedSleepEntry(null);
+      },
+      entry: selectedSleepEntry,
+      __ttUseV4Sheet: true,
+      onDelete: async () => {
+        await loadTimelineData(selectedDate);
+      },
+      onSave: async () => {
+        await loadTimelineData(selectedDate);
+      }
+    })
   );
 };
 

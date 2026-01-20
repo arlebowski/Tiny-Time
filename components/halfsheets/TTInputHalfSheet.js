@@ -1414,7 +1414,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       { style: { minHeight: __ttUseV4Sheet ? undefined : '100%', display: 'flex', flexDirection: 'column', position: __ttUseV4Sheet ? 'relative' : undefined } },
       // Wrapper to ensure proper clipping of absolutely positioned children
       React.createElement('div', {
-        style: { position: 'relative', overflow: 'hidden', width: '100%', flex: __ttUseV4Sheet ? undefined : 1, minHeight: 0, paddingBottom: __ttUseV4Sheet ? `${CTA_SPACER_PX}px` : undefined }
+        style: { position: 'relative', overflow: __ttUseV4Sheet ? 'visible' : 'hidden', width: '100%', flex: __ttUseV4Sheet ? undefined : 1, minHeight: 0, paddingBottom: __ttUseV4Sheet ? `${CTA_SPACER_PX + 16}px` : undefined }
       }, animatedContent),
 
       // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)

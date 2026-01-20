@@ -2268,6 +2268,9 @@ const TrackerCard = ({
         onClick: () => {
           setHasInteracted(true);
           setExpanded(!expanded);
+          if (!expanded && isViewingToday) {
+            setShowYesterdayComparison(true);
+          }
         },
         className: "flex w-full items-center justify-between",
         style: { color: timelineTextColor }
