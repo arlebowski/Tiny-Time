@@ -2284,12 +2284,16 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     window.TT = window.TT || {};
     window.TT.actions = window.TT.actions || {};
     window.TT.actions.openInputSheet = openInputSheet;
+    window.TT.actions.setActiveTab = setActiveTab;
     return () => {
       if (window.TT?.actions?.openInputSheet === openInputSheet) {
         delete window.TT.actions.openInputSheet;
       }
+      if (window.TT?.actions?.setActiveTab === setActiveTab) {
+        delete window.TT.actions.setActiveTab;
+      }
     };
-  }, [openInputSheet]);
+  }, [openInputSheet, setActiveTab]);
 
   useEffect(() => {
     try {
@@ -2742,6 +2746,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         activeTab === 'analytics-activity' && React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
         activeTab === 'schedule' && window.TT?.tabs?.ScheduleTab && React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId }),
+        activeTab === 'tracker-detail' && window.TT?.tabs?.TrackerDetailTab && React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab }),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
           kidId,

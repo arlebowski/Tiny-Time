@@ -55,6 +55,42 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       return false;
     }
   });
+
+  const _getUiVersion = () => {
+    try {
+      if (window.TT?.shared?.uiVersion?.getUIVersion) {
+        return window.TT.shared.uiVersion.getUIVersion();
+      }
+      const v = window.localStorage?.getItem('tt_ui_version');
+      return v || null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const __ttV4ResolveFramer = () => {
+    if (typeof window === 'undefined') return {};
+    const candidates = [
+      window.FramerMotion,
+      window.framerMotion,
+      window['framer-motion'],
+      window.Motion,
+      window.motion
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (candidate.motion || candidate.AnimatePresence) return candidate;
+      if (candidate.default && (candidate.default.motion || candidate.default.AnimatePresence)) {
+        return candidate.default;
+      }
+    }
+    return {};
+  };
+  const __ttV4Framer = __ttV4ResolveFramer();
+  const __ttV4Motion = __ttV4Framer.motion || new Proxy({}, {
+    get: () => (props) => React.createElement('div', props)
+  });
+  const __ttV4AnimatePresence = __ttV4Framer.AnimatePresence || (({ children }) => children);
   
   const InputRow = (props) => {
     const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
@@ -73,7 +109,7 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
   const PenIcon = window.PenIcon;
   const ChevronDown = window.ChevronDown;
 
-  const TTSleepDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
+  const TTSleepDetailSheetLegacy = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null, __ttUseV4Sheet = false }) => {
     const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
     const [endTime, setEndTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -88,6 +124,8 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
     const ctaFooterRef = React.useRef(null);
     const CTA_BOTTOM_OFFSET_PX = 30;
+    const CTA_SPACER_PX = 86 + CTA_BOTTOM_OFFSET_PX;
+    const [ctaHeightPx, setCtaHeightPx] = React.useState(CTA_SPACER_PX);
     
     // Track original photo URLs to detect deletions
     const originalPhotoURLsRef = React.useRef([]);
@@ -245,6 +283,21 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         vv.removeEventListener('scroll', checkKeyboard);
       };
     }, [isOpen]);
+
+    React.useEffect(() => {
+      if (!__ttUseV4Sheet) return;
+      const measure = () => {
+        const el = ctaFooterRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (rect && rect.height) {
+          setCtaHeightPx(rect.height);
+        }
+      };
+      measure();
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }, [__ttUseV4Sheet, isKeyboardOpen, saving, isValid]);
 
     const handleSave = async () => {
       if (!isValid) {
@@ -427,10 +480,17 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     // IMPORTANT: Make the body a full-height flex column so the CTA stays locked to the bottom
     const bodyContent = React.createElement(
       'div',
-      { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
+      { style: { minHeight: __ttUseV4Sheet ? undefined : '100%', display: 'flex', flexDirection: 'column', position: __ttUseV4Sheet ? 'relative' : undefined } },
       // Content wrapper
       React.createElement('div', {
-        style: { position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: 0 }
+        style: {
+          position: 'relative',
+          overflow: __ttUseV4Sheet ? 'visible' : 'hidden',
+          width: '100%',
+          flex: __ttUseV4Sheet ? undefined : 1,
+          minHeight: 0,
+          paddingBottom: __ttUseV4Sheet ? `${Math.max(ctaHeightPx || 0, CTA_SPACER_PX) + CTA_BOTTOM_OFFSET_PX + 24}px` : undefined
+        }
       },
       // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
@@ -510,12 +570,15 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       // Hide when keyboard is open to prevent overlap with keyboard
         React.createElement('div', {
         ref: ctaFooterRef,
-        className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
+        className: __ttUseV4Sheet ? "left-0 right-0 pt-3 pb-1" : "sticky bottom-0 left-0 right-0 pt-3 pb-1",
         style: { 
           zIndex: 10,
           backgroundColor: 'var(--tt-card-bg)',
           display: isKeyboardOpen ? 'none' : 'block',
-          bottom: `${CTA_BOTTOM_OFFSET_PX}px`
+          bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
+          left: 0,
+          right: 0,
+          position: __ttUseV4Sheet ? 'absolute' : 'sticky'
         }
       },
               React.createElement('button', {
@@ -650,6 +713,88 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
+      if (__ttUseV4Sheet) {
+        const v4Overlay = React.createElement(
+          __ttV4AnimatePresence,
+          null,
+          isOpen
+            ? React.createElement(
+                __ttV4Motion.div,
+                {
+                  initial: { opacity: 0 },
+                  animate: { opacity: 1 },
+                  exit: { opacity: 0 },
+                  className: "fixed inset-0 bg-black/60 backdrop-blur-sm",
+                  style: { zIndex: 10000 },
+                  onClick: handleClose
+                }
+              )
+            : null,
+          isOpen
+            ? React.createElement(
+                __ttV4Motion.div,
+                {
+                  initial: { y: "100%" },
+                  animate: { y: 0 },
+                  exit: { y: "100%" },
+                  transition: { type: "spring", damping: 25, stiffness: 300 },
+                  className: "fixed left-0 right-0 bottom-0 shadow-2xl",
+                  onClick: (e) => e.stopPropagation(),
+                  style: {
+                    backgroundColor: "var(--tt-card-bg)",
+                    willChange: 'transform',
+                    paddingBottom: 'env(safe-area-inset-bottom, 0)',
+                    maxHeight: '100%',
+                    height: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    touchAction: 'pan-y',
+                    overscrollBehavior: 'contain',
+                    borderTopLeftRadius: '20px',
+                    borderTopRightRadius: '20px',
+                    zIndex: 10001
+                  }
+                },
+                React.createElement('div', {
+                  className: "bg-black",
+                  style: {
+                    backgroundColor: 'var(--tt-sleep)',
+                    borderTopLeftRadius: '20px',
+                    borderTopRightRadius: '20px',
+                    padding: '0 1.5rem',
+                    height: '60px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexShrink: 0
+                  }
+                },
+                  React.createElement('button', {
+                    onClick: handleClose,
+                    className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+                  }, React.createElement(
+                    window.TT?.shared?.icons?.ChevronDownIcon ||
+                    window.ChevronDown ||
+                    window.XIcon,
+                    { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
+                  )),
+                  React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Sleep'),
+                  React.createElement('div', { className: "w-6" })
+                ),
+                React.createElement('div', {
+                  className: "flex-1 px-6 pt-8 pb-[42px]",
+                  style: {
+                    minHeight: 0,
+                    overscrollBehavior: 'none'
+                  }
+                }, bodyContent)
+              )
+            : null
+        );
+        return ReactDOM.createPortal(v4Overlay, document.body);
+      }
+
       if (!HalfSheet) {
         console.warn('[TTSleepDetailSheet] HalfSheet not available');
         return null;
@@ -691,6 +836,19 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       ),
       bodyContent
     );
+  };
+
+  const TTSleepDetailSheetV4 = (props) => React.createElement(TTSleepDetailSheetLegacy, {
+    ...props,
+    __ttUseV4Sheet: true
+  });
+
+  const TTSleepDetailSheet = (props) => {
+    const uiVersion = _getUiVersion();
+    if (uiVersion === 'v4') {
+      return React.createElement(TTSleepDetailSheetV4, props);
+    }
+    return React.createElement(TTSleepDetailSheetLegacy, props);
   };
 
   // Expose component globally

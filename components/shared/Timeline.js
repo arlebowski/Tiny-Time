@@ -3,15 +3,29 @@
 
 const __ttTimelineCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const Timeline = ({ initialLoggedItems = null }) => {
+const Timeline = ({
+  initialLoggedItems = null,
+  initialScheduledItems = null,
+  disableExpanded = false,
+  allowItemExpand = true,
+  initialFilter = 'all',
+  editMode = null,
+  onEditModeChange = null,
+  onEditCard = null,
+  onDeleteCard = null
+}) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
-  const [filter, setFilter] = React.useState('all');
+  const [filter, setFilter] = React.useState(initialFilter || 'all');
+  const initialFilterAppliedRef = React.useRef(false);
   const [isCompiling, setIsCompiling] = React.useState(false);
   const [sortOrder, setSortOrder] = React.useState('desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
   const [editingCard, setEditingCard] = React.useState(null);
   const [deletingCard, setDeletingCard] = React.useState(null);
+  const isEditMode = typeof editMode === 'boolean' ? editMode : isExpanded;
+  const isEditControlled = typeof editMode === 'boolean';
+  const isExpandedEffective = disableExpanded ? false : isExpanded;
 
   // Access app icons
   const bottleIcon =
@@ -38,24 +52,30 @@ const Timeline = ({ initialLoggedItems = null }) => {
     { id: 'sched-5', time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep', amount: 2, unit: 'hrs' }
   ];
 
+  const resolvedScheduledItems = Array.isArray(initialScheduledItems)
+    ? initialScheduledItems
+    : defaultScheduledItems;
+
   // Start with just scheduled items - production logged data comes via prop
   const [cards, setCards] = React.useState(() => {
     // If initialLoggedItems provided on mount, use it
     if (Array.isArray(initialLoggedItems)) {
-      return [...initialLoggedItems, ...defaultScheduledItems];
+      return [...initialLoggedItems, ...resolvedScheduledItems];
     }
-    return [...defaultScheduledItems];
+    return [...resolvedScheduledItems];
   });
 
   // Update cards when initialLoggedItems changes (e.g., date change)
   React.useEffect(() => {
-    // Handle all cases: array with items, empty array, or null
-    if (Array.isArray(initialLoggedItems)) {
-      // Production data provided (may be empty for days with no logs)
-      setCards([...initialLoggedItems, ...defaultScheduledItems]);
+    const scheduledItems = Array.isArray(initialScheduledItems)
+      ? initialScheduledItems
+      : defaultScheduledItems;
+    const loggedItems = Array.isArray(initialLoggedItems) ? initialLoggedItems : null;
+
+    if (loggedItems || Array.isArray(initialScheduledItems)) {
+      setCards([...(loggedItems || []), ...scheduledItems]);
     }
-    // If null/undefined, keep current cards (don't clear on unmount scenarios)
-  }, [initialLoggedItems]);
+  }, [initialLoggedItems, initialScheduledItems]);
   const [draggingCard, setDraggingCard] = React.useState(null);
   const [holdingCard, setHoldingCard] = React.useState(null);
   const dragTimer = React.useRef(null);
@@ -100,22 +120,46 @@ const Timeline = ({ initialLoggedItems = null }) => {
   }, [timelineFullSizePhoto]);
 
   const handleEditCard = React.useCallback((card) => {
+    if (typeof onEditCard === 'function') {
+      onEditCard(card);
+      return;
+    }
     setEditingCard(card);
-  }, []);
+  }, [onEditCard]);
 
   const handleDeleteCard = React.useCallback((card) => {
     setDeletingCard(card);
   }, []);
 
-  const confirmDelete = React.useCallback(() => {
+  const confirmDelete = React.useCallback(async () => {
     if (!deletingCard) return;
+    if (typeof onDeleteCard === 'function') {
+      await onDeleteCard(deletingCard);
+      setDeletingCard(null);
+      return;
+    }
     setCards(prev => prev.filter(c => c.id !== deletingCard.id));
     setDeletingCard(null);
-  }, [deletingCard]);
+  }, [deletingCard, onDeleteCard]);
 
   React.useEffect(() => {
     setTimeout(() => setHasLoaded(true), 100);
   }, []);
+  
+  React.useEffect(() => {
+    if (initialFilterAppliedRef.current) return;
+    if (!initialFilter) return;
+    initialFilterAppliedRef.current = true;
+    if (initialFilter !== filter) {
+      setFilter(initialFilter);
+    }
+  }, [initialFilter, filter]);
+  
+  React.useEffect(() => {
+    if (disableExpanded && isExpanded) {
+      setIsExpanded(false);
+    }
+  }, [disableExpanded, isExpanded]);
 
   const filteredCards = cards
     .filter(card => {
@@ -125,7 +169,8 @@ const Timeline = ({ initialLoggedItems = null }) => {
     .sort((a, b) => {
       const aMinutes = a.hour * 60 + a.minute;
       const bMinutes = b.hour * 60 + b.minute;
-      return aMinutes - bMinutes;
+      const direction = sortOrder === 'asc' ? 1 : -1;
+      return (aMinutes - bMinutes) * direction;
     });
 
   const handleFilterChange = (newFilter) => {
@@ -177,11 +222,21 @@ const Timeline = ({ initialLoggedItems = null }) => {
   };
 
   const handleToggleExpanded = () => {
+    if (disableExpanded) {
+      if (typeof onEditModeChange === 'function') {
+        onEditModeChange(!isEditMode);
+      }
+      return;
+    }
     setIsExpanded(!isExpanded);
   };
 
+  const handleToggleSort = () => {
+    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
+  };
+
   const handleDragStart = (e, card) => {
-    if (!isExpanded) return;
+    if (!isExpandedEffective) return;
     
     const clientY = e.type.includes('touch') ? e.touches[0].clientY : e.clientY;
     initialClientY.current = clientY;
@@ -192,7 +247,7 @@ const Timeline = ({ initialLoggedItems = null }) => {
     const cardTopBase = (getCardPosition(card) / 100) * 1400;
     const expandedCard = expandedCardId ? cards.find((c) => c.id === expandedCardId) : null;
     const expandedCardTopBase = expandedCard ? (getCardPosition(expandedCard) / 100) * 1400 : null;
-    const needsExpandedOffset = isExpanded && expandedCard && card.id !== expandedCardId && cardTopBase > expandedCardTopBase;
+    const needsExpandedOffset = isExpandedEffective && expandedCard && card.id !== expandedCardId && cardTopBase > expandedCardTopBase;
     const cardTop = needsExpandedOffset ? cardTopBase + expandedContentHeight : cardTopBase;
     touchOffset.current = currentY - cardTop;
     
@@ -220,7 +275,7 @@ const Timeline = ({ initialLoggedItems = null }) => {
       }
     }
 
-    if (!draggingCard || !isExpanded || !timelineRef.current) return;
+    if (!draggingCard || !isExpandedEffective || !timelineRef.current) return;
     
     if (e.cancelable) e.preventDefault();
     
@@ -367,21 +422,71 @@ const Timeline = ({ initialLoggedItems = null }) => {
               fullWidth: false
             }
           ),
-          React.createElement('button', {
-            onClick: handleToggleExpanded,
-            className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
-          }, isExpanded ? 'Done' : 'Edit')
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('button', {
+              onClick: handleToggleSort,
+              className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
+              style: {
+                backgroundColor: 'var(--tt-subtle-surface)',
+                borderColor: 'var(--tt-card-border)',
+                color: 'var(--tt-text-primary)'
+              },
+              'aria-label': sortOrder === 'desc' ? 'Sort chronological' : 'Sort reverse chronological'
+            },
+              sortOrder === 'desc'
+                ? React.createElement('svg', {
+                    xmlns: "http://www.w3.org/2000/svg",
+                    width: "32",
+                    height: "32",
+                    fill: "currentColor",
+                    viewBox: "0 0 256 256",
+                    className: "w-5 h-5"
+                  },
+                    React.createElement('path', {
+                      d: "M40,128a8,8,0,0,1,8-8h72a8,8,0,0,1,0,16H48A8,8,0,0,1,40,128Zm8-56h56a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16ZM184,184H48a8,8,0,0,0,0,16H184a8,8,0,0,0,0-16ZM229.66,82.34l-40-40a8,8,0,0,0-11.32,0l-40,40a8,8,0,0,0,11.32,11.32L176,67.31V144a8,8,0,0,0,16,0V67.31l26.34,26.35a8,8,0,0,0,11.32-11.32Z"
+                    })
+                  )
+                : React.createElement('svg', {
+                    xmlns: "http://www.w3.org/2000/svg",
+                    width: "32",
+                    height: "32",
+                    fill: "currentColor",
+                    viewBox: "0 0 256 256",
+                    className: "w-5 h-5"
+                  },
+                    React.createElement('path', {
+                      d: "M128,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16h72A8,8,0,0,1,128,128ZM48,72H184a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16Zm56,112H48a8,8,0,0,0,0,16h56a8,8,0,0,0,0-16Zm125.66-21.66a8,8,0,0,0-11.32,0L192,188.69V112a8,8,0,0,0-16,0v76.69l-26.34-26.35a8,8,0,0,0-11.32,11.32l40,40a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,229.66,162.34Z"
+                    })
+                  )
+            ),
+            __ttTimelineMotion && isEditControlled
+              ? React.createElement(__ttTimelineMotion.button, {
+                  onClick: handleToggleExpanded,
+                  className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
+                  animate: {
+                    backgroundColor: isEditMode ? '#111827' : '#2563eb',
+                    color: '#ffffff',
+                    boxShadow: isEditMode
+                      ? '0 10px 25px rgba(0,0,0,0.25)'
+                      : '0 10px 25px rgba(37,99,235,0.25)'
+                  }
+                }, isEditMode ? 'Done' : 'Edit')
+              : React.createElement('button', {
+                  onClick: handleToggleExpanded,
+                  className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
+                }, (disableExpanded ? isEditMode : isExpanded) ? 'Done' : 'Edit')
+          )
         ),
         React.createElement('div', {
           ref: timelineRef,
           className: "relative transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
           style: {
-            height: isExpanded
+            height: isExpandedEffective
               ? '1400px'
               : `${filteredCards.length * 84 + 20 + (expandedCardId ? expandedContentHeight : 0)}px`,
           }
         },
-          isExpanded && React.createElement('div', { className: "absolute left-0 top-0 w-16 h-full" },
+          isExpandedEffective && React.createElement('div', { className: "absolute left-0 top-0 w-16 h-full" },
             hours.map((h, idx) =>
               React.createElement('div', { key: idx },
                 React.createElement('div', {
@@ -389,20 +494,20 @@ const Timeline = ({ initialLoggedItems = null }) => {
                   style: {
                     top: `${h.position}%`,
                     transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
-                    opacity: isExpanded ? 1 : 0,
+                    opacity: isExpandedEffective ? 1 : 0,
                   }
                 }, h.label),
                 React.createElement('div', {
                   className: "absolute left-16 w-full border-t border-zinc-900/50",
                   style: {
                     top: `${h.position}%`,
-                    opacity: isExpanded ? 0.3 : 0,
+                    opacity: isExpandedEffective ? 0.3 : 0,
                   }
                 })
               )
             )
           ),
-          React.createElement('div', { className: __ttTimelineCn("relative transition-all duration-700", isExpanded ? 'ml-20 h-full' : 'w-full') },
+          React.createElement('div', { className: __ttTimelineCn("relative transition-all duration-700", isExpandedEffective ? 'ml-20 h-full' : 'w-full') },
             __ttTimelineAnimatePresence && React.createElement(__ttTimelineAnimatePresence, { initial: false },
               (() => {
                 const expandedCard = expandedCardId
@@ -422,7 +527,7 @@ const Timeline = ({ initialLoggedItems = null }) => {
                   const isDragging = draggingCard === card.id;
                   const isHolding = holdingCard === card.id;
                   const isLogged = card.variant === 'logged';
-                  const isEditMode = isExpanded;
+                  const cardEditMode = isEditMode;
                   const hasDetails = isLogged && getHasDetails(card);
                   const isExpandedCard = expandedCardId === card.id;
                   const extraOffset = expandedCardId && expandedCardTopBase !== null && expandedTopPx > expandedCardTopBase
@@ -433,7 +538,7 @@ const Timeline = ({ initialLoggedItems = null }) => {
                     : 0;
                   const targetY = (isDragging && dragY !== null)
                     ? dragY
-                    : (isExpanded ? expandedTopPx + extraOffset : compressedTop + compressedExtraOffset);
+                    : (isExpandedEffective ? expandedTopPx + extraOffset : compressedTop + compressedExtraOffset);
 
                   return __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
                     key: card.id,
@@ -460,11 +565,11 @@ const Timeline = ({ initialLoggedItems = null }) => {
                     onMouseDown: (e) => handleDragStart(e, card),
                     onTouchStart: (e) => handleDragStart(e, card),
                     onClick: () => {
-                      if (!isLogged || isEditMode || !hasDetails || isDragging || isHolding) return;
+                      if (!isLogged || cardEditMode || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
                       setExpandedCardId((prev) => (prev === card.id ? null : card.id));
                     },
                     style: {
-                      touchAction: isExpanded ? 'none' : 'auto',
+                      touchAction: isExpandedEffective ? 'none' : 'auto',
                       userSelect: 'none',
                       backgroundColor: isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
                       borderColor: isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)',
@@ -487,7 +592,7 @@ const Timeline = ({ initialLoggedItems = null }) => {
                           detailsHeight: expandedContentHeight,
                           hasDetails,
                           onPhotoClick: handleTimelinePhotoClick,
-                          isEditMode,
+                          isEditMode: cardEditMode,
                           onEdit: handleEditCard,
                           onDelete: handleDeleteCard
                         })
