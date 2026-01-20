@@ -96,6 +96,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     };
   };
 
+
   const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions) => {
     const dateKey = getScheduleDateKey(date);
     const todayKey = getScheduleDateKey(new Date());
@@ -104,26 +105,19 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       return;
     }
 
-    const actualEvents = [
-      ...(dayFeedings || []).map((f) => ({ type: 'feed', timeMs: Number(f.timestamp) })),
-      ...(daySleepSessions || []).map((s) => ({ type: 'sleep', timeMs: Number(s.startTime) }))
-    ].filter((e) => Number.isFinite(e.timeMs));
-
     const completionWindowMs = 30 * 60 * 1000;
     const nowMs = Date.now();
     const upcomingFloorMs = nowMs - completionWindowMs;
 
-    const sortedProjected = projectedItems
-      .map((item, idx) => {
-        const card = buildScheduledCard(item, dateKey, idx);
-        if (!card) return null;
-        const isCompleted = actualEvents.some((evt) => {
-          if (evt.type !== card.type) return false;
-          return Math.abs(evt.timeMs - card.timeMs) <= completionWindowMs;
-        });
-        return { card, isCompleted };
-      })
-      .filter(Boolean)
+    const scheduledCards = projectedItems
+      .map((item, idx) => buildScheduledCard(item, dateKey, idx))
+      .filter(Boolean);
+    const scheduleMatcher = window.TT?.utils?.scheduleUtils?.matchScheduleToActualEvents;
+    const matchedSchedule = typeof scheduleMatcher === 'function'
+      ? scheduleMatcher(scheduledCards, dayFeedings, daySleepSessions, completionWindowMs)
+      : scheduledCards;
+    const sortedProjected = matchedSchedule
+      .map((card) => ({ card, isCompleted: !!card.isCompleted }))
       .sort((a, b) => a.card.timeMs - b.card.timeMs);
 
     const nextItem = sortedProjected.find(({ card, isCompleted }) => {
