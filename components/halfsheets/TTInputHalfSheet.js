@@ -387,6 +387,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     // Also keep content scrolled above the CTA when it is offset upward.
     const CTA_BOTTOM_OFFSET_PX = 30;
     const CTA_SPACER_PX = 86 + CTA_BOTTOM_OFFSET_PX; // base + offset
+    const [ctaHeightPx, setCtaHeightPx] = React.useState(CTA_SPACER_PX);
     
     const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
       if (!startMs) return null;
@@ -549,6 +550,21 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         vv.removeEventListener('scroll', checkKeyboard);
       };
     }, [isOpen]);
+
+    React.useEffect(() => {
+      if (!__ttUseV4Sheet) return;
+      const measure = () => {
+        const el = ctaFooterRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (rect && rect.height) {
+          setCtaHeightPx(rect.height);
+        }
+      };
+      measure();
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }, [__ttUseV4Sheet, mode, sleepState, endTimeManuallyEdited, isKeyboardOpen]);
     
     // Auto-populate start time when toggle switches to Sleep
     React.useEffect(() => {
@@ -1414,7 +1430,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       { style: { minHeight: __ttUseV4Sheet ? undefined : '100%', display: 'flex', flexDirection: 'column', position: __ttUseV4Sheet ? 'relative' : undefined } },
       // Wrapper to ensure proper clipping of absolutely positioned children
       React.createElement('div', {
-        style: { position: 'relative', overflow: __ttUseV4Sheet ? 'visible' : 'hidden', width: '100%', flex: __ttUseV4Sheet ? undefined : 1, minHeight: 0, paddingBottom: __ttUseV4Sheet ? `${CTA_SPACER_PX + 16}px` : undefined }
+        style: { position: 'relative', overflow: __ttUseV4Sheet ? 'visible' : 'hidden', width: '100%', flex: __ttUseV4Sheet ? undefined : 1, minHeight: 0, paddingBottom: __ttUseV4Sheet ? `${ctaHeightPx + CTA_BOTTOM_OFFSET_PX + 8}px` : undefined }
       }, animatedContent),
 
       // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)

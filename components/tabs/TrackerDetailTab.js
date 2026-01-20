@@ -337,6 +337,20 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   }, [selectedDate, loadProjectedSchedule]);
 
   React.useEffect(() => {
+    const handleAdded = () => {
+      loadTimelineData(selectedDate);
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('tt-input-sheet-added', handleAdded);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('tt-input-sheet-added', handleAdded);
+      }
+    };
+  }, [selectedDate, loadTimelineData]);
+
+  React.useEffect(() => {
     const onProjectionUpdate = (event) => {
       const dateKey = event?.detail?.dateKey;
       const selectedKey = getScheduleDateKey(selectedDate);

@@ -449,31 +449,17 @@ const Timeline = ({
                   )
             ),
             __ttTimelineMotion && isEditControlled
-              ? React.createElement(__ttTimelineMotion.div, {
-                  className: "flex items-center gap-2"
-                },
-                  isEditMode && React.createElement(__ttTimelineMotion.span, {
-                    initial: { opacity: 0, y: -4 },
-                    animate: { opacity: 1, y: 0 },
-                    exit: { opacity: 0, y: -4 },
-                    className: "text-xs font-semibold px-2 py-1 rounded-full",
-                    style: {
-                      backgroundColor: 'var(--tt-subtle-surface)',
-                      color: 'var(--tt-text-secondary)'
-                    }
-                  }, "Editing"),
-                  React.createElement(__ttTimelineMotion.button, {
-                    onClick: handleToggleExpanded,
-                    className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
-                    animate: {
-                      backgroundColor: isEditMode ? '#111827' : '#2563eb',
-                      color: '#ffffff',
-                      boxShadow: isEditMode
-                        ? '0 10px 25px rgba(0,0,0,0.25)'
-                        : '0 10px 25px rgba(37,99,235,0.25)'
-                    }
-                  }, isEditMode ? 'Done' : 'Edit')
-                )
+              ? React.createElement(__ttTimelineMotion.button, {
+                  onClick: handleToggleExpanded,
+                  className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
+                  animate: {
+                    backgroundColor: isEditMode ? '#111827' : '#2563eb',
+                    color: '#ffffff',
+                    boxShadow: isEditMode
+                      ? '0 10px 25px rgba(0,0,0,0.25)'
+                      : '0 10px 25px rgba(37,99,235,0.25)'
+                  }
+                }, isEditMode ? 'Done' : 'Edit')
               : React.createElement('button', {
                   onClick: handleToggleExpanded,
                   className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
