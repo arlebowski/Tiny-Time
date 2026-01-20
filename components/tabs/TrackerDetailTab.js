@@ -97,7 +97,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   };
 
 
-  const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions, activeSleepSession = null) => {
+  const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions, activeSleepSession = null, filterMode = 'all') => {
     const dateKey = getScheduleDateKey(date);
     const todayKey = getScheduleDateKey(new Date());
     if (dateKey !== todayKey || !Array.isArray(projectedItems) || projectedItems.length === 0) {
@@ -122,6 +122,11 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       ? scheduleMatcher(scheduledCards, dayFeedings, augmentedSleeps, completionWindowMs)
       : scheduledCards;
     const sortedProjected = matchedSchedule
+      .filter((card) => {
+        if (filterMode === 'feed') return card.type === 'feed';
+        if (filterMode === 'sleep') return card.type === 'sleep';
+        return true;
+      })
       .map((card) => ({ card, isCompleted: !!card.isCompleted }))
       .sort((a, b) => a.card.timeMs - b.card.timeMs);
 
@@ -207,7 +212,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
       const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
       const activeSleep = latest && latest.dateKey === dateKey ? latest.activeSleep : null;
-      updateNextScheduledItem(date, parsed.items, feedings, sleeps, activeSleep);
+        updateNextScheduledItem(date, parsed.items, feedings, sleeps, activeSleep, summaryLayoutMode);
     } catch (error) {
       projectedScheduleRef.current = null;
       setScheduledTimelineItems([]);
@@ -398,7 +403,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
         sleeps: daySleepSessions,
         activeSleep: activeSleepSession
       };
-      updateNextScheduledItem(date, projectedScheduleRef.current, dayFeedings, daySleepSessions, activeSleepSession);
+      updateNextScheduledItem(date, projectedScheduleRef.current, dayFeedings, daySleepSessions, activeSleepSession, summaryLayoutMode);
     } catch (error) {
       console.error('[ScheduleTab] Error loading timeline data:', error);
       setLoggedTimelineItems([]);
@@ -686,6 +691,27 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     if (!nextFilter) return;
     setSummaryLayoutMode(nextFilter);
   }, []);
+
+  React.useEffect(() => {
+    const dateKey = getScheduleDateKey(selectedDate);
+    const todayKey = getScheduleDateKey(new Date());
+    if (dateKey !== todayKey) {
+      setScheduledTimelineItems([]);
+      return;
+    }
+    const latest = latestActualEventsRef.current;
+    const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
+    const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
+    const activeSleep = latest && latest.dateKey === dateKey ? latest.activeSleep : null;
+    updateNextScheduledItem(
+      selectedDate,
+      projectedScheduleRef.current,
+      feedings,
+      sleeps,
+      activeSleep,
+      summaryLayoutMode
+    );
+  }, [summaryLayoutMode, selectedDate]);
 
   React.useEffect(() => {
     const isFirst = !summaryAnimationMountRef.current;
