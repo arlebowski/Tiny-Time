@@ -99,19 +99,10 @@ const SegmentedToggle = ({
         key: opt.value,
         type: 'button',
         onClick: () => onChange && onChange(opt.value),
-        layout: __ttMotion ? true : undefined,
         className: `${btnBase} ${tokens.textSize} ${tokens.buttonPadding} ${value === opt.value ? btnOn : btnOff} ${__ttMotion ? 'relative overflow-hidden' : ''}`,
         style: value === opt.value ? btnOnStyle : btnOffStyle,
         'aria-pressed': value === opt.value
       },
-        __ttMotion && value === opt.value
-          ? React.createElement(__ttMotion.span, {
-              layoutId: "tt-seg-toggle-pill",
-              className: "absolute inset-0 rounded-lg",
-              style: btnOnStyle,
-              transition: { type: "spring", stiffness: 320, damping: 30 }
-            })
-          : null,
         React.createElement('span', { className: __ttMotion ? "relative z-10" : undefined }, opt.label)
       );
     })

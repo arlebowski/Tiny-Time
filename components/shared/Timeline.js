@@ -549,7 +549,6 @@ const Timeline = ({
 
                   return __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
                     key: card.id,
-                    layout: !isDragging && !isHolding,
                     initial: { opacity: 0, y: 20 },
                     animate: {
                       opacity: 1,

@@ -399,11 +399,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
               return (
                 React.createElement(__ttHorizontalMotion.button, {
                   key: date.toISOString(),
-                  layout: true,
                   variants: itemVariants,
-                  transition: {
-                    layout: { type: "spring", stiffness: 400, damping: 30 }
-                  },
                   onClick: () => {
                     setSelectedDate(date);
                     if (onDateSelect) onDateSelect(getMetricsForDate(date));
