@@ -13,7 +13,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [showInputSheet, setShowInputSheet] = React.useState(false);
   const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
   const projectedScheduleRef = React.useRef(null);
-  const latestActualEventsRef = React.useRef({ dateKey: null, feedings: [], sleeps: [] });
+  const latestActualEventsRef = React.useRef({ dateKey: null, feedings: [], sleeps: [], activeSleep: null });
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
   const calendarContainerRef = React.useRef(null);
   const weekToggleHostRef = React.useRef(null);
@@ -97,7 +97,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   };
 
 
-  const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions) => {
+  const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions, activeSleepSession = null) => {
     const dateKey = getScheduleDateKey(date);
     const todayKey = getScheduleDateKey(new Date());
     if (dateKey !== todayKey || !Array.isArray(projectedItems) || projectedItems.length === 0) {
@@ -105,24 +105,31 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       return;
     }
 
-    const completionWindowMs = 30 * 60 * 1000;
+    const completionWindowMs = 45 * 60 * 1000;
     const nowMs = Date.now();
     const upcomingFloorMs = nowMs - completionWindowMs;
 
     const scheduledCards = projectedItems
       .map((item, idx) => buildScheduledCard(item, dateKey, idx))
       .filter(Boolean);
+    const augmentedSleeps = [...(daySleepSessions || [])];
+    if (activeSleepSession && activeSleepSession.startTime) {
+      const activeExists = augmentedSleeps.some((s) => s && s.id === activeSleepSession.id);
+      if (!activeExists) augmentedSleeps.push(activeSleepSession);
+    }
     const scheduleMatcher = window.TT?.utils?.scheduleUtils?.matchScheduleToActualEvents;
     const matchedSchedule = typeof scheduleMatcher === 'function'
-      ? scheduleMatcher(scheduledCards, dayFeedings, daySleepSessions, completionWindowMs)
+      ? scheduleMatcher(scheduledCards, dayFeedings, augmentedSleeps, completionWindowMs)
       : scheduledCards;
     const sortedProjected = matchedSchedule
       .map((card) => ({ card, isCompleted: !!card.isCompleted }))
       .sort((a, b) => a.card.timeMs - b.card.timeMs);
 
+    const graceWindowMs = 2 * 60 * 60 * 1000;
     const nextItem = sortedProjected.find(({ card, isCompleted }) => {
       if (isCompleted) return false;
-      return card.timeMs >= upcomingFloorMs;
+      if (card.timeMs >= upcomingFloorMs) return true;
+      return nowMs - card.timeMs <= graceWindowMs;
     });
 
     if (nextItem) {
@@ -199,7 +206,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       const latest = latestActualEventsRef.current;
       const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
       const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
-      updateNextScheduledItem(date, parsed.items, feedings, sleeps);
+      const activeSleep = latest && latest.dateKey === dateKey ? latest.activeSleep : null;
+      updateNextScheduledItem(date, parsed.items, feedings, sleeps, activeSleep);
     } catch (error) {
       projectedScheduleRef.current = null;
       setScheduledTimelineItems([]);
@@ -358,8 +366,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       // Filter sleep sessions that overlap with the selected day using normalization
       // This properly handles cross-day sleep sessions
       const daySleepSessions = (allSleepSessions || []).filter(s => {
-        if (!s.startTime || !s.endTime) return false; // Skip active/incomplete
-        const norm = normalizeSleepInterval(s.startTime, s.endTime);
+        if (!s.startTime) return false; // Skip invalid
+        const endCandidate = s.endTime || (s.isActive ? Date.now() : null);
+        const norm = normalizeSleepInterval(s.startTime, endCandidate);
         if (!norm) return false;
         // Check if normalized session overlaps with the day
         return overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs) > 0;
@@ -381,13 +390,15 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       });
 
       setLoggedTimelineItems(allCards);
+      const activeSleepSession = (allSleepSessions || []).find(s => s && s.startTime && (s.isActive || !s.endTime)) || null;
       const dateKey = getScheduleDateKey(date);
       latestActualEventsRef.current = {
         dateKey,
         feedings: dayFeedings,
-        sleeps: daySleepSessions
+        sleeps: daySleepSessions,
+        activeSleep: activeSleepSession
       };
-      updateNextScheduledItem(date, projectedScheduleRef.current, dayFeedings, daySleepSessions);
+      updateNextScheduledItem(date, projectedScheduleRef.current, dayFeedings, daySleepSessions, activeSleepSession);
     } catch (error) {
       console.error('[ScheduleTab] Error loading timeline data:', error);
       setLoggedTimelineItems([]);
