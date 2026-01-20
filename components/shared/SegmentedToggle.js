@@ -15,6 +15,12 @@ const SegmentedToggle = ({
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
+  const useIsomorphicLayoutEffect = typeof window !== 'undefined'
+    ? React.useLayoutEffect
+    : React.useEffect;
+  const containerRef = React.useRef(null);
+  const buttonRefs = React.useRef({});
+  const [pillRect, setPillRect] = React.useState(null);
   // Size-based tokens (maintains HeaderSegmentedToggle proportions)
   const sizeTokens = {
     small: {
@@ -87,21 +93,77 @@ const SegmentedToggle = ({
     ? btnOffHeader
     : "bg-transparent"; // Transparent background, text color via inline style
 
+  const getPillStyle = () => {
+    if (variant === 'header') {
+      return { backgroundColor: '#ffffff', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' };
+    }
+    const base = getBodyBtnOnStyle() || {};
+    const { color, ...rest } = base;
+    return rest;
+  };
+
+  const updatePillRect = React.useCallback(() => {
+    if (!__ttMotion) return;
+    const containerEl = containerRef.current;
+    const activeEl = buttonRefs.current[value];
+    if (!containerEl || !activeEl) return;
+    const containerBox = containerEl.getBoundingClientRect();
+    const activeBox = activeEl.getBoundingClientRect();
+    setPillRect({
+      x: activeBox.left - containerBox.left,
+      y: activeBox.top - containerBox.top,
+      width: activeBox.width,
+      height: activeBox.height
+    });
+  }, [__ttMotion, value]);
+
+  useIsomorphicLayoutEffect(() => {
+    updatePillRect();
+  }, [updatePillRect, options, size, fullWidth, variant]);
+
+  React.useEffect(() => {
+    if (!__ttMotion) return undefined;
+    const handleResize = () => updatePillRect();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [__ttMotion, updatePillRect]);
+
   return React.createElement(
     'div',
     { 
-      className: `${containerClass} ${tokens.containerPadding}`,
+      ref: containerRef,
+      className: `${containerClass} ${tokens.containerPadding} relative`,
       style: containerStyle
     },
+    __ttMotion && React.createElement(__ttMotion.div, {
+      className: "absolute rounded-lg pointer-events-none",
+      style: {
+        top: pillRect ? `${pillRect.y}px` : '0px',
+        left: 0,
+        width: pillRect ? `${pillRect.width}px` : '0px',
+        height: pillRect ? `${pillRect.height}px` : '0px',
+        opacity: pillRect ? 1 : 0,
+        ...getPillStyle()
+      },
+      animate: pillRect ? { x: pillRect.x, width: pillRect.width } : undefined,
+      transition: { type: "spring", stiffness: 320, damping: 30 }
+    }),
     (options || []).map((opt) => {
       const ButtonEl = __ttMotion ? __ttMotion.button : 'button';
+      const isActive = value === opt.value;
+      const activeStyle = (__ttMotion && isActive)
+        ? (variant === 'body' ? { color: 'var(--tt-text-primary)' } : undefined)
+        : btnOnStyle;
       return React.createElement(ButtonEl, {
         key: opt.value,
         type: 'button',
         onClick: () => onChange && onChange(opt.value),
-        className: `${btnBase} ${tokens.textSize} ${tokens.buttonPadding} ${value === opt.value ? btnOn : btnOff} ${__ttMotion ? 'relative overflow-hidden' : ''}`,
-        style: value === opt.value ? btnOnStyle : btnOffStyle,
-        'aria-pressed': value === opt.value
+        ref: (el) => {
+          if (el) buttonRefs.current[opt.value] = el;
+        },
+        className: `${btnBase} ${tokens.textSize} ${tokens.buttonPadding} ${isActive ? btnOn : btnOff} ${__ttMotion ? 'relative overflow-hidden' : ''}`,
+        style: isActive ? activeStyle : btnOffStyle,
+        'aria-pressed': isActive
       },
         React.createElement('span', { className: __ttMotion ? "relative z-10" : undefined }, opt.label)
       );
