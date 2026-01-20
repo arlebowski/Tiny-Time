@@ -13,7 +13,8 @@ const Timeline = ({
   onEditModeChange = null,
   onEditCard = null,
   onDeleteCard = null,
-  onFilterChange = null
+  onFilterChange = null,
+  onScheduledAdd = null
 }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
@@ -600,7 +601,8 @@ const Timeline = ({
                           onPhotoClick: handleTimelinePhotoClick,
                           isEditMode: cardEditMode,
                           onEdit: handleEditCard,
-                          onDelete: handleDeleteCard
+                          onDelete: handleDeleteCard,
+                          onScheduledAdd
                         })
                       : null
                   );

@@ -1,12 +1,14 @@
 // Timeline Item Component (shared)
 const __ttTimelineItemCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false, onEdit = null, onDelete = null }) => {
+const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false, onEdit = null, onDelete = null, onScheduledAdd = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
   const __ttTimelineItemAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
+  const isScheduled = card.variant === 'scheduled';
+  const isLogged = card.variant === 'logged';
   const unitText = (card.unit || '').toLowerCase();
   const resolveSleepAmountText = () => {
     const raw = Number(card.amount);
@@ -24,18 +26,42 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
     ? (card.type === 'sleep' ? resolveSleepAmountText() : `${card.amount} ${unitText}`.trim())
     : '';
   const prefix = card.type === 'feed' ? 'Feed' : 'Sleep';
-  const labelText = amountText
-    ? (card.variant === 'logged'
-        ? amountText
-        : `${prefix} ~${amountText}`)
-    : (card.variant === 'logged' ? '' : prefix);
+  const sleepSettings =
+    (window.TT && window.TT.shared && window.TT.shared.sleepSettings) ||
+    (window.TT && window.TT.sleepSettings) ||
+    null;
+  const getSleepLabel = (time) => {
+    if (!time || !(time instanceof Date)) return 'Sleep';
+    const dayStart = Number(sleepSettings?.sleepDayStart ?? sleepSettings?.daySleepStartMinutes ?? 390);
+    const dayEnd = Number(sleepSettings?.sleepDayEnd ?? sleepSettings?.daySleepEndMinutes ?? 1170);
+    const mins = time.getHours() * 60 + time.getMinutes();
+    const isDaySleep = dayStart <= dayEnd
+      ? (mins >= dayStart && mins < dayEnd)
+      : (mins >= dayStart || mins < dayEnd);
+    return isDaySleep ? 'Nap' : 'Sleep';
+  };
+  const scheduledTimeMs = Number.isFinite(Number(card.timeMs))
+    ? Number(card.timeMs)
+    : (Number.isFinite(card.hour)
+        ? new Date(new Date().setHours(card.hour, card.minute || 0, 0, 0)).getTime()
+        : null);
+  const scheduledLabelTimeDate = Number.isFinite(scheduledTimeMs) ? new Date(scheduledTimeMs) : null;
+  const scheduledLabelTime = card.time || '';
+  const scheduledLabel = card.type === 'feed'
+    ? `Feed around ${scheduledLabelTime}`
+    : `${getSleepLabel(scheduledLabelTimeDate)} around ${scheduledLabelTime}`;
+  const labelText = isScheduled
+    ? scheduledLabel
+    : (amountText
+        ? (isLogged ? amountText : `${prefix} ~${amountText}`)
+        : (isLogged ? '' : prefix));
 
   const photoList = card.photoURLs || card.photoUrls || card.photos;
   const hasPhotos = Array.isArray(photoList) ? photoList.length > 0 : Boolean(photoList);
   const hasNote = Boolean(card.note || card.notes);
   const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos);
   const loggedState = isEditMode ? 'edit' : 'default';
-  const showChevron = card.variant === 'logged' && hasDetails && loggedState === 'default';
+  const showChevron = isLogged && hasDetails && loggedState === 'default';
   const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.ChevronDownIcon) || null;
   const PenIcon = (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.PenIcon || window.TT.shared.icons.Edit2)) || null;
   const noteText = card.note || card.notes || '';
@@ -57,6 +83,9 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
   const resolvedEndTime = typeof card.endTime === 'number'
     ? formatTime12Hour(card.endTime)
     : card.endTime;
+  const showScheduledAction = isScheduled && Number.isFinite(scheduledTimeMs)
+    ? Math.abs(Date.now() - scheduledTimeMs) <= 10 * 60 * 1000
+    : false;
 
   return React.createElement(
     React.Fragment,
@@ -123,14 +152,14 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
       React.createElement('div', { className: "flex items-center justify-between min-h-[40px]" },
         React.createElement('div', { className: "flex items-center gap-2" },
           React.createElement('h3', {
-            className: card.variant === 'logged' ? "font-semibold" : "font-medium",
-            style: card.variant === 'logged'
+            className: isLogged ? "font-semibold" : (isScheduled ? "font-normal" : "font-medium"),
+            style: isLogged
               ? { color: 'var(--tt-text-primary)' }
               : { color: 'var(--tt-text-tertiary)' }
           }, labelText)
         ),
         React.createElement('div', { className: "flex items-center gap-2" },
-          card.variant === 'logged' && hasDetails && loggedState === 'default' && React.createElement('div', { className: "flex items-center gap-1 mr-2" },
+          isLogged && hasDetails && loggedState === 'default' && React.createElement('div', { className: "flex items-center gap-1 mr-2" },
             hasNote && React.createElement('svg', {
               className: "w-4 h-4",
               viewBox: "0 0 256 256",
@@ -150,9 +179,9 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               React.createElement('path', { d: "M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z" })
             )
           ),
-          React.createElement('span', {
+          !isScheduled && React.createElement('span', {
             className: "text-xs",
-            style: card.variant === 'logged'
+            style: isLogged
               ? { color: 'var(--tt-text-secondary)' }
               : { color: 'var(--tt-text-tertiary)' }
           },
@@ -179,13 +208,23 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                     style: { color: 'var(--tt-text-secondary)' }
                   })
               )
-            : null
-          ,
+            : null,
+          isScheduled && showScheduledAction && React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              if (onScheduledAdd) onScheduledAdd(card);
+            },
+            className: "px-3 py-1 rounded-full text-xs font-semibold",
+            style: {
+              backgroundColor: card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+              color: '#ffffff'
+            }
+          }, card.type === 'feed' ? 'Add Feed' : `Start ${getSleepLabel(scheduledLabelTimeDate)}`),
           (__ttTimelineItemAnimatePresence && __ttTimelineItemMotion)
             ? React.createElement(
                 __ttTimelineItemAnimatePresence,
                 { initial: false },
-                (card.variant === 'logged' && loggedState === 'edit')
+                (isLogged && loggedState === 'edit')
                   ? React.createElement(__ttTimelineItemMotion.div, {
                       className: "flex items-center gap-2",
                       initial: { opacity: 0, y: -6, scale: 0.96 },
@@ -238,7 +277,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                     )
                   : null
               )
-            : (card.variant === 'logged' && loggedState === 'edit')
+            : (isLogged && loggedState === 'edit')
               ? React.createElement('div', { className: "flex items-center gap-2" },
                   onEdit && React.createElement('button', {
                     onClick: (e) => {

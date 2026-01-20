@@ -10,6 +10,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
   const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
+  const [showInputSheet, setShowInputSheet] = React.useState(false);
+  const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
   const projectedScheduleRef = React.useRef(null);
   const latestActualEventsRef = React.useRef({ dateKey: null, feedings: [], sleeps: [] });
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
@@ -209,6 +211,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       setScheduledTimelineItems([]);
       setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
     }
+  }, []);
+
+  const handleScheduledAdd = React.useCallback((card) => {
+    const mode = card?.type === 'sleep' ? 'sleep' : 'feeding';
+    setInputSheetMode(mode);
+    setShowInputSheet(true);
   }, []);
 
   // Helper: normalize sleep interval to handle midnight crossing
@@ -884,8 +892,19 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       editMode: timelineEditMode,
       onEditModeChange: setTimelineEditMode,
       onEditCard: handleTimelineEditCard,
-      onDeleteCard: handleTimelineDeleteCard
+      onDeleteCard: handleTimelineDeleteCard,
+      onScheduledAdd: handleScheduledAdd
     }) : null,
+    window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
+      isOpen: showInputSheet,
+      onClose: () => setShowInputSheet(false),
+      kidId,
+      initialMode: inputSheetMode,
+      __ttUseV4Sheet: true,
+      onAdd: async () => {
+        await loadTimelineData(selectedDate);
+      }
+    }),
     window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
       isOpen: showFeedDetailSheet,
       onClose: () => {
