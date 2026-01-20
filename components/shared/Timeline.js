@@ -3,7 +3,7 @@
 
 const __ttTimelineCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const Timeline = ({ initialLoggedItems = null }) => {
+const Timeline = ({ initialLoggedItems = null, initialScheduledItems = null }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [filter, setFilter] = React.useState('all');
@@ -38,24 +38,30 @@ const Timeline = ({ initialLoggedItems = null }) => {
     { id: 'sched-5', time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep', amount: 2, unit: 'hrs' }
   ];
 
+  const resolvedScheduledItems = Array.isArray(initialScheduledItems)
+    ? initialScheduledItems
+    : defaultScheduledItems;
+
   // Start with just scheduled items - production logged data comes via prop
   const [cards, setCards] = React.useState(() => {
     // If initialLoggedItems provided on mount, use it
     if (Array.isArray(initialLoggedItems)) {
-      return [...initialLoggedItems, ...defaultScheduledItems];
+      return [...initialLoggedItems, ...resolvedScheduledItems];
     }
-    return [...defaultScheduledItems];
+    return [...resolvedScheduledItems];
   });
 
   // Update cards when initialLoggedItems changes (e.g., date change)
   React.useEffect(() => {
-    // Handle all cases: array with items, empty array, or null
-    if (Array.isArray(initialLoggedItems)) {
-      // Production data provided (may be empty for days with no logs)
-      setCards([...initialLoggedItems, ...defaultScheduledItems]);
+    const scheduledItems = Array.isArray(initialScheduledItems)
+      ? initialScheduledItems
+      : defaultScheduledItems;
+    const loggedItems = Array.isArray(initialLoggedItems) ? initialLoggedItems : null;
+
+    if (loggedItems || Array.isArray(initialScheduledItems)) {
+      setCards([...(loggedItems || []), ...scheduledItems]);
     }
-    // If null/undefined, keep current cards (don't clear on unmount scenarios)
-  }, [initialLoggedItems]);
+  }, [initialLoggedItems, initialScheduledItems]);
   const [draggingCard, setDraggingCard] = React.useState(null);
   const [holdingCard, setHoldingCard] = React.useState(null);
   const dragTimer = React.useRef(null);
@@ -125,7 +131,8 @@ const Timeline = ({ initialLoggedItems = null }) => {
     .sort((a, b) => {
       const aMinutes = a.hour * 60 + a.minute;
       const bMinutes = b.hour * 60 + b.minute;
-      return aMinutes - bMinutes;
+      const direction = sortOrder === 'asc' ? 1 : -1;
+      return (aMinutes - bMinutes) * direction;
     });
 
   const handleFilterChange = (newFilter) => {
@@ -178,6 +185,10 @@ const Timeline = ({ initialLoggedItems = null }) => {
 
   const handleToggleExpanded = () => {
     setIsExpanded(!isExpanded);
+  };
+
+  const handleToggleSort = () => {
+    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
   };
 
   const handleDragStart = (e, card) => {
@@ -367,10 +378,48 @@ const Timeline = ({ initialLoggedItems = null }) => {
               fullWidth: false
             }
           ),
-          React.createElement('button', {
-            onClick: handleToggleExpanded,
-            className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
-          }, isExpanded ? 'Done' : 'Edit')
+          React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('button', {
+              onClick: handleToggleSort,
+              className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
+              style: {
+                backgroundColor: 'var(--tt-subtle-surface)',
+                borderColor: 'var(--tt-card-border)',
+                color: 'var(--tt-text-primary)'
+              },
+              'aria-label': sortOrder === 'desc' ? 'Sort chronological' : 'Sort reverse chronological'
+            },
+              sortOrder === 'desc'
+                ? React.createElement('svg', {
+                    xmlns: "http://www.w3.org/2000/svg",
+                    width: "32",
+                    height: "32",
+                    fill: "currentColor",
+                    viewBox: "0 0 256 256",
+                    className: "w-5 h-5"
+                  },
+                    React.createElement('path', {
+                      d: "M40,128a8,8,0,0,1,8-8h72a8,8,0,0,1,0,16H48A8,8,0,0,1,40,128Zm8-56h56a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16ZM184,184H48a8,8,0,0,0,0,16H184a8,8,0,0,0,0-16ZM229.66,82.34l-40-40a8,8,0,0,0-11.32,0l-40,40a8,8,0,0,0,11.32,11.32L176,67.31V144a8,8,0,0,0,16,0V67.31l26.34,26.35a8,8,0,0,0,11.32-11.32Z"
+                    })
+                  )
+                : React.createElement('svg', {
+                    xmlns: "http://www.w3.org/2000/svg",
+                    width: "32",
+                    height: "32",
+                    fill: "currentColor",
+                    viewBox: "0 0 256 256",
+                    className: "w-5 h-5"
+                  },
+                    React.createElement('path', {
+                      d: "M128,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16h72A8,8,0,0,1,128,128ZM48,72H184a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16Zm56,112H48a8,8,0,0,0,0,16h56a8,8,0,0,0,0-16Zm125.66-21.66a8,8,0,0,0-11.32,0L192,188.69V112a8,8,0,0,0-16,0v76.69l-26.34-26.35a8,8,0,0,0-11.32,11.32l40,40a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,229.66,162.34Z"
+                    })
+                  )
+            ),
+            React.createElement('button', {
+              onClick: handleToggleExpanded,
+              className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
+            }, isExpanded ? 'Done' : 'Edit')
+          )
         ),
         React.createElement('div', {
           ref: timelineRef,

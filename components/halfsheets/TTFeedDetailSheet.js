@@ -29,6 +29,42 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       return false;
     }
   });
+
+  const _getUiVersion = () => {
+    try {
+      if (window.TT?.shared?.uiVersion?.getUIVersion) {
+        return window.TT.shared.uiVersion.getUIVersion();
+      }
+      const v = window.localStorage?.getItem('tt_ui_version');
+      return v || null;
+    } catch (e) {
+      return null;
+    }
+  };
+
+  const __ttV4ResolveFramer = () => {
+    if (typeof window === 'undefined') return {};
+    const candidates = [
+      window.FramerMotion,
+      window.framerMotion,
+      window['framer-motion'],
+      window.Motion,
+      window.motion
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (candidate.motion || candidate.AnimatePresence) return candidate;
+      if (candidate.default && (candidate.default.motion || candidate.default.AnimatePresence)) {
+        return candidate.default;
+      }
+    }
+    return {};
+  };
+  const __ttV4Framer = __ttV4ResolveFramer();
+  const __ttV4Motion = __ttV4Framer.motion || new Proxy({}, {
+    get: () => (props) => React.createElement('div', props)
+  });
+  const __ttV4AnimatePresence = __ttV4Framer.AnimatePresence || (({ children }) => children);
   
   const InputRow = (props) => {
     const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
@@ -48,7 +84,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
   const XIcon = window.XIcon;
   const ChevronDown = window.ChevronDown;
 
-  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
+  const TTFeedDetailSheetLegacy = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null, __ttUseV4Sheet = false }) => {
     const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -676,6 +712,88 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
+      if (__ttUseV4Sheet) {
+        const v4Overlay = React.createElement(
+          __ttV4AnimatePresence,
+          null,
+          isOpen
+            ? React.createElement(
+                __ttV4Motion.div,
+                {
+                  initial: { opacity: 0 },
+                  animate: { opacity: 1 },
+                  exit: { opacity: 0 },
+                  className: "fixed inset-0 bg-black/60 backdrop-blur-sm",
+                  style: { zIndex: 10000 },
+                  onClick: handleClose
+                }
+              )
+            : null,
+          isOpen
+            ? React.createElement(
+                __ttV4Motion.div,
+                {
+                  initial: { y: "100%" },
+                  animate: { y: 0 },
+                  exit: { y: "100%" },
+                  transition: { type: "spring", damping: 25, stiffness: 300 },
+                  className: "fixed left-0 right-0 bottom-0 shadow-2xl",
+                  onClick: (e) => e.stopPropagation(),
+                  style: {
+                    backgroundColor: "var(--tt-card-bg)",
+                    willChange: 'transform',
+                    paddingBottom: 'env(safe-area-inset-bottom, 0)',
+                    maxHeight: '100%',
+                    height: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    overflow: 'hidden',
+                    touchAction: 'pan-y',
+                    overscrollBehavior: 'contain',
+                    borderTopLeftRadius: '20px',
+                    borderTopRightRadius: '20px',
+                    zIndex: 10001
+                  }
+                },
+                React.createElement('div', {
+                  className: "bg-black",
+                  style: {
+                    backgroundColor: 'var(--tt-feed)',
+                    borderTopLeftRadius: '20px',
+                    borderTopRightRadius: '20px',
+                    padding: '0 1.5rem',
+                    height: '60px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexShrink: 0
+                  }
+                },
+                  React.createElement('button', {
+                    onClick: handleClose,
+                    className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+                  }, React.createElement(
+                    window.TT?.shared?.icons?.ChevronDownIcon ||
+                    window.ChevronDown ||
+                    window.XIcon,
+                    { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
+                  )),
+                  React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feeding'),
+                  React.createElement('div', { className: "w-6" })
+                ),
+                React.createElement('div', {
+                  className: "flex-1 px-6 pt-8 pb-[42px]",
+                  style: {
+                    minHeight: 0,
+                    overscrollBehavior: 'none'
+                  }
+                }, bodyContent)
+              )
+            : null
+        );
+        return ReactDOM.createPortal(v4Overlay, document.body);
+      }
+
       if (!HalfSheet) {
         console.warn('[TTFeedDetailSheet] HalfSheet not available');
         return null;
@@ -723,6 +841,19 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       ),
       bodyContent
     );
+  };
+
+  const TTFeedDetailSheetV4 = (props) => React.createElement(TTFeedDetailSheetLegacy, {
+    ...props,
+    __ttUseV4Sheet: true
+  });
+
+  const TTFeedDetailSheet = (props) => {
+    const uiVersion = _getUiVersion();
+    if (uiVersion === 'v4') {
+      return React.createElement(TTFeedDetailSheetV4, props);
+    }
+    return React.createElement(TTFeedDetailSheetLegacy, props);
   };
 
   // Expose component globally

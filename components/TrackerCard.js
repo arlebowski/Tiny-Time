@@ -1134,6 +1134,8 @@ const TrackerCard = ({
   onItemClick = null,     // Callback when timeline item clicked
   onActiveSleepClick = null, // Callback when active sleep entry clicked (opens input sheet)
   onDelete = null,        // Callback when item is deleted (for data refresh)
+  disableAccordion = false, // When true, disables accordion/timeline expansion
+  onCardTap = null,       // Optional tap handler when accordion is disabled
   rawFeedings = [],       // All feedings (for yesterday comparison)
   rawSleepSessions = [],  // All sleep sessions (for yesterday comparison)
   currentDate = new Date() // Current date being viewed
@@ -1499,6 +1501,12 @@ const TrackerCard = ({
     if (target.closest('button') || 
         target.closest('[class*="swipeable-content"]') ||
         target.closest('.tt-sleep-progress-pulse')) {
+      return;
+    }
+    if (disableAccordion) {
+      if (typeof onCardTap === 'function') {
+        onCardTap(e, { mode });
+      }
       return;
     }
     // For v3/v4: toggle accordion when card is tapped
@@ -2245,7 +2253,7 @@ const TrackerCard = ({
       )
     ),
     // Divider - always show (unless hiding timeline bar for v3)
-    !hideTimelineBar && React.createElement('div', { 
+    (!hideTimelineBar && !disableAccordion) && React.createElement('div', { 
       className: `border-t ${dividerMarginClass}`,
       style: { 
         borderColor: document.documentElement.classList.contains('dark') 
@@ -2254,7 +2262,7 @@ const TrackerCard = ({
       }
     }),
     // Timeline bar button - hide for v3 (chevron moved to header)
-    !hideTimelineBar && React.createElement(
+    (!hideTimelineBar && !disableAccordion) && React.createElement(
       'button',
       {
         onClick: () => {
@@ -2292,7 +2300,7 @@ const TrackerCard = ({
           })
     ),
     // Accordion content (always rendered to allow collapse animation)
-    React.createElement(
+    !disableAccordion && React.createElement(
       'div',
       {
         className: !hasInteracted
@@ -2908,15 +2916,29 @@ const TrackerCard = ({
       const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
       
       // Create chevron element
-      const chevronEl = expanded
-        ? React.createElement(window.TT?.shared?.icons?.ChevronUpIcon || ChevronUp, { 
-            className: "w-5 h-5 chevron-rotate",
-            style: { color: 'var(--tt-text-tertiary)' } 
-          })
-        : React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, { 
-            className: "w-5 h-5 chevron-rotate",
-            style: { color: 'var(--tt-text-tertiary)' } 
-          });
+      const chevronEl = uiVersion === 'v4'
+        ? React.createElement(
+            'svg',
+            {
+              xmlns: "http://www.w3.org/2000/svg",
+              viewBox: "0 0 256 256",
+              className: "w-5 h-5",
+              style: { color: 'var(--tt-text-tertiary)' }
+            },
+            React.createElement('path', {
+              d: "M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z",
+              fill: "currentColor"
+            })
+          )
+        : (expanded
+            ? React.createElement(window.TT?.shared?.icons?.ChevronUpIcon || ChevronUp, { 
+                className: "w-5 h-5 chevron-rotate",
+                style: { color: 'var(--tt-text-tertiary)' } 
+              })
+            : React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, { 
+                className: "w-5 h-5 chevron-rotate",
+                style: { color: 'var(--tt-text-tertiary)' } 
+              }));
       
       // v3: show "Sleeping now" when sleep timer is running, otherwise show typical text
       if (isActiveSleepPill) {

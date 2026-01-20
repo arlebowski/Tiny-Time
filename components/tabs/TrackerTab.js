@@ -298,6 +298,13 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
       onRequestOpenInputSheet(mode);
     }
   }, [onRequestOpenInputSheet]);
+  const handleV4CardTap = React.useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const setActiveTab = window.TT?.actions?.setActiveTab;
+    if (typeof setActiveTab === 'function') {
+      setActiveTab('tracker-detail');
+    }
+  }, []);
   
   // Detail sheet state
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
@@ -341,7 +348,9 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
   const [dailySchedule, setDailySchedule] = React.useState(null); // Array of { type: 'feed'|'sleep', time: Date, patternBased: boolean }
   const dailyScheduleRef = React.useRef(null); // Keep ref for backwards compatibility
   const lastScheduleUpdateRef = React.useRef(0); // Timestamp of last schedule update
-  
+  const projectionScheduleRef = React.useRef(null); // Base projection schedule for the day
+  const projectionScheduleDateRef = React.useRef(null); // YYYY-MM-DD for projectionScheduleRef
+
   // Track last AI call time to avoid quota limits (persist across page reloads)
   const getLastAICallTime = () => {
     try {
@@ -377,6 +386,64 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
     }
   };
   const lastScheduleAICallRef = React.useRef(getLastScheduleAICallTime());
+
+  const scheduleStorageKey = 'tt_daily_projection_schedule_v1';
+  const getScheduleDateKey = (date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const readStoredProjectionSchedule = (dateKey) => {
+    try {
+      const raw = localStorage.getItem(scheduleStorageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) return null;
+      const items = parsed.items
+        .map((item) => {
+          const timeMs = Number(item?.timeMs);
+          if (!Number.isFinite(timeMs)) return null;
+          return {
+            ...item,
+            time: new Date(timeMs)
+          };
+        })
+        .filter(Boolean);
+      return items.length > 0 ? items : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeProjectionSchedule = (dateKey, schedule) => {
+    try {
+      const items = (schedule || [])
+        .map((item) => {
+          const timeMs = item?.time instanceof Date ? item.time.getTime() : Number(item?.timeMs);
+          if (!Number.isFinite(timeMs)) return null;
+          return {
+            type: item.type,
+            timeMs,
+            patternBased: !!item.patternBased,
+            patternCount: item.patternCount || 0,
+            targetOz: Number.isFinite(Number(item?.targetOz)) ? Number(item.targetOz) : null,
+            targetOzRange: Array.isArray(item?.targetOzRange) ? item.targetOzRange : null,
+            avgDurationHours: Number.isFinite(Number(item?.avgDurationHours)) ? Number(item.avgDurationHours) : null
+          };
+        })
+        .filter(Boolean);
+      localStorage.setItem(scheduleStorageKey, JSON.stringify({ dateKey, items }));
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        try {
+          window.dispatchEvent(new CustomEvent('tt:projection-schedule-updated', { detail: { dateKey, items } }));
+        } catch (e) {}
+      }
+    } catch {
+      // Ignore localStorage errors
+    }
+  };
 
   // Format time as h:mma (e.g., "12:30pm") - no rounding
   const formatTimeHmma = (date) => {
@@ -1865,39 +1932,25 @@ IMPORTANT:
     // Create a hash of meaningful data
     const dataHash = `${lastFeedingId}-${lastFeedingTime}-${lastSleepId}-${lastSleepTime}-${activeSleepId}-${activeSleepStart}`;
     
-    // Force schedule rebuild if data changed (new event logged)
     const dataChanged = dataHash !== lastDataHashRef.current;
     const nowMs = Date.now();
     const nowDate = new Date(nowMs);
-    
-    // Check if we've passed the NEXT upcoming event (not just any past event)
-    // Skip wake events - only check feed and sleep events
-    const currentSchedule = dailySchedule || dailyScheduleRef.current;
-    let hasPassedNextEvent = false;
-    if (currentSchedule && Array.isArray(currentSchedule) && currentSchedule.length > 0) {
-      // Find the next upcoming event (skip wake events)
-      const nextEvent = currentSchedule.find(event => 
-        event && 
-        event.time && 
-        (event.type === 'feed' || event.type === 'sleep') &&
-        event.time.getTime() > nowDate.getTime()
-      );
-      // Only rebuild if we've passed the next event (with 5 min grace period)
-      if (nextEvent && nextEvent.time.getTime() < nowDate.getTime() - (5 * 60 * 1000)) {
-        hasPassedNextEvent = true;
+    const todayKey = getScheduleDateKey(nowDate);
+
+    let baseSchedule = projectionScheduleRef.current;
+    let baseScheduleDateKey = projectionScheduleDateRef.current;
+
+    if (!baseSchedule || baseScheduleDateKey !== todayKey) {
+      const storedSchedule = readStoredProjectionSchedule(todayKey);
+      if (storedSchedule && storedSchedule.length > 0) {
+        baseSchedule = storedSchedule;
+        baseScheduleDateKey = todayKey;
+        projectionScheduleRef.current = storedSchedule;
+        projectionScheduleDateRef.current = todayKey;
       }
     }
-    
-    const shouldRebuildSchedule = !currentSchedule || 
-      (Array.isArray(currentSchedule) && currentSchedule.length === 0) || // Rebuild if schedule is empty array
-      (nowMs - lastScheduleUpdateRef.current > 5 * 60 * 1000) || // Rebuild every 5 min instead of 15
-      dataChanged ||
-      hasPassedNextEvent; // Rebuild if we've passed the next scheduled event
-    
-    if (dataChanged) {
-      dailyScheduleRef.current = null; // Force rebuild
-      lastScheduleUpdateRef.current = 0;
-    }
+
+    const shouldRebuildSchedule = !baseSchedule || baseScheduleDateKey !== todayKey;
     
     // Skip if data hasn't meaningfully changed AND we have a stored prediction
     // Only recalculate if there's a new feeding/sleep event
@@ -2098,23 +2151,27 @@ Output ONLY the formatted string, nothing else.`;
         else feedIntervalHours = 3.5;
       }
       
-      // Schedule rebuild already determined above
-      
       if (shouldRebuildSchedule) {
-        // Build initial schedule deterministically from patterns (no AI)
-        const initialSchedule = buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
-        // Adjust based on actual events
+        // Build base projection once per day (midnight)
+        baseSchedule = buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
+        projectionScheduleRef.current = baseSchedule;
+        projectionScheduleDateRef.current = todayKey;
+        writeProjectionSchedule(todayKey, baseSchedule);
+        lastScheduleUpdateRef.current = nowMs;
+      }
+
+      if (baseSchedule && (dataChanged || shouldRebuildSchedule || !dailyScheduleRef.current)) {
+        // Adjust based on actual events without re-building the base projection
         const adjustedSchedule = adjustScheduleForActualEvents(
-          initialSchedule, 
-          allFeedings, 
-          allSleepSessions, 
+          baseSchedule,
+          allFeedings,
+          allSleepSessions,
           feedIntervalHours,
           analysis,
           ageInMonths
         );
         dailyScheduleRef.current = adjustedSchedule;
         setDailySchedule(adjustedSchedule); // Update state to trigger re-render
-        lastScheduleUpdateRef.current = nowMs;
         setScheduleReady(true); // Mark schedule as ready
       }
       
@@ -2183,6 +2240,25 @@ Output ONLY the formatted string, nothing else.`;
     // Removed generateWhatsNext from dependencies to prevent loop
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, feedings, sleepSessions, activeSleep, currentDate, kidId]);
+
+  React.useEffect(() => {
+    const isTodayCheck = currentDate.toDateString() === new Date().toDateString();
+    if (!kidId || !isTodayCheck) return;
+    const now = new Date();
+    const nextMidnight = new Date(now);
+    nextMidnight.setHours(24, 0, 0, 0);
+    const timeoutMs = nextMidnight.getTime() - now.getTime();
+    const timer = setTimeout(() => {
+      projectionScheduleRef.current = null;
+      projectionScheduleDateRef.current = null;
+      dailyScheduleRef.current = null;
+      setDailySchedule(null);
+      setScheduleReady(false);
+      lastDataHashRef.current = '';
+      generateWhatsNext();
+    }, Math.max(0, timeoutMs) + 50);
+    return () => clearTimeout(timer);
+  }, [kidId, currentDate, generateWhatsNext]);
 
   // Force re-render when schedule is built (so accordion can display it)
   React.useEffect(() => {
@@ -4435,6 +4511,8 @@ Output ONLY the formatted string, nothing else.`;
         rawFeedings: allFeedings,
         rawSleepSessions: [],
         currentDate: currentDate,
+        disableAccordion: uiVersion === 'v4',
+        onCardTap: uiVersion === 'v4' ? handleV4CardTap : null,
         onItemClick: handleFeedItemClick,
         onDelete: async () => {
           // Small delay for animation
@@ -4452,6 +4530,8 @@ Output ONLY the formatted string, nothing else.`;
         rawFeedings: [],
         rawSleepSessions: allSleepSessions,
         currentDate: currentDate,
+        disableAccordion: uiVersion === 'v4',
+        onCardTap: uiVersion === 'v4' ? handleV4CardTap : null,
         onItemClick: handleSleepItemClick,
         onActiveSleepClick: () => requestInputSheetOpen('sleep'),
         onDelete: async () => {

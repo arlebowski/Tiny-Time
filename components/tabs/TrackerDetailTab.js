@@ -1,15 +1,19 @@
-// ScheduleTab Component
-// Displays schedule and routine management for v4
+// TrackerDetailTab Component
+// Detail view for tracker cards (v4)
 
-const ScheduleTab = ({ user, kidId, familyId }) => {
+const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
+  const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
   const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
   const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
+  const calendarContainerRef = React.useRef(null);
+  const weekToggleHostRef = React.useRef(null);
+  const [calendarSideWidth, setCalendarSideWidth] = React.useState(null);
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
@@ -402,32 +406,127 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   const sleepDisplay = formatV2NumberSafe(sleepHours);
 
   const Timeline = window.TT?.shared?.Timeline || null;
+  const formatMonthYear = (date) => {
+    try {
+      const fmt = window.dateFns?.format;
+      if (typeof fmt === 'function') return fmt(date, 'MMMM yyyy');
+    } catch (e) {}
+    return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+  };
+
+  React.useEffect(() => {
+    if (!calendarContainerRef.current || !weekToggleHostRef.current) return;
+    const header = calendarContainerRef.current.querySelector('header');
+    const rightSlot = header ? header.querySelector('div') : null;
+    if (rightSlot && weekToggleHostRef.current && rightSlot.parentElement !== weekToggleHostRef.current) {
+      weekToggleHostRef.current.appendChild(rightSlot);
+    }
+    const measure = () => {
+      const width = rightSlot ? rightSlot.offsetWidth : 0;
+      setCalendarSideWidth(width > 0 ? width : null);
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [HorizontalCalendar]);
 
   return React.createElement('div', {
     className: "space-y-4 pb-24"
   },
-    HorizontalCalendar
-      ? React.createElement(HorizontalCalendar, {
-          onDateSelect: (payload) => {
-            if (!payload) return;
-            setSelectedSummary({
-              feedOz: payload.feedOz || 0,
-              sleepMs: payload.sleepMs || 0
-            });
-            if (payload.date) {
-              try {
-                const newDate = new Date(payload.date);
-                setSelectedSummaryKey(newDate.toDateString());
-                setSelectedDate(newDate);
-              } catch (e) {
+    React.createElement('style', {
+      dangerouslySetInnerHTML: {
+        __html: `
+          .tt-tracker-detail-header {
+            display: grid;
+            grid-template-columns: var(--tt-tracker-detail-side, 72px) auto var(--tt-tracker-detail-side, 72px);
+            align-items: center;
+            padding-left: 12px;
+            padding-right: 16px;
+          }
+          .tt-tracker-detail-header-title {
+            justify-self: center;
+            margin: 0;
+            line-height: 1;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--tt-text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
+          }
+          .tt-tracker-detail-back {
+            justify-self: start;
+            line-height: 1;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            color: var(--tt-text-secondary);
+            font-size: 0.875rem;
+            font-weight: 600;
+          }
+          .tt-tracker-detail-header-spacer {
+            justify-self: end;
+            width: 100%;
+          }
+          .tt-tracker-detail-calendar header h1 {
+            visibility: hidden;
+          }
+          .tt-tracker-detail-calendar header {
+            display: none;
+          }
+        `
+      }
+    }),
+    React.createElement('div', { 
+      className: "tt-tracker-detail-header",
+      style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
+    },
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          onClick: () => {
+            if (typeof setActiveTab === 'function') {
+              setActiveTab('tracker');
+            }
+          },
+          className: "tt-tracker-detail-back"
+        },
+        ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
+          className: "w-5 h-5",
+          style: { color: 'var(--tt-text-secondary)' }
+        }),
+        "Back"
+      ),
+      React.createElement('div', { className: "tt-tracker-detail-header-title" }, formatMonthYear(selectedDate)),
+      React.createElement('div', { className: "tt-tracker-detail-header-spacer", ref: weekToggleHostRef })
+    ),
+    React.createElement('div', { 
+      className: "tt-tracker-detail-calendar", 
+      ref: calendarContainerRef,
+      style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
+    },
+      HorizontalCalendar
+        ? React.createElement(HorizontalCalendar, {
+            onDateSelect: (payload) => {
+              if (!payload) return;
+              setSelectedSummary({
+                feedOz: payload.feedOz || 0,
+                sleepMs: payload.sleepMs || 0
+              });
+              if (payload.date) {
+                try {
+                  const newDate = new Date(payload.date);
+                  setSelectedSummaryKey(newDate.toDateString());
+                  setSelectedDate(newDate);
+                } catch (e) {
+                  setSelectedSummaryKey(String(Date.now()));
+                }
+              } else {
                 setSelectedSummaryKey(String(Date.now()));
               }
-            } else {
-              setSelectedSummaryKey(String(Date.now()));
             }
-          }
-        })
-      : null,
+          })
+        : null
+    ),
     React.createElement('div', { className: "grid grid-cols-2 gap-4 -mt-2" },
       renderSummaryCard({
         icon: bottleIcon,
@@ -456,5 +555,5 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
 if (typeof window !== 'undefined') {
   window.TT = window.TT || {};
   window.TT.tabs = window.TT.tabs || {};
-  window.TT.tabs.ScheduleTab = ScheduleTab;
+  window.TT.tabs.TrackerDetailTab = TrackerDetailTab;
 }
