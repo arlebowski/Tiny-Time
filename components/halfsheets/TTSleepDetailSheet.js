@@ -724,8 +724,19 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
                   initial: { opacity: 0 },
                   animate: { opacity: 1 },
                   exit: { opacity: 0 },
-                  className: "fixed inset-0 bg-black/60 backdrop-blur-sm",
-                  style: { zIndex: 10000 },
+                  className: "fixed",
+                  style: {
+                    zIndex: 10000,
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    width: '100vw',
+                    height: '100vh',
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    backdropFilter: 'blur(6px)',
+                    WebkitBackdropFilter: 'blur(6px)'
+                  },
                   onClick: handleClose
                 }
               )
