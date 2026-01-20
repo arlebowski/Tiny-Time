@@ -5,7 +5,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
-  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0 });
+  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0, feedPct: 0, sleepPct: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
@@ -21,13 +21,31 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
-  const [initialTimelineFilter, setInitialTimelineFilter] = React.useState(null);
+  const __ttInitialFilter = (() => {
+    if (typeof window === 'undefined') return null;
+    const nextFilter = window.TT?.shared?.trackerDetailFilter || null;
+    if (nextFilter && window.TT?.shared) {
+      delete window.TT.shared.trackerDetailFilter;
+    }
+    return nextFilter;
+  })();
+  const [initialTimelineFilter, setInitialTimelineFilter] = React.useState(__ttInitialFilter);
+  const [summaryLayoutMode, setSummaryLayoutMode] = React.useState(__ttInitialFilter || 'all');
+  const [projectedTargets, setProjectedTargets] = React.useState({ feedTarget: 0, sleepTarget: 0 });
+  const [summaryAnimationEpoch, setSummaryAnimationEpoch] = React.useState(0);
+  const [summaryCardsEpoch, setSummaryCardsEpoch] = React.useState(0);
+  const summaryAnimationMountRef = React.useRef(false);
+  const summaryAnimationPrevRef = React.useRef(summaryLayoutMode);
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
   const __ttAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence)
     ? window.Motion.AnimatePresence
     : null;
+  const shouldAnimateSummary = !summaryAnimationMountRef.current
+    || summaryAnimationPrevRef.current === 'all'
+    || summaryLayoutMode === 'all';
+  const canAnimateSummary = Boolean(__ttMotion && __ttAnimatePresence && shouldAnimateSummary);
 
   // Helper: format timestamp to 12-hour time string (e.g., "4:23 AM")
   const formatTime12Hour = (timestamp) => {
@@ -143,6 +161,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     if (dateKey !== todayKey) {
       projectedScheduleRef.current = null;
       setScheduledTimelineItems([]);
+      setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
       return;
     }
     try {
@@ -150,15 +169,36 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       if (!raw) {
         projectedScheduleRef.current = null;
         setScheduledTimelineItems([]);
+        setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
         return;
       }
       const parsed = JSON.parse(raw);
       if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) {
         projectedScheduleRef.current = null;
         setScheduledTimelineItems([]);
+        setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
         return;
       }
       projectedScheduleRef.current = parsed.items;
+      const targets = parsed.items.reduce((acc, item) => {
+        if (item?.type === 'feed') {
+          const oz = Number(item?.targetOz);
+          if (Number.isFinite(oz)) {
+            acc.feedTarget += oz;
+          } else if (Array.isArray(item?.targetOzRange)) {
+            const [low, high] = item.targetOzRange;
+            if (Number.isFinite(low) && Number.isFinite(high)) {
+              acc.feedTarget += (low + high) / 2;
+            }
+          }
+        }
+        if (item?.type === 'sleep') {
+          const hrs = Number(item?.avgDurationHours);
+          if (Number.isFinite(hrs)) acc.sleepTarget += hrs;
+        }
+        return acc;
+      }, { feedTarget: 0, sleepTarget: 0 });
+      setProjectedTargets(targets);
       const latest = latestActualEventsRef.current;
       const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
       const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
@@ -166,6 +206,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     } catch (error) {
       projectedScheduleRef.current = null;
       setScheduledTimelineItems([]);
+      setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
     }
   }, []);
 
@@ -415,7 +456,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
     null;
 
-  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon }) => {
+  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default' }) => {
     const Card = TTCard || 'div';
     const cardProps = TTCard
       ? { variant: "tracker", className: "min-h-[56px] p-[14px]" }
@@ -424,19 +465,57 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
           style: { backgroundColor: "var(--tt-card-bg)", borderColor: "var(--tt-card-border)" }
         };
 
+    const clampedPercent = Math.max(0, Math.min(100, Number(progressPercent) || 0));
+    const progressWidth = clampedPercent > 0 ? Math.max(4, clampedPercent) : 0;
+
     return React.createElement(
       Card,
       cardProps,
-      React.createElement('div', { className: "flex items-center justify-center" },
-        __ttMotion && __ttAnimatePresence
-          ? React.createElement(__ttAnimatePresence, { mode: "wait" },
-              React.createElement(__ttMotion.div, {
+      React.createElement('div', { className: "flex flex-col gap-2" },
+        React.createElement('div', { className: "flex items-center justify-center" },
+          __ttMotion && __ttAnimatePresence
+            ? React.createElement(__ttAnimatePresence, { mode: "wait" },
+                React.createElement(__ttMotion.div, {
+                  key: selectedSummaryKey,
+                  className: "flex items-baseline gap-2 min-w-0",
+                  initial: { opacity: 0, y: -10, scale: 0.95 },
+                  animate: { opacity: 1, y: 0, scale: 1 },
+                  exit: { opacity: 0, y: 10, scale: 0.95 },
+                  transition: { type: "spring", stiffness: 400, damping: 30 }
+                },
+                  icon
+                    ? React.createElement(icon, {
+                        style: {
+                          color,
+                          width: '1.5rem',
+                          height: '1.5rem',
+                          strokeWidth: rotateIcon ? '1.5' : undefined,
+                          fill: rotateIcon ? 'none' : undefined,
+                          transform: rotateIcon ? 'translateY(3px) rotate(20deg)' : 'translateY(3px)'
+                        }
+                      })
+                    : React.createElement('div', {
+                        style: {
+                          width: '1.5rem',
+                          height: '1.5rem',
+                          borderRadius: '1rem',
+                          backgroundColor: 'var(--tt-input-bg)',
+                          transform: 'translateY(3px)'
+                        }
+                      }),
+                  React.createElement('div', {
+                    className: "text-[24px] font-bold leading-none whitespace-nowrap",
+                    style: { color }
+                  }, value),
+                  React.createElement('div', {
+                    className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
+                    style: { color: 'var(--tt-text-secondary)' }
+                  }, unit)
+                )
+              )
+            : React.createElement('div', { 
                 key: selectedSummaryKey,
-                className: "flex items-baseline gap-2 min-w-0",
-                initial: { opacity: 0, y: -10, scale: 0.95 },
-                animate: { opacity: 1, y: 0, scale: 1 },
-                exit: { opacity: 0, y: 10, scale: 0.95 },
-                transition: { type: "spring", stiffness: 400, damping: 30 }
+                className: "flex items-baseline gap-2 min-w-0"
               },
                 icon
                   ? React.createElement(icon, {
@@ -467,40 +546,31 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                   style: { color: 'var(--tt-text-secondary)' }
                 }, unit)
               )
-            )
-          : React.createElement('div', { 
-              key: selectedSummaryKey,
-              className: "flex items-baseline gap-2 min-w-0"
-            },
-              icon
-                ? React.createElement(icon, {
-                    style: {
-                      color,
-                      width: '1.5rem',
-                      height: '1.5rem',
-                      strokeWidth: rotateIcon ? '1.5' : undefined,
-                      fill: rotateIcon ? 'none' : undefined,
-                      transform: rotateIcon ? 'translateY(3px) rotate(20deg)' : 'translateY(3px)'
-                    }
-                  })
-                : React.createElement('div', {
-                    style: {
-                      width: '1.5rem',
-                      height: '1.5rem',
-                      borderRadius: '1rem',
-                      backgroundColor: 'var(--tt-input-bg)',
-                      transform: 'translateY(3px)'
-                    }
-                  }),
-              React.createElement('div', {
-                className: "text-[24px] font-bold leading-none whitespace-nowrap",
-                style: { color }
-              }, value),
-              React.createElement('div', {
-                className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
-                style: { color: 'var(--tt-text-secondary)' }
-              }, unit)
-            )
+        ),
+        React.createElement('div', {
+          className: "w-full rounded-full overflow-hidden",
+          style: {
+            height: '4px',
+            backgroundColor: 'var(--tt-input-bg)'
+          }
+        },
+          __ttMotion
+            ? React.createElement(__ttMotion.div, {
+                key: `progress-${progressKey}`,
+                className: "h-full rounded-full",
+                initial: { width: 0 },
+                animate: { width: `${progressWidth}%` },
+                transition: { type: "spring", stiffness: 220, damping: 24 },
+                style: { backgroundColor: color }
+              })
+            : React.createElement('div', {
+                className: "h-full rounded-full transition-all duration-500",
+                style: {
+                  width: `${progressWidth}%`,
+                  backgroundColor: color
+                }
+              })
+        )
       )
     );
   };
@@ -508,6 +578,16 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const feedDisplay = formatV2NumberSafe(selectedSummary.feedOz);
   const sleepHours = Number(selectedSummary.sleepMs || 0) / 3600000;
   const sleepDisplay = formatV2NumberSafe(sleepHours);
+  const feedPercent = Number.isFinite(Number(selectedSummary.feedPct)) && Number(selectedSummary.feedPct) > 0
+    ? Number(selectedSummary.feedPct)
+    : (projectedTargets.feedTarget > 0
+        ? Math.min(100, (Number(selectedSummary.feedOz) / projectedTargets.feedTarget) * 100)
+        : 0);
+  const sleepPercent = Number.isFinite(Number(selectedSummary.sleepPct)) && Number(selectedSummary.sleepPct) > 0
+    ? Number(selectedSummary.sleepPct)
+    : (projectedTargets.sleepTarget > 0
+        ? Math.min(100, (sleepHours / projectedTargets.sleepTarget) * 100)
+        : 0);
 
   const Timeline = window.TT?.shared?.Timeline || null;
   const formatMonthYear = (date) => {
@@ -562,12 +642,36 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
+    if (__ttInitialFilter) return;
     const nextFilter = window.TT?.shared?.trackerDetailFilter;
     if (nextFilter) {
       setInitialTimelineFilter(nextFilter);
+      setSummaryLayoutMode(nextFilter);
       delete window.TT.shared.trackerDetailFilter;
     }
+  }, [__ttInitialFilter]);
+
+  const handleTimelineFilterChange = React.useCallback((nextFilter) => {
+    if (!nextFilter) return;
+    setSummaryLayoutMode(nextFilter);
   }, []);
+
+  React.useEffect(() => {
+    const isFirst = !summaryAnimationMountRef.current;
+    const prevMode = summaryAnimationPrevRef.current;
+    const shouldAnimateTransition = isFirst
+      || prevMode === 'all'
+      || summaryLayoutMode === 'all';
+    if (shouldAnimateTransition && !isFirst) {
+      setSummaryAnimationEpoch((prev) => prev + 1);
+      setSummaryCardsEpoch((prev) => prev + 1);
+    }
+    if (isFirst) {
+      setSummaryCardsEpoch((prev) => prev + 1);
+    }
+    summaryAnimationMountRef.current = true;
+    summaryAnimationPrevRef.current = summaryLayoutMode;
+  }, [summaryLayoutMode]);
 
   return React.createElement('div', {
     className: "space-y-4 pb-24"
@@ -649,7 +753,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
               if (!payload) return;
               setSelectedSummary({
                 feedOz: payload.feedOz || 0,
-                sleepMs: payload.sleepMs || 0
+                sleepMs: payload.sleepMs || 0,
+                feedPct: payload.feedPct || 0,
+                sleepPct: payload.sleepPct || 0
               });
               if (payload.date) {
                 try {
@@ -666,29 +772,96 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
           })
         : null
     ),
-    React.createElement('div', { className: "grid grid-cols-2 gap-4 -mt-2" },
-      renderSummaryCard({
-        icon: bottleIcon,
-        color: 'var(--tt-feed)',
-        value: feedDisplay,
-        unit: 'oz',
-        rotateIcon: true
-      }),
-      renderSummaryCard({
-        icon: moonIcon,
-        color: 'var(--tt-sleep)',
-        value: sleepDisplay,
-        unit: 'hrs',
-        rotateIcon: false
-      })
-    ),
+    (() => {
+      const prevMode = summaryAnimationPrevRef.current;
+      const isFirst = !summaryAnimationMountRef.current;
+      const shouldAnimateCards = Boolean(__ttMotion && __ttAnimatePresence)
+        && (isFirst || prevMode === 'all' || summaryLayoutMode === 'all');
+      const container = shouldAnimateCards ? __ttMotion.div : 'div';
+
+      return React.createElement(
+        container,
+        {
+          className: `grid gap-4 -mt-2 ${summaryLayoutMode === 'all' ? 'grid-cols-2' : 'grid-cols-1'}`,
+          layout: shouldAnimateCards ? true : undefined,
+          transition: shouldAnimateCards
+            ? { type: "spring", stiffness: 180, damping: 24 }
+            : undefined
+        },
+        shouldAnimateCards
+          ? React.createElement(__ttAnimatePresence, { mode: "popLayout", initial: true },
+              summaryLayoutMode !== 'sleep' && React.createElement(
+                __ttMotion.div,
+                {
+                  key: `summary-feed-${summaryCardsEpoch}`,
+                  layout: true,
+                  initial: { opacity: 0, x: -8 },
+                  animate: { opacity: 1, x: 0 },
+                  exit: { opacity: 0, x: -8 },
+                  transition: { type: "spring", stiffness: 220, damping: 26 }
+                },
+                renderSummaryCard({
+                  icon: bottleIcon,
+                  color: 'var(--tt-feed)',
+                  value: feedDisplay,
+                  unit: 'oz',
+                  rotateIcon: true,
+                  progressPercent: feedPercent,
+                  progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`
+                })
+              ),
+              summaryLayoutMode !== 'feed' && React.createElement(
+                __ttMotion.div,
+                {
+                  key: `summary-sleep-${summaryCardsEpoch}`,
+                  layout: true,
+                  initial: { opacity: 0, x: 8 },
+                  animate: { opacity: 1, x: 0 },
+                  exit: { opacity: 0, x: 8 },
+                  transition: { type: "spring", stiffness: 220, damping: 26 }
+                },
+                renderSummaryCard({
+                  icon: moonIcon,
+                  color: 'var(--tt-sleep)',
+                  value: sleepDisplay,
+                  unit: 'hrs',
+                  rotateIcon: false,
+                  progressPercent: sleepPercent,
+                  progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`
+                })
+              )
+            )
+          : React.createElement(
+              React.Fragment,
+              null,
+              summaryLayoutMode !== 'sleep' && renderSummaryCard({
+                icon: bottleIcon,
+                color: 'var(--tt-feed)',
+                value: feedDisplay,
+                unit: 'oz',
+                rotateIcon: true,
+                progressPercent: feedPercent,
+                progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`
+              }),
+              summaryLayoutMode !== 'feed' && renderSummaryCard({
+                icon: moonIcon,
+                color: 'var(--tt-sleep)',
+                value: sleepDisplay,
+                unit: 'hrs',
+                rotateIcon: false,
+                progressPercent: sleepPercent,
+                progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`
+              })
+            )
+      );
+    })(),
     Timeline ? React.createElement(Timeline, {
-      key: selectedDate.toDateString(),
       initialLoggedItems: loggedTimelineItems,
       initialScheduledItems: Array.isArray(scheduledTimelineItems) ? scheduledTimelineItems : [],
       disableExpanded: true,
       allowItemExpand: true,
       initialFilter: initialTimelineFilter,
+      onFilterChange: handleTimelineFilterChange,
       editMode: timelineEditMode,
       onEditModeChange: setTimelineEditMode,
       onEditCard: handleTimelineEditCard,

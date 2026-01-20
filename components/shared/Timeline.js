@@ -12,7 +12,8 @@ const Timeline = ({
   editMode = null,
   onEditModeChange = null,
   onEditCard = null,
-  onDeleteCard = null
+  onDeleteCard = null,
+  onFilterChange = null
 }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
@@ -154,6 +155,12 @@ const Timeline = ({
       setFilter(initialFilter);
     }
   }, [initialFilter, filter]);
+
+  React.useEffect(() => {
+    if (typeof onFilterChange === 'function') {
+      onFilterChange(filter);
+    }
+  }, [filter, onFilterChange]);
   
   React.useEffect(() => {
     if (disableExpanded && isExpanded) {

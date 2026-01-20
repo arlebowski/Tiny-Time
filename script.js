@@ -552,12 +552,12 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-sleep-soft-medium', sleepVariants.softMedium);
     root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
     root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
-  });
 
-  // Update meta theme-color for iOS status bar area
-  if (typeof window.updateMetaThemeColor === 'function') {
-    window.updateMetaThemeColor();
-  }
+    // Update meta theme-color after CSS vars are applied.
+    if (typeof window.updateMetaThemeColor === 'function') {
+      window.updateMetaThemeColor();
+    }
+  });
 };
 
 const signInWithGoogle = async () => {
