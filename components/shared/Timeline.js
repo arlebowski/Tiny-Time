@@ -17,6 +17,7 @@ const Timeline = ({
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [filter, setFilter] = React.useState(initialFilter || 'all');
+  const initialFilterAppliedRef = React.useRef(false);
   const [isCompiling, setIsCompiling] = React.useState(false);
   const [sortOrder, setSortOrder] = React.useState('desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
@@ -146,7 +147,9 @@ const Timeline = ({
   }, []);
   
   React.useEffect(() => {
+    if (initialFilterAppliedRef.current) return;
     if (!initialFilter) return;
+    initialFilterAppliedRef.current = true;
     if (initialFilter !== filter) {
       setFilter(initialFilter);
     }

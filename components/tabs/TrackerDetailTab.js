@@ -21,7 +21,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
-  const [initialTimelineFilter, setInitialTimelineFilter] = React.useState('all');
+  const [initialTimelineFilter, setInitialTimelineFilter] = React.useState(null);
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
@@ -110,7 +110,31 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       return card.timeMs >= upcomingFloorMs;
     });
 
-    setScheduledTimelineItems(nextItem ? [nextItem.card] : []);
+    if (nextItem) {
+      setScheduledTimelineItems([nextItem.card]);
+      return;
+    }
+
+    // Special case: if it's late, show the first scheduled item for the next day.
+    const lateHourThreshold = 21; // 9pm
+    if (nowMs >= new Date(new Date(nowMs).setHours(lateHourThreshold, 0, 0, 0)).getTime()) {
+      const first = sortedProjected[0]?.card;
+      if (first && Number.isFinite(first.timeMs)) {
+        const nextDayTimeMs = first.timeMs + 24 * 60 * 60 * 1000;
+        const nextDayCard = buildScheduledCard(
+          { ...projectedItems[0], timeMs: nextDayTimeMs },
+          dateKey,
+          0
+        );
+        if (nextDayCard) {
+          nextDayCard.id = `${nextDayCard.id}-nextday`;
+          setScheduledTimelineItems([nextDayCard]);
+          return;
+        }
+      }
+    }
+
+    setScheduledTimelineItems([]);
   };
 
   const loadProjectedSchedule = React.useCallback((date) => {

@@ -288,6 +288,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
   const [sleepEditStartStr, setSleepEditStartStr] = React.useState('');
   const [sleepEditEndStr, setSleepEditEndStr] = React.useState('');
   const [loading, setLoading] = React.useState(true);
+  const [hasLoadedOnce, setHasLoadedOnce] = React.useState(false);
   const [whatsNextCardAnimating, setWhatsNextCardAnimating] = React.useState(null); // 'entering' | 'exiting' | null
   const [showCustomTime, setShowCustomTime] = React.useState(false);
   const [logMode, setLogMode] = React.useState('feeding');
@@ -3398,6 +3399,7 @@ Output ONLY the formatted string, nothing else.`;
       console.error('Error loading data:', error);
     } finally {
       setLoading(false);
+      setHasLoadedOnce(true);
     }
   };
 
@@ -3898,7 +3900,7 @@ Output ONLY the formatted string, nothing else.`;
     setShowSleepDetailSheet(true);
   };
 
-  if (loading) {
+  if (loading && !hasLoadedOnce) {
     return React.createElement('div', { className: "flex items-center justify-center py-12" },
       React.createElement('div', { 
         style: { color: 'var(--tt-text-secondary)' }

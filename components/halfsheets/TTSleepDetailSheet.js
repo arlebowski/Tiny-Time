@@ -124,6 +124,8 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
     const ctaFooterRef = React.useRef(null);
     const CTA_BOTTOM_OFFSET_PX = 30;
+    const CTA_SPACER_PX = 86 + CTA_BOTTOM_OFFSET_PX;
+    const [ctaHeightPx, setCtaHeightPx] = React.useState(CTA_SPACER_PX);
     
     // Track original photo URLs to detect deletions
     const originalPhotoURLsRef = React.useRef([]);
@@ -281,6 +283,21 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         vv.removeEventListener('scroll', checkKeyboard);
       };
     }, [isOpen]);
+
+    React.useEffect(() => {
+      if (!__ttUseV4Sheet) return;
+      const measure = () => {
+        const el = ctaFooterRef.current;
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        if (rect && rect.height) {
+          setCtaHeightPx(rect.height);
+        }
+      };
+      measure();
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }, [__ttUseV4Sheet, isKeyboardOpen, saving, isValid]);
 
     const handleSave = async () => {
       if (!isValid) {
@@ -463,10 +480,17 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     // IMPORTANT: Make the body a full-height flex column so the CTA stays locked to the bottom
     const bodyContent = React.createElement(
       'div',
-      { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
+      { style: { minHeight: __ttUseV4Sheet ? undefined : '100%', display: 'flex', flexDirection: 'column', position: __ttUseV4Sheet ? 'relative' : undefined } },
       // Content wrapper
       React.createElement('div', {
-        style: { position: 'relative', overflow: 'hidden', width: '100%', flex: 1, minHeight: 0 }
+        style: {
+          position: 'relative',
+          overflow: __ttUseV4Sheet ? 'visible' : 'hidden',
+          width: '100%',
+          flex: __ttUseV4Sheet ? undefined : 1,
+          minHeight: 0,
+          paddingBottom: __ttUseV4Sheet ? `${Math.max(ctaHeightPx || 0, CTA_SPACER_PX) + CTA_BOTTOM_OFFSET_PX + 24}px` : undefined
+        }
       },
       // Timer Display
       React.createElement('div', { className: "text-center mb-6" },
@@ -546,12 +570,15 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       // Hide when keyboard is open to prevent overlap with keyboard
         React.createElement('div', {
         ref: ctaFooterRef,
-        className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
+        className: __ttUseV4Sheet ? "left-0 right-0 pt-3 pb-1" : "sticky bottom-0 left-0 right-0 pt-3 pb-1",
         style: { 
           zIndex: 10,
           backgroundColor: 'var(--tt-card-bg)',
           display: isKeyboardOpen ? 'none' : 'block',
-          bottom: `${CTA_BOTTOM_OFFSET_PX}px`
+          bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
+          left: 0,
+          right: 0,
+          position: __ttUseV4Sheet ? 'absolute' : 'sticky'
         }
       },
               React.createElement('button', {

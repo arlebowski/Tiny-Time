@@ -12,6 +12,9 @@ const SegmentedToggle = ({
   size = 'medium',  // 'small' | 'medium' | 'large'
   fullWidth = false // If true, makes toggle span full width
 }) => {
+  const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
+    ? window.Motion.motion
+    : null;
   // Size-based tokens (maintains HeaderSegmentedToggle proportions)
   const sizeTokens = {
     small: {
@@ -90,16 +93,28 @@ const SegmentedToggle = ({
       className: `${containerClass} ${tokens.containerPadding}`,
       style: containerStyle
     },
-    (options || []).map((opt) =>
-      React.createElement('button', {
+    (options || []).map((opt) => {
+      const ButtonEl = __ttMotion ? __ttMotion.button : 'button';
+      return React.createElement(ButtonEl, {
         key: opt.value,
         type: 'button',
         onClick: () => onChange && onChange(opt.value),
-        className: `${btnBase} ${tokens.textSize} ${tokens.buttonPadding} ${value === opt.value ? btnOn : btnOff}`,
+        layout: __ttMotion ? true : undefined,
+        className: `${btnBase} ${tokens.textSize} ${tokens.buttonPadding} ${value === opt.value ? btnOn : btnOff} ${__ttMotion ? 'relative overflow-hidden' : ''}`,
         style: value === opt.value ? btnOnStyle : btnOffStyle,
         'aria-pressed': value === opt.value
-      }, opt.label)
-    )
+      },
+        __ttMotion && value === opt.value
+          ? React.createElement(__ttMotion.span, {
+              layoutId: "tt-seg-toggle-pill",
+              className: "absolute inset-0 rounded-lg",
+              style: btnOnStyle,
+              transition: { type: "spring", stiffness: 320, damping: 30 }
+            })
+          : null,
+        React.createElement('span', { className: __ttMotion ? "relative z-10" : undefined }, opt.label)
+      );
+    })
   );
 };
 
@@ -112,4 +127,3 @@ if (typeof window !== 'undefined') {
   // Temporary backward compatibility
   window.SegmentedToggle = SegmentedToggle;
 }
-
