@@ -362,9 +362,13 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     // Track keyboard state to hide sticky button when keyboard is open
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
     
-    // Collapsible Notes/Photos state (for input half sheet)
-    const [notesExpanded, setNotesExpanded] = React.useState(false);
-    const [photosExpanded, setPhotosExpanded] = React.useState(false);
+    // Collapsible Notes/Photos state (per mode)
+    const [feedingNotesExpanded, setFeedingNotesExpanded] = React.useState(false);
+    const [feedingPhotosExpanded, setFeedingPhotosExpanded] = React.useState(false);
+    const [sleepNotesExpanded, setSleepNotesExpanded] = React.useState(false);
+    const [sleepPhotosExpanded, setSleepPhotosExpanded] = React.useState(false);
+    const notesExpanded = mode === 'feeding' ? feedingNotesExpanded : sleepNotesExpanded;
+    const photosExpanded = mode === 'feeding' ? feedingPhotosExpanded : sleepPhotosExpanded;
     
     // Calculate height based on expanded fields
     const calculateHeight = React.useMemo(() => {
@@ -469,8 +473,10 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         // Reset feeding state when closing
         setFeedingDateTime(new Date().toISOString());
         // Reset expand state when closing
-        setNotesExpanded(false);
-        setPhotosExpanded(false);
+        setFeedingNotesExpanded(false);
+        setFeedingPhotosExpanded(false);
+        setSleepNotesExpanded(false);
+        setSleepPhotosExpanded(false);
       } else {
         // When sheet opens in sleep mode, set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
@@ -575,13 +581,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       }
     }, [mode, isOpen]);
     
-    // Reset expand state when mode changes
-    React.useEffect(() => {
-      if (isOpen) {
-        setNotesExpanded(false);
-        setPhotosExpanded(false);
-      }
-    }, [mode, isOpen]);
+    // Preserve expand state per mode; reset happens on close.
     
     // Load most recent feed ounces when switching to feeding mode
     React.useEffect(() => {
@@ -1150,7 +1150,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         }),
 
         // Notes - conditionally render based on expanded state
-        notesExpanded 
+        feedingNotesExpanded 
           ? (__ttUseV4Sheet
               ? React.createElement(__ttV4Motion.div, {
                   initial: { opacity: 0, y: 6, scale: 0.98 },
@@ -1176,21 +1176,21 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                 })
             )
           : React.createElement('div', {
-              onClick: () => setNotesExpanded(true),
+              onClick: () => setFeedingNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
               style: { color: 'var(--tt-text-tertiary)' }
             }, '+ Add notes')
       ),
 
-      TTPhotoRow && (__ttUseV4Sheet && photosExpanded
+      TTPhotoRow && (__ttUseV4Sheet && feedingPhotosExpanded
         ? React.createElement(__ttV4Motion.div, {
             initial: { opacity: 0, y: 6, scale: 0.98 },
             animate: { opacity: 1, y: 0, scale: 1 },
             transition: { type: "spring", damping: 25, stiffness: 300 }
           },
           React.createElement(TTPhotoRow, {
-            expanded: photosExpanded,
-            onExpand: () => setPhotosExpanded(true),
+            expanded: feedingPhotosExpanded,
+            onExpand: () => setFeedingPhotosExpanded(true),
             existingPhotos: [],
             newPhotos: photos,
             onAddPhoto: handleAddPhoto,
@@ -1199,8 +1199,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           })
         )
         : React.createElement(TTPhotoRow, {
-            expanded: photosExpanded,
-            onExpand: () => setPhotosExpanded(true),
+            expanded: feedingPhotosExpanded,
+            onExpand: () => setFeedingPhotosExpanded(true),
             existingPhotos: [],
             newPhotos: photos,
             onAddPhoto: handleAddPhoto,
@@ -1292,7 +1292,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           }),
 
           // Notes - conditionally render based on expanded state
-        notesExpanded 
+        sleepNotesExpanded 
             ? (__ttUseV4Sheet
                 ? React.createElement(__ttV4Motion.div, {
                     initial: { opacity: 0, y: 6, scale: 0.98 },
@@ -1318,21 +1318,21 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                   })
               )
             : React.createElement('div', {
-                onClick: () => setNotesExpanded(true),
+                onClick: () => setSleepNotesExpanded(true),
                 className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
                 style: { color: 'var(--tt-text-tertiary)' }
               }, '+ Add notes')
         ),
 
-      TTPhotoRow && (__ttUseV4Sheet && photosExpanded
+      TTPhotoRow && (__ttUseV4Sheet && sleepPhotosExpanded
         ? React.createElement(__ttV4Motion.div, {
             initial: { opacity: 0, y: 6, scale: 0.98 },
             animate: { opacity: 1, y: 0, scale: 1 },
             transition: { type: "spring", damping: 25, stiffness: 300 }
           },
           React.createElement(TTPhotoRow, {
-            expanded: photosExpanded,
-            onExpand: () => setPhotosExpanded(true),
+            expanded: sleepPhotosExpanded,
+            onExpand: () => setSleepPhotosExpanded(true),
             existingPhotos: [],
             newPhotos: photos,
             onAddPhoto: handleAddPhoto,
@@ -1341,8 +1341,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           })
         )
         : React.createElement(TTPhotoRow, {
-            expanded: photosExpanded,
-            onExpand: () => setPhotosExpanded(true),
+            expanded: sleepPhotosExpanded,
+            onExpand: () => setSleepPhotosExpanded(true),
             existingPhotos: [],
             newPhotos: photos,
             onAddPhoto: handleAddPhoto,
