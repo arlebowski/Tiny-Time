@@ -798,6 +798,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
       const shouldAnimateCards = Boolean(__ttMotion && __ttAnimatePresence)
         && (isFirst || prevMode === 'all' || summaryLayoutMode === 'all');
       const container = shouldAnimateCards ? __ttMotion.div : 'div';
+      const feedInitialX = -8;
+      const sleepInitialX = isFirst ? -8 : 8;
 
       return React.createElement(
         container,
@@ -815,9 +817,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                 {
                   key: `summary-feed-${summaryCardsEpoch}`,
                   layout: true,
-                  initial: { opacity: 0, x: -8 },
+                  initial: { opacity: 0, x: feedInitialX },
                   animate: { opacity: 1, x: 0 },
-                  exit: { opacity: 0, x: -8 },
+                  exit: { opacity: 0, x: feedInitialX },
                   transition: { type: "spring", stiffness: 220, damping: 26 }
                 },
                 renderSummaryCard({
@@ -835,9 +837,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                 {
                   key: `summary-sleep-${summaryCardsEpoch}`,
                   layout: true,
-                  initial: { opacity: 0, x: 8 },
+                  initial: { opacity: 0, x: sleepInitialX },
                   animate: { opacity: 1, x: 0 },
-                  exit: { opacity: 0, x: 8 },
+                  exit: { opacity: 0, x: sleepInitialX },
                   transition: { type: "spring", stiffness: 220, damping: 26 }
                 },
                 renderSummaryCard({
