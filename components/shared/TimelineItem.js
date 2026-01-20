@@ -8,8 +8,20 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
   const __ttTimelineItemAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
   const unitText = (card.unit || '').toLowerCase();
-  const amountText = typeof card.amount === 'number' || typeof card.amount === 'string'
-    ? `${card.amount} ${unitText}`.trim()
+  const resolveSleepAmountText = () => {
+    const raw = Number(card.amount);
+    if (!Number.isFinite(raw) || raw <= 0) return '';
+    if (raw < 1) {
+      const mins = Math.round(raw * 60);
+      return `${mins} min`;
+    }
+    const totalMins = Math.round(raw * 60);
+    const hours = Math.floor(totalMins / 60);
+    const minutes = totalMins % 60;
+    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+  };
+  const amountText = (typeof card.amount === 'number' || typeof card.amount === 'string')
+    ? (card.type === 'sleep' ? resolveSleepAmountText() : `${card.amount} ${unitText}`.trim())
     : '';
   const prefix = card.type === 'feed' ? 'Feed' : 'Sleep';
   const labelText = amountText
@@ -28,6 +40,9 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
   const PenIcon = (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.PenIcon || window.TT.shared.icons.Edit2)) || null;
   const noteText = card.note || card.notes || '';
   const photoUrls = Array.isArray(photoList) ? photoList : (photoList ? [photoList] : []);
+  const recentMs = 60 * 1000;
+  const startTimestamp = (typeof card.timestamp === 'number' ? card.timestamp : (typeof card.startTime === 'number' ? card.startTime : null));
+  const isJustNow = typeof startTimestamp === 'number' && (Date.now() - startTimestamp) >= 0 && (Date.now() - startTimestamp) <= recentMs;
   const formatTime12Hour = (timestamp) => {
     if (!timestamp) return '';
     const d = new Date(timestamp);
@@ -144,8 +159,8 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
             // For sleep items, show "[start] – [end]" format
             // For cross-day sleeps, card.time already has "YD" prefix
             card.type === 'sleep' && resolvedEndTime
-              ? `${card.time} – ${resolvedEndTime}`
-              : card.time
+              ? `${isJustNow ? 'Just now' : card.time} – ${resolvedEndTime}`
+              : (isJustNow ? 'Just now' : card.time)
           ),
           showChevron && ChevronIcon
             ? (__ttTimelineItemMotion
