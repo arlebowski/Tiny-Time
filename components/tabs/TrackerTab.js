@@ -206,7 +206,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
 // Note: formatV2Number is defined in TrackerCard.js (loaded first), so we use that version
 // const formatV2Number = (n) => { ... } // Removed - using version from TrackerCard.js
 
-const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) => {
+const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, activeTab = null }) => {
   // UI Version - single source of truth (v1, v2, v3, or v4)
   // UI Versions:
   // - v1: Old UI (useNewUI = false)
@@ -258,6 +258,15 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
       clearInterval(interval);
     };
   }, []);
+
+  React.useEffect(() => {
+    if (!activeTab) return;
+    const prev = prevActiveTabRef.current;
+    if (activeTab === 'tracker' && prev !== 'tracker') {
+      setCalendarMountKey((k) => k + 1);
+    }
+    prevActiveTabRef.current = activeTab;
+  }, [activeTab]);
   
   const [babyWeight, setBabyWeight] = React.useState(null);
   const [multiplier, setMultiplier] = React.useState(2.5);
@@ -274,6 +283,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
   const [sleepTodayCount, setSleepTodayCount] = React.useState(0);
   const [sleepYesterdayMs, setSleepYesterdayMs] = React.useState(0);
   const [currentDate, setCurrentDate] = React.useState(new Date());
+  const [calendarMountKey, setCalendarMountKey] = React.useState(0);
+  const prevActiveTabRef = React.useRef(activeTab);
   // State for smooth date transitions - preserve previous values while loading
   const [prevFeedingCardData, setPrevFeedingCardData] = React.useState(null);
   const [prevSleepCardData, setPrevSleepCardData] = React.useState(null);
@@ -394,6 +405,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
     }
   };
   const lastScheduleAICallRef = React.useRef(getLastScheduleAICallTime());
+  const isBuildingDailyScheduleRef = React.useRef(false);
+  const isAdjustingScheduleRef = React.useRef(false);
 
   const scheduleStorageKey = 'tt_daily_projection_schedule_v1';
   const getScheduleDateKey = (date = new Date()) => {
@@ -888,26 +901,39 @@ IMPORTANT:
 
   // Fallback: Build schedule programmatically (used when AI fails or is on cooldown)
   const buildDailySchedule = (analysis, feedIntervalHours, ageInMonths = 0) => {
+    if (isBuildingDailyScheduleRef.current) return [];
     const scheduleUtils = window.TT?.utils?.scheduleUtils;
-    if (typeof scheduleUtils?.buildDailySchedule === 'function') {
-      return scheduleUtils.buildDailySchedule(analysis, feedIntervalHours, ageInMonths, { now: new Date() });
+    const sharedBuildDailySchedule = scheduleUtils?.buildDailySchedule;
+    if (typeof sharedBuildDailySchedule === 'function' && sharedBuildDailySchedule !== buildDailySchedule) {
+      isBuildingDailyScheduleRef.current = true;
+      try {
+        return sharedBuildDailySchedule(analysis, feedIntervalHours, ageInMonths, { now: new Date() });
+      } finally {
+        isBuildingDailyScheduleRef.current = false;
+      }
     }
     return [];
   };
 
   // Adjust schedule based on actual logged events
   const adjustScheduleForActualEvents = (schedule, allFeedings, allSleepSessions, feedIntervalHours, analysis, ageInMonths = 0) => {
+    if (isAdjustingScheduleRef.current) return schedule || [];
     const scheduleUtils = window.TT?.utils?.scheduleUtils;
     if (typeof scheduleUtils?.adjustScheduleForActualEvents === 'function') {
-      return scheduleUtils.adjustScheduleForActualEvents(
-        schedule,
-        allFeedings,
-        allSleepSessions,
-        feedIntervalHours,
-        analysis,
-        ageInMonths,
-        { now: new Date(), sleepSettings }
-      );
+      isAdjustingScheduleRef.current = true;
+      try {
+        return scheduleUtils.adjustScheduleForActualEvents(
+          schedule,
+          allFeedings,
+          allSleepSessions,
+          feedIntervalHours,
+          analysis,
+          ageInMonths,
+          { now: new Date(), sleepSettings }
+        );
+      } finally {
+        isAdjustingScheduleRef.current = false;
+      }
     }
     return schedule || [];
   };
@@ -1075,7 +1101,6 @@ IMPORTANT:
     window.TT.utils = window.TT.utils || {};
     window.TT.utils.scheduleUtils = window.TT.utils.scheduleUtils || {};
     window.TT.utils.scheduleUtils.analyzeHistoricalIntervals = analyzeHistoricalIntervals;
-    window.TT.utils.scheduleUtils.buildDailySchedule = buildDailySchedule;
     window.TT.utils.scheduleUtils.adjustScheduleForActualEvents = adjustScheduleForActualEvents;
   }, [analyzeHistoricalIntervals, buildDailySchedule, adjustScheduleForActualEvents]);
 
@@ -3320,6 +3345,7 @@ Output ONLY the formatted string, nothing else.`;
       }
     },
       React.createElement(HorizontalCalendar, {
+        key: `calendar-${calendarMountKey}`,
         initialDate: currentDate,
         onDateSelect: handleDateSelectFromCalendar
       })
@@ -3348,6 +3374,7 @@ Output ONLY the formatted string, nothing else.`;
         style: { marginBottom: '16px' }
       },
         React.createElement(HorizontalCalendar, {
+          key: `calendar-${calendarMountKey}`,
           initialDate: currentDate,
           onDateSelect: handleDateSelectFromCalendar
         })

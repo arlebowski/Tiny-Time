@@ -149,6 +149,14 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       if (Number.isNaN(parsed.getTime())) return null;
       return parsed.toISOString();
     };
+
+    const clampStartIsoToNow = (value) => {
+      const normalized = normalizeIsoTime(value);
+      const now = Date.now();
+      if (!normalized) return new Date(now).toISOString();
+      const startMs = new Date(normalized).getTime();
+      return startMs > now ? new Date(now).toISOString() : normalized;
+    };
     
     const getInitialStartTime = () => {
       try {
@@ -762,7 +770,12 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
             setStartTime(effectiveStartIso);
             startMs = new Date(effectiveStartIso).getTime();
           } else {
-            startMs = parsed;
+            const clampedStartIso = clampStartIsoToNow(effectiveStartIso);
+            if (clampedStartIso !== effectiveStartIso) {
+              effectiveStartIso = clampedStartIso;
+              setStartTime(effectiveStartIso);
+            }
+            startMs = new Date(effectiveStartIso).getTime();
           }
           // Clear any end time when starting a running timer.
           setEndTime(null);
@@ -869,13 +882,14 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     
     // Handle start time change
     const handleStartTimeChange = async (newStartTime) => {
-      setStartTime(newStartTime);
+      const clampedStartTime = clampStartIsoToNow(newStartTime);
+      setStartTime(clampedStartTime);
       
       if (sleepState === 'running') {
         setEndTime(null);
         setEndTimeManuallyEdited(false);
         endTimeManuallyEditedRef.current = false;
-        const normalizedStartTime = normalizeIsoTime(newStartTime);
+        const normalizedStartTime = normalizeIsoTime(clampedStartTime);
         if (normalizedStartTime) {
           try {
             localStorage.setItem('tt_active_sleep', JSON.stringify({

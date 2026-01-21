@@ -2740,7 +2740,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           user, 
           kidId, 
           familyId,
-          onRequestOpenInputSheet: openInputSheet
+          onRequestOpenInputSheet: openInputSheet,
+          activeTab
         })),
         React.createElement('div', {
           style: { display: activeTab === 'analytics' ? 'block' : 'none' }
@@ -2760,7 +2761,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         }, React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId })),
         window.TT?.tabs?.TrackerDetailTab && React.createElement('div', {
           style: { display: activeTab === 'tracker-detail' ? 'block' : 'none' }
-        }, React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab })),
+        }, React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab, activeTab })),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
           kidId,

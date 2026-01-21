@@ -1,7 +1,7 @@
 // TrackerDetailTab Component
 // Detail view for tracker cards (v4)
 
-const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
+const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = null }) => {
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
@@ -9,6 +9,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
+  const [allFeedings, setAllFeedings] = React.useState([]);
+  const [allSleepSessions, setAllSleepSessions] = React.useState([]);
   const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
   const [showInputSheet, setShowInputSheet] = React.useState(false);
   const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
@@ -23,6 +25,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
+  const [calendarMountKey, setCalendarMountKey] = React.useState(0);
+  const prevActiveTabRef = React.useRef(activeTab);
   const __ttInitialFilter = (() => {
     if (typeof window === 'undefined') return null;
     const nextFilter = window.TT?.shared?.trackerDetailFilter || null;
@@ -39,6 +43,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [summaryCardsEpoch, setSummaryCardsEpoch] = React.useState(0);
   const summaryAnimationMountRef = React.useRef(false);
   const summaryAnimationPrevRef = React.useRef(summaryLayoutMode);
+  const [comparisonTick, setComparisonTick] = React.useState(0);
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
@@ -361,6 +366,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
         firestoreStorage.getAllFeedings(),
         firestoreStorage.getAllSleepSessions()
       ]);
+      setAllFeedings(allFeedings || []);
+      setAllSleepSessions(allSleepSessions || []);
 
       // Filter feedings for the selected day
       const dayFeedings = (allFeedings || []).filter(f => {
@@ -464,6 +471,22 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     return x.toFixed(1);
   };
 
+  const buildComparison = (delta, unit, stacked = false) => {
+    const raw = Number(delta);
+    const normalized = Number.isFinite(raw) ? raw : 0;
+    const roundedDelta = Math.round(normalized * 10) / 10;
+    const safeDelta = Math.abs(roundedDelta) < 1e-6 ? 0 : roundedDelta;
+    const isZero = safeDelta === 0;
+    const isPositive = safeDelta >= 0;
+    return {
+      isZero,
+      isPositive,
+      color: isZero ? 'var(--tt-text-tertiary)' : (isPositive ? '#00BE68' : '#FF6037'),
+      stacked,
+      text: `${isZero ? '' : (isPositive ? '+' : '-')}${formatV2NumberSafe(Math.abs(safeDelta))} ${unit}`
+    };
+  };
+
   const bottleIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
@@ -475,7 +498,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
     null;
 
-  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default' }) => {
+  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null }) => {
     const Card = TTCard || 'div';
     const cardProps = TTCard
       ? { variant: "tracker", className: "min-h-[56px] p-[14px]" }
@@ -589,6 +612,39 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                   backgroundColor: color
                 }
               })
+        ),
+        comparison && React.createElement('div', {
+          className: `mt-2 flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
+        },
+          comparison.isZero
+            ? React.createElement('span', {
+                className: "text-[13.4px] font-normal leading-none",
+                style: { color: 'var(--tt-text-tertiary)' }
+              }, 'Same as yesterday')
+            : React.createElement(
+                React.Fragment,
+                null,
+                React.createElement('div', {
+                  className: "flex items-center gap-1.5 text-[13.4px] font-semibold leading-none",
+                  style: { color: comparison.color }
+                },
+                  React.createElement('svg', {
+                    width: 10,
+                    height: 8,
+                    viewBox: "0 0 10 8",
+                    fill: "currentColor",
+                    'aria-hidden': true,
+                    style: comparison.isPositive ? undefined : { transform: 'rotate(180deg)' }
+                  },
+                    React.createElement('path', { d: "M5 0L10 8H0L5 0Z" })
+                  ),
+                  React.createElement('span', null, comparison.text)
+                ),
+                React.createElement('span', {
+                  className: "text-[13.4px] font-normal leading-none",
+                  style: { color: 'var(--tt-text-tertiary)' }
+                }, 'vs this time yesterday')
+              )
         )
       )
     );
@@ -607,6 +663,94 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     : (projectedTargets.sleepTarget > 0
         ? Math.min(100, (sleepHours / projectedTargets.sleepTarget) * 100)
         : 0);
+
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      setComparisonTick((tick) => tick + 1);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const getYesterdayCutoffInfo = (nowDate) => {
+    const currentHour = nowDate.getHours();
+    const currentMinute = nowDate.getMinutes();
+    const roundedMinutes = Math.round(currentMinute / 30) * 30;
+    let roundedHour = roundedMinutes === 60 ? currentHour + 1 : currentHour;
+    let finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
+    if (roundedHour >= 24) {
+      roundedHour = 23;
+      finalMinutes = 30;
+    }
+
+    const yesterday = new Date(nowDate);
+    yesterday.setDate(yesterday.getDate() - 1);
+    yesterday.setHours(0, 0, 0, 0);
+    const yesterdayStart = yesterday.getTime();
+
+    const feedCutoffDate = new Date(yesterday);
+    feedCutoffDate.setHours(roundedHour, finalMinutes, 59, 999);
+    const sleepCutoffDate = new Date(yesterday);
+    sleepCutoffDate.setHours(roundedHour, finalMinutes, 0, 0);
+
+    return {
+      yesterdayStart,
+      feedCutoffMs: feedCutoffDate.getTime(),
+      sleepCutoffMs: sleepCutoffDate.getTime() + 1
+    };
+  };
+
+  const comparisonNow = React.useMemo(() => {
+    const now = new Date();
+    const base = new Date(selectedDate);
+    base.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    return base;
+  }, [comparisonTick, selectedDate]);
+
+  const yesterdayFeedTotal = React.useMemo(() => {
+    if (!Array.isArray(allFeedings)) return 0;
+    const { yesterdayStart, feedCutoffMs } = getYesterdayCutoffInfo(comparisonNow);
+    const total = allFeedings
+      .filter((f) => {
+        const timestamp = f.timestamp || 0;
+        return timestamp >= yesterdayStart && timestamp <= feedCutoffMs;
+      })
+      .reduce((sum, f) => sum + (f.ounces || 0), 0);
+    return total;
+  }, [allFeedings, comparisonNow]);
+
+  const yesterdaySleepTotal = React.useMemo(() => {
+    if (!Array.isArray(allSleepSessions)) return 0;
+    const { yesterdayStart, sleepCutoffMs } = getYesterdayCutoffInfo(comparisonNow);
+    const dayStartMs = yesterdayStart;
+    const dayEndMs = sleepCutoffMs;
+
+    const normSessions = allSleepSessions.map((s) => {
+      if (!s || !s.endTime) return null;
+      const norm = normalizeSleepInterval(s.startTime, s.endTime);
+      return norm ? { ...s, _normStartTime: norm.startMs, _normEndTime: norm.endMs } : null;
+    }).filter(Boolean);
+
+    const yesterdaySessions = normSessions.filter((s) => (
+      overlapMs(s._normStartTime || s.startTime, s._normEndTime || s.endTime, dayStartMs, dayEndMs) > 0
+    ));
+
+    const totalMs = yesterdaySessions.reduce((sum, s) => (
+      sum + overlapMs(s._normStartTime, s._normEndTime, dayStartMs, dayEndMs)
+    ), 0);
+
+    return totalMs / 3600000;
+  }, [allSleepSessions, comparisonNow]);
+
+  const feedComparison = buildComparison(
+    Number(selectedSummary.feedOz || 0) - Number(yesterdayFeedTotal || 0),
+    'oz',
+    summaryLayoutMode === 'all'
+  );
+  const sleepComparison = buildComparison(
+    sleepHours - Number(yesterdaySleepTotal || 0),
+    'hrs',
+    summaryLayoutMode === 'all'
+  );
 
   const Timeline = window.TT?.shared?.Timeline || null;
   const formatMonthYear = (date) => {
@@ -645,19 +789,32 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
 
   React.useEffect(() => {
     if (!calendarContainerRef.current || !weekToggleHostRef.current) return;
-    const header = calendarContainerRef.current.querySelector('header');
-    const rightSlot = header ? header.querySelector('div') : null;
-    if (rightSlot && weekToggleHostRef.current && rightSlot.parentElement !== weekToggleHostRef.current) {
-      weekToggleHostRef.current.appendChild(rightSlot);
-    }
-    const measure = () => {
+    let raf = 0;
+    const moveRightSlot = () => {
+      const header = calendarContainerRef.current.querySelector('header');
+      const rightSlot = header ? header.querySelector('div') : null;
+      if (rightSlot && rightSlot.parentElement !== weekToggleHostRef.current) {
+        weekToggleHostRef.current.appendChild(rightSlot);
+      }
       const width = rightSlot ? rightSlot.offsetWidth : 0;
       setCalendarSideWidth(width > 0 ? width : null);
     };
-    measure();
-    window.addEventListener('resize', measure);
-    return () => window.removeEventListener('resize', measure);
-  }, [HorizontalCalendar]);
+    raf = window.requestAnimationFrame(moveRightSlot);
+    window.addEventListener('resize', moveRightSlot);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      window.removeEventListener('resize', moveRightSlot);
+    };
+  }, [HorizontalCalendar, calendarMountKey]);
+
+  React.useEffect(() => {
+    if (!activeTab) return;
+    const prev = prevActiveTabRef.current;
+    if (activeTab === 'tracker-detail' && prev !== 'tracker-detail') {
+      setCalendarMountKey((k) => k + 1);
+    }
+    prevActiveTabRef.current = activeTab;
+  }, [activeTab]);
   
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -806,6 +963,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     },
       HorizontalCalendar
         ? React.createElement(HorizontalCalendar, {
+            key: `calendar-${calendarMountKey}`,
             onDateSelect: (payload) => {
               if (!payload) return;
               setSelectedSummary({
@@ -866,7 +1024,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                   unit: 'oz',
                   rotateIcon: true,
                   progressPercent: feedPercent,
-                  progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`
+                  progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                  comparison: feedComparison
                 })
               ),
               summaryLayoutMode !== 'feed' && React.createElement(
@@ -886,7 +1045,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                   unit: 'hrs',
                   rotateIcon: false,
                   progressPercent: sleepPercent,
-                  progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`
+                  progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                  comparison: sleepComparison
                 })
               )
             )
@@ -900,7 +1060,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                 unit: 'oz',
                 rotateIcon: true,
                 progressPercent: feedPercent,
-                progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`
+                progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                comparison: feedComparison
               }),
               summaryLayoutMode !== 'feed' && renderSummaryCard({
                 icon: moonIcon,
@@ -909,7 +1070,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
                 unit: 'hrs',
                 rotateIcon: false,
                 progressPercent: sleepPercent,
-                progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`
+                progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                comparison: sleepComparison
               })
             )
       );
