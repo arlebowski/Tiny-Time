@@ -510,6 +510,54 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     const clampedPercent = Math.max(0, Math.min(100, Number(progressPercent) || 0));
     const progressWidth = clampedPercent > 0 ? Math.max(4, clampedPercent) : 0;
 
+    const comparisonContent = comparison
+      ? React.createElement('div', {
+          className: `mt-2 flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
+        },
+          comparison.isZero
+            ? React.createElement('span', {
+                className: "text-[13.4px] font-normal leading-none",
+                style: { color: 'var(--tt-text-tertiary)' }
+              }, 'Same as yesterday')
+            : React.createElement(
+                React.Fragment,
+                null,
+                React.createElement('div', {
+                  className: "flex items-center gap-1.5 text-[13.4px] font-semibold leading-none",
+                  style: { color: comparison.color }
+                },
+                  React.createElement('svg', {
+                    width: 10,
+                    height: 8,
+                    viewBox: "0 0 10 8",
+                    fill: "currentColor",
+                    'aria-hidden': true,
+                    style: comparison.isPositive ? undefined : { transform: 'rotate(180deg)' }
+                  },
+                    React.createElement('path', { d: "M5 0L10 8H0L5 0Z" })
+                  ),
+                  React.createElement('span', null, comparison.text)
+                ),
+                React.createElement('span', {
+                  className: "text-[13.4px] font-normal leading-none",
+                  style: { color: 'var(--tt-text-tertiary)' }
+                }, 'vs this time yesterday')
+              )
+        )
+      : null;
+
+    const animatedComparison = comparisonContent && __ttMotion && __ttAnimatePresence
+      ? React.createElement(__ttAnimatePresence, { mode: "wait" },
+          React.createElement(__ttMotion.div, {
+            key: `comparison-${selectedSummaryKey}`,
+            initial: { opacity: 0, y: -10, scale: 0.95 },
+            animate: { opacity: 1, y: 0, scale: 1 },
+            exit: { opacity: 0, y: 10, scale: 0.95 },
+            transition: { type: "spring", stiffness: 400, damping: 30 }
+          }, comparisonContent)
+        )
+      : comparisonContent;
+
     return React.createElement(
       Card,
       cardProps,
@@ -613,39 +661,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                 }
               })
         ),
-        comparison && React.createElement('div', {
-          className: `mt-2 flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
-        },
-          comparison.isZero
-            ? React.createElement('span', {
-                className: "text-[13.4px] font-normal leading-none",
-                style: { color: 'var(--tt-text-tertiary)' }
-              }, 'Same as yesterday')
-            : React.createElement(
-                React.Fragment,
-                null,
-                React.createElement('div', {
-                  className: "flex items-center gap-1.5 text-[13.4px] font-semibold leading-none",
-                  style: { color: comparison.color }
-                },
-                  React.createElement('svg', {
-                    width: 10,
-                    height: 8,
-                    viewBox: "0 0 10 8",
-                    fill: "currentColor",
-                    'aria-hidden': true,
-                    style: comparison.isPositive ? undefined : { transform: 'rotate(180deg)' }
-                  },
-                    React.createElement('path', { d: "M5 0L10 8H0L5 0Z" })
-                  ),
-                  React.createElement('span', null, comparison.text)
-                ),
-                React.createElement('span', {
-                  className: "text-[13.4px] font-normal leading-none",
-                  style: { color: 'var(--tt-text-tertiary)' }
-                }, 'vs this time yesterday')
-              )
-        )
+        animatedComparison
       )
     );
   };
