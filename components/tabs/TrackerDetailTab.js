@@ -793,8 +793,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     const moveRightSlot = () => {
       const header = calendarContainerRef.current.querySelector('header');
       const rightSlot = header ? header.querySelector('div') : null;
-      if (rightSlot && rightSlot.parentElement !== weekToggleHostRef.current) {
-        weekToggleHostRef.current.appendChild(rightSlot);
+      const host = weekToggleHostRef.current;
+      if (host && host.firstChild && host.firstChild !== rightSlot) {
+        while (host.firstChild) host.removeChild(host.firstChild);
+      }
+      if (rightSlot && rightSlot.parentElement !== host) {
+        host.appendChild(rightSlot);
       }
       const width = rightSlot ? rightSlot.offsetWidth : 0;
       setCalendarSideWidth(width > 0 ? width : null);
