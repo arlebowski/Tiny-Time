@@ -123,6 +123,14 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
   const [direction, setDirection] = React.useState(0);
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+  const [isPillVisible, setIsPillVisible] = React.useState(true);
+  const [hasShownPill, setHasShownPill] = React.useState(false);
+  const useIsomorphicLayoutEffect = typeof window !== 'undefined'
+    ? React.useLayoutEffect
+    : React.useEffect;
+  const timelineRef = React.useRef(null);
+  const dateButtonRefs = React.useRef({});
+  const [pillRect, setPillRect] = React.useState(null);
 
   // Track the initial date from props to detect intentional external changes
   const initialDateRef = React.useRef(initialDate);
@@ -254,6 +262,37 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
     if (typeof onDateSelect !== 'function') return;
     onDateSelect(getMetricsForDate(selectedDate));
   }, [selectedDate, dayMetrics]);
+
+  React.useEffect(() => {
+    if (pillRect && !hasShownPill) setHasShownPill(true);
+  }, [pillRect, hasShownPill]);
+
+
+  const updatePillRect = React.useCallback(() => {
+    const containerEl = timelineRef.current;
+    const key = __ttHorizontalDateKeyLocal(selectedDate);
+    const activeEl = dateButtonRefs.current[key];
+    if (!containerEl || !activeEl) return;
+    setPillRect({
+      x: activeEl.offsetLeft,
+      y: activeEl.offsetTop,
+      width: activeEl.offsetWidth,
+      height: activeEl.offsetHeight
+    });
+  }, [selectedDate]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raf = window.requestAnimationFrame(() => updatePillRect());
+    return () => window.cancelAnimationFrame(raf);
+  }, [updatePillRect, days, weeksOffset]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => updatePillRect();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updatePillRect]);
 
   const paginate = (newDirection) => {
     if (newDirection === -1 && weeksOffset === 0) return;
@@ -389,8 +428,37 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
             dragConstraints: { left: 0, right: 0 },
             dragElastic: 0.4,
             onDragEnd: handleDragEnd,
-            className: "flex justify-between items-center gap-[2px] cursor-grab active:cursor-grabbing"
+            className: "relative flex justify-between items-center gap-[2px] cursor-grab active:cursor-grabbing",
+            onAnimationStart: undefined,
+            ref: timelineRef
           },
+            React.createElement(__ttHorizontalMotion.div, {
+              className: "absolute rounded-xl pointer-events-none",
+              style: {
+                top: 0,
+                left: 0,
+                width: pillRect ? `${pillRect.width}px` : '0px',
+                height: pillRect ? `${pillRect.height}px` : '0px',
+                opacity: (pillRect && isPillVisible) ? 1 : 0,
+                backgroundColor: 'var(--tt-selected-surface)',
+                transformOrigin: 'center',
+                zIndex: 0
+              },
+              animate: (pillRect && isPillVisible)
+                ? (hasShownPill
+                  ? { x: pillRect.x, y: pillRect.y, width: pillRect.width, height: pillRect.height, opacity: 1 }
+                  : { x: pillRect.x, y: pillRect.y, width: pillRect.width, height: pillRect.height, opacity: 1 })
+                : { opacity: 0 },
+              transition: hasShownPill
+                ? { type: "spring", stiffness: 320, damping: 30 }
+                  : {
+                    opacity: { duration: 0.12, ease: "easeOut" },
+                    x: { duration: 0 },
+                    y: { duration: 0 },
+                    width: { duration: 0 },
+                    height: { duration: 0 }
+                  }
+            }),
             days.map((date, index) => {
               const isSelected = __ttHorizontalIsSameDay(date, selectedDate);
               const key = __ttHorizontalDateKeyLocal(date);
@@ -404,14 +472,17 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                     setSelectedDate(date);
                     if (onDateSelect) onDateSelect(getMetricsForDate(date));
                   },
+                  ref: (el) => {
+                    if (el) dateButtonRefs.current[key] = el;
+                  },
                   className: __ttHorizontalCn(
-                    "relative flex flex-col items-center justify-center flex-1 h-[80px] group focus:outline-none shrink-0",
+                    "relative z-10 flex flex-col items-center justify-center flex-1 h-[80px] group focus:outline-none shrink-0",
                     isSelected ? "rounded-xl shadow-sm" : "rounded-2xl hover:bg-white/5"
                   ),
                   style: {
                     willChange: 'transform, opacity',
                     transformOrigin: 'center',
-                    backgroundColor: isSelected ? 'var(--tt-selected-surface)' : undefined,
+                    backgroundColor: (isSelected && !pillRect) ? 'var(--tt-selected-surface)' : undefined,
                     paddingLeft: isSelected ? '8px' : undefined,
                     paddingRight: isSelected ? '8px' : undefined,
                     paddingBottom: isSelected ? '5px' : undefined

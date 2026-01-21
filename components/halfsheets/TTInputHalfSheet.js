@@ -106,32 +106,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
   const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
   const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
   
-  // HeaderSegmentedToggle Component (for dark headers)
-  // Based on SegmentedToggle but adapted for black header background
-  const HeaderSegmentedToggle = ({ value, options, onChange }) => {
-    const btnBase = "rounded-lg transition text-[13px] font-semibold";
-    const btnOn = "bg-white text-gray-900 shadow-sm";
-    const btnOff = "bg-transparent text-white/80";
-    const btnSize = "px-3 py-[6px]";
-
-    return React.createElement(
-      'div',
-      { className: "inline-flex rounded-xl px-1 py-[3px] bg-white/20" },
-      (options || []).map((opt) =>
-        React.createElement(
-          'button',
-          {
-            key: opt.value,
-            type: 'button',
-            onClick: () => onChange && onChange(opt.value),
-            className: btnBase + " " + btnSize + " " + (value === opt.value ? btnOn : btnOff),
-            'aria-pressed': value === opt.value
-          },
-          opt.label
-        )
-      )
-    );
-  };
+  const HeaderSegmentedToggle = window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div';
 
   // TTInputHalfSheet Component
   const TTInputHalfSheetLegacy = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null, __ttUseV4Sheet = false }) => {
@@ -1780,7 +1755,10 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                         { value: 'feeding', label: 'Feed' },
                         { value: 'sleep', label: 'Sleep' }
                       ],
-                      onChange: setMode
+                      onChange: setMode,
+                      variant: 'header',
+                      size: 'medium',
+                      fullWidth: false
                     })
                   ),
                   React.createElement('div', { className: "w-6" })
@@ -1811,7 +1789,10 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               { value: 'feeding', label: 'Feed' },
               { value: 'sleep', label: 'Sleep' }
             ],
-            onChange: setMode
+            onChange: setMode,
+            variant: 'header',
+            size: 'medium',
+            fullWidth: false
           }),
           rightAction: null
         },
@@ -1842,7 +1823,10 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               { value: 'feeding', label: 'Feed' },
               { value: 'sleep', label: 'Sleep' }
             ],
-            onChange: setMode
+            onChange: setMode,
+            variant: 'header',
+            size: 'medium',
+            fullWidth: false
           })
         ),
         React.createElement('div', { className: "w-6" })
