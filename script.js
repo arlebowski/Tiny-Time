@@ -2734,19 +2734,33 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       React.createElement(
         'div',
         { className: isAnalyticsSubtab ? "pb-5" : "px-4 pb-5" },
-        activeTab === 'tracker' && React.createElement(window.TT.tabs.TrackerTab, { 
+        React.createElement('div', {
+          style: { display: activeTab === 'tracker' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.TrackerTab, { 
           user, 
           kidId, 
           familyId,
           onRequestOpenInputSheet: openInputSheet
-        }),
-        activeTab === 'analytics' && React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId, setActiveTab }),
-        activeTab === 'analytics-feeding' && React.createElement(window.TT.tabs.FeedingAnalyticsTab, { user, kidId, familyId, setActiveTab }),
-        activeTab === 'analytics-sleep' && React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab }),
-        activeTab === 'analytics-activity' && React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab }),
+        })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-feeding' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.FeedingAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-sleep' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-activity' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab })),
         activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
-        activeTab === 'schedule' && window.TT?.tabs?.ScheduleTab && React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId }),
-        activeTab === 'tracker-detail' && window.TT?.tabs?.TrackerDetailTab && React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab }),
+        window.TT?.tabs?.ScheduleTab && React.createElement('div', {
+          style: { display: activeTab === 'schedule' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId })),
+        window.TT?.tabs?.TrackerDetailTab && React.createElement('div', {
+          style: { display: activeTab === 'tracker-detail' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab })),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
           kidId,

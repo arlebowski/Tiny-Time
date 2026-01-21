@@ -301,10 +301,12 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
   }, [onRequestOpenInputSheet]);
   const handleV4CardTap = React.useCallback((e, payload) => {
     if (typeof window === 'undefined') return;
+    const nextFilter = payload?.mode === 'feeding' ? 'feed' : payload?.mode || null;
     window.TT = window.TT || {};
     window.TT.shared = window.TT.shared || {};
-    if (payload && payload.mode) {
-      window.TT.shared.trackerDetailFilter = payload.mode === 'feeding' ? 'feed' : payload.mode;
+    if (nextFilter) {
+      window.TT.shared.trackerDetailFilter = nextFilter;
+      window.dispatchEvent(new CustomEvent('tt:tracker-detail-filter', { detail: { filter: nextFilter } }));
     }
     const setActiveTab = window.TT?.actions?.setActiveTab;
     if (typeof setActiveTab === 'function') {
@@ -1559,6 +1561,7 @@ IMPORTANT:
     return normalizedFinal;
   };
 
+
   // Generate fallback prediction based on historical intervals and age
   const generateFallbackPrediction = (ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, feedings, sleepSessions) => {
     const now = new Date();
@@ -1714,6 +1717,16 @@ IMPORTANT:
     if (!text || typeof text !== 'string') return text;
     return text.replace(/\s*\(Now!\)\s*$/i, '');
   };
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.TT = window.TT || {};
+    window.TT.utils = window.TT.utils || {};
+    window.TT.utils.scheduleUtils = window.TT.utils.scheduleUtils || {};
+    window.TT.utils.scheduleUtils.analyzeHistoricalIntervals = analyzeHistoricalIntervals;
+    window.TT.utils.scheduleUtils.buildDailySchedule = buildDailySchedule;
+    window.TT.utils.scheduleUtils.adjustScheduleForActualEvents = adjustScheduleForActualEvents;
+  }, [analyzeHistoricalIntervals, buildDailySchedule, adjustScheduleForActualEvents]);
 
   // Format AI response according to spec
   const formatWhatsNextResponse = (aiResponse, isSleepActive, lastFeedingTime, lastSleepTime) => {
@@ -4360,51 +4373,13 @@ Output ONLY the formatted string, nothing else.`;
                     }, `No events scheduled for today (${optimizedSchedule.length} total events, sample time: ${sampleTime})`);
                   }
                   
-                  // Match actual events to scheduled events to determine completion
-                  const matchedActualEvents = new Set();
-                  todaySchedule.forEach(scheduledEvent => {
-                    const scheduledTime = scheduledEvent.time.getTime();
-                    
-                    if (scheduledEvent.type === 'feed') {
-                      // Match with actual feedings (within 30 min)
-                      todayFeedings.forEach(f => {
-                        const feedTime = f.timestamp;
-                        const timeDiff = Math.abs(feedTime - scheduledTime) / (1000 * 60); // minutes
-                        if (timeDiff <= 30 && !matchedActualEvents.has(`feed-${feedTime}`)) {
-                          matchedActualEvents.add(`feed-${feedTime}`);
-                          scheduledEvent.isCompleted = true;
-                          scheduledEvent.actual = true;
-                        }
-                      });
-                    } else if (scheduledEvent.type === 'sleep') {
-                      // Match with actual sleep sessions (within 30 min)
-                      todaySleep.forEach(s => {
-                        if (!s.startTime) return;
-                        const sleepTime = s.startTime;
-                        const timeDiff = Math.abs(sleepTime - scheduledTime) / (1000 * 60); // minutes
-                        if (timeDiff <= 30 && !matchedActualEvents.has(`sleep-${sleepTime}`)) {
-                          matchedActualEvents.add(`sleep-${sleepTime}`);
-                          scheduledEvent.isCompleted = true;
-                          scheduledEvent.actual = true;
-                        }
-                      });
-                    } else if (scheduledEvent.type === 'wake') {
-                      // Match with actual wake events (from completed sleeps)
-                      todaySleep.forEach(s => {
-                        if (!s.endTime || s.isActive) return;
-                        const wakeTime = s.endTime;
-                        const timeDiff = Math.abs(wakeTime - scheduledTime) / (1000 * 60); // minutes
-                        if (timeDiff <= 30 && !matchedActualEvents.has(`wake-${wakeTime}`)) {
-                          matchedActualEvents.add(`wake-${wakeTime}`);
-                          scheduledEvent.isCompleted = true;
-                          scheduledEvent.actual = true;
-                        }
-                      });
-                    }
-                  });
+                  const scheduleMatcher = window.TT?.utils?.scheduleUtils?.matchScheduleToActualEvents;
+                  const matchedSchedule = typeof scheduleMatcher === 'function'
+                    ? scheduleMatcher(todaySchedule, todayFeedings, todaySleep, 30 * 60 * 1000)
+                    : todaySchedule;
                   
                   // Convert schedule events to display format
-                  const scheduleItems = todaySchedule.map(event => {
+                  const scheduleItems = matchedSchedule.map(event => {
                     const eventTime = event.time.getTime();
                     const isPast = eventTime < now;
                     const isCompleted = event.isCompleted || event.actual || false;

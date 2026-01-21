@@ -123,6 +123,20 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
   const [direction, setDirection] = React.useState(0);
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+  // isPillVisible: controls whether the pill should be shown at all (delayed on initial mount)
+  const [isPillVisible, setIsPillVisible] = React.useState(false);
+  // hasAnimatedIn: tracks if the initial stagger animation has completed
+  const [hasAnimatedIn, setHasAnimatedIn] = React.useState(false);
+  // hasShownPill: tracks if the pill has been shown at least once (for spring vs instant animation)
+  const [hasShownPill, setHasShownPill] = React.useState(false);
+  // isInitialMount: tracks if this is the first render (for syncing pill with stagger)
+  const isInitialMountRef = React.useRef(true);
+  const useIsomorphicLayoutEffect = typeof window !== 'undefined'
+    ? React.useLayoutEffect
+    : React.useEffect;
+  const timelineRef = React.useRef(null);
+  const dateButtonRefs = React.useRef({});
+  const [pillRect, setPillRect] = React.useState(null);
 
   // Track the initial date from props to detect intentional external changes
   const initialDateRef = React.useRef(initialDate);
@@ -255,15 +269,77 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
     onDateSelect(getMetricsForDate(selectedDate));
   }, [selectedDate, dayMetrics]);
 
+  // On initial mount, delay showing the pill until the stagger animation reaches the last day
+  // Stagger: 7 days * 0.08s = 0.56s - we want the pill to appear as the last day starts animating
+  // Using 520ms so pill fades in while last day is settling into place
+  React.useEffect(() => {
+    if (isInitialMountRef.current) {
+      const timer = setTimeout(() => {
+        setIsPillVisible(true);
+        setHasAnimatedIn(true);
+        isInitialMountRef.current = false;
+      }, 520);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Mark pill as shown after it has faded in (delay to allow fade-in animation)
+  React.useEffect(() => {
+    if (pillRect && isPillVisible && !hasShownPill) {
+      // Wait for fade-in animation to complete before enabling spring animations
+      const timer = setTimeout(() => {
+        setHasShownPill(true);
+      }, 250);
+      return () => clearTimeout(timer);
+    }
+  }, [pillRect, isPillVisible, hasShownPill]);
+
+
+  const updatePillRect = React.useCallback(() => {
+    const containerEl = timelineRef.current;
+    const key = __ttHorizontalDateKeyLocal(selectedDate);
+    const activeEl = dateButtonRefs.current[key];
+    if (!containerEl || !activeEl) return;
+    setPillRect({
+      x: activeEl.offsetLeft,
+      y: activeEl.offsetTop,
+      width: activeEl.offsetWidth,
+      height: activeEl.offsetHeight
+    });
+  }, [selectedDate]);
+
+  useIsomorphicLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raf = window.requestAnimationFrame(() => updatePillRect());
+    return () => window.cancelAnimationFrame(raf);
+  }, [updatePillRect, days, weeksOffset]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => updatePillRect();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [updatePillRect]);
+
   const paginate = (newDirection) => {
     if (newDirection === -1 && weeksOffset === 0) return;
     setDirection(newDirection);
+    // Hide pill during week transition, it will reappear after new week animates in
+    setIsPillVisible(false);
     setWeeksOffset(prev => prev + newDirection);
   };
 
   React.useEffect(() => {
     if (days.length > 0) {
       setSelectedDate(days[6]); // Auto-select rightmost date
+    }
+    // After week change, show pill again once new week has animated in
+    // Only do this if not initial mount (which has its own delay logic)
+    if (!isInitialMountRef.current) {
+      const timer = setTimeout(() => {
+        setIsPillVisible(true);
+      }, 520);
+      return () => clearTimeout(timer);
     }
   }, [weeksOffset]);
 
@@ -389,8 +465,39 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
             dragConstraints: { left: 0, right: 0 },
             dragElastic: 0.4,
             onDragEnd: handleDragEnd,
-            className: "flex justify-between items-center gap-[2px] cursor-grab active:cursor-grabbing"
+            className: "relative flex justify-between items-center gap-[2px] cursor-grab active:cursor-grabbing",
+            onAnimationStart: undefined,
+            ref: timelineRef
           },
+            React.createElement(__ttHorizontalMotion.div, {
+              className: "absolute rounded-xl pointer-events-none",
+              style: {
+                top: 0,
+                left: 0,
+                width: pillRect ? `${pillRect.width}px` : '0px',
+                height: pillRect ? `${pillRect.height}px` : '0px',
+                opacity: (pillRect && isPillVisible) ? 1 : 0,
+                backgroundColor: 'var(--tt-selected-surface)',
+                transformOrigin: 'center',
+                zIndex: 0,
+                // Set initial position instantly (no animation) when pill first appears
+                ...(!hasShownPill && pillRect ? { transform: `translateX(${pillRect.x}px) translateY(${pillRect.y}px)` } : {})
+              },
+              initial: false,
+              animate: (pillRect && isPillVisible)
+                ? { x: pillRect.x, y: pillRect.y, width: pillRect.width, height: pillRect.height, opacity: 1 }
+                : { opacity: 0 },
+              transition: hasShownPill
+                ? { type: "spring", stiffness: 320, damping: 30 }
+                : {
+                    // First appearance: fade in but position instantly
+                    opacity: { duration: 0.2, ease: "easeOut" },
+                    x: { duration: 0 },
+                    y: { duration: 0 },
+                    width: { duration: 0 },
+                    height: { duration: 0 }
+                  }
+            }),
             days.map((date, index) => {
               const isSelected = __ttHorizontalIsSameDay(date, selectedDate);
               const key = __ttHorizontalDateKeyLocal(date);
@@ -399,23 +506,22 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
               return (
                 React.createElement(__ttHorizontalMotion.button, {
                   key: date.toISOString(),
-                  layout: true,
                   variants: itemVariants,
-                  transition: {
-                    layout: { type: "spring", stiffness: 400, damping: 30 }
-                  },
                   onClick: () => {
                     setSelectedDate(date);
                     if (onDateSelect) onDateSelect(getMetricsForDate(date));
                   },
+                  ref: (el) => {
+                    if (el) dateButtonRefs.current[key] = el;
+                  },
                   className: __ttHorizontalCn(
-                    "relative flex flex-col items-center justify-center flex-1 h-[80px] group focus:outline-none shrink-0",
+                    "relative z-10 flex flex-col items-center justify-center flex-1 h-[80px] group focus:outline-none shrink-0",
                     isSelected ? "rounded-xl shadow-sm" : "rounded-2xl hover:bg-white/5"
                   ),
                   style: {
                     willChange: 'transform, opacity',
                     transformOrigin: 'center',
-                    backgroundColor: isSelected ? 'var(--tt-selected-surface)' : undefined,
+                    // No background fallback - pill handles all selection highlighting
                     paddingLeft: isSelected ? '8px' : undefined,
                     paddingRight: isSelected ? '8px' : undefined,
                     paddingBottom: isSelected ? '5px' : undefined

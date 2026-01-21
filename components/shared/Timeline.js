@@ -13,7 +13,8 @@ const Timeline = ({
   onEditModeChange = null,
   onEditCard = null,
   onDeleteCard = null,
-  onFilterChange = null
+  onFilterChange = null,
+  onScheduledAdd = null
 }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
@@ -549,7 +550,6 @@ const Timeline = ({
 
                   return __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
                     key: card.id,
-                    layout: !isDragging && !isHolding,
                     initial: { opacity: 0, y: 20 },
                     animate: {
                       opacity: 1,
@@ -601,7 +601,8 @@ const Timeline = ({
                           onPhotoClick: handleTimelinePhotoClick,
                           isEditMode: cardEditMode,
                           onEdit: handleEditCard,
-                          onDelete: handleDeleteCard
+                          onDelete: handleDeleteCard,
+                          onScheduledAdd
                         })
                       : null
                   );
