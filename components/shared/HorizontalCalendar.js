@@ -301,7 +301,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
       rotateX: 0,
       transition: {
         type: "spring",
-        stiffness: 400,
+        stiffness: 600,
         damping: 25
       }
     }
@@ -391,15 +391,15 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                   variants: itemVariants,
                   layout: true,
                   animate: {
-                    flex: isSelected ? 2 : 1,
+                    flex: isSelected ? 1.1 : 1,
                     scale: isSelected ? 1.05 : 1,
                     zIndex: isSelected ? 10 : 1
                   },
                   transition: {
                     type: "spring",
                     stiffness: 300,
-                    damping: 25,
-                    layout: { duration: 0.4 }
+                    damping: 30,
+                    layout: { duration: 0.2 }
                   },
                   onClick: () => {
                     setSelectedDate(date);
@@ -424,7 +424,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                     className: "absolute inset-0 rounded-xl shadow-sm",
                     style: { backgroundColor: 'var(--tt-selected-surface)' },
                     initial: false,
-                    transition: { type: "spring", bounce: 0.1, duration: 0.5 }
+                    transition: { type: "spring", bounce: 0.1, duration: 0.2 }
                   }),
                   React.createElement('span', {
                     className: __ttHorizontalCn(

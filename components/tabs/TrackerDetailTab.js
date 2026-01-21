@@ -512,18 +512,18 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
 
     const comparisonContent = comparison
       ? React.createElement('div', {
-          className: `mt-2 flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
+          className: `flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
         },
           comparison.isZero
             ? React.createElement('span', {
-                className: "text-[13.4px] font-normal leading-none",
+                className: "text-[12px] font-normal leading-none",
                 style: { color: 'var(--tt-text-tertiary)' }
               }, 'Same as yesterday')
             : React.createElement(
                 React.Fragment,
                 null,
                 React.createElement('div', {
-                  className: "flex items-center gap-1.5 text-[13.4px] font-semibold leading-none",
+                  className: "flex items-center gap-1.5 text-[12px] font-semibold leading-none",
                   style: { color: comparison.color }
                 },
                   React.createElement('svg', {
@@ -539,7 +539,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                   React.createElement('span', null, comparison.text)
                 ),
                 React.createElement('span', {
-                  className: "text-[13.4px] font-normal leading-none",
+                  className: "text-[12px] font-normal leading-none",
                   style: { color: 'var(--tt-text-tertiary)' }
                 }, 'vs this time yesterday')
               )
@@ -594,12 +594,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                         }
                       }),
                   React.createElement('div', {
-                    className: "text-[24px] font-bold leading-none whitespace-nowrap",
+                    className: "text-[25px] font-bold leading-none whitespace-nowrap",
                     style: { color }
                   }, value),
                   React.createElement('div', {
-                    className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
-                    style: { color: 'var(--tt-text-secondary)' }
+                    className: "text-[17.5px] font-normal leading-none whitespace-nowrap",
+                    style: { color: 'var(--tt-text-tertiary)' }
                   }, unit)
                 )
               )
@@ -640,7 +640,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         React.createElement('div', {
           className: "w-full rounded-full overflow-hidden",
           style: {
-            height: '4px',
+            height: '6px',
             backgroundColor: 'var(--tt-input-bg)'
           }
         },
