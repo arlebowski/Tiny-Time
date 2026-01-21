@@ -358,6 +358,34 @@ function ensureTapAnimationStyles() {
       background: rgba(255, 255, 255, 0.1);
     }
 
+    .tt-card-tap {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .tt-card-tap::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.03);
+      opacity: 0;
+      transition: opacity 0.1s ease-out;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 1;
+    }
+
+    .tt-card-tap:active::before {
+      opacity: 1;
+    }
+
+    .dark .tt-card-tap::before {
+      background: rgba(255, 255, 255, 0.08);
+    }
+
     /* Consistent placeholder color across inputs/textareas */
     .tt-placeholder-tertiary::placeholder { color: var(--tt-text-tertiary); }
     .tt-placeholder-tertiary::-webkit-input-placeholder { color: var(--tt-text-tertiary); }
@@ -1124,6 +1152,25 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
   }
 }
 
+const __ttV4ResolveFramer = () => {
+  if (typeof window === 'undefined') return {};
+  const candidates = [
+    window.FramerMotion,
+    window.framerMotion,
+    window['framer-motion'],
+    window.Motion,
+    window.motion
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (candidate.motion || candidate.AnimatePresence) return candidate;
+    if (candidate.default && (candidate.default.motion || candidate.default.AnimatePresence)) {
+      return candidate.default;
+    }
+  }
+  return {};
+};
+
 const TrackerCard = ({ 
   mode = 'sleep',
   total = null,           // e.g., 14.5 (oz or hrs)
@@ -1142,7 +1189,7 @@ const TrackerCard = ({
 }) => {
   ensureZzzStyles();
   ensureTapAnimationStyles();
-  
+
   // State for timeline photo modal
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
   
@@ -1232,6 +1279,19 @@ const TrackerCard = ({
     if (v === 'v2') return 'new';
     return 'current';
   }))(uiVersion);
+
+  const __ttV4Framer = uiVersion === 'v4' ? __ttV4ResolveFramer() : {};
+  const __ttV4Motion = __ttV4Framer.motion || null;
+  const isV4CardMotion = uiVersion === 'v4' && !!__ttV4Motion;
+  const CardWrapper = isV4CardMotion ? __ttV4Motion.div : 'div';
+  const cardClassName = `rounded-2xl p-5 shadow-sm${uiVersion === 'v4' ? ' tt-card-tap' : ''}`;
+  const cardMotionProps = isV4CardMotion ? {
+    whileTap: {
+      scale: 0.992,
+      transition: { duration: 0.08, ease: [0.16, 1, 0.3, 1] }
+    },
+    transition: { duration: 0.14, ease: [0.22, 1, 0.36, 1] }
+  } : {};
   
 
   
@@ -2016,16 +2076,17 @@ const TrackerCard = ({
             }, mode === 'feeding' ? 'Feed' : 'Sleep'))
       : null;
     return React.createElement(
-    'div',
+    CardWrapper,
     { 
-      className: "rounded-2xl p-5 shadow-sm",
+      className: cardClassName,
       style: {
         backgroundColor: "var(--tt-card-bg)",
         borderColor: "var(--tt-card-border)",
         cursor: 'pointer',
-        transition: 'all 0.3s ease-out'
+        transition: isV4CardMotion ? 'none' : 'all 0.3s ease-out'
       },
-      onClick: handleCardTap
+      onClick: handleCardTap,
+      ...cardMotionProps
     },
     showHeaderRow ? (
       TTCardHeader
