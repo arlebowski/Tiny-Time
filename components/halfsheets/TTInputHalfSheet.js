@@ -1721,6 +1721,14 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                   animate: { y: 0 },
                   exit: { y: "100%" },
                   transition: { type: "spring", damping: 25, stiffness: 300 },
+                  drag: "y",
+                  dragConstraints: { top: 0, bottom: 0 },
+                  dragElastic: { top: 0, bottom: 0.35 },
+                  onDragEnd: (e, info) => {
+                    if (info.offset.y > 100 || info.velocity.y > 800) {
+                      handleClose();
+                    }
+                  },
                   className: "fixed left-0 right-0 bottom-0 shadow-2xl",
                   onClick: (e) => e.stopPropagation(),
                   style: {

@@ -699,6 +699,16 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     };
   };
 
+  const isViewingToday = React.useMemo(() => {
+    const today = new Date();
+    const viewing = new Date(selectedDate);
+    return (
+      today.getFullYear() === viewing.getFullYear()
+      && today.getMonth() === viewing.getMonth()
+      && today.getDate() === viewing.getDate()
+    );
+  }, [selectedDate]);
+
   const comparisonNow = React.useMemo(() => {
     const now = new Date();
     const base = new Date(selectedDate);
@@ -741,16 +751,20 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     return totalMs / 3600000;
   }, [allSleepSessions, comparisonNow]);
 
-  const feedComparison = buildComparison(
-    Number(selectedSummary.feedOz || 0) - Number(yesterdayFeedTotal || 0),
-    'oz',
-    summaryLayoutMode === 'all'
-  );
-  const sleepComparison = buildComparison(
-    sleepHours - Number(yesterdaySleepTotal || 0),
-    'hrs',
-    summaryLayoutMode === 'all'
-  );
+  const feedComparison = isViewingToday
+    ? buildComparison(
+        Number(selectedSummary.feedOz || 0) - Number(yesterdayFeedTotal || 0),
+        'oz',
+        summaryLayoutMode === 'all'
+      )
+    : null;
+  const sleepComparison = isViewingToday
+    ? buildComparison(
+        sleepHours - Number(yesterdaySleepTotal || 0),
+        'hrs',
+        summaryLayoutMode === 'all'
+      )
+    : null;
 
   const Timeline = window.TT?.shared?.Timeline || null;
   const formatMonthYear = (date) => {
