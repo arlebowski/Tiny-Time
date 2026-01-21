@@ -966,60 +966,62 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         `
       }
     }),
-    React.createElement('div', { 
-      className: "tt-tracker-detail-header",
-      style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
-    },
-      React.createElement(
-        'button',
-        {
-          type: 'button',
-          onClick: () => {
-            if (typeof setActiveTab === 'function') {
-              setActiveTab('tracker');
-            }
+    React.createElement('div', { className: "space-y-1" },
+      React.createElement('div', { 
+        className: "tt-tracker-detail-header",
+        style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
+      },
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => {
+              if (typeof setActiveTab === 'function') {
+                setActiveTab('tracker');
+              }
+            },
+            className: "tt-tracker-detail-back"
           },
-          className: "tt-tracker-detail-back"
-        },
-        ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
-          className: "w-5 h-5",
-          style: { color: 'var(--tt-text-secondary)' }
-        }),
-        "Back"
+          ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
+            className: "w-5 h-5",
+            style: { color: 'var(--tt-text-secondary)' }
+          }),
+          "Back"
+        ),
+        React.createElement('div', { className: "tt-tracker-detail-header-title" }, formatMonthYear(selectedDate)),
+        React.createElement('div', { className: "tt-tracker-detail-header-spacer", ref: weekToggleHostRef })
       ),
-      React.createElement('div', { className: "tt-tracker-detail-header-title" }, formatMonthYear(selectedDate)),
-      React.createElement('div', { className: "tt-tracker-detail-header-spacer", ref: weekToggleHostRef })
-    ),
-    React.createElement('div', { 
-      className: "tt-tracker-detail-calendar", 
-      ref: calendarContainerRef,
-      style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
-    },
-      HorizontalCalendar
-        ? React.createElement(HorizontalCalendar, {
-            key: `calendar-${calendarMountKey}`,
-            onDateSelect: (payload) => {
-              if (!payload) return;
-              setSelectedSummary({
-                feedOz: payload.feedOz || 0,
-                sleepMs: payload.sleepMs || 0,
-                feedPct: payload.feedPct || 0,
-                sleepPct: payload.sleepPct || 0
-              });
-              if (payload.date) {
-                try {
-                  const newDate = new Date(payload.date);
-                  setSelectedSummaryKey(newDate.toDateString());
-                  setSelectedDate(newDate);
-                } catch (e) {
+      React.createElement('div', { 
+        className: "tt-tracker-detail-calendar", 
+        ref: calendarContainerRef,
+        style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
+      },
+        HorizontalCalendar
+          ? React.createElement(HorizontalCalendar, {
+              key: `calendar-${calendarMountKey}`,
+              onDateSelect: (payload) => {
+                if (!payload) return;
+                setSelectedSummary({
+                  feedOz: payload.feedOz || 0,
+                  sleepMs: payload.sleepMs || 0,
+                  feedPct: payload.feedPct || 0,
+                  sleepPct: payload.sleepPct || 0
+                });
+                if (payload.date) {
+                  try {
+                    const newDate = new Date(payload.date);
+                    setSelectedSummaryKey(newDate.toDateString());
+                    setSelectedDate(newDate);
+                  } catch (e) {
+                    setSelectedSummaryKey(String(Date.now()));
+                  }
+                } else {
                   setSelectedSummaryKey(String(Date.now()));
                 }
-              } else {
-                setSelectedSummaryKey(String(Date.now()));
               }
-            }
-          })
-        : null
+            })
+          : null
+      )
     ),
     (() => {
       const prevMode = summaryAnimationPrevRef.current;
