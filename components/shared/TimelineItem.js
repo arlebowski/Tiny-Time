@@ -1,7 +1,7 @@
 // Timeline Item Component (shared)
 const __ttTimelineItemCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false, onEdit = null, onDelete = null, onScheduledAdd = null }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false, onEdit = null, onDelete = null, onScheduledAdd = null, onExpandedContentHeight = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -86,6 +86,28 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
   const showScheduledAction = isScheduled && Number.isFinite(scheduledTimeMs)
     ? Math.abs(Date.now() - scheduledTimeMs) <= 10 * 60 * 1000
     : false;
+  const detailsContentRef = React.useRef(null);
+  const updateDetailsHeight = React.useCallback(() => {
+    if (!onExpandedContentHeight || !detailsContentRef.current) return;
+    const nextHeight = Math.max(0, detailsContentRef.current.scrollHeight || 0);
+    onExpandedContentHeight(card.id, nextHeight);
+  }, [onExpandedContentHeight, card.id]);
+
+  React.useEffect(() => {
+    if (!onExpandedContentHeight) return undefined;
+    if (!isExpanded || !hasDetails) {
+      onExpandedContentHeight(card.id, 0);
+      return undefined;
+    }
+
+    updateDetailsHeight();
+
+    const node = detailsContentRef.current;
+    if (!node || typeof ResizeObserver !== 'function') return undefined;
+    const observer = new ResizeObserver(() => updateDetailsHeight());
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [card.id, hasDetails, isExpanded, onExpandedContentHeight, updateDetailsHeight]);
 
   return React.createElement(
     React.Fragment,
@@ -329,13 +351,14 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
         isExpanded && React.createElement(
           __ttTimelineItemMotion.div,
           {
+            layout: true,
             initial: { height: 0, opacity: 0 },
-            animate: { height: detailsHeight, opacity: 1 },
+            animate: { height: 'auto', opacity: 1 },
             exit: { height: 0, opacity: 0 },
             transition: { type: "spring", stiffness: 300, damping: 30 },
             style: { overflow: 'hidden' }
           },
-          React.createElement('div', { className: "pt-2 pb-2 flex flex-col gap-3 text-xs" },
+          React.createElement('div', { ref: detailsContentRef, className: "pt-2 pb-2 flex flex-col gap-3 text-xs" },
             hasNote && React.createElement('div', {
               className: "italic",
               style: { color: 'var(--tt-text-secondary)' }
@@ -348,6 +371,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                   alt: "Timeline attachment",
                   className: "w-32 h-32 rounded-2xl object-cover",
                   style: { backgroundColor: 'var(--tt-input-bg)' },
+                  onLoad: updateDetailsHeight,
                   onClick: (e) => {
                     e.stopPropagation();
                     if (onPhotoClick) onPhotoClick(url);

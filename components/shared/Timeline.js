@@ -85,7 +85,15 @@ const Timeline = ({
   const [dragY, setDragY] = React.useState(null);
   const touchOffset = React.useRef(0);
   const initialClientY = React.useRef(null);
-  const expandedContentHeight = 190;
+  const [expandedContentHeight, setExpandedContentHeight] = React.useState(0);
+  const handleExpandedContentHeight = React.useCallback((cardId, height) => {
+    if (cardId !== expandedCardId) return;
+    setExpandedContentHeight(height);
+  }, [expandedCardId]);
+
+  React.useEffect(() => {
+    setExpandedContentHeight(0);
+  }, [expandedCardId]);
 
   const handleTimelinePhotoClick = React.useCallback((photoUrl) => {
     setTimelineFullSizePhoto(photoUrl);
@@ -602,7 +610,8 @@ const Timeline = ({
                           isEditMode: cardEditMode,
                           onEdit: handleEditCard,
                           onDelete: handleDeleteCard,
-                          onScheduledAdd
+                          onScheduledAdd,
+                          onExpandedContentHeight: handleExpandedContentHeight
                         })
                       : null
                   );
