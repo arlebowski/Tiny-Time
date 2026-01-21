@@ -7,7 +7,16 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
   const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0, feedPct: 0, sleepPct: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
-  const [selectedDate, setSelectedDate] = React.useState(new Date());
+  // Read persisted date from TrackerTab navigation (if any)
+  const __ttInitialDate = (() => {
+    if (typeof window === 'undefined') return null;
+    const nextDate = window.TT?.shared?.trackerDetailDate || null;
+    if (nextDate && window.TT?.shared) {
+      delete window.TT.shared.trackerDetailDate;
+    }
+    return nextDate;
+  })();
+  const [selectedDate, setSelectedDate] = React.useState(__ttInitialDate || new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
   const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
   const [showInputSheet, setShowInputSheet] = React.useState(false);
@@ -806,6 +815,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab }) => {
     },
       HorizontalCalendar
         ? React.createElement(HorizontalCalendar, {
+            initialDate: __ttInitialDate,
             onDateSelect: (payload) => {
               if (!payload) return;
               setSelectedSummary({

@@ -1,14 +1,107 @@
 // Timeline Item Component (shared)
 const __ttTimelineItemCn = (...classes) => classes.filter(Boolean).join(' ');
 
-const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false, onEdit = null, onDelete = null, onScheduledAdd = null }) => {
+// Ensure active sleep styles are injected
+const __ttEnsureActiveSleepStyles = () => {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('tt-active-sleep-timeline-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'tt-active-sleep-timeline-styles';
+  style.textContent = `
+    /* Rotating dashed border animation - single dash segment traveling around */
+    @keyframes ttActiveSleepBorderRotate {
+      0% {
+        stroke-dashoffset: 0;
+      }
+      100% {
+        stroke-dashoffset: -283; /* Full circumference for smooth loop */
+      }
+    }
+
+    /* Badge pulse animation */
+    @keyframes ttActiveSleepBadgePulse {
+      0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      50% {
+        opacity: 0.7;
+        transform: scale(1.15);
+      }
+    }
+
+    .tt-active-sleep-badge-pulse {
+      animation: ttActiveSleepBadgePulse 2s ease-in-out infinite;
+    }
+
+    /* ZZZ floating animation with Framer Motion fallback */
+    @keyframes ttActiveZzzFloat {
+      0% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+      50% {
+        opacity: 0.8;
+        transform: translateY(-3px) scale(1.05);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-6px) scale(0.95);
+      }
+    }
+
+    .tt-active-zzz > span {
+      display: inline-block;
+      animation: ttActiveZzzFloat 2s ease-in-out infinite;
+    }
+    .tt-active-zzz > span:nth-child(1) { animation-delay: 0s; font-size: 0.7em; }
+    .tt-active-zzz > span:nth-child(2) { animation-delay: 0.25s; font-size: 0.85em; }
+    .tt-active-zzz > span:nth-child(3) { animation-delay: 0.5s; font-size: 1em; }
+  `;
+  document.head.appendChild(style);
+};
+
+// Format elapsed time helper (uses global if available, fallback otherwise)
+const __ttFormatElapsedHms = (ms) => {
+  if (typeof window !== 'undefined' && window.TT?.utils?.formatElapsedHmsTT) {
+    return window.TT.utils.formatElapsedHmsTT(ms);
+  }
+  // Fallback implementation
+  const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad2 = (n) => String(Math.max(0, n)).padStart(2, '0');
+
+  if (h > 0) {
+    const hStr = h >= 10 ? pad2(h) : String(h);
+    const mStr = pad2(m);
+    const sStr = pad2(s);
+    return { h, m, s, showH: true, showM: true, showS: true, hStr, mStr, sStr, str: `${hStr}h ${mStr}m ${sStr}s` };
+  }
+
+  if (m > 0) {
+    const mStr = m >= 10 ? pad2(m) : String(m);
+    const sStr = pad2(s);
+    return { h: 0, m, s, showH: false, showM: true, showS: true, mStr, sStr, str: `${mStr}m ${sStr}s` };
+  }
+
+  const sStr = s < 10 ? String(s) : pad2(s);
+  return { h: 0, m: 0, s, showH: false, showM: false, showS: true, sStr, str: `${sStr}s` };
+};
+
+const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, isEditMode = false, onEdit = null, onDelete = null, onScheduledAdd = null, onStopActiveSleep = null }) => {
   if (!card) return null;
+
+  // Ensure styles are injected
+  __ttEnsureActiveSleepStyles();
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
   const __ttTimelineItemAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
   const isScheduled = card.variant === 'scheduled';
   const isLogged = card.variant === 'logged';
+  const isActive = card.variant === 'active';
   const unitText = (card.unit || '').toLowerCase();
   const resolveSleepAmountText = () => {
     const raw = Number(card.amount);
@@ -50,11 +143,49 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
   const scheduledLabel = card.type === 'feed'
     ? `Feed around ${scheduledLabelTime}`
     : `${getSleepLabel(scheduledLabelTimeDate)} around ${scheduledLabelTime}`;
+
+  // Active sleep timer state
+  const [elapsedMs, setElapsedMs] = React.useState(() => {
+    if (isActive && card.startTime) {
+      return Date.now() - card.startTime;
+    }
+    return 0;
+  });
+
+  // Update timer every second for active sleep
+  React.useEffect(() => {
+    if (!isActive || !card.startTime) return;
+
+    const tick = () => setElapsedMs(Date.now() - card.startTime);
+    tick(); // Immediate update
+    const interval = setInterval(tick, 1000);
+
+    return () => clearInterval(interval);
+  }, [isActive, card.startTime]);
+
+  // Format elapsed time for active sleep label
+  const activeElapsedLabel = React.useMemo(() => {
+    if (!isActive) return '';
+    const parts = __ttFormatElapsedHms(elapsedMs);
+    // Build label: Xh Xm Xs format
+    let label = '';
+    if (parts.showH) {
+      label += `${parts.hStr}h `;
+    }
+    if (parts.showM) {
+      label += `${parts.mStr}m `;
+    }
+    label += `${parts.sStr}s`;
+    return label.trim();
+  }, [isActive, elapsedMs]);
+
   const labelText = isScheduled
     ? scheduledLabel
-    : (amountText
-        ? (isLogged ? amountText : `${prefix} ~${amountText}`)
-        : (isLogged ? '' : prefix));
+    : isActive
+      ? activeElapsedLabel
+      : (amountText
+          ? (isLogged ? amountText : `${prefix} ~${amountText}`)
+          : (isLogged ? '' : prefix));
 
   const photoList = card.photoURLs || card.photoUrls || card.photos;
   const hasPhotos = Array.isArray(photoList) ? photoList.length > 0 : Boolean(photoList);
@@ -83,13 +214,127 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
   const resolvedEndTime = typeof card.endTime === 'number'
     ? formatTime12Hour(card.endTime)
     : card.endTime;
+  const scheduledActionLeadMs = 10 * 60 * 1000;
   const showScheduledAction = isScheduled && Number.isFinite(scheduledTimeMs)
-    ? Math.abs(Date.now() - scheduledTimeMs) <= 10 * 60 * 1000
+    ? (Date.now() >= scheduledTimeMs - scheduledActionLeadMs) && !card.isCompleted
     : false;
+
+  // ZZZ element for active sleep (with Framer Motion if available)
+  const zzzElement = React.useMemo(() => {
+    if (__ttTimelineItemMotion) {
+      // Framer Motion version - staggered animation
+      return React.createElement(
+        'span',
+        { className: "inline-flex items-baseline ml-1", style: { color: 'var(--tt-sleep)' } },
+        ['z', 'Z', 'z'].map((letter, i) =>
+          React.createElement(__ttTimelineItemMotion.span, {
+            key: i,
+            animate: {
+              y: [0, -3, -6],
+              opacity: [1, 0.8, 0],
+              scale: [1, 1.05, 0.95]
+            },
+            transition: {
+              duration: 2,
+              repeat: Infinity,
+              delay: i * 0.25,
+              ease: "easeInOut"
+            },
+            style: {
+              display: 'inline-block',
+              fontSize: i === 0 ? '0.7em' : i === 1 ? '0.85em' : '1em'
+            }
+          }, letter)
+        )
+      );
+    }
+    // CSS fallback
+    return React.createElement(
+      'span',
+      { className: "tt-active-zzz inline-flex items-baseline ml-1", style: { color: 'var(--tt-sleep)' } },
+      React.createElement('span', null, 'z'),
+      React.createElement('span', null, 'Z'),
+      React.createElement('span', null, 'z')
+    );
+  }, [__ttTimelineItemMotion]);
+
+  // Rotating dashed border SVG for active sleep
+  const rotatingBorderSvg = React.useMemo(() => {
+    if (!isActive) return null;
+
+    // SVG that overlays the card with a rotating dashed border
+    return React.createElement('svg', {
+      className: "absolute inset-0 w-full h-full pointer-events-none",
+      style: {
+        zIndex: 0,
+        overflow: 'visible'
+      },
+      viewBox: "0 0 100 100",
+      preserveAspectRatio: "none"
+    },
+      React.createElement('rect', {
+        x: "1",
+        y: "1",
+        width: "98",
+        height: "98",
+        rx: "16",
+        ry: "16",
+        fill: "none",
+        stroke: "var(--tt-sleep)",
+        strokeWidth: "1.5",
+        strokeDasharray: "20 263", // Single short dash, rest is gap (circumference ~283)
+        strokeDashoffset: "0",
+        strokeLinecap: "round",
+        style: {
+          animation: 'ttActiveSleepBorderRotate 4s linear infinite'
+        }
+      })
+    );
+  }, [isActive]);
+
+  // Badge icon based on variant
+  const renderBadge = () => {
+    if (isActive) {
+      // Active sleep badge - circular SVG with pulse animation
+      return React.createElement('svg', {
+        className: "w-3 h-3 tt-active-sleep-badge-pulse",
+        viewBox: "0 0 256 256",
+        fill: "currentColor",
+        xmlns: "http://www.w3.org/2000/svg",
+        style: { color: 'var(--tt-sleep)' }
+      },
+        React.createElement('path', { d: "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm72-88a72,72,0,1,1-72-72A72.08,72.08,0,0,1,200,128Z" })
+      );
+    }
+
+    if (isLogged) {
+      // Logged - green checkmark
+      return React.createElement('svg', {
+        className: "w-3 h-3 text-green-500",
+        viewBox: "0 0 256 256",
+        fill: "currentColor",
+        xmlns: "http://www.w3.org/2000/svg"
+      },
+        React.createElement('path', { d: "M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z" })
+      );
+    }
+
+    // Scheduled - clock icon
+    return React.createElement('svg', {
+      className: "w-3 h-3",
+      viewBox: "0 0 256 256",
+      fill: "currentColor",
+      xmlns: "http://www.w3.org/2000/svg",
+      style: { color: 'var(--tt-text-secondary)' }
+    },
+      React.createElement('path', { d: "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z" })
+    );
+  };
 
   return React.createElement(
     React.Fragment,
     null,
+    // Icon circle with rotating border for active
     React.createElement('div', {
       className: __ttTimelineItemCn(
         "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative",
@@ -126,39 +371,23 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
         className: "absolute -bottom-1 -right-1 rounded-full p-0.5",
         style: { backgroundColor: 'var(--tt-card-bg)' }
       },
-        card.variant === 'logged' ? (
-          React.createElement('svg', {
-            className: "w-3 h-3 text-green-500",
-            viewBox: "0 0 256 256",
-            fill: "currentColor",
-            xmlns: "http://www.w3.org/2000/svg"
-          },
-            React.createElement('path', { d: "M229.66,77.66l-128,128a8,8,0,0,1-11.32,0l-56-56a8,8,0,0,1,11.32-11.32L96,188.69,218.34,66.34a8,8,0,0,1,11.32,11.32Z" })
-          )
-        ) : (
-          React.createElement('svg', {
-            className: "w-3 h-3",
-            viewBox: "0 0 256 256",
-            fill: "currentColor",
-            xmlns: "http://www.w3.org/2000/svg",
-            style: { color: 'var(--tt-text-secondary)' }
-          },
-            React.createElement('path', { d: "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Zm64-88a8,8,0,0,1-8,8H128a8,8,0,0,1-8-8V72a8,8,0,0,1,16,0v48h48A8,8,0,0,1,192,128Z" })
-          )
-        )
+        renderBadge()
       )
     ),
     React.createElement('div', { className: "flex-1" },
       React.createElement('div', { className: "flex items-center justify-between min-h-[40px]" },
         React.createElement('div', { className: "flex items-center gap-2" },
           React.createElement('h3', {
-            className: isLogged ? "font-semibold" : (isScheduled ? "font-normal" : "font-medium"),
-            style: isLogged
+            className: (isLogged || isActive) ? "font-semibold" : (isScheduled ? "font-normal" : "font-medium"),
+            style: (isLogged || isActive)
               ? { color: 'var(--tt-text-primary)' }
               : { color: 'var(--tt-text-tertiary)' }
-          }, labelText)
+          }, labelText),
+          // ZZZ animation for active sleep
+          isActive && zzzElement
         ),
         React.createElement('div', { className: "flex items-center gap-2" },
+          // Note/Photo indicators for logged items
           isLogged && hasDetails && loggedState === 'default' && React.createElement('div', { className: "flex items-center gap-1 mr-2" },
             hasNote && React.createElement('svg', {
               className: "w-4 h-4",
@@ -179,7 +408,8 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               React.createElement('path', { d: "M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z" })
             )
           ),
-          !isScheduled && React.createElement('span', {
+          // Time display for logged (not active)
+          !isScheduled && !isActive && React.createElement('span', {
             className: "text-xs",
             style: isLogged
               ? { color: 'var(--tt-text-secondary)' }
@@ -191,6 +421,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               ? `${isJustNow ? 'Just now' : card.time} – ${resolvedEndTime}`
               : (isJustNow ? 'Just now' : card.time)
           ),
+          // Chevron for logged items with details
           showChevron && ChevronIcon
             ? (__ttTimelineItemMotion
                 ? React.createElement(__ttTimelineItemMotion.div, {
@@ -209,6 +440,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                   })
               )
             : null,
+          // Scheduled action button
           isScheduled && showScheduledAction && React.createElement('button', {
             onClick: (e) => {
               e.stopPropagation();
@@ -220,6 +452,19 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               color: '#ffffff'
             }
           }, card.type === 'feed' ? 'Add Feed' : `Start ${getSleepLabel(scheduledLabelTimeDate)}`),
+          // Stop timer button for active sleep
+          isActive && React.createElement('button', {
+            onClick: (e) => {
+              e.stopPropagation();
+              if (onStopActiveSleep) onStopActiveSleep(card);
+            },
+            className: "px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95",
+            style: {
+              backgroundColor: 'var(--tt-sleep)',
+              color: '#ffffff'
+            }
+          }, 'Stop timer'),
+          // Edit/Delete buttons for logged items in edit mode
           (__ttTimelineItemAnimatePresence && __ttTimelineItemMotion)
             ? React.createElement(
                 __ttTimelineItemAnimatePresence,
@@ -239,7 +484,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                         },
                         whileTap: { scale: 0.96 },
                         className: "w-7 h-7 rounded-lg flex items-center justify-center",
-                        style: { 
+                        style: {
                           backgroundColor: 'color-mix(in srgb, #3b82f6 15%, var(--tt-card-bg))',
                           color: '#3b82f6'
                         }
@@ -260,7 +505,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                         },
                         whileTap: { scale: 0.96 },
                         className: "w-7 h-7 rounded-lg flex items-center justify-center",
-                        style: { 
+                        style: {
                           backgroundColor: 'color-mix(in srgb, #ef4444 15%, var(--tt-card-bg))',
                           color: '#ef4444'
                         }
@@ -285,7 +530,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                       onEdit(card);
                     },
                     className: "w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
-                    style: { 
+                    style: {
                       backgroundColor: 'color-mix(in srgb, #3b82f6 15%, var(--tt-card-bg))',
                       color: '#3b82f6'
                     }
@@ -305,7 +550,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
                       onDelete(card);
                     },
                     className: "w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
-                    style: { 
+                    style: {
                       backgroundColor: 'color-mix(in srgb, #ef4444 15%, var(--tt-card-bg))',
                       color: '#ef4444'
                     }
@@ -323,6 +568,7 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
               : null
         )
       ),
+      // Expandable details section (for logged items only)
       hasDetails && __ttTimelineItemAnimatePresence && __ttTimelineItemMotion && React.createElement(
         __ttTimelineItemAnimatePresence,
         { initial: false },
@@ -358,7 +604,9 @@ const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, 
           )
         )
       )
-    )
+    ),
+    // Rotating dashed border overlay for active sleep (rendered at card level)
+    isActive && rotatingBorderSvg
   );
 };
 

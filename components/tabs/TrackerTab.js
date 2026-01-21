@@ -308,11 +308,13 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null }) =
       window.TT.shared.trackerDetailFilter = nextFilter;
       window.dispatchEvent(new CustomEvent('tt:tracker-detail-filter', { detail: { filter: nextFilter } }));
     }
+    // Persist selected date for TrackerDetailTab
+    window.TT.shared.trackerDetailDate = currentDate;
     const setActiveTab = window.TT?.actions?.setActiveTab;
     if (typeof setActiveTab === 'function') {
       setActiveTab('tracker-detail');
     }
-  }, []);
+  }, [currentDate]);
   
   // Detail sheet state
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
