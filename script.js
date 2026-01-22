@@ -526,7 +526,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-input-bg', '#3C3E43');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
       root.style.setProperty('--tt-swipe-row-bg', '#272727');
-      root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
+      root.style.setProperty('--tt-selected-surface', '#2A2B30');
       root.style.setProperty('--tt-plus-bg', '#ffffff');
       root.style.setProperty('--tt-plus-fg', '#000000');
       root.style.setProperty('--tt-text-primary', 'rgba(255,255,255,0.87)');

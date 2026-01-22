@@ -421,14 +421,14 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                 },
                   isSelected && React.createElement(__ttHorizontalMotion.div, {
                     layoutId: layoutIdRef.current,
-                    className: "absolute inset-0 rounded-xl shadow-sm",
+                    className: "absolute inset-0 rounded-xl shadow-sm z-0",
                     style: { backgroundColor: 'var(--tt-selected-surface)' },
                     initial: false,
                     transition: { type: "spring", bounce: 0.1, duration: 0.2 }
                   }),
                   React.createElement('span', {
                     className: __ttHorizontalCn(
-                      "text-xs font-semibold mb-1 block"
+                      "text-xs font-semibold mb-1 block relative z-10"
                     ),
                     style: {
                       color: isSelected ? 'var(--tt-text-primary)' : 'var(--tt-text-tertiary)'
@@ -437,8 +437,8 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                   React.createElement('span', {
                     className: __ttHorizontalCn(
                       isSelected
-                        ? "text-[17.6px] font-bold mb-[22px] leading-none block"
-                        : "text-sm font-medium mb-[22px] leading-none block"
+                        ? "text-[17.6px] font-bold mb-[22px] leading-none block relative z-10"
+                        : "text-sm font-medium mb-[22px] leading-none block relative z-10"
                     ),
                     style: {
                       color: isSelected ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
