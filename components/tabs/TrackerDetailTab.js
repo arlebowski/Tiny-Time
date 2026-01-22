@@ -231,6 +231,11 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     setShowInputSheet(true);
   }, []);
 
+  const handleActiveSleepClick = React.useCallback(() => {
+    setInputSheetMode('sleep');
+    setShowInputSheet(true);
+  }, []);
+
   // Helper: normalize sleep interval to handle midnight crossing
   // Same logic as TrackerTab.js _normalizeSleepInterval
   const normalizeSleepInterval = (startMs, endMs, nowMs = Date.now()) => {
@@ -294,7 +299,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   // Transform Firebase sleep session to Timeline card format
   // Accepts optional day boundaries for cross-day handling
   const sleepToCard = (s, dayStartMs = null, dayEndMs = null) => {
-    const norm = normalizeSleepInterval(s.startTime, s.endTime);
+    const isActive = Boolean(s.isActive || !s.endTime);
+    const endCandidate = isActive ? Date.now() : s.endTime;
+    const norm = normalizeSleepInterval(s.startTime, endCandidate);
     if (!norm) return null;
 
     // Check if this sleep crosses from yesterday into the selected day
@@ -310,22 +317,23 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       displayMinute = 0;
       // Format: "YD [start time] – [end time]"
       displayTime = `YD ${formatTime12Hour(s.startTime)}`;
-      endDisplayTime = formatTime12Hour(s.endTime);
+      endDisplayTime = isActive ? null : formatTime12Hour(s.endTime);
     } else {
       const d = new Date(s.startTime);
       displayHour = d.getHours();
       displayMinute = d.getMinutes();
       displayTime = formatTime12Hour(s.startTime);
-      endDisplayTime = formatTime12Hour(s.endTime);
+      endDisplayTime = isActive ? null : formatTime12Hour(s.endTime);
     }
 
     // Calculate duration - only the portion within the day if boundaries provided
-    const durationHours = calculateSleepDurationHours(s.startTime, s.endTime, dayStartMs, dayEndMs);
+    const durationHours = calculateSleepDurationHours(s.startTime, endCandidate, dayStartMs, dayEndMs);
 
     return {
       id: s.id,
       startTime: s.startTime,
-      endTime: s.endTime,
+      endTime: s.endTime || null,
+      isActive,
       notes: s.notes || null,
       photoURLs: s.photoURLs || null,
       sleepType: s.sleepType || null,
@@ -512,18 +520,18 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
 
     const comparisonContent = comparison
       ? React.createElement('div', {
-          className: `mt-2 flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
+          className: `flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
         },
           comparison.isZero
             ? React.createElement('span', {
-                className: "text-[13.4px] font-normal leading-none",
+                className: "text-[12px] font-normal leading-none",
                 style: { color: 'var(--tt-text-tertiary)' }
               }, 'Same as yesterday')
             : React.createElement(
                 React.Fragment,
                 null,
                 React.createElement('div', {
-                  className: "flex items-center gap-1.5 text-[13.4px] font-semibold leading-none",
+                  className: "flex items-center gap-1.5 text-[12px] font-semibold leading-none",
                   style: { color: comparison.color }
                 },
                   React.createElement('svg', {
@@ -539,7 +547,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                   React.createElement('span', null, comparison.text)
                 ),
                 React.createElement('span', {
-                  className: "text-[13.4px] font-normal leading-none",
+                  className: "text-[12px] font-normal leading-none",
                   style: { color: 'var(--tt-text-tertiary)' }
                 }, 'vs this time yesterday')
               )
@@ -594,12 +602,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                         }
                       }),
                   React.createElement('div', {
-                    className: "text-[24px] font-bold leading-none whitespace-nowrap",
+                    className: "text-[25px] font-bold leading-none whitespace-nowrap",
                     style: { color }
                   }, value),
                   React.createElement('div', {
-                    className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
-                    style: { color: 'var(--tt-text-secondary)' }
+                    className: "text-[17.5px] font-normal leading-none whitespace-nowrap",
+                    style: { color: 'var(--tt-text-tertiary)' }
                   }, unit)
                 )
               )
@@ -640,7 +648,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         React.createElement('div', {
           className: "w-full rounded-full overflow-hidden",
           style: {
-            height: '4px',
+            height: '6px',
             backgroundColor: 'var(--tt-input-bg)'
           }
         },
@@ -966,60 +974,62 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         `
       }
     }),
-    React.createElement('div', { 
-      className: "tt-tracker-detail-header",
-      style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
-    },
-      React.createElement(
-        'button',
-        {
-          type: 'button',
-          onClick: () => {
-            if (typeof setActiveTab === 'function') {
-              setActiveTab('tracker');
-            }
+    React.createElement('div', { className: "space-y-1" },
+      React.createElement('div', { 
+        className: "tt-tracker-detail-header",
+        style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
+      },
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: () => {
+              if (typeof setActiveTab === 'function') {
+                setActiveTab('tracker');
+              }
+            },
+            className: "tt-tracker-detail-back"
           },
-          className: "tt-tracker-detail-back"
-        },
-        ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
-          className: "w-5 h-5",
-          style: { color: 'var(--tt-text-secondary)' }
-        }),
-        "Back"
+          ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
+            className: "w-5 h-5",
+            style: { color: 'var(--tt-text-secondary)' }
+          }),
+          "Back"
+        ),
+        React.createElement('div', { className: "tt-tracker-detail-header-title" }, formatMonthYear(selectedDate)),
+        React.createElement('div', { className: "tt-tracker-detail-header-spacer", ref: weekToggleHostRef })
       ),
-      React.createElement('div', { className: "tt-tracker-detail-header-title" }, formatMonthYear(selectedDate)),
-      React.createElement('div', { className: "tt-tracker-detail-header-spacer", ref: weekToggleHostRef })
-    ),
-    React.createElement('div', { 
-      className: "tt-tracker-detail-calendar", 
-      ref: calendarContainerRef,
-      style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
-    },
-      HorizontalCalendar
-        ? React.createElement(HorizontalCalendar, {
-            key: `calendar-${calendarMountKey}`,
-            onDateSelect: (payload) => {
-              if (!payload) return;
-              setSelectedSummary({
-                feedOz: payload.feedOz || 0,
-                sleepMs: payload.sleepMs || 0,
-                feedPct: payload.feedPct || 0,
-                sleepPct: payload.sleepPct || 0
-              });
-              if (payload.date) {
-                try {
-                  const newDate = new Date(payload.date);
-                  setSelectedSummaryKey(newDate.toDateString());
-                  setSelectedDate(newDate);
-                } catch (e) {
+      React.createElement('div', { 
+        className: "tt-tracker-detail-calendar", 
+        ref: calendarContainerRef,
+        style: calendarSideWidth ? { '--tt-tracker-detail-side': `${calendarSideWidth}px` } : undefined
+      },
+        HorizontalCalendar
+          ? React.createElement(HorizontalCalendar, {
+              key: `calendar-${calendarMountKey}`,
+              onDateSelect: (payload) => {
+                if (!payload) return;
+                setSelectedSummary({
+                  feedOz: payload.feedOz || 0,
+                  sleepMs: payload.sleepMs || 0,
+                  feedPct: payload.feedPct || 0,
+                  sleepPct: payload.sleepPct || 0
+                });
+                if (payload.date) {
+                  try {
+                    const newDate = new Date(payload.date);
+                    setSelectedSummaryKey(newDate.toDateString());
+                    setSelectedDate(newDate);
+                  } catch (e) {
+                    setSelectedSummaryKey(String(Date.now()));
+                  }
+                } else {
                   setSelectedSummaryKey(String(Date.now()));
                 }
-              } else {
-                setSelectedSummaryKey(String(Date.now()));
               }
-            }
-          })
-        : null
+            })
+          : null
+      )
     ),
     (() => {
       const prevMode = summaryAnimationPrevRef.current;
@@ -1122,7 +1132,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       onEditModeChange: setTimelineEditMode,
       onEditCard: handleTimelineEditCard,
       onDeleteCard: handleTimelineDeleteCard,
-      onScheduledAdd: handleScheduledAdd
+      onScheduledAdd: handleScheduledAdd,
+      onActiveSleepClick: handleActiveSleepClick
     }) : null,
     window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
       isOpen: showInputSheet,

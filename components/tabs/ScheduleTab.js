@@ -10,6 +10,8 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
   const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
+  const [showInputSheet, setShowInputSheet] = React.useState(false);
+  const [inputSheetMode, setInputSheetMode] = React.useState('sleep');
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
@@ -87,6 +89,11 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
     }
   }, []);
 
+  const handleActiveSleepClick = React.useCallback(() => {
+    setInputSheetMode('sleep');
+    setShowInputSheet(true);
+  }, []);
+
   // Helper: normalize sleep interval to handle midnight crossing
   // Same logic as TrackerTab.js _normalizeSleepInterval
   const normalizeSleepInterval = (startMs, endMs, nowMs = Date.now()) => {
@@ -148,7 +155,9 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   // Transform Firebase sleep session to Timeline card format
   // Accepts optional day boundaries for cross-day handling
   const sleepToCard = (s, dayStartMs = null, dayEndMs = null) => {
-    const norm = normalizeSleepInterval(s.startTime, s.endTime);
+    const isActive = Boolean(s.isActive || !s.endTime);
+    const endCandidate = isActive ? Date.now() : s.endTime;
+    const norm = normalizeSleepInterval(s.startTime, endCandidate);
     if (!norm) return null;
 
     // Check if this sleep crosses from yesterday into the selected day
@@ -156,7 +165,7 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
 
     // For cross-day sleeps on the current day, position at start of day (00:00)
     // For normal sleeps, use actual start time
-    let displayHour, displayMinute, displayTime, endDisplayTime;
+    let displayHour, displayMinute, displayTime;
 
     if (crossesFromYesterday) {
       // Sleep started yesterday - on current day view, show as starting at midnight
@@ -164,22 +173,22 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
       displayMinute = 0;
       // Format: "YD [start time] – [end time]"
       displayTime = `YD ${formatTime12Hour(s.startTime)}`;
-      endDisplayTime = formatTime12Hour(s.endTime);
     } else {
       const d = new Date(s.startTime);
       displayHour = d.getHours();
       displayMinute = d.getMinutes();
       displayTime = formatTime12Hour(s.startTime);
-      endDisplayTime = formatTime12Hour(s.endTime);
     }
 
     // Calculate duration - only the portion within the day if boundaries provided
-    const durationHours = calculateSleepDurationHours(s.startTime, s.endTime, dayStartMs, dayEndMs);
+    const durationHours = calculateSleepDurationHours(s.startTime, endCandidate, dayStartMs, dayEndMs);
 
     return {
       id: s.id,
+      startTime: s.startTime,
+      endTime: s.endTime || null,
+      isActive,
       time: displayTime,
-      endTime: endDisplayTime,
       hour: displayHour,
       minute: displayMinute,
       variant: 'logged',
@@ -227,8 +236,10 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
       // Filter sleep sessions that overlap with the selected day using normalization
       // This properly handles cross-day sleep sessions
       const daySleepSessions = (allSleepSessions || []).filter(s => {
-        if (!s.startTime || !s.endTime) return false; // Skip active/incomplete
-        const norm = normalizeSleepInterval(s.startTime, s.endTime);
+        if (!s.startTime) return false;
+        const endCandidate = s.endTime || (s.isActive ? Date.now() : null);
+        if (!endCandidate) return false;
+        const norm = normalizeSleepInterval(s.startTime, endCandidate);
         if (!norm) return false;
         // Check if normalized session overlaps with the day
         return overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs) > 0;
@@ -447,8 +458,19 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
     Timeline ? React.createElement(Timeline, {
       key: selectedDate.toDateString(),
       initialLoggedItems: loggedTimelineItems,
-      initialScheduledItems: scheduledTimelineItems
-    }) : null
+      initialScheduledItems: scheduledTimelineItems,
+      onActiveSleepClick: handleActiveSleepClick
+    }) : null,
+    window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
+      isOpen: showInputSheet,
+      onClose: () => setShowInputSheet(false),
+      kidId,
+      initialMode: inputSheetMode,
+      __ttUseV4Sheet: true,
+      onAdd: async () => {
+        await loadTimelineData(selectedDate);
+      }
+    })
   );
 };
 

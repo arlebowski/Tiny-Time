@@ -416,15 +416,15 @@ const BACKGROUND_THEMES = {
       cardBorder: "transparent"
     },
     "eggshell": {
-      appBg: "#f6f1e7",
-      cardBg: "#ffffff",
+      appBg: "#FFFCF9",
+      cardBg: "#F4E6D8",
       cardBorder: "transparent"
     }
   },
   dark: {
     "health-gray": {
-      appBg: "#121212",      // Clubhouse app background
-      cardBg: "#1C1C1E",     // Clubhouse card/nav background
+      appBg: "#1F2022",      // Clubhouse app background
+      cardBg: "#2A2B30",     // Clubhouse card/nav background
       cardBorder: "transparent"
     },
     "eggshell": {
@@ -433,6 +433,45 @@ const BACKGROUND_THEMES = {
       cardBg: "#202020",     // --tt-bg-surface
       cardBorder: "transparent"  // --tt-border-subtle
     }
+  }
+};
+
+const LIGHT_MODE_TOKENS = {
+  "health-gray": {
+    inputBg: "#f5f5f5",
+    subtleSurface: "rgba(0,0,0,0.03)",
+    swipeRowBg: "#F7F7F7",
+    selectedSurface: "rgba(0,0,0,0.08)",
+    plusBg: "#000000",
+    plusFg: "#ffffff",
+    textPrimary: "rgba(0,0,0,0.87)",
+    textSecondary: "rgba(0,0,0,0.60)",
+    textTertiary: "rgba(0,0,0,0.38)",
+    textDisabled: "rgba(0,0,0,0.28)",
+    bgHover: "rgba(0,0,0,0.03)",
+    borderSubtle: "rgba(0,0,0,0.08)",
+    borderStrong: "rgba(0,0,0,0.16)",
+    trayBg: "#ffffff",
+    trayShadow: "0 -10px 28px rgba(0,0,0,0.18)",
+    trayDivider: "rgba(0,0,0,0.06)"
+  },
+  "eggshell": {
+    inputBg: "#f5f5f5",
+    subtleSurface: "rgba(0,0,0,0.03)",
+    swipeRowBg: "#F7F7F7",
+    selectedSurface: "#F4E6D8",
+    plusBg: "#000000",
+    plusFg: "#ffffff",
+    textPrimary: "rgba(0,0,0,0.87)",
+    textSecondary: "rgba(0,0,0,0.60)",
+    textTertiary: "rgba(0,0,0,0.38)",
+    textDisabled: "rgba(0,0,0,0.28)",
+    bgHover: "rgba(0,0,0,0.03)",
+    borderSubtle: "rgba(0,0,0,0.08)",
+    borderStrong: "rgba(0,0,0,0.16)",
+    trayBg: "#ffffff",
+    trayShadow: "0 -10px 28px rgba(0,0,0,0.18)",
+    trayDivider: "rgba(0,0,0,0.06)"
   }
 };
 
@@ -485,24 +524,23 @@ window.TT.applyAppearance = function(appearance) {
 
     // Input/surfaces/text (light unchanged; dark depends on selected background)
     if (!darkMode) {
-      // Light mode (unchanged)
-      root.style.setProperty('--tt-input-bg', '#f5f5f5');
-      root.style.setProperty('--tt-subtle-surface', 'rgba(0,0,0,0.03)');
-      root.style.setProperty('--tt-swipe-row-bg', '#F7F7F7');
-      root.style.setProperty('--tt-selected-surface', 'rgba(0,0,0,0.08)');
-      root.style.setProperty('--tt-plus-bg', '#000000');
-      root.style.setProperty('--tt-plus-fg', '#ffffff');
-      root.style.setProperty('--tt-text-primary', 'rgba(0,0,0,0.87)');
-      root.style.setProperty('--tt-text-secondary', 'rgba(0,0,0,0.60)');
-      root.style.setProperty('--tt-text-tertiary', 'rgba(0,0,0,0.38)');
-      // Optional additional tokens for future dark variants
-      root.style.setProperty('--tt-text-disabled', 'rgba(0,0,0,0.28)');
-      root.style.setProperty('--tt-bg-hover', 'rgba(0,0,0,0.03)');
-      root.style.setProperty('--tt-border-subtle', 'rgba(0,0,0,0.08)');
-      root.style.setProperty('--tt-border-strong', 'rgba(0,0,0,0.16)');
-      root.style.setProperty('--tt-tray-bg', theme.cardBg);
-      root.style.setProperty('--tt-tray-shadow', '0 -10px 28px rgba(0,0,0,0.18)');
-      root.style.setProperty('--tt-tray-divider', 'rgba(0,0,0,0.06)');
+      const lightTokens = LIGHT_MODE_TOKENS[background] || LIGHT_MODE_TOKENS["health-gray"];
+      root.style.setProperty('--tt-input-bg', lightTokens.inputBg);
+      root.style.setProperty('--tt-subtle-surface', lightTokens.subtleSurface);
+      root.style.setProperty('--tt-swipe-row-bg', lightTokens.swipeRowBg);
+      root.style.setProperty('--tt-selected-surface', lightTokens.selectedSurface);
+      root.style.setProperty('--tt-plus-bg', lightTokens.plusBg);
+      root.style.setProperty('--tt-plus-fg', lightTokens.plusFg);
+      root.style.setProperty('--tt-text-primary', lightTokens.textPrimary);
+      root.style.setProperty('--tt-text-secondary', lightTokens.textSecondary);
+      root.style.setProperty('--tt-text-tertiary', lightTokens.textTertiary);
+      root.style.setProperty('--tt-text-disabled', lightTokens.textDisabled);
+      root.style.setProperty('--tt-bg-hover', lightTokens.bgHover);
+      root.style.setProperty('--tt-border-subtle', lightTokens.borderSubtle);
+      root.style.setProperty('--tt-border-strong', lightTokens.borderStrong);
+      root.style.setProperty('--tt-tray-bg', lightTokens.trayBg);
+      root.style.setProperty('--tt-tray-shadow', lightTokens.trayShadow);
+      root.style.setProperty('--tt-tray-divider', lightTokens.trayDivider);
     } else if (isClaudeDark) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
       root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
@@ -523,10 +561,10 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-tray-divider', 'rgba(255,255,255,0.08)');
     } else {
       // Dark mode: existing palette (current behavior)
-      root.style.setProperty('--tt-input-bg', '#2C2C2E');
+      root.style.setProperty('--tt-input-bg', '#3C3E43');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
       root.style.setProperty('--tt-swipe-row-bg', '#272727');
-      root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
+      root.style.setProperty('--tt-selected-surface', '#2A2B30');
       root.style.setProperty('--tt-plus-bg', '#ffffff');
       root.style.setProperty('--tt-plus-fg', '#000000');
       root.style.setProperty('--tt-text-primary', 'rgba(255,255,255,0.87)');
