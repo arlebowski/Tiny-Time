@@ -51,26 +51,18 @@ const SegmentedToggle = ({
   // Variant-based colors (structure stays the same)
   const containerStyle = variant === 'header' 
     ? { background: 'rgba(255,255,255,0.2)' }  // HeaderSegmentedToggle EXACT
-    : { backgroundColor: 'var(--tt-subtle-surface)' };
+    : { backgroundColor: 'var(--tt-seg-track)' };
   
   // Header variant: use Tailwind classes (unchanged)
   const btnOnHeader = "bg-white text-gray-900 shadow-sm";
   const btnOffHeader = "bg-transparent text-white/80";
   
-  // Body variant: use inline styles with CSS that adapts to light/dark mode
-  // Light mode: white background (#ffffff)
-  // Dark mode: transparent grey (rgba(255,255,255,0.12)) to match other elements
-  // We use a combination: white in light mode, transparent white overlay in dark mode
-  // Since CSS variables don't support conditional logic, we'll use inline style detection
+  // Body variant: use inline styles with CSS tokens
   const getBodyBtnOnStyle = () => {
     if (variant !== 'body') return undefined;
-    
-    // Check for dark mode
-    const isDark = typeof document !== 'undefined' && 
-                   document.documentElement.classList.contains('dark');
-    
+
     return {
-      backgroundColor: isDark ? 'rgba(255, 255, 255, 0.12)' : '#ffffff',
+      backgroundColor: 'var(--tt-seg-pill)',
       color: 'var(--tt-text-primary)',
       boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
     };
