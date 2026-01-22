@@ -416,8 +416,8 @@ const BACKGROUND_THEMES = {
       cardBorder: "transparent"
     },
     "eggshell": {
-      appBg: "#FFFCF9",
-      cardBg: "#F4E6D8",
+      appBg: "rgba(251, 248, 239, 1)",
+      cardBg: "rgba(242, 235, 217, 1)",
       cardBorder: "transparent"
     }
   },
@@ -428,7 +428,6 @@ const BACKGROUND_THEMES = {
       cardBorder: "transparent"
     },
     "eggshell": {
-      // Claude-inspired dark background palette
       appBg: "#1C1C1C",      // --tt-bg-app
       cardBg: "#202020",     // --tt-bg-surface
       cardBorder: "transparent"  // --tt-border-subtle
@@ -440,6 +439,8 @@ const LIGHT_MODE_TOKENS = {
   "health-gray": {
     inputBg: "#f5f5f5",
     subtleSurface: "rgba(0,0,0,0.03)",
+    segTrack: "rgba(0,0,0,0.03)",
+    segPill: "#ffffff",
     swipeRowBg: "#F7F7F7",
     selectedSurface: "rgba(0,0,0,0.08)",
     plusBg: "#000000",
@@ -456,15 +457,17 @@ const LIGHT_MODE_TOKENS = {
     trayDivider: "rgba(0,0,0,0.06)"
   },
   "eggshell": {
-    inputBg: "#f5f5f5",
-    subtleSurface: "rgba(0,0,0,0.03)",
+    inputBg: "#ffffff",
+    subtleSurface: "#ffffff",
+    segTrack: "rgba(242, 235, 217, 1)",
+    segPill: "#ffffff",
     swipeRowBg: "#F7F7F7",
-    selectedSurface: "#F4E6D8",
-    plusBg: "#000000",
-    plusFg: "#ffffff",
-    textPrimary: "rgba(0,0,0,0.87)",
-    textSecondary: "rgba(0,0,0,0.60)",
-    textTertiary: "rgba(0,0,0,0.38)",
+    selectedSurface: "rgba(242, 235, 217, 1)",
+    plusBg: "rgba(0, 0, 0, 1)",
+    plusFg: "rgba(255, 255, 255, 1)",
+    textPrimary: "rgba(38, 38, 38, 1)",
+    textSecondary: "rgba(60, 62, 67, 1)",
+    textTertiary: "rgba(119, 119, 119, 1)",
     textDisabled: "rgba(0,0,0,0.28)",
     bgHover: "rgba(0,0,0,0.03)",
     borderSubtle: "rgba(0,0,0,0.08)",
@@ -527,6 +530,8 @@ window.TT.applyAppearance = function(appearance) {
       const lightTokens = LIGHT_MODE_TOKENS[background] || LIGHT_MODE_TOKENS["health-gray"];
       root.style.setProperty('--tt-input-bg', lightTokens.inputBg);
       root.style.setProperty('--tt-subtle-surface', lightTokens.subtleSurface);
+      root.style.setProperty('--tt-seg-track', lightTokens.segTrack);
+      root.style.setProperty('--tt-seg-pill', lightTokens.segPill);
       root.style.setProperty('--tt-swipe-row-bg', lightTokens.swipeRowBg);
       root.style.setProperty('--tt-selected-surface', lightTokens.selectedSurface);
       root.style.setProperty('--tt-plus-bg', lightTokens.plusBg);
@@ -545,6 +550,8 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
       root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
       root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
+      root.style.setProperty('--tt-seg-track', '#262626');
+      root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-swipe-row-bg', '#272727');
       root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-plus-bg', '#ffffff');
@@ -563,6 +570,8 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: existing palette (current behavior)
       root.style.setProperty('--tt-input-bg', '#3C3E43');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-seg-track', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-swipe-row-bg', '#272727');
       root.style.setProperty('--tt-selected-surface', '#2A2B30');
       root.style.setProperty('--tt-plus-bg', '#ffffff');

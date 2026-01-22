@@ -34,6 +34,8 @@
             root.style.setProperty('--tt-input-bg', '#2C2C2E');
             // Subtle surface (used for log list items, pills, etc.)
             root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+            root.style.setProperty('--tt-seg-track', 'rgba(255,255,255,0.05)');
+            root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
             // Swipe row background (opaque)
             root.style.setProperty('--tt-swipe-row-bg', '#272727');
             // Selected surface (e.g., calendar selected pill)
@@ -50,6 +52,8 @@
               ? {
                   inputBg: '#3C3E43',
                   subtleSurface: 'rgba(0,0,0,0.03)',
+                  segTrack: 'rgba(0,0,0,0.03)',
+                  segPill: '#ffffff',
                   swipeRowBg: '#F7F7F7',
                   selectedSurface: 'rgba(0,0,0,0.08)',
                   plusBg: '#000000',
@@ -64,6 +68,8 @@
               : {
                   inputBg: '#3C3E43',
                   subtleSurface: 'rgba(0,0,0,0.03)',
+                  segTrack: 'rgba(0,0,0,0.03)',
+                  segPill: '#ffffff',
                   swipeRowBg: '#F7F7F7',
                   selectedSurface: 'rgba(0,0,0,0.08)',
                   plusBg: '#000000',
@@ -81,6 +87,8 @@
             root.style.setProperty('--tt-input-bg', lightTokens.inputBg);
             // Subtle surface (used for log list items, pills, etc.)
             root.style.setProperty('--tt-subtle-surface', lightTokens.subtleSurface);
+            root.style.setProperty('--tt-seg-track', lightTokens.segTrack);
+            root.style.setProperty('--tt-seg-pill', lightTokens.segPill);
             // Swipe row background (opaque)
             root.style.setProperty('--tt-swipe-row-bg', lightTokens.swipeRowBg);
             // Selected surface (e.g., calendar selected pill)
