@@ -391,8 +391,8 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                   variants: itemVariants,
                   layout: true,
                   animate: {
-                    flex: isSelected ? 1.1 : 1,
-                    scale: isSelected ? 1.05 : 1,
+                    flex: isSelected ? 1 : 1,
+                    scale: isSelected ? 1 : 1,
                     zIndex: isSelected ? 10 : 1
                   },
                   transition: {
