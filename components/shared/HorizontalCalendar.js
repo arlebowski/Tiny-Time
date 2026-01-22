@@ -116,7 +116,7 @@ const __ttHorizontalChevronRightIcon =
   (typeof window !== 'undefined' && (window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon)) ||
   __ttHorizontalChevronRight;
 
-const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
+const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect, headerLeft = null }) => {
   const today = React.useMemo(() => __ttHorizontalStartOfDay(new Date()), []);
   const [selectedDate, setSelectedDate] = React.useState(() => __ttHorizontalStartOfDay(initialDate || new Date()));
   const [weeksOffset, setWeeksOffset] = React.useState(0);
@@ -325,7 +325,17 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
       className: "w-full font-sans select-none overflow-visible",
       style: { color: 'var(--tt-text-primary)', perspective: '1000px' }
     },
-      React.createElement('header', { className: "mb-1 flex items-center justify-between pl-3 pr-4" },
+      React.createElement('header', {
+        className: "mb-1 pl-3 pr-4",
+        style: headerLeft
+          ? { display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }
+          : { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
+      },
+        headerLeft
+          ? React.createElement('div', {
+              style: { justifySelf: 'start', display: 'flex', justifyContent: 'center' }
+            }, headerLeft)
+          : null,
         React.createElement(__ttHorizontalMotion.h1, {
           key: monthKey,
           initial: { opacity: 0, x: -20 },
@@ -333,10 +343,15 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
           className: "text-base font-semibold",
           style: {
             color: 'var(--tt-text-primary)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif'
+            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
+            justifySelf: headerLeft ? 'center' : undefined,
+            textAlign: headerLeft ? 'center' : undefined
           }
         }, monthKey),
-        React.createElement('div', { className: "flex gap-1" },
+        React.createElement('div', {
+          className: "flex gap-1",
+          style: headerLeft ? { justifySelf: 'end', justifyContent: 'center' } : undefined
+        },
           React.createElement('button', {
             onClick: () => paginate(1),
             className: "p-2 rounded-xl transition-colors group active:bg-[var(--tt-selected-surface)]",
@@ -397,8 +412,8 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect }) => {
                   },
                   transition: {
                     type: "spring",
-                    stiffness: 300,
-                    damping: 30,
+                    stiffness: 200,
+                    damping: 50,
                     layout: { duration: 0.2 }
                   },
                   onClick: () => {
