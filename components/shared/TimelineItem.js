@@ -45,7 +45,7 @@ const __ttEnsureZzzStyles = () => {
   const isLogged = card.variant === 'logged';
   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
   const unitText = (card.unit || '').toLowerCase();
-  const formatActiveSleepElapsed = (ms) => {
+  const formatSleepDuration = (ms) => {
     const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
@@ -61,6 +61,9 @@ const __ttEnsureZzzStyles = () => {
   const resolveSleepAmountText = () => {
     const raw = Number(card.amount);
     if (!Number.isFinite(raw) || raw <= 0) return '';
+    if (isLogged) {
+      return formatSleepDuration(Math.round(raw * 3600 * 1000));
+    }
     if (raw < 1) {
       const mins = Math.round(raw * 60);
       return `${mins} min`;
@@ -107,7 +110,7 @@ const __ttEnsureZzzStyles = () => {
   const labelText = isScheduled
     ? scheduledLabel
     : (isActiveSleep
-        ? formatActiveSleepElapsed(activeElapsedMs)
+        ? formatSleepDuration(activeElapsedMs)
         : (amountText
             ? (isLogged ? amountText : `${prefix} ~${amountText}`)
             : (isLogged ? '' : prefix)));
