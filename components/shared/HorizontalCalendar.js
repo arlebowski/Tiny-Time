@@ -422,7 +422,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect, headerLeft
                   },
                   className: __ttHorizontalCn(
                     "relative z-10 flex flex-col items-center justify-center flex-1 h-[80px] group focus:outline-none shrink-0",
-                    isSelected ? "rounded-xl shadow-sm" : "rounded-2xl hover:bg-white/5"
+                    isSelected ? "rounded-xl" : "rounded-2xl hover:bg-white/5"
                   ),
                   style: {
                     willChange: 'transform, opacity',
