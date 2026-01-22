@@ -149,7 +149,7 @@ const __ttEnsureZzzStyles = () => {
     onExpandedContentHeight(card.id, nextHeight);
   }, [onExpandedContentHeight, card.id]);
   const zzzElement = React.useMemo(() => (
-    React.createElement('span', { className: "zzz text-xs", style: { color: 'var(--tt-sleep)', fontWeight: 700 } },
+    React.createElement('span', { className: "zzz text-xs", style: { color: 'var(--tt-sleep)', fontSize: '16px', fontWeight: 700 } },
       React.createElement('span', null, 'z'),
       React.createElement('span', null, 'Z'),
       React.createElement('span', null, 'z')
