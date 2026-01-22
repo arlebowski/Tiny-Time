@@ -110,6 +110,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
 
   // TTInputHalfSheet Component
   const TTInputHalfSheetLegacy = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null, __ttUseV4Sheet = false }) => {
+    const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
+      ? window.TT.shared.useActiveSleep
+      : (() => ({ activeSleep: null, activeSleepLoaded: true }));
     // Check localStorage for active sleep on mount to determine initial mode
     const getInitialMode = () => {
       // Use prop if provided, otherwise check localStorage
@@ -333,7 +336,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     const [sleepNotes, setSleepNotes] = React.useState('');
     const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
-    const [activeSleepLoaded, setActiveSleepLoaded] = React.useState(() => (typeof firestoreStorage === 'undefined'));
+    const { activeSleep, activeSleepLoaded } = useActiveSleep(kidId);
     const sleepIntervalRef = React.useRef(null);
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
     const endTimeManuallyEditedRef = React.useRef(false); // Track manual edits in ref for Firebase subscription
@@ -381,48 +384,38 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       return (startMs > nowMs + 3 * 3600000) ? (startMs - 86400000) : startMs;
     };
     
-    // Sync active sleep with Firebase and localStorage
+    // Sync active sleep with Firebase-backed hook
     React.useEffect(() => {
-      if (!kidId || typeof firestoreStorage === 'undefined') return;
-      setActiveSleepLoaded(false);
-      
-      // Subscribe to active sleep from Firebase
-      const unsubscribe = firestoreStorage.subscribeActiveSleep((session) => {
-        setActiveSleepLoaded(true);
-        if (session && session.id) {
-          // There's an active sleep in Firebase
-          setActiveSleepSessionId(session.id);
-          if (session.startTime) {
-            const serverStartIso = new Date(session.startTime).toISOString();
-            setStartTime(serverStartIso);
-            const normalizedStart = _normalizeSleepStartMs(session.startTime);
-            if (normalizedStart) {
-              setSleepElapsedMs(Date.now() - normalizedStart);
-            }
+      if (!activeSleepLoaded) return;
+      if (activeSleep && activeSleep.id) {
+        // There's an active sleep in Firebase
+        setActiveSleepSessionId(activeSleep.id);
+        if (activeSleep.startTime) {
+          const serverStartIso = new Date(activeSleep.startTime).toISOString();
+          setStartTime(serverStartIso);
+          const normalizedStart = _normalizeSleepStartMs(activeSleep.startTime);
+          if (normalizedStart) {
+            setSleepElapsedMs(Date.now() - normalizedStart);
           }
-          // Don't clear end time if user has manually edited it
-          if (!endTimeManuallyEditedRef.current) {
-            setEndTime(null);
-            setEndTimeManuallyEdited(false);
-          }
-          // Don't reset to running if user has manually edited end time (which stops the timer)
-          if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
-            setSleepState('running');
-          }
-        } else {
-          // No active sleep in Firebase
-          if (sleepState === 'running' && !activeSleepSessionId) {
-            // Local state says running but Firebase says no - sync to idle
-            setSleepState('idle');
-          }
-          setActiveSleepSessionId(null);
         }
-      });
-      
-      return () => {
-        if (unsubscribe) unsubscribe();
-      };
-    }, [kidId]);
+        // Don't clear end time if user has manually edited it
+        if (!endTimeManuallyEditedRef.current) {
+          setEndTime(null);
+          setEndTimeManuallyEdited(false);
+        }
+        // Don't reset to running if user has manually edited end time (which stops the timer)
+        if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
+          setSleepState('running');
+        }
+      } else {
+        // No active sleep in Firebase
+        if (sleepState === 'running' && !activeSleepSessionId) {
+          // Local state says running but Firebase says no - sync to idle
+          setSleepState('idle');
+        }
+        setActiveSleepSessionId(null);
+      }
+    }, [activeSleep, activeSleepLoaded, sleepState, activeSleepSessionId]);
 
     React.useEffect(() => {
       if (!isOpen) return;

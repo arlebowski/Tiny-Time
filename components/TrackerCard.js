@@ -5164,6 +5164,9 @@ if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !wind
 
   // TTInputHalfSheet Component
   const TTInputHalfSheet = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null }) => {
+    const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
+      ? window.TT.shared.useActiveSleep
+      : (() => ({ activeSleep: null, activeSleepLoaded: true }));
     // Check localStorage for active sleep on mount to determine initial mode
     const getInitialMode = () => {
       // Use prop if provided, otherwise check localStorage
@@ -5379,6 +5382,7 @@ if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !wind
     const [sleepNotes, setSleepNotes] = React.useState('');
     const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
     const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null); // Firebase session ID when running
+    const { activeSleep, activeSleepLoaded } = useActiveSleep(kidId);
     const sleepIntervalRef = React.useRef(null);
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
     const endTimeManuallyEditedRef = React.useRef(false); // Track manual edits in ref for Firebase subscription
@@ -5418,41 +5422,37 @@ if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !wind
       return (startMs > nowMs + 3 * 3600000) ? (startMs - 86400000) : startMs;
     };
     
-    // Sync active sleep with Firebase and localStorage
+    // Sync active sleep with Firebase-backed hook
     React.useEffect(() => {
-      if (!kidId || typeof firestoreStorage === 'undefined') return;
-      
-      // Subscribe to active sleep from Firebase
-      const unsubscribe = firestoreStorage.subscribeActiveSleep((session) => {
-        if (session && session.id) {
-          // There's an active sleep in Firebase
-          setActiveSleepSessionId(session.id);
-          if (session.startTime) {
-            setStartTime(new Date(session.startTime).toISOString());
+      if (!activeSleepLoaded) return;
+      if (activeSleep && activeSleep.id) {
+        // There's an active sleep in Firebase
+        setActiveSleepSessionId(activeSleep.id);
+        if (activeSleep.startTime) {
+          setStartTime(new Date(activeSleep.startTime).toISOString());
+          const normalizedStart = _normalizeSleepStartMs(activeSleep.startTime);
+          if (normalizedStart) {
+            setSleepElapsedMs(Date.now() - normalizedStart);
           }
-          // Don't clear end time if user has manually edited it
-          if (!endTimeManuallyEditedRef.current) {
-            setEndTime(null);
-            setEndTimeManuallyEdited(false);
-          }
-          // Don't reset to running if user has manually edited end time (which stops the timer)
-          if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
-            setSleepState('running');
-          }
-        } else {
-          // No active sleep in Firebase
-          if (sleepState === 'running' && !activeSleepSessionId) {
-            // Local state says running but Firebase says no - sync to idle
-            setSleepState('idle');
-          }
-          setActiveSleepSessionId(null);
         }
-      });
-      
-      return () => {
-        if (unsubscribe) unsubscribe();
-      };
-    }, [kidId]);
+        // Don't clear end time if user has manually edited it
+        if (!endTimeManuallyEditedRef.current) {
+          setEndTime(null);
+          setEndTimeManuallyEdited(false);
+        }
+        // Don't reset to running if user has manually edited end time (which stops the timer)
+        if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
+          setSleepState('running');
+        }
+      } else {
+        // No active sleep in Firebase
+        if (sleepState === 'running' && !activeSleepSessionId) {
+          // Local state says running but Firebase says no - sync to idle
+          setSleepState('idle');
+        }
+        setActiveSleepSessionId(null);
+      }
+    }, [activeSleep, activeSleepLoaded, sleepState, activeSleepSessionId]);
     
     // Persist running state to localStorage (for sheet state persistence)
     React.useEffect(() => {
@@ -5503,7 +5503,7 @@ if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !wind
       } else {
         // When sheet opens in sleep mode, set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
-        if (mode === 'sleep' && sleepState !== 'running' && !activeSleepSessionId) {
+        if (mode === 'sleep' && sleepState !== 'running' && !activeSleepSessionId && activeSleepLoaded) {
           setStartTime(new Date().toISOString());
         }
         // When sheet opens in feeding mode, set feedingDateTime to NOW
@@ -5511,7 +5511,7 @@ if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !wind
           setFeedingDateTime(new Date().toISOString());
         }
       }
-    }, [isOpen, mode, sleepState, activeSleepSessionId]);
+    }, [isOpen, mode, sleepState, activeSleepSessionId, activeSleepLoaded]);
     
     // Update timer when sleepState is 'running' (timer continues even when sheet closes)
     React.useEffect(() => {
@@ -5581,7 +5581,7 @@ if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !wind
       if (modeChangedToSleep && isOpen) {
         // Mode just switched to sleep - set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
-        if (sleepState !== 'running' && !activeSleepSessionId) {
+        if (sleepState !== 'running' && !activeSleepSessionId && activeSleepLoaded) {
           setStartTime(new Date().toISOString());
         }
       }
@@ -5590,11 +5590,11 @@ if (typeof window !== 'undefined' && false && !window.TTFeedDetailSheet && !wind
       // This runs whenever relevant state changes, but only clears if needed
       if (mode === 'sleep' && isOpen && sleepState === 'idle') {
         const hasBothTimes = startTime && endTime;
-        if (!hasBothTimes) {
+        if (!hasBothTimes && activeSleepLoaded && !activeSleepSessionId) {
           setEndTime(null);
         }
       }
-    }, [mode, isOpen, sleepState, activeSleepSessionId]); // Removed startTime and endTime from deps to fix bug
+    }, [mode, isOpen, sleepState, activeSleepSessionId, activeSleepLoaded]); // Removed startTime and endTime from deps to fix bug
     
     // Auto-populate start time when toggle switches to Feeding
     React.useEffect(() => {

@@ -1231,30 +1231,16 @@ IMPORTANT:
     );
 
   // Sleep logging state
-  const [activeSleep, setActiveSleep] = React.useState(null);
+  const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
+    ? window.TT.shared.useActiveSleep
+    : (() => ({ activeSleep: null, activeSleepLoaded: true }));
+  const { activeSleep } = useActiveSleep(kidId);
   const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
   const [sleepStartStr, setSleepStartStr] = React.useState('');
   const [sleepEndStr, setSleepEndStr] = React.useState('');
   const [editingSleepField, setEditingSleepField] = React.useState(null); // 'start' | 'end' | null
   const sleepIntervalRef = React.useRef(null);
   const [lastActiveSleepId, setLastActiveSleepId] = React.useState(null);
-
-  useEffect(() => {
-    if (!kidId) return;
-    return firestoreStorage.subscribeActiveSleep((session) => {
-      setActiveSleep(session);
-      if (session && session.startTime) {
-        const normalized = _normalizeSleepStartMs(session.startTime);
-        if (normalized) {
-          setSleepElapsedMs(Date.now() - normalized);
-        } else {
-          setSleepElapsedMs(0);
-        }
-      } else {
-        setSleepElapsedMs(0);
-      }
-    });
-  }, [kidId]);
 
   useEffect(() => {
     if (sleepIntervalRef.current) {

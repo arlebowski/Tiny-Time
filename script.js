@@ -423,8 +423,8 @@ const BACKGROUND_THEMES = {
   },
   dark: {
     "health-gray": {
-      appBg: "#121212",      // Clubhouse app background
-      cardBg: "#1C1C1E",     // Clubhouse card/nav background
+      appBg: "#1F2022",      // Clubhouse app background
+      cardBg: "#2A2B30",     // Clubhouse card/nav background
       cardBorder: "transparent"
     },
     "eggshell": {
@@ -486,7 +486,7 @@ window.TT.applyAppearance = function(appearance) {
     // Input/surfaces/text (light unchanged; dark depends on selected background)
     if (!darkMode) {
       // Light mode (unchanged)
-      root.style.setProperty('--tt-input-bg', '#f5f5f5');
+      root.style.setProperty('--tt-input-bg', '#3C3E43');
       root.style.setProperty('--tt-subtle-surface', 'rgba(0,0,0,0.03)');
       root.style.setProperty('--tt-swipe-row-bg', '#F7F7F7');
       root.style.setProperty('--tt-selected-surface', 'rgba(0,0,0,0.08)');
@@ -523,7 +523,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-tray-divider', 'rgba(255,255,255,0.08)');
     } else {
       // Dark mode: existing palette (current behavior)
-      root.style.setProperty('--tt-input-bg', '#2C2C2E');
+      root.style.setProperty('--tt-input-bg', '#3C3E43');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
       root.style.setProperty('--tt-swipe-row-bg', '#272727');
       root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
