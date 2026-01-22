@@ -231,6 +231,11 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     setShowInputSheet(true);
   }, []);
 
+  const handleActiveSleepClick = React.useCallback(() => {
+    setInputSheetMode('sleep');
+    setShowInputSheet(true);
+  }, []);
+
   // Helper: normalize sleep interval to handle midnight crossing
   // Same logic as TrackerTab.js _normalizeSleepInterval
   const normalizeSleepInterval = (startMs, endMs, nowMs = Date.now()) => {
@@ -294,7 +299,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   // Transform Firebase sleep session to Timeline card format
   // Accepts optional day boundaries for cross-day handling
   const sleepToCard = (s, dayStartMs = null, dayEndMs = null) => {
-    const norm = normalizeSleepInterval(s.startTime, s.endTime);
+    const isActive = Boolean(s.isActive || !s.endTime);
+    const endCandidate = isActive ? Date.now() : s.endTime;
+    const norm = normalizeSleepInterval(s.startTime, endCandidate);
     if (!norm) return null;
 
     // Check if this sleep crosses from yesterday into the selected day
@@ -310,22 +317,23 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       displayMinute = 0;
       // Format: "YD [start time] – [end time]"
       displayTime = `YD ${formatTime12Hour(s.startTime)}`;
-      endDisplayTime = formatTime12Hour(s.endTime);
+      endDisplayTime = isActive ? null : formatTime12Hour(s.endTime);
     } else {
       const d = new Date(s.startTime);
       displayHour = d.getHours();
       displayMinute = d.getMinutes();
       displayTime = formatTime12Hour(s.startTime);
-      endDisplayTime = formatTime12Hour(s.endTime);
+      endDisplayTime = isActive ? null : formatTime12Hour(s.endTime);
     }
 
     // Calculate duration - only the portion within the day if boundaries provided
-    const durationHours = calculateSleepDurationHours(s.startTime, s.endTime, dayStartMs, dayEndMs);
+    const durationHours = calculateSleepDurationHours(s.startTime, endCandidate, dayStartMs, dayEndMs);
 
     return {
       id: s.id,
       startTime: s.startTime,
-      endTime: s.endTime,
+      endTime: s.endTime || null,
+      isActive,
       notes: s.notes || null,
       photoURLs: s.photoURLs || null,
       sleepType: s.sleepType || null,
@@ -1124,7 +1132,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       onEditModeChange: setTimelineEditMode,
       onEditCard: handleTimelineEditCard,
       onDeleteCard: handleTimelineDeleteCard,
-      onScheduledAdd: handleScheduledAdd
+      onScheduledAdd: handleScheduledAdd,
+      onActiveSleepClick: handleActiveSleepClick
     }) : null,
     window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
       isOpen: showInputSheet,

@@ -14,7 +14,8 @@ const Timeline = ({
   onEditCard = null,
   onDeleteCard = null,
   onFilterChange = null,
-  onScheduledAdd = null
+  onScheduledAdd = null,
+  onActiveSleepClick = null
 }) => {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const [hasLoaded, setHasLoaded] = React.useState(false);
@@ -543,6 +544,7 @@ const Timeline = ({
                   const isDragging = draggingCard === card.id;
                   const isHolding = holdingCard === card.id;
                   const isLogged = card.variant === 'logged';
+                  const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
                   const cardEditMode = isEditMode;
                   const hasDetails = isLogged && getHasDetails(card);
                   const isExpandedCard = expandedCardId === card.id;
@@ -575,7 +577,7 @@ const Timeline = ({
                       "absolute w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 border",
                       isDragging && "shadow-2xl cursor-grabbing",
                       isHolding && "shadow-xl",
-                      !isLogged && "border-dashed"
+                      (!isLogged || isActiveSleep) && "border-dashed"
                     ),
                     onMouseDown: (e) => handleDragStart(e, card),
                     onTouchStart: (e) => handleDragStart(e, card),
@@ -587,7 +589,9 @@ const Timeline = ({
                       touchAction: isExpandedEffective ? 'none' : 'auto',
                       userSelect: 'none',
                       backgroundColor: isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
-                      borderColor: isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)',
+                      borderColor: isActiveSleep
+                        ? 'var(--tt-sleep)'
+                        : (isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)'),
                       boxShadow: (() => {
                         if (!isDragging && !isHolding) return undefined;
                         const baseColor = !isLogged
@@ -611,6 +615,7 @@ const Timeline = ({
                           onEdit: handleEditCard,
                           onDelete: handleDeleteCard,
                           onScheduledAdd,
+                          onActiveSleepClick,
                           onExpandedContentHeight: handleExpandedContentHeight
                         })
                       : null
