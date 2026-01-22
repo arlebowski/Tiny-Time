@@ -588,7 +588,9 @@ const Timeline = ({
                     style: {
                       touchAction: isExpandedEffective ? 'none' : 'auto',
                       userSelect: 'none',
-                      backgroundColor: isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)',
+                      backgroundColor: isActiveSleep
+                        ? 'var(--tt-sleep-soft-medium)'
+                        : (isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)'),
                       borderColor: isActiveSleep
                         ? 'var(--tt-sleep)'
                         : (isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)'),

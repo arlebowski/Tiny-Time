@@ -416,8 +416,8 @@ const BACKGROUND_THEMES = {
       cardBorder: "transparent"
     },
     "eggshell": {
-      appBg: "#f6f1e7",
-      cardBg: "#ffffff",
+      appBg: "#FFFCF9",
+      cardBg: "#F4E6D8",
       cardBorder: "transparent"
     }
   },
