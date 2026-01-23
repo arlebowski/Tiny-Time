@@ -283,6 +283,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const [sleepTodayCount, setSleepTodayCount] = React.useState(0);
   const [sleepYesterdayMs, setSleepYesterdayMs] = React.useState(0);
   const [currentDate, setCurrentDate] = React.useState(new Date());
+  const [kidPhotoUrl, setKidPhotoUrl] = React.useState(null);
+  const [kidDisplayName, setKidDisplayName] = React.useState(null);
   const [calendarMountKey, setCalendarMountKey] = React.useState(0);
   const prevActiveTabRef = React.useRef(activeTab);
   // State for smooth date transitions - preserve previous values while loading
@@ -2769,6 +2771,9 @@ Output ONLY the formatted string, nothing else.`;
       }
       const ss = await firestoreStorage.getSleepSettings();
       setSleepSettings(ss || null);
+      const kidData = await firestoreStorage.getKidData();
+      setKidPhotoUrl(kidData?.photoURL || null);
+      setKidDisplayName(kidData?.name || null);
       await loadFeedings();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -2943,10 +2948,20 @@ Output ONLY the formatted string, nothing else.`;
   };
 
   const handleDateSelectFromCalendar = React.useCallback((metrics) => {
+    if (uiVersion === 'v4') return;
     if (metrics && metrics.date) {
       setCurrentDate(metrics.date);
     }
-  }, []);
+  }, [uiVersion]);
+
+  React.useEffect(() => {
+    if (uiVersion !== 'v4') return;
+    const today = new Date();
+    if (currentDate.toDateString() !== today.toDateString()) {
+      setCurrentDate(today);
+      prevDateRef.current = today;
+    }
+  }, [currentDate, uiVersion]);
 
   // What's Next card animation state (v3 and v4)
   const prevIsTodayRef = React.useRef(isToday());
@@ -3362,7 +3377,12 @@ Output ONLY the formatted string, nothing else.`;
         React.createElement(HorizontalCalendar, {
           key: `calendar-${calendarMountKey}`,
           initialDate: currentDate,
-          onDateSelect: handleDateSelectFromCalendar
+          onDateSelect: handleDateSelectFromCalendar,
+          headerVariant: uiVersion === 'v4' ? 'v4' : 'default',
+          hideBody: uiVersion === 'v4',
+          hideNav: uiVersion === 'v4',
+          headerPhotoUrl: uiVersion === 'v4' ? kidPhotoUrl : null,
+          headerPhotoAlt: uiVersion === 'v4' ? (kidDisplayName || 'Baby') : 'Baby'
         })
       ),
       // What's Next Card - simple card with icon, label, and body (only show on today, v3 and v4)

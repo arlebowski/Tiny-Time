@@ -8,6 +8,9 @@ const __ttHorizontalFormat = __ttHorizontalDateFns.format || ((date, fmt) => {
   if (fmt === "MMMM yyyy") {
     return date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
   }
+  if (fmt === "EEEE, MMM d") {
+    return date.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  }
   if (fmt === "EEE") {
     return date.toLocaleString('en-US', { weekday: 'short' });
   }
@@ -116,7 +119,16 @@ const __ttHorizontalChevronRightIcon =
   (typeof window !== 'undefined' && (window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon)) ||
   __ttHorizontalChevronRight;
 
-const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect, headerLeft = null }) => {
+const HorizontalCalendar = ({
+  initialDate = new Date(),
+  onDateSelect,
+  headerLeft = null,
+  headerVariant = 'default',
+  hideBody = false,
+  hideNav = false,
+  headerPhotoUrl = null,
+  headerPhotoAlt = 'Baby'
+}) => {
   const today = React.useMemo(() => __ttHorizontalStartOfDay(new Date()), []);
   const [selectedDate, setSelectedDate] = React.useState(() => __ttHorizontalStartOfDay(initialDate || new Date()));
   const [weeksOffset, setWeeksOffset] = React.useState(0);
@@ -124,6 +136,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect, headerLeft
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
   const layoutIdRef = React.useRef(`calendar-pill-${Math.random().toString(36).slice(2)}`);
+  const [now, setNow] = React.useState(() => new Date());
 
   // Track the initial date from props to detect intentional external changes
   const initialDateRef = React.useRef(initialDate);
@@ -166,6 +179,24 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect, headerLeft
     () => __ttHorizontalFormat(days[6], "MMMM yyyy"),
     [days]
   );
+  const isV4Header = headerVariant === 'v4';
+  const dateLabel = React.useMemo(
+    () => __ttHorizontalFormat(selectedDate, "EEEE, MMM d"),
+    [selectedDate]
+  );
+
+  const greeting = React.useMemo(() => {
+    const hours = now.getHours();
+    if (hours < 12) return 'Good morning';
+    if (hours < 17) return 'Good afternoon';
+    return 'Good evening';
+  }, [now]);
+
+  React.useEffect(() => {
+    if (!isV4Header) return undefined;
+    const id = setInterval(() => setNow(new Date()), 60 * 1000);
+    return () => clearInterval(id);
+  }, [isV4Header]);
 
   React.useEffect(() => {
     let isActive = true;
@@ -336,19 +367,58 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect, headerLeft
               style: { justifySelf: 'start', display: 'flex', justifyContent: 'center' }
             }, headerLeft)
           : null,
-        React.createElement(__ttHorizontalMotion.h1, {
-          key: monthKey,
-          initial: { opacity: 0, x: -20 },
-          animate: { opacity: 1, x: 0 },
-          className: "text-base font-semibold",
-          style: {
-            color: 'var(--tt-text-primary)',
-            fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
-            justifySelf: headerLeft ? 'center' : undefined,
-            textAlign: headerLeft ? 'center' : undefined
-          }
-        }, monthKey),
-        React.createElement('div', {
+        isV4Header
+          ? React.createElement(__ttHorizontalMotion.h1, {
+              key: `${__ttHorizontalDateKeyLocal(selectedDate)}-${greeting}`,
+              initial: { opacity: 0, x: -20 },
+              animate: { opacity: 1, x: 0 },
+              className: "leading-tight flex items-center gap-3",
+              style: {
+                color: 'var(--tt-text-primary)',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
+                justifySelf: headerLeft ? 'center' : undefined,
+                textAlign: headerLeft ? 'center' : undefined
+              }
+            },
+              React.createElement('div', {
+                className: "w-12 h-12 rounded-full overflow-hidden flex-shrink-0",
+                style: { backgroundColor: 'var(--tt-input-bg)' }
+              },
+                headerPhotoUrl
+                  ? React.createElement('img', {
+                      src: headerPhotoUrl,
+                      alt: headerPhotoAlt,
+                      className: "w-full h-full object-cover"
+                    })
+                  : React.createElement('div', {
+                      className: "w-full h-full",
+                      style: { backgroundColor: 'var(--tt-feed-soft)' }
+                    })
+              ),
+              React.createElement('div', null,
+              React.createElement('div', {
+                className: "text-[15.4px] font-normal",
+                style: { color: 'var(--tt-text-secondary)' }
+              }, dateLabel),
+              React.createElement('div', {
+                className: "text-[24px] font-semibold",
+                style: { color: 'var(--tt-text-primary)' }
+              }, greeting)
+            )
+            )
+          : React.createElement(__ttHorizontalMotion.h1, {
+              key: monthKey,
+              initial: { opacity: 0, x: -20 },
+              animate: { opacity: 1, x: 0 },
+              className: "text-base font-semibold",
+              style: {
+                color: 'var(--tt-text-primary)',
+                fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
+                justifySelf: headerLeft ? 'center' : undefined,
+                textAlign: headerLeft ? 'center' : undefined
+              }
+            }, monthKey),
+        !hideNav && React.createElement('div', {
           className: "flex gap-1",
           style: headerLeft ? { justifySelf: 'end', justifyContent: 'center' } : undefined
         },
@@ -378,7 +448,7 @@ const HorizontalCalendar = ({ initialDate = new Date(), onDateSelect, headerLeft
           )
         )
       ),
-      React.createElement('div', { className: "relative touch-none" },
+      !hideBody && React.createElement('div', { className: "relative touch-none" },
         React.createElement(__ttHorizontalAnimatePresence, { mode: "wait", custom: direction },
           React.createElement(__ttHorizontalMotion.div, {
             key: weeksOffset,
