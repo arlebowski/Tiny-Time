@@ -381,7 +381,7 @@ const HorizontalCalendar = ({
               }
             },
               React.createElement('div', {
-                className: "w-12 h-12 rounded-full overflow-hidden flex-shrink-0",
+                className: "w-[53px] h-[53px] rounded-full overflow-hidden flex-shrink-0",
                 style: { backgroundColor: 'var(--tt-input-bg)' }
               },
                 headerPhotoUrl
