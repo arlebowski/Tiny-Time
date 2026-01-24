@@ -369,7 +369,10 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     // Refs for measuring both content heights
     const feedingContentRef = React.useRef(null);
     const sleepContentRef = React.useRef(null);
+    const feedMeasureRef = React.useRef(null);
+    const sleepMeasureRef = React.useRef(null);
     const ctaFooterRef = React.useRef(null);
+    const [measuredHeightPx, setMeasuredHeightPx] = React.useState(null);
     
     // Reserve space so the bottom CTA button stays in the same visual spot across modes.
     // Also keep content scrolled above the CTA when it is offset upward.
@@ -379,6 +382,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     const ctaPaddingPx = __ttUseV4Sheet
       ? (Math.max(ctaHeightPx || 0, CTA_SPACER_PX) + CTA_BOTTOM_OFFSET_PX + 24)
       : CTA_SPACER_PX;
+    const HEADER_HEIGHT_PX = 60;
+    const CONTENT_PADDING_PX = 32 + 8; // pt-8 + pb-2
     
     const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
       if (!startMs) return null;
@@ -430,6 +435,42 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         forcedSleepOnOpenRef.current = true;
       }
     }, [isOpen, activeSleepSessionId, mode]);
+
+    React.useEffect(() => {
+      if (!__ttUseV4Sheet || !isOpen) return;
+      const measure = () => {
+        const feedEl = feedMeasureRef.current;
+        const sleepEl = sleepMeasureRef.current;
+        const feedHeight = feedEl ? (feedEl.scrollHeight || feedEl.getBoundingClientRect().height || 0) : 0;
+        const sleepHeight = sleepEl ? (sleepEl.scrollHeight || sleepEl.getBoundingClientRect().height || 0) : 0;
+        const contentHeight = Math.max(feedHeight, sleepHeight);
+        const footerHeight = ctaFooterRef.current?.getBoundingClientRect().height || 0;
+        const total = Math.ceil(contentHeight + CONTENT_PADDING_PX + HEADER_HEIGHT_PX + footerHeight);
+        if (Number.isFinite(total) && total > 0) {
+          setMeasuredHeightPx(total);
+        }
+      };
+      const raf = requestAnimationFrame(measure);
+      return () => cancelAnimationFrame(raf);
+    }, [
+      __ttUseV4Sheet,
+      isOpen,
+      sleepState,
+      mode,
+      ounces,
+      feedingDateTime,
+      feedingNotes,
+      sleepNotesExpanded,
+      sleepPhotosExpanded,
+      feedingNotesExpanded,
+      feedingPhotosExpanded,
+      endTimeManuallyEdited,
+      isKeyboardOpen,
+      startTime,
+      endTime,
+      sleepNotes,
+      photos.length
+    ]);
     
     // Persist running state to localStorage (for sheet state persistence)
     React.useEffect(() => {
@@ -479,6 +520,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         setFeedingPhotosExpanded(false);
         setSleepNotesExpanded(false);
         setSleepPhotosExpanded(false);
+        setMeasuredHeightPx(null);
       } else {
         // When sheet opens in sleep mode, set startTime to NOW
         // UNLESS sleep is currently running (don't override active sleep)
@@ -571,8 +613,17 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     
     // Auto-populate start time when toggle switches to Sleep
     React.useEffect(() => {
-      const modeChangedToSleep = prevModeRef.current !== 'sleep' && mode === 'sleep';
+      const prevMode = prevModeRef.current;
+      const modeChanged = prevMode !== mode;
+      const modeChangedToSleep = modeChanged && mode === 'sleep';
       prevModeRef.current = mode;
+      if (modeChanged && isOpen) {
+        setFeedingNotesExpanded(false);
+        setFeedingPhotosExpanded(false);
+        setSleepNotesExpanded(false);
+        setSleepPhotosExpanded(false);
+        setMeasuredHeightPx(null);
+      }
       
       if (modeChangedToSleep && isOpen) {
         // Mode just switched to sleep - set startTime to NOW
@@ -1288,36 +1339,38 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
 
         // Input rows wrapped in spacing container
         React.createElement('div', { className: "space-y-2" },
-          // Start time
-          React.createElement(InputRow, {
-            label: 'Start time',
-            value: startTime ? formatDateTime(startTime) : '--:--',
-            rawValue: startTime,
-            onChange: handleStartTimeChange,
-            icon: timeIcon,
-            type: 'datetime',
-            pickerMode: 'datetime_sleep_start',
-            onOpenPicker: openTrayPicker,
-            readOnly: false // Always editable
-          }),
+          React.createElement('div', { className: "grid grid-cols-2 gap-3" },
+            // Start time
+            React.createElement(InputRow, {
+              label: 'Start time',
+              value: startTime ? formatDateTime(startTime) : '--:--',
+              rawValue: startTime,
+              onChange: handleStartTimeChange,
+              icon: timeIcon,
+              type: 'datetime',
+              pickerMode: 'datetime_sleep_start',
+              onOpenPicker: openTrayPicker,
+              readOnly: false // Always editable
+            }),
 
-          // End time
-          React.createElement(InputRow, {
-            label: 'End time',
-            value: endTime ? formatDateTime(endTime) : 'Add...',
-            rawValue: endTime,
-            onChange: handleEndTimeChange,
-            icon: timeIcon,
-            type: 'datetime',
-            pickerMode: 'datetime_sleep_end',
-            onOpenPicker: openTrayPicker,
-            placeholder: 'Add...',
-            readOnly: false, // Always editable
-            invalid: !isSleepValid && isIdleWithTimes
-          }),
+            // End time
+            React.createElement(InputRow, {
+              label: 'End time',
+              value: endTime ? formatDateTime(endTime) : 'Add...',
+              rawValue: endTime,
+              onChange: handleEndTimeChange,
+              icon: timeIcon,
+              type: 'datetime',
+              pickerMode: 'datetime_sleep_end',
+              onOpenPicker: openTrayPicker,
+              placeholder: 'Add...',
+              readOnly: false, // Always editable
+              invalid: !isSleepValid && isIdleWithTimes
+            })
+          ),
 
           // Notes - conditionally render based on expanded state
-        sleepNotesExpanded 
+          sleepNotesExpanded 
             ? (__ttUseV4Sheet
                 ? React.createElement(__ttV4Motion.div, {
                     initial: { opacity: 0, y: 6, scale: 0.98 },
@@ -1349,35 +1402,35 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               }, '+ Add notes')
         ),
 
-      TTPhotoRow && (__ttUseV4Sheet && sleepPhotosExpanded
-        ? React.createElement(__ttV4Motion.div, {
-            initial: { opacity: 0, y: 6, scale: 0.98 },
-            animate: { opacity: 1, y: 0, scale: 1 },
-            transition: { type: "spring", damping: 25, stiffness: 300 }
-          },
-          React.createElement(TTPhotoRow, {
-            expanded: sleepPhotosExpanded,
-            onExpand: () => setSleepPhotosExpanded(true),
-            existingPhotos: [],
-            newPhotos: photos,
-            onAddPhoto: handleAddPhoto,
-            onRemovePhoto: (index) => handleRemovePhoto(index),
-            onPreviewPhoto: setFullSizePhoto
-          })
-        )
-        : React.createElement(TTPhotoRow, {
-            expanded: sleepPhotosExpanded,
-            onExpand: () => setSleepPhotosExpanded(true),
-            existingPhotos: [],
-            newPhotos: photos,
-            onAddPhoto: handleAddPhoto,
-            onRemovePhoto: (index) => handleRemovePhoto(index),
-            onPreviewPhoto: setFullSizePhoto
-          })
-      ),
+        TTPhotoRow && (__ttUseV4Sheet && sleepPhotosExpanded
+          ? React.createElement(__ttV4Motion.div, {
+              initial: { opacity: 0, y: 6, scale: 0.98 },
+              animate: { opacity: 1, y: 0, scale: 1 },
+              transition: { type: "spring", damping: 25, stiffness: 300 }
+            },
+            React.createElement(TTPhotoRow, {
+              expanded: sleepPhotosExpanded,
+              onExpand: () => setSleepPhotosExpanded(true),
+              existingPhotos: [],
+              newPhotos: photos,
+              onAddPhoto: handleAddPhoto,
+              onRemovePhoto: (index) => handleRemovePhoto(index),
+              onPreviewPhoto: setFullSizePhoto
+            })
+          )
+          : React.createElement(TTPhotoRow, {
+              expanded: sleepPhotosExpanded,
+              onExpand: () => setSleepPhotosExpanded(true),
+              existingPhotos: [],
+              newPhotos: photos,
+              onAddPhoto: handleAddPhoto,
+              onRemovePhoto: (index) => handleRemovePhoto(index),
+              onPreviewPhoto: setFullSizePhoto
+            })
+        ),
 
-      // Reserve space for sticky footer CTA (legacy only)
-      !__ttUseV4Sheet && React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
+        // Reserve space for sticky footer CTA (legacy only)
+        !__ttUseV4Sheet && React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
       );
     };
 
@@ -1434,63 +1487,40 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           }, renderSleepContent())
         );
 
-    const bodyContent = React.createElement(
-      'div',
-      { style: { minHeight: __ttUseV4Sheet ? undefined : '100%', display: 'flex', flexDirection: 'column', position: __ttUseV4Sheet ? 'relative' : undefined } },
-      // Wrapper to ensure proper clipping of absolutely positioned children
-      React.createElement('div', {
-        style: { position: 'relative', overflow: __ttUseV4Sheet ? 'visible' : 'hidden', width: '100%', flex: __ttUseV4Sheet ? undefined : 1, minHeight: 0, paddingBottom: __ttUseV4Sheet ? `${ctaPaddingPx}px` : undefined }
-      }, animatedContent),
-
-      // Sticky bottom CTA (keeps primary action in the same spot across Feed/Sleep)
-      // Hide when keyboard is open to prevent overlap with keyboard
-      React.createElement('div', {
-      ref: ctaFooterRef,
-        className: __ttUseV4Sheet ? "left-0 right-0 pt-3 pb-1" : "sticky bottom-0 left-0 right-0 pt-3 pb-1",
-        style: { 
-          zIndex: 10,
-          backgroundColor: 'var(--tt-card-bg)',
-          display: isKeyboardOpen ? 'none' : 'block',
-          bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
-          left: 0,
-          right: 0,
-          position: __ttUseV4Sheet ? 'absolute' : 'sticky'
-        }
-      },
-        mode === 'feeding'
-          ? React.createElement('button', {
+    const ctaButton = mode === 'feeding'
+      ? React.createElement('button', {
+          type: 'button',
+          onClick: handleAddFeeding,
+          onTouchStart: (e) => {
+            // Prevent scroll container from capturing touch
+            e.stopPropagation();
+          },
+          className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: 'var(--tt-feed)',
+            touchAction: 'manipulation' // Prevent scroll interference on mobile
+          },
+          onMouseEnter: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-feed-strong)';
+          },
+          onMouseLeave: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-feed)';
+          }
+        }, 'Add Feed')
+      : (() => {
+          // Sleep CTA button logic
+          if (sleepState === 'running') {
+            return React.createElement('button', {
               type: 'button',
-              onClick: handleAddFeeding,
+              onClick: handleEndSleep,
               onTouchStart: (e) => {
                 // Prevent scroll container from capturing touch
                 e.stopPropagation();
               },
               className: "w-full text-white py-3 rounded-2xl font-semibold transition",
               style: {
-                backgroundColor: 'var(--tt-feed)',
+                backgroundColor: 'var(--tt-sleep)',
                 touchAction: 'manipulation' // Prevent scroll interference on mobile
-              },
-              onMouseEnter: (e) => {
-                e.target.style.backgroundColor = 'var(--tt-feed-strong)';
-              },
-              onMouseLeave: (e) => {
-                e.target.style.backgroundColor = 'var(--tt-feed)';
-              }
-            }, 'Add Feed')
-          : (() => {
-              // Sleep CTA button logic
-              if (sleepState === 'running') {
-                return React.createElement('button', {
-                  type: 'button',
-                  onClick: handleEndSleep,
-                  onTouchStart: (e) => {
-                    // Prevent scroll container from capturing touch
-                    e.stopPropagation();
-                  },
-              className: "w-full text-white py-3 rounded-2xl font-semibold transition",
-              style: {
-                    backgroundColor: 'var(--tt-sleep)',
-                    touchAction: 'manipulation' // Prevent scroll interference on mobile
               },
               onMouseEnter: (e) => {
                 e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
@@ -1498,64 +1528,93 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               onMouseLeave: (e) => {
                 e.target.style.backgroundColor = 'var(--tt-sleep)';
               }
-                }, 'Stop timer');
-              } else if (endTimeManuallyEdited) {
-                // Show Save button when end time is edited
-                // Disabled and red text if invalid
-                const isValid = isSleepValid;
-                return React.createElement('button', {
-                  type: 'button',
-                  onClick: isValid ? handleSaveSleep : undefined,
-                  onTouchStart: (e) => {
-                    // Prevent scroll container from capturing touch
-                    e.stopPropagation();
-                  },
-                  disabled: !isValid,
-                  className: "w-full py-3 rounded-2xl font-semibold transition",
-                  style: {
-                    backgroundColor: isValid ? 'var(--tt-sleep)' : 'transparent',
-                    color: isValid ? 'white' : '#ef4444', // Red text when invalid
-                    border: isValid ? 'none' : '1px solid #ef4444',
-                    cursor: isValid ? 'pointer' : 'not-allowed',
-                    opacity: isValid ? 1 : 0.7,
-                    touchAction: 'manipulation' // Prevent scroll interference on mobile
-                  },
-                  onMouseEnter: (e) => {
-                    if (isValid) {
-                      e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-                    }
-                  },
-                  onMouseLeave: (e) => {
-                    if (isValid) {
-                      e.target.style.backgroundColor = 'var(--tt-sleep)';
-                    }
-                  }
-                }, 'Save');
-              } else {
-                // Show Start Sleep button when idle
-                return React.createElement('button', {
-                  type: 'button',
-                  onClick: handleStartSleep,
-                  onTouchStart: (e) => {
-                    // Prevent scroll container from capturing touch
-                    e.stopPropagation();
-                  },
-                  className: "w-full text-white py-3 rounded-2xl font-semibold transition",
-                  style: {
-                    backgroundColor: 'var(--tt-sleep)',
-                    touchAction: 'manipulation' // Prevent scroll interference on mobile
-                  },
-                  onMouseEnter: (e) => {
-                    e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-                  },
-                  onMouseLeave: (e) => {
-                    e.target.style.backgroundColor = 'var(--tt-sleep)';
-                  }
-                }, 'Start Sleep');
+            }, 'Stop timer');
+          }
+          if (endTimeManuallyEdited) {
+            // Show Save button when end time is edited
+            // Disabled and red text if invalid
+            const isValid = isSleepValid;
+            return React.createElement('button', {
+              type: 'button',
+              onClick: isValid ? handleSaveSleep : undefined,
+              onTouchStart: (e) => {
+                // Prevent scroll container from capturing touch
+                e.stopPropagation();
+              },
+              disabled: !isValid,
+              className: "w-full py-3 rounded-2xl font-semibold transition",
+              style: {
+                backgroundColor: isValid ? 'var(--tt-sleep)' : 'transparent',
+                color: isValid ? 'white' : '#ef4444', // Red text when invalid
+                border: isValid ? 'none' : '1px solid #ef4444',
+                cursor: isValid ? 'pointer' : 'not-allowed',
+                opacity: isValid ? 1 : 0.7,
+                touchAction: 'manipulation' // Prevent scroll interference on mobile
+              },
+              onMouseEnter: (e) => {
+                if (isValid) {
+                  e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+                }
+              },
+              onMouseLeave: (e) => {
+                if (isValid) {
+                  e.target.style.backgroundColor = 'var(--tt-sleep)';
+                }
               }
-            })()
-      ),
+            }, 'Save');
+          }
+          // Show Start Sleep button when idle
+          return React.createElement('button', {
+            type: 'button',
+            onClick: handleStartSleep,
+            onTouchStart: (e) => {
+              // Prevent scroll container from capturing touch
+              e.stopPropagation();
+            },
+            className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+            style: {
+              backgroundColor: 'var(--tt-sleep)',
+              touchAction: 'manipulation' // Prevent scroll interference on mobile
+            },
+            onMouseEnter: (e) => {
+              e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+            },
+            onMouseLeave: (e) => {
+              e.target.style.backgroundColor = 'var(--tt-sleep)';
+            }
+          }, 'Start Sleep');
+        })();
 
+    const contentWrapper = React.createElement('div', {
+      style: {
+        position: 'relative',
+        overflow: __ttUseV4Sheet ? 'visible' : 'hidden',
+        width: '100%',
+        flex: __ttUseV4Sheet ? undefined : 1,
+        minHeight: 0,
+        paddingBottom: __ttUseV4Sheet ? undefined : `${ctaPaddingPx}px`
+      }
+    },
+      animatedContent,
+      __ttUseV4Sheet && React.createElement('div', {
+        style: {
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          zIndex: -1
+        }
+      },
+        React.createElement('div', { ref: feedMeasureRef }, renderFeedingContent()),
+        React.createElement('div', { ref: sleepMeasureRef }, renderSleepContent())
+      )
+    );
+
+    const overlayContent = React.createElement(
+      React.Fragment,
+      null,
       // Wheel amount tray (feature flagged)
       TTPickerTray && AmountPickerLabSection && _ttUseWheelPickers() && React.createElement(TTPickerTray, {
         isOpen: showAmountTray,
@@ -1699,6 +1758,53 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       )
     );
 
+    const bodyContent = __ttUseV4Sheet
+      ? React.createElement(
+          React.Fragment,
+          null,
+          React.createElement('div', {
+            className: "flex-1 px-6 pt-8 pb-2",
+            style: {
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflowY: 'auto',
+              overscrollBehavior: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }
+          }, contentWrapper),
+          React.createElement('div', {
+            ref: ctaFooterRef,
+            className: "px-6 pt-3 pb-1",
+            style: {
+              backgroundColor: 'var(--tt-card-bg)',
+              display: isKeyboardOpen ? 'none' : 'block',
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
+              flexShrink: 0
+            }
+          }, ctaButton),
+          overlayContent
+        )
+      : React.createElement(
+          'div',
+          { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
+          contentWrapper,
+          React.createElement('div', {
+            ref: ctaFooterRef,
+            className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
+            style: { 
+              zIndex: 10,
+              backgroundColor: 'var(--tt-card-bg)',
+              display: isKeyboardOpen ? 'none' : 'block',
+              bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
+              left: 0,
+              right: 0,
+              position: 'sticky'
+            }
+          }, ctaButton),
+          overlayContent
+        );
+
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
       if (__ttUseV4Sheet) {
@@ -1752,8 +1858,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                     backgroundColor: "var(--tt-card-bg)",
                     willChange: 'transform',
                     paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                    maxHeight: '100%',
-                    height: 'auto',
+                    maxHeight: '83vh',
+                    height: measuredHeightPx ? `${measuredHeightPx}px` : 'auto',
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
@@ -1803,10 +1909,11 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                   React.createElement('div', { className: "w-6" })
                 ),
                 React.createElement('div', {
-                  className: "flex-1 px-6 pt-8 pb-[42px]",
+                  className: "flex-1",
                   style: {
                     minHeight: 0,
-                    overscrollBehavior: 'none'
+                    display: 'flex',
+                    flexDirection: 'column'
                   }
                 }, bodyContent)
               )
