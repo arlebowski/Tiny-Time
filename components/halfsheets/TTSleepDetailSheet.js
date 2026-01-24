@@ -591,9 +591,9 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
           },
           className: "w-full py-3 rounded-2xl font-semibold transition",
                 style: { 
-            backgroundColor: (saving || !isValid) ? 'transparent' : 'var(--tt-sleep)',
-            color: (saving || !isValid) ? '#ef4444' : 'white',
-            border: (saving || !isValid) ? '1px solid #ef4444' : 'none',
+            backgroundColor: saving ? 'var(--tt-sleep-strong)' : (isValid ? 'var(--tt-sleep)' : 'transparent'),
+            color: saving ? 'white' : (isValid ? 'white' : '#ef4444'),
+            border: (!saving && !isValid) ? '1px solid #ef4444' : 'none',
             touchAction: 'manipulation', // Prevent scroll interference on mobile
             opacity: (saving || !isValid) ? 0.7 : 1,
             cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'
