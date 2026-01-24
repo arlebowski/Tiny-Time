@@ -341,6 +341,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
     const endTimeManuallyEditedRef = React.useRef(false); // Track manual edits in ref for Firebase subscription
     const prevModeRef = React.useRef(mode); // Track previous mode to detect actual mode changes
+    const forcedSleepOnOpenRef = React.useRef(false);
     
     // Shared photos state
     const [photos, setPhotos] = React.useState([]);
@@ -418,9 +419,15 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     }, [activeSleep, activeSleepLoaded, sleepState, activeSleepSessionId]);
 
     React.useEffect(() => {
-      if (!isOpen) return;
-      if (activeSleepSessionId && mode !== 'sleep') {
-        setMode('sleep');
+      if (!isOpen) {
+        forcedSleepOnOpenRef.current = false;
+        return;
+      }
+      if (activeSleepSessionId && !forcedSleepOnOpenRef.current) {
+        if (mode !== 'sleep') {
+          setMode('sleep');
+        }
+        forcedSleepOnOpenRef.current = true;
       }
     }, [isOpen, activeSleepSessionId, mode]);
     
