@@ -133,6 +133,7 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     // Collapsible Notes/Photos state
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
+    const inputValueClassName = 'text-[18px]';
 
     // Wheel picker trays (feature flagged)
     const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};

@@ -357,6 +357,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     const [sleepPhotosExpanded, setSleepPhotosExpanded] = React.useState(false);
     const notesExpanded = mode === 'feeding' ? feedingNotesExpanded : sleepNotesExpanded;
     const photosExpanded = mode === 'feeding' ? feedingPhotosExpanded : sleepPhotosExpanded;
+    const inputValueClassName = 'text-[18px]';
     
     // Calculate height based on expanded fields
     const calculateHeight = React.useMemo(() => {
@@ -1203,12 +1204,14 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       React.createElement('div', { className: "space-y-2" },
         // Ounces
         React.createElement(InputRow, {
-          label: 'Ounces',
+          label: 'Amount',
           value: ounces,
           onChange: setOunces,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+          valueClassName: inputValueClassName,
           type: 'number',
           placeholder: '0',
+          suffix: 'oz',
           pickerMode: 'amount',
           onOpenPicker: openTrayPicker
         }),
@@ -1220,6 +1223,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           rawValue: feedingDateTime,
           onChange: setFeedingDateTime,
           icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+          valueClassName: inputValueClassName,
           type: 'datetime',
           pickerMode: 'datetime_feeding',
           onOpenPicker: openTrayPicker,
@@ -1252,6 +1256,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                   value: feedingNotes,
                   onChange: setFeedingNotes,
                   icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+                  valueClassName: inputValueClassName,
                   type: 'text',
                   placeholder: 'Add a note...'
                 })
@@ -1261,6 +1266,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                   value: feedingNotes,
                   onChange: setFeedingNotes,
                   icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+                  valueClassName: inputValueClassName,
                   type: 'text',
                   placeholder: 'Add a note...'
                 })
@@ -1338,7 +1344,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         React.Fragment,
         null,
         // Timer Display
-        React.createElement('div', { className: "text-center mb-6" },
+        React.createElement('div', { className: "text-center mb-10" },
           React.createElement('div', { className: "text-[40px] leading-none font-bold flex items-end justify-center", style: { color: 'var(--tt-text-primary)' } },
             React.createElement(React.Fragment, null,
               tParts.showH && React.createElement(React.Fragment, null,
@@ -1367,6 +1373,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               rawValue: startTime,
               onChange: handleStartTimeChange,
               icon: timeIcon,
+              valueClassName: inputValueClassName,
               type: 'datetime',
               pickerMode: 'datetime_sleep_start',
               onOpenPicker: openTrayPicker,
@@ -1380,6 +1387,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               rawValue: endTime,
               onChange: handleEndTimeChange,
               icon: timeIcon,
+              valueClassName: inputValueClassName,
               type: 'datetime',
               pickerMode: 'datetime_sleep_end',
               onOpenPicker: openTrayPicker,
@@ -1416,6 +1424,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                     value: sleepNotes,
                     onChange: setSleepNotes,
                     icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+                    valueClassName: inputValueClassName,
                     type: 'text',
                     placeholder: 'Add a note...'
                   })
@@ -1425,6 +1434,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                     value: sleepNotes,
                     onChange: setSleepNotes,
                     icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+                    valueClassName: inputValueClassName,
                     type: 'text',
                     placeholder: 'Add a note...'
                   })
@@ -1803,7 +1813,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           React.Fragment,
           null,
           React.createElement('div', {
-            className: "flex-1 px-6 pt-8 pb-2",
+            className: "flex-1 px-6 pt-10 pb-2",
             style: {
               minHeight: 0,
               display: 'flex',
@@ -1900,6 +1910,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                     paddingBottom: 'env(safe-area-inset-bottom, 0)',
                     maxHeight: '83vh',
                     height: measuredHeightPx ? `${measuredHeightPx}px` : 'auto',
+                    minHeight: '60vh',
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
