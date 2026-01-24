@@ -1225,6 +1225,20 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           onOpenPicker: openTrayPicker,
         }),
 
+        // Notes/photos compact toggles (side-by-side when both collapsed)
+        (!feedingNotesExpanded && !feedingPhotosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
+          React.createElement('div', {
+            onClick: () => setFeedingNotesExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add notes'),
+          TTPhotoRow && React.createElement('div', {
+            onClick: () => setFeedingPhotosExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add photos')
+        ),
+
         // Notes - conditionally render based on expanded state
         feedingNotesExpanded 
           ? (__ttUseV4Sheet
@@ -1251,14 +1265,14 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                   placeholder: 'Add a note...'
                 })
             )
-          : React.createElement('div', {
+          : feedingPhotosExpanded ? React.createElement('div', {
               onClick: () => setFeedingNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
               style: { color: 'var(--tt-text-tertiary)' }
-            }, '+ Add notes')
+            }, '+ Add notes') : null
       ),
 
-      TTPhotoRow && (__ttUseV4Sheet && feedingPhotosExpanded
+      TTPhotoRow && feedingPhotosExpanded && (__ttUseV4Sheet
         ? React.createElement(__ttV4Motion.div, {
             initial: { opacity: 0, y: 6, scale: 0.98 },
             animate: { opacity: 1, y: 0, scale: 1 },
@@ -1284,6 +1298,12 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
             onPreviewPhoto: setFullSizePhoto
           })
       ),
+
+      TTPhotoRow && !feedingPhotosExpanded && feedingNotesExpanded && React.createElement('div', {
+        onClick: () => setFeedingPhotosExpanded(true),
+        className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+        style: { color: 'var(--tt-text-tertiary)' }
+      }, '+ Add photos'),
 
       // Reserve space for sticky footer CTA (legacy only)
       !__ttUseV4Sheet && React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
@@ -1369,6 +1389,20 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
             })
           ),
 
+          // Notes/photos compact toggles (side-by-side when both collapsed)
+          (!sleepNotesExpanded && !sleepPhotosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
+            React.createElement('div', {
+              onClick: () => setSleepNotesExpanded(true),
+              className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+              style: { color: 'var(--tt-text-tertiary)' }
+            }, '+ Add notes'),
+            TTPhotoRow && React.createElement('div', {
+              onClick: () => setSleepPhotosExpanded(true),
+              className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+              style: { color: 'var(--tt-text-tertiary)' }
+            }, '+ Add photos')
+          ),
+
           // Notes - conditionally render based on expanded state
           sleepNotesExpanded 
             ? (__ttUseV4Sheet
@@ -1395,14 +1429,14 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                     placeholder: 'Add a note...'
                   })
               )
-            : React.createElement('div', {
-                onClick: () => setSleepNotesExpanded(true),
-                className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-                style: { color: 'var(--tt-text-tertiary)' }
-              }, '+ Add notes')
+          : sleepPhotosExpanded ? React.createElement('div', {
+              onClick: () => setSleepNotesExpanded(true),
+              className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+              style: { color: 'var(--tt-text-tertiary)' }
+            }, '+ Add notes') : null
         ),
 
-        TTPhotoRow && (__ttUseV4Sheet && sleepPhotosExpanded
+        TTPhotoRow && sleepPhotosExpanded && (__ttUseV4Sheet
           ? React.createElement(__ttV4Motion.div, {
               initial: { opacity: 0, y: 6, scale: 0.98 },
               animate: { opacity: 1, y: 0, scale: 1 },
@@ -1428,6 +1462,12 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               onPreviewPhoto: setFullSizePhoto
             })
         ),
+
+        TTPhotoRow && !sleepPhotosExpanded && sleepNotesExpanded && React.createElement('div', {
+          onClick: () => setSleepPhotosExpanded(true),
+          className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+          style: { color: 'var(--tt-text-tertiary)' }
+        }, '+ Add photos'),
 
         // Reserve space for sticky footer CTA (legacy only)
         !__ttUseV4Sheet && React.createElement('div', { style: { height: `${CTA_SPACER_PX}px` } })
