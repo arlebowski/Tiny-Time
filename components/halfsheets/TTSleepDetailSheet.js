@@ -133,6 +133,7 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     // Collapsible Notes/Photos state
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
+    const inputValueClassName = 'text-[18px]';
 
     // Wheel picker trays (feature flagged)
     const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
@@ -591,9 +592,9 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
           },
           className: "w-full py-3 rounded-2xl font-semibold transition",
                 style: { 
-            backgroundColor: (saving || !isValid) ? 'transparent' : 'var(--tt-sleep)',
-            color: (saving || !isValid) ? '#ef4444' : 'white',
-            border: (saving || !isValid) ? '1px solid #ef4444' : 'none',
+            backgroundColor: saving ? 'var(--tt-sleep-strong)' : (isValid ? 'var(--tt-sleep)' : 'transparent'),
+            color: saving ? 'white' : (isValid ? 'white' : '#ef4444'),
+            border: (!saving && !isValid) ? '1px solid #ef4444' : 'none',
             touchAction: 'manipulation', // Prevent scroll interference on mobile
             opacity: (saving || !isValid) ? 0.7 : 1,
             cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'

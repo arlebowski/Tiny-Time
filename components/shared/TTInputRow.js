@@ -21,7 +21,10 @@ const TTInputRow = ({
   openAnchoredTimePicker = null,
   onBlur = null,
   onFocus = null,
-  onKeyDown = null
+  onKeyDown = null,
+  valueClassName = '',
+  suffix = null,
+  suffixClassName = ''
 }) => {
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -137,6 +140,12 @@ const TTInputRow = ({
   const paddingClass = isCompact ? 'p-3' : 'p-4';
   const labelClass = isCompact ? 'text-[11px] mb-0.5' : 'text-xs mb-1';
   const valueClass = isCompact ? 'text-[15px]' : 'text-base';
+  const valueClassCombined = valueClassName
+    ? `${valueClass} ${valueClassName}`
+    : valueClass;
+  const suffixClassCombined = suffixClassName
+    ? suffixClassName
+    : 'text-xs text-[var(--tt-text-secondary)]';
 
   return React.createElement(
     'div',
@@ -163,7 +172,7 @@ const TTInputRow = ({
           ? React.createElement(
               'div',
               {
-                className: `${valueClass} font-normal w-full`,
+                className: `${valueClassCombined} font-normal w-full`,
                 style: {
                   color: invalid
                     ? '#ef4444'
@@ -189,7 +198,7 @@ const TTInputRow = ({
                   onKeyDown,
                   placeholder: placeholder,
                   rows: 1,
-                  className: `tt-placeholder-tertiary ${valueClass} font-normal w-full outline-none resize-none`,
+                  className: `tt-placeholder-tertiary ${valueClassCombined} font-normal w-full outline-none resize-none`,
                   style: {
                     background: 'transparent',
                     maxHeight: '4.5rem',
@@ -217,7 +226,7 @@ const TTInputRow = ({
                   onBlur,
                   onFocus,
                   onKeyDown,
-                  className: `tt-placeholder-tertiary ${valueClass} font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
+                  className: `tt-placeholder-tertiary ${valueClassCombined} font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
                   style: {
                     background: 'transparent',
                     color: invalid
@@ -227,6 +236,9 @@ const TTInputRow = ({
                   readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
                 }))
       ),
+      suffix && React.createElement('span', {
+        className: suffixClassCombined
+      }, suffix),
       showIcon && iconElement && React.createElement('button', {
         onClick: handleIconClick,
         className: "ml-4",

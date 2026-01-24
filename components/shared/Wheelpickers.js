@@ -62,7 +62,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
   
     timePicker: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px', padding: '0 4px' },
     timeColon: { 
-      fontSize: '20px', 
+      fontSize: '18px', 
       fontWeight: '600', 
       color: 'var(--tt-text-primary)' 
     },
@@ -103,7 +103,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: '16px',
+      fontSize: '18px',
       lineHeight: '40px',
       fontWeight: '400',
       color: 'var(--tt-text-primary)',
@@ -113,7 +113,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     itemSelected: { 
       color: 'var(--tt-text-primary)',
       fontWeight: '400',
-      fontSize: '17px'
+      fontSize: '18px'
     },
     // iOS-style selection bar (behind content)
     selection: {
@@ -1011,7 +1011,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
               transition: 'transform 250ms cubic-bezier(0.2, 0, 0, 1)',
               willChange: 'transform',
               paddingBottom: 'env(safe-area-inset-bottom, 0)',
-              height: '40vh',
+              height: '44vh',
+              minHeight: '44vh',
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
