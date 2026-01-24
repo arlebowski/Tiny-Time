@@ -867,13 +867,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
                   React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feeding'),
                   React.createElement('div', { className: "w-6" })
                 ),
-                React.createElement('div', {
-                  className: "flex-1 px-6 pt-8 pb-[42px]",
-                  style: {
-                    minHeight: 0,
-                    overscrollBehavior: 'none'
-                  }
-                }, bodyContent)
+                bodyContent
               )
             : null
         );

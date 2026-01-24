@@ -172,69 +172,80 @@ const TTInputRow = ({
           ? React.createElement(
               'div',
               {
-                className: `${valueClassCombined} font-normal w-full`,
+                className: suffix ? "flex items-center gap-1 w-full" : `${valueClassCombined} font-normal w-full`,
                 style: {
                   color: invalid
                     ? '#ef4444'
                     : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
                 }
               },
-              renderValue(displayValue, { rawValue, placeholder })
+              React.createElement('span', { className: `${valueClassCombined} font-normal` }, renderValue(displayValue, { rawValue, placeholder })),
+              suffix && React.createElement('span', { className: suffixClassCombined }, suffix)
             )
           : (type === 'text'
-              ? React.createElement('textarea', {
-                  ref: inputRef,
-                  value: displayValue || '',
-                  onChange: (e) => {
-                    if (onChange) {
-                      onChange(e.target.value);
-                      const el = e.target;
-                      el.style.height = 'auto';
-                      el.style.height = el.scrollHeight + 'px';
-                    }
-                  },
-                  onBlur,
-                  onFocus,
-                  onKeyDown,
-                  placeholder: placeholder,
-                  rows: 1,
-                  className: `tt-placeholder-tertiary ${valueClassCombined} font-normal w-full outline-none resize-none`,
-                  style: {
-                    background: 'transparent',
-                    maxHeight: '4.5rem',
-                    overflowY: 'auto',
-                    color: invalid ? '#ef4444' : 'var(--tt-text-primary)'
-                  }
-                })
-              : React.createElement('input', {
-                  ref: type === 'datetime' ? timeAnchorRef : inputRef,
-                  type: (type === 'datetime' || (shouldUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
-                  inputMode: type === 'number' ? 'decimal' : undefined,
-                  step: type === 'number' ? '0.25' : undefined,
-                  value: displayValue || '',
-                  placeholder: placeholder,
-                  onChange: (e) => {
-                    if (type !== 'datetime' && onChange) {
-                      if (type === 'number') {
-                        const nextValue = e.target.value.replace(/[^0-9.]/g, '');
-                        onChange(nextValue);
-                      } else {
+              ? React.createElement(
+                  'div',
+                  { className: suffix ? "flex items-center gap-1 w-full" : undefined },
+                  React.createElement('textarea', {
+                    ref: inputRef,
+                    value: displayValue || '',
+                    onChange: (e) => {
+                      if (onChange) {
                         onChange(e.target.value);
+                        const el = e.target;
+                        el.style.height = 'auto';
+                        el.style.height = el.scrollHeight + 'px';
                       }
+                    },
+                    onBlur,
+                    onFocus,
+                    onKeyDown,
+                    placeholder: placeholder,
+                    rows: 1,
+                    className: `tt-placeholder-tertiary ${valueClassCombined} font-normal outline-none resize-none ${suffix ? 'flex-1' : 'w-full'}`,
+                    style: {
+                      background: 'transparent',
+                      maxHeight: '4.5rem',
+                      overflowY: 'auto',
+                      color: invalid ? '#ef4444' : 'var(--tt-text-primary)'
                     }
-                  },
-                  onBlur,
-                  onFocus,
-                  onKeyDown,
-                  className: `tt-placeholder-tertiary ${valueClassCombined} font-normal w-full outline-none ${invalid ? 'text-red-600' : ''}`,
-                  style: {
-                    background: 'transparent',
-                    color: invalid
-                      ? '#ef4444'
-                      : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
-                  },
-                  readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
-                }))
+                  }),
+                  suffix && React.createElement('span', { className: suffixClassCombined }, suffix)
+                )
+              : React.createElement(
+                  'div',
+                  { className: suffix ? "flex items-center gap-1 w-full" : undefined },
+                  React.createElement('input', {
+                    ref: type === 'datetime' ? timeAnchorRef : inputRef,
+                    type: (type === 'datetime' || (shouldUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
+                    inputMode: type === 'number' ? 'decimal' : undefined,
+                    step: type === 'number' ? '0.25' : undefined,
+                    value: displayValue || '',
+                    placeholder: placeholder,
+                    onChange: (e) => {
+                      if (type !== 'datetime' && onChange) {
+                        if (type === 'number') {
+                          const nextValue = e.target.value.replace(/[^0-9.]/g, '');
+                          onChange(nextValue);
+                        } else {
+                          onChange(e.target.value);
+                        }
+                      }
+                    },
+                    onBlur,
+                    onFocus,
+                    onKeyDown,
+                    className: `tt-placeholder-tertiary ${valueClassCombined} font-normal outline-none ${invalid ? 'text-red-600' : ''} ${suffix ? 'flex-1' : 'w-full'}`,
+                    style: {
+                      background: 'transparent',
+                      color: invalid
+                        ? '#ef4444'
+                        : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
+                    },
+                    readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
+                  }),
+                  suffix && React.createElement('span', { className: suffixClassCombined }, suffix)
+                ))
       ),
       suffix && React.createElement('span', {
         className: suffixClassCombined
