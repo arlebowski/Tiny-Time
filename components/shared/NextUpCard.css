@@ -26,6 +26,25 @@
   min-width: 0;
 }
 
+.tt-next-up-card__sleep-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  line-height: 1;
+  border-radius: 9999px;
+  background-color: rgba(255,255,255,0.2);
+  /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.12); */
+}
+
+.tt-next-up-card__sleep-icon-svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  display: block;
+  transform: translateY(0.06em);
+}
+
 .tt-next-up-card__duration {
   font-size: 1.875rem;
   font-weight: 300;
@@ -83,6 +102,10 @@
 .tt-next-up-card--sleeping .tt-next-up-card__duration,
 .tt-next-up-card--sleeping .tt-next-up-card__subtext,
 .tt-next-up-card--sleeping .tt-next-up-card__zzz {
+  color: #ffffff;
+}
+
+.tt-next-up-card--sleeping .tt-next-up-card__sleep-icon {
   color: #ffffff;
 }
 

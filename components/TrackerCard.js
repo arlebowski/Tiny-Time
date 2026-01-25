@@ -2037,6 +2037,7 @@ const TrackerCard = ({
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-input-bg)',   // progress track background
     progressBarGoalText = null,               // Goal text below progress bar (for v3, e.g., "Goal 14.5 oz" or "Goal 12 hours")
+    progressBarGoalTextClassName = "text-[15.4px] font-normal leading-none",
     statusRow = null,                         // optional row below progress bar (v3)
     statusRowClassName = '',                  // spacing wrapper for statusRow
     showDotsRow = true,                       // dots row under progress bar
@@ -2246,7 +2247,7 @@ const TrackerCard = ({
         }
       },
       React.createElement('span', {
-        className: "text-[15.4px] font-normal leading-none",
+        className: progressBarGoalTextClassName,
         style: { color: 'var(--tt-text-tertiary)' }
       }, progressBarGoalText)
     ),
@@ -2949,6 +2950,25 @@ const TrackerCard = ({
       };
     }, [mode, v3IconSrc, v3IconSvg]);
 
+    // Always use variant2 (small icon + label in header)
+    const isVariant1 = false;
+    const isVariant2 = true;
+
+    const isV4Sizing = uiVersion === 'v4';
+    const v3StatusTextClassName = isV4Sizing
+      ? "text-[16px] font-normal leading-none"
+      : "text-[15.4px] font-normal leading-none";
+    const v3GoalTextClassName = isV4Sizing
+      ? "text-[16px] font-normal leading-none"
+      : "text-[15.4px] font-normal leading-none";
+    const v3TargetClassName = isVariant1
+      ? (isV4Sizing
+          ? "relative -top-[2px] text-[18px] leading-none font-normal"
+          : "relative -top-[2px] text-[17.6px] leading-none font-normal")
+      : (isV4Sizing
+          ? "relative -top-[1px] text-[18px] leading-none font-normal"
+          : "relative -top-[1px] text-[17.6px] leading-none font-normal");
+
     const v3StatusText = mode === 'feeding'
       ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No feedings yet')
       : (() => {
@@ -3012,7 +3032,7 @@ const TrackerCard = ({
             className: "inline-flex items-center gap-2",
             style: { color: 'var(--tt-text-tertiary)' }
           },
-          React.createElement('span', { className: "text-[15.4px] font-normal leading-none" }, "Sleeping now"),
+          React.createElement('span', { className: v3StatusTextClassName }, "Sleeping now"),
           chevronEl
         );
       }
@@ -3024,14 +3044,10 @@ const TrackerCard = ({
           className: "inline-flex items-center gap-2",
           style: { color: 'var(--tt-text-tertiary)' }
         },
-        React.createElement('span', { className: "text-[15.4px] font-normal leading-none" }, v3StatusText),
+        React.createElement('span', { className: v3StatusTextClassName }, v3StatusText),
         chevronEl
       );
     })();
-
-    // Always use variant2 (small icon + label in header)
-    const isVariant1 = false;
-    const isVariant2 = true;
 
     const v3CountPill = (() => {
       const n = Number(entriesTodayCount);
@@ -3130,9 +3146,7 @@ const TrackerCard = ({
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
       bigNumberValueClassName: "text-[39.6px] leading-none font-bold",
-      bigNumberTargetClassName: isVariant1 
-        ? "relative -top-[2px] text-[17.6px] leading-none font-normal"  // variant 1: consistent for both feeding and sleep
-        : "relative -top-[1px] text-[17.6px] leading-none font-normal",  // variant 2: consistent for both feeding and sleep
+      bigNumberTargetClassName: v3TargetClassName,
       bigNumberTargetColor: 'var(--tt-text-tertiary)',  // v3: match tertiary text color
       bigNumberTargetVariant: 'unit',  // v3: show just "oz" or "hrs" next to big number
       // 12px * 1.2 = 14.4px, +10% = 15.84px
@@ -3141,6 +3155,7 @@ const TrackerCard = ({
       progressBarGoalText: target !== null 
         ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
         : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),  // Goal text below progress bar for v3
+      progressBarGoalTextClassName: v3GoalTextClassName,
       // v3: no status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
@@ -3156,7 +3171,6 @@ const TrackerCard = ({
 
   // v4: experimental design (clone of v3, edit independently for testing)
   const renderV4Design = () => {
-    // For now, v4 is identical to v3 - you can customize this later
     return renderV3Design();
   };
 

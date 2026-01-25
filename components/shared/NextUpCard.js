@@ -176,6 +176,15 @@ const NextUpCard = ({
     className
   ].filter(Boolean).join(' ');
 
+  const SleepIcon =
+    (typeof window !== 'undefined' && window.TT && window.TT.shared && window.TT.shared.icons &&
+      (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
+    (typeof window !== 'undefined' && window.TT && window.TT.shared && window.TT.shared.icons &&
+      (window.TT.shared.icons["moon-main"] || window.TT.shared.icons.MoonMain)) ||
+    (typeof window !== 'undefined' && window.TT && window.TT.shared && window.TT.shared.icons &&
+      window.TT.shared.icons.Moon2) ||
+    null;
+
   return React.createElement(
     Root,
     {
@@ -186,6 +195,14 @@ const NextUpCard = ({
     React.createElement('div', { className: 'tt-next-up-card__content' },
       React.createElement('div', { className: 'tt-next-up-card__row' },
         React.createElement('div', { className: 'tt-next-up-card__duration-row' },
+          stateData.state === 'sleeping' && React.createElement(
+            'span',
+            { className: 'tt-next-up-card__sleep-icon', 'aria-hidden': true },
+            SleepIcon ? React.createElement(SleepIcon, {
+              className: 'tt-next-up-card__sleep-icon-svg',
+              style: { color: 'currentColor', strokeWidth: '1.5' }
+            }) : null
+          ),
           React.createElement('span', { className: 'tt-next-up-card__duration' }, stateData.duration),
           stateData.state === 'sleeping' && React.createElement('span', { className: 'tt-next-up-card__zzz' },
             React.createElement('span', null, 'z'),
