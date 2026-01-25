@@ -2735,7 +2735,7 @@ const TrackerCard = ({
       return React.createElement(
         'div',
         { 
-          className: "text-[17.6px] font-semibold inline-flex items-center gap-1",
+          className: "text-[18px] font-semibold inline-flex items-center gap-1",
           style: { color }
         },
         v2Svg ? React.createElement(v2Svg, { 
@@ -3103,11 +3103,11 @@ const TrackerCard = ({
       return React.createElement(
         'div',
         { 
-          className: "text-[17.6px] font-semibold inline-flex items-center gap-1",
+          className: "text-[18px] font-semibold inline-flex items-center gap-[5px]",
           style: { color }
         },
         v3Svg ? React.createElement(v3Svg, { 
-          className: "w-5 h-5", 
+          className: "w-[22px] h-[22px]", 
           style: { 
             color, 
             strokeWidth: isFeed ? '1.5' : undefined,
@@ -3125,7 +3125,7 @@ const TrackerCard = ({
     return renderDesign({
       showHeaderRow: isVariant2,                    // show header row for variant 2 (with icon + label)
       headerGapClass: 'gap-2',
-      headerBottomMarginClass: 'mb-8',
+      headerBottomMarginClass: 'mb-[36px]',
       headerLabelClassName: 'text-[15.4px] font-medium',
       iconOverride: V3Icon,
       feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
