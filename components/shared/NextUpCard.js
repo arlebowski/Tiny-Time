@@ -51,6 +51,20 @@ const __ttNextUpFormatTime = (date) => {
   return `${hours}:${minutesStr}${ampm}`;
 };
 
+const __ttNextUpFormatSleepTimer = (milliseconds) => {
+  const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  if (hours >= 1) {
+    return `${hours}h ${minutes}m`;
+  }
+  if (minutes < 1) {
+    return `${seconds}s`;
+  }
+  return `${minutes}m ${seconds}s`;
+};
+
 const NextUpCard = ({
   babyState = 'awake',
   sleepStartTime = null,
@@ -88,8 +102,6 @@ const NextUpCard = ({
     if (babyState === 'sleeping') {
       const sleepStart = resolvedSleepStart || now;
       const sleepDuration = Math.max(0, now - sleepStart);
-      const hours = Math.floor(sleepDuration / (1000 * 60 * 60));
-      const minutes = Math.floor((sleepDuration % (1000 * 60 * 60)) / (1000 * 60));
 
       // Check if next event is within 30 minutes
       let showNextEvent = false;
@@ -105,7 +117,7 @@ const NextUpCard = ({
 
       return {
         state: 'sleeping',
-        duration: `${hours}h ${minutes}m`,
+        duration: __ttNextUpFormatSleepTimer(sleepDuration),
         nextEvent: showNextEvent ? nextEventText : null,
         buttonText: 'Wake Up',
         buttonAction: onWakeUp

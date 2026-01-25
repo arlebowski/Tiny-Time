@@ -2957,17 +2957,17 @@ const TrackerCard = ({
     const isV4Sizing = uiVersion === 'v4';
     const v3StatusTextClassName = isV4Sizing
       ? "text-[16px] font-normal leading-none"
-      : "text-[15.4px] font-normal leading-none";
+      : "text-[16px] font-normal leading-none";
     const v3GoalTextClassName = isV4Sizing
       ? "text-[16px] font-normal leading-none"
-      : "text-[15.4px] font-normal leading-none";
+      : "text-[16px] font-normal leading-none";
     const v3TargetClassName = isVariant1
       ? (isV4Sizing
-          ? "relative -top-[2px] text-[18px] leading-none font-normal"
-          : "relative -top-[2px] text-[17.6px] leading-none font-normal")
+          ? "relative -top-[2px] text-[20px] leading-none font-normal"
+          : "relative -top-[2px] text-[20px] leading-none font-normal")
       : (isV4Sizing
-          ? "relative -top-[1px] text-[18px] leading-none font-normal"
-          : "relative -top-[1px] text-[17.6px] leading-none font-normal");
+          ? "relative -top-[1px] text-[20px] leading-none font-normal"
+          : "relative -top-[1px] text-[20px] leading-none font-normal");
 
     const v3StatusText = mode === 'feeding'
       ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No feedings yet')
