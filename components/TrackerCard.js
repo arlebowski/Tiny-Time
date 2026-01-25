@@ -3097,7 +3097,7 @@ const TrackerCard = ({
            (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
            null);
       const color = isFeed ? 'var(--tt-feed)' : 'var(--tt-sleep)';
-      const label = isFeed ? 'Feeding' : 'Sleep';
+      const label = isFeed ? 'Feed' : 'Sleep';
       
       // Variant 2 uses SVG icons directly (no PNG mask needed)
       return React.createElement(
