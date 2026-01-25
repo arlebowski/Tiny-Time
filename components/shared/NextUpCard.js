@@ -224,7 +224,7 @@ const NextUpCard = ({
         ),
         stateData.buttonText && React.createElement('button', {
           type: 'button',
-          className: 'tt-next-up-card__cta',
+          className: 'tt-next-up-card__cta tt-tapable',
           onClick: stateData.buttonAction,
           'aria-label': stateData.buttonText
         }, stateData.buttonText)

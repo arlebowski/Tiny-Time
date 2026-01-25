@@ -24,7 +24,8 @@ const TTInputRow = ({
   onKeyDown = null,
   valueClassName = '',
   suffix = null,
-  suffixClassName = ''
+  suffixClassName = '',
+  inlineSuffix = false
 }) => {
   React.useEffect(() => {
     if (typeof document === 'undefined') return;
@@ -145,7 +146,11 @@ const TTInputRow = ({
     : valueClass;
   const suffixClassCombined = suffixClassName
     ? suffixClassName
-    : 'text-xs text-[var(--tt-text-secondary)]';
+    : (inlineSuffix ? `${valueClassCombined} font-normal text-[var(--tt-text-primary)]` : 'text-xs text-[var(--tt-text-secondary)]');
+  const showInlineSuffix = !!(suffix && inlineSuffix);
+  const showTrailingSuffix = !!(suffix && !inlineSuffix);
+  const inlineValue = displayValue || '';
+  const inlineWidthCh = Math.max(String(inlineValue || placeholder || '').length, 1);
 
   return React.createElement(
     'div',
@@ -172,7 +177,7 @@ const TTInputRow = ({
           ? React.createElement(
               'div',
               {
-                className: suffix ? "flex items-center gap-1 w-full" : `${valueClassCombined} font-normal w-full`,
+                className: (suffix || showInlineSuffix) ? "inline-flex items-baseline gap-1 w-full" : `${valueClassCombined} font-normal w-full`,
                 style: {
                   color: invalid
                     ? '#ef4444'
@@ -180,7 +185,7 @@ const TTInputRow = ({
                 }
               },
               React.createElement('span', { className: `${valueClassCombined} font-normal` }, renderValue(displayValue, { rawValue, placeholder })),
-              suffix && React.createElement('span', { className: suffixClassCombined }, suffix)
+              showInlineSuffix && React.createElement('span', { className: suffixClassCombined, style: { marginLeft: 2 } }, suffix)
             )
           : (type === 'text'
               ? React.createElement(
@@ -214,7 +219,7 @@ const TTInputRow = ({
                 )
               : React.createElement(
                   'div',
-                  { className: suffix ? "flex items-center gap-1 w-full" : undefined },
+                  { className: (suffix || showInlineSuffix) ? "inline-flex items-baseline w-full" : undefined },
                   React.createElement('input', {
                     ref: type === 'datetime' ? timeAnchorRef : inputRef,
                     type: (type === 'datetime' || (shouldUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
@@ -235,19 +240,21 @@ const TTInputRow = ({
                     onBlur,
                     onFocus,
                     onKeyDown,
-                    className: `tt-placeholder-tertiary ${valueClassCombined} font-normal outline-none ${invalid ? 'text-red-600' : ''} ${suffix ? 'flex-1' : 'w-full'}`,
+                    className: `tt-placeholder-tertiary ${valueClassCombined} font-normal outline-none ${invalid ? 'text-red-600' : ''} ${(suffix && !showInlineSuffix) ? 'flex-1' : 'w-full'}`,
                     style: {
                       background: 'transparent',
+                      width: showInlineSuffix ? `${inlineWidthCh}ch` : undefined,
+                      minWidth: showInlineSuffix ? '2ch' : undefined,
                       color: invalid
                         ? '#ef4444'
                         : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
                     },
                     readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')
                   }),
-                  suffix && React.createElement('span', { className: suffixClassCombined }, suffix)
+                  showInlineSuffix && React.createElement('span', { className: suffixClassCombined, style: { marginLeft: 2 } }, suffix)
                 ))
       ),
-      suffix && React.createElement('span', {
+      showTrailingSuffix && React.createElement('span', {
         className: suffixClassCombined
       }, suffix),
       showIcon && iconElement && React.createElement('button', {

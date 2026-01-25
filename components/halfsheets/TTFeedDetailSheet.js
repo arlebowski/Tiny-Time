@@ -500,6 +500,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
           type: 'number',
           placeholder: '0',
           suffix: 'oz',
+          inlineSuffix: true,
           pickerMode: 'amount',
           onOpenPicker: openTrayPicker
         }),
@@ -864,7 +865,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
                     window.XIcon,
                     { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
                   )),
-                  React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feeding'),
+                  React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feed'),
                   React.createElement('div', { className: "w-6" })
                 ),
                 bodyContent
@@ -883,7 +884,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         {
           isOpen: isOpen || false,
           onClose: handleClose,
-          title: 'Feeding',
+          title: 'Feed',
           accentColor: 'var(--tt-feed)',
           rightAction: null,
           fixedHeight: calculateHeight
@@ -911,7 +912,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         }, XIcon ? React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }) : '×'),
         
         // Centered title
-        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feeding'),
+        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feed'),
         
         // Save button
         React.createElement('button', {

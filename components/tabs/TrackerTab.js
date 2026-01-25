@@ -3407,7 +3407,7 @@ Output ONLY the formatted string, nothing else.`;
           onWakeUp: () => requestInputSheetOpen('sleep'),
           onLogFeed: () => requestInputSheetOpen('feeding'),
           onStartSleep: () => requestInputSheetOpen('sleep'),
-          className: `tt-tapable ${whatsNextCardAnimating === 'entering' ? 'timeline-item-enter' : whatsNextCardAnimating === 'exiting' ? 'timeline-item-exit' : ''}`,
+          className: `${whatsNextCardAnimating === 'entering' ? 'timeline-item-enter' : whatsNextCardAnimating === 'exiting' ? 'timeline-item-exit' : ''}`,
           style: {
             overflow: whatsNextCardAnimating === 'exiting' ? 'hidden' : 'visible',
             marginBottom: whatsNextCardAnimating === 'exiting' ? '1rem' : '16px'

@@ -2316,6 +2316,17 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   }))();
   const isV2OrV3 = uiVersion === 'v2' || uiVersion === 'v3';
   const isV2OrV3OrV4 = uiVersion === 'v2' || uiVersion === 'v3' || uiVersion === 'v4';
+  const shouldUseNewInputFlow = uiVersion === 'v4' && (() => {
+    try {
+      if (window.TT?.shared?.flags?.newInputFlow?.get) {
+        return !!window.TT.shared.flags.newInputFlow.get();
+      }
+      return window.localStorage?.getItem('tt_new_input_flow') === 'true';
+    } catch {
+      return false;
+    }
+  })();
+  const FloatingTrackerMenu = window.TT?.shared?.FloatingTrackerMenu || null;
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
   const openInputSheet = React.useCallback((mode = 'feeding') => {
@@ -2853,6 +2864,18 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       }
     }),
 
+    shouldUseNewInputFlow && FloatingTrackerMenu && React.createElement(FloatingTrackerMenu, {
+      onSelectTracker: (type) => {
+        openInputSheet(type);
+        setShowShareMenu(false);
+        setShowKidMenu(false);
+      },
+      position: {
+        bottom: 'calc(env(safe-area-inset-bottom) + 45px)',
+        left: '50%'
+      }
+    }),
+
     // Gradient fade above footer for smooth content fade
     React.createElement(
       'div',
@@ -2884,196 +2907,338 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       isV2OrV3OrV4
         ? React.createElement(
             'div',
-            { className: "max-w-2xl mx-auto relative flex items-center justify-around px-4 py-3" },
-            // Order v4: Today | Schedule | + | Trends | Family
-            // Order v1/v2/v3: Today | Trends | + | Chat | Family
-            React.createElement(
-              React.Fragment,
-              null,
-              React.createElement(
-                'button',
-                {
-                  key: 'tracker',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('tracker');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: {
-                    color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
-                  }
-                },
-                React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
-                  className: "w-6 h-6",
-                  isSelected: activeTab === 'tracker',
-                  selectedWeight: 'fill',
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }),
-                React.createElement('span', { 
-                  className: "text-xs font-light",
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }, 'Today')
-              ),
-              // Schedule tab - only in v4
-              uiVersion === 'v4' && React.createElement(
-                'button',
-                {
-                  key: 'schedule',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('schedule');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: {
-                    color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
-                  }
-                },
-                React.createElement(window.TT?.shared?.icons?.ScheduleIcon || (() => null), {
-                  className: "w-6 h-6",
-                  isSelected: activeTab === 'schedule',
-                  selectedWeight: 'fill',
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }),
-                React.createElement('span', { 
-                  className: "text-xs font-light",
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }, 'Schedule')
-              ),
-              // Plus button (center)
-              React.createElement(
-                'button',
-                {
-                  key: 'plus',
-                  type: 'button',
-                  onClick: () => {
-                    openInputSheet('feeding');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className:
-                    "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
-                  style: {
-                    backgroundColor: 'var(--tt-plus-bg)',
-                    color: 'var(--tt-plus-fg)'
-                  },
-                  'aria-label': 'Add'
-                },
-                React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
-                  className: "w-6 h-6",
-                  weight: 'fill',
-                  style: { color: 'var(--tt-plus-fg)' }
-                })
-              ),
-              // Trends/Analytics
-              React.createElement(
-                'button',
-                {
-                  key: 'analytics',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('analytics');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: {
-                    color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
-                  }
-                },
-                React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
-                  className: "w-6 h-6",
-                  isSelected: activeTab === 'analytics',
-                  selectedWeight: 'fill',
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }),
-                React.createElement('span', { 
-                  className: "text-xs font-light",
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }, 'Trends')
-              ),
-              // AI Chat tab - hidden in v4
-              uiVersion !== 'v4' && React.createElement(
-                'button',
-                {
-                  key: 'chat',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('chat');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: {
-                    color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
-                  }
-                },
-                React.createElement(window.TT?.shared?.icons?.ChatIcon || (() => null), {
-                  className: "w-6 h-6",
-                  isSelected: activeTab === 'chat',
-                  selectedWeight: 'fill',
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }),
-                React.createElement('span', { 
-                  className: "text-xs font-light",
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }, 'Chat')
-              ),
-              React.createElement(
-                'button',
-                {
-                  key: 'family',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('family');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: {
-                    color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
-                  }
-                },
-                React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
-                  className: "w-6 h-6",
-                  isSelected: activeTab === 'family',
-                  selectedWeight: 'fill',
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }),
-                React.createElement('span', { 
-                  className: "text-xs font-light",
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }, 'Family')
-              )
-            )
+            { className: "max-w-2xl mx-auto relative flex items-center justify-between px-4 py-3" },
+            // v4 with new input flow: no center + in the bar (floating instead)
+            shouldUseNewInputFlow && uiVersion === 'v4'
+              ? React.createElement(
+                  React.Fragment,
+                  null,
+                  React.createElement(
+                    'button',
+                    {
+                      key: 'tracker',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('tracker');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'tracker',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Today')
+                  ),
+                  React.createElement(
+                    'button',
+                    {
+                      key: 'schedule',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('schedule');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.ScheduleIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'schedule',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Schedule')
+                  ),
+                  React.createElement('div', {
+                    key: 'plus-spacer',
+                    className: "flex-1 py-2 flex items-center justify-center",
+                    style: {
+                      transform: 'translateY(-10px)'
+                    },
+                    'aria-hidden': 'true'
+                  }),
+                  React.createElement(
+                    'button',
+                    {
+                      key: 'analytics',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('analytics');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'analytics',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Trends')
+                  ),
+                  React.createElement(
+                    'button',
+                    {
+                      key: 'family',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('family');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'family',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Family')
+                  )
+                )
+              : React.createElement(
+                  React.Fragment,
+                  null,
+                  React.createElement(
+                    'button',
+                    {
+                      key: 'tracker',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('tracker');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'tracker',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Today')
+                  ),
+                  // Schedule tab - only in v4
+                  uiVersion === 'v4' && React.createElement(
+                    'button',
+                    {
+                      key: 'schedule',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('schedule');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.ScheduleIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'schedule',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Schedule')
+                  ),
+                  // Plus button (center)
+                  shouldUseNewInputFlow && FloatingTrackerMenu
+                    ? React.createElement('div', {
+                        key: 'plus',
+                        className: "mx-2 w-14 h-14 -mt-7",
+                        'aria-hidden': 'true'
+                      })
+                    : React.createElement(
+                        'button',
+                        {
+                          key: 'plus',
+                          type: 'button',
+                          onClick: () => {
+                            openInputSheet('feeding');
+                            setShowShareMenu(false);
+                            setShowKidMenu(false);
+                          },
+                          className:
+                            "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
+                          style: {
+                            backgroundColor: 'var(--tt-plus-bg)',
+                            color: 'var(--tt-plus-fg)'
+                          },
+                          'aria-label': 'Add'
+                        },
+                        React.createElement(window.TT?.shared?.icons?.PlusIcon || (() => null), {
+                          className: "w-6 h-6",
+                          weight: 'fill',
+                          style: { color: 'var(--tt-plus-fg)' }
+                        })
+                      ),
+                  // Trends/Analytics
+                  React.createElement(
+                    'button',
+                    {
+                      key: 'analytics',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('analytics');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'analytics',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Trends')
+                  ),
+                  // AI Chat tab - hidden in v4
+                  uiVersion !== 'v4' && React.createElement(
+                    'button',
+                    {
+                      key: 'chat',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('chat');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.ChatIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'chat',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Chat')
+                  ),
+                  React.createElement(
+                    'button',
+                    {
+                      key: 'family',
+                      type: 'button',
+                      onClick: () => {
+                        setActiveTab('family');
+                        setShowShareMenu(false);
+                        setShowKidMenu(false);
+                      },
+                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
+                      style: {
+                        color: 'var(--tt-text-primary)',
+                        transform: 'translateY(-10px)'
+                      }
+                    },
+                    React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
+                      className: "w-6 h-6",
+                      isSelected: activeTab === 'family',
+                      selectedWeight: 'fill',
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }),
+                    React.createElement('span', {
+                      className: "text-xs font-light",
+                      style: {
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Family')
+                  )
+                )
           )
         : React.createElement(
             'div',
