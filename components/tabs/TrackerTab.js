@@ -3318,6 +3318,18 @@ Output ONLY the formatted string, nothing else.`;
 
   // Add a little bottom padding so the last card isn't obscured by mobile safe-area / nav.
   const HorizontalCalendar = (window.TT && window.TT.shared && window.TT.shared.HorizontalCalendar) || null;
+  const NextUpCard = (window.TT && window.TT.shared && window.TT.shared.NextUpCard) || null;
+  const nextUpEvent = (() => {
+    const predicted = predictedTimeRef.current;
+    if (!predicted || !(predicted.time instanceof Date) || isNaN(predicted.time.getTime())) return null;
+    const rawType = predicted.type || 'sleep';
+    const isFeed = rawType === 'feed';
+    const type = isFeed ? 'feed' : 'sleep';
+    const label = isFeed ? 'Feed' : (rawType === 'nap' ? 'Nap' : getSleepLabel(predicted.time, sleepSettings));
+    return { type, scheduledTime: predicted.time, label };
+  })();
+  const nextUpBabyState = activeSleep && activeSleep.startTime ? 'sleeping' : 'awake';
+  const nextUpSleepStart = activeSleep && activeSleep.startTime ? activeSleep.startTime : null;
   
   return React.createElement('div', { className: "space-y-4 pb-24" },
     (loading && hasLoadedOnce) && React.createElement('div', {
@@ -3387,7 +3399,20 @@ Output ONLY the formatted string, nothing else.`;
       ),
       // What's Next Card - simple card with icon, label, and body (only show on today, v3 and v4)
       // Show card if it's today OR if it's animating out
-      (isToday() || whatsNextCardAnimating === 'exiting') && (uiVersion === 'v3' || uiVersion === 'v4') && React.createElement('div', {
+      (isToday() || whatsNextCardAnimating === 'exiting') && (uiVersion === 'v3' || uiVersion === 'v4') && (
+        (uiVersion === 'v4' && NextUpCard) ? React.createElement(NextUpCard, {
+          babyState: nextUpBabyState,
+          sleepStartTime: nextUpSleepStart,
+          nextEvent: nextUpEvent,
+          onWakeUp: () => requestInputSheetOpen('sleep'),
+          onLogFeed: () => requestInputSheetOpen('feeding'),
+          onStartSleep: () => requestInputSheetOpen('sleep'),
+          className: `tt-tapable ${whatsNextCardAnimating === 'entering' ? 'timeline-item-enter' : whatsNextCardAnimating === 'exiting' ? 'timeline-item-exit' : ''}`,
+          style: {
+            overflow: whatsNextCardAnimating === 'exiting' ? 'hidden' : 'visible',
+            marginBottom: whatsNextCardAnimating === 'exiting' ? '1rem' : '16px'
+          }
+        }) : React.createElement('div', {
         className: `rounded-2xl px-5 py-4 tt-tapable ${whatsNextCardAnimating === 'entering' ? 'timeline-item-enter' : whatsNextCardAnimating === 'exiting' ? 'timeline-item-exit' : ''}`,
         style: {
           backgroundColor: activeSleep && activeSleep.startTime 
@@ -3878,7 +3903,8 @@ Output ONLY the formatted string, nothing else.`;
             )
           )
         )
-      ),
+      )
+    ),
       React.createElement(window.TrackerCard, {
         mode: 'feeding',
         total: feedingCardData.total,
