@@ -347,6 +347,24 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       });
 
       setLoggedTimelineItems(allCards);
+      const feedTotal = dayFeedings.reduce((sum, f) => {
+        const amount = f.ounces ?? f.amountOz ?? f.amount ?? f.volumeOz ?? f.volume ?? 0;
+        const n = Number(amount);
+        return Number.isFinite(n) ? sum + n : sum;
+      }, 0);
+      const sleepTotalMs = daySleepSessions.reduce((sum, s) => {
+        const endCandidate = s.endTime || (s.isActive ? Date.now() : null);
+        if (!endCandidate) return sum;
+        const norm = normalizeSleepInterval(s.startTime, endCandidate);
+        if (!norm) return sum;
+        return sum + overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs);
+      }, 0);
+      setSelectedSummary({
+        feedOz: Math.round(feedTotal * 10) / 10,
+        sleepMs: sleepTotalMs,
+        feedPct: 0,
+        sleepPct: 0
+      });
       setScheduledTimelineItems(activeSleepCard ? [activeSleepCard] : []);
       const activeSleepSession = (allSleepSessions || []).find(s => s && s.startTime && (s.isActive || !s.endTime)) || null;
       const dateKey = getScheduleDateKey(date);
