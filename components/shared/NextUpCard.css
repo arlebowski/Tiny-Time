@@ -30,17 +30,17 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 24px;
+  height: 24px;
   line-height: 1;
   border-radius: 9999px;
-  background-color: rgba(255,255,255,0.2);
+  /* background-color: rgba(255,255,255,0.2); */
   /* box-shadow: inset 0 1px 2px rgba(0,0,0,0.12); */
 }
 
 .tt-next-up-card__sleep-icon-svg {
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 24px;
+  height: 24px;
   display: block;
   transform: translateY(0.06em);
 }
