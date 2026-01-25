@@ -1896,9 +1896,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                   transition: { type: "spring", damping: 25, stiffness: 300 },
                   drag: "y",
                   dragConstraints: { top: 0, bottom: 0 },
-                  dragElastic: { top: 0, bottom: 0.35 },
+                  dragElastic: { top: 0, bottom: 0 },
                   onDragEnd: (e, info) => {
-                    if (info.offset.y > 100 || info.velocity.y > 800) {
+                    if (info.offset.y > 90 || info.velocity.y > 700) {
                       handleClose();
                     }
                   },
