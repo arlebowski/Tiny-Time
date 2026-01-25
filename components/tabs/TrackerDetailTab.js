@@ -100,69 +100,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
 
 
   const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions, activeSleepSession = null, filterMode = 'all') => {
-    const dateKey = getScheduleDateKey(date);
-    const todayKey = getScheduleDateKey(new Date());
-    if (dateKey !== todayKey || !Array.isArray(projectedItems) || projectedItems.length === 0) {
-      setScheduledTimelineItems([]);
-      return;
-    }
-
-    const completionWindowMs = 45 * 60 * 1000;
-    const nowMs = Date.now();
-    const upcomingFloorMs = nowMs - completionWindowMs;
-
-    const scheduledCards = projectedItems
-      .map((item, idx) => buildScheduledCard(item, dateKey, idx))
-      .filter(Boolean);
-    const augmentedSleeps = [...(daySleepSessions || [])];
-    if (activeSleepSession && activeSleepSession.startTime) {
-      const activeExists = augmentedSleeps.some((s) => s && s.id === activeSleepSession.id);
-      if (!activeExists) augmentedSleeps.push(activeSleepSession);
-    }
-    const scheduleMatcher = window.TT?.utils?.scheduleUtils?.matchScheduleToActualEvents;
-    const matchedSchedule = typeof scheduleMatcher === 'function'
-      ? scheduleMatcher(scheduledCards, dayFeedings, augmentedSleeps, completionWindowMs)
-      : scheduledCards;
-    const sortedProjected = matchedSchedule
-      .filter((card) => {
-        if (filterMode === 'feed') return card.type === 'feed';
-        if (filterMode === 'sleep') return card.type === 'sleep';
-        return true;
-      })
-      .map((card) => ({ card, isCompleted: !!card.isCompleted }))
-      .sort((a, b) => a.card.timeMs - b.card.timeMs);
-
-    const graceWindowMs = 2 * 60 * 60 * 1000;
-    const nextItem = sortedProjected.find(({ card, isCompleted }) => {
-      if (isCompleted) return false;
-      if (card.timeMs >= upcomingFloorMs) return true;
-      return nowMs - card.timeMs <= graceWindowMs;
-    });
-
-    if (nextItem) {
-      setScheduledTimelineItems([nextItem.card]);
-      return;
-    }
-
-    // Special case: if it's late, show the first scheduled item for the next day.
-    const lateHourThreshold = 21; // 9pm
-    if (nowMs >= new Date(new Date(nowMs).setHours(lateHourThreshold, 0, 0, 0)).getTime()) {
-      const first = sortedProjected[0]?.card;
-      if (first && Number.isFinite(first.timeMs)) {
-        const nextDayTimeMs = first.timeMs + 24 * 60 * 60 * 1000;
-        const nextDayCard = buildScheduledCard(
-          { ...projectedItems[0], timeMs: nextDayTimeMs },
-          dateKey,
-          0
-        );
-        if (nextDayCard) {
-          nextDayCard.id = `${nextDayCard.id}-nextday`;
-          setScheduledTimelineItems([nextDayCard]);
-          return;
-        }
-      }
-    }
-
+    if (activeSleepSession && activeSleepSession.startTime) return;
     setScheduledTimelineItems([]);
   };
 
@@ -214,7 +152,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
       const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
       const activeSleep = latest && latest.dateKey === dateKey ? latest.activeSleep : null;
-        updateNextScheduledItem(date, parsed.items, feedings, sleeps, activeSleep, summaryLayoutMode);
+      updateNextScheduledItem(date, parsed.items, feedings, sleeps, activeSleep, summaryLayoutMode);
     } catch (error) {
       projectedScheduleRef.current = null;
       setScheduledTimelineItems([]);
@@ -397,16 +335,19 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       const sleepCards = daySleepSessions
         .map(s => sleepToCard(s, dayStartMs, dayEndMs))
         .filter(Boolean); // Filter out any null results
+      const activeSleepCard = sleepCards.find(card => card && card.isActive) || null;
+      const visibleSleepCards = sleepCards.filter(card => !card.isActive);
 
       // Combine and sort by time (hour * 60 + minute)
       // Cross-day sleeps will naturally sort first (hour=0, minute=0)
-      const allCards = [...feedingCards, ...sleepCards].sort((a, b) => {
+      const allCards = [...feedingCards, ...visibleSleepCards].sort((a, b) => {
         const aMinutes = a.hour * 60 + a.minute;
         const bMinutes = b.hour * 60 + b.minute;
         return aMinutes - bMinutes;
       });
 
       setLoggedTimelineItems(allCards);
+      setScheduledTimelineItems(activeSleepCard ? [activeSleepCard] : []);
       const activeSleepSession = (allSleepSessions || []).find(s => s && s.startTime && (s.isActive || !s.endTime)) || null;
       const dateKey = getScheduleDateKey(date);
       latestActualEventsRef.current = {

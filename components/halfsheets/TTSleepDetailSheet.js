@@ -478,23 +478,10 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     const tParts = formatElapsedHmsTT(durationMs);
 
     // Body content (used in both static and overlay modes)
-    // IMPORTANT: Make the body a full-height flex column so the CTA stays locked to the bottom
-    const bodyContent = React.createElement(
-      'div',
-      { style: { minHeight: __ttUseV4Sheet ? undefined : '100%', display: 'flex', flexDirection: 'column', position: __ttUseV4Sheet ? 'relative' : undefined } },
-      // Content wrapper
-      React.createElement('div', {
-        style: {
-          position: 'relative',
-          overflow: __ttUseV4Sheet ? 'visible' : 'hidden',
-          width: '100%',
-          flex: __ttUseV4Sheet ? undefined : 1,
-          minHeight: 0,
-          paddingBottom: __ttUseV4Sheet ? `${Math.max(ctaHeightPx || 0, CTA_SPACER_PX) + CTA_BOTTOM_OFFSET_PX + 24}px` : undefined
-        }
-      },
-      // Timer Display
-      React.createElement('div', { className: "text-center mb-6" },
+    const contentBlock = React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('div', { className: "text-center mb-10" },
         React.createElement('div', { className: "text-[40px] leading-none font-bold", style: { color: 'var(--tt-text-primary)' } },
           React.createElement(React.Fragment, null,
             tParts.showH && React.createElement(React.Fragment, null,
@@ -512,52 +499,61 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
           )
         )
       ),
-
-      // Input rows wrapped in spacing container
       React.createElement('div', { className: "space-y-2" },
-        // Start time
-        React.createElement(InputRow, {
-          label: 'Start time',
-          value: formatDateTime(startTime), // This won't be used for datetime type
-          rawValue: startTime, // Pass the raw ISO string
-          onChange: setStartTime,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'datetime',
-          pickerMode: 'datetime_start',
-          onOpenPicker: openTrayPicker,
-        }),
-
-        // End time
-        React.createElement(InputRow, {
-          label: 'End time',
-          value: formatDateTime(endTime), // This won't be used for datetime type
-          rawValue: endTime, // Pass the raw ISO string
-          onChange: setEndTime,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'datetime',
-          pickerMode: 'datetime_end',
-          onOpenPicker: openTrayPicker,
-          invalid: !isValid // Pass invalid flag when end time is before start time
-        }),
-
-        // Notes - conditionally render based on expanded state
-        notesExpanded 
+        React.createElement('div', { className: "grid grid-cols-2 gap-3" },
+          React.createElement(InputRow, {
+            label: 'Start time',
+            value: formatDateTime(startTime),
+            rawValue: startTime,
+            onChange: setStartTime,
+            icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+            valueClassName: inputValueClassName,
+            type: 'datetime',
+            pickerMode: 'datetime_start',
+            onOpenPicker: openTrayPicker,
+          }),
+          React.createElement(InputRow, {
+            label: 'End time',
+            value: formatDateTime(endTime),
+            rawValue: endTime,
+            onChange: setEndTime,
+            icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+            valueClassName: inputValueClassName,
+            type: 'datetime',
+            pickerMode: 'datetime_end',
+            onOpenPicker: openTrayPicker,
+            invalid: !isValid
+          })
+        ),
+        (!notesExpanded && !photosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
+          React.createElement('div', {
+            onClick: () => setNotesExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add notes'),
+          TTPhotoRow && React.createElement('div', {
+            onClick: () => setPhotosExpanded(true),
+            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add photos')
+        ),
+        notesExpanded
           ? React.createElement(InputRow, {
-          label: 'Notes',
-          value: notes,
-          onChange: setNotes,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          type: 'text',
-          placeholder: 'Add a note...'
-        })
-          : React.createElement('div', {
+              label: 'Notes',
+              value: notes,
+              onChange: setNotes,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              valueClassName: inputValueClassName,
+              type: 'text',
+              placeholder: 'Add a note...'
+            })
+          : photosExpanded ? React.createElement('div', {
               onClick: () => setNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
               style: { color: 'var(--tt-text-tertiary)' }
-            }, '+ Add notes')
+            }, '+ Add notes') : null
       ),
-
-      TTPhotoRow && React.createElement(TTPhotoRow, {
+      TTPhotoRow && photosExpanded && React.createElement(TTPhotoRow, {
         expanded: photosExpanded,
         onExpand: () => setPhotosExpanded(true),
         existingPhotos: existingPhotoURLs,
@@ -566,52 +562,44 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         onRemovePhoto: handleRemovePhoto,
         onPreviewPhoto: setFullSizePhoto
       }),
+      TTPhotoRow && !photosExpanded && notesExpanded && React.createElement('div', {
+        onClick: () => setPhotosExpanded(true),
+        className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+        style: { color: 'var(--tt-text-tertiary)' }
+      }, '+ Add photos')
+    );
 
-      // Sticky bottom CTA (Save button)
-      // Hide when keyboard is open to prevent overlap with keyboard
-        React.createElement('div', {
-        ref: ctaFooterRef,
-        className: __ttUseV4Sheet ? "left-0 right-0 pt-3 pb-1" : "sticky bottom-0 left-0 right-0 pt-3 pb-1",
-        style: { 
-          zIndex: 10,
-          backgroundColor: 'var(--tt-card-bg)',
-          display: isKeyboardOpen ? 'none' : 'block',
-          bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
-          left: 0,
-          right: 0,
-          position: __ttUseV4Sheet ? 'absolute' : 'sticky'
+    const ctaButton = React.createElement('button', {
+      type: 'button',
+      onClick: handleSave,
+      disabled: saving || !isValid,
+      onTouchStart: (e) => {
+        e.stopPropagation();
+      },
+      className: "w-full py-3 rounded-2xl font-semibold transition",
+      style: { 
+        backgroundColor: saving ? 'var(--tt-sleep-strong)' : (isValid ? 'var(--tt-sleep)' : 'transparent'),
+        color: saving ? 'white' : (isValid ? 'white' : '#ef4444'),
+        border: (!saving && !isValid) ? '1px solid #ef4444' : 'none',
+        touchAction: 'manipulation',
+        opacity: (saving || !isValid) ? 0.7 : 1,
+        cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'
+      },
+      onMouseEnter: (e) => {
+        if (!saving && isValid) {
+          e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
         }
       },
-              React.createElement('button', {
-          type: 'button',
-          onClick: handleSave,
-          disabled: saving || !isValid,
-          onTouchStart: (e) => {
-            // Prevent scroll container from capturing touch
-            e.stopPropagation();
-          },
-          className: "w-full py-3 rounded-2xl font-semibold transition",
-                style: { 
-            backgroundColor: saving ? 'var(--tt-sleep-strong)' : (isValid ? 'var(--tt-sleep)' : 'transparent'),
-            color: saving ? 'white' : (isValid ? 'white' : '#ef4444'),
-            border: (!saving && !isValid) ? '1px solid #ef4444' : 'none',
-            touchAction: 'manipulation', // Prevent scroll interference on mobile
-            opacity: (saving || !isValid) ? 0.7 : 1,
-            cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'
-          },
-          onMouseEnter: (e) => {
-            if (!saving && isValid) {
-              e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-            }
-          },
-          onMouseLeave: (e) => {
-            if (!saving && isValid) {
-              e.target.style.backgroundColor = 'var(--tt-sleep)';
-            }
-          }
-        }, saving ? 'Saving...' : 'Save')
-      ),
+      onMouseLeave: (e) => {
+        if (!saving && isValid) {
+          e.target.style.backgroundColor = 'var(--tt-sleep)';
+        }
+      }
+    }, saving ? 'Saving...' : 'Save');
 
+    const overlayContent = React.createElement(
+      React.Fragment,
+      null,
       // Wheel date/time tray (feature flagged)
       TTPickerTray && WheelPicker && React.createElement(TTPickerTray, {
         isOpen: showDateTimeTray,
@@ -709,8 +697,62 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         ),
         document.body
       )
-    )
-  );
+    );
+
+    const bodyContent = __ttUseV4Sheet
+      ? React.createElement(
+          React.Fragment,
+          null,
+          React.createElement('div', {
+            className: "flex-1 px-6 pt-10 pb-2",
+            style: {
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              overflowY: 'auto',
+              overscrollBehavior: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }
+          }, contentBlock),
+          React.createElement('div', {
+            ref: ctaFooterRef,
+            className: "px-6 pt-3 pb-1",
+            style: {
+              backgroundColor: 'var(--tt-card-bg)',
+              display: isKeyboardOpen ? 'none' : 'block',
+              paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
+              flexShrink: 0
+            }
+          }, ctaButton),
+          overlayContent
+        )
+      : React.createElement(
+          'div',
+          { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
+          React.createElement('div', {
+            style: {
+              position: 'relative',
+              overflow: 'hidden',
+              width: '100%',
+              flex: 1,
+              minHeight: 0
+            }
+          }, contentBlock),
+          React.createElement('div', {
+            ref: ctaFooterRef,
+            className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
+            style: { 
+              zIndex: 10,
+              backgroundColor: 'var(--tt-card-bg)',
+              display: isKeyboardOpen ? 'none' : 'block',
+              bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
+              left: 0,
+              right: 0,
+              position: 'sticky'
+            }
+          }, ctaButton),
+          overlayContent
+        );
 
     // If overlay mode (isOpen provided), wrap in HalfSheet
     if (isOpen !== undefined) {
@@ -752,9 +794,9 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
                   transition: { type: "spring", damping: 25, stiffness: 300 },
                   drag: "y",
                   dragConstraints: { top: 0, bottom: 0 },
-                  dragElastic: { top: 0, bottom: 0.35 },
+                  dragElastic: { top: 0, bottom: 0 },
                   onDragEnd: (e, info) => {
-                    if (info.offset.y > 100 || info.velocity.y > 800) {
+                    if (info.offset.y > 90 || info.velocity.y > 700) {
                       handleClose();
                     }
                   },
@@ -764,8 +806,9 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
                     backgroundColor: "var(--tt-card-bg)",
                     willChange: 'transform',
                     paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                    maxHeight: '100%',
+                    maxHeight: '83vh',
                     height: 'auto',
+                    minHeight: '60vh',
                     display: 'flex',
                     flexDirection: 'column',
                     overflow: 'hidden',
@@ -802,13 +845,7 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
                   React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Sleep'),
                   React.createElement('div', { className: "w-6" })
                 ),
-                React.createElement('div', {
-                  className: "flex-1 px-6 pt-8 pb-[42px]",
-                  style: {
-                    minHeight: 0,
-                    overscrollBehavior: 'none'
-                  }
-                }, bodyContent)
+                bodyContent
               )
             : null
         );
