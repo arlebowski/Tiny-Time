@@ -510,7 +510,7 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOv
   }
   
   const isSleep = mode === 'sleep';
-  const timelineBg = 'var(--tt-subtle-surface)';
+  const timelineBg = 'var(--tt-timeline-track-bg)';
   
   // Swipe state
   const [swipeOffset, setSwipeOffset] = React.useState(0);
@@ -1988,7 +1988,7 @@ const TrackerCard = ({
   })();
 
   // Match the subtle background used by TimelineItem rows
-  const timelineSubtleBg = 'var(--tt-subtle-surface)';
+  const timelineSubtleBg = 'var(--tt-timeline-track-bg)';
 
   // Get the appropriate icon for the header - use BottleV2 and MoonV2 for both variants
   const HeaderIcon = mode === 'feeding' 
@@ -2035,7 +2035,7 @@ const TrackerCard = ({
     bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v3 uses 'unit')
     bigNumberTopLabel = null,                 // optional icon + label above big number (for v3 feeding)
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
-    progressTrackBg = 'var(--tt-input-bg)',   // progress track background
+    progressTrackBg = 'var(--tt-progress-track)',   // progress track background
     progressBarGoalText = null,               // Goal text below progress bar (for v3, e.g., "Goal 14.5 oz" or "Goal 12 hours")
     progressBarGoalTextClassName = "text-[15.4px] font-normal leading-none",
     statusRow = null,                         // optional row below progress bar (v3)
@@ -2081,7 +2081,7 @@ const TrackerCard = ({
     { 
       className: cardClassName,
       style: {
-        backgroundColor: "var(--tt-card-bg)",
+        backgroundColor: "var(--tt-tracker-card-bg)",
         borderColor: "var(--tt-card-border)",
         cursor: 'pointer',
         transition: isV4CardMotion ? 'none' : 'all 0.3s ease-out'
@@ -2283,7 +2283,7 @@ const TrackerCard = ({
             height: progressTrackHeightClass === 'h-6' 
               ? '9.6px'  // 40% of 24px (doubled from 20%)
               : '6.336px', // 40% of 15.84px (doubled from 20%)
-            backgroundColor: 'var(--tt-subtle-surface)', // Dark mode compatible track
+            backgroundColor: 'var(--tt-progress-track)',
             minHeight: '4px' // Ensure track is always visible (doubled)
           }
         },
@@ -2400,7 +2400,7 @@ const TrackerCard = ({
               height: progressTrackHeightClass === 'h-6' 
                 ? '9.6px'  // 40% of 24px (doubled from 20%)
                 : '6.336px', // 40% of 15.84px (doubled from 20%)
-              backgroundColor: 'var(--tt-subtle-surface)', // Dark mode compatible track
+              backgroundColor: 'var(--tt-progress-track)',
               minHeight: '4px' // Ensure track is always visible (doubled)
             }
           },
@@ -2785,7 +2785,7 @@ const TrackerCard = ({
       bigNumberTargetVariant: 'target',
       // 12px * 1.2 = 14.4px, +10% = 15.84px
       progressTrackHeightClass: 'h-[15.84px]',
-      progressTrackBg: 'var(--tt-subtle-surface)',
+      progressTrackBg: 'var(--tt-progress-track)',
       // v2: no status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
@@ -3151,7 +3151,7 @@ const TrackerCard = ({
       bigNumberTargetVariant: 'unit',  // v3: show just "oz" or "hrs" next to big number
       // 12px * 1.2 = 14.4px, +10% = 15.84px
       progressTrackHeightClass: 'h-[15.84px]',
-      progressTrackBg: 'var(--tt-subtle-surface)',
+      progressTrackBg: 'var(--tt-progress-track)',
       progressBarGoalText: target !== null 
         ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
         : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),  // Goal text below progress bar for v3

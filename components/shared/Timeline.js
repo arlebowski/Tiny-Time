@@ -590,7 +590,7 @@ const Timeline = ({
                       userSelect: 'none',
                       backgroundColor: isActiveSleep
                         ? 'var(--tt-sleep-soft-medium)'
-                        : (isLogged ? 'var(--tt-card-bg)' : 'var(--tt-app-bg)'),
+                        : (isLogged ? 'var(--tt-timeline-item-bg)' : 'var(--tt-app-bg)'),
                       borderColor: isActiveSleep
                         ? 'var(--tt-sleep)'
                         : (isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)'),
@@ -639,7 +639,7 @@ const Timeline = ({
         React.createElement('div', {
           onClick: (e) => e.stopPropagation(),
           className: "rounded-3xl shadow-2xl p-6 max-w-sm w-full",
-          style: { backgroundColor: 'var(--tt-card-bg)' }
+          style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
         },
           React.createElement('h2', {
             className: "text-xl font-semibold mb-2",
@@ -678,7 +678,7 @@ const Timeline = ({
       },
         React.createElement('div', {
           className: "rounded-3xl shadow-2xl p-6 max-w-sm w-full",
-          style: { backgroundColor: 'var(--tt-card-bg)' }
+          style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
         },
           React.createElement('h2', {
             className: "text-xl font-semibold mb-4",

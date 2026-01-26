@@ -226,7 +226,7 @@ const __ttEnsureZzzStyles = () => {
           : card.type === 'feed' ? '🍼' : '💤',
       React.createElement('div', {
         className: "absolute -bottom-1 -right-1 rounded-full p-0.5",
-        style: { backgroundColor: 'var(--tt-card-bg)' }
+        style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
       },
         isActiveSleep ? (
           __ttTimelineItemMotion
@@ -382,7 +382,7 @@ const __ttEnsureZzzStyles = () => {
                         whileTap: { scale: 0.96 },
                         className: "w-7 h-7 rounded-lg flex items-center justify-center",
                         style: { 
-                          backgroundColor: 'color-mix(in srgb, #3b82f6 15%, var(--tt-card-bg))',
+                          backgroundColor: 'color-mix(in srgb, #3b82f6 15%, var(--tt-timeline-item-bg))',
                           color: '#3b82f6'
                         }
                       },
@@ -403,7 +403,7 @@ const __ttEnsureZzzStyles = () => {
                         whileTap: { scale: 0.96 },
                         className: "w-7 h-7 rounded-lg flex items-center justify-center",
                         style: { 
-                          backgroundColor: 'color-mix(in srgb, #ef4444 15%, var(--tt-card-bg))',
+                          backgroundColor: 'color-mix(in srgb, #ef4444 15%, var(--tt-timeline-item-bg))',
                           color: '#ef4444'
                         }
                       },
@@ -428,7 +428,7 @@ const __ttEnsureZzzStyles = () => {
                     },
                     className: "w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
                     style: { 
-                      backgroundColor: 'color-mix(in srgb, #3b82f6 15%, var(--tt-card-bg))',
+                      backgroundColor: 'color-mix(in srgb, #3b82f6 15%, var(--tt-timeline-item-bg))',
                       color: '#3b82f6'
                     }
                   },
@@ -448,7 +448,7 @@ const __ttEnsureZzzStyles = () => {
                     },
                     className: "w-7 h-7 rounded-lg flex items-center justify-center transition-all active:scale-95",
                     style: { 
-                      backgroundColor: 'color-mix(in srgb, #ef4444 15%, var(--tt-card-bg))',
+                      backgroundColor: 'color-mix(in srgb, #ef4444 15%, var(--tt-timeline-item-bg))',
                       color: '#ef4444'
                     }
                   },

@@ -468,7 +468,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       ? { variant: "tracker", className: "min-h-[56px] p-[14px]" }
       : {
           className: "rounded-2xl shadow-sm min-h-[60px] p-5",
-          style: { backgroundColor: "var(--tt-card-bg)", borderColor: "var(--tt-card-border)" }
+          style: { backgroundColor: "var(--tt-tracker-card-bg)", borderColor: "var(--tt-card-border)" }
         };
 
     const clampedPercent = Math.max(0, Math.min(100, Number(progressPercent) || 0));
@@ -553,7 +553,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                           width: '1.5rem',
                           height: '1.5rem',
                           borderRadius: '1rem',
-                          backgroundColor: 'var(--tt-input-bg)',
+                          backgroundColor: 'var(--tt-progress-track)',
                           transform: 'translateY(3px)'
                         }
                       }),
@@ -587,7 +587,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                         width: '1.5rem',
                         height: '1.5rem',
                         borderRadius: '1rem',
-                        backgroundColor: 'var(--tt-input-bg)',
+                        backgroundColor: 'var(--tt-progress-track)',
                         transform: 'translateY(3px)'
                       }
                     }),
@@ -605,7 +605,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
           className: "w-full rounded-full overflow-hidden",
           style: {
             height: '6px',
-            backgroundColor: 'var(--tt-input-bg)'
+            backgroundColor: 'var(--tt-progress-track)'
           }
         },
           __ttMotion
