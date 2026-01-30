@@ -6,9 +6,11 @@ const __ttTimelineCn = (...classes) => classes.filter(Boolean).join(' ');
 const Timeline = ({
   initialLoggedItems = null,
   initialScheduledItems = null,
+  hideLoggedItems = false,
   disableExpanded = false,
   allowItemExpand = true,
   initialFilter = 'all',
+  initialSortOrder = 'desc',
   onEditCard = null,
   onDeleteCard = null,
   onFilterChange = null,
@@ -20,7 +22,7 @@ const Timeline = ({
   const [filter, setFilter] = React.useState(initialFilter || 'all');
   const initialFilterAppliedRef = React.useRef(false);
   const [isCompiling, setIsCompiling] = React.useState(false);
-  const [sortOrder, setSortOrder] = React.useState('desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
+  const [sortOrder, setSortOrder] = React.useState(initialSortOrder || 'desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
   const [deletingCard, setDeletingCard] = React.useState(null);
   const [openSwipeId, setOpenSwipeId] = React.useState(null);
@@ -58,7 +60,7 @@ const Timeline = ({
 
   // Start with just scheduled items - production logged data comes via prop
   const [cards, setCards] = React.useState(() => {
-    // If initialLoggedItems provided on mount, use it
+    if (hideLoggedItems) return [...resolvedScheduledItems];
     if (Array.isArray(initialLoggedItems)) {
       return [...initialLoggedItems, ...resolvedScheduledItems];
     }
@@ -72,10 +74,14 @@ const Timeline = ({
       : defaultScheduledItems;
     const loggedItems = Array.isArray(initialLoggedItems) ? initialLoggedItems : null;
 
+    if (hideLoggedItems) {
+      setCards([...scheduledItems]);
+      return;
+    }
     if (loggedItems || Array.isArray(initialScheduledItems)) {
       setCards([...(loggedItems || []), ...scheduledItems]);
     }
-  }, [initialLoggedItems, initialScheduledItems]);
+  }, [initialLoggedItems, initialScheduledItems, hideLoggedItems]);
   const [draggingCard, setDraggingCard] = React.useState(null);
   const [holdingCard, setHoldingCard] = React.useState(null);
   const dragTimer = React.useRef(null);
@@ -236,6 +242,11 @@ const Timeline = ({
   const handleToggleSort = () => {
     setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
   };
+
+  const handleToggleExpanded = React.useCallback(() => {
+    if (disableExpanded) return;
+    setIsExpanded((prev) => !prev);
+  }, [disableExpanded]);
 
   const handleDragStart = (e, card) => {
     if (!isExpandedEffective) return;
@@ -935,7 +946,25 @@ const Timeline = ({
                       d: "M128,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16h72A8,8,0,0,1,128,128ZM48,72H184a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16Zm56,112H48a8,8,0,0,0,0,16h56a8,8,0,0,0,0-16Zm125.66-21.66a8,8,0,0,0-11.32,0L192,188.69V112a8,8,0,0,0-16,0v76.69l-26.34-26.35a8,8,0,0,0-11.32,11.32l40,40a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,229.66,162.34Z"
                     })
                   )
-            )
+            ),
+            !disableExpanded
+              ? (__ttTimelineMotion
+                ? React.createElement(__ttTimelineMotion.button, {
+                    onClick: handleToggleExpanded,
+                    className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
+                    animate: {
+                      backgroundColor: isExpandedEffective ? '#111827' : '#2563eb',
+                      color: '#ffffff',
+                      boxShadow: isExpandedEffective
+                        ? '0 10px 25px rgba(0,0,0,0.25)'
+                        : '0 10px 25px rgba(37,99,235,0.25)'
+                    }
+                  }, isExpandedEffective ? 'Done' : 'Edit')
+                : React.createElement('button', {
+                    onClick: handleToggleExpanded,
+                    className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
+                  }, isExpandedEffective ? 'Done' : 'Edit'))
+              : null
           )
         ),
         React.createElement('div', {

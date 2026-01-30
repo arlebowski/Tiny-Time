@@ -135,6 +135,9 @@ const HorizontalCalendar = ({
   const [direction, setDirection] = React.useState(0);
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+  const [babyWeight, setBabyWeight] = React.useState(null);
+  const [multiplier, setMultiplier] = React.useState(2.5);
+  const [sleepSettings, setSleepSettings] = React.useState(null);
   const layoutIdRef = React.useRef(`calendar-pill-${Math.random().toString(36).slice(2)}`);
   const [now, setNow] = React.useState(() => new Date());
 
@@ -203,13 +206,20 @@ const HorizontalCalendar = ({
     const load = async () => {
       try {
         if (typeof firestoreStorage === 'undefined') return;
-        const [feedings, sleeps] = await Promise.all([
+        const [feedings, sleeps, settings, sleepSettings] = await Promise.all([
           firestoreStorage.getAllFeedings(),
-          firestoreStorage.getAllSleepSessions()
+          firestoreStorage.getAllSleepSessions(),
+          firestoreStorage.getSettings(),
+          firestoreStorage.getSleepSettings()
         ]);
         if (!isActive) return;
         setAllFeedings(feedings || []);
         setAllSleepSessions(sleeps || []);
+        if (settings) {
+          if (settings.babyWeight) setBabyWeight(settings.babyWeight);
+          if (settings.multiplier) setMultiplier(settings.multiplier);
+        }
+        setSleepSettings(sleepSettings || null);
       } catch (e) {
         console.error('[HorizontalCalendar] Failed loading data', e);
       }
@@ -276,16 +286,25 @@ const HorizontalCalendar = ({
       metrics[key].sleepMs = total;
     });
 
-    const feedMax = Math.max(1, ...Object.values(metrics).map(m => m.feedOz || 0));
-    const sleepMax = Math.max(1, ...Object.values(metrics).map(m => m.sleepMs || 0));
+    const feedTarget = babyWeight ? babyWeight * multiplier : 0;
+    const sleepTargetHours = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number")
+      ? sleepSettings.sleepTargetHours
+      : 14;
+    const sleepTargetMs = sleepTargetHours * 3600000;
 
     dayWindows.forEach(({ key }) => {
-      metrics[key].feedPct = Math.min(100, (metrics[key].feedOz / feedMax) * 100);
-      metrics[key].sleepPct = Math.min(100, (metrics[key].sleepMs / sleepMax) * 100);
+      const feedBase = feedTarget > 0
+        ? Math.min(100, (metrics[key].feedOz / feedTarget) * 100)
+        : 0;
+      const sleepBase = sleepTargetMs > 0
+        ? Math.min(100, (metrics[key].sleepMs / sleepTargetMs) * 100)
+        : 0;
+      metrics[key].feedPct = (feedBase <= 0 && (metrics[key].feedOz || 0) <= 0) ? 2 : feedBase;
+      metrics[key].sleepPct = (sleepBase <= 0 && (metrics[key].sleepMs || 0) <= 0) ? 2 : sleepBase;
     });
 
     return metrics;
-  }, [days, allFeedings, allSleepSessions]);
+  }, [days, allFeedings, allSleepSessions, babyWeight, multiplier, sleepSettings]);
 
   const getMetricsForDate = (date) => {
     const key = __ttHorizontalDateKeyLocal(date);
@@ -391,21 +410,22 @@ const HorizontalCalendar = ({
                 textAlign: headerLeft ? 'center' : undefined
               }
             },
-              React.createElement('div', {
-                className: "w-[53px] h-[53px] rounded-full overflow-hidden flex-shrink-0",
-                style: { backgroundColor: 'var(--tt-input-bg)' }
-              },
-                headerPhotoUrl
-                  ? React.createElement('img', {
-                      src: headerPhotoUrl,
-                      alt: headerPhotoAlt,
-                      className: "w-full h-full object-cover"
-                    })
-                  : React.createElement('div', {
-                      className: "w-full h-full",
-                      style: { backgroundColor: 'var(--tt-feed-soft)' }
-                    })
-              ),
+              // Avatar hidden for now; easy to restore.
+              // React.createElement('div', {
+              //   className: "w-[53px] h-[53px] rounded-full overflow-hidden flex-shrink-0",
+              //   style: { backgroundColor: 'var(--tt-input-bg)' }
+              // },
+              //   headerPhotoUrl
+              //     ? React.createElement('img', {
+              //         src: headerPhotoUrl,
+              //         alt: headerPhotoAlt,
+              //         className: "w-full h-full object-cover"
+              //       })
+              //     : React.createElement('div', {
+              //         className: "w-full h-full",
+              //         style: { backgroundColor: 'var(--tt-feed-soft)' }
+              //       })
+              // ),
               React.createElement('div', null,
               React.createElement('div', {
                 className: "text-[15.4px] font-normal",
@@ -413,7 +433,7 @@ const HorizontalCalendar = ({
               }, dateLabel),
               React.createElement('div', {
                 className: "text-[24px] font-semibold",
-                style: { color: 'var(--tt-text-primary)', marginBottom: '20px' }
+                style: { color: 'var(--tt-text-primary)', marginBottom: '16px' }
               }, greeting)
             )
             )

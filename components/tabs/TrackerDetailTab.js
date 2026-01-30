@@ -11,6 +11,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+  const [babyWeight, setBabyWeight] = React.useState(null);
+  const [multiplier, setMultiplier] = React.useState(2.5);
+  const [sleepSettings, setSleepSettings] = React.useState(null);
   const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
   const [showInputSheet, setShowInputSheet] = React.useState(false);
   const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
@@ -169,6 +172,32 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     setInputSheetMode('sleep');
     setShowInputSheet(true);
   }, []);
+
+  const loadSettings = React.useCallback(async () => {
+    try {
+      if (typeof firestoreStorage === 'undefined') return;
+      const settings = await firestoreStorage.getSettings();
+      if (settings) {
+        if (settings.babyWeight) setBabyWeight(settings.babyWeight);
+        if (settings.multiplier) setMultiplier(settings.multiplier);
+      }
+      const ss = await firestoreStorage.getSleepSettings();
+      setSleepSettings(ss || null);
+    } catch (error) {
+      console.error('[TrackerDetailTab] Error loading settings:', error);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (activeTab === 'tracker-detail') {
+      window.scrollTo(0, 0);
+    }
+  }, [activeTab]);
 
   // Helper: normalize sleep interval to handle midnight crossing
   // Same logic as TrackerTab.js _normalizeSleepInterval
@@ -632,16 +661,18 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const feedDisplay = formatV2NumberSafe(selectedSummary.feedOz);
   const sleepHours = Number(selectedSummary.sleepMs || 0) / 3600000;
   const sleepDisplay = formatV2NumberSafe(sleepHours);
-  const feedPercent = Number.isFinite(Number(selectedSummary.feedPct)) && Number(selectedSummary.feedPct) > 0
-    ? Number(selectedSummary.feedPct)
-    : (projectedTargets.feedTarget > 0
-        ? Math.min(100, (Number(selectedSummary.feedOz) / projectedTargets.feedTarget) * 100)
-        : 0);
-  const sleepPercent = Number.isFinite(Number(selectedSummary.sleepPct)) && Number(selectedSummary.sleepPct) > 0
-    ? Number(selectedSummary.sleepPct)
-    : (projectedTargets.sleepTarget > 0
-        ? Math.min(100, (sleepHours / projectedTargets.sleepTarget) * 100)
-        : 0);
+  const feedTarget = babyWeight ? babyWeight * multiplier : 0;
+  const sleepTargetHours = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number")
+    ? sleepSettings.sleepTargetHours
+    : 14;
+  const feedPercentBase = feedTarget > 0
+    ? Math.min(100, (Number(selectedSummary.feedOz) / feedTarget) * 100)
+    : 0;
+  const sleepPercentBase = sleepTargetHours > 0
+    ? Math.min(100, (sleepHours / sleepTargetHours) * 100)
+    : 0;
+  const feedPercent = (feedPercentBase <= 0 && Number(selectedSummary.feedOz) <= 0) ? 2 : feedPercentBase;
+  const sleepPercent = (sleepPercentBase <= 0 && sleepHours <= 0) ? 2 : sleepPercentBase;
 
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -854,7 +885,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   }, [summaryLayoutMode]);
 
   return React.createElement('div', {
-    className: "space-y-4 pb-24"
+    className: "space-y-4 pb-24 pt-4 px-4"
   },
     React.createElement('div', { 
       className: "tt-tracker-detail-calendar"
