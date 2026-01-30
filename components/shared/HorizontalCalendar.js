@@ -214,8 +214,19 @@ const HorizontalCalendar = ({
         console.error('[HorizontalCalendar] Failed loading data', e);
       }
     };
+    const handleInputAdded = () => {
+      load();
+    };
     load();
-    return () => { isActive = false; };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('tt-input-sheet-added', handleInputAdded);
+    }
+    return () => {
+      isActive = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('tt-input-sheet-added', handleInputAdded);
+      }
+    };
   }, []);
 
   const dayMetrics = React.useMemo(() => {

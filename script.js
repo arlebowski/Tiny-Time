@@ -2931,7 +2931,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         setShowKidMenu(false);
       },
       position: {
-        bottom: 'calc(env(safe-area-inset-bottom) + 45px)',
+        bottom: 'calc(env(safe-area-inset-bottom) + 40px)',
         left: '50%'
       }
     }),

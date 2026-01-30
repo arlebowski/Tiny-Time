@@ -26,6 +26,8 @@ const Timeline = ({
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
   const [editingCard, setEditingCard] = React.useState(null);
   const [deletingCard, setDeletingCard] = React.useState(null);
+  const [openSwipeId, setOpenSwipeId] = React.useState(null);
+  const [swipingCardId, setSwipingCardId] = React.useState(null);
   const isEditMode = typeof editMode === 'boolean' ? editMode : isExpanded;
   const isEditControlled = typeof editMode === 'boolean';
   const isExpandedEffective = disableExpanded ? false : isExpanded;
@@ -360,8 +362,448 @@ const Timeline = ({
     }
   }, [draggingCard, holdingCard]);
 
-  const __ttTimelineMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
-  const __ttTimelineAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
+  const __ttResolveTimelineFramer = () => {
+    if (typeof window === 'undefined') return null;
+    const candidates = [
+      window.framerMotion,
+      window.FramerMotion,
+      window['framer-motion'],
+      window.Motion,
+      window.motion
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (candidate.motion || candidate.AnimatePresence) return candidate;
+      if (candidate.default && (candidate.default.motion || candidate.default.AnimatePresence)) {
+        return candidate.default;
+      }
+    }
+    return null;
+  };
+
+  const __ttTimelineFramer = __ttResolveTimelineFramer();
+  const __ttTimelineMotion = __ttTimelineFramer?.motion || null;
+  const __ttTimelineAnimatePresence = __ttTimelineFramer?.AnimatePresence || null;
+  const __ttTimelineUseMotionValue = __ttTimelineFramer?.useMotionValue || null;
+  const __ttTimelineUseSpring = __ttTimelineFramer?.useSpring || null;
+  const __ttTimelineUseTransform = __ttTimelineFramer?.useTransform || null;
+  const __ttTimelineAnimate = __ttTimelineFramer?.animate || null;
+
+  const __ttSwipeRowRef = React.useRef(null);
+  if (!__ttSwipeRowRef.current) {
+  __ttSwipeRowRef.current = ({
+    card,
+    isSwipeEnabled,
+    cardClassName,
+    cardStyle,
+    onPrimaryAction,
+    onSecondaryAction,
+    onRowClick,
+    openSwipeId,
+    setOpenSwipeId,
+    onSwipeStart,
+    onSwipeEnd,
+    children
+  }) => {
+    if (!__ttTimelineMotion || !__ttTimelineUseMotionValue || !__ttTimelineUseSpring || !__ttTimelineUseTransform || !__ttTimelineAnimate) {
+      return React.createElement(
+        'div',
+        { className: cardClassName, style: cardStyle },
+        children
+      );
+    }
+
+    if (!isSwipeEnabled) {
+      return React.createElement(
+        __ttTimelineMotion.div,
+        { className: cardClassName, style: cardStyle },
+        children
+      );
+    }
+
+    const SPRING = { stiffness: 900, damping: 80 };
+    const dragState = React.useRef({
+      pointerId: null,
+      startX: 0,
+      startY: 0,
+      startOffset: 0,
+      lock: null
+    });
+    const widthRef = React.useRef(0);
+    const contentRef = React.useRef(null);
+    const containerRef = React.useRef(null);
+    const draggingRef = React.useRef(false);
+    const hasSwipedRef = React.useRef(false);
+    const setOpenSwipeIdRef = React.useRef(setOpenSwipeId);
+    setOpenSwipeIdRef.current = setOpenSwipeId;
+    const onSwipeEndRef = React.useRef(onSwipeEnd);
+    onSwipeEndRef.current = onSwipeEnd;
+    const cardIdRef = React.useRef(card?.id);
+    cardIdRef.current = card?.id;
+
+    const x = __ttTimelineUseMotionValue(0);
+    const smoothX = __ttTimelineUseSpring(x, SPRING);
+    const progress = __ttTimelineUseTransform(x, (value) => {
+      const width = widthRef.current || 1;
+      return value / width;
+    });
+
+    const measure = React.useCallback(() => {
+      const width = contentRef.current?.getBoundingClientRect().width;
+      if (width) widthRef.current = width;
+    }, []);
+
+    React.useEffect(() => {
+      measure();
+      window.addEventListener('resize', measure);
+      return () => window.removeEventListener('resize', measure);
+    }, [measure]);
+
+    const closeSwipe = React.useCallback(() => {
+      __ttTimelineAnimate(x, 0, SPRING);
+      if (typeof setOpenSwipeId === 'function') setOpenSwipeId(null);
+    }, [x, setOpenSwipeId]);
+
+    React.useEffect(() => {
+      if (!openSwipeId || openSwipeId === card.id) return;
+      __ttTimelineAnimate(x, 0, SPRING);
+    }, [openSwipeId, card.id, x]);
+
+    React.useEffect(() => {
+      if (!openSwipeId || openSwipeId !== card.id) return;
+      const onOutside = (event) => {
+        const node = containerRef.current;
+        if (node && node.contains(event.target)) return;
+        closeSwipe();
+      };
+      document.addEventListener('pointerdown', onOutside, true);
+      return () => document.removeEventListener('pointerdown', onOutside, true);
+    }, [openSwipeId, card.id, closeSwipe]);
+
+    React.useEffect(() => {
+      const onMove = (event) => {
+        if (!draggingRef.current) return;
+        const state = dragState.current;
+        if (!state.pointerId) return;
+
+        const dx = event.clientX - state.startX;
+        const width = widthRef.current;
+        if (!width) return;
+
+        if (event.cancelable) event.preventDefault();
+
+        hasSwipedRef.current = hasSwipedRef.current || Math.abs(dx) > 6;
+
+        const raw = state.startOffset + dx;
+        const clamped = Math.max(-width, Math.min(0, raw));
+        x.set(clamped);
+      };
+
+      const onUp = () => {
+        if (!draggingRef.current) return;
+        draggingRef.current = false;
+
+        const width = widthRef.current;
+        if (!width) {
+          x.set(0);
+          if (typeof onSwipeEndRef.current === 'function') onSwipeEndRef.current(cardIdRef.current);
+          return;
+        }
+
+        const current = x.get();
+        let target = 0;
+
+        if (Math.abs(current) > width * 0.25) {
+          target = current < 0 ? -width * 0.5 : 0;
+        }
+
+        if (target < 0) {
+          if (typeof setOpenSwipeIdRef.current === 'function') setOpenSwipeIdRef.current(cardIdRef.current);
+        } else if (typeof setOpenSwipeIdRef.current === 'function') {
+          setOpenSwipeIdRef.current(null);
+        }
+
+        x.set(target);
+
+        dragState.current = {
+          pointerId: null,
+          startX: 0,
+          startY: 0,
+          startOffset: 0,
+          lock: null
+        };
+        if (typeof onSwipeEndRef.current === 'function') onSwipeEndRef.current(cardIdRef.current);
+      };
+
+      document.addEventListener('pointermove', onMove, { passive: false });
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+      return () => {
+        document.removeEventListener('pointermove', onMove);
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+      };
+    }, [x]);
+
+    const handlePointerDown = (event) => {
+      if (!isSwipeEnabled) return;
+      if (dragState.current.pointerId != null) return;
+      if (event.cancelable) event.preventDefault();
+      event.stopPropagation();
+      if (event.currentTarget?.setPointerCapture) {
+        event.currentTarget.setPointerCapture(event.pointerId);
+      }
+      if (typeof onSwipeStart === 'function') onSwipeStart(card?.id);
+      dragState.current = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startOffset: x.get(),
+        lock: null
+      };
+      hasSwipedRef.current = false;
+      draggingRef.current = true;
+    };
+
+    const handleClick = (event) => {
+      if (Math.abs(x.get()) > 4 || hasSwipedRef.current) {
+        event.stopPropagation();
+        return;
+      }
+      if (typeof onRowClick === 'function') onRowClick(event);
+    };
+
+    const __ttActionColRef = React.useRef(null);
+    if (!__ttActionColRef.current) {
+    __ttActionColRef.current = ({ progressValue, side, bgColor, icon, label, onClick, primary }) => {
+      const actionRef = React.useRef(null);
+      const widthRef = React.useRef(0);
+      const offset = __ttTimelineUseMotionValue(0);
+      const offsetSpring = __ttTimelineUseSpring(offset, SPRING);
+
+      const computeOffset = React.useCallback((value) => {
+        const width = widthRef.current;
+        if (!primary) return 0;
+        if (Math.abs(value) >= 0.8) return 0;
+        return -(value * width * 0.5);
+      }, [primary]);
+
+      React.useEffect(() => {
+        const update = () => {
+          const node = actionRef.current;
+          if (!node) return;
+          const nextWidth = node.getBoundingClientRect().width;
+          if (nextWidth) {
+            widthRef.current = nextWidth;
+            offset.set(computeOffset(progressValue.get()));
+          }
+        };
+        update();
+        window.addEventListener('resize', update);
+        return () => window.removeEventListener('resize', update);
+      }, [computeOffset, progressValue, offset]);
+
+      React.useEffect(() => {
+        const unsubscribe = progressValue.on('change', (value) => {
+          offset.set(computeOffset(value));
+        });
+        return () => unsubscribe();
+      }, [computeOffset, progressValue, offset]);
+
+      const primaryOpacity = primary ? 1 : 0;
+      const opacity = __ttTimelineUseTransform(
+        progressValue,
+        [-1, -0.8, -0.5, -0.25, 0.25, 0.5, 0.8, 1],
+        [primaryOpacity, 1, 1, 0, 0, 1, 1, primaryOpacity]
+      );
+      const opacitySpring = __ttTimelineUseSpring(opacity, SPRING);
+
+      const xShift = __ttTimelineUseTransform(progressValue, [-1, -0.8, -0.5, 0.5, 0.8, 1], [0, 16, 0, 0, -16, 0]);
+      const xSpring = __ttTimelineUseSpring(xShift, SPRING);
+
+      const scale = __ttTimelineUseTransform(progressValue, [-1, -0.8, 0, 0.8, 1], [1, 0.8, 1, 0.8, 1]);
+      const scaleSpring = __ttTimelineUseSpring(scale, SPRING);
+
+      return React.createElement(
+        __ttTimelineMotion.div,
+        {
+          ref: actionRef,
+          style: {
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            justifyContent: side === 'right' ? 'flex-start' : 'flex-end',
+            backgroundColor: bgColor,
+            x: offsetSpring
+          }
+        },
+        React.createElement(
+          __ttTimelineMotion.div,
+          {
+            style: {
+              height: '100%',
+              width: '25%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }
+          },
+          React.createElement(
+            __ttTimelineMotion.button,
+            {
+              type: 'button',
+              onClick,
+              whileTap: { scale: 0.92 },
+              style: {
+                background: 'transparent',
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexDirection: 'column',
+                gap: 4,
+                color: 'var(--tt-text-primary)',
+                pointerEvents: 'auto'
+              }
+            },
+            React.createElement(
+              __ttTimelineMotion.span,
+              {
+                style: {
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 4,
+                  opacity: opacitySpring,
+                  scale: scaleSpring,
+                  x: xSpring,
+                  transformOrigin: side === 'right' ? 'right' : 'left',
+                  fontSize: 12
+                }
+              },
+              icon,
+              label
+            )
+          )
+        )
+      );
+    };
+    }
+    const ActionColumn = __ttActionColRef.current;
+
+    const IconMailOpen = React.createElement('svg', {
+      width: 24,
+      height: 24,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: 1.5,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round'
+    },
+      React.createElement('path', { d: 'M21.2 8.4c.5.38.8.97.8 1.6v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10a2 2 0 0 1 .8-1.6l8-6a2 2 0 0 1 2.4 0l8 6Z' }),
+      React.createElement('path', { d: 'm22 10-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 10' })
+    );
+    const IconClock = React.createElement('svg', {
+      width: 24,
+      height: 24,
+      viewBox: '0 0 24 24',
+      fill: 'none',
+      stroke: 'currentColor',
+      strokeWidth: 1.5,
+      strokeLinecap: 'round',
+      strokeLinejoin: 'round'
+    },
+      React.createElement('circle', { cx: '12', cy: '12', r: '10' }),
+      React.createElement('polyline', { points: '12 6 12 12 7.5 12' })
+    );
+    const EditIcon = React.createElement('svg', {
+      width: 24,
+      height: 24,
+      viewBox: '0 0 256 256',
+      fill: 'currentColor',
+      xmlns: 'http://www.w3.org/2000/svg'
+    },
+      React.createElement('path', {
+        d: 'M227.32,73.37,182.63,28.69a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H216a8,8,0,0,0,0-16H115.32l112-112A16,16,0,0,0,227.32,73.37ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.69,147.32,64l24-24L216,84.69Z'
+      })
+    );
+    const DeleteIcon = React.createElement('svg', {
+      width: 24,
+      height: 24,
+      viewBox: '0 0 256 256',
+      fill: 'currentColor',
+      xmlns: 'http://www.w3.org/2000/svg'
+    },
+      React.createElement('path', {
+        d: 'M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z'
+      })
+    );
+
+    return React.createElement(
+      'div',
+      {
+        className: "relative w-full min-h-[72px] rounded-2xl overflow-hidden",
+        ref: containerRef,
+        style: { backgroundColor: 'var(--tt-swipe-row-bg)', touchAction: 'pan-y' },
+        onPointerDown: handlePointerDown
+      },
+      React.createElement(
+        __ttTimelineMotion.div,
+        {
+          style: {
+            position: 'absolute',
+            inset: 0,
+            height: '100%',
+            width: '100%',
+            display: 'flex',
+            userSelect: 'none',
+            WebkitUserSelect: 'none',
+            left: '100%',
+            x: smoothX
+          }
+        },
+        React.createElement(ActionColumn, {
+          progressValue: progress,
+          side: 'right',
+          primary: false,
+          bgColor: '#b2ffb9',
+          icon: EditIcon,
+          label: 'Edit',
+          onClick: (e) => {
+            e.stopPropagation();
+            if (typeof onSecondaryAction === 'function') onSecondaryAction(card);
+            closeSwipe();
+          }
+        }),
+        React.createElement(ActionColumn, {
+          progressValue: progress,
+          side: 'right',
+          primary: true,
+          bgColor: '#ff9ba4',
+          icon: DeleteIcon,
+          label: 'Delete',
+          onClick: (e) => {
+            e.stopPropagation();
+            if (typeof onPrimaryAction === 'function') onPrimaryAction(card);
+            closeSwipe();
+          }
+        })
+      ),
+      React.createElement(
+        __ttTimelineMotion.div,
+        {
+          ref: contentRef,
+          className: cardClassName,
+          style: { ...cardStyle, x: smoothX, position: 'relative', zIndex: 10, touchAction: 'pan-y' },
+          onClick: handleClick
+        },
+        children
+      )
+    );
+  };
+  }
+  const TimelineSwipeRow = __ttSwipeRowRef.current;
 
   const timelinePhotoModal = timelineFullSizePhoto && ReactDOM.createPortal(
     React.createElement('div', {
@@ -558,10 +1000,36 @@ const Timeline = ({
                     ? dragY
                     : (isExpandedEffective ? expandedTopPx + extraOffset : compressedTop + compressedExtraOffset);
 
+                  const cardClassName = __ttTimelineCn(
+                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 border",
+                    isDragging && "shadow-2xl cursor-grabbing",
+                    isHolding && "shadow-xl",
+                    (!isLogged || isActiveSleep) && "border-dashed"
+                  );
+                  const isSwiping = swipingCardId === card.id;
+                  const cardStyle = {
+                    touchAction: isExpandedEffective ? 'none' : 'auto',
+                    userSelect: 'none',
+                    backgroundColor: isActiveSleep
+                      ? 'var(--tt-sleep-soft-medium)'
+                      : (isLogged ? 'var(--tt-timeline-item-bg)' : 'var(--tt-app-bg)'),
+                    borderColor: isActiveSleep
+                      ? 'var(--tt-sleep)'
+                      : (isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)'),
+                    boxShadow: (() => {
+                      if (!isDragging && !isHolding) return undefined;
+                      const baseColor = !isLogged
+                        ? 'var(--tt-text-secondary)'
+                        : (card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)');
+                      const mixPct = isDragging ? '50%' : '30%';
+                      return `0 0 0 2px color-mix(in srgb, ${baseColor} ${mixPct}, transparent)`;
+                    })()
+                  };
+
                   return __ttTimelineMotion && React.createElement(__ttTimelineMotion.div, {
                     key: card.id,
                     initial: { opacity: 0, y: 20 },
-                    animate: {
+                    animate: isSwiping ? false : {
                       opacity: 1,
                       y: targetY,
                       scale: (isDragging || isHolding) ? 1.05 : 1,
@@ -573,54 +1041,46 @@ const Timeline = ({
                       stiffness: 500,
                       damping: 35,
                     },
-                    className: __ttTimelineCn(
-                      "absolute w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 border",
-                      isDragging && "shadow-2xl cursor-grabbing",
-                      isHolding && "shadow-xl",
-                      (!isLogged || isActiveSleep) && "border-dashed"
-                    ),
+                    className: "absolute w-full min-h-[72px]",
                     onMouseDown: (e) => handleDragStart(e, card),
                     onTouchStart: (e) => handleDragStart(e, card),
-                    onClick: () => {
-                      if (!isLogged || cardEditMode || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
-                      setExpandedCardId((prev) => (prev === card.id ? null : card.id));
-                    },
-                    style: {
-                      touchAction: isExpandedEffective ? 'none' : 'auto',
-                      userSelect: 'none',
-                      backgroundColor: isActiveSleep
-                        ? 'var(--tt-sleep-soft-medium)'
-                        : (isLogged ? 'var(--tt-timeline-item-bg)' : 'var(--tt-app-bg)'),
-                      borderColor: isActiveSleep
-                        ? 'var(--tt-sleep)'
-                        : (isLogged ? 'var(--tt-card-border)' : 'var(--tt-text-tertiary)'),
-                      boxShadow: (() => {
-                        if (!isDragging && !isHolding) return undefined;
-                        const baseColor = !isLogged
-                          ? 'var(--tt-text-secondary)'
-                          : (card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)');
-                        const mixPct = isDragging ? '50%' : '30%';
-                        return `0 0 0 2px color-mix(in srgb, ${baseColor} ${mixPct}, transparent)`;
-                      })()
-                    }
                   },
-                    TimelineItem
-                      ? React.createElement(TimelineItem, {
-                          card,
-                          bottleIcon,
-                          moonIcon,
-                          isExpanded: isExpandedCard,
-                          detailsHeight: expandedContentHeight,
-                          hasDetails,
-                          onPhotoClick: handleTimelinePhotoClick,
-                          isEditMode: cardEditMode,
-                          onEdit: handleEditCard,
-                          onDelete: handleDeleteCard,
-                          onScheduledAdd,
-                          onActiveSleepClick,
-                          onExpandedContentHeight: handleExpandedContentHeight
-                        })
-                      : null
+                    React.createElement(
+                      TimelineSwipeRow,
+                      {
+                        card,
+                        isSwipeEnabled: isLogged && !isExpandedEffective && !cardEditMode,
+                        cardClassName,
+                        cardStyle,
+                        onPrimaryAction: handleDeleteCard,
+                        onSecondaryAction: handleEditCard,
+                        openSwipeId,
+                        setOpenSwipeId,
+                        onSwipeStart: (id) => setSwipingCardId(id),
+                        onSwipeEnd: () => setSwipingCardId(null),
+                        onRowClick: () => {
+                          if (!isLogged || cardEditMode || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
+                          setExpandedCardId((prev) => (prev === card.id ? null : card.id));
+                        }
+                      },
+                      TimelineItem
+                        ? React.createElement(TimelineItem, {
+                            card,
+                            bottleIcon,
+                            moonIcon,
+                            isExpanded: isExpandedCard,
+                            detailsHeight: expandedContentHeight,
+                            hasDetails,
+                            onPhotoClick: handleTimelinePhotoClick,
+                            isEditMode: cardEditMode,
+                            onEdit: handleEditCard,
+                            onDelete: handleDeleteCard,
+                            onScheduledAdd,
+                            onActiveSleepClick,
+                            onExpandedContentHeight: handleExpandedContentHeight
+                          })
+                        : null
+                    )
                   );
                 });
               })()
