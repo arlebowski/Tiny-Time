@@ -433,11 +433,16 @@ const Timeline = ({
     const contentRef = React.useRef(null);
     const containerRef = React.useRef(null);
     const draggingRef = React.useRef(false);
+    const lockedSide = React.useRef(null);
     const hasSwipedRef = React.useRef(false);
     const setOpenSwipeIdRef = React.useRef(setOpenSwipeId);
     setOpenSwipeIdRef.current = setOpenSwipeId;
     const onSwipeEndRef = React.useRef(onSwipeEnd);
     onSwipeEndRef.current = onSwipeEnd;
+    const onPrimaryActionRef = React.useRef(onPrimaryAction);
+    onPrimaryActionRef.current = onPrimaryAction;
+    const cardRef = React.useRef(card);
+    cardRef.current = card;
     const cardIdRef = React.useRef(card?.id);
     cardIdRef.current = card?.id;
 
@@ -495,6 +500,25 @@ const Timeline = ({
         hasSwipedRef.current = hasSwipedRef.current || Math.abs(dx) > 6;
 
         const raw = state.startOffset + dx;
+        const threshold = 0.8 * width;
+        const abs = Math.abs(raw);
+
+        if (lockedSide.current) {
+          if (abs < threshold) {
+            lockedSide.current = null;
+            x.set(Math.max(-width, Math.min(0, raw)));
+          } else {
+            x.set(-width);
+          }
+          return;
+        }
+
+        if (abs > threshold) {
+          lockedSide.current = 'left';
+          x.set(-width);
+          return;
+        }
+
         const clamped = Math.max(-width, Math.min(0, raw));
         x.set(clamped);
       };
@@ -505,25 +529,36 @@ const Timeline = ({
 
         const width = widthRef.current;
         if (!width) {
+          lockedSide.current = null;
           x.set(0);
           if (typeof onSwipeEndRef.current === 'function') onSwipeEndRef.current(cardIdRef.current);
           return;
         }
 
-        const current = x.get();
-        let target = 0;
+        if (lockedSide.current) {
+          if (typeof onPrimaryActionRef.current === 'function') onPrimaryActionRef.current(cardRef.current);
+          if (containerRef.current && __ttTimelineAnimate) {
+            __ttTimelineAnimate(containerRef.current, { scaleY: 1.05, scaleX: 0.95, y: -24, pointerEvents: 'none' }, { duration: 0.1, ease: 'easeOut' });
+            __ttTimelineAnimate(containerRef.current, { scaleY: 1, scaleX: 1, y: 0, pointerEvents: 'auto' }, { duration: 0.6, type: 'spring' });
+          }
+          __ttTimelineAnimate(x, 0, { duration: 0.5, delay: 0.3 });
+          lockedSide.current = null;
+        } else {
+          const current = x.get();
+          let target = 0;
 
-        if (Math.abs(current) > width * 0.25) {
-          target = current < 0 ? -width * 0.5 : 0;
+          if (Math.abs(current) > width * 0.25) {
+            target = current < 0 ? -width * 0.5 : 0;
+          }
+
+          if (target < 0) {
+            if (typeof setOpenSwipeIdRef.current === 'function') setOpenSwipeIdRef.current(cardIdRef.current);
+          } else if (typeof setOpenSwipeIdRef.current === 'function') {
+            setOpenSwipeIdRef.current(null);
+          }
+
+          x.set(target);
         }
-
-        if (target < 0) {
-          if (typeof setOpenSwipeIdRef.current === 'function') setOpenSwipeIdRef.current(cardIdRef.current);
-        } else if (typeof setOpenSwipeIdRef.current === 'function') {
-          setOpenSwipeIdRef.current(null);
-        }
-
-        x.set(target);
 
         dragState.current = {
           pointerId: null,
