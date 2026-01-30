@@ -9,8 +9,6 @@ const Timeline = ({
   disableExpanded = false,
   allowItemExpand = true,
   initialFilter = 'all',
-  editMode = null,
-  onEditModeChange = null,
   onEditCard = null,
   onDeleteCard = null,
   onFilterChange = null,
@@ -24,12 +22,9 @@ const Timeline = ({
   const [isCompiling, setIsCompiling] = React.useState(false);
   const [sortOrder, setSortOrder] = React.useState('desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
-  const [editingCard, setEditingCard] = React.useState(null);
   const [deletingCard, setDeletingCard] = React.useState(null);
   const [openSwipeId, setOpenSwipeId] = React.useState(null);
   const [swipingCardId, setSwipingCardId] = React.useState(null);
-  const isEditMode = typeof editMode === 'boolean' ? editMode : isExpanded;
-  const isEditControlled = typeof editMode === 'boolean';
   const isExpandedEffective = disableExpanded ? false : isExpanded;
 
   // Access app icons
@@ -135,9 +130,7 @@ const Timeline = ({
   const handleEditCard = React.useCallback((card) => {
     if (typeof onEditCard === 'function') {
       onEditCard(card);
-      return;
     }
-    setEditingCard(card);
   }, [onEditCard]);
 
   const handleDeleteCard = React.useCallback((card) => {
@@ -238,16 +231,6 @@ const Timeline = ({
       minute,
       time: `${displayHour}:${minute.toString().padStart(2, '0')} ${period}`
     };
-  };
-
-  const handleToggleExpanded = () => {
-    if (disableExpanded) {
-      if (typeof onEditModeChange === 'function') {
-        onEditModeChange(!isEditMode);
-      }
-      return;
-    }
-    setIsExpanded(!isExpanded);
   };
 
   const handleToggleSort = () => {
@@ -802,7 +785,7 @@ const Timeline = ({
           progressValue: progress,
           side: 'right',
           primary: false,
-          bgColor: '#b2ffb9',
+          bgColor: 'rgba(0, 190, 104, 1)',
           icon: EditIcon,
           label: 'Edit',
           onClick: (e) => {
@@ -815,7 +798,7 @@ const Timeline = ({
           progressValue: progress,
           side: 'right',
           primary: true,
-          bgColor: '#ff9ba4',
+          bgColor: 'rgba(255, 96, 55, 1)',
           icon: DeleteIcon,
           label: 'Delete',
           onClick: (e) => {
@@ -952,23 +935,7 @@ const Timeline = ({
                       d: "M128,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16h72A8,8,0,0,1,128,128ZM48,72H184a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16Zm56,112H48a8,8,0,0,0,0,16h56a8,8,0,0,0,0-16Zm125.66-21.66a8,8,0,0,0-11.32,0L192,188.69V112a8,8,0,0,0-16,0v76.69l-26.34-26.35a8,8,0,0,0-11.32,11.32l40,40a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,229.66,162.34Z"
                     })
                   )
-            ),
-            __ttTimelineMotion && isEditControlled
-              ? React.createElement(__ttTimelineMotion.button, {
-                  onClick: handleToggleExpanded,
-                  className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
-                  animate: {
-                    backgroundColor: isEditMode ? '#111827' : '#2563eb',
-                    color: '#ffffff',
-                    boxShadow: isEditMode
-                      ? '0 10px 25px rgba(0,0,0,0.25)'
-                      : '0 10px 25px rgba(37,99,235,0.25)'
-                  }
-                }, isEditMode ? 'Done' : 'Edit')
-              : React.createElement('button', {
-                  onClick: handleToggleExpanded,
-                  className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
-                }, (disableExpanded ? isEditMode : isExpanded) ? 'Done' : 'Edit')
+            )
           )
         ),
         React.createElement('div', {
@@ -1022,7 +989,6 @@ const Timeline = ({
                   const isHolding = holdingCard === card.id;
                   const isLogged = card.variant === 'logged';
                   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
-                  const cardEditMode = isEditMode;
                   const hasDetails = isLogged && getHasDetails(card);
                   const isExpandedCard = expandedCardId === card.id;
                   const extraOffset = expandedCardId && expandedCardTopBase !== null && expandedTopPx > expandedCardTopBase
@@ -1084,7 +1050,7 @@ const Timeline = ({
                       TimelineSwipeRow,
                       {
                         card,
-                        isSwipeEnabled: isLogged && !isExpandedEffective && !cardEditMode,
+                        isSwipeEnabled: isLogged && !isExpandedEffective,
                         cardClassName,
                         cardStyle,
                         onPrimaryAction: handleDeleteCard,
@@ -1094,7 +1060,7 @@ const Timeline = ({
                         onSwipeStart: (id) => setSwipingCardId(id),
                         onSwipeEnd: () => setSwipingCardId(null),
                         onRowClick: () => {
-                          if (!isLogged || cardEditMode || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
+                          if (!isLogged || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
                           setExpandedCardId((prev) => (prev === card.id ? null : card.id));
                         }
                       },
@@ -1107,9 +1073,6 @@ const Timeline = ({
                             detailsHeight: expandedContentHeight,
                             hasDetails,
                             onPhotoClick: handleTimelinePhotoClick,
-                            isEditMode: cardEditMode,
-                            onEdit: handleEditCard,
-                            onDelete: handleDeleteCard,
                             onScheduledAdd,
                             onActiveSleepClick,
                             onExpandedContentHeight: handleExpandedContentHeight
@@ -1162,35 +1125,6 @@ const Timeline = ({
               }
             }, 'Delete')
           )
-        )
-      ),
-      document.body
-    ),
-    editingCard && ReactDOM.createPortal(
-      React.createElement('div', {
-        className: "fixed inset-0 bg-black/60 flex items-center justify-center p-4",
-        style: { zIndex: 30000 }
-      },
-        React.createElement('div', {
-          className: "rounded-3xl shadow-2xl p-6 max-w-sm w-full",
-          style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
-        },
-          React.createElement('h2', {
-            className: "text-xl font-semibold mb-4",
-            style: { color: 'var(--tt-text-primary)' }
-          }, `Edit ${editingCard.type === 'feed' ? 'Feeding' : 'Sleep'}`),
-          React.createElement('p', {
-            className: "text-base mb-4",
-            style: { color: 'var(--tt-text-secondary)' }
-          }, 'Detail sheets (TTFeedDetailSheet / TTSleepDetailSheet) will be integrated here.'),
-          React.createElement('button', {
-            onClick: () => setEditingCard(null),
-            className: "w-full px-4 py-3 rounded-xl font-semibold text-base",
-            style: {
-              backgroundColor: 'var(--tt-subtle-surface)',
-              color: 'var(--tt-text-primary)'
-            }
-          }, 'Close')
         )
       ),
       document.body

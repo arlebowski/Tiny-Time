@@ -17,7 +17,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const projectedScheduleRef = React.useRef(null);
   const latestActualEventsRef = React.useRef({ dateKey: null, feedings: [], sleeps: [], activeSleep: null });
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
-  const [timelineEditMode, setTimelineEditMode] = React.useState(false);
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
@@ -1001,8 +1000,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       allowItemExpand: true,
       initialFilter: initialTimelineFilter,
       onFilterChange: handleTimelineFilterChange,
-      editMode: timelineEditMode,
-      onEditModeChange: setTimelineEditMode,
       onEditCard: handleTimelineEditCard,
       onDeleteCard: handleTimelineDeleteCard,
       onScheduledAdd: handleScheduledAdd,
