@@ -14,6 +14,265 @@
     return Number.isFinite(ts) ? ts : null;
   };
 
+  const percentile = (arr, p) => {
+    if (!arr || arr.length === 0) return null;
+    const sorted = [...arr].sort((a, b) => a - b);
+    const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p)));
+    return sorted[idx];
+  };
+
+  // Combine nearby feeds into a single "session" to avoid top-off noise.
+  const buildFeedingSessions = (feedings, windowMinutes = 45) => {
+    const getOz = (f) => {
+      const oz = Number(f?.ounces ?? f?.amountOz ?? f?.amount ?? f?.volumeOz ?? f?.volume);
+      return Number.isFinite(oz) && oz > 0 ? oz : 0;
+    };
+    const sorted = [...(feedings || [])]
+      .filter(f => f && Number.isFinite(Number(f.timestamp)))
+      .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
+
+    const sessions = [];
+    const windowMs = windowMinutes * 60 * 1000;
+    let cur = null;
+
+    for (const f of sorted) {
+      const ts = Number(f.timestamp);
+      const oz = getOz(f);
+      if (!cur) {
+        cur = { startTime: ts, endTime: ts, totalOz: oz, items: [f] };
+        continue;
+      }
+      if (ts - cur.endTime <= windowMs) {
+        cur.endTime = ts;
+        cur.totalOz += oz;
+        cur.items.push(f);
+      } else {
+        sessions.push(cur);
+        cur = { startTime: ts, endTime: ts, totalOz: oz, items: [f] };
+      }
+    }
+    if (cur) sessions.push(cur);
+
+    return sessions.map(s => ({
+      timestamp: s.startTime,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      ounces: Math.round(s.totalOz * 10) / 10,
+      _sessionCount: s.items.length
+    }));
+  };
+
+  // Analyze historical intervals from recent history to derive time-of-day patterns.
+  const analyzeHistoricalIntervals = (feedings, sleepSessions, options = {}) => {
+    const now = Date.now();
+    const lookbackDays = Number.isFinite(Number(options.lookbackDays)) ? Number(options.lookbackDays) : 7;
+    const feedingSessionWindowMinutes = Number.isFinite(Number(options.feedingSessionWindowMinutes))
+      ? Number(options.feedingSessionWindowMinutes)
+      : 45;
+    const clusterWindowMinutes = Number.isFinite(Number(options.clusterWindowMinutes))
+      ? Number(options.clusterWindowMinutes)
+      : 60;
+    const minPatternCount = Number.isFinite(Number(options.minPatternCount))
+      ? Number(options.minPatternCount)
+      : 3;
+    const minFeedIntervalHours = Number.isFinite(Number(options.minFeedIntervalHours))
+      ? Number(options.minFeedIntervalHours)
+      : 0.5;
+    const maxFeedIntervalHours = Number.isFinite(Number(options.maxFeedIntervalHours))
+      ? Number(options.maxFeedIntervalHours)
+      : 8;
+
+    const _getOunces = (f) => {
+      const v = Number(f?.ounces ?? f?.amountOz ?? f?.amount ?? f?.volumeOz ?? f?.volume);
+      return Number.isFinite(v) && v > 0 ? v : null;
+    };
+    const _getSleepDurationHours = (s) => {
+      const start = Number(s?.startTime);
+      const end = Number(s?.endTime);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
+      return (end - start) / (1000 * 60 * 60);
+    };
+
+    const lookbackMs = lookbackDays * 24 * 60 * 60 * 1000;
+    const recentFeedingsRaw = (feedings || []).filter(f => f && f.timestamp >= now - lookbackMs);
+    const recentFeedingSessions = buildFeedingSessions(recentFeedingsRaw, feedingSessionWindowMinutes);
+
+    const recentFeedings = recentFeedingSessions;
+    const allSessionOz = recentFeedings.map(f => Number(f.ounces)).filter(v => Number.isFinite(v) && v > 0);
+    const overallSessionMedianOz = percentile(allSessionOz, 0.5);
+
+    const recentSleep = (sleepSessions || [])
+      .filter(s => s.startTime && s.startTime >= now - lookbackMs && s.endTime && !s.isActive)
+      .sort((a, b) => a.startTime - b.startTime);
+
+    // Feeding intervals between sessions.
+    const feedingIntervals = [];
+    for (let i = 1; i < recentFeedings.length; i++) {
+      const intervalHours = (recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp) / (1000 * 60 * 60);
+      if (intervalHours > minFeedIntervalHours && intervalHours < maxFeedIntervalHours) {
+        feedingIntervals.push(intervalHours);
+      }
+    }
+    const feedIntervalHours = feedingIntervals.length > 0
+      ? percentile(feedingIntervals, 0.5)
+      : 3.5;
+
+    const minFeedGapHours = Math.max(2.5, feedIntervalHours * 0.75);
+
+    const minutesSinceMidnight = (timestamp) => {
+      const date = new Date(timestamp);
+      return date.getHours() * 60 + date.getMinutes();
+    };
+
+    const getFeedOz = (f) => {
+      const oz = Number(f?.ounces ?? f?.volume ?? f?.amount ?? 0);
+      return Number.isFinite(oz) && oz > 0 ? oz : null;
+    };
+
+    const withinClusterWindow = (time1Minutes, time2Minutes) => {
+      const diff1 = Math.abs(time1Minutes - time2Minutes);
+      const diff2 = Math.abs(time1Minutes - (time2Minutes + 24 * 60));
+      const diff3 = Math.abs((time1Minutes + 24 * 60) - time2Minutes);
+      return Math.min(diff1, diff2, diff3) <= clusterWindowMinutes;
+    };
+
+    const feedClusters = [];
+    recentFeedings.forEach(f => {
+      const timeMinutes = minutesSinceMidnight(f.timestamp);
+      const oz = getFeedOz(f);
+      let foundCluster = null;
+      for (const cluster of feedClusters) {
+        const isClose = cluster.times.some(t => withinClusterWindow(timeMinutes, t));
+        if (isClose) {
+          foundCluster = cluster;
+          break;
+        }
+      }
+      if (foundCluster) {
+        foundCluster.times.push(timeMinutes);
+        foundCluster.timestamps.push(f.timestamp);
+        if (oz != null) foundCluster.ounces.push(oz);
+      } else {
+        feedClusters.push({
+          times: [timeMinutes],
+          timestamps: [f.timestamp],
+          ounces: oz != null ? [oz] : []
+        });
+      }
+    });
+
+    const feedPatterns = feedClusters
+      .map(cluster => {
+        const centerMinutes = percentile(cluster.times, 0.5);
+        const windowStartMinutes = percentile(cluster.times, 0.10);
+        const windowEndMinutes = percentile(cluster.times, 0.90);
+        const avgMinutes = Math.round(centerMinutes);
+        const hour = Math.floor(avgMinutes / 60) % 24;
+        const minute = avgMinutes % 60;
+        const volumeMedianOz = percentile(cluster.ounces || [], 0.5);
+        const volumeP10Oz = percentile(cluster.ounces || [], 0.10);
+        const volumeP90Oz = percentile(cluster.ounces || [], 0.90);
+        const flooredMedian = (overallSessionMedianOz && volumeMedianOz)
+          ? Math.max(volumeMedianOz, overallSessionMedianOz * 0.85)
+          : (volumeMedianOz ?? overallSessionMedianOz ?? null);
+        return {
+          hour,
+          minute,
+          count: cluster.times.length,
+          avgMinutes,
+          windowStartMinutes,
+          windowEndMinutes,
+          volumeMedianOz: flooredMedian,
+          volumeP10Oz,
+          volumeP90Oz
+        };
+      })
+      .filter(pattern => pattern.count >= minPatternCount)
+      .sort((a, b) => b.count - a.count);
+
+    let commonTimePattern = null;
+    if (feedPatterns.length > 0) {
+      const nowObj = new Date();
+      const nowMinutes = nowObj.getHours() * 60 + nowObj.getMinutes();
+      const upcomingPatterns = feedPatterns.filter(p => p.avgMinutes > nowMinutes);
+      if (upcomingPatterns.length > 0) {
+        const nextPattern = upcomingPatterns.reduce((closest, current) => {
+          return current.avgMinutes < closest.avgMinutes ? current : closest;
+        });
+        commonTimePattern = {
+          hour: nextPattern.hour,
+          minute: nextPattern.minute
+        };
+      } else {
+        commonTimePattern = {
+          hour: feedPatterns[0].hour,
+          minute: feedPatterns[0].minute
+        };
+      }
+    }
+
+    const sleepClusters = [];
+    recentSleep.forEach(s => {
+      const timeMinutes = minutesSinceMidnight(s.startTime);
+      const durHrs = _getSleepDurationHours(s);
+      let foundCluster = null;
+      for (const cluster of sleepClusters) {
+        const isClose = cluster.times.some(t => withinClusterWindow(timeMinutes, t));
+        if (isClose) {
+          foundCluster = cluster;
+          break;
+        }
+      }
+      if (foundCluster) {
+        foundCluster.times.push(timeMinutes);
+        foundCluster.timestamps.push(s.startTime);
+        if (durHrs !== null) foundCluster.durations.push(durHrs);
+      } else {
+        sleepClusters.push({
+          times: [timeMinutes],
+          timestamps: [s.startTime],
+          durations: durHrs !== null ? [durHrs] : []
+        });
+      }
+    });
+
+    const sleepPatterns = sleepClusters
+      .map(cluster => {
+        const centerMinutes = percentile(cluster.times, 0.5);
+        const windowStartMinutes = percentile(cluster.times, 0.10);
+        const windowEndMinutes = percentile(cluster.times, 0.90);
+        const avgMinutes = Math.round(centerMinutes);
+        const hour = Math.floor(avgMinutes / 60) % 24;
+        const minute = avgMinutes % 60;
+        const durationMedianHours = percentile(cluster.durations || [], 0.5);
+        return {
+          hour,
+          minute,
+          count: cluster.times.length,
+          avgMinutes,
+          windowStartMinutes,
+          windowEndMinutes,
+          avgDurationHours: durationMedianHours
+        };
+      })
+      .filter(pattern => pattern.count >= minPatternCount)
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      avgInterval: feedIntervalHours,
+      feedIntervalHours,
+      minFeedGapHours,
+      lastFeedingTime: recentFeedings.length > 0 ? recentFeedings[recentFeedings.length - 1].timestamp : null,
+      commonTimePattern,
+      feedIntervals: feedingIntervals.length,
+      recentFeedings,
+      feedPatterns,
+      sleepPatterns,
+      feedClusters,
+      sleepClusters
+    };
+  };
+
   const matchScheduleToActualEvents = (schedule, feedings, sleeps, windowMs = 30 * 60 * 1000) => {
     if (!Array.isArray(schedule)) return [];
 
@@ -60,6 +319,7 @@
 
   const buildDailySchedule = (analysis, feedIntervalHours, ageInMonths = 0, options = {}) => {
     const now = options?.now instanceof Date ? options.now : new Date();
+    const config = options?.config || {};
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
     today.setMilliseconds(0);
@@ -127,10 +387,16 @@
     // Example: Feed at 4:20 then Sleep at 4:27 is nonsense.
     // We treat clusters as "soft" and push the later event forward.
     // ------------------------------------------------------------
-    const FEED_DURATION_MIN = 20;   // how long a feed typically takes
-    const TRANSITION_BUFFER_MIN = 10; // diaper/burp/settle
+    const FEED_DURATION_MIN = Number.isFinite(Number(config.feedDurationMinutes))
+      ? Number(config.feedDurationMinutes)
+      : 20;   // how long a feed typically takes
+    const TRANSITION_BUFFER_MIN = Number.isFinite(Number(config.transitionBufferMinutes))
+      ? Number(config.transitionBufferMinutes)
+      : 10; // diaper/burp/settle
     const FEED_TO_SLEEP_MIN_GAP = FEED_DURATION_MIN + TRANSITION_BUFFER_MIN; // 30 min
-    const MIN_GENERIC_GAP_MIN = 10; // for any other too-close transitions
+    const MIN_GENERIC_GAP_MIN = Number.isFinite(Number(config.minGenericGapMinutes))
+      ? Number(config.minGenericGapMinutes)
+      : 10; // for any other too-close transitions
 
     const resolveCollisions = (events) => {
       if (!events || events.length < 2) return events;
@@ -171,7 +437,10 @@
     // Deduplicate events at the same time (within 5 minutes)
     // Keep the event with the highest pattern count
     const deduplicatedSchedule = [];
-    const timeWindowMs = 5 * 60 * 1000; // 5 minutes
+    const dedupeWindowMinutes = Number.isFinite(Number(config.dedupeWindowMinutes))
+      ? Number(config.dedupeWindowMinutes)
+      : 5;
+    const timeWindowMs = dedupeWindowMinutes * 60 * 1000;
 
     schedule.forEach(event => {
       // Find if there's already an event at this time (within 5 min window)
@@ -213,6 +482,7 @@
   const adjustScheduleForActualEvents = (schedule, allFeedings, allSleepSessions, feedIntervalHours, analysis, ageInMonths = 0, options = {}) => {
     const now = options?.now instanceof Date ? options.now : new Date();
     const sleepSettings = options?.sleepSettings || null;
+    const config = options?.config || {};
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
     today.setMilliseconds(0);
@@ -286,12 +556,16 @@
     const matchedScheduled = new Set();
 
     // For each actual event, check if it matches a scheduled event (within 30 min)
+    const matchWindowMinutes = Number.isFinite(Number(config.matchWindowMinutes))
+      ? Number(config.matchWindowMinutes)
+      : 30;
+
     allEvents.forEach(actualEvent => {
       let matched = false;
       schedule.forEach((scheduledEvent, idx) => {
         if (matchedScheduled.has(idx)) return;
         const timeDiff = Math.abs(actualEvent.time.getTime() - scheduledEvent.time.getTime()) / (1000 * 60); // minutes
-        if (timeDiff <= 30 && actualEvent.type === scheduledEvent.type) {
+        if (timeDiff <= matchWindowMinutes && actualEvent.type === scheduledEvent.type) {
           // Event occurred within 30 min of prediction - add the scheduled event to adjustedSchedule with actual flag
           matchedScheduled.add(idx);
           matched = true;
@@ -379,15 +653,27 @@
 
     // Rebuild interval-based feeds from the last actual feed (fallback only)
     const todayEndObj = todayEnd;
-    const feedSkipWindowMins = 45; // if a pattern feed is within 45m, don't add interval feed
-    const minNapAfterFeedMins = 25; // never suggest sleep immediately after feeding
-    const napHoursAfterFeed = 1.5;
+    const feedSkipWindowMins = Number.isFinite(Number(config.feedSkipWindowMinutes))
+      ? Number(config.feedSkipWindowMinutes)
+      : 45; // if a pattern feed is within 45m, don't add interval feed
+    const minNapAfterFeedMins = Number.isFinite(Number(config.minNapAfterFeedMinutes))
+      ? Number(config.minNapAfterFeedMinutes)
+      : 25; // never suggest sleep immediately after feeding
+    const napHoursAfterFeed = Number.isFinite(Number(config.napHoursAfterFeed))
+      ? Number(config.napHoursAfterFeed)
+      : 1.5;
     const allowNightIntervals = ageInMonths < 1; // newborn exception
 
     // Forward re-solve rules (to avoid nonsense like two sleeps back-to-back)
-    const MIN_SAME_SLEEP_MIN = 75; // don't allow two "sleep" events within 75 min
-    const MIN_SAME_FEED_MIN = 90; // don't allow two "feed" events within 90 min
-    const MIN_DIFF_TYPE_MIN = 20; // keep at least 20 min between feed<->sleep predictions
+    const MIN_SAME_SLEEP_MIN = Number.isFinite(Number(config.minSameSleepMinutes))
+      ? Number(config.minSameSleepMinutes)
+      : 75; // don't allow two "sleep" events within 75 min
+    const MIN_SAME_FEED_MIN = Number.isFinite(Number(config.minSameFeedMinutes))
+      ? Number(config.minSameFeedMinutes)
+      : 90; // don't allow two "feed" events within 90 min
+    const MIN_DIFF_TYPE_MIN = Number.isFinite(Number(config.minDiffTypeMinutes))
+      ? Number(config.minDiffTypeMinutes)
+      : 20; // keep at least 20 min between feed<->sleep predictions
 
     const _eventPriority = (e) => {
       if (!e) return 0;
@@ -557,7 +843,9 @@
     // - Actual events never move.
     // - Between predicted events, FEED wins (SLEEP gets shifted).
     // - If a predicted event collides with an actual event, drop/shift the predicted one.
-    const MIN_TRANSITION_GAP_MIN = 30; // ~20m feed + ~10m settle
+    const MIN_TRANSITION_GAP_MIN = Number.isFinite(Number(config.minTransitionGapMinutes))
+      ? Number(config.minTransitionGapMinutes)
+      : 30; // ~20m feed + ~10m settle
     const MIN_TRANSITION_GAP_MS = MIN_TRANSITION_GAP_MIN * 60 * 1000;
 
     const _normalizeTransitions = (events) => {
@@ -715,6 +1003,9 @@
   };
 
   window.TT.utils.scheduleUtils.matchScheduleToActualEvents = matchScheduleToActualEvents;
+  window.TT.utils.scheduleUtils.percentile = percentile;
+  window.TT.utils.scheduleUtils.buildFeedingSessions = buildFeedingSessions;
+  window.TT.utils.scheduleUtils.analyzeHistoricalIntervals = analyzeHistoricalIntervals;
   window.TT.utils.scheduleUtils.buildDailySchedule = buildDailySchedule;
   window.TT.utils.scheduleUtils.adjustScheduleForActualEvents = adjustScheduleForActualEvents;
 })();

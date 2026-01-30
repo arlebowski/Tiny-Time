@@ -4,6 +4,7 @@
 const ScheduleTab = ({ user, kidId, familyId }) => {
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
+  const scheduleStore = window.TT?.store?.scheduleStore || null;
   const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
   const [selectedDate, setSelectedDate] = React.useState(new Date());
@@ -32,12 +33,32 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
     return `${hours}:${mins} ${ampm}`;
   };
 
-  const scheduleStorageKey = 'tt_daily_projection_schedule_v1';
+  const scheduleStorageKey = scheduleStore?.storageKey || 'tt_daily_projection_schedule_v1';
   const getScheduleDateKey = (date = new Date()) => {
+    if (scheduleStore && typeof scheduleStore.getScheduleDateKey === 'function') {
+      return scheduleStore.getScheduleDateKey(date);
+    }
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  };
+
+  const readProjectionSchedule = (dateKey) => {
+    if (scheduleStore && typeof scheduleStore.readProjectionSchedule === 'function') {
+      return scheduleStore.readProjectionSchedule(dateKey);
+    }
+    try {
+      const raw = localStorage.getItem(scheduleStorageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) {
+        return null;
+      }
+      return parsed.items;
+    } catch {
+      return null;
+    }
   };
 
   const loadProjectedSchedule = React.useCallback((date) => {
@@ -48,19 +69,14 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
       return;
     }
     try {
-      const raw = localStorage.getItem(scheduleStorageKey);
-      if (!raw) {
+      const storedItems = readProjectionSchedule(dateKey);
+      if (!storedItems || !Array.isArray(storedItems)) {
         setScheduledTimelineItems(null);
         return;
       }
-      const parsed = JSON.parse(raw);
-      if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) {
-        setScheduledTimelineItems(null);
-        return;
-      }
-      const scheduledCards = parsed.items
+      const scheduledCards = storedItems
         .map((item, idx) => {
-          const timeMs = Number(item?.timeMs);
+          const timeMs = Number(item?.timeMs ?? (item?.time instanceof Date ? item.time.getTime() : NaN));
           if (!Number.isFinite(timeMs)) return null;
           const d = new Date(timeMs);
           const isFeed = item.type === 'feed';
@@ -279,6 +295,41 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   }, [selectedDate, loadProjectedSchedule]);
 
   React.useEffect(() => {
+    const dateKey = getScheduleDateKey(selectedDate);
+    const todayKey = getScheduleDateKey(new Date());
+    if (!scheduleStore || dateKey !== todayKey) return;
+    if (!firestoreStorage || !firestoreStorage.currentFamilyId || !firestoreStorage.currentKidId) return;
+    let isMounted = true;
+    (async () => {
+      try {
+        const [feedings, sleeps, kid, sleepSettings] = await Promise.all([
+          firestoreStorage.getAllFeedings(),
+          firestoreStorage.getAllSleepSessions(),
+          firestoreStorage.getKidData(),
+          firestoreStorage.getSleepSettings()
+        ]);
+        const ageInMonths = kid?.birthDate && window.TT?.shared?.calculateAgeInMonths
+          ? window.TT.shared.calculateAgeInMonths(kid.birthDate)
+          : 0;
+        const result = await scheduleStore.rebuildAndPersist({
+          feedings,
+          sleepSessions: sleeps,
+          ageInMonths,
+          sleepSettings,
+          kidId: firestoreStorage.currentKidId,
+          dateKey,
+          persistAdjusted: true
+        });
+        if (!isMounted || !result) return;
+        loadProjectedSchedule(selectedDate);
+      } catch (error) {
+        // Non-fatal: ScheduleTab can still show last cached projection.
+      }
+    })();
+    return () => { isMounted = false; };
+  }, [selectedDate, scheduleStore, loadProjectedSchedule, getScheduleDateKey]);
+
+  React.useEffect(() => {
     const onProjectionUpdate = (event) => {
       const dateKey = event?.detail?.dateKey;
       const selectedKey = getScheduleDateKey(selectedDate);
@@ -411,54 +462,78 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   const feedDisplay = formatV2NumberSafe(selectedSummary.feedOz);
   const sleepHours = Number(selectedSummary.sleepMs || 0) / 3600000;
   const sleepDisplay = formatV2NumberSafe(sleepHours);
+  const scheduleDateLabel = selectedDate.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  });
 
   const Timeline = window.TT?.shared?.Timeline || null;
 
   return React.createElement('div', {
     className: "space-y-4 pb-24"
   },
-    HorizontalCalendar
-      ? React.createElement(HorizontalCalendar, {
-          onDateSelect: (payload) => {
-            if (!payload) return;
-            setSelectedSummary({
-              feedOz: payload.feedOz || 0,
-              sleepMs: payload.sleepMs || 0
-            });
-            if (payload.date) {
-              try {
-                const newDate = new Date(payload.date);
-                setSelectedSummaryKey(newDate.toDateString());
-                setSelectedDate(newDate);
-              } catch (e) {
-                setSelectedSummaryKey(String(Date.now()));
-              }
-            } else {
-              setSelectedSummaryKey(String(Date.now()));
-            }
-          }
-        })
-      : null,
-    React.createElement('div', { className: "grid grid-cols-2 gap-4 -mt-2" },
-      renderSummaryCard({
-        icon: bottleIcon,
-        color: 'var(--tt-feed)',
-        value: feedDisplay,
-        unit: 'oz',
-        rotateIcon: true
-      }),
-      renderSummaryCard({
-        icon: moonIcon,
-        color: 'var(--tt-sleep)',
-        value: sleepDisplay,
-        unit: 'hrs',
-        rotateIcon: false
-      })
+    React.createElement('div', {
+      className: "pl-3 pr-4",
+      style: {
+        color: 'var(--tt-text-primary)',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif'
+      }
+    },
+      React.createElement('div', {
+        className: "text-[15.4px] font-normal",
+        style: { color: 'var(--tt-text-secondary)' }
+      }, scheduleDateLabel),
+      React.createElement('div', {
+        className: "text-[24px] font-semibold",
+        style: { color: 'var(--tt-text-primary)', marginBottom: '16px' }
+      }, 'Plan your day')
     ),
+    // HorizontalCalendar + summary cards hidden for ScheduleTab redesign.
+    // HorizontalCalendar
+    //   ? React.createElement(HorizontalCalendar, {
+    //       onDateSelect: (payload) => {
+    //         if (!payload) return;
+    //         setSelectedSummary({
+    //           feedOz: payload.feedOz || 0,
+    //           sleepMs: payload.sleepMs || 0
+    //         });
+    //         if (payload.date) {
+    //           try {
+    //             const newDate = new Date(payload.date);
+    //             setSelectedSummaryKey(newDate.toDateString());
+    //             setSelectedDate(newDate);
+    //           } catch (e) {
+    //             setSelectedSummaryKey(String(Date.now()));
+    //           }
+    //         } else {
+    //           setSelectedSummaryKey(String(Date.now()));
+    //         }
+    //       }
+    //     })
+    //   : null,
+    // React.createElement('div', { className: "grid grid-cols-2 gap-4 -mt-2" },
+    //   renderSummaryCard({
+    //     icon: bottleIcon,
+    //     color: 'var(--tt-feed)',
+    //     value: feedDisplay,
+    //     unit: 'oz',
+    //     rotateIcon: true
+    //   }),
+    //   renderSummaryCard({
+    //     icon: moonIcon,
+    //     color: 'var(--tt-sleep)',
+    //     value: sleepDisplay,
+    //     unit: 'hrs',
+    //     rotateIcon: false
+    //   })
+    // ),
     Timeline ? React.createElement(Timeline, {
       key: selectedDate.toDateString(),
       initialLoggedItems: loggedTimelineItems,
       initialScheduledItems: scheduledTimelineItems,
+      initialSortOrder: 'asc',
+      hideLoggedItems: true,
       onActiveSleepClick: handleActiveSleepClick
     }) : null,
     window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {

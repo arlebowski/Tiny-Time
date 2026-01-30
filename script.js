@@ -2595,11 +2595,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       { className: isAnalyticsSubtab ? "mx-auto w-full" : "max-w-2xl mx-auto" },
 
       // ---------------- HEADER ----------------
-      !isAnalyticsSubtab && React.createElement(
+      !isAnalyticsSubtab && activeTab !== 'tracker-detail' && React.createElement(
         'div',
         {
           // Must sit above sticky in-tab UI like the TrackerTab date picker.
-          className: "sticky top-0 z-[1200]",
+          className: "tt-main-header sticky top-0 z-[1200]",
           style: { backgroundColor: "var(--tt-header-bg)" }
         },
         React.createElement(
@@ -2623,8 +2623,25 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowKidMenu((v) => !v);
                     setShowShareMenu(false);
                   },
-                  className: "flex items-center gap-1 px-3 focus:outline-none"
+                  className: "flex items-center gap-[10px] px-3 focus:outline-none"
                 },
+                React.createElement(
+                  'span',
+                  {
+                    className: "w-[30px] h-[30px] rounded-full overflow-hidden flex-shrink-0",
+                    style: { backgroundColor: 'var(--tt-input-bg)' }
+                  },
+                  activeKid?.photoURL
+                    ? React.createElement('img', {
+                        src: activeKid.photoURL,
+                        alt: activeKid?.name || 'Baby',
+                        className: "w-full h-full object-cover"
+                      })
+                    : React.createElement('span', {
+                        className: "w-full h-full block",
+                        style: { backgroundColor: 'var(--tt-feed-soft)' }
+                      })
+                ),
                 React.createElement(
                   'span',
                   { 
@@ -2878,7 +2895,17 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           style: { display: activeTab === 'schedule' ? 'block' : 'none' }
         }, React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId })),
         window.TT?.tabs?.TrackerDetailTab && React.createElement('div', {
-          style: { display: activeTab === 'tracker-detail' ? 'block' : 'none' }
+          style: activeTab === 'tracker-detail'
+            ? {
+                display: 'block',
+                position: 'fixed',
+                inset: 0,
+                zIndex: 1100,
+                overflowY: 'auto',
+                WebkitOverflowScrolling: 'touch',
+                backgroundColor: 'var(--tt-app-bg)'
+              }
+            : { display: 'none' }
         }, React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab, activeTab })),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,

@@ -360,6 +360,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     // Shared photos state
     const [photos, setPhotos] = React.useState([]);
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
+    const [saving, setSaving] = React.useState(false);
     
     // Track keyboard state to hide sticky button when keyboard is open
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
@@ -484,7 +485,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       startTime,
       endTime,
       sleepNotes,
-      photos.length
+      photos.length,
+      saving
     ]);
     
     // Persist running state to localStorage (for sheet state persistence)
@@ -624,7 +626,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       measure();
       window.addEventListener('resize', measure);
       return () => window.removeEventListener('resize', measure);
-    }, [__ttUseV4Sheet, mode, sleepState, endTimeManuallyEdited, isKeyboardOpen]);
+    }, [__ttUseV4Sheet, mode, sleepState, endTimeManuallyEdited, isKeyboardOpen, saving]);
     
     // Auto-populate start time when toggle switches to Sleep
     React.useEffect(() => {
@@ -754,10 +756,10 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     // Handle add feeding - save to Firebase
     const handleAddFeeding = async () => {
       const amount = parseFloat(ounces);
-      if (!amount || amount <= 0) {
+      if (!amount || amount <= 0 || saving) {
         return;
       }
-      
+      setSaving(true);
       try {
         const timestamp = new Date(feedingDateTime).getTime();
         
@@ -830,6 +832,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           code: error.code
         });
         alert(`Failed to add feeding: ${error.message || 'Please try again.'}`);
+      } finally {
+        setSaving(false);
       }
     };
 
@@ -888,8 +892,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
 
     // Handle end sleep: RUNNING → saves sleep (with photos!), closes sheet, opens timeline
     const handleEndSleep = async () => {
-      if (sleepState !== 'running') return;
-      
+      if (sleepState !== 'running' || saving) return;
+      setSaving(true);
       try {
         const now = new Date().toISOString();
         const endMs = Date.now();
@@ -960,6 +964,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       } catch (error) {
         console.error('Failed to end sleep:', error);
         alert('Failed to end sleep. Please try again.');
+      } finally {
+        setSaving(false);
       }
     };
     
@@ -1013,8 +1019,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     
     // Handle save sleep when end time is manually edited
     const handleSaveSleep = async () => {
-      if (!isSleepValid) return; // Prevent saving if invalid
-      
+      if (!isSleepValid || saving) return; // Prevent saving if invalid
+      setSaving(true);
       try {
         const startMs = new Date(startTime).getTime();
         const endMs = new Date(endTime).getTime();
@@ -1080,6 +1086,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       } catch (error) {
         console.error('Failed to save sleep session:', error);
         alert('Failed to save sleep session. Please try again.');
+      } finally {
+        setSaving(false);
       }
     };
 
@@ -1552,8 +1560,28 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           }, renderSleepContent())
         );
 
-    const ctaButton = mode === 'feeding'
-      ? React.createElement('button', {
+    const ctaButton = (() => {
+      if (saving) {
+        const savingColor = mode === 'feeding' ? 'var(--tt-feed-strong)' : 'var(--tt-sleep-strong)';
+        return React.createElement('button', {
+          type: 'button',
+          disabled: true,
+          onTouchStart: (e) => {
+            // Prevent scroll container from capturing touch
+            e.stopPropagation();
+          },
+          className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: savingColor,
+            touchAction: 'manipulation',
+            opacity: 0.7,
+            cursor: 'not-allowed'
+          }
+        }, 'Saving...');
+      }
+
+      if (mode === 'feeding') {
+        return React.createElement('button', {
           type: 'button',
           onClick: handleAddFeeding,
           onTouchStart: (e) => {
@@ -1571,84 +1599,87 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           onMouseLeave: (e) => {
             e.target.style.backgroundColor = 'var(--tt-feed)';
           }
-        }, 'Add Feed')
-      : (() => {
-          // Sleep CTA button logic
-          if (sleepState === 'running') {
-            return React.createElement('button', {
-              type: 'button',
-              onClick: handleEndSleep,
-              onTouchStart: (e) => {
-                // Prevent scroll container from capturing touch
-                e.stopPropagation();
-              },
-              className: "w-full text-white py-3 rounded-2xl font-semibold transition",
-              style: {
-                backgroundColor: 'var(--tt-sleep)',
-                touchAction: 'manipulation' // Prevent scroll interference on mobile
-              },
-              onMouseEnter: (e) => {
-                e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-              },
-              onMouseLeave: (e) => {
-                e.target.style.backgroundColor = 'var(--tt-sleep)';
-              }
-            }, 'Stop timer');
+        }, 'Add Feed');
+      }
+
+      // Sleep CTA button logic
+      if (sleepState === 'running') {
+        return React.createElement('button', {
+          type: 'button',
+          onClick: handleEndSleep,
+          onTouchStart: (e) => {
+            // Prevent scroll container from capturing touch
+            e.stopPropagation();
+          },
+          className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: 'var(--tt-sleep)',
+            touchAction: 'manipulation' // Prevent scroll interference on mobile
+          },
+          onMouseEnter: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+          },
+          onMouseLeave: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-sleep)';
           }
-          if (endTimeManuallyEdited) {
-            // Show Save button when end time is edited
-            // Disabled and red text if invalid
-            const isValid = isSleepValid;
-            return React.createElement('button', {
-              type: 'button',
-              onClick: isValid ? handleSaveSleep : undefined,
-              onTouchStart: (e) => {
-                // Prevent scroll container from capturing touch
-                e.stopPropagation();
-              },
-              disabled: !isValid,
-              className: "w-full py-3 rounded-2xl font-semibold transition",
-              style: {
-                backgroundColor: isValid ? 'var(--tt-sleep)' : 'transparent',
-                color: isValid ? 'white' : '#ef4444', // Red text when invalid
-                border: isValid ? 'none' : '1px solid #ef4444',
-                cursor: isValid ? 'pointer' : 'not-allowed',
-                opacity: isValid ? 1 : 0.7,
-                touchAction: 'manipulation' // Prevent scroll interference on mobile
-              },
-              onMouseEnter: (e) => {
-                if (isValid) {
-                  e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-                }
-              },
-              onMouseLeave: (e) => {
-                if (isValid) {
-                  e.target.style.backgroundColor = 'var(--tt-sleep)';
-                }
-              }
-            }, 'Save');
-          }
-          // Show Start Sleep button when idle
-          return React.createElement('button', {
-            type: 'button',
-            onClick: handleStartSleep,
-            onTouchStart: (e) => {
-              // Prevent scroll container from capturing touch
-              e.stopPropagation();
-            },
-            className: "w-full text-white py-3 rounded-2xl font-semibold transition",
-            style: {
-              backgroundColor: 'var(--tt-sleep)',
-              touchAction: 'manipulation' // Prevent scroll interference on mobile
-            },
-            onMouseEnter: (e) => {
+        }, 'Stop timer');
+      }
+
+      if (endTimeManuallyEdited) {
+        // Show Save button when end time is edited
+        // Disabled and red text if invalid
+        const isValid = isSleepValid;
+        return React.createElement('button', {
+          type: 'button',
+          onClick: isValid ? handleSaveSleep : undefined,
+          onTouchStart: (e) => {
+            // Prevent scroll container from capturing touch
+            e.stopPropagation();
+          },
+          disabled: !isValid,
+          className: "w-full py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: isValid ? 'var(--tt-sleep)' : 'transparent',
+            color: isValid ? 'white' : '#ef4444', // Red text when invalid
+            border: isValid ? 'none' : '1px solid #ef4444',
+            cursor: isValid ? 'pointer' : 'not-allowed',
+            opacity: isValid ? 1 : 0.7,
+            touchAction: 'manipulation' // Prevent scroll interference on mobile
+          },
+          onMouseEnter: (e) => {
+            if (isValid) {
               e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-            },
-            onMouseLeave: (e) => {
+            }
+          },
+          onMouseLeave: (e) => {
+            if (isValid) {
               e.target.style.backgroundColor = 'var(--tt-sleep)';
             }
-          }, 'Start Sleep');
-        })();
+          }
+        }, 'Save');
+      }
+
+      // Show Start Sleep button when idle
+      return React.createElement('button', {
+        type: 'button',
+        onClick: handleStartSleep,
+        onTouchStart: (e) => {
+          // Prevent scroll container from capturing touch
+          e.stopPropagation();
+        },
+        className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+        style: {
+          backgroundColor: 'var(--tt-sleep)',
+          touchAction: 'manipulation' // Prevent scroll interference on mobile
+        },
+        onMouseEnter: (e) => {
+          e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+        },
+        onMouseLeave: (e) => {
+          e.target.style.backgroundColor = 'var(--tt-sleep)';
+        }
+      }, 'Start Sleep');
+    })();
 
     const contentWrapper = React.createElement('div', {
       style: {

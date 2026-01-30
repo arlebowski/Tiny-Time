@@ -13,6 +13,12 @@ const __ttDebugCardsLog = (...args) => {
 // --- Feed sessionization: combine nearby small feeds into a single "session" ---
 // This prevents top-off feeds from dragging median volume down and making intervals look too short.
 const buildFeedingSessions = (feedings, windowMinutes = 45) => {
+  const scheduleUtils = (typeof window !== 'undefined' && window.TT && window.TT.utils && window.TT.utils.scheduleUtils)
+    ? window.TT.utils.scheduleUtils
+    : null;
+  if (scheduleUtils && typeof scheduleUtils.buildFeedingSessions === 'function') {
+    return scheduleUtils.buildFeedingSessions(feedings, windowMinutes);
+  }
   const getOz = (f) => {
     const oz = Number(f?.ounces ?? f?.amountOz ?? f?.amount ?? f?.volumeOz ?? f?.volume);
     return Number.isFinite(oz) && oz > 0 ? oz : 0;
@@ -54,6 +60,12 @@ const buildFeedingSessions = (feedings, windowMinutes = 45) => {
 };
 
 const percentile = (arr, p) => {
+  const scheduleUtils = (typeof window !== 'undefined' && window.TT && window.TT.utils && window.TT.utils.scheduleUtils)
+    ? window.TT.utils.scheduleUtils
+    : null;
+  if (scheduleUtils && typeof scheduleUtils.percentile === 'function') {
+    return scheduleUtils.percentile(arr, p);
+  }
   if (!arr || arr.length === 0) return null;
   const sorted = [...arr].sort((a, b) => a - b);
   const idx = Math.max(0, Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p)));
@@ -285,6 +297,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [kidPhotoUrl, setKidPhotoUrl] = React.useState(null);
   const [kidDisplayName, setKidDisplayName] = React.useState(null);
+  const [kidBirthDate, setKidBirthDate] = React.useState(null);
   const [calendarMountKey, setCalendarMountKey] = React.useState(0);
   const prevActiveTabRef = React.useRef(activeTab);
   // State for smooth date transitions - preserve previous values while loading
@@ -390,82 +403,19 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   };
   const lastAICallRef = React.useRef(getLastAICallTime());
   
-  // Separate cooldown tracker for schedule building (independent from "what's next")
-  const getLastScheduleAICallTime = () => {
-    try {
-      const stored = localStorage.getItem('tt_last_schedule_ai_call');
-      return stored ? parseInt(stored, 10) : 0;
-    } catch {
-      return 0;
-    }
-  };
-  const setLastScheduleAICallTime = (timestamp) => {
-    try {
-      localStorage.setItem('tt_last_schedule_ai_call', String(timestamp));
-    } catch {
-      // Ignore localStorage errors
-    }
-  };
-  const lastScheduleAICallRef = React.useRef(getLastScheduleAICallTime());
-  const isBuildingDailyScheduleRef = React.useRef(false);
-  const isAdjustingScheduleRef = React.useRef(false);
+  // Schedule projection uses shared scheduleStore (AI handled there).
 
-  const scheduleStorageKey = 'tt_daily_projection_schedule_v1';
+  const scheduleStore = (typeof window !== 'undefined' && window.TT && window.TT.store && window.TT.store.scheduleStore)
+    ? window.TT.store.scheduleStore
+    : null;
   const getScheduleDateKey = (date = new Date()) => {
+    if (scheduleStore && typeof scheduleStore.getScheduleDateKey === 'function') {
+      return scheduleStore.getScheduleDateKey(date);
+    }
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
-  };
-
-  const readStoredProjectionSchedule = (dateKey) => {
-    try {
-      const raw = localStorage.getItem(scheduleStorageKey);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw);
-      if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) return null;
-      const items = parsed.items
-        .map((item) => {
-          const timeMs = Number(item?.timeMs);
-          if (!Number.isFinite(timeMs)) return null;
-          return {
-            ...item,
-            time: new Date(timeMs)
-          };
-        })
-        .filter(Boolean);
-      return items.length > 0 ? items : null;
-    } catch {
-      return null;
-    }
-  };
-
-  const writeProjectionSchedule = (dateKey, schedule) => {
-    try {
-      const items = (schedule || [])
-        .map((item) => {
-          const timeMs = item?.time instanceof Date ? item.time.getTime() : Number(item?.timeMs);
-          if (!Number.isFinite(timeMs)) return null;
-          return {
-            type: item.type,
-            timeMs,
-            patternBased: !!item.patternBased,
-            patternCount: item.patternCount || 0,
-            targetOz: Number.isFinite(Number(item?.targetOz)) ? Number(item.targetOz) : null,
-            targetOzRange: Array.isArray(item?.targetOzRange) ? item.targetOzRange : null,
-            avgDurationHours: Number.isFinite(Number(item?.avgDurationHours)) ? Number(item.avgDurationHours) : null
-          };
-        })
-        .filter(Boolean);
-      localStorage.setItem(scheduleStorageKey, JSON.stringify({ dateKey, items }));
-      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-        try {
-          window.dispatchEvent(new CustomEvent('tt:projection-schedule-updated', { detail: { dateKey, items } }));
-        } catch (e) {}
-      }
-    } catch {
-      // Ignore localStorage errors
-    }
   };
 
   // Format time as h:mma (e.g., "12:30pm") - no rounding
@@ -489,457 +439,28 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     );
   };
 
-  // Analyze historical intervals from last 7 days, weighted by recency
+  // Analyze historical intervals from shared schedule utils (single source of truth)
   const analyzeHistoricalIntervals = (feedings, sleepSessions) => {
-    const now = Date.now();
-    const _getOunces = (f) => {
-      const v = Number(f?.ounces ?? f?.amountOz ?? f?.amount ?? f?.volumeOz);
-      return Number.isFinite(v) && v > 0 ? v : null;
-    };
-    const _getSleepDurationHours = (s) => {
-      const start = Number(s?.startTime);
-      const end = Number(s?.endTime);
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return null;
-      return (end - start) / (1000 * 60 * 60);
-    };
-    const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
-
-    // IMPORTANT: use feeding sessions, not raw feed logs
-    const recentFeedingsRaw = (feedings || []).filter(f => f && f.timestamp >= sevenDaysAgo);
-    const recentFeedingSessions = buildFeedingSessions(recentFeedingsRaw, 45);
-
-    const twoDaysAgo = now - (2 * 24 * 60 * 60 * 1000);
-    
-    // Filter to last 7 days and sort chronologically
-    const recentFeedings = recentFeedingSessions;
-
-    // Overall session volume stats (useful for floors / sanity)
-    const allSessionOz = recentFeedings.map(f => Number(f.ounces)).filter(v => Number.isFinite(v) && v > 0);
-    const overallSessionMedianOz = percentile(allSessionOz, 0.5);
-    
-    const recentSleep = (sleepSessions || [])
-      .filter(s => s.startTime && s.startTime >= sevenDaysAgo && s.endTime && !s.isActive)
-      .sort((a, b) => a.startTime - b.startTime);
-    
-    // Calculate feed intervals (in hours) between SESSIONS (not raw logs)
-    const feedingIntervals = [];
-    for (let i = 1; i < recentFeedings.length; i++) {
-      const intervalHours = (recentFeedings[i].timestamp - recentFeedings[i - 1].timestamp) / (1000 * 60 * 60);
-      if (intervalHours > 0.5 && intervalHours < 8) { // Filter out weird intervals
-        feedingIntervals.push(intervalHours);
-      }
+    const scheduleUtils = (typeof window !== 'undefined' && window.TT && window.TT.utils && window.TT.utils.scheduleUtils)
+      ? window.TT.utils.scheduleUtils
+      : null;
+    if (scheduleUtils && typeof scheduleUtils.analyzeHistoricalIntervals === 'function') {
+      return scheduleUtils.analyzeHistoricalIntervals(feedings, sleepSessions);
     }
-    const feedIntervalHours = feedingIntervals.length > 0
-      ? percentile(feedingIntervals, 0.5) // median is more robust than mean
-      : 3.5;
-
-    // Minimum plausible gap between feeds (used later when building schedule)
-    const minFeedGapHours = Math.max(2.5, feedIntervalHours * 0.75);
-    
-    // Analyze time-of-day patterns using clustering approach
-    // Cluster events within 1 hour of each other across different days, then average them
-    
-    // Helper: Convert timestamp to minutes since midnight (for time comparison across days)
-    const minutesSinceMidnight = (timestamp) => {
-      const date = new Date(timestamp);
-      return date.getHours() * 60 + date.getMinutes();
-    };
-
-    const getFeedOz = (f) => {
-      const oz = Number(f?.ounces ?? f?.volume ?? f?.amount ?? 0);
-      return Number.isFinite(oz) && oz > 0 ? oz : null;
-    };
-    
-    // Helper: Check if two times are within 1 hour of each other (across days)
-    const withinOneHour = (time1Minutes, time2Minutes) => {
-      // Handle wrap-around (e.g., 11:30pm and 12:15am are close)
-      const diff1 = Math.abs(time1Minutes - time2Minutes);
-      const diff2 = Math.abs(time1Minutes - (time2Minutes + 24 * 60)); // next day
-      const diff3 = Math.abs((time1Minutes + 24 * 60) - time2Minutes); // previous day
-      return Math.min(diff1, diff2, diff3) <= 60; // 1 hour = 60 minutes
-    };
-    
-    // Cluster feedings by time proximity (within 1 hour across days)
-    const feedClusters = [];
-    recentFeedings.forEach(f => {
-      const timeMinutes = minutesSinceMidnight(f.timestamp);
-      const oz = getFeedOz(f);
-      // Find existing cluster this feeding belongs to
-      let foundCluster = null;
-      for (const cluster of feedClusters) {
-        // Check if this feeding is within 1 hour of any feeding in the cluster
-        const isClose = cluster.times.some(t => withinOneHour(timeMinutes, t));
-        if (isClose) {
-          foundCluster = cluster;
-          break;
-        }
-      }
-      
-      if (foundCluster) {
-        // Add to existing cluster
-        foundCluster.times.push(timeMinutes);
-        foundCluster.timestamps.push(f.timestamp);
-        if (oz != null) foundCluster.ounces.push(oz);
-      } else {
-        // Create new cluster
-        feedClusters.push({
-          times: [timeMinutes],
-          timestamps: [f.timestamp],
-          ounces: oz != null ? [oz] : []
-        });
-      }
-    });
-    
-    // Calculate average time for each cluster and find the most common one
-    const feedPatterns = feedClusters
-      .map(cluster => {
-        // Robust time center (median), plus window (p10..p90)
-        const centerMinutes = percentile(cluster.times, 0.5);
-        const windowStartMinutes = percentile(cluster.times, 0.10);
-        const windowEndMinutes = percentile(cluster.times, 0.90);
-
-        const avgMinutes = Math.round(centerMinutes); // keep field name for downstream compatibility
-        const hour = Math.floor(avgMinutes / 60) % 24;
-        const minute = avgMinutes % 60;
-
-        // Robust volume stats for this time cluster
-        const volumeMedianOz = percentile(cluster.ounces || [], 0.5);
-        const volumeP10Oz = percentile(cluster.ounces || [], 0.10);
-        const volumeP90Oz = percentile(cluster.ounces || [], 0.90);
-
-        // Floor volume guidance so we don't suggest tiny feeds.
-        // This works well once sessions are used (top-offs are merged).
-        const flooredMedian = (overallSessionMedianOz && volumeMedianOz)
-          ? Math.max(volumeMedianOz, overallSessionMedianOz * 0.85)
-          : (volumeMedianOz ?? overallSessionMedianOz ?? null);
-        return {
-          hour,
-          minute,
-          count: cluster.times.length,
-          avgMinutes,
-          windowStartMinutes,
-          windowEndMinutes,
-          volumeMedianOz: flooredMedian,
-          volumeP10Oz,
-          volumeP90Oz
-        };
-      })
-      .filter(pattern => pattern.count >= 3) // Only patterns with 3+ occurrences
-      .sort((a, b) => b.count - a.count); // Sort by frequency
-    
-    // Select the best pattern: prioritize next upcoming pattern today, then most frequent
-    let commonTimePattern = null;
-    if (feedPatterns.length > 0) {
-      const now = new Date();
-      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-      
-      // Find patterns that are upcoming today (in the future)
-      const upcomingPatterns = feedPatterns.filter(p => {
-        const patternMinutes = p.avgMinutes;
-        return patternMinutes > nowMinutes; // Pattern time is later today
-      });
-      
-      if (upcomingPatterns.length > 0) {
-        // Use the closest upcoming pattern (earliest in the day that's still in the future)
-        const nextPattern = upcomingPatterns.reduce((closest, current) => {
-          return current.avgMinutes < closest.avgMinutes ? current : closest;
-        });
-        commonTimePattern = {
-          hour: nextPattern.hour,
-          minute: nextPattern.minute
-        };
-      } else {
-        // No patterns upcoming today - use the most frequent one (will be for tomorrow)
-        commonTimePattern = {
-          hour: feedPatterns[0].hour,
-          minute: feedPatterns[0].minute
-        };
-      }
-    }
-    
-    // Cluster sleep sessions by start time proximity (within 1 hour across days)
-    const sleepClusters = [];
-    recentSleep.forEach(s => {
-      const timeMinutes = minutesSinceMidnight(s.startTime);
-      const durHrs = _getSleepDurationHours(s);
-      // Find existing cluster this sleep belongs to
-      let foundCluster = null;
-      for (const cluster of sleepClusters) {
-        const isClose = cluster.times.some(t => withinOneHour(timeMinutes, t));
-        if (isClose) {
-          foundCluster = cluster;
-          break;
-        }
-      }
-      
-      if (foundCluster) {
-        foundCluster.times.push(timeMinutes);
-        foundCluster.timestamps.push(s.startTime);
-        if (durHrs !== null) foundCluster.durations.push(durHrs);
-      } else {
-        sleepClusters.push({
-          times: [timeMinutes],
-          timestamps: [s.startTime],
-          durations: durHrs !== null ? [durHrs] : []
-        });
-      }
-    });
-    
-    // Calculate average time for each sleep cluster
-    const sleepPatterns = sleepClusters
-      .map(cluster => {
-        const avgMinutes = Math.round(
-          cluster.times.reduce((sum, t) => sum + t, 0) / cluster.times.length
-        );
-        const hour = Math.floor(avgMinutes / 60) % 24;
-        const minute = avgMinutes % 60;
-        const avgDurationHours = (cluster.durations && cluster.durations.length > 0)
-          ? Math.round((cluster.durations.reduce((sum, v) => sum + v, 0) / cluster.durations.length) * 10) / 10
-          : null;
-        return {
-          hour,
-          minute,
-          count: cluster.times.length,
-          avgMinutes,
-          avgDurationHours
-        };
-      })
-      .filter(pattern => pattern.count >= 3) // Only patterns with 3+ occurrences
-      .sort((a, b) => b.count - a.count); // Sort by frequency
-    
-    // Debug: Log pattern detection (only when data actually changes to avoid spam)
-    // Removed constant logging - use window.validateWhatsNext() or window.showDailySchedule() for debugging
-    
     return {
-      avgInterval: feedIntervalHours,
-      minFeedGapHours,
-      lastFeedingTime: recentFeedings.length > 0 ? recentFeedings[recentFeedings.length - 1].timestamp : null,
-      commonTimePattern,
-      feedIntervals: feedingIntervals.length,
-      recentFeedings, // Return for accordion use
-      feedPatterns, // Return all detected feed patterns for schedule generation
-      sleepPatterns, // Return all detected sleep patterns for schedule generation
-      feedClusters, // Return clusters for debugging
-      sleepClusters // Return sleep clusters for debugging
+      avgInterval: 3.5,
+      feedIntervalHours: 3.5,
+      minFeedGapHours: 2.5,
+      lastFeedingTime: null,
+      commonTimePattern: null,
+      feedIntervals: 0,
+      recentFeedings: [],
+      feedPatterns: [],
+      sleepPatterns: [],
+      feedClusters: [],
+      sleepClusters: []
     };
   };
-
-  // Build optimal schedule for today from patterns
-  // Build schedule using AI to consolidate patterns into a single timeline
-  const buildAISchedule = async (analysis, feedIntervalHours, ageInMonths = 0, kidId) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    today.setMilliseconds(0);
-    const now = new Date();
-    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-    
-    // Format patterns for AI
-    const feedPatternsList = (analysis.feedPatterns || [])
-      .filter(p => p.avgMinutes >= nowMinutes - 30) // Only future or recent patterns
-      .map(p => {
-        const timeStr = `${String(p.hour).padStart(2, '0')}:${String(p.minute).padStart(2, '0')}`;
-        const period = p.hour >= 12 ? (p.hour === 12 ? 'pm' : p.hour > 12 ? `${p.hour - 12}pm` : 'am') : `${p.hour}am`;
-        const displayTime = p.hour === 0 ? `12:${String(p.minute).padStart(2, '0')}am` :
-                          p.hour < 12 ? `${p.hour}:${String(p.minute).padStart(2, '0')}am` :
-                          p.hour === 12 ? `12:${String(p.minute).padStart(2, '0')}pm` :
-                          `${p.hour - 12}:${String(p.minute).padStart(2, '0')}pm`;
-        return `- ${displayTime} (${p.count} occurrences)`;
-      })
-      .join('\n');
-    
-    const sleepPatternsList = (analysis.sleepPatterns || [])
-      .filter(p => p.avgMinutes >= nowMinutes - 30) // Only future or recent patterns
-      .map(p => {
-        const displayTime = p.hour === 0 ? `12:${String(p.minute).padStart(2, '0')}am` :
-                          p.hour < 12 ? `${p.hour}:${String(p.minute).padStart(2, '0')}am` :
-                          p.hour === 12 ? `12:${String(p.minute).padStart(2, '0')}pm` :
-                          `${p.hour - 12}:${String(p.minute).padStart(2, '0')}pm`;
-        return `- ${displayTime} (${p.count} occurrences)`;
-      })
-      .join('\n');
-    
-    const currentTime = formatTimeHmma(now);
-    const avgInterval = analysis.avgInterval || feedIntervalHours;
-    
-    // Build AI prompt
-    const prompt = `You are a baby care assistant. I need you to create a single optimal timeline for TODAY based on detected patterns.
-
-Current time: ${currentTime}
-Baby's age: ${ageInMonths} months
-Typical feed interval: ${avgInterval.toFixed(1)} hours
-
-DETECTED FEED PATTERNS (from last 7 days):
-${feedPatternsList || 'None detected'}
-
-DETECTED SLEEP PATTERNS (from last 7 days):
-${sleepPatternsList || 'None detected'}
-
-TASK: Create a single, consolidated timeline for TODAY starting from now (${currentTime}).
-
-Rules:
-1. Consolidate overlapping patterns (if multiple patterns suggest the same time, pick the most frequent one)
-2. Account for typical intervals (${avgInterval.toFixed(1)} hours between feeds)
-3. Only include feed and sleep events - DO NOT include wake events
-4. Only include events from now onwards (don't include past events)
-5. Make it realistic for a ${ageInMonths}-month-old baby
-6. Each time should appear only once - consolidate all duplicates
-
-OUTPUT FORMAT (JSON array):
-[
-  {"type": "feed", "time": "9:30am", "patternCount": 6},
-  {"type": "sleep", "time": "11:00am", "patternCount": 5},
-  {"type": "feed", "time": "1:00pm", "patternCount": 7}
-]
-
-IMPORTANT:
-- Output ONLY valid JSON, no other text
-- Time format: "h:mma" (e.g., "9:30am", "2:15pm", "12:00pm")
-- DO NOT include wake events - only "feed" and "sleep" types
-- Don't include events in the past
-- Consolidate duplicates - each time should appear only once per event type`;
-
-    try {
-      // Check AI cooldown - use separate shorter cooldown for schedule building (15 min, independent from "what's next")
-      const nowMs = Date.now();
-      const scheduleAICooldownMs = 15 * 60 * 1000; // 15 minutes for schedule building
-      const storedLastScheduleCall = getLastScheduleAICallTime();
-      const lastScheduleAICall = lastScheduleAICallRef.current > storedLastScheduleCall ? lastScheduleAICallRef.current : storedLastScheduleCall;
-      const timeSinceLastScheduleAI = nowMs - lastScheduleAICall;
-      
-      if (timeSinceLastScheduleAI >= scheduleAICooldownMs && typeof getAIResponse === 'function' && kidId) {
-        const aiResponse = await getAIResponse(prompt, kidId);
-        
-        // Update schedule-specific cooldown (separate from "what's next" cooldown)
-        if (aiResponse) {
-          lastScheduleAICallRef.current = nowMs;
-          setLastScheduleAICallTime(nowMs);
-        }
-        
-        if (aiResponse) {
-          // Try to parse JSON from response
-          let scheduleData = null;
-          try {
-            // Extract JSON from response (might have markdown code blocks)
-            const jsonMatch = aiResponse.match(/\[[\s\S]*\]/);
-            if (jsonMatch) {
-              scheduleData = JSON.parse(jsonMatch[0]);
-            } else {
-              scheduleData = JSON.parse(aiResponse);
-            }
-          } catch (e) {}
-          
-          if (scheduleData && Array.isArray(scheduleData)) {
-            // Convert AI response to schedule format
-            const schedule = [];
-            scheduleData.forEach(item => {
-              if (!item.type || !item.time) return;
-              
-              // Parse time string (e.g., "9:30am" or "2:15pm")
-              const timeMatch = item.time.match(/(\d{1,2}):(\d{2})(am|pm)/i);
-              if (!timeMatch) return;
-              
-              let hour = parseInt(timeMatch[1], 10);
-              const minute = parseInt(timeMatch[2], 10);
-              const isPm = timeMatch[3].toLowerCase() === 'pm';
-              
-              if (isPm && hour !== 12) hour += 12;
-              if (!isPm && hour === 12) hour = 0;
-              
-              const scheduleTime = new Date(today);
-              scheduleTime.setHours(hour, minute, 0, 0);
-              scheduleTime.setSeconds(0);
-              scheduleTime.setMilliseconds(0);
-              
-              // Skip wake events entirely
-              if (item.type === 'wake') {
-                return; // Skip wake events
-              }
-              
-              // Only add if in the future or within last 30 minutes
-              if (scheduleTime.getTime() >= now.getTime() - (30 * 60 * 1000)) {
-                const event = {
-                  type: item.type,
-                  time: scheduleTime,
-                  patternBased: true,
-                  patternCount: item.patternCount || 0
-                };
-                
-                schedule.push(event);
-              }
-            });
-            
-            // Sort by time
-            schedule.sort((a, b) => a.time.getTime() - b.time.getTime());
-            
-            // Filter out any wake events that might have been included
-            const filteredSchedule = schedule.filter(e => e.type !== 'wake');
-            
-            if (filteredSchedule.length > 0) {
-              return filteredSchedule;
-            }
-          }
-        }
-      }
-    } catch (error) {
-      // Check if it's a quota error (429) - if so, use longer cooldown
-      const isQuotaError = error?.status === 429 || 
-                          error?.quotaExceeded ||
-                          error?.message?.includes('429') ||
-                          error?.message?.includes('quota') ||
-                          error?.message?.includes('RESOURCE_EXHAUSTED');
-      
-      if (isQuotaError) {
-        // Set cooldown to 2 hours for quota errors to prevent further calls
-        const extendedCooldown = 2 * 60 * 60 * 1000; // 2 hours
-        lastScheduleAICallRef.current = nowMs - extendedCooldown + (15 * 60 * 1000); // Set to 15 min from now (so it waits 2 hours total)
-        setLastScheduleAICallTime(lastScheduleAICallRef.current);
-      }
-      // Fall through to fallback
-    }
-    
-    // Fallback to programmatic schedule building
-    return buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
-  };
-
-  // Fallback: Build schedule programmatically (used when AI fails or is on cooldown)
-  const buildDailySchedule = (analysis, feedIntervalHours, ageInMonths = 0) => {
-    if (isBuildingDailyScheduleRef.current) return [];
-    const scheduleUtils = window.TT?.utils?.scheduleUtils;
-    const sharedBuildDailySchedule = scheduleUtils?.buildDailySchedule;
-    if (typeof sharedBuildDailySchedule === 'function' && sharedBuildDailySchedule !== buildDailySchedule) {
-      isBuildingDailyScheduleRef.current = true;
-      try {
-        return sharedBuildDailySchedule(analysis, feedIntervalHours, ageInMonths, { now: new Date() });
-      } finally {
-        isBuildingDailyScheduleRef.current = false;
-      }
-    }
-    return [];
-  };
-
-  // Adjust schedule based on actual logged events
-  const adjustScheduleForActualEvents = (schedule, allFeedings, allSleepSessions, feedIntervalHours, analysis, ageInMonths = 0) => {
-    if (isAdjustingScheduleRef.current) return schedule || [];
-    const scheduleUtils = window.TT?.utils?.scheduleUtils;
-    if (typeof scheduleUtils?.adjustScheduleForActualEvents === 'function') {
-      isAdjustingScheduleRef.current = true;
-      try {
-        return scheduleUtils.adjustScheduleForActualEvents(
-          schedule,
-          allFeedings,
-          allSleepSessions,
-          feedIntervalHours,
-          analysis,
-          ageInMonths,
-          { now: new Date(), sleepSettings }
-        );
-      } finally {
-        isAdjustingScheduleRef.current = false;
-      }
-    }
-    return schedule || [];
-  };
-
 
   // Generate fallback prediction based on historical intervals and age
   const generateFallbackPrediction = (ageInMonths, isSleepActive, lastFeedingTimeObj, lastSleepTimeObj, feedings, sleepSessions) => {
@@ -1102,9 +623,10 @@ IMPORTANT:
     window.TT = window.TT || {};
     window.TT.utils = window.TT.utils || {};
     window.TT.utils.scheduleUtils = window.TT.utils.scheduleUtils || {};
-    window.TT.utils.scheduleUtils.analyzeHistoricalIntervals = analyzeHistoricalIntervals;
-    window.TT.utils.scheduleUtils.adjustScheduleForActualEvents = adjustScheduleForActualEvents;
-  }, [analyzeHistoricalIntervals, buildDailySchedule, adjustScheduleForActualEvents]);
+    if (typeof window.TT.utils.scheduleUtils.analyzeHistoricalIntervals !== 'function') {
+      window.TT.utils.scheduleUtils.analyzeHistoricalIntervals = analyzeHistoricalIntervals;
+    }
+  }, [analyzeHistoricalIntervals]);
 
   // Format AI response according to spec
   const formatWhatsNextResponse = (aiResponse, isSleepActive, lastFeedingTime, lastSleepTime) => {
@@ -1324,7 +846,9 @@ IMPORTANT:
     let baseScheduleDateKey = projectionScheduleDateRef.current;
 
     if (!baseSchedule || baseScheduleDateKey !== todayKey) {
-      const storedSchedule = readStoredProjectionSchedule(todayKey);
+      const storedSchedule = scheduleStore?.readProjectionSchedule
+        ? scheduleStore.readProjectionSchedule(todayKey)
+        : null;
       if (storedSchedule && storedSchedule.length > 0) {
         baseSchedule = storedSchedule;
         baseScheduleDateKey = todayKey;
@@ -1521,38 +1045,46 @@ Output ONLY the formatted string, nothing else.`;
         }
       }
       
-      // Build and adjust schedule based on patterns and actual events
-      // This should run regardless of AI success/failure (moved from catch block)
-      const analysis = analyzeHistoricalIntervals(allFeedings, allSleepSessions);
-      let feedIntervalHours;
-      if (analysis.avgInterval && analysis.feedIntervals >= 2) {
-        feedIntervalHours = analysis.avgInterval;
-      } else {
-        if (ageInMonths < 1) feedIntervalHours = 2;
-        else if (ageInMonths < 3) feedIntervalHours = 2.5;
-        else if (ageInMonths < 6) feedIntervalHours = 3;
-        else feedIntervalHours = 3.5;
-      }
+      // Build and adjust schedule via shared schedule store
+      const scheduleResult = scheduleStore?.rebuildAndPersist
+        ? await scheduleStore.rebuildAndPersist({
+            feedings: allFeedings,
+            sleepSessions: allSleepSessions,
+            ageInMonths,
+            sleepSettings,
+            now: new Date(nowMs),
+            kidId,
+            dateKey: todayKey,
+            persistAdjusted: true
+          })
+        : (scheduleStore?.rebuildProjectionScheduleAsync
+            ? await scheduleStore.rebuildProjectionScheduleAsync({
+                feedings: allFeedings,
+                sleepSessions: allSleepSessions,
+                ageInMonths,
+                sleepSettings,
+                now: new Date(nowMs),
+                kidId
+              })
+            : (scheduleStore?.rebuildProjectionSchedule
+                ? scheduleStore.rebuildProjectionSchedule({
+                    feedings: allFeedings,
+                    sleepSessions: allSleepSessions,
+                    ageInMonths,
+                    sleepSettings,
+                    now: new Date(nowMs)
+                  })
+                : null));
+      const baseSchedule = scheduleResult?.baseSchedule || [];
+      const adjustedSchedule = scheduleResult?.adjustedSchedule || baseSchedule;
       
       if (shouldRebuildSchedule) {
-        // Build base projection once per day (midnight)
-        baseSchedule = buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
-        projectionScheduleRef.current = baseSchedule;
+        projectionScheduleRef.current = adjustedSchedule;
         projectionScheduleDateRef.current = todayKey;
-        writeProjectionSchedule(todayKey, baseSchedule);
         lastScheduleUpdateRef.current = nowMs;
       }
 
       if (baseSchedule && (dataChanged || shouldRebuildSchedule || !dailyScheduleRef.current)) {
-        // Adjust based on actual events without re-building the base projection
-        const adjustedSchedule = adjustScheduleForActualEvents(
-          baseSchedule,
-          allFeedings,
-          allSleepSessions,
-          feedIntervalHours,
-          analysis,
-          ageInMonths
-        );
         dailyScheduleRef.current = adjustedSchedule;
         setDailySchedule(adjustedSchedule); // Update state to trigger re-render
         setScheduleReady(true); // Mark schedule as ready
@@ -1658,563 +1190,6 @@ Output ONLY the formatted string, nothing else.`;
       setDailySchedule(dailyScheduleRef.current);
     }
   }, [whatsNextAccordionOpen, dailySchedule]); // Re-sync when accordion opens
-
-  /*
-  // Validation function for debugging prediction calculation
-  // Call from console: window.validateWhatsNext()
-  React.useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.validateWhatsNext = async () => {
-        const now = Date.now();
-        const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
-        
-        // IMPORTANT: Use allFeedings/allSleepSessions (all historical data) not just today's data
-        const recentFeedings = (allFeedings || [])
-          .filter(f => f.timestamp >= sevenDaysAgo)
-          .sort((a, b) => a.timestamp - b.timestamp);
-        
-        const recentSleep = (allSleepSessions || [])
-          .filter(s => s.startTime && s.startTime >= sevenDaysAgo && s.endTime && !s.isActive)
-          .sort((a, b) => a.startTime - b.startTime);
-        
-        // Format time helper
-        const formatTime = (timestamp) => {
-          const d = new Date(timestamp);
-          return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        };
-        
-        // Format date + time helper
-        const formatDateTime = (timestamp) => {
-          const d = new Date(timestamp);
-          return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' + formatTime(timestamp);
-        };
-        
-        console.log('\n=== WHAT\'S NEXT PREDICTION VALIDATION ===\n');
-        
-        // 1. Show all feeds from last 5 days
-        console.log('📊 FEEDS FROM LAST 5 DAYS:');
-        if (recentFeedings.length === 0) {
-          console.log('  ❌ No feeds found in last 5 days');
-        } else {
-          recentFeedings.forEach((f, idx) => {
-            const timeMinutes = new Date(f.timestamp).getHours() * 60 + new Date(f.timestamp).getMinutes();
-            console.log(`  ${idx + 1}. ${formatDateTime(f.timestamp)} (${timeMinutes} min since midnight)`);
-          });
-        }
-        
-        // 2. Run analysis (use all feedings, not just today's)
-        const analysis = analyzeHistoricalIntervals(allFeedings || [], allSleepSessions || []);
-        
-        // 3. Show clusters
-        console.log('\n🔍 CLUSTERS DETECTED:');
-        if (analysis.feedClusters && analysis.feedClusters.length > 0) {
-          analysis.feedClusters.forEach((cluster, idx) => {
-            const avgMinutes = Math.round(cluster.times.reduce((sum, t) => sum + t, 0) / cluster.times.length);
-            const hour = Math.floor(avgMinutes / 60) % 24;
-            const minute = avgMinutes % 60;
-            const timeStr = `${hour}:${String(minute).padStart(2, '0')}${hour >= 12 ? 'pm' : 'am'}`;
-            console.log(`  Cluster ${idx + 1}: ${cluster.times.length} feeds → Average: ${timeStr}`);
-            cluster.timestamps.forEach((ts, i) => {
-              console.log(`    - ${formatDateTime(ts)} (${cluster.times[i]} min)`);
-            });
-          });
-        } else {
-          console.log('  ❌ No clusters detected');
-        }
-        
-        // 4. Show patterns
-        console.log('\n📈 PATTERNS FOUND (3+ occurrences):');
-        if (analysis.feedPatterns && analysis.feedPatterns.length > 0) {
-          analysis.feedPatterns.forEach((pattern, idx) => {
-            const timeStr = `${pattern.hour}:${String(pattern.minute).padStart(2, '0')}${pattern.hour >= 12 ? 'pm' : 'am'}`;
-            console.log(`  Pattern ${idx + 1}: ${timeStr} (${pattern.count} occurrences)`);
-          });
-          console.log(`  ✅ Using pattern: ${analysis.commonTimePattern ? `${analysis.commonTimePattern.hour}:${String(analysis.commonTimePattern.minute).padStart(2, '0')}${analysis.commonTimePattern.hour >= 12 ? 'pm' : 'am'}` : 'NONE'}`);
-        } else {
-          console.log('  ❌ No patterns found (need 3+ occurrences in a cluster)');
-          console.log(`  ⚠️  This is why the 9:30-10am pattern isn't being used!`);
-          if (recentFeedings.length > 0) {
-            const morningFeeds = recentFeedings.filter(f => {
-              const hour = new Date(f.timestamp).getHours();
-              return hour >= 9 && hour <= 10;
-            });
-            console.log(`  📝 Found ${morningFeeds.length} feeds between 9am-10am in last 7 days`);
-            if (morningFeeds.length < 3) {
-              console.log(`  💡 Need at least 3 feeds in this time window for pattern detection`);
-            }
-          }
-        }
-        
-        // 5. Show interval calculation
-        console.log('\n⏱️  INTERVAL CALCULATION:');
-        console.log(`  Average interval: ${analysis.avgInterval ? analysis.avgInterval.toFixed(2) : 'N/A'} hours`);
-        console.log(`  Feed intervals calculated: ${analysis.feedIntervals}`);
-        
-        // 6. Show last feeding
-        const lastFeedingTimeObj = analysis.lastFeedingTime ? new Date(analysis.lastFeedingTime) : null;
-        console.log(`  Last feeding: ${lastFeedingTimeObj ? formatDateTime(analysis.lastFeedingTime) : 'N/A'}`);
-        
-        // 7. Simulate prediction calculation
-        console.log('\n🎯 PREDICTION CALCULATION:');
-        // Fetch baby data to get birth date
-        let ageInMonths = 0;
-        try {
-          const babyData = await firestoreStorage.getKidData();
-          ageInMonths = calculateAgeInMonths(babyData?.birthDate);
-        } catch (e) {
-          console.warn('  ⚠️  Could not fetch baby data:', e);
-        }
-        let feedIntervalHours;
-        if (analysis.avgInterval && analysis.feedIntervals >= 2) {
-          feedIntervalHours = analysis.avgInterval;
-          console.log(`  Using historical interval: ${feedIntervalHours.toFixed(2)} hours`);
-        } else {
-          if (ageInMonths < 1) feedIntervalHours = 2;
-          else if (ageInMonths < 3) feedIntervalHours = 2.5;
-          else if (ageInMonths < 6) feedIntervalHours = 3;
-          else feedIntervalHours = 3.5;
-          console.log(`  Using age-based interval: ${feedIntervalHours.toFixed(2)} hours (age: ${ageInMonths} months)`);
-        }
-        
-        // Show which method would be used
-        if (analysis.commonTimePattern) {
-          const today = new Date();
-          const patternTime = new Date(today);
-          patternTime.setHours(analysis.commonTimePattern.hour, analysis.commonTimePattern.minute, 0, 0);
-          patternTime.setSeconds(0);
-          patternTime.setMilliseconds(0);
-          
-          if (patternTime > now) {
-            console.log(`  ✅ PRIORITY 1: Using time-of-day pattern: ${formatTime(patternTime.getTime())}`);
-          } else {
-            console.log(`  ⚠️  Pattern time (${formatTime(patternTime.getTime())}) is in the past, would use tomorrow`);
-          }
-        } else if (lastFeedingTimeObj) {
-          const predictedTime = new Date(lastFeedingTimeObj);
-          const totalMinutes = predictedTime.getHours() * 60 + predictedTime.getMinutes() + (feedIntervalHours * 60);
-          predictedTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-          console.log(`  ✅ PRIORITY 2: Using interval-based: ${formatTime(lastFeedingTimeObj.getTime())} + ${feedIntervalHours.toFixed(2)}h = ${formatTime(predictedTime.getTime())}`);
-        } else {
-          const predictedTime = new Date(now);
-          const totalMinutes = predictedTime.getHours() * 60 + predictedTime.getMinutes() + (feedIntervalHours * 60);
-          predictedTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-          console.log(`  ✅ PRIORITY 3: Using current time + interval: ${formatTime(now)} + ${feedIntervalHours.toFixed(2)}h = ${formatTime(predictedTime.getTime())}`);
-        }
-        
-        // 8. Show current prediction
-        console.log('\n📱 CURRENT PREDICTION:');
-        console.log(`  "${whatsNextText}"`);
-        if (predictedTimeRef.current) {
-          console.log(`  Stored time: ${formatTime(predictedTimeRef.current.time.getTime())}`);
-        }
-        
-        console.log('\n=== END VALIDATION ===\n');
-        
-        return {
-          recentFeedings: recentFeedings.map(f => ({
-            time: formatDateTime(f.timestamp),
-            timestamp: f.timestamp,
-            minutesSinceMidnight: new Date(f.timestamp).getHours() * 60 + new Date(f.timestamp).getMinutes()
-          })),
-          clusters: analysis.feedClusters || [],
-          patterns: analysis.feedPatterns || [],
-          commonTimePattern: analysis.commonTimePattern,
-          avgInterval: analysis.avgInterval,
-          currentPrediction: whatsNextText,
-          predictedTime: predictedTimeRef.current
-        };
-      };
-      
-      // Show full optimized schedule for today
-      window.showDailySchedule = async () => {
-        const now = new Date();
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        today.setMilliseconds(0);
-        const todayEnd = new Date(today);
-        todayEnd.setHours(23, 59, 59, 999);
-        
-        // Get all data
-        let allFeedingsData = [];
-        let allSleepSessionsData = [];
-        try {
-          allFeedingsData = await firestoreStorage.getAllFeedings();
-          allSleepSessionsData = await firestoreStorage.getAllSleepSessions();
-        } catch (e) {
-          console.error('Error fetching data:', e);
-          allFeedingsData = allFeedings || [];
-          allSleepSessionsData = allSleepSessions || [];
-        }
-        
-        // Run analysis
-        const analysis = analyzeHistoricalIntervals(allFeedingsData, allSleepSessionsData);
-
-        // Explainability: show the feeding sessions the model uses (not raw logs)
-        const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-        const recentFeedLogs = (allFeedingsData || []).filter(f => f && Number(f.timestamp) >= sevenDaysAgo);
-        const recentFeedingSessions = buildFeedingSessions(recentFeedLogs, 45);
-        const todayFeedingSessions = recentFeedingSessions.filter(s => {
-          const ts = Number(s.timestamp);
-          return ts >= today.getTime() && ts <= todayEnd.getTime();
-        });
-        
-        // Get feed interval and kidId
-        let ageInMonths = 0;
-        try {
-          const babyData = await firestoreStorage.getKidData();
-          ageInMonths = calculateAgeInMonths(babyData?.birthDate);
-        } catch (e) {
-          console.warn('Could not fetch baby data:', e);
-        }
-        
-        // Prefer analysis-derived interval (session-based + robust) if present
-        let feedIntervalHours = Number(analysis?.feedIntervalHours);
-        if (!Number.isFinite(feedIntervalHours) || feedIntervalHours <= 0) {
-          if (ageInMonths < 1) feedIntervalHours = 2;
-          else if (ageInMonths < 3) feedIntervalHours = 2.5;
-          else if (ageInMonths < 6) feedIntervalHours = 3;
-          else feedIntervalHours = 3.5;
-        }
-
-        const minFeedGapHours = Number(analysis?.minFeedGapHours);
-        const effectiveMinFeedGapHours = Number.isFinite(minFeedGapHours) && minFeedGapHours > 0
-          ? minFeedGapHours
-          : Math.max(2.5, feedIntervalHours * 0.75);
-        
-        // Build schedule deterministically (no AI)
-        const initialSchedule = buildDailySchedule(analysis, feedIntervalHours, ageInMonths);
-        const adjustedSchedule = adjustScheduleForActualEvents(
-          initialSchedule,
-          allFeedingsData,
-          allSleepSessionsData,
-          feedIntervalHours,
-          analysis,
-          ageInMonths
-        );
-        
-        // Format time helper
-        const formatTime = (date) => {
-          return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-        };
-
-        const fmtDateTime = (ms) => {
-          const d = new Date(ms);
-          return d.toLocaleString('en-US', {
-            weekday: 'short', month: 'short', day: 'numeric',
-            hour: 'numeric', minute: '2-digit', hour12: true
-          });
-        };
-        
-        console.log('\n=== SCHEDULE DEBUG (EXPLAINABLE) ===\n');
-        console.log(`Current time: ${formatTime(now)}\n`);
-
-        // 1) Feeding sessions used for learning
-        console.log('🧩 FEEDING SESSIONS (last 7 days, merged within 45m):');
-        if (recentFeedingSessions.length === 0) {
-          console.log('  (none)');
-        } else {
-          recentFeedingSessions.slice(-30).forEach((s) => {
-            const n = s?._sessionCount ? ` (${s._sessionCount} logs)` : '';
-            console.log(`  - ${fmtDateTime(s.timestamp)} • ${s.ounces ?? '?'} oz${n}`);
-          });
-          if (recentFeedingSessions.length > 30) {
-            console.log(`  … (${recentFeedingSessions.length - 30} more)`);
-          }
-        }
-
-        console.log('\n🧾 TODAY FEEDING SESSIONS:');
-        if (todayFeedingSessions.length === 0) {
-          console.log('  (none today yet)');
-        } else {
-          todayFeedingSessions.forEach(s => {
-            const n = s?._sessionCount ? ` (${s._sessionCount} logs)` : '';
-            console.log(`  - ${formatTime(new Date(s.timestamp))} • ${s.ounces ?? '?'} oz${n}`);
-          });
-        }
-
-        // 2) Key stats the engine is using
-        console.log('\n📊 MODEL STATS:');
-        console.log(`  feedIntervalHours (learned): ${Number(feedIntervalHours).toFixed(2)}h`);
-        console.log(`  minFeedGapHours (effective): ${Number(effectiveMinFeedGapHours).toFixed(2)}h`);
-        console.log(`  feedPatterns: ${(analysis?.feedPatterns || []).length} | sleepPatterns: ${(analysis?.sleepPatterns || []).length}`);
-        
-        if (adjustedSchedule.length === 0) {
-          console.log('❌ No schedule events found. This might mean:');
-          console.log('  - No patterns detected (need 3+ occurrences)');
-          console.log('  - All patterns are in the past today');
-          console.log('  - Schedule needs to be rebuilt');
-        } else {
-          console.log('📅 SCHEDULE EVENTS:');
-          adjustedSchedule.forEach((event, idx) => {
-            const isPast = event.time.getTime() < now.getTime();
-            const isNow = Math.abs(event.time.getTime() - now.getTime()) < 30 * 60 * 1000; // Within 30 min
-            const status = isNow ? '🟢 NOW' : isPast ? '✅ PAST' : '⏰ UPCOMING';
-            const typeIcon = event.type === 'feed' ? '🍼' : event.type === 'wake' ? '⏰' : '😴';
-            const typeLabel = event.type === 'feed' ? 'Feed' : event.type === 'wake' ? 'Wake' : 'Sleep';
-
-            // Explain why it exists
-            let reason = '';
-            if (event.actual) reason = '(Actual)';
-            else if (event.patternBased) reason = `(Pattern: ${event.patternCount ?? event.count ?? '?'} occ)`;
-            else if (event.intervalBased) reason = `(${event.source || 'Interval'})`;
-            else if (event.adjusted) reason = '(Adjusted)';
-            else reason = '(Unknown)';
-
-            // If feed, show target oz ONLY in console
-            let extra = '';
-            if (event.type === 'feed') {
-              const t = Number(event.targetOz);
-              const r = event.targetOzRange;
-              const rMin = Array.isArray(r) ? Number(r[0]) : Number(r?.min);
-              const rMax = Array.isArray(r) ? Number(r[1]) : Number(r?.max);
-              const fmt = (n) => (Number.isFinite(n) ? String(Math.round(n * 10) / 10).replace(/\.0$/, '') : null);
-              const tS = fmt(t);
-              const rMinS = fmt(rMin);
-              const rMaxS = fmt(rMax);
-              if (rMinS && rMaxS) extra = ` • target ${tS ? `~${tS}` : ''}${tS ? ' ' : ''}(${rMinS}-${rMaxS} oz)`;
-              else if (tS) extra = ` • target ~${tS} oz`;
-            }
-            
-            console.log(`  ${idx + 1}. ${status} ${typeIcon} ${typeLabel} at ${formatTime(event.time)} ${reason}${extra}`);
-          });
-          
-          // Show next event
-          const nextEvent = adjustedSchedule.find(e => e.time.getTime() > now.getTime());
-          if (nextEvent) {
-            const eventIcon = nextEvent.type === 'feed' ? '🍼 Feed' : nextEvent.type === 'wake' ? '⏰ Wake' : '😴 Sleep';
-            console.log(`\n🎯 NEXT EVENT: ${eventIcon} at ${formatTime(nextEvent.time)}`);
-          } else {
-            console.log(`\n🎯 NEXT EVENT: None scheduled (all events are in the past)`);
-          }
-        }
-        
-        console.log('\n=== END SCHEDULE DEBUG ===\n');
-
-        // Stash last debug payload for quick inspection
-        window.__ttScheduleDebug = {
-          now,
-          analysis,
-          feedIntervalHours,
-          minFeedGapHours: effectiveMinFeedGapHours,
-          recentFeedingSessions,
-          todayFeedingSessions,
-          initialSchedule,
-          schedule: adjustedSchedule
-        };
-        
-        return {
-          schedule: adjustedSchedule,
-          initialSchedule,
-          analysis,
-          feedIntervalHours
-        };
-      };
-
-      // Alias: more explicit name for explainability (same output)
-      window.explainSchedule = window.showDailySchedule;
-      
-      // Test function for day/night sleep labels
-      // Call from console: window.testSleepLabels()
-      window.testSleepLabels = () => {
-        // Get current sleep settings
-        const settings = sleepSettings || {};
-        const dayStart = Number(settings?.sleepDayStart ?? settings?.daySleepStartMinutes ?? 390);
-        const dayEnd = Number(settings?.sleepDayEnd ?? settings?.daySleepEndMinutes ?? 1170);
-        
-        const dayStartHour = Math.floor(dayStart / 60);
-        const dayStartMin = dayStart % 60;
-        const dayEndHour = Math.floor(dayEnd / 60);
-        const dayEndMin = dayEnd % 60;
-        
-        console.log('\n=== TESTING SLEEP LABELS ===\n');
-        console.log(`Day sleep window: ${dayStartHour}:${String(dayStartMin).padStart(2, '0')} - ${dayEndHour}:${String(dayEndMin).padStart(2, '0')}`);
-        console.log(`(Minutes: ${dayStart} - ${dayEnd})\n`);
-        
-        // Test various times throughout the day
-        const testTimes = [
-          { hour: 6, minute: 0, label: '6:00 AM (early morning)' },
-          { hour: 9, minute: 30, label: '9:30 AM (morning nap)' },
-          { hour: 12, minute: 0, label: '12:00 PM (noon)' },
-          { hour: 14, minute: 30, label: '2:30 PM (afternoon nap)' },
-          { hour: 18, minute: 0, label: '6:00 PM (evening)' },
-          { hour: 20, minute: 0, label: '8:00 PM (night sleep)' },
-          { hour: 22, minute: 0, label: '10:00 PM (night sleep)' },
-          { hour: 2, minute: 0, label: '2:00 AM (night sleep)' },
-        ];
-        
-        testTimes.forEach(({ hour, minute, label }) => {
-          const testDate = new Date();
-          testDate.setHours(hour, minute, 0, 0);
-          
-          // Use the same logic as getSleepLabel
-          const mins = hour * 60 + minute;
-          const isDaySleep = dayStart <= dayEnd
-            ? (mins >= dayStart && mins < dayEnd)
-            : (mins >= dayStart || mins < dayEnd);
-          const result = isDaySleep ? 'Nap' : 'Sleep';
-          
-          const timeStr = testDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-          console.log(`${timeStr.padEnd(10)} → ${result.padEnd(5)} (${label})`);
-        });
-        
-        console.log('\n=== CURRENT PREDICTION ===');
-        const currentPrediction = whatsNextText;
-        console.log(`"${currentPrediction}"`);
-        
-        if (predictedTimeRef.current) {
-          const predTime = predictedTimeRef.current.time;
-          const predType = predictedTimeRef.current.type;
-          if (predType === 'sleep' || predType === 'nap') {
-            const mins = predTime.getHours() * 60 + predTime.getMinutes();
-            const isDaySleep = dayStart <= dayEnd
-              ? (mins >= dayStart && mins < dayEnd)
-              : (mins >= dayStart || mins < dayEnd);
-            const expectedLabel = isDaySleep ? 'Nap' : 'Sleep';
-            const timeStr = predTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            console.log(`Predicted time: ${timeStr}`);
-            console.log(`Expected label: ${expectedLabel}`);
-            console.log(`Actual text: "${currentPrediction}"`);
-            console.log(`✓ Match: ${currentPrediction.includes(expectedLabel)}`);
-          }
-        }
-        
-        console.log('\n=== SCHEDULE EVENTS ===');
-        const schedule = dailySchedule || dailyScheduleRef.current || [];
-        const sleepEvents = schedule.filter(e => e.type === 'sleep').slice(0, 5);
-        if (sleepEvents.length > 0) {
-          sleepEvents.forEach(event => {
-            const timeStr = event.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            const mins = event.time.getHours() * 60 + event.time.getMinutes();
-            const isDaySleep = dayStart <= dayEnd
-              ? (mins >= dayStart && mins < dayEnd)
-              : (mins >= dayStart || mins < dayEnd);
-            const expectedLabel = isDaySleep ? 'Nap' : 'Sleep';
-            console.log(`${timeStr.padEnd(10)} → ${expectedLabel}`);
-          });
-        } else {
-          console.log('No sleep events in schedule');
-        }
-        
-        console.log('\n=== END TEST ===\n');
-        
-        return {
-          dayWindow: { start: dayStart, end: dayEnd },
-          currentPrediction: whatsNextText,
-          predictedTime: predictedTimeRef.current
-        };
-      };
-      
-      // Debug function for timeline/accordion
-      // Call from console: window.debugTimeline()
-      window.debugTimeline = () => {
-        console.log('\n=== TIMELINE DEBUG ===\n');
-        
-        // Check schedule state
-        const refSchedule = dailyScheduleRef.current;
-        const stateSchedule = dailySchedule;
-        const isScheduleReady = scheduleReady;
-        const isAccordionOpen = whatsNextAccordionOpen;
-        
-        console.log('📊 STATE:');
-        console.log(`  scheduleReady: ${isScheduleReady}`);
-        console.log(`  accordionOpen: ${isAccordionOpen}`);
-        console.log(`  refSchedule exists: ${!!refSchedule}`);
-        console.log(`  refSchedule length: ${refSchedule?.length || 0}`);
-        console.log(`  stateSchedule exists: ${!!stateSchedule}`);
-        console.log(`  stateSchedule length: ${stateSchedule?.length || 0}`);
-        
-        // Get the schedule source
-        const scheduleSource = (refSchedule && Array.isArray(refSchedule) && refSchedule.length > 0) 
-          ? refSchedule 
-          : (stateSchedule && Array.isArray(stateSchedule) && stateSchedule.length > 0)
-            ? stateSchedule
-            : null;
-        
-        console.log(`\n📅 SCHEDULE SOURCE: ${scheduleSource ? 'Found' : 'Missing'}`);
-        
-        if (scheduleSource) {
-          console.log(`  Total events: ${scheduleSource.length}`);
-          
-          // Filter to today
-          const now = Date.now();
-          const todayStart = new Date();
-          todayStart.setHours(0, 0, 0, 0);
-          const todayEnd = new Date();
-          todayEnd.setHours(23, 59, 59, 999);
-          
-          const todayEvents = scheduleSource.filter(event => {
-            if (!event || !event.time) return false;
-            const eventTime = event.time instanceof Date ? event.time.getTime() : new Date(event.time).getTime();
-            return eventTime >= todayStart.getTime() && eventTime <= todayEnd.getTime();
-          });
-          
-          console.log(`  Today's events: ${todayEvents.length}`);
-          
-          // Filter out wake events
-          const withoutWake = todayEvents.filter(e => e.type !== 'wake');
-          console.log(`  After filtering wake events: ${withoutWake.length}`);
-          
-          // Show event breakdown
-          const feedCount = withoutWake.filter(e => e.type === 'feed').length;
-          const sleepCount = withoutWake.filter(e => e.type === 'sleep').length;
-          console.log(`    Feeds: ${feedCount}`);
-          console.log(`    Sleeps: ${sleepCount}`);
-          
-          // Show first 5 events
-          console.log('\n📋 FIRST 5 EVENTS:');
-          withoutWake.slice(0, 5).forEach((event, idx) => {
-            const timeStr = event.time instanceof Date 
-              ? event.time.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
-              : new Date(event.time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-            const isPast = (event.time instanceof Date ? event.time.getTime() : new Date(event.time).getTime()) < now;
-            console.log(`  ${idx + 1}. ${event.type} at ${timeStr} ${isPast ? '(PAST)' : '(UPCOMING)'}`);
-          });
-          
-          // Check feedings and sleep sessions
-          console.log('\n🍼 DATA:');
-          console.log(`  feedings length: ${feedings?.length || 0}`);
-          console.log(`  sleepSessions length: ${sleepSessions?.length || 0}`);
-          console.log(`  allFeedings length: ${allFeedings?.length || 0}`);
-          console.log(`  allSleepSessions length: ${allSleepSessions?.length || 0}`);
-          
-          // Check if events match
-          if (feedings && feedings.length > 0) {
-            const todayFeedings = feedings.filter(f => {
-              const feedTime = f.timestamp;
-              return feedTime >= todayStart.getTime() && feedTime <= todayEnd.getTime();
-            });
-            console.log(`  Today's feedings: ${todayFeedings.length}`);
-          }
-          
-          if (sleepSessions && sleepSessions.length > 0) {
-            const todaySleep = sleepSessions.filter(s => {
-              if (!s.startTime) return false;
-              return s.startTime >= todayStart.getTime() && s.startTime <= todayEnd.getTime();
-            });
-            console.log(`  Today's sleep sessions: ${todaySleep.length}`);
-          }
-        } else {
-          console.log('❌ No schedule found!');
-          console.log('  This might mean:');
-          console.log('    - Schedule hasn\'t been built yet');
-          console.log('    - generateWhatsNext() hasn\'t run');
-          console.log('    - There was an error building the schedule');
-        }
-        
-        console.log('\n=== END DEBUG ===\n');
-        
-        return {
-          scheduleReady: isScheduleReady,
-          accordionOpen: isAccordionOpen,
-          refSchedule: refSchedule?.length || 0,
-          stateSchedule: stateSchedule?.length || 0,
-          scheduleSource: scheduleSource?.length || 0
-        };
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedings, sleepSessions, allFeedings, allSleepSessions, whatsNextText]);
-  */
 
   // Inject a calm zZz keyframe animation (used for the Sleep in-progress indicator)
   useEffect(() => {
@@ -2774,6 +1749,7 @@ Output ONLY the formatted string, nothing else.`;
       const kidData = await firestoreStorage.getKidData();
       setKidPhotoUrl(kidData?.photoURL || null);
       setKidDisplayName(kidData?.name || null);
+      setKidBirthDate(kidData?.birthDate || null);
       await loadFeedings();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -3319,14 +2295,42 @@ Output ONLY the formatted string, nothing else.`;
   // Add a little bottom padding so the last card isn't obscured by mobile safe-area / nav.
   const HorizontalCalendar = (window.TT && window.TT.shared && window.TT.shared.HorizontalCalendar) || null;
   const NextUpCard = (window.TT && window.TT.shared && window.TT.shared.NextUpCard) || null;
+  const ageInMonthsForNextUp = kidBirthDate ? calculateAgeInMonths(kidBirthDate) : 0;
   const nextUpEvent = (() => {
-    const predicted = predictedTimeRef.current;
-    if (!predicted || !(predicted.time instanceof Date) || isNaN(predicted.time.getTime())) return null;
-    const rawType = predicted.type || 'sleep';
-    const isFeed = rawType === 'feed';
-    const type = isFeed ? 'feed' : 'sleep';
-    const label = isFeed ? 'Feed' : (rawType === 'nap' ? 'Nap' : getSleepLabel(predicted.time, sleepSettings));
-    return { type, scheduledTime: predicted.time, label };
+    const scheduleStore = (typeof window !== 'undefined' && window.TT && window.TT.store && window.TT.store.scheduleStore)
+      ? window.TT.store.scheduleStore
+      : null;
+    if (!scheduleStore || typeof scheduleStore.getScheduleDateKey !== 'function') {
+      return null;
+    }
+    const todayKey = scheduleStore.getScheduleDateKey(new Date());
+    const schedule = scheduleStore.readProjectionSchedule
+      ? scheduleStore.readProjectionSchedule(todayKey)
+      : null;
+    if (!Array.isArray(schedule) || schedule.length === 0) return null;
+
+    const nowDate = new Date();
+    let cutoffTime = nowDate;
+    if (activeSleep && activeSleep.startTime) {
+      const wakeHours = ageInMonthsForNextUp < 3 ? 1.5 : ageInMonthsForNextUp < 6 ? 2 : 2.5;
+      const sleepStart = new Date(activeSleep.startTime);
+      const predictedWakeTime = new Date(sleepStart);
+      const totalMinutes = predictedWakeTime.getHours() * 60 + predictedWakeTime.getMinutes() + (wakeHours * 60);
+      predictedWakeTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
+      predictedWakeTime.setSeconds(0);
+      predictedWakeTime.setMilliseconds(0);
+      cutoffTime = predictedWakeTime;
+    }
+
+    const nextEvent = schedule.find(e =>
+      (e.type === 'feed' || e.type === 'sleep') &&
+      e.time instanceof Date &&
+      e.time.getTime() > cutoffTime.getTime()
+    );
+    if (!nextEvent) return null;
+    const isFeed = nextEvent.type === 'feed';
+    const label = isFeed ? 'Feed' : getSleepLabel(nextEvent.time, sleepSettings);
+    return { type: nextEvent.type, scheduledTime: nextEvent.time, label };
   })();
   const nextUpBabyState = activeSleep && activeSleep.startTime ? 'sleeping' : 'awake';
   const nextUpSleepStart = activeSleep && activeSleep.startTime ? activeSleep.startTime : null;
@@ -3393,8 +2397,8 @@ Output ONLY the formatted string, nothing else.`;
           headerVariant: uiVersion === 'v4' ? 'v4' : 'default',
           hideBody: uiVersion === 'v4',
           hideNav: uiVersion === 'v4',
-          headerPhotoUrl: uiVersion === 'v4' ? kidPhotoUrl : null,
-          headerPhotoAlt: uiVersion === 'v4' ? (kidDisplayName || 'Baby') : 'Baby'
+          // headerPhotoUrl: uiVersion === 'v4' ? kidPhotoUrl : null,
+          // headerPhotoAlt: uiVersion === 'v4' ? (kidDisplayName || 'Baby') : 'Baby'
         })
       ),
       // What's Next Card - simple card with icon, label, and body (only show on today, v3 and v4)
