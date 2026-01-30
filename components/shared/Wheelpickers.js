@@ -123,7 +123,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
       right: '10px',
       height: '40px',
       transform: 'translateY(-50%)',
-      background: 'var(--tt-subtle-surface)',
+      background: 'var(--tt-wheelpicker-bar)',
       borderRadius: '8px',
       pointerEvents: 'none',
       zIndex: 1

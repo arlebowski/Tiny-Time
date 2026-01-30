@@ -214,8 +214,19 @@ const HorizontalCalendar = ({
         console.error('[HorizontalCalendar] Failed loading data', e);
       }
     };
+    const handleInputAdded = () => {
+      load();
+    };
     load();
-    return () => { isActive = false; };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('tt-input-sheet-added', handleInputAdded);
+    }
+    return () => {
+      isActive = false;
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('tt-input-sheet-added', handleInputAdded);
+      }
+    };
   }, []);
 
   const dayMetrics = React.useMemo(() => {
@@ -532,7 +543,7 @@ const HorizontalCalendar = ({
                   React.createElement('div', { className: "absolute bottom-3 flex flex-col gap-1 w-full px-2" },
                       React.createElement('div', {
                         className: "h-1.5 w-full rounded-full overflow-hidden",
-                        style: { backgroundColor: 'var(--tt-subtle-surface)' }
+                        style: { backgroundColor: 'var(--tt-progress-track)' }
                       },
                         React.createElement(__ttHorizontalMotion.div, {
                           variants: progressVariants,
@@ -542,7 +553,7 @@ const HorizontalCalendar = ({
                       ),
                       React.createElement('div', {
                         className: "h-1.5 w-full rounded-full overflow-hidden",
-                        style: { backgroundColor: 'var(--tt-subtle-surface)' }
+                        style: { backgroundColor: 'var(--tt-progress-track)' }
                       },
                         React.createElement(__ttHorizontalMotion.div, {
                           variants: progressVariants,

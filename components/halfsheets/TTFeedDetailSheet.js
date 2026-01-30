@@ -65,6 +65,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     get: () => (props) => React.createElement('div', props)
   });
   const __ttV4AnimatePresence = __ttV4Framer.AnimatePresence || (({ children }) => children);
+  const __ttV4UseDragControls = __ttV4Framer.useDragControls;
   
   const InputRow = (props) => {
     const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
@@ -85,6 +86,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
   const ChevronDown = window.ChevronDown;
 
   const TTFeedDetailSheetLegacy = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null, __ttUseV4Sheet = false }) => {
+    const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -732,16 +734,16 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
               minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
-              overflowY: 'auto',
+              overflowY: 'visible',
               overscrollBehavior: 'none',
-              WebkitOverflowScrolling: 'touch'
+              WebkitOverflowScrolling: 'auto'
             }
           }, contentBlock),
           React.createElement('div', {
             ref: ctaFooterRef,
             className: "px-6 pt-3 pb-1",
             style: {
-              backgroundColor: 'var(--tt-card-bg)',
+              backgroundColor: 'var(--tt-halfsheet-bg)',
               display: isKeyboardOpen ? 'none' : 'block',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
               flexShrink: 0
@@ -766,7 +768,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
             className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
             style: { 
               zIndex: 10,
-              backgroundColor: 'var(--tt-card-bg)',
+              backgroundColor: 'var(--tt-halfsheet-bg)',
               display: isKeyboardOpen ? 'none' : 'block',
               bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
               left: 0,
@@ -814,19 +816,22 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
                   initial: { y: "100%" },
                   animate: { y: 0 },
                   exit: { y: "100%" },
-                  transition: { type: "spring", damping: 25, stiffness: 300 },
+                  transition: { type: "spring", damping: 35, stiffness: 400 },
                   drag: "y",
+                  dragControls: dragControls || undefined,
+                  dragListener: !dragControls,
                   dragConstraints: { top: 0, bottom: 0 },
-                  dragElastic: { top: 0, bottom: 0 },
+                  dragElastic: { top: 0, bottom: 0.7 },
+                  dragMomentum: true,
                   onDragEnd: (e, info) => {
-                    if (info.offset.y > 90 || info.velocity.y > 700) {
+                    if (info.offset.y > 60 || info.velocity.y > 500) {
                       handleClose();
                     }
                   },
                   className: "fixed left-0 right-0 bottom-0 shadow-2xl",
                   onClick: (e) => e.stopPropagation(),
                   style: {
-                    backgroundColor: "var(--tt-card-bg)",
+                    backgroundColor: "var(--tt-halfsheet-bg)",
                     willChange: 'transform',
                     paddingBottom: 'env(safe-area-inset-bottom, 0)',
                     maxHeight: '83vh',
@@ -853,7 +858,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'space-between',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    touchAction: 'none'
+                  },
+                  onPointerDown: (e) => {
+                    if (dragControls && dragControls.start) {
+                      dragControls.start(e);
+                    }
                   }
                 },
                   React.createElement('button', {
@@ -899,7 +910,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       { 
         className: "rounded-2xl shadow-sm p-6 space-y-0",
         style: {
-          backgroundColor: "var(--tt-card-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
+          backgroundColor: "var(--tt-halfsheet-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
           border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
         }
       },

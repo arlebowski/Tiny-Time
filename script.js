@@ -439,6 +439,18 @@ const LIGHT_MODE_TOKENS = {
   "health-gray": {
     inputBg: "#f5f5f5",
     subtleSurface: "rgba(0,0,0,0.03)",
+    surfaceSubtle: "rgba(0,0,0,0.03)",
+    surfaceSelected: "rgba(0,0,0,0.08)",
+    surfaceHover: "rgba(0,0,0,0.03)",
+    progressTrack: "rgba(0,0,0,0.03)",
+    timelineItemBg: "#ffffff",
+    timelineTrackBg: "rgba(0,0,0,0.03)",
+    halfsheetBg: "#ffffff",
+    wheelpickerBar: "rgba(0,0,0,0.03)",
+    iconBg: "#f5f5f5",
+    inputBorder: "rgba(0,0,0,0.08)",
+    divider: "rgba(0,0,0,0.08)",
+    trackerCardBg: "#ffffff",
     segTrack: "rgba(0,0,0,0.03)",
     segPill: "#ffffff",
     swipeRowBg: "#F7F7F7",
@@ -459,6 +471,18 @@ const LIGHT_MODE_TOKENS = {
   "eggshell": {
     inputBg: "#ffffff",
     subtleSurface: "#ffffff",
+    surfaceSubtle: "#ffffff",
+    surfaceSelected: "rgba(242, 235, 217, 1)",
+    surfaceHover: "rgba(0,0,0,0.03)",
+    progressTrack: "#ffffff",
+    timelineItemBg: "#ffffff",
+    timelineTrackBg: "#ffffff",
+    halfsheetBg: "#ffffff",
+    wheelpickerBar: "#ffffff",
+    iconBg: "#ffffff",
+    inputBorder: "rgba(0,0,0,0.08)",
+    divider: "rgba(0,0,0,0.08)",
+    trackerCardBg: "#ffffff",
     segTrack: "rgba(242, 235, 217, 1)",
     segPill: "#ffffff",
     swipeRowBg: "#F7F7F7",
@@ -530,6 +554,18 @@ window.TT.applyAppearance = function(appearance) {
       const lightTokens = LIGHT_MODE_TOKENS[background] || LIGHT_MODE_TOKENS["health-gray"];
       root.style.setProperty('--tt-input-bg', lightTokens.inputBg);
       root.style.setProperty('--tt-subtle-surface', lightTokens.subtleSurface);
+      root.style.setProperty('--tt-surface-subtle', lightTokens.surfaceSubtle);
+      root.style.setProperty('--tt-surface-selected', lightTokens.surfaceSelected);
+      root.style.setProperty('--tt-surface-hover', lightTokens.surfaceHover);
+      root.style.setProperty('--tt-progress-track', lightTokens.progressTrack);
+      root.style.setProperty('--tt-timeline-item-bg', lightTokens.timelineItemBg);
+      root.style.setProperty('--tt-timeline-track-bg', lightTokens.timelineTrackBg);
+      root.style.setProperty('--tt-halfsheet-bg', lightTokens.halfsheetBg);
+      root.style.setProperty('--tt-wheelpicker-bar', lightTokens.wheelpickerBar);
+      root.style.setProperty('--tt-icon-bg', lightTokens.iconBg);
+      root.style.setProperty('--tt-input-border', lightTokens.inputBorder);
+      root.style.setProperty('--tt-divider', lightTokens.divider);
+      root.style.setProperty('--tt-tracker-card-bg', lightTokens.trackerCardBg);
       root.style.setProperty('--tt-seg-track', lightTokens.segTrack);
       root.style.setProperty('--tt-seg-pill', lightTokens.segPill);
       root.style.setProperty('--tt-swipe-row-bg', lightTokens.swipeRowBg);
@@ -550,6 +586,18 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
       root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
       root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
+      root.style.setProperty('--tt-surface-subtle', '#262626');
+      root.style.setProperty('--tt-surface-selected', 'rgba(255,255,255,0.12)');
+      root.style.setProperty('--tt-surface-hover', '#2A2A2A');
+      root.style.setProperty('--tt-progress-track', '#262626');
+      root.style.setProperty('--tt-timeline-item-bg', theme.cardBg);
+      root.style.setProperty('--tt-timeline-track-bg', '#262626');
+      root.style.setProperty('--tt-halfsheet-bg', theme.cardBg);
+      root.style.setProperty('--tt-wheelpicker-bar', '#262626');
+      root.style.setProperty('--tt-icon-bg', '#262626');
+      root.style.setProperty('--tt-input-border', '#2E2E2E');
+      root.style.setProperty('--tt-divider', '#2E2E2E');
+      root.style.setProperty('--tt-tracker-card-bg', theme.cardBg);
       root.style.setProperty('--tt-seg-track', '#262626');
       root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-swipe-row-bg', '#272727');
@@ -570,6 +618,18 @@ window.TT.applyAppearance = function(appearance) {
       // Dark mode: existing palette (current behavior)
       root.style.setProperty('--tt-input-bg', '#3C3E43');
       root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-surface-subtle', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-surface-selected', '#2A2B30');
+      root.style.setProperty('--tt-surface-hover', 'rgba(255,255,255,0.08)');
+      root.style.setProperty('--tt-progress-track', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-timeline-item-bg', theme.cardBg);
+      root.style.setProperty('--tt-timeline-track-bg', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-halfsheet-bg', theme.cardBg);
+      root.style.setProperty('--tt-wheelpicker-bar', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-icon-bg', '#3C3E43');
+      root.style.setProperty('--tt-input-border', 'rgba(255,255,255,0.10)');
+      root.style.setProperty('--tt-divider', 'rgba(255,255,255,0.10)');
+      root.style.setProperty('--tt-tracker-card-bg', theme.cardBg);
       root.style.setProperty('--tt-seg-track', 'rgba(255,255,255,0.05)');
       root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
       root.style.setProperty('--tt-swipe-row-bg', '#272727');
@@ -2871,7 +2931,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         setShowKidMenu(false);
       },
       position: {
-        bottom: 'calc(env(safe-area-inset-bottom) + 45px)',
+        bottom: 'calc(env(safe-area-inset-bottom) + 40px)',
         left: '50%'
       }
     }),

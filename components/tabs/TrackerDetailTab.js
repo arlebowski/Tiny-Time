@@ -17,7 +17,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const projectedScheduleRef = React.useRef(null);
   const latestActualEventsRef = React.useRef({ dateKey: null, feedings: [], sleeps: [], activeSleep: null });
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
-  const [timelineEditMode, setTimelineEditMode] = React.useState(false);
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
@@ -347,6 +346,24 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       });
 
       setLoggedTimelineItems(allCards);
+      const feedTotal = dayFeedings.reduce((sum, f) => {
+        const amount = f.ounces ?? f.amountOz ?? f.amount ?? f.volumeOz ?? f.volume ?? 0;
+        const n = Number(amount);
+        return Number.isFinite(n) ? sum + n : sum;
+      }, 0);
+      const sleepTotalMs = daySleepSessions.reduce((sum, s) => {
+        const endCandidate = s.endTime || (s.isActive ? Date.now() : null);
+        if (!endCandidate) return sum;
+        const norm = normalizeSleepInterval(s.startTime, endCandidate);
+        if (!norm) return sum;
+        return sum + overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs);
+      }, 0);
+      setSelectedSummary({
+        feedOz: Math.round(feedTotal * 10) / 10,
+        sleepMs: sleepTotalMs,
+        feedPct: 0,
+        sleepPct: 0
+      });
       setScheduledTimelineItems(activeSleepCard ? [activeSleepCard] : []);
       const activeSleepSession = (allSleepSessions || []).find(s => s && s.startTime && (s.isActive || !s.endTime)) || null;
       const dateKey = getScheduleDateKey(date);
@@ -450,7 +467,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       ? { variant: "tracker", className: "min-h-[56px] p-[14px]" }
       : {
           className: "rounded-2xl shadow-sm min-h-[60px] p-5",
-          style: { backgroundColor: "var(--tt-card-bg)", borderColor: "var(--tt-card-border)" }
+          style: { backgroundColor: "var(--tt-tracker-card-bg)", borderColor: "var(--tt-card-border)" }
         };
 
     const clampedPercent = Math.max(0, Math.min(100, Number(progressPercent) || 0));
@@ -535,7 +552,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                           width: '1.5rem',
                           height: '1.5rem',
                           borderRadius: '1rem',
-                          backgroundColor: 'var(--tt-input-bg)',
+                          backgroundColor: 'var(--tt-progress-track)',
                           transform: 'translateY(3px)'
                         }
                       }),
@@ -569,7 +586,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                         width: '1.5rem',
                         height: '1.5rem',
                         borderRadius: '1rem',
-                        backgroundColor: 'var(--tt-input-bg)',
+                        backgroundColor: 'var(--tt-progress-track)',
                         transform: 'translateY(3px)'
                       }
                     }),
@@ -587,7 +604,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
           className: "w-full rounded-full overflow-hidden",
           style: {
             height: '6px',
-            backgroundColor: 'var(--tt-input-bg)'
+            backgroundColor: 'var(--tt-progress-track)'
           }
         },
           __ttMotion
@@ -983,8 +1000,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       allowItemExpand: true,
       initialFilter: initialTimelineFilter,
       onFilterChange: handleTimelineFilterChange,
-      editMode: timelineEditMode,
-      onEditModeChange: setTimelineEditMode,
       onEditCard: handleTimelineEditCard,
       onDeleteCard: handleTimelineDeleteCard,
       onScheduledAdd: handleScheduledAdd,
