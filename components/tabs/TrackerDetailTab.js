@@ -885,86 +885,124 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   }, [summaryLayoutMode]);
 
   return React.createElement('div', {
-    className: "space-y-4 pb-24 pt-4 px-4"
+    className: "pt-4 px-4 flex flex-col h-full",
+    style: { minHeight: 0 }
   },
-    React.createElement('div', { 
-      className: "tt-tracker-detail-calendar"
-    },
-      HorizontalCalendar
-        ? React.createElement(HorizontalCalendar, {
-            key: `calendar-${calendarMountKey}`,
-            headerLeft: React.createElement(
-              'button',
-              {
-                type: 'button',
-                onClick: () => {
-                  if (typeof setActiveTab === 'function') {
-                    setActiveTab('tracker');
-                  }
+    React.createElement('div', { className: "flex-none space-y-4" },
+      React.createElement('div', { 
+        className: "tt-tracker-detail-calendar"
+      },
+        HorizontalCalendar
+          ? React.createElement(HorizontalCalendar, {
+              key: `calendar-${calendarMountKey}`,
+              headerLeft: React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: () => {
+                    if (typeof setActiveTab === 'function') {
+                      setActiveTab('tracker');
+                    }
+                  },
+                  className: "inline-flex items-center gap-1 text-sm font-semibold",
+                  style: { color: 'var(--tt-text-secondary)' }
                 },
-                className: "inline-flex items-center gap-1 text-sm font-semibold",
-                style: { color: 'var(--tt-text-secondary)' }
-              },
-              ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
-                className: "w-5 h-5",
-                style: { color: 'var(--tt-text-secondary)' }
-              }),
-              "Back"
-            ),
-            onDateSelect: (payload) => {
-              if (!payload) return;
-              setSelectedSummary({
-                feedOz: payload.feedOz || 0,
-                sleepMs: payload.sleepMs || 0,
-                feedPct: payload.feedPct || 0,
-                sleepPct: payload.sleepPct || 0
-              });
-              if (payload.date) {
-                try {
-                  const newDate = new Date(payload.date);
-                  setSelectedSummaryKey(newDate.toDateString());
-                  setSelectedDate(newDate);
-                } catch (e) {
+                ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
+                  className: "w-5 h-5",
+                  style: { color: 'var(--tt-text-secondary)' }
+                }),
+                "Back"
+              ),
+              onDateSelect: (payload) => {
+                if (!payload) return;
+                setSelectedSummary({
+                  feedOz: payload.feedOz || 0,
+                  sleepMs: payload.sleepMs || 0,
+                  feedPct: payload.feedPct || 0,
+                  sleepPct: payload.sleepPct || 0
+                });
+                if (payload.date) {
+                  try {
+                    const newDate = new Date(payload.date);
+                    setSelectedSummaryKey(newDate.toDateString());
+                    setSelectedDate(newDate);
+                  } catch (e) {
+                    setSelectedSummaryKey(String(Date.now()));
+                  }
+                } else {
                   setSelectedSummaryKey(String(Date.now()));
                 }
-              } else {
-                setSelectedSummaryKey(String(Date.now()));
               }
-            }
-          })
-        : null
-    ),
-    (() => {
-      const prevMode = summaryAnimationPrevRef.current;
-      const isFirst = !summaryAnimationMountRef.current;
-      const shouldAnimateCards = Boolean(__ttMotion && __ttAnimatePresence)
-        && (isFirst || prevMode === 'all' || summaryLayoutMode === 'all');
-      const container = shouldAnimateCards ? __ttMotion.div : 'div';
-      const feedInitialX = -8;
-      const sleepInitialX = isFirst ? -8 : 8;
+            })
+          : null
+      ),
+      (() => {
+        const prevMode = summaryAnimationPrevRef.current;
+        const isFirst = !summaryAnimationMountRef.current;
+        const shouldAnimateCards = Boolean(__ttMotion && __ttAnimatePresence)
+          && (isFirst || prevMode === 'all' || summaryLayoutMode === 'all');
+        const container = shouldAnimateCards ? __ttMotion.div : 'div';
+        const feedInitialX = -8;
+        const sleepInitialX = isFirst ? -8 : 8;
 
-      return React.createElement(
-        container,
-        {
-          className: `grid gap-4 -mt-2 ${summaryLayoutMode === 'all' ? 'grid-cols-2' : 'grid-cols-1'}`,
-          layout: shouldAnimateCards ? true : undefined,
-          transition: shouldAnimateCards
-            ? { type: "spring", stiffness: 180, damping: 24 }
-            : undefined
-        },
-        shouldAnimateCards
-          ? React.createElement(__ttAnimatePresence, { mode: "popLayout", initial: true },
-              summaryLayoutMode !== 'sleep' && React.createElement(
-                __ttMotion.div,
-                {
-                  key: `summary-feed-${summaryCardsEpoch}`,
-                  layout: true,
-                  initial: { opacity: 0, x: feedInitialX },
-                  animate: { opacity: 1, x: 0 },
-                  exit: { opacity: 0, x: feedInitialX },
-                  transition: { type: "spring", stiffness: 220, damping: 26 }
-                },
-                renderSummaryCard({
+        return React.createElement(
+          container,
+          {
+            className: `grid gap-4 -mt-2 ${summaryLayoutMode === 'all' ? 'grid-cols-2' : 'grid-cols-1'}`,
+            layout: shouldAnimateCards ? true : undefined,
+            transition: shouldAnimateCards
+              ? { type: "spring", stiffness: 180, damping: 24 }
+              : undefined
+          },
+          shouldAnimateCards
+            ? React.createElement(__ttAnimatePresence, { mode: "popLayout", initial: true },
+                summaryLayoutMode !== 'sleep' && React.createElement(
+                  __ttMotion.div,
+                  {
+                    key: `summary-feed-${summaryCardsEpoch}`,
+                    layout: true,
+                    initial: { opacity: 0, x: feedInitialX },
+                    animate: { opacity: 1, x: 0 },
+                    exit: { opacity: 0, x: feedInitialX },
+                    transition: { type: "spring", stiffness: 220, damping: 26 }
+                  },
+                  renderSummaryCard({
+                    icon: bottleIcon,
+                    color: 'var(--tt-feed)',
+                    value: feedDisplay,
+                    unit: 'oz',
+                    rotateIcon: true,
+                    progressPercent: feedPercent,
+                    progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                    comparison: feedComparison
+                  })
+                ),
+                summaryLayoutMode !== 'feed' && React.createElement(
+                  __ttMotion.div,
+                  {
+                    key: `summary-sleep-${summaryCardsEpoch}`,
+                    layout: true,
+                    initial: { opacity: 0, x: sleepInitialX },
+                    animate: { opacity: 1, x: 0 },
+                    exit: { opacity: 0, x: sleepInitialX },
+                    transition: { type: "spring", stiffness: 220, damping: 26 }
+                  },
+                  renderSummaryCard({
+                    icon: moonIcon,
+                    color: 'var(--tt-sleep)',
+                    value: sleepDisplay,
+                    unit: 'hrs',
+                    rotateIcon: false,
+                    progressPercent: sleepPercent,
+                    progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                    comparison: sleepComparison
+                  })
+                )
+              )
+            : React.createElement(
+                React.Fragment,
+                null,
+                summaryLayoutMode !== 'sleep' && renderSummaryCard({
                   icon: bottleIcon,
                   color: 'var(--tt-feed)',
                   value: feedDisplay,
@@ -973,19 +1011,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                   progressPercent: feedPercent,
                   progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
                   comparison: feedComparison
-                })
-              ),
-              summaryLayoutMode !== 'feed' && React.createElement(
-                __ttMotion.div,
-                {
-                  key: `summary-sleep-${summaryCardsEpoch}`,
-                  layout: true,
-                  initial: { opacity: 0, x: sleepInitialX },
-                  animate: { opacity: 1, x: 0 },
-                  exit: { opacity: 0, x: sleepInitialX },
-                  transition: { type: "spring", stiffness: 220, damping: 26 }
-                },
-                renderSummaryCard({
+                }),
+                summaryLayoutMode !== 'feed' && renderSummaryCard({
                   icon: moonIcon,
                   color: 'var(--tt-sleep)',
                   value: sleepDisplay,
@@ -996,46 +1023,27 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                   comparison: sleepComparison
                 })
               )
-            )
-          : React.createElement(
-              React.Fragment,
-              null,
-              summaryLayoutMode !== 'sleep' && renderSummaryCard({
-                icon: bottleIcon,
-                color: 'var(--tt-feed)',
-                value: feedDisplay,
-                unit: 'oz',
-                rotateIcon: true,
-                progressPercent: feedPercent,
-                progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                comparison: feedComparison
-              }),
-              summaryLayoutMode !== 'feed' && renderSummaryCard({
-                icon: moonIcon,
-                color: 'var(--tt-sleep)',
-                value: sleepDisplay,
-                unit: 'hrs',
-                rotateIcon: false,
-                progressPercent: sleepPercent,
-                progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                comparison: sleepComparison
-              })
-            )
-      );
-    })(),
-    Timeline ? React.createElement(Timeline, {
-      key: `tracker-detail-timeline-${filterEpoch}`,
-      initialLoggedItems: loggedTimelineItems,
-      initialScheduledItems: Array.isArray(scheduledTimelineItems) ? scheduledTimelineItems : [],
-      disableExpanded: true,
-      allowItemExpand: true,
-      initialFilter: initialTimelineFilter,
-      onFilterChange: handleTimelineFilterChange,
-      onEditCard: handleTimelineEditCard,
-      onDeleteCard: handleTimelineDeleteCard,
-      onScheduledAdd: handleScheduledAdd,
-      onActiveSleepClick: handleActiveSleepClick
-    }) : null,
+        );
+      })()
+    ),
+    React.createElement('div', {
+      className: "flex-1 min-h-0 overflow-y-auto mt-4",
+      style: { WebkitOverflowScrolling: 'touch' }
+    },
+      Timeline ? React.createElement(Timeline, {
+        key: `tracker-detail-timeline-${filterEpoch}`,
+        initialLoggedItems: loggedTimelineItems,
+        initialScheduledItems: Array.isArray(scheduledTimelineItems) ? scheduledTimelineItems : [],
+        disableExpanded: true,
+        allowItemExpand: true,
+        initialFilter: initialTimelineFilter,
+        onFilterChange: handleTimelineFilterChange,
+        onEditCard: handleTimelineEditCard,
+        onDeleteCard: handleTimelineDeleteCard,
+        onScheduledAdd: handleScheduledAdd,
+        onActiveSleepClick: handleActiveSleepClick
+      }) : null
+    ),
     window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
       isOpen: showInputSheet,
       onClose: () => setShowInputSheet(false),
