@@ -3128,8 +3128,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 right: 0,
                 bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
                 zIndex: 45,
-                overflowY: 'auto',
-                WebkitOverflowScrolling: 'touch',
+                overflow: 'hidden',
                 backgroundColor: 'var(--tt-app-bg)'
               }
             : { display: 'none' }

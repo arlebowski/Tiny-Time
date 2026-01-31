@@ -2309,7 +2309,7 @@ Output ONLY the formatted string, nothing else.`;
   const nextUpBabyState = activeSleep && activeSleep.startTime ? 'sleeping' : 'awake';
   const nextUpSleepStart = activeSleep && activeSleep.startTime ? activeSleep.startTime : null;
   
-  return React.createElement('div', { className: "space-y-4 pb-24" },
+  return React.createElement('div', { className: "space-y-4" },
     (loading && hasLoadedOnce) && React.createElement('div', {
       className: "flex items-center justify-center",
       style: { marginTop: '-6px' }
