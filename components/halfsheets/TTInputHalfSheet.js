@@ -1416,7 +1416,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
               onOpenPicker: openTrayPicker,
               placeholder: 'Add...',
               readOnly: false, // Always editable
-              invalid: !isSleepValid && isIdleWithTimes
+              invalid: !saving && !isSleepValid && isIdleWithTimes
             })
           ),
 

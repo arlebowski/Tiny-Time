@@ -196,10 +196,10 @@ const Timeline = ({
     setIsCompiling(true);
     setTimeout(() => {
       setFilter(newFilter);
-    }, 250);
+    }, 0);
     setTimeout(() => {
       setIsCompiling(false);
-    }, 500);
+    }, 0);
   };
 
   const hours = Array.from({ length: 25 }, (_, i) => {
@@ -439,6 +439,33 @@ const Timeline = ({
     cardRef.current = card;
     const cardIdRef = React.useRef(card?.id);
     cardIdRef.current = card?.id;
+    const onMoveRef = React.useRef(null);
+    const onUpRef = React.useRef(null);
+    const listenersActiveRef = React.useRef(false);
+    const moveListenerOptions = { passive: false };
+
+    const addDocListeners = React.useCallback(() => {
+      if (listenersActiveRef.current) return;
+      const onMove = onMoveRef.current;
+      const onUp = onUpRef.current;
+      if (!onMove || !onUp) return;
+      listenersActiveRef.current = true;
+      document.addEventListener('pointermove', onMove, moveListenerOptions);
+      document.addEventListener('pointerup', onUp);
+      document.addEventListener('pointercancel', onUp);
+    }, []);
+
+    const removeDocListeners = React.useCallback(() => {
+      if (!listenersActiveRef.current) return;
+      const onMove = onMoveRef.current;
+      const onUp = onUpRef.current;
+      if (onMove) document.removeEventListener('pointermove', onMove, moveListenerOptions);
+      if (onUp) {
+        document.removeEventListener('pointerup', onUp);
+        document.removeEventListener('pointercancel', onUp);
+      }
+      listenersActiveRef.current = false;
+    }, []);
 
     const x = __ttTimelineUseMotionValue(0);
     const smoothX = __ttTimelineUseSpring(x, SPRING);
@@ -525,6 +552,7 @@ const Timeline = ({
         if (!width) {
           lockedSide.current = null;
           x.set(0);
+          removeDocListeners();
           if (typeof onSwipeEndRef.current === 'function') onSwipeEndRef.current(cardIdRef.current);
           return;
         }
@@ -561,18 +589,18 @@ const Timeline = ({
           startOffset: 0,
           lock: null
         };
+        removeDocListeners();
         if (typeof onSwipeEndRef.current === 'function') onSwipeEndRef.current(cardIdRef.current);
       };
 
-      document.addEventListener('pointermove', onMove, { passive: false });
-      document.addEventListener('pointerup', onUp);
-      document.addEventListener('pointercancel', onUp);
+      onMoveRef.current = onMove;
+      onUpRef.current = onUp;
       return () => {
-        document.removeEventListener('pointermove', onMove);
-        document.removeEventListener('pointerup', onUp);
-        document.removeEventListener('pointercancel', onUp);
+        if (listenersActiveRef.current) {
+          removeDocListeners();
+        }
       };
-    }, [x]);
+    }, [x, removeDocListeners]);
 
     const handlePointerDown = (event) => {
       if (!isSwipeEnabled) return;
@@ -592,6 +620,7 @@ const Timeline = ({
       };
       hasSwipedRef.current = false;
       draggingRef.current = true;
+      addDocListeners();
     };
 
     const handleClick = (event) => {

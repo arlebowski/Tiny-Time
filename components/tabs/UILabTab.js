@@ -3,7 +3,7 @@
 // Extracted from SettingsTab for better organization
 // ========================================
 
-const UILabTab = ({ kidId, uiVersion, showTodayCard, setShowTodayCard, onClose }) => {
+const UILabTab = ({ kidId, uiVersion, onClose }) => {
   const { useState, useEffect, useRef, useMemo } = React;
   
   // Production data for UI Lab
@@ -1249,29 +1249,6 @@ const UILabTab = ({ kidId, uiVersion, showTodayCard, setShowTodayCard, onClose }
           onChange: (value) => {
             if (typeof window !== 'undefined' && window.localStorage) {
               window.localStorage.setItem('tt_ui_version', value);
-              // Force reload to apply changes
-              window.location.reload();
-          
-        
-      )
-      ),
-
-      // Today Card Toggle (controls feature flag)
-      React.createElement('div', { className: "mb-4" },
-        React.createElement('label', { 
-          className: "block text-sm font-medium text-gray-700 mb-2" 
-      , 'Show Today Card'),
-        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-          value: showTodayCard ? 'on' : 'off',
-          options: [
-            { value: 'on', label: 'On' },
-            { value: 'off', label: 'Off' }
-          ],
-          onChange: (value) => {
-            const isOn = value === 'on';
-            setShowTodayCard(isOn);
-            if (typeof window !== 'undefined' && window.localStorage) {
-              window.localStorage.setItem('tt_show_today_card', isOn ? 'true' : 'false');
               // Force reload to apply changes
               window.location.reload();
           

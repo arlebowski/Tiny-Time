@@ -230,14 +230,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   });
   const useNewUI = (window.TT?.shared?.uiVersion?.shouldUseNewUI || ((v) => v !== 'v1'))(uiVersion);
   
-  // Feature flag for TodayCard - controlled by localStorage (can be toggled from UI Lab)
-  const [showTodayCard, setShowTodayCard] = React.useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_show_today_card');
-      return stored !== null ? stored === 'true' : false; // Default to false
-    }
-    return false;
-  });
+  // Today Card is disabled for new UI variants.
+  const showTodayCard = false;
   
   // Listen for changes to the feature flags
   React.useEffect(() => {
@@ -251,23 +245,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       });
     }
     
-    const handleStorageChange = () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const todayCardStored = window.localStorage.getItem('tt_show_today_card');
-        setShowTodayCard(todayCardStored !== null ? todayCardStored === 'true' : false);
-      }
-    };
-    
-    // Listen for storage events (when changed from another tab/window)
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check periodically (for same-tab changes)
-    const interval = setInterval(handleStorageChange, 100);
-    
     return () => {
       if (unsubscribeVersion) unsubscribeVersion();
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
     };
   }, []);
 
@@ -417,6 +396,27 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
+  React.useEffect(() => {
+    if (!scheduleStore || typeof scheduleStore.readProjectionSchedule !== 'function') return;
+    const onProjectionUpdate = (event) => {
+      const todayKey = getScheduleDateKey(new Date());
+      const dateKey = event?.detail?.dateKey;
+      if (dateKey && dateKey !== todayKey) return;
+      const stored = scheduleStore.readProjectionSchedule(todayKey);
+      if (Array.isArray(stored) && stored.length > 0) {
+        projectionScheduleRef.current = stored;
+        projectionScheduleDateRef.current = todayKey;
+        dailyScheduleRef.current = stored;
+        setDailySchedule(stored);
+        setScheduleReady(true);
+      }
+    };
+    window.addEventListener('tt:projection-schedule-updated', onProjectionUpdate);
+    return () => {
+      window.removeEventListener('tt:projection-schedule-updated', onProjectionUpdate);
+    };
+  }, [scheduleStore]);
 
   // Format time as h:mma (e.g., "12:30pm") - no rounding
   const formatTimeHmma = (date) => {
@@ -1045,49 +1045,23 @@ Output ONLY the formatted string, nothing else.`;
         }
       }
       
-      // Build and adjust schedule via shared schedule store
-      const scheduleResult = scheduleStore?.rebuildAndPersist
-        ? await scheduleStore.rebuildAndPersist({
-            feedings: allFeedings,
-            sleepSessions: allSleepSessions,
-            ageInMonths,
-            sleepSettings,
-            now: new Date(nowMs),
-            kidId,
-            dateKey: todayKey,
-            persistAdjusted: true
-          })
-        : (scheduleStore?.rebuildProjectionScheduleAsync
-            ? await scheduleStore.rebuildProjectionScheduleAsync({
-                feedings: allFeedings,
-                sleepSessions: allSleepSessions,
-                ageInMonths,
-                sleepSettings,
-                now: new Date(nowMs),
-                kidId
-              })
-            : (scheduleStore?.rebuildProjectionSchedule
-                ? scheduleStore.rebuildProjectionSchedule({
-                    feedings: allFeedings,
-                    sleepSessions: allSleepSessions,
-                    ageInMonths,
-                    sleepSettings,
-                    now: new Date(nowMs)
-                  })
-                : null));
-      const baseSchedule = scheduleResult?.baseSchedule || [];
-      const adjustedSchedule = scheduleResult?.adjustedSchedule || baseSchedule;
-      
-      if (shouldRebuildSchedule) {
+      // Read schedule built by shared schedule store (single owner)
+      const storedSchedule = scheduleStore?.readProjectionSchedule
+        ? scheduleStore.readProjectionSchedule(todayKey)
+        : null;
+      const adjustedSchedule = Array.isArray(storedSchedule) ? storedSchedule : [];
+
+      if (adjustedSchedule.length > 0) {
         projectionScheduleRef.current = adjustedSchedule;
         projectionScheduleDateRef.current = todayKey;
         lastScheduleUpdateRef.current = nowMs;
-      }
-
-      if (baseSchedule && (dataChanged || shouldRebuildSchedule || !dailyScheduleRef.current)) {
-        dailyScheduleRef.current = adjustedSchedule;
-        setDailySchedule(adjustedSchedule); // Update state to trigger re-render
-        setScheduleReady(true); // Mark schedule as ready
+        if (dataChanged || shouldRebuildSchedule || !dailyScheduleRef.current) {
+          dailyScheduleRef.current = adjustedSchedule;
+          setDailySchedule(adjustedSchedule); // Update state to trigger re-render
+          setScheduleReady(true); // Mark schedule as ready
+        }
+      } else if (shouldRebuildSchedule && !dailyScheduleRef.current) {
+        setScheduleReady(false);
       }
       
       // Get next event from schedule (use state, fallback to ref)

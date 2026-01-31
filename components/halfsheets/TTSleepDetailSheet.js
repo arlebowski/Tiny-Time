@@ -514,19 +514,19 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
             pickerMode: 'datetime_start',
             onOpenPicker: openTrayPicker,
           }),
-          React.createElement(InputRow, {
-            label: 'End time',
-            value: formatDateTime(endTime),
-            rawValue: endTime,
-            onChange: setEndTime,
-            icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-            valueClassName: inputValueClassName,
-            type: 'datetime',
-            pickerMode: 'datetime_end',
-            onOpenPicker: openTrayPicker,
-            invalid: !isValid
-          })
-        ),
+            React.createElement(InputRow, {
+              label: 'End time',
+              value: formatDateTime(endTime),
+              rawValue: endTime,
+              onChange: setEndTime,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              valueClassName: inputValueClassName,
+              type: 'datetime',
+              pickerMode: 'datetime_end',
+              onOpenPicker: openTrayPicker,
+              invalid: !saving && !isValid
+            })
+          ),
         (!notesExpanded && !photosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
           React.createElement('div', {
             onClick: () => setNotesExpanded(true),

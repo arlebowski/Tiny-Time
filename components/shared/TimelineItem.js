@@ -46,7 +46,7 @@ const __ttEnsureZzzStyles = () => {
   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
   const unitText = (card.unit || '').toLowerCase();
   const formatSleepDuration = (ms) => {
-    const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+    const totalSec = Math.round(Math.max(0, Number(ms) || 0) / 1000);
     const h = Math.floor(totalSec / 3600);
     const m = Math.floor((totalSec % 3600) / 60);
     const s = totalSec % 60;
@@ -54,16 +54,19 @@ const __ttEnsureZzzStyles = () => {
       return `${h}h ${m}m`;
     }
     if (m >= 1) {
-      return `${m}m ${s}s`;
+      return s > 0 ? `${m}m ${s}s` : `${m}m`;
     }
     return `${s}s`;
   };
   const resolveSleepAmountText = () => {
     const raw = Number(card.amount);
-    if (!Number.isFinite(raw) || raw <= 0) return '';
     if (isLogged) {
-      return formatSleepDuration(Math.round(raw * 3600 * 1000));
+      const durationMs = (typeof card.startTime === 'number' && typeof card.endTime === 'number')
+        ? Math.max(0, card.endTime - card.startTime)
+        : (Number.isFinite(raw) ? Math.round(raw * 3600 * 1000) : 0);
+      return durationMs > 0 ? formatSleepDuration(durationMs) : '';
     }
+    if (!Number.isFinite(raw) || raw <= 0) return '';
     if (raw < 1) {
       const mins = Math.round(raw * 60);
       return `${mins} min`;
