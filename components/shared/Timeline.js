@@ -196,10 +196,10 @@ const Timeline = ({
     setIsCompiling(true);
     setTimeout(() => {
       setFilter(newFilter);
-    }, 250);
+    }, 25);
     setTimeout(() => {
       setIsCompiling(false);
-    }, 500);
+    }, 50);
   };
 
   const hours = Array.from({ length: 25 }, (_, i) => {
