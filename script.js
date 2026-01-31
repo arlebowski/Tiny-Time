@@ -2899,8 +2899,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
             ? {
                 display: 'block',
                 position: 'fixed',
-                inset: 0,
-                zIndex: 1100,
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+                zIndex: 45,
                 overflowY: 'auto',
                 WebkitOverflowScrolling: 'touch',
                 backgroundColor: 'var(--tt-app-bg)'
