@@ -443,6 +443,7 @@ const Timeline = ({
     const onUpRef = React.useRef(null);
     const listenersActiveRef = React.useRef(false);
     const moveListenerOptions = { passive: false };
+    const lastMoveRef = React.useRef({ x: 0, t: 0, vx: 0 });
 
     const addDocListeners = React.useCallback(() => {
       if (listenersActiveRef.current) return;
@@ -507,46 +508,89 @@ const Timeline = ({
     }, [openSwipeId, card.id, closeSwipe]);
 
     React.useEffect(() => {
-      const onMove = (event) => {
-        if (!draggingRef.current) return;
-        const state = dragState.current;
-        if (!state.pointerId) return;
+    const rubberband = (value, min, max, constant = 0.55) => {
+      if (value < min) {
+        const diff = min - value;
+        return min - (diff * constant / (diff + 200)) * 200;
+      }
+      if (value > max) {
+        const diff = value - max;
+        return max + (diff * constant / (diff + 200)) * 200;
+      }
+      return value;
+    };
 
-        const dx = event.clientX - state.startX;
-        const width = widthRef.current;
-        if (!width) return;
+    const onMove = (event) => {
+      if (!draggingRef.current) return;
+      const state = dragState.current;
+      if (!state.pointerId) return;
 
-        if (event.cancelable) event.preventDefault();
+      const dx = event.clientX - state.startX;
+      const dy = event.clientY - state.startY;
+      const width = widthRef.current;
+      if (!width) return;
 
-        hasSwipedRef.current = hasSwipedRef.current || Math.abs(dx) > 6;
-
-        const raw = state.startOffset + dx;
-        const threshold = 0.8 * width;
-        const abs = Math.abs(raw);
-
-        if (lockedSide.current) {
-          if (abs < threshold) {
-            lockedSide.current = null;
-            x.set(Math.max(-width, Math.min(0, raw)));
-          } else {
-            x.set(-width);
+      if (!state.lock) {
+        const absDx = Math.abs(dx);
+        const absDy = Math.abs(dy);
+        if (absDx > 6 || absDy > 6) {
+          if (absDx > absDy * 1.2) {
+            state.lock = 'horizontal';
+          } else if (absDy > absDx * 1.2) {
+            state.lock = 'vertical';
           }
-          return;
         }
+      }
 
-        if (abs > threshold) {
-          lockedSide.current = 'left';
-          x.set(-width);
-          return;
-        }
-
-        const clamped = Math.max(-width, Math.min(0, raw));
-        x.set(clamped);
-      };
-
-      const onUp = () => {
-        if (!draggingRef.current) return;
+      if (state.lock === 'vertical') {
         draggingRef.current = false;
+        dragState.current = {
+          pointerId: null,
+          startX: 0,
+          startY: 0,
+          startOffset: 0,
+          lock: null
+        };
+        removeDocListeners();
+        return;
+      }
+
+      if (event.cancelable) event.preventDefault();
+
+      hasSwipedRef.current = hasSwipedRef.current || Math.abs(dx) > 6;
+      const now = event.timeStamp || performance.now();
+      const last = lastMoveRef.current;
+      const dt = Math.max(1, now - last.t);
+      const vx = (event.clientX - last.x) / dt;
+      lastMoveRef.current = { x: event.clientX, t: now, vx };
+
+      const raw = state.startOffset + dx;
+      const threshold = 0.8 * width;
+      const abs = Math.abs(raw);
+
+      if (lockedSide.current) {
+        if (abs < threshold) {
+          lockedSide.current = null;
+          x.set(rubberband(raw, -width, 0));
+        } else {
+          x.set(-width);
+        }
+        return;
+      }
+
+      if (abs > threshold) {
+        lockedSide.current = 'left';
+        x.set(-width);
+        return;
+      }
+
+      const clamped = Math.max(-width, Math.min(0, raw));
+      x.set(rubberband(clamped, -width, 0));
+    };
+
+    const onUp = () => {
+      if (!draggingRef.current) return;
+      draggingRef.current = false;
 
         const width = widthRef.current;
         if (!width) {
@@ -569,7 +613,12 @@ const Timeline = ({
           const current = x.get();
           let target = 0;
 
-          if (Math.abs(current) > width * 0.25) {
+          const vx = lastMoveRef.current.vx || 0;
+          if (vx < -0.5) {
+            target = -width * 0.6;
+          } else if (vx > 0.5) {
+            target = 0;
+          } else if (Math.abs(current) > width * 0.3) {
             target = current < 0 ? -width * 0.5 : 0;
           }
 
@@ -605,7 +654,6 @@ const Timeline = ({
     const handlePointerDown = (event) => {
       if (!isSwipeEnabled) return;
       if (dragState.current.pointerId != null) return;
-      if (event.cancelable) event.preventDefault();
       event.stopPropagation();
       if (event.currentTarget?.setPointerCapture) {
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -618,6 +666,7 @@ const Timeline = ({
         startOffset: x.get(),
         lock: null
       };
+      lastMoveRef.current = { x: event.clientX, t: event.timeStamp || performance.now(), vx: 0 };
       hasSwipedRef.current = false;
       draggingRef.current = true;
       addDocListeners();
