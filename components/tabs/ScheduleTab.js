@@ -295,41 +295,6 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   }, [selectedDate, loadProjectedSchedule]);
 
   React.useEffect(() => {
-    const dateKey = getScheduleDateKey(selectedDate);
-    const todayKey = getScheduleDateKey(new Date());
-    if (!scheduleStore || dateKey !== todayKey) return;
-    if (!firestoreStorage || !firestoreStorage.currentFamilyId || !firestoreStorage.currentKidId) return;
-    let isMounted = true;
-    (async () => {
-      try {
-        const [feedings, sleeps, kid, sleepSettings] = await Promise.all([
-          firestoreStorage.getAllFeedings(),
-          firestoreStorage.getAllSleepSessions(),
-          firestoreStorage.getKidData(),
-          firestoreStorage.getSleepSettings()
-        ]);
-        const ageInMonths = kid?.birthDate && window.TT?.shared?.calculateAgeInMonths
-          ? window.TT.shared.calculateAgeInMonths(kid.birthDate)
-          : 0;
-        const result = await scheduleStore.rebuildAndPersist({
-          feedings,
-          sleepSessions: sleeps,
-          ageInMonths,
-          sleepSettings,
-          kidId: firestoreStorage.currentKidId,
-          dateKey,
-          persistAdjusted: true
-        });
-        if (!isMounted || !result) return;
-        loadProjectedSchedule(selectedDate);
-      } catch (error) {
-        // Non-fatal: ScheduleTab can still show last cached projection.
-      }
-    })();
-    return () => { isMounted = false; };
-  }, [selectedDate, scheduleStore, loadProjectedSchedule, getScheduleDateKey]);
-
-  React.useEffect(() => {
     const onProjectionUpdate = (event) => {
       const dateKey = event?.detail?.dateKey;
       const selectedKey = getScheduleDateKey(selectedDate);

@@ -401,6 +401,114 @@ IMPORTANT:
     };
   };
 
+  const initScheduleRebuildController = () => {
+    if (typeof window === 'undefined') return;
+    window.TT = window.TT || {};
+    window.TT.store = window.TT.store || {};
+    if (window.TT.store._scheduleRebuildControllerInit) return;
+    window.TT.store._scheduleRebuildControllerInit = true;
+
+    const MIN_INTERVAL_MS = 2000;
+    const DEBOUNCE_MS = 250;
+    const RETRY_MS = 2000;
+
+    const state = {
+      timer: null,
+      retryTimer: null,
+      midnightTimer: null,
+      inFlight: null,
+      lastRun: 0
+    };
+
+    const isReady = () => {
+      if (!scheduleUtils || typeof scheduleUtils.analyzeHistoricalIntervals !== 'function') return false;
+      if (typeof firestoreStorage === 'undefined') return false;
+      if (!firestoreStorage.currentFamilyId || !firestoreStorage.currentKidId) return false;
+      return true;
+    };
+
+    const scheduleRetry = () => {
+      if (state.retryTimer) return;
+      state.retryTimer = setTimeout(() => {
+        state.retryTimer = null;
+        queueRebuild('retry', 0);
+      }, RETRY_MS);
+    };
+
+    const rebuildNow = async (reason) => {
+      const now = Date.now();
+      if (state.inFlight) return state.inFlight;
+      if (now - state.lastRun < MIN_INTERVAL_MS) return null;
+      if (!isReady()) {
+        scheduleRetry();
+        return null;
+      }
+
+      state.inFlight = (async () => {
+        try {
+          const [feedings, sleeps, kid, sleepSettings] = await Promise.all([
+            firestoreStorage.getAllFeedings(),
+            firestoreStorage.getAllSleepSessions(),
+            firestoreStorage.getKidData(),
+            firestoreStorage.getSleepSettings()
+          ]);
+          const ageInMonths = kid?.birthDate && window.TT?.shared?.calculateAgeInMonths
+            ? window.TT.shared.calculateAgeInMonths(kid.birthDate)
+            : 0;
+          const dateKey = getScheduleDateKey(new Date());
+          return await window.TT.store.scheduleStore.rebuildAndPersist({
+            feedings,
+            sleepSessions: sleeps,
+            ageInMonths,
+            sleepSettings,
+            kidId: firestoreStorage.currentKidId,
+            dateKey,
+            persistAdjusted: true
+          });
+        } catch (e) {
+          return null;
+        } finally {
+          state.lastRun = Date.now();
+          state.inFlight = null;
+        }
+      })();
+
+      return state.inFlight;
+    };
+
+    const queueRebuild = (reason, delay = DEBOUNCE_MS) => {
+      if (state.timer) clearTimeout(state.timer);
+      state.timer = setTimeout(() => rebuildNow(reason), delay);
+    };
+
+    const scheduleMidnight = () => {
+      if (state.midnightTimer) clearTimeout(state.midnightTimer);
+      const now = new Date();
+      const next = new Date(now);
+      next.setHours(24, 0, 0, 0);
+      const ms = Math.max(0, next.getTime() - now.getTime()) + 50;
+      state.midnightTimer = setTimeout(() => {
+        queueRebuild('midnight', 0);
+        scheduleMidnight();
+      }, ms);
+    };
+
+    const onInputAdded = () => queueRebuild('input-added', 150);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') queueRebuild('visible', 300);
+    };
+    const onFocus = () => queueRebuild('focus', 300);
+
+    window.addEventListener('tt-input-sheet-added', onInputAdded);
+    window.addEventListener('focus', onFocus);
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibility);
+    }
+
+    queueRebuild('init', 0);
+    scheduleMidnight();
+  };
+
   window.TT.store.scheduleStore = {
     storageKey: STORAGE_KEY,
     getScheduleDateKey,
@@ -408,6 +516,7 @@ IMPORTANT:
     writeProjectionSchedule,
     rebuildProjectionSchedule,
     rebuildProjectionScheduleAsync,
+    initScheduleRebuildController,
     rebuildAndPersist: async ({
       feedings = [],
       sleepSessions = [],
@@ -441,4 +550,7 @@ IMPORTANT:
       return result;
     }
   };
+
+  // Single-owner schedule rebuild controller
+  initScheduleRebuildController();
 })();
