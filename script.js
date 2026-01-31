@@ -880,13 +880,59 @@ const removeMember = async (familyId, kidId_ignored, memberId) => {
 // ========================================
 // FAMILY-BASED STORAGE LAYER
 // ========================================
+const __ttDataCache = (() => {
+  const shared = typeof window !== 'undefined' ? window.TT?.shared?.dataCache : null;
+  if (shared && shared.get && shared.set && shared.remove) return shared;
+  return {
+    async get(key) {
+      try {
+        const raw = localStorage.getItem(key);
+        return raw ? JSON.parse(raw) : null;
+      } catch {
+        return null;
+      }
+    },
+    async set(key, value) {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch {
+        // ignore cache write errors
+      }
+    },
+    async remove(key) {
+      try {
+        localStorage.removeItem(key);
+      } catch {
+        // ignore cache delete errors
+      }
+    }
+  };
+})();
+
 const firestoreStorage = {
   currentFamilyId: null,
   currentKidId: null,
+  _cacheState: {
+    feedings: null,
+    sleepSessions: null,
+    lastSyncMs: 0,
+    initPromise: null,
+    refreshPromise: null
+  },
+  _cacheMaxAgeMs: 60000,
 
   initialize: async function (familyId, kidId) {
     this.currentFamilyId = familyId;
     this.currentKidId = kidId;
+    this._cacheState = {
+      feedings: null,
+      sleepSessions: null,
+      lastSyncMs: 0,
+      initPromise: null,
+      refreshPromise: null
+    };
+    await this._initCache();
+    this._refreshCache({ force: true });
     logEvent("kid_selected", { familyId, kidId });
   },
 
@@ -898,6 +944,86 @@ const firestoreStorage = {
       .doc(this.currentFamilyId)
       .collection("kids")
       .doc(this.currentKidId);
+  },
+
+  _cacheKey(name) {
+    if (!this.currentFamilyId || !this.currentKidId) return null;
+    return `tt_cache_v1:${this.currentFamilyId}:${this.currentKidId}:${name}`;
+  },
+
+  _sortFeedingsAsc(list) {
+    return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  },
+
+  _sortSleepAsc(list) {
+    return [...(list || [])].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+  },
+
+  async _initCache() {
+    if (this._cacheState.initPromise) return this._cacheState.initPromise;
+    const keyFeed = this._cacheKey('feedings');
+    const keySleep = this._cacheKey('sleepSessions');
+    const keyMeta = this._cacheKey('meta');
+    if (!keyFeed || !keySleep || !keyMeta) return null;
+    this._cacheState.initPromise = (async () => {
+      const [feedings, sleeps, meta] = await Promise.all([
+        __ttDataCache.get(keyFeed),
+        __ttDataCache.get(keySleep),
+        __ttDataCache.get(keyMeta)
+      ]);
+      if (Array.isArray(feedings)) this._cacheState.feedings = feedings;
+      if (Array.isArray(sleeps)) this._cacheState.sleepSessions = sleeps;
+      if (meta && Number.isFinite(meta.lastSyncMs)) this._cacheState.lastSyncMs = meta.lastSyncMs;
+      return true;
+    })();
+    return this._cacheState.initPromise;
+  },
+
+  async _saveCache() {
+    const keyFeed = this._cacheKey('feedings');
+    const keySleep = this._cacheKey('sleepSessions');
+    const keyMeta = this._cacheKey('meta');
+    if (!keyFeed || !keySleep || !keyMeta) return;
+    await Promise.all([
+      __ttDataCache.set(keyFeed, this._cacheState.feedings || []),
+      __ttDataCache.set(keySleep, this._cacheState.sleepSessions || []),
+      __ttDataCache.set(keyMeta, { lastSyncMs: this._cacheState.lastSyncMs || 0 })
+    ]);
+  },
+
+  async _refreshCache({ force = false } = {}) {
+    if (!this.currentFamilyId || !this.currentKidId) return null;
+    const now = Date.now();
+    if (!force && (now - (this._cacheState.lastSyncMs || 0)) < this._cacheMaxAgeMs) {
+      return null;
+    }
+    if (this._cacheState.refreshPromise) return this._cacheState.refreshPromise;
+    this._cacheState.refreshPromise = (async () => {
+      const [feedings, sleeps] = await Promise.all([
+        this._getAllFeedingsRemote(),
+        this._getAllSleepSessionsRemote()
+      ]);
+      this._cacheState.feedings = this._sortFeedingsAsc(feedings);
+      this._cacheState.sleepSessions = this._sortSleepAsc(sleeps);
+      this._cacheState.lastSyncMs = Date.now();
+      await this._saveCache();
+      return true;
+    })();
+    try {
+      return await this._cacheState.refreshPromise;
+    } finally {
+      this._cacheState.refreshPromise = null;
+    }
+  },
+
+  async _getCachedFeedings() {
+    await this._initCache();
+    return Array.isArray(this._cacheState.feedings) ? this._cacheState.feedings : null;
+  },
+
+  async _getCachedSleepSessions() {
+    await this._initCache();
+    return Array.isArray(this._cacheState.sleepSessions) ? this._cacheState.sleepSessions : null;
   },
 
   // -----------------------
@@ -1108,20 +1234,40 @@ const firestoreStorage = {
   // FEEDINGS
   // -----------------------
   async addFeeding(ounces, timestamp) {
-    await this._kidRef().collection("feedings").add({ ounces, timestamp });
+    const ref = await this._kidRef().collection("feedings").add({ ounces, timestamp });
+    const item = { id: ref.id, ounces, timestamp };
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._cacheState.feedings = this._sortFeedingsAsc([...cached, item]);
+      await this._saveCache();
+    }
     logEvent("feeding_added", { ounces });
   },
 
   async getFeedings() {
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return [...cached].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    }
     const snap = await this._kidRef()
       .collection("feedings")
       .orderBy("timestamp", "desc")
       .get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    this._cacheState.feedings = this._sortFeedingsAsc(data);
+    this._cacheState.lastSyncMs = Date.now();
+    await this._saveCache();
+    return data;
   },
 
   async getFeedingsLastNDays(days) {
     const cutoff = Date.now() - days * 86400000;
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached.filter((f) => (f.timestamp || 0) > cutoff);
+    }
     const snap = await this._kidRef()
       .collection("feedings")
       .where("timestamp", ">", cutoff)
@@ -1135,19 +1281,32 @@ const firestoreStorage = {
       .collection("feedings")
       .doc(id)
       .update({ ounces, timestamp });
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._cacheState.feedings = this._sortFeedingsAsc(
+        cached.map((f) => (f.id === id ? { ...f, ounces, timestamp } : f))
+      );
+      await this._saveCache();
+    }
   },
 
   async deleteFeeding(id) {
     await this._kidRef().collection("feedings").doc(id).delete();
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._cacheState.feedings = cached.filter((f) => f.id !== id);
+      await this._saveCache();
+    }
   },
 
   // ⭐⭐⭐⭐⭐ ADDED PATCH — REQUIRED BY ANALYTICS TAB
   async getAllFeedings() {
-    const snap = await this._kidRef()
-      .collection("feedings")
-      .orderBy("timestamp", "asc")
-      .get();
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached;
+    }
+    return await this._getAllFeedingsRemote();
   },
 
   async addFeedingWithNotes(ounces, timestamp, notes = null, photoURLs = null) {
@@ -1158,7 +1317,13 @@ const firestoreStorage = {
     if (photoURLs !== null && photoURLs !== undefined && Array.isArray(photoURLs) && photoURLs.length > 0) {
       data.photoURLs = photoURLs;
     }
-    await this._kidRef().collection("feedings").add(data);
+    const ref = await this._kidRef().collection("feedings").add(data);
+    const item = { id: ref.id, ...data };
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._cacheState.feedings = this._sortFeedingsAsc([...cached, item]);
+      await this._saveCache();
+    }
     logEvent("feeding_added", { ounces });
   },
 
@@ -1182,6 +1347,13 @@ const firestoreStorage = {
       .collection("feedings")
       .doc(id)
       .update(data);
+    const cached = await this._getCachedFeedings();
+    if (cached) {
+      this._cacheState.feedings = this._sortFeedingsAsc(
+        cached.map((f) => (f.id === id ? { ...f, ...data } : f))
+      );
+      await this._saveCache();
+    }
   },
 
   // -----------------------
@@ -1247,6 +1419,12 @@ const firestoreStorage = {
 
     logEvent("sleep_started", { startTime: startMs });
     const doc = await ref.get();
+    const item = { id: doc.id, ...doc.data() };
+    const cached = await this._getCachedSleepSessions();
+    if (cached) {
+      this._cacheState.sleepSessions = this._sortSleepAsc([...cached, item]);
+      await this._saveCache();
+    }
     return { id: doc.id, ...doc.data() };
   },
 
@@ -1299,6 +1477,13 @@ const firestoreStorage = {
         isDaySleep: !!isDaySleep,
         sleepType: isDaySleep ? "day" : "night"
       });
+    const cached = await this._getCachedSleepSessions();
+    if (cached) {
+      this._cacheState.sleepSessions = this._sortSleepAsc(
+        cached.map((s) => (s.id === sessionId ? { ...s, endTime: endMs, isActive: false, endedByUid: uid, isDaySleep: !!isDaySleep, sleepType: isDaySleep ? "day" : "night" } : s))
+      );
+      await this._saveCache();
+    }
     logEvent("sleep_ended", { endTime: endMs });
   },
 
@@ -1344,23 +1529,26 @@ const firestoreStorage = {
 
   async getSleepSessionsLastNDays(days) {
     const cutoff = Date.now() - days * 86400000;
-
+    const cached = await this._getCachedSleepSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached.filter((s) => (s.startTime || 0) > cutoff);
+    }
     const snap = await this._kidRef()
       .collection("sleepSessions")
       .where("startTime", ">", cutoff)
       .orderBy("startTime", "asc")
       .get();
-
     return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   },
 
   async getAllSleepSessions() {
-    const snap = await this._kidRef()
-      .collection("sleepSessions")
-      .orderBy("startTime", "asc")
-      .get();
-
-    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    const cached = await this._getCachedSleepSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached;
+    }
+    return await this._getAllSleepSessionsRemote();
   },
 
   async updateSleepSession(id, data) {
@@ -1373,11 +1561,23 @@ const firestoreStorage = {
       }
     }
     await this._kidRef().collection("sleepSessions").doc(id).update(updateData || {});
+    const cached = await this._getCachedSleepSessions();
+    if (cached) {
+      this._cacheState.sleepSessions = this._sortSleepAsc(
+        cached.map((s) => (s.id === id ? { ...s, ...updateData } : s))
+      );
+      await this._saveCache();
+    }
   },
 
   async deleteSleepSession(id) {
     if (!id) throw new Error("Missing sleep session id");
     await this._kidRef().collection("sleepSessions").doc(id).delete();
+    const cached = await this._getCachedSleepSessions();
+    if (cached) {
+      this._cacheState.sleepSessions = cached.filter((s) => s.id !== id);
+      await this._saveCache();
+    }
   },
 
   // -----------------------
@@ -1530,6 +1730,30 @@ const firestoreStorage = {
   async getMembers() {
     return await getFamilyMembers(this.currentFamilyId);
   }
+};
+
+firestoreStorage._getAllFeedingsRemote = async function () {
+  const snap = await this._kidRef()
+    .collection("feedings")
+    .orderBy("timestamp", "asc")
+    .get();
+  const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  this._cacheState.feedings = this._sortFeedingsAsc(data);
+  this._cacheState.lastSyncMs = Date.now();
+  await this._saveCache();
+  return data;
+};
+
+firestoreStorage._getAllSleepSessionsRemote = async function () {
+  const snap = await this._kidRef()
+    .collection("sleepSessions")
+    .orderBy("startTime", "asc")
+    .get();
+  const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  this._cacheState.sleepSessions = this._sortSleepAsc(data);
+  this._cacheState.lastSyncMs = Date.now();
+  await this._saveCache();
+  return data;
 };
 
 // In Firestore storage layer, add a helper if it doesn't exist yet
