@@ -230,14 +230,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   });
   const useNewUI = (window.TT?.shared?.uiVersion?.shouldUseNewUI || ((v) => v !== 'v1'))(uiVersion);
   
-  // Feature flag for TodayCard - controlled by localStorage (can be toggled from UI Lab)
-  const [showTodayCard, setShowTodayCard] = React.useState(() => {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const stored = window.localStorage.getItem('tt_show_today_card');
-      return stored !== null ? stored === 'true' : false; // Default to false
-    }
-    return false;
-  });
+  // Today Card is disabled for new UI variants.
+  const showTodayCard = false;
   
   // Listen for changes to the feature flags
   React.useEffect(() => {
@@ -251,23 +245,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       });
     }
     
-    const handleStorageChange = () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const todayCardStored = window.localStorage.getItem('tt_show_today_card');
-        setShowTodayCard(todayCardStored !== null ? todayCardStored === 'true' : false);
-      }
-    };
-    
-    // Listen for storage events (when changed from another tab/window)
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check periodically (for same-tab changes)
-    const interval = setInterval(handleStorageChange, 100);
-    
     return () => {
       if (unsubscribeVersion) unsubscribeVersion();
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
     };
   }, []);
 
