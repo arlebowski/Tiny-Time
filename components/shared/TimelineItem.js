@@ -35,13 +35,14 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
   const __ttTimelineItemAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
   const isScheduled = card.variant === 'scheduled';
+  const isScheduledGray = isScheduled && !disableScheduledGrayscale;
   const isLogged = card.variant === 'logged';
   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
   const unitText = (card.unit || '').toLowerCase();
@@ -196,7 +197,7 @@ const __ttEnsureZzzStyles = () => {
     React.createElement('div', {
       className: __ttTimelineItemCn(
         "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative",
-        card.variant === 'scheduled' && "grayscale opacity-50"
+        isScheduledGray && "grayscale opacity-50"
       ),
       style: {
         backgroundColor: card.type === 'feed'

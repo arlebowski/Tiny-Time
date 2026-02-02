@@ -1155,45 +1155,67 @@ const ScheduleTimeline = ({
                     onMouseDown: (e) => handleDragStart(e, card),
                     onTouchStart: (e) => handleDragStart(e, card),
                   },
-                    React.createElement(
-                      TimelineSwipeRow,
-                      {
-                        card,
-                        isSwipeEnabled: isLogged && !isExpandedEffective,
-                        cardClassName,
-                        cardStyle,
-                        onPrimaryAction: handleDeleteCard,
-                        onSecondaryAction: handleEditCard,
-                        openSwipeId,
-                        setOpenSwipeId,
-                        onSwipeStart: (id) => setSwipingCardId(id),
-                        onSwipeEnd: () => setSwipingCardId(null),
-                        onRowClick: () => {
-                          if (!isLogged || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
-                          setExpandedCardId((prev) => (prev === card.id ? null : card.id));
-                        }
-                      },
-                      showScheduleGutter
-                        ? React.createElement('div', { className: "flex items-center gap-3 w-full" },
-                            React.createElement('div', {
-                              className: "text-xs font-semibold tracking-wide text-[color:var(--tt-text-secondary)] w-14 text-right"
-                            }, scheduleTime),
-                            TimelineItem
-                              ? React.createElement(TimelineItem, {
-                                  card,
-                                  bottleIcon,
-                                  moonIcon,
-                                  isExpanded: isExpandedCard,
-                                  detailsHeight: expandedContentHeight,
-                                  hasDetails,
-                                  onPhotoClick: handleTimelinePhotoClick,
-                                  onScheduledAdd,
-                                  onActiveSleepClick,
-                                  onExpandedContentHeight: handleExpandedContentHeight
-                                })
-                              : null
+                    showScheduleGutter
+                      ? React.createElement('div', { className: "flex items-center gap-3 w-full" },
+                          React.createElement('div', {
+                            className: "text-xs font-semibold tracking-wide text-[color:var(--tt-text-secondary)] w-20 pr-4 text-right whitespace-nowrap"
+                          }, scheduleTime),
+                          React.createElement('div', { className: "flex-1" },
+                            React.createElement(
+                              TimelineSwipeRow,
+                              {
+                                card,
+                                isSwipeEnabled: isLogged && !isExpandedEffective,
+                                cardClassName,
+                                cardStyle,
+                                onPrimaryAction: handleDeleteCard,
+                                onSecondaryAction: handleEditCard,
+                                openSwipeId,
+                                setOpenSwipeId,
+                                onSwipeStart: (id) => setSwipingCardId(id),
+                                onSwipeEnd: () => setSwipingCardId(null),
+                                onRowClick: () => {
+                                  if (!isLogged || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
+                                  setExpandedCardId((prev) => (prev === card.id ? null : card.id));
+                                }
+                              },
+                              TimelineItem
+                                ? React.createElement(TimelineItem, {
+                                    card,
+                                    bottleIcon,
+                                    moonIcon,
+                                    isExpanded: isExpandedCard,
+                                    detailsHeight: expandedContentHeight,
+                                    hasDetails,
+                                    onPhotoClick: handleTimelinePhotoClick,
+                                    onScheduledAdd,
+                                    onActiveSleepClick,
+                                    onExpandedContentHeight: handleExpandedContentHeight,
+                                    disableScheduledGrayscale: true
+                                  })
+                                : null
+                            )
                           )
-                        : (TimelineItem
+                        )
+                      : React.createElement(
+                          TimelineSwipeRow,
+                          {
+                            card,
+                            isSwipeEnabled: isLogged && !isExpandedEffective,
+                            cardClassName,
+                            cardStyle,
+                            onPrimaryAction: handleDeleteCard,
+                            onSecondaryAction: handleEditCard,
+                            openSwipeId,
+                            setOpenSwipeId,
+                            onSwipeStart: (id) => setSwipingCardId(id),
+                            onSwipeEnd: () => setSwipingCardId(null),
+                            onRowClick: () => {
+                              if (!isLogged || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
+                              setExpandedCardId((prev) => (prev === card.id ? null : card.id));
+                            }
+                          },
+                          TimelineItem
                             ? React.createElement(TimelineItem, {
                                 card,
                                 bottleIcon,
@@ -1204,10 +1226,11 @@ const ScheduleTimeline = ({
                                 onPhotoClick: handleTimelinePhotoClick,
                                 onScheduledAdd,
                                 onActiveSleepClick,
-                                onExpandedContentHeight: handleExpandedContentHeight
+                                onExpandedContentHeight: handleExpandedContentHeight,
+                                disableScheduledGrayscale: true
                               })
-                            : null)
-                    )
+                            : null
+                        )
                   );
                 });
               })()

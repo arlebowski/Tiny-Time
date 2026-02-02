@@ -3313,7 +3313,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                 backgroundColor: 'var(--tt-app-bg)'
               }
             : { display: 'none' }
-        }, React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab, activeTab })),
+        }, React.createElement(
+          'div',
+          { className: "max-w-2xl mx-auto h-full px-4 pb-5" },
+          React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab, activeTab })
+        )),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
           kidId,
