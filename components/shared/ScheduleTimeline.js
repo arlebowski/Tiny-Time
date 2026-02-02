@@ -977,27 +977,13 @@ const ScheduleTimeline = ({
     React.createElement('div', { className: "relative", style: { backgroundColor: 'var(--tt-app-bg)' } },
       React.createElement('div', { className: "w-full select-none" },
         React.createElement('div', { className: "sticky top-0 z-[100] backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all", style: { backgroundColor: 'var(--tt-app-bg)' } },
-          React.createElement(
-            (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
-            {
-              value: filter,
-              options: [
-                { label: 'All', value: 'all' },
-                { label: 'Feed', value: 'feed' },
-                { label: 'Sleep', value: 'sleep' }
-              ],
-              onChange: handleFilterChange,
-              variant: 'body',
-              size: 'medium',
-              fullWidth: false
-            }
-          ),
+          null,
           React.createElement('div', { className: "flex items-center gap-2" },
             !disableExpanded
               ? (__ttTimelineMotion
                 ? React.createElement(__ttTimelineMotion.button, {
                     onClick: handleToggleExpanded,
-                    className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
+                    className: "px-4 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
                     animate: {
                       backgroundColor: isExpandedEffective ? '#111827' : '#2563eb',
                       color: '#ffffff',
@@ -1008,28 +994,29 @@ const ScheduleTimeline = ({
                   }, isExpandedEffective ? 'Done' : 'Edit')
                 : React.createElement('button', {
                     onClick: handleToggleExpanded,
-                    className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
+                    className: "bg-blue-600 text-white px-4 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
                   }, isExpandedEffective ? 'Done' : 'Edit'))
               : null
           )
         ),
-        React.createElement('div', {
-          ref: timelineRef,
-          className: "relative transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
-          style: {
-            height: isExpandedEffective
-              ? '1400px'
-              : `${filteredCards.length * 84 + 20 + (expandedCardId ? expandedContentHeight : 0)}px`,
+          React.createElement('div', {
+            ref: timelineRef,
+            className: "relative transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
+            style: {
+              height: isExpandedEffective
+                ? '1400px'
+                : `${filteredCards.length * 84 + 20 + (expandedCardId ? expandedContentHeight : 0)}px`,
           }
         },
           isExpandedEffective && React.createElement('div', { className: "absolute left-0 top-0 w-full h-full pointer-events-none" },
             hours.map((h, idx) =>
               React.createElement('div', { key: `hour-${idx}` },
                 React.createElement('div', {
-                  className: "absolute left-0 w-16 text-right text-xs font-semibold tracking-wide text-[color:var(--tt-text-secondary)] whitespace-nowrap",
+                  className: "absolute left-0 w-16 text-right text-xs whitespace-nowrap",
                   style: {
                     top: `${h.position}%`,
                     transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
+                    color: 'var(--tt-text-secondary)',
                     opacity: isExpandedEffective ? 1 : 0,
                   }
                 }, h.label),
@@ -1099,8 +1086,10 @@ const ScheduleTimeline = ({
                   const showCollapsed = !isExpandedEffective;
                   const isScheduled = card.variant === 'scheduled';
                   const hideCollapsedBorder = showCollapsed && isScheduled;
+                  const gapClassName = showCollapsed ? "gap-[36px]" : "gap-6";
                   const cardClassName = __ttScheduleTimelineCn(
-                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-6 flex items-center gap-6",
+                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-6 flex items-center",
+                    gapClassName,
                     isDragging && "shadow-2xl cursor-grabbing",
                     isHolding && "shadow-xl",
                     (!isLogged || isActiveSleep) && !hideCollapsedBorder && "border border-dashed"
@@ -1147,7 +1136,8 @@ const ScheduleTimeline = ({
                     showScheduleGutter
                       ? React.createElement('div', { className: "flex items-center gap-0 w-full" },
                           React.createElement('div', {
-                            className: "text-xs font-semibold tracking-wide text-[color:var(--tt-text-secondary)] w-16 text-right whitespace-nowrap"
+                            className: "text-xs w-16 text-left whitespace-nowrap",
+                            style: { color: 'var(--tt-text-secondary)' }
                           }, scheduleTime),
                           React.createElement('div', { className: "flex-1" },
                             React.createElement(
@@ -1183,7 +1173,8 @@ const ScheduleTimeline = ({
                                     disableScheduledGrayscale: true,
                                     iconSize: 18,
                                     iconWrapSize: 32,
-                                    disableScheduledAction: true
+                                    disableScheduledAction: true,
+                                    scheduledLabelColor: 'var(--tt-text-primary)'
                                   })
                                 : null
                             )
@@ -1222,7 +1213,8 @@ const ScheduleTimeline = ({
                                 disableScheduledGrayscale: true,
                                 iconSize: 18,
                                 iconWrapSize: 32,
-                                disableScheduledAction: true
+                                disableScheduledAction: true,
+                                scheduledLabelColor: 'var(--tt-text-primary)'
                               })
                             : null
                         )

@@ -436,10 +436,10 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
   const Timeline = window.TT?.shared?.ScheduleTimeline || window.TT?.shared?.Timeline || null;
 
   return React.createElement('div', {
-    className: "space-y-4 pb-24"
+    className: "space-y-4 pb-24 px-4"
   },
     React.createElement('div', {
-      className: "pl-3 pr-4",
+      className: "px-0",
       style: {
         color: 'var(--tt-text-primary)',
         fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif'

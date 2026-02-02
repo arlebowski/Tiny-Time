@@ -35,7 +35,7 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -289,7 +289,9 @@ const __ttEnsureZzzStyles = () => {
               ? { color: 'var(--tt-sleep)' }
               : (isLogged
                   ? { color: 'var(--tt-text-primary)' }
-                  : { color: 'var(--tt-text-tertiary)' })
+                  : (isScheduled && scheduledLabelColor
+                      ? { color: scheduledLabelColor }
+                      : { color: 'var(--tt-text-tertiary)' }))
           }, labelText),
           isActiveSleep ? zzzElement : null
         ),
