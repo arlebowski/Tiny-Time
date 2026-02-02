@@ -35,7 +35,7 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40 }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -144,7 +144,7 @@ const __ttEnsureZzzStyles = () => {
   const resolvedEndTime = typeof card.endTime === 'number'
     ? formatTime12Hour(card.endTime)
     : card.endTime;
-  const showScheduledAction = isScheduled && Number.isFinite(scheduledTimeMs)
+  const showScheduledAction = !disableScheduledAction && isScheduled && Number.isFinite(scheduledTimeMs)
     ? Math.abs(Date.now() - scheduledTimeMs) <= 10 * 60 * 1000
     : false;
   const detailsContentRef = React.useRef(null);

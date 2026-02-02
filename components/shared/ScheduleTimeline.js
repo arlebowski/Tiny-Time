@@ -212,6 +212,10 @@ const ScheduleTimeline = ({
       position: (i / 24) * 100
     };
   });
+  const halfHours = Array.from({ length: 24 }, (_, i) => ({
+    position: ((i + 0.5) / 24) * 100
+  }));
+  const lineLeftOffset = 'calc(4rem + 12px)';
 
   const getCardPosition = (card) => {
     const totalMinutes = card.hour * 60 + card.minute;
@@ -989,42 +993,6 @@ const ScheduleTimeline = ({
             }
           ),
           React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('button', {
-              onClick: handleToggleSort,
-              className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
-              style: {
-                backgroundColor: 'var(--tt-subtle-surface)',
-                borderColor: 'var(--tt-card-border)',
-                color: 'var(--tt-text-primary)'
-              },
-              'aria-label': sortOrder === 'desc' ? 'Sort chronological' : 'Sort reverse chronological'
-            },
-              sortOrder === 'desc'
-                ? React.createElement('svg', {
-                    xmlns: "http://www.w3.org/2000/svg",
-                    width: "32",
-                    height: "32",
-                    fill: "currentColor",
-                    viewBox: "0 0 256 256",
-                    className: "w-5 h-5"
-                  },
-                    React.createElement('path', {
-                      d: "M40,128a8,8,0,0,1,8-8h72a8,8,0,0,1,0,16H48A8,8,0,0,1,40,128Zm8-56h56a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16ZM184,184H48a8,8,0,0,0,0,16H184a8,8,0,0,0,0-16ZM229.66,82.34l-40-40a8,8,0,0,0-11.32,0l-40,40a8,8,0,0,0,11.32,11.32L176,67.31V144a8,8,0,0,0,16,0V67.31l26.34,26.35a8,8,0,0,0,11.32-11.32Z"
-                    })
-                  )
-                : React.createElement('svg', {
-                    xmlns: "http://www.w3.org/2000/svg",
-                    width: "32",
-                    height: "32",
-                    fill: "currentColor",
-                    viewBox: "0 0 256 256",
-                    className: "w-5 h-5"
-                  },
-                    React.createElement('path', {
-                      d: "M128,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16h72A8,8,0,0,1,128,128ZM48,72H184a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16Zm56,112H48a8,8,0,0,0,0,16h56a8,8,0,0,0,0-16Zm125.66-21.66a8,8,0,0,0-11.32,0L192,188.69V112a8,8,0,0,0-16,0v76.69l-26.34-26.35a8,8,0,0,0-11.32,11.32l40,40a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,229.66,162.34Z"
-                    })
-                  )
-            ),
             !disableExpanded
               ? (__ttTimelineMotion
                 ? React.createElement(__ttTimelineMotion.button, {
@@ -1054,11 +1022,11 @@ const ScheduleTimeline = ({
               : `${filteredCards.length * 84 + 20 + (expandedCardId ? expandedContentHeight : 0)}px`,
           }
         },
-          isExpandedEffective && React.createElement('div', { className: "absolute left-0 top-0 w-16 h-full" },
+          isExpandedEffective && React.createElement('div', { className: "absolute left-0 top-0 w-full h-full pointer-events-none" },
             hours.map((h, idx) =>
-              React.createElement('div', { key: idx },
+              React.createElement('div', { key: `hour-${idx}` },
                 React.createElement('div', {
-                  className: "absolute left-0 text-zinc-600 text-[10px] font-bold",
+                  className: "absolute left-0 w-16 text-right text-xs font-semibold tracking-wide text-[color:var(--tt-text-secondary)] whitespace-nowrap",
                   style: {
                     top: `${h.position}%`,
                     transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
@@ -1066,13 +1034,31 @@ const ScheduleTimeline = ({
                   }
                 }, h.label),
                 React.createElement('div', {
-                  className: "absolute left-16 w-full border-t border-zinc-900/50",
+                  className: "absolute right-0 border-t",
                   style: {
                     top: `${h.position}%`,
-                    opacity: isExpandedEffective ? 0.3 : 0,
+                    left: lineLeftOffset,
+                    transform: idx === 0
+                      ? 'translateY(8px)'
+                      : `${idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'} translateY(-1px)`,
+                    borderColor: 'var(--tt-text-tertiary)',
+                    opacity: isExpandedEffective ? 0.35 : 0,
                   }
                 })
               )
+            ),
+            halfHours.map((h, idx) =>
+              React.createElement('div', {
+                key: `half-${idx}`,
+                className: "absolute right-0 border-t",
+                style: {
+                  top: `${h.position}%`,
+                  left: lineLeftOffset,
+                  transform: 'translateY(-50%) translateY(-1px)',
+                  borderColor: 'var(--tt-text-tertiary)',
+                  opacity: isExpandedEffective ? 0.18 : 0,
+                }
+              })
             )
           ),
           React.createElement('div', { className: __ttScheduleTimelineCn("relative transition-all duration-700", isExpandedEffective ? 'ml-20 h-full' : 'w-full') },
@@ -1110,11 +1096,14 @@ const ScheduleTimeline = ({
                     ? dragY
                     : (isExpandedEffective ? expandedTopPx + extraOffset : compressedTop + compressedExtraOffset);
 
+                  const showCollapsed = !isExpandedEffective;
+                  const isScheduled = card.variant === 'scheduled';
+                  const hideCollapsedBorder = showCollapsed && isScheduled;
                   const cardClassName = __ttScheduleTimelineCn(
-                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border",
+                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-6 flex items-center gap-6",
                     isDragging && "shadow-2xl cursor-grabbing",
                     isHolding && "shadow-xl",
-                    (!isLogged || isActiveSleep) && "border-dashed"
+                    (!isLogged || isActiveSleep) && !hideCollapsedBorder && "border border-dashed"
                   );
                   const isSwiping = swipingCardId === card.id;
                   const cardStyle = {
@@ -1156,9 +1145,9 @@ const ScheduleTimeline = ({
                     onTouchStart: (e) => handleDragStart(e, card),
                   },
                     showScheduleGutter
-                      ? React.createElement('div', { className: "flex items-center gap-3 w-full" },
+                      ? React.createElement('div', { className: "flex items-center gap-0 w-full" },
                           React.createElement('div', {
-                            className: "text-xs font-semibold tracking-wide text-[color:var(--tt-text-secondary)] w-20 pr-4 text-right whitespace-nowrap"
+                            className: "text-xs font-semibold tracking-wide text-[color:var(--tt-text-secondary)] w-16 text-right whitespace-nowrap"
                           }, scheduleTime),
                           React.createElement('div', { className: "flex-1" },
                             React.createElement(
@@ -1188,12 +1177,13 @@ const ScheduleTimeline = ({
                                     detailsHeight: expandedContentHeight,
                                     hasDetails,
                                     onPhotoClick: handleTimelinePhotoClick,
-                                  onScheduledAdd,
-                                  onActiveSleepClick,
-                                  onExpandedContentHeight: handleExpandedContentHeight,
+                                    onScheduledAdd,
+                                    onActiveSleepClick,
+                                    onExpandedContentHeight: handleExpandedContentHeight,
                                     disableScheduledGrayscale: true,
                                     iconSize: 18,
-                                    iconWrapSize: 32
+                                    iconWrapSize: 32,
+                                    disableScheduledAction: true
                                   })
                                 : null
                             )
@@ -1231,7 +1221,8 @@ const ScheduleTimeline = ({
                                 onExpandedContentHeight: handleExpandedContentHeight,
                                 disableScheduledGrayscale: true,
                                 iconSize: 18,
-                                iconWrapSize: 32
+                                iconWrapSize: 32,
+                                disableScheduledAction: true
                               })
                             : null
                         )

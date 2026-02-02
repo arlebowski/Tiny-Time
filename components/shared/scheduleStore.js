@@ -79,6 +79,77 @@
     }
   };
 
+  const _eventPriority = (e) => {
+    if (!e) return 0;
+    if (e.actual) return 3;
+    if (e.patternBased) return 2;
+    if (e.intervalBased) return 1;
+    return 0;
+  };
+
+  const _eventStrength = (e) => {
+    const n = (e && (e.patternCount ?? e.occurrences ?? e.count ?? e.sampleCount)) || 0;
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const _normalizeEventTime = (e) => {
+    if (!e) return null;
+    if (e.time instanceof Date) return e.time;
+    const t = Number(e.timeMs);
+    if (Number.isFinite(t)) return new Date(t);
+    return null;
+  };
+
+  const _enforceMinGaps = (schedule, config = {}) => {
+    if (!Array.isArray(schedule) || schedule.length < 2) return schedule || [];
+
+    const minSameSleepMinutes = Number.isFinite(Number(config.minSameSleepMinutes))
+      ? Number(config.minSameSleepMinutes)
+      : 75;
+    const minSameFeedMinutes = Number.isFinite(Number(config.minSameFeedMinutes))
+      ? Number(config.minSameFeedMinutes)
+      : 90;
+    const minDiffTypeMinutes = Number.isFinite(Number(config.minDiffTypeMinutes))
+      ? Number(config.minDiffTypeMinutes)
+      : 20;
+
+    const ordered = schedule
+      .map(e => ({ ...e, __time: _normalizeEventTime(e) }))
+      .filter(e => e.__time instanceof Date && Number.isFinite(e.__time.getTime()))
+      .sort((a, b) => a.__time.getTime() - b.__time.getTime());
+
+    const kept = [];
+    for (const cur of ordered) {
+      if (kept.length === 0) {
+        kept.push(cur);
+        continue;
+      }
+
+      const prev = kept[kept.length - 1];
+      const diffMin = Math.abs(cur.__time.getTime() - prev.__time.getTime()) / (1000 * 60);
+
+      const sameType = cur.type && prev.type && cur.type === prev.type;
+      const minGap = sameType
+        ? (cur.type === 'sleep' ? minSameSleepMinutes : (cur.type === 'feed' ? minSameFeedMinutes : 0))
+        : minDiffTypeMinutes;
+
+      if (minGap > 0 && diffMin < minGap) {
+        const pPrev = _eventPriority(prev);
+        const pCur = _eventPriority(cur);
+        if (pCur > pPrev) {
+          kept[kept.length - 1] = cur;
+        } else if (pCur === pPrev && _eventStrength(cur) > _eventStrength(prev)) {
+          kept[kept.length - 1] = cur;
+        }
+        continue;
+      }
+
+      kept.push(cur);
+    }
+
+    return kept.map(({ __time, ...e }) => e);
+  };
+
   const _fallbackFeedIntervalHours = (ageInMonths) => {
     if (ageInMonths < 1) return 2;
     if (ageInMonths < 3) return 2.5;
@@ -545,7 +616,8 @@ IMPORTANT:
         ? (result.adjustedSchedule || result.baseSchedule)
         : result.baseSchedule;
       if (Array.isArray(scheduleToPersist)) {
-        writeProjectionSchedule(resolvedDateKey, scheduleToPersist);
+        const sanitizedSchedule = _enforceMinGaps(scheduleToPersist, result.config || {});
+        writeProjectionSchedule(resolvedDateKey, sanitizedSchedule);
       }
       return result;
     }

@@ -2284,22 +2284,11 @@ Output ONLY the formatted string, nothing else.`;
     if (!Array.isArray(schedule) || schedule.length === 0) return null;
 
     const nowDate = new Date();
-    let cutoffTime = nowDate;
-    if (activeSleep && activeSleep.startTime) {
-      const wakeHours = ageInMonthsForNextUp < 3 ? 1.5 : ageInMonthsForNextUp < 6 ? 2 : 2.5;
-      const sleepStart = new Date(activeSleep.startTime);
-      const predictedWakeTime = new Date(sleepStart);
-      const totalMinutes = predictedWakeTime.getHours() * 60 + predictedWakeTime.getMinutes() + (wakeHours * 60);
-      predictedWakeTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-      predictedWakeTime.setSeconds(0);
-      predictedWakeTime.setMilliseconds(0);
-      cutoffTime = predictedWakeTime;
-    }
 
     const nextEvent = schedule.find(e =>
       (e.type === 'feed' || e.type === 'sleep') &&
       e.time instanceof Date &&
-      e.time.getTime() > cutoffTime.getTime()
+      e.time.getTime() > nowDate.getTime()
     );
     if (!nextEvent) return null;
     const isFeed = nextEvent.type === 'feed';
