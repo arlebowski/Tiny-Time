@@ -215,7 +215,7 @@ const ScheduleTimeline = ({
   const halfHours = Array.from({ length: 24 }, (_, i) => ({
     position: ((i + 0.5) / 24) * 100
   }));
-  const lineLeftOffset = 'calc(4rem + 12px)';
+  const lineLeftOffset = 'calc(4rem + 6px)';
 
   const getCardPosition = (card) => {
     const totalMinutes = card.hour * 60 + card.minute;
@@ -1012,7 +1012,7 @@ const ScheduleTimeline = ({
             hours.map((h, idx) =>
               React.createElement('div', { key: `hour-${idx}` },
                 React.createElement('div', {
-                  className: "absolute left-0 w-16 text-right text-xs whitespace-nowrap",
+                  className: "absolute left-0 w-16 text-left text-xs whitespace-nowrap",
                   style: {
                     top: `${h.position}%`,
                     transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
@@ -1063,7 +1063,7 @@ const ScheduleTimeline = ({
                   : null;
                 return filteredCards.map((card, index) => {
                   const expandedTop = getCardPosition(card);
-                  const compressedTop = index * 84;
+                  const compressedTop = index * 64;
                   const expandedTopPx = (expandedTop / 100) * timelineHeight;
                   const isDragging = draggingCard === card.id;
                   const isHolding = holdingCard === card.id;

@@ -202,7 +202,26 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const formatInterval = (minutes) => {
     const hours = Math.floor(Math.abs(minutes) / 60);
     const mins = Math.round(Math.abs(minutes) % 60);
-    return hours === 0 ? `${mins}m` : `${hours}h ${mins}m`;
+    const unitClass = 'text-[20px] font-normal leading-none ml-1';
+
+    if (hours === 0) {
+      return React.createElement(
+        React.Fragment,
+        null,
+        `${mins}`,
+        React.createElement('span', { className: unitClass }, 'm')
+      );
+    }
+
+    return React.createElement(
+      React.Fragment,
+      null,
+      `${hours}`,
+      React.createElement('span', { className: unitClass }, 'h'),
+      ' ',
+      `${mins}`,
+      React.createElement('span', { className: unitClass }, 'm')
+    );
   };
 
   if (loading) {
