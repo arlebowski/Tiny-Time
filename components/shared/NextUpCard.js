@@ -103,16 +103,14 @@ const NextUpCard = ({
       const sleepStart = resolvedSleepStart || now;
       const sleepDuration = Math.max(0, now - sleepStart);
 
-      // Check if next event is within 30 minutes
+      // Always show the next event while sleeping if it exists
       let showNextEvent = false;
       let nextEventText = '';
       if (resolvedNextEvent && resolvedNextEvent.scheduledTime) {
-        const timeUntilNext = resolvedNextEvent.scheduledTime - now;
-        const minutesUntilNext = Math.floor(timeUntilNext / (1000 * 60));
-        if (minutesUntilNext <= 30 && minutesUntilNext > 0) {
-          showNextEvent = true;
-          nextEventText = `${resolvedNextEvent.label} in ${minutesUntilNext} min`;
-        }
+        const scheduledTimeStr = __ttNextUpFormatTime(resolvedNextEvent.scheduledTime);
+        const label = resolvedNextEvent.label;
+        showNextEvent = true;
+        nextEventText = `${label} around ${scheduledTimeStr}`;
       }
 
       return {

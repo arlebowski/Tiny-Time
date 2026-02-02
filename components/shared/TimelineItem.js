@@ -35,7 +35,7 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40 }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -103,8 +103,8 @@ const __ttEnsureZzzStyles = () => {
   const scheduledLabelTimeDate = Number.isFinite(scheduledTimeMs) ? new Date(scheduledTimeMs) : null;
   const scheduledLabelTime = card.time || '';
   const scheduledLabel = card.type === 'feed'
-    ? `Feed around ${scheduledLabelTime}`
-    : `${getSleepLabel(scheduledLabelTimeDate)} around ${scheduledLabelTime}`;
+    ? `Feed at ${scheduledLabelTime}`
+    : `${getSleepLabel(scheduledLabelTimeDate)} at ${scheduledLabelTime}`;
   const [activeElapsedMs, setActiveElapsedMs] = React.useState(() => {
     if (isActiveSleep && typeof card.startTime === 'number') {
       return Math.max(0, Date.now() - card.startTime);
@@ -200,6 +200,8 @@ const __ttEnsureZzzStyles = () => {
         isScheduledGray && "grayscale opacity-50"
       ),
       style: {
+        width: `${iconWrapSize}px`,
+        height: `${iconWrapSize}px`,
         backgroundColor: card.type === 'feed'
           ? 'color-mix(in srgb, var(--tt-feed) 20%, transparent)'
           : 'color-mix(in srgb, var(--tt-sleep) 20%, transparent)'
@@ -209,8 +211,8 @@ const __ttEnsureZzzStyles = () => {
         ? React.createElement(bottleIcon, {
             style: {
               color: 'var(--tt-feed)',
-              width: '1.5rem',
-              height: '1.5rem',
+              width: `${iconSize}px`,
+              height: `${iconSize}px`,
               strokeWidth: '1.5',
               fill: 'none',
               transform: 'rotate(20deg)'
@@ -220,8 +222,8 @@ const __ttEnsureZzzStyles = () => {
           ? React.createElement(moonIcon, {
               style: {
                 color: 'var(--tt-sleep)',
-                width: '1.5rem',
-                height: '1.5rem',
+                width: `${iconSize}px`,
+                height: `${iconSize}px`,
                 strokeWidth: '1.5'
               }
             })

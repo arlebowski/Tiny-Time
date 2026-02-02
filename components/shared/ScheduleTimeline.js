@@ -1111,7 +1111,7 @@ const ScheduleTimeline = ({
                     : (isExpandedEffective ? expandedTopPx + extraOffset : compressedTop + compressedExtraOffset);
 
                   const cardClassName = __ttScheduleTimelineCn(
-                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 border",
+                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-center gap-4 border",
                     isDragging && "shadow-2xl cursor-grabbing",
                     isHolding && "shadow-xl",
                     (!isLogged || isActiveSleep) && "border-dashed"
@@ -1188,10 +1188,12 @@ const ScheduleTimeline = ({
                                     detailsHeight: expandedContentHeight,
                                     hasDetails,
                                     onPhotoClick: handleTimelinePhotoClick,
-                                    onScheduledAdd,
-                                    onActiveSleepClick,
-                                    onExpandedContentHeight: handleExpandedContentHeight,
-                                    disableScheduledGrayscale: true
+                                  onScheduledAdd,
+                                  onActiveSleepClick,
+                                  onExpandedContentHeight: handleExpandedContentHeight,
+                                    disableScheduledGrayscale: true,
+                                    iconSize: 18,
+                                    iconWrapSize: 32
                                   })
                                 : null
                             )
@@ -1227,7 +1229,9 @@ const ScheduleTimeline = ({
                                 onScheduledAdd,
                                 onActiveSleepClick,
                                 onExpandedContentHeight: handleExpandedContentHeight,
-                                disableScheduledGrayscale: true
+                                disableScheduledGrayscale: true,
+                                iconSize: 18,
+                                iconWrapSize: 32
                               })
                             : null
                         )
