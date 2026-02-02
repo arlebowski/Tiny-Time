@@ -916,10 +916,19 @@ const firestoreStorage = {
     feedings: null,
     sleepSessions: null,
     lastSyncMs: 0,
+    settings: null,
+    sleepSettings: null,
+    kidData: null,
+    familyMembers: null,
+    settingsSyncMs: 0,
+    sleepSettingsSyncMs: 0,
+    kidDataSyncMs: 0,
+    familyMembersSyncMs: 0,
     initPromise: null,
     refreshPromise: null
   },
   _cacheMaxAgeMs: 60000,
+  _settingsCacheMaxAgeMs: 300000,
 
   initialize: async function (familyId, kidId) {
     this.currentFamilyId = familyId;
@@ -928,11 +937,22 @@ const firestoreStorage = {
       feedings: null,
       sleepSessions: null,
       lastSyncMs: 0,
+      settings: null,
+      sleepSettings: null,
+      kidData: null,
+      familyMembers: null,
+      settingsSyncMs: 0,
+      sleepSettingsSyncMs: 0,
+      kidDataSyncMs: 0,
+      familyMembersSyncMs: 0,
       initPromise: null,
       refreshPromise: null
     };
     await this._initCache();
+    await this._loadSettingsCache();
     this._refreshCache({ force: true });
+    this._refreshSettingsCache({ force: true });
+    this._refreshFamilyMembersCache({ force: true });
     logEvent("kid_selected", { familyId, kidId });
   },
 
@@ -949,6 +969,11 @@ const firestoreStorage = {
   _cacheKey(name) {
     if (!this.currentFamilyId || !this.currentKidId) return null;
     return `tt_cache_v1:${this.currentFamilyId}:${this.currentKidId}:${name}`;
+  },
+
+  _familyCacheKey(name) {
+    if (!this.currentFamilyId) return null;
+    return `tt_cache_v1:${this.currentFamilyId}:${name}`;
   },
 
   _sortFeedingsAsc(list) {
@@ -989,6 +1014,92 @@ const firestoreStorage = {
       __ttDataCache.set(keySleep, this._cacheState.sleepSessions || []),
       __ttDataCache.set(keyMeta, { lastSyncMs: this._cacheState.lastSyncMs || 0 })
     ]);
+  },
+
+  async _saveSettingsCache() {
+    const keySettings = this._cacheKey('settings');
+    const keySleepSettings = this._cacheKey('sleepSettings');
+    const keyKidData = this._cacheKey('kidData');
+    const keyMeta = this._cacheKey('settingsMeta');
+    const keyMembers = this._familyCacheKey('familyMembers');
+    const keyMembersMeta = this._familyCacheKey('familyMembersMeta');
+    if (!keySettings || !keySleepSettings || !keyKidData || !keyMeta) return;
+    await Promise.all([
+      __ttDataCache.set(keySettings, this._cacheState.settings || null),
+      __ttDataCache.set(keySleepSettings, this._cacheState.sleepSettings || null),
+      __ttDataCache.set(keyKidData, this._cacheState.kidData || null),
+      __ttDataCache.set(keyMeta, {
+        settingsSyncMs: this._cacheState.settingsSyncMs || 0,
+        sleepSettingsSyncMs: this._cacheState.sleepSettingsSyncMs || 0,
+        kidDataSyncMs: this._cacheState.kidDataSyncMs || 0
+      }),
+      keyMembers ? __ttDataCache.set(keyMembers, this._cacheState.familyMembers || null) : Promise.resolve(),
+      keyMembersMeta ? __ttDataCache.set(keyMembersMeta, { familyMembersSyncMs: this._cacheState.familyMembersSyncMs || 0 }) : Promise.resolve()
+    ]);
+  },
+
+  async _loadSettingsCache() {
+    const keySettings = this._cacheKey('settings');
+    const keySleepSettings = this._cacheKey('sleepSettings');
+    const keyKidData = this._cacheKey('kidData');
+    const keyMeta = this._cacheKey('settingsMeta');
+    const keyMembers = this._familyCacheKey('familyMembers');
+    const keyMembersMeta = this._familyCacheKey('familyMembersMeta');
+    if (!keySettings || !keySleepSettings || !keyKidData || !keyMeta) return;
+    const [settings, sleepSettings, kidData, meta, members, membersMeta] = await Promise.all([
+      __ttDataCache.get(keySettings),
+      __ttDataCache.get(keySleepSettings),
+      __ttDataCache.get(keyKidData),
+      __ttDataCache.get(keyMeta),
+      keyMembers ? __ttDataCache.get(keyMembers) : null,
+      keyMembersMeta ? __ttDataCache.get(keyMembersMeta) : null
+    ]);
+    if (settings) this._cacheState.settings = settings;
+    if (sleepSettings) this._cacheState.sleepSettings = sleepSettings;
+    if (kidData) this._cacheState.kidData = kidData;
+    if (members) this._cacheState.familyMembers = members;
+    if (meta) {
+      this._cacheState.settingsSyncMs = meta.settingsSyncMs || 0;
+      this._cacheState.sleepSettingsSyncMs = meta.sleepSettingsSyncMs || 0;
+      this._cacheState.kidDataSyncMs = meta.kidDataSyncMs || 0;
+    }
+    if (membersMeta) {
+      this._cacheState.familyMembersSyncMs = membersMeta.familyMembersSyncMs || 0;
+    }
+  },
+
+  async _refreshSettingsCache({ force = false } = {}) {
+    if (!this.currentFamilyId || !this.currentKidId) return null;
+    const now = Date.now();
+    if (!force && (now - (this._cacheState.settingsSyncMs || 0)) < this._settingsCacheMaxAgeMs) {
+      return null;
+    }
+    const [settings, sleepSettings, kidData] = await Promise.all([
+      this._getSettingsRemote(),
+      this._getSleepSettingsRemote(),
+      this._getKidDataRemote()
+    ]);
+    this._cacheState.settings = settings || null;
+    this._cacheState.sleepSettings = sleepSettings || null;
+    this._cacheState.kidData = kidData || null;
+    this._cacheState.settingsSyncMs = now;
+    this._cacheState.sleepSettingsSyncMs = now;
+    this._cacheState.kidDataSyncMs = now;
+    await this._saveSettingsCache();
+    return true;
+  },
+
+  async _refreshFamilyMembersCache({ force = false } = {}) {
+    if (!this.currentFamilyId) return null;
+    const now = Date.now();
+    if (!force && (now - (this._cacheState.familyMembersSyncMs || 0)) < this._settingsCacheMaxAgeMs) {
+      return null;
+    }
+    const members = await this._getMembersRemote();
+    this._cacheState.familyMembers = members || [];
+    this._cacheState.familyMembersSyncMs = now;
+    await this._saveSettingsCache();
+    return true;
   },
 
   async _refreshCache({ force = false } = {}) {
@@ -1584,11 +1695,18 @@ const firestoreStorage = {
   // SETTINGS
   // -----------------------
   async getSettings() {
-    const doc = await this._kidRef()
-      .collection("settings")
-      .doc("default")
-      .get();
-    return doc.exists ? doc.data() : null;
+    if (!this._cacheState.settings && !this._cacheState.settingsSyncMs) {
+      await this._loadSettingsCache();
+    }
+    if (this._cacheState.settings) {
+      this._refreshSettingsCache({ force: false });
+      return this._cacheState.settings;
+    }
+    const settings = await this._getSettingsRemote();
+    this._cacheState.settings = settings || null;
+    this._cacheState.settingsSyncMs = Date.now();
+    await this._saveSettingsCache();
+    return settings;
   },
 
   async saveSettings(settings) {
@@ -1596,6 +1714,11 @@ const firestoreStorage = {
       .collection("settings")
       .doc("default")
       .set(settings, { merge: true });
+    const existing = this._cacheState.settings || null;
+    const next = { ...(existing || {}), ...(settings || {}) };
+    this._cacheState.settings = next;
+    this._cacheState.settingsSyncMs = Date.now();
+    await this._saveSettingsCache();
   },
 
   // -----------------------
@@ -1622,44 +1745,18 @@ const firestoreStorage = {
   },
 
   async getSleepSettings() {
-    const doc = await this._kidRef().get();
-    const d = doc.exists ? doc.data() : {};
-    const autoTarget = this._defaultSleepTargetHoursFromBirthTs(d.birthDate);
-    // If user explicitly set an override, use it.
-    // Otherwise use auto.
-    const override =
-      typeof d.sleepTargetOverrideHrs === "number" && !Number.isNaN(d.sleepTargetOverrideHrs)
-        ? d.sleepTargetOverrideHrs
-        : typeof d.sleepTargetHours === "number" && !Number.isNaN(d.sleepTargetHours)
-        ? d.sleepTargetHours
-        : null;
-    const hasOverride = typeof override === "number";
-    const dayStart =
-      typeof d.sleepDayStart === "number" && !Number.isNaN(d.sleepDayStart)
-        ? d.sleepDayStart
-        : typeof d.daySleepStartMinutes === "number" && !Number.isNaN(d.daySleepStartMinutes)
-          ? d.daySleepStartMinutes
-          : 390;
-    const dayEnd =
-      typeof d.sleepDayEnd === "number" && !Number.isNaN(d.sleepDayEnd)
-        ? d.sleepDayEnd
-        : typeof d.daySleepEndMinutes === "number" && !Number.isNaN(d.daySleepEndMinutes)
-          ? d.daySleepEndMinutes
-          : 1170;
-    return {
-      sleepNightStart: d.sleepNightStart ?? 1140, // 7:00 PM
-      sleepNightEnd: d.sleepNightEnd ?? 420, // 7:00 AM
-      // Day sleep window (naps): anything that STARTS within this window is treated as day sleep.
-      // Defaults: 6:30 AM → 7:30 PM (matches your screenshot concept)
-      sleepDayStart: dayStart, // 6:30 AM
-      sleepDayEnd: dayEnd, // 7:30 PM
-      // Back-compat fields for existing data/analytics callers
-      daySleepStartMinutes: dayStart,
-      daySleepEndMinutes: dayEnd,
-      sleepTargetHours: hasOverride ? override : autoTarget,
-      sleepTargetAutoHours: autoTarget,
-      sleepTargetIsOverride: hasOverride
-    };
+    if (!this._cacheState.sleepSettings && !this._cacheState.sleepSettingsSyncMs) {
+      await this._loadSettingsCache();
+    }
+    if (this._cacheState.sleepSettings) {
+      this._refreshSettingsCache({ force: false });
+      return this._cacheState.sleepSettings;
+    }
+    const settings = await this._getSleepSettingsRemote();
+    this._cacheState.sleepSettings = settings || null;
+    this._cacheState.sleepSettingsSyncMs = Date.now();
+    await this._saveSettingsCache();
+    return settings;
   },
 
   async updateSleepSettings({ sleepNightStart, sleepNightEnd, sleepDayStart, sleepDayEnd, sleepTargetHours }) {
@@ -1683,18 +1780,38 @@ const firestoreStorage = {
 
     await this._kidRef().update(payload);
     logEvent("sleep_settings_updated", { sleepNightStart, sleepNightEnd, sleepDayStart: payload.sleepDayStart, sleepDayEnd: payload.sleepDayEnd, sleepTargetHours });
+    const refreshed = await this._getSleepSettingsRemote();
+    this._cacheState.sleepSettings = refreshed || null;
+    this._cacheState.sleepSettingsSyncMs = Date.now();
+    await this._saveSettingsCache();
   },
 
   // -----------------------
   // KID PROFILE
   // -----------------------
   async getKidData() {
-    const doc = await this._kidRef().get();
-    return doc.exists ? { id: doc.id, ...doc.data() } : null;
+    if (!this._cacheState.kidData && !this._cacheState.kidDataSyncMs) {
+      await this._loadSettingsCache();
+    }
+    if (this._cacheState.kidData) {
+      this._refreshSettingsCache({ force: false });
+      return this._cacheState.kidData;
+    }
+    const data = await this._getKidDataRemote();
+    this._cacheState.kidData = data || null;
+    this._cacheState.kidDataSyncMs = Date.now();
+    await this._saveSettingsCache();
+    return data;
   },
 
   async updateKidData(data) {
     await this._kidRef().set(data, { merge: true });
+    const existing = this._cacheState.kidData || {};
+    const next = { ...existing, ...(data || {}) };
+    if (!next.id && existing.id) next.id = existing.id;
+    this._cacheState.kidData = next;
+    this._cacheState.kidDataSyncMs = Date.now();
+    await this._saveSettingsCache();
   },
 
   // -----------------------
@@ -1728,7 +1845,18 @@ const firestoreStorage = {
   // MEMBERS
   // -----------------------
   async getMembers() {
-    return await getFamilyMembers(this.currentFamilyId);
+    if (!this._cacheState.familyMembers && !this._cacheState.familyMembersSyncMs) {
+      await this._loadSettingsCache();
+    }
+    if (this._cacheState.familyMembers) {
+      this._refreshFamilyMembersCache({ force: false });
+      return this._cacheState.familyMembers;
+    }
+    const members = await this._getMembersRemote();
+    this._cacheState.familyMembers = members || [];
+    this._cacheState.familyMembersSyncMs = Date.now();
+    await this._saveSettingsCache();
+    return members;
   }
 };
 
@@ -1754,6 +1882,59 @@ firestoreStorage._getAllSleepSessionsRemote = async function () {
   this._cacheState.lastSyncMs = Date.now();
   await this._saveCache();
   return data;
+};
+
+firestoreStorage._getSettingsRemote = async function () {
+  const doc = await this._kidRef()
+    .collection("settings")
+    .doc("default")
+    .get();
+  return doc.exists ? doc.data() : null;
+};
+
+firestoreStorage._getKidDataRemote = async function () {
+  const doc = await this._kidRef().get();
+  return doc.exists ? { id: doc.id, ...doc.data() } : null;
+};
+
+firestoreStorage._getSleepSettingsRemote = async function () {
+  const doc = await this._kidRef().get();
+  const d = doc.exists ? doc.data() : {};
+  const autoTarget = this._defaultSleepTargetHoursFromBirthTs(d.birthDate);
+  const override =
+    typeof d.sleepTargetOverrideHrs === "number" && !Number.isNaN(d.sleepTargetOverrideHrs)
+      ? d.sleepTargetOverrideHrs
+      : typeof d.sleepTargetHours === "number" && !Number.isNaN(d.sleepTargetHours)
+      ? d.sleepTargetHours
+      : null;
+  const hasOverride = typeof override === "number";
+  const dayStart =
+    typeof d.sleepDayStart === "number" && !Number.isNaN(d.sleepDayStart)
+      ? d.sleepDayStart
+      : typeof d.daySleepStartMinutes === "number" && !Number.isNaN(d.daySleepStartMinutes)
+        ? d.daySleepStartMinutes
+        : 390;
+  const dayEnd =
+    typeof d.sleepDayEnd === "number" && !Number.isNaN(d.sleepDayEnd)
+      ? d.sleepDayEnd
+      : typeof d.daySleepEndMinutes === "number" && !Number.isNaN(d.daySleepEndMinutes)
+        ? d.daySleepEndMinutes
+        : 1170;
+  return {
+    sleepNightStart: d.sleepNightStart ?? 1140,
+    sleepNightEnd: d.sleepNightEnd ?? 420,
+    sleepDayStart: dayStart,
+    sleepDayEnd: dayEnd,
+    daySleepStartMinutes: dayStart,
+    daySleepEndMinutes: dayEnd,
+    sleepTargetHours: hasOverride ? override : autoTarget,
+    sleepTargetAutoHours: autoTarget,
+    sleepTargetIsOverride: hasOverride
+  };
+};
+
+firestoreStorage._getMembersRemote = async function () {
+  return await getFamilyMembers(this.currentFamilyId);
 };
 
 // In Firestore storage layer, add a helper if it doesn't exist yet

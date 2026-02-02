@@ -433,7 +433,7 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
     day: 'numeric'
   });
 
-  const Timeline = window.TT?.shared?.Timeline || null;
+  const Timeline = window.TT?.shared?.ScheduleTimeline || window.TT?.shared?.Timeline || null;
 
   return React.createElement('div', {
     className: "space-y-4 pb-24"
