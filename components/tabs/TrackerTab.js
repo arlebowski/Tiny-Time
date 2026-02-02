@@ -5625,7 +5625,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
         React.createElement(
           'span',
           {
-            className: 'text-[39.6px] font-bold leading-none',
+            className: 'text-[40px] font-bold leading-none',
             style: { color: sleepColor }
           },
           formatV2Number(average)
@@ -5860,7 +5860,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
         React.createElement(
           'span',
           {
-            className: 'text-[39.6px] font-bold leading-none',
+            className: 'text-[40px] font-bold leading-none',
             style: { color: feedColor }
           },
           formatV2Number(average)

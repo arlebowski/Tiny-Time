@@ -345,7 +345,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           "div",
           { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col",
+            className: "rounded-2xl shadow-sm p-5 flex flex-col",
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement("div", { 
@@ -358,12 +358,12 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             Number(sleepCards.avgTotal || 0).toFixed(1),
             React.createElement("span", { className: "text-[20px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
-          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
+          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-2", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
         ),
         React.createElement(
           "div",
           { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col",
+            className: "rounded-2xl shadow-sm p-5 flex flex-col",
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement("div", { 
@@ -375,13 +375,13 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             { className: "text-[40px] font-bold leading-none", style: { color: 'var(--tt-sleep)' } },
             Number(sleepCards.avgSleeps || 0).toFixed(1)
           ),
-          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
+          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-2", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
         ),
         // Row 2: Day Sleep, Night Sleep
         React.createElement(
           "div",
           { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col",
+            className: "rounded-2xl shadow-sm p-5 flex flex-col",
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement("div", { 
@@ -394,12 +394,12 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             Number(sleepCards.avgDay || 0).toFixed(1),
             React.createElement("span", { className: "text-[20px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
-          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
+          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-2", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
         ),
         React.createElement(
           "div",
           { 
-            className: "rounded-2xl shadow-sm p-6 flex flex-col",
+            className: "rounded-2xl shadow-sm p-5 flex flex-col",
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement("div", { 
@@ -412,7 +412,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             Number(sleepCards.avgNight || 0).toFixed(1),
             React.createElement("span", { className: "text-[20px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
-          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-1", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
+          React.createElement("div", { className: "text-[16px] font-normal leading-none mt-2", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
         )
       ),
 
@@ -420,7 +420,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       React.createElement(
         "div",
         { 
-          className: "rounded-2xl shadow-sm p-6 mt-4",
+          className: "rounded-2xl shadow-sm p-5 mt-4",
           style: { backgroundColor: 'var(--tt-card-bg)' }
         },
         React.createElement(

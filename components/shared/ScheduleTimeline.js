@@ -1061,9 +1061,17 @@ const ScheduleTimeline = ({
                 const expandedCardTopBase = expandedCard
                   ? (getCardPosition(expandedCard) / 100) * timelineHeight
                   : null;
+                const collapsedSpacing = 64;
+                const lineSpan = 72;
+                const scheduledIndices = filteredCards.reduce((acc, c, i) => {
+                  if (c && c.variant === 'scheduled') acc.push(i);
+                  return acc;
+                }, []);
+                const firstScheduledIndex = scheduledIndices[0];
+                const lastScheduledIndex = scheduledIndices[scheduledIndices.length - 1];
                 return filteredCards.map((card, index) => {
                   const expandedTop = getCardPosition(card);
-                  const compressedTop = index * 64;
+                  const compressedTop = index * collapsedSpacing;
                   const expandedTopPx = (expandedTop / 100) * timelineHeight;
                   const isDragging = draggingCard === card.id;
                   const isHolding = holdingCard === card.id;
@@ -1073,6 +1081,12 @@ const ScheduleTimeline = ({
                   const isExpandedCard = expandedCardId === card.id;
                   const showScheduleGutter = !isExpandedEffective && card.variant === 'scheduled';
                   const scheduleTime = card.time || '';
+                  const scheduleIconCenter = 'calc(24px + 16px)';
+                  const scheduleIconRadius = 16;
+                  const scheduleIconGap = 8;
+                  const scheduleHalfSpan = lineSpan / 2;
+                  const isFirstScheduled = index === firstScheduledIndex;
+                  const isLastScheduled = index === lastScheduledIndex;
                   const extraOffset = expandedCardId && expandedCardTopBase !== null && expandedTopPx > expandedCardTopBase
                     ? expandedContentHeight
                     : 0;
@@ -1158,25 +1172,53 @@ const ScheduleTimeline = ({
                                   setExpandedCardId((prev) => (prev === card.id ? null : card.id));
                                 }
                               },
-                              TimelineItem
-                                ? React.createElement(TimelineItem, {
-                                    card,
-                                    bottleIcon,
-                                    moonIcon,
-                                    isExpanded: isExpandedCard,
-                                    detailsHeight: expandedContentHeight,
-                                    hasDetails,
-                                    onPhotoClick: handleTimelinePhotoClick,
-                                    onScheduledAdd,
-                                    onActiveSleepClick,
-                                    onExpandedContentHeight: handleExpandedContentHeight,
-                                    disableScheduledGrayscale: true,
-                                    iconSize: 18,
-                                    iconWrapSize: 32,
-                                    disableScheduledAction: true,
-                                    scheduledLabelColor: 'var(--tt-text-primary)'
+                              React.createElement(
+                                React.Fragment,
+                                null,
+                                React.createElement(React.Fragment, null,
+                                  !isFirstScheduled && React.createElement('div', {
+                                    className: "absolute w-px",
+                                    style: {
+                                      left: scheduleIconCenter,
+                                      top: `calc(50% - ${scheduleHalfSpan}px)`,
+                                      height: `calc(${scheduleHalfSpan}px - ${scheduleIconRadius + scheduleIconGap}px)`,
+                                      backgroundColor: 'var(--tt-text-tertiary)',
+                                      opacity: 0.35,
+                                      pointerEvents: 'none'
+                                    }
+                                  }),
+                                  !isLastScheduled && React.createElement('div', {
+                                    className: "absolute w-px",
+                                    style: {
+                                      left: scheduleIconCenter,
+                                      top: `calc(50% + ${scheduleIconRadius + scheduleIconGap}px)`,
+                                      height: `calc(${scheduleHalfSpan}px - ${scheduleIconRadius + scheduleIconGap}px)`,
+                                      backgroundColor: 'var(--tt-text-tertiary)',
+                                      opacity: 0.35,
+                                      pointerEvents: 'none'
+                                    }
                                   })
-                                : null
+                                ),
+                                TimelineItem
+                                  ? React.createElement(TimelineItem, {
+                                      card,
+                                      bottleIcon,
+                                      moonIcon,
+                                      isExpanded: isExpandedCard,
+                                      detailsHeight: expandedContentHeight,
+                                      hasDetails,
+                                      onPhotoClick: handleTimelinePhotoClick,
+                                      onScheduledAdd,
+                                      onActiveSleepClick,
+                                      onExpandedContentHeight: handleExpandedContentHeight,
+                                      disableScheduledGrayscale: true,
+                                      iconSize: 18,
+                                      iconWrapSize: 32,
+                                      disableScheduledAction: true,
+                                      scheduledLabelColor: 'var(--tt-text-primary)'
+                                    })
+                                  : null
+                              )
                             )
                           )
                         )

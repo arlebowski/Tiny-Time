@@ -2777,7 +2777,7 @@ const TrackerCard = ({
         : "flex items-baseline gap-1 mb-[13px]",  // Consistent alignment for both feeding and sleep
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
-      bigNumberValueClassName: isV4Sizing ? "text-[40px] leading-none font-bold" : "text-[39.6px] leading-none font-bold",
+      bigNumberValueClassName: "text-[40px] leading-none font-bold",
       bigNumberTargetClassName: isVariant1 
         ? "relative -top-[2px] text-[17.6px] leading-none font-normal"  // variant 1: consistent for both feeding and sleep
         : "relative -top-[1px] text-[17.6px] leading-none font-normal",  // variant 2: consistent for both feeding and sleep
@@ -3145,7 +3145,7 @@ const TrackerCard = ({
         : "flex items-baseline gap-1 mb-[13px]",  // Consistent alignment for both feeding and sleep
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
-      bigNumberValueClassName: "text-[39.6px] leading-none font-bold",
+      bigNumberValueClassName: isV4Sizing ? "text-[40px] leading-none font-bold" : "text-[39.6px] leading-none font-bold",
       bigNumberTargetClassName: v3TargetClassName,
       bigNumberTargetColor: 'var(--tt-text-tertiary)',  // v3: match tertiary text color
       bigNumberTargetVariant: 'unit',  // v3: show just "oz" or "hrs" next to big number
