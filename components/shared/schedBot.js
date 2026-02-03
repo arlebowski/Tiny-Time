@@ -19,11 +19,22 @@
     return `${year}-${month}-${day}`;
   };
 
+  const _getStorageKeyForDate = (dateKey) => {
+    const base = scheduleStore?.storageKey || 'tt_daily_projection_schedule_v1';
+    return `${base}:${dateKey}`;
+  };
+
   const readSchedule = (dateKey) => {
     if (scheduleStore && typeof scheduleStore.readProjectionSchedule === 'function') {
       return scheduleStore.readProjectionSchedule(dateKey);
     }
     try {
+      const perDayKey = _getStorageKeyForDate(dateKey);
+      const perDayRaw = localStorage.getItem(perDayKey);
+      if (perDayRaw) {
+        const parsed = JSON.parse(perDayRaw);
+        if (parsed && Array.isArray(parsed.items)) return parsed.items;
+      }
       const storageKey = scheduleStore?.storageKey || 'tt_daily_projection_schedule_v1';
       const raw = localStorage.getItem(storageKey);
       if (!raw) return null;
@@ -43,7 +54,9 @@
     }
     try {
       const storageKey = scheduleStore?.storageKey || 'tt_daily_projection_schedule_v1';
+      const perDayKey = _getStorageKeyForDate(dateKey);
       const items = Array.isArray(schedule) ? schedule : [];
+      localStorage.setItem(perDayKey, JSON.stringify({ dateKey, items }));
       localStorage.setItem(storageKey, JSON.stringify({ dateKey, items }));
       if (typeof window.dispatchEvent === 'function') {
         window.dispatchEvent(new CustomEvent('tt:projection-schedule-updated', { detail: { dateKey, items } }));
@@ -120,9 +133,44 @@
   };
 
   const refresh = async (date = new Date()) => {
+    const targetDate = date instanceof Date ? date : new Date();
+    const today = new Date();
+    const isSameDay = (
+      targetDate.getFullYear() === today.getFullYear()
+      && targetDate.getMonth() === today.getMonth()
+      && targetDate.getDate() === today.getDate()
+    );
+    const resolvedNow = (() => {
+      if (isSameDay) return new Date();
+      const start = new Date(targetDate);
+      start.setHours(0, 0, 0, 0);
+      return start;
+    })();
+
+    const ensureSchedule = async () => {
+      if (!scheduleStore || typeof scheduleStore.rebuildProjectionScheduleAsync !== 'function') return null;
+      const result = await scheduleStore.rebuildProjectionScheduleAsync({
+        feedings: [],
+        sleepSessions: [],
+        ageInMonths: 0,
+        sleepSettings: null,
+        now: resolvedNow,
+        kidId: null
+      });
+      if (!result) return null;
+      const scheduleToPersist = result.adjustedSchedule || result.baseSchedule || [];
+      if (Array.isArray(scheduleToPersist) && scheduleToPersist.length > 0) {
+        writeSchedule(getScheduleDateKey(targetDate), scheduleToPersist);
+      }
+      return scheduleToPersist;
+    };
+
     if (!scheduleStore || typeof scheduleStore.rebuildAndPersist !== 'function' || typeof firestoreStorage === 'undefined') {
-      const dateKey = getScheduleDateKey(date);
+      const dateKey = getScheduleDateKey(targetDate);
       const schedule = readSchedule(dateKey) || [];
+      if (schedule.length === 0) {
+        await ensureSchedule();
+      }
       notify({ dateKey, schedule });
       return schedule;
     }
@@ -136,7 +184,7 @@
       const ageInMonths = kid?.birthDate && window.TT?.shared?.calculateAgeInMonths
         ? window.TT.shared.calculateAgeInMonths(kid.birthDate)
         : 0;
-      const dateKey = getScheduleDateKey(date);
+      const dateKey = getScheduleDateKey(targetDate);
       await scheduleStore.rebuildAndPersist({
         feedings,
         sleepSessions: sleeps,
@@ -144,14 +192,25 @@
         sleepSettings,
         kidId: firestoreStorage.currentKidId,
         dateKey,
-        persistAdjusted: true
+        persistAdjusted: true,
+        now: resolvedNow
       });
-      const schedule = readSchedule(dateKey) || [];
+      let schedule = readSchedule(dateKey) || [];
+      if (schedule.length === 0) {
+        const ensured = await ensureSchedule();
+        if (Array.isArray(ensured) && ensured.length > 0) {
+          schedule = readSchedule(dateKey) || ensured;
+        }
+      }
       notify({ dateKey, schedule });
       return schedule;
     } catch (e) {
-      const dateKey = getScheduleDateKey(date);
-      const schedule = readSchedule(dateKey) || [];
+      const dateKey = getScheduleDateKey(targetDate);
+      let schedule = readSchedule(dateKey) || [];
+      if (schedule.length === 0) {
+        await ensureSchedule();
+        schedule = readSchedule(dateKey) || [];
+      }
       notify({ dateKey, schedule });
       return schedule;
     }
@@ -229,6 +288,11 @@
 
   if (!window.sched) window.sched = {};
   if (!window.sched.rebuild) {
-    window.sched.rebuild = (date = new Date()) => refresh(date);
+    window.sched.rebuild = (date = null) => {
+      if (date instanceof Date) return refresh(date);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return refresh(tomorrow);
+    };
   }
 })();

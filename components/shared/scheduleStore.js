@@ -33,13 +33,30 @@
     return normalized.length > 0 ? normalized : null;
   };
 
+  const _getStorageKeyForDate = (dateKey) => `${STORAGE_KEY}:${dateKey}`;
+
   const readProjectionSchedule = (dateKey) => {
     try {
+      const perDayKey = _getStorageKeyForDate(dateKey);
+      const perDayRaw = localStorage.getItem(perDayKey);
+      if (perDayRaw) {
+        const perDayParsed = JSON.parse(perDayRaw);
+        if (perDayParsed && Array.isArray(perDayParsed.items)) {
+          return _normalizeStoredItems(perDayParsed.items);
+        }
+      }
+
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) return null;
-      return _normalizeStoredItems(parsed.items);
+      const normalized = _normalizeStoredItems(parsed.items);
+      if (normalized) {
+        try {
+          localStorage.setItem(perDayKey, JSON.stringify({ dateKey, items: parsed.items }));
+        } catch (e) {}
+      }
+      return normalized;
     } catch {
       return null;
     }
@@ -68,6 +85,8 @@
           };
         })
         .filter(Boolean);
+      const perDayKey = _getStorageKeyForDate(dateKey);
+      localStorage.setItem(perDayKey, JSON.stringify({ dateKey, items }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ dateKey, items }));
       if (typeof window.dispatchEvent === 'function') {
         try {
@@ -156,6 +175,29 @@
     if (ageInMonths < 3) return 2.5;
     if (ageInMonths < 6) return 3;
     return 3.5;
+  };
+
+  const _buildIntervalScheduleForDay = (now, intervalHours) => {
+    const hours = Number(intervalHours);
+    if (!Number.isFinite(hours) || hours <= 0) return [];
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(now);
+    dayEnd.setHours(23, 59, 59, 999);
+    const intervalMs = hours * 60 * 60 * 1000;
+    const events = [];
+    let t = new Date(dayStart.getTime() + intervalMs);
+    while (t.getTime() <= dayEnd.getTime()) {
+      events.push({
+        type: 'feed',
+        time: new Date(t),
+        patternBased: false,
+        intervalBased: true,
+        source: 'interval-based (fallback)'
+      });
+      t = new Date(t.getTime() + intervalMs);
+    }
+    return events;
   };
 
   const formatTimeHmma = (date) => {
@@ -391,9 +433,12 @@ IMPORTANT:
       ? interval
       : _fallbackFeedIntervalHours(ageInMonths);
 
-    const baseSchedule = scheduleUtils.buildDailySchedule
+    let baseSchedule = scheduleUtils.buildDailySchedule
       ? scheduleUtils.buildDailySchedule(analysis || {}, resolvedInterval, ageInMonths, { now, config: mergedConfig })
       : [];
+    if (!Array.isArray(baseSchedule) || baseSchedule.length === 0) {
+      baseSchedule = _buildIntervalScheduleForDay(now, resolvedInterval);
+    }
     const adjustedSchedule = scheduleUtils.adjustScheduleForActualEvents
       ? scheduleUtils.adjustScheduleForActualEvents(
           baseSchedule,
@@ -450,6 +495,9 @@ IMPORTANT:
       baseSchedule = scheduleUtils.buildDailySchedule
         ? scheduleUtils.buildDailySchedule(analysis || {}, resolvedInterval, ageInMonths, { now, config: mergedConfig })
         : [];
+    }
+    if (!Array.isArray(baseSchedule) || baseSchedule.length === 0) {
+      baseSchedule = _buildIntervalScheduleForDay(now, resolvedInterval);
     }
 
     const adjustedSchedule = scheduleUtils.adjustScheduleForActualEvents

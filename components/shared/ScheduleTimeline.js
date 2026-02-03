@@ -67,16 +67,23 @@ const ScheduleTimeline = ({
     if (useSchedBot) {
       const schedBot = window.TT?.store?.schedBot;
       if (!schedBot || typeof schedBot.getTimelineCards !== 'function') return [];
-      const cards = schedBot.getTimelineCards(scheduleDateValue || new Date()) || [];
+      const baseDate = scheduleDateValue || new Date();
+      const tomorrow = new Date(baseDate);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const cardsToday = schedBot.getTimelineCards(baseDate) || [];
+      const cardsTomorrow = schedBot.getTimelineCards(tomorrow) || [];
+      const cards = [...cardsToday, ...cardsTomorrow];
       const filtered = hideCompletedScheduled ? cards.filter((item) => !item?.isCompleted) : cards;
-      return showProjectedOnly
+      const projected = showProjectedOnly
         ? filtered.filter((item) => !item?.isCompleted && !item?.matched && !item?.actual)
         : filtered;
+      return projected;
     }
     const base = Array.isArray(initialScheduledItems) ? initialScheduledItems : defaultScheduledItems;
-    return showProjectedOnly
+    const projected = showProjectedOnly
       ? base.filter((item) => !item?.isCompleted && !item?.matched && !item?.actual)
       : base;
+    return projected;
   }, [useSchedBot, scheduleDateValue, hideCompletedScheduled, showProjectedOnly, initialScheduledItems]);
 
   const resolvedScheduledItems = resolveScheduledItems();
@@ -106,11 +113,6 @@ const ScheduleTimeline = ({
     if (!useSchedBot) return undefined;
     const schedBot = window.TT?.store?.schedBot;
     if (!schedBot || typeof schedBot.subscribe !== 'function') return undefined;
-
-    const scheduleDateKey = schedBot.getScheduleDateKey
-      ? schedBot.getScheduleDateKey(scheduleDateValue || new Date())
-      : null;
-
     const updateFromBot = () => {
       const scheduledItems = resolveScheduledItems();
       const loggedItems = Array.isArray(initialLoggedItems) ? initialLoggedItems : null;
@@ -123,8 +125,7 @@ const ScheduleTimeline = ({
 
     updateFromBot();
 
-    const unsubscribe = schedBot.subscribe((payload) => {
-      if (payload?.dateKey && scheduleDateKey && payload.dateKey !== scheduleDateKey) return;
+    const unsubscribe = schedBot.subscribe(() => {
       updateFromBot();
     });
 
