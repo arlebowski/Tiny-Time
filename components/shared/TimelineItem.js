@@ -357,17 +357,7 @@ const __ttEnsureZzzStyles = () => {
               color: '#ffffff'
             }
           }, 'Open Timer'),
-          isScheduled && showScheduledAction && React.createElement('button', {
-            onClick: (e) => {
-              e.stopPropagation();
-              if (onScheduledAdd) onScheduledAdd(card);
-            },
-            className: "px-3 py-1 rounded-full text-xs font-semibold",
-            style: {
-              backgroundColor: card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-              color: '#ffffff'
-            }
-          }, card.type === 'feed' ? 'Add Feed' : `Start ${getSleepLabel(scheduledLabelTimeDate)}`),
+          // Scheduled CTA disabled per request.
           null
         )
       ),

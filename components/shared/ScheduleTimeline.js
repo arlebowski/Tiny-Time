@@ -25,6 +25,7 @@ const ScheduleTimeline = ({
   const [hasLoaded, setHasLoaded] = React.useState(false);
   const [filter, setFilter] = React.useState(initialFilter || 'all');
   const initialFilterAppliedRef = React.useRef(false);
+  const [dayFilter, setDayFilter] = React.useState('today');
   const [isCompiling, setIsCompiling] = React.useState(false);
   const [sortOrder, setSortOrder] = React.useState(initialSortOrder || 'desc'); // 'desc' = reverse chrono (default), 'asc' = chrono
   const [timelineFullSizePhoto, setTimelineFullSizePhoto] = React.useState(null);
@@ -248,6 +249,20 @@ const ScheduleTimeline = ({
       if (filter === 'all') return true;
       return card.type === filter;
     })
+    .filter(card => {
+      if (!isExpandedEffective) return true;
+      const tMs = getCardTimeMs(card);
+      if (!Number.isFinite(tMs)) return true;
+      const base = scheduleDateValue || new Date();
+      const todayKey = base.toDateString();
+      const tomorrow = new Date(base);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowKey = tomorrow.toDateString();
+      const cardKey = new Date(tMs).toDateString();
+      if (dayFilter === 'today') return cardKey === todayKey;
+      if (dayFilter === 'tomorrow') return cardKey === tomorrowKey;
+      return true;
+    })
     .sort((a, b) => {
       const aMs = getCardTimeMs(a);
       const bMs = getCardTimeMs(b);
@@ -344,10 +359,53 @@ const ScheduleTimeline = ({
     setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
   };
 
+  const saveScheduleChanges = React.useCallback(() => {
+    if (!useSchedBot) return;
+    const schedBot = window.TT?.store?.schedBot;
+    if (!schedBot || typeof schedBot.writeSchedule !== 'function') return;
+    const getDateKey = schedBot.getScheduleDateKey || ((d) => d.toDateString());
+    const buckets = new Map();
+    cards.forEach((card) => {
+      if (!card || card.variant !== 'scheduled') return;
+      const base = Number.isFinite(Number(card.timeMs))
+        ? new Date(Number(card.timeMs))
+        : (scheduleDateValue instanceof Date ? new Date(scheduleDateValue) : new Date());
+      const hour = Number.isFinite(card.hour) ? card.hour : base.getHours();
+      const minute = Number.isFinite(card.minute) ? card.minute : base.getMinutes();
+      base.setHours(hour, minute, 0, 0);
+      const dateKey = getDateKey(base);
+      const entry = {
+        type: card.type,
+        timeMs: base.getTime(),
+        patternBased: !!card.patternBased,
+        patternCount: card.patternCount || 0,
+        targetOz: Number.isFinite(Number(card?.targetOz)) ? Number(card.targetOz) : null,
+        targetOzRange: Array.isArray(card?.targetOzRange) ? card.targetOzRange : null,
+        avgDurationHours: Number.isFinite(Number(card?.avgDurationHours)) ? Number(card.avgDurationHours) : null,
+        intervalBased: !!card.intervalBased,
+        adjusted: !!card.adjusted,
+        actual: !!card.actual,
+        isCompleted: !!card.isCompleted,
+        matched: !!card.matched,
+        source: card.source || null
+      };
+      if (!buckets.has(dateKey)) buckets.set(dateKey, []);
+      buckets.get(dateKey).push(entry);
+    });
+    buckets.forEach((items, dateKey) => {
+      schedBot.writeSchedule(dateKey, items);
+    });
+  }, [cards, scheduleDateValue, useSchedBot]);
+
   const handleToggleExpanded = React.useCallback(() => {
     if (disableExpanded) return;
-    setIsExpanded((prev) => !prev);
-  }, [disableExpanded]);
+    if (isExpandedEffective) {
+      saveScheduleChanges();
+      setIsExpanded(false);
+      return;
+    }
+    setIsExpanded(true);
+  }, [disableExpanded, isExpandedEffective, saveScheduleChanges]);
 
   const handleDragStart = (e, card) => {
     if (!isExpandedEffective) return;
@@ -419,9 +477,14 @@ const ScheduleTimeline = ({
     };
     
     window.requestAnimationFrame(() => {
-      setCards(prevCards => prevCards.map(card =>
-        card.id === draggingCard ? { ...card, ...snappedTime } : card
-      ));
+      setCards(prevCards => prevCards.map(card => {
+        if (card.id !== draggingCard) return card;
+        const base = Number.isFinite(Number(card.timeMs))
+          ? new Date(Number(card.timeMs))
+          : (scheduleDateValue instanceof Date ? new Date(scheduleDateValue) : new Date());
+        base.setHours(snappedHour, snappedMinute, 0, 0);
+        return { ...card, ...snappedTime, timeMs: base.getTime() };
+      }));
     });
   };
 
@@ -439,11 +502,16 @@ const ScheduleTimeline = ({
           const snappedMinute = snappedMinutes % 60;
           const period = snappedHour >= 12 ? 'PM' : 'AM';
           const displayHour = snappedHour === 0 ? 12 : snappedHour > 12 ? snappedHour - 12 : snappedHour;
+          const base = Number.isFinite(Number(card.timeMs))
+            ? new Date(Number(card.timeMs))
+            : (scheduleDateValue instanceof Date ? new Date(scheduleDateValue) : new Date());
+          base.setHours(snappedHour, snappedMinute, 0, 0);
           return {
             ...card,
             hour: snappedHour,
             minute: snappedMinute,
-            time: `${displayHour}:${snappedMinute.toString().padStart(2, '0')} ${period}`
+            time: `${displayHour}:${snappedMinute.toString().padStart(2, '0')} ${period}`,
+            timeMs: base.getTime()
           };
         }
         return card;
@@ -1088,21 +1156,36 @@ const ScheduleTimeline = ({
     React.createElement('div', { className: "relative", style: { backgroundColor: 'var(--tt-app-bg)' } },
       React.createElement('div', { className: "w-full select-none" },
         React.createElement('div', { className: "sticky top-0 z-[100] backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all", style: { backgroundColor: 'var(--tt-app-bg)' } },
-          React.createElement(
-            (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
-            {
-              value: filter,
-              options: [
-                { label: 'All', value: 'all' },
-                { label: 'Feed', value: 'feed' },
-                { label: 'Sleep', value: 'sleep' }
-              ],
-              onChange: handleFilterChange,
-              variant: 'body',
-              size: 'medium',
-              fullWidth: false
-            }
-          ),
+          isExpandedEffective
+            ? React.createElement(
+                (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
+                {
+                  value: dayFilter,
+                  options: [
+                    { label: 'Today', value: 'today' },
+                    { label: 'Tomorrow', value: 'tomorrow' }
+                  ],
+                  onChange: setDayFilter,
+                  variant: 'body',
+                  size: 'medium',
+                  fullWidth: false
+                }
+              )
+            : React.createElement(
+                (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
+                {
+                  value: filter,
+                  options: [
+                    { label: 'All', value: 'all' },
+                    { label: 'Feed', value: 'feed' },
+                    { label: 'Sleep', value: 'sleep' }
+                  ],
+                  onChange: handleFilterChange,
+                  variant: 'body',
+                  size: 'medium',
+                  fullWidth: false
+                }
+              ),
           React.createElement('div', { className: "flex items-center gap-2" },
             React.createElement('button', {
               onClick: handleToggleSort,

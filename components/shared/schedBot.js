@@ -264,9 +264,16 @@
       h = h % 12 || 12;
       return `${h}:${m} ${ampm}`;
     };
-    window.show.sched = (date = new Date()) => {
-      const dateKey = getScheduleDateKey(date);
-      const schedule = readSchedule(dateKey) || [];
+    window.show.sched = (date = null) => {
+      const baseDate = date instanceof Date ? date : new Date();
+      const tomorrow = new Date(baseDate);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const schedule = date instanceof Date
+        ? (readSchedule(getScheduleDateKey(baseDate)) || [])
+        : [
+            ...(readSchedule(getScheduleDateKey(baseDate)) || []),
+            ...(readSchedule(getScheduleDateKey(tomorrow)) || [])
+          ];
       const rows = schedule
         .map((item, idx) => {
           const timeMs = Number(item?.timeMs ?? (item?.time instanceof Date ? item.time.getTime() : NaN));

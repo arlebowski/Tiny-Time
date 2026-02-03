@@ -66,7 +66,8 @@
     try {
       const items = (schedule || [])
         .map((item) => {
-          const timeMs = item?.time instanceof Date ? item.time.getTime() : Number(item?.timeMs);
+          const rawMs = item?.time instanceof Date ? item.time.getTime() : Number(item?.timeMs);
+          const timeMs = _roundTimeMs(rawMs);
           if (!Number.isFinite(timeMs)) return null;
           return {
             type: item.type,
@@ -118,6 +119,12 @@
     const t = Number(e.timeMs);
     if (Number.isFinite(t)) return new Date(t);
     return null;
+  };
+
+  const _roundTimeMs = (timeMs, minutes = 15) => {
+    if (!Number.isFinite(timeMs)) return timeMs;
+    const intervalMs = minutes * 60 * 1000;
+    return Math.round(timeMs / intervalMs) * intervalMs;
   };
 
   const _enforceMinGaps = (schedule, config = {}) => {
