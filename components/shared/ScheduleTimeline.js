@@ -230,17 +230,67 @@ const ScheduleTimeline = ({
     }
   }, [disableExpanded, isExpanded]);
 
+  const getCardTimeMs = React.useCallback((card) => {
+    if (!card) return null;
+    const direct = Number(card.timeMs);
+    if (Number.isFinite(direct)) return direct;
+    if (Number.isFinite(card.hour) && Number.isFinite(card.minute)) {
+      const base = scheduleDateValue || new Date();
+      const d = new Date(base);
+      d.setHours(card.hour, card.minute, 0, 0);
+      return d.getTime();
+    }
+    return null;
+  }, [scheduleDateValue]);
+
   const filteredCards = cards
     .filter(card => {
       if (filter === 'all') return true;
       return card.type === filter;
     })
     .sort((a, b) => {
-      const aMinutes = a.hour * 60 + a.minute;
-      const bMinutes = b.hour * 60 + b.minute;
+      const aMs = getCardTimeMs(a);
+      const bMs = getCardTimeMs(b);
       const direction = sortOrder === 'asc' ? 1 : -1;
+      if (Number.isFinite(aMs) && Number.isFinite(bMs)) {
+        return (aMs - bMs) * direction;
+      }
+      const aMinutes = (a.hour || 0) * 60 + (a.minute || 0);
+      const bMinutes = (b.hour || 0) * 60 + (b.minute || 0);
       return (aMinutes - bMinutes) * direction;
     });
+
+  const dayLabelMap = React.useMemo(() => {
+    const keys = [];
+    const keySet = new Set();
+    filteredCards.forEach((card) => {
+      if (card?.variant !== 'scheduled') return;
+      const tMs = getCardTimeMs(card);
+      if (!Number.isFinite(tMs)) return;
+      const key = new Date(tMs).toDateString();
+      if (!keySet.has(key)) {
+        keySet.add(key);
+        keys.push(key);
+      }
+    });
+    if (keys.length < 2) return { map: new Map(), hasMultipleDays: false };
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayKey = today.toDateString();
+    const tomorrowKey = tomorrow.toDateString();
+    const map = new Map();
+    keys.forEach((key) => {
+      if (key === todayKey) {
+        map.set(key, 'Today');
+      } else if (key === tomorrowKey) {
+        map.set(key, 'Tomorrow');
+      } else {
+        map.set(key, new Date(key).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+      }
+    });
+    return { map, hasMultipleDays: true };
+  }, [filteredCards, getCardTimeMs]);
 
   const handleFilterChange = (newFilter) => {
     if (newFilter === filter) return;
@@ -1166,6 +1216,12 @@ const ScheduleTimeline = ({
                   const isExpandedCard = expandedCardId === card.id;
                   const showScheduleGutter = !isExpandedEffective && card.variant === 'scheduled';
                   const scheduleTime = card.time || '';
+                  const cardTimeMs = getCardTimeMs(card);
+                  const cardDayKey = Number.isFinite(cardTimeMs) ? new Date(cardTimeMs).toDateString() : null;
+                  const dayLabel = cardDayKey ? dayLabelMap.map.get(cardDayKey) : null;
+                  const timeLabel = (card.variant === 'scheduled' && dayLabelMap.hasMultipleDays && dayLabel)
+                    ? `${dayLabel}, ${scheduleTime}`
+                    : scheduleTime;
                   const extraOffset = expandedCardId && expandedCardTopBase !== null && expandedTopPx > expandedCardTopBase
                     ? expandedContentHeight
                     : 0;
@@ -1243,7 +1299,7 @@ const ScheduleTimeline = ({
                       showScheduleGutter
                         ? (TimelineItem
                             ? React.createElement(TimelineItem, {
-                                card,
+                                card: { ...card, time: timeLabel },
                                 bottleIcon,
                                 moonIcon,
                                 isExpanded: isExpandedCard,
@@ -1258,7 +1314,7 @@ const ScheduleTimeline = ({
                             : null)
                         : (TimelineItem
                             ? React.createElement(TimelineItem, {
-                                card,
+                                card: { ...card, time: timeLabel },
                                 bottleIcon,
                                 moonIcon,
                                 isExpanded: isExpandedCard,
