@@ -194,4 +194,36 @@
       // ignore init errors
     }
   }
+
+  if (!window.show) window.show = {};
+  if (!window.show.sched) {
+    const formatConsoleTime = (ms) => {
+      const d = new Date(ms);
+      let h = d.getHours();
+      const m = String(d.getMinutes()).padStart(2, '0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12 || 12;
+      return `${h}:${m} ${ampm}`;
+    };
+    window.show.sched = (date = new Date()) => {
+      const dateKey = getScheduleDateKey(date);
+      const schedule = readSchedule(dateKey) || [];
+      const rows = schedule
+        .map((item, idx) => {
+          const timeMs = Number(item?.timeMs ?? (item?.time instanceof Date ? item.time.getTime() : NaN));
+          if (!Number.isFinite(timeMs)) return null;
+          return {
+            idx,
+            time: formatConsoleTime(timeMs),
+            type: item.type,
+            status: (item.isCompleted || item.matched || item.actual) ? 'logged' : 'projected',
+            timeMs
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) => a.timeMs - b.timeMs);
+      console.table(rows, ['time', 'type', 'status', 'idx']);
+      return rows;
+    };
+  }
 })();
