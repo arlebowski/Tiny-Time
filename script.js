@@ -3296,9 +3296,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           style: { display: activeTab === 'analytics-activity' ? 'block' : 'none' }
         }, React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab })),
         activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
-        window.TT?.tabs?.ScheduleTab && React.createElement('div', {
-          style: { display: activeTab === 'schedule' ? 'block' : 'none' }
-        }, React.createElement(window.TT.tabs.ScheduleTab, { user, kidId, familyId })),
         window.TT?.tabs?.TrackerDetailTab && React.createElement('div', {
           style: activeTab === 'tracker-detail'
             ? {
@@ -3446,37 +3443,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                       }
                     }, 'Today')
                   ),
-                  React.createElement(
-                    'button',
-                    {
-                      key: 'schedule',
-                      type: 'button',
-                      onClick: () => {
-                        setActiveTab('schedule');
-                        setShowShareMenu(false);
-                        setShowKidMenu(false);
-                      },
-                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                      style: {
-                        color: 'var(--tt-text-primary)',
-                        transform: 'translateY(-10px)'
-                      }
-                    },
-                    React.createElement(window.TT?.shared?.icons?.ScheduleIcon || (() => null), {
-                      className: "w-6 h-6",
-                      isSelected: activeTab === 'schedule',
-                      selectedWeight: 'fill',
-                      style: {
-                        color: 'var(--tt-text-primary)'
-                      }
-                    }),
-                    React.createElement('span', {
-                      className: "text-xs font-light",
-                      style: {
-                        color: 'var(--tt-text-primary)'
-                      }
-                    }, 'Schedule')
-                  ),
                   React.createElement('div', {
                     key: 'plus-spacer',
                     className: "flex-1 py-2 flex items-center justify-center",
@@ -3581,38 +3547,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         color: 'var(--tt-text-primary)'
                       }
                     }, 'Today')
-                  ),
-                  // Schedule tab - only in v4
-                  uiVersion === 'v4' && React.createElement(
-                    'button',
-                    {
-                      key: 'schedule',
-                      type: 'button',
-                      onClick: () => {
-                        setActiveTab('schedule');
-                        setShowShareMenu(false);
-                        setShowKidMenu(false);
-                      },
-                      className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                      style: {
-                        color: 'var(--tt-text-primary)',
-                        transform: 'translateY(-10px)'
-                      }
-                    },
-                    React.createElement(window.TT?.shared?.icons?.ScheduleIcon || (() => null), {
-                      className: "w-6 h-6",
-                      isSelected: activeTab === 'schedule',
-                      selectedWeight: 'fill',
-                      style: {
-                        color: 'var(--tt-text-primary)'
-                      }
-                    }),
-                    React.createElement('span', {
-                      className: "text-xs font-light",
-                      style: {
-                        color: 'var(--tt-text-primary)'
-                      }
-                    }, 'Schedule')
                   ),
                   // Plus button (center)
                   shouldUseNewInputFlow && FloatingTrackerMenu
