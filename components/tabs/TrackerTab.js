@@ -384,8 +384,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   
   // Schedule projection uses shared scheduleStore (AI handled there).
 
-  const scheduleStore = (typeof window !== 'undefined' && window.TT && window.TT.store && window.TT.store.scheduleStore)
-    ? window.TT.store.scheduleStore
+  const scheduleStore = (typeof window !== 'undefined' && window.TT && window.TT.store && (window.TT.store.schedBot || window.TT.store.scheduleStore))
+    ? (window.TT.store.schedBot || window.TT.store.scheduleStore)
     : null;
   const getScheduleDateKey = (date = new Date()) => {
     if (scheduleStore && typeof scheduleStore.getScheduleDateKey === 'function') {
@@ -2284,27 +2284,47 @@ Output ONLY the formatted string, nothing else.`;
     if (!Array.isArray(schedule) || schedule.length === 0) return null;
 
     const nowDate = new Date();
-    let cutoffTime = nowDate;
-    if (activeSleep && activeSleep.startTime) {
-      const wakeHours = ageInMonthsForNextUp < 3 ? 1.5 : ageInMonthsForNextUp < 6 ? 2 : 2.5;
-      const sleepStart = new Date(activeSleep.startTime);
-      const predictedWakeTime = new Date(sleepStart);
-      const totalMinutes = predictedWakeTime.getHours() * 60 + predictedWakeTime.getMinutes() + (wakeHours * 60);
-      predictedWakeTime.setHours(Math.floor(totalMinutes / 60), totalMinutes % 60, 0, 0);
-      predictedWakeTime.setSeconds(0);
-      predictedWakeTime.setMilliseconds(0);
-      cutoffTime = predictedWakeTime;
+    const nowMs = nowDate.getTime();
+    const overdueWindowMs = 60 * 60 * 1000;
+    const isSleepingNow = !!(activeSleep && activeSleep.startTime);
+
+    let overdueAny = null;
+    let overdueFeed = null;
+    let overdueAnyMs = -Infinity;
+    let overdueFeedMs = -Infinity;
+
+    for (const event of schedule) {
+      if ((event.type !== 'feed' && event.type !== 'sleep') || !(event.time instanceof Date)) continue;
+      const eventMs = event.time.getTime();
+      if (eventMs <= nowMs && (nowMs - eventMs) <= overdueWindowMs) {
+        if (eventMs > overdueAnyMs) {
+          overdueAny = event;
+          overdueAnyMs = eventMs;
+        }
+        if (event.type === 'feed' && eventMs > overdueFeedMs) {
+          overdueFeed = event;
+          overdueFeedMs = eventMs;
+        }
+      }
     }
 
-    const nextEvent = schedule.find(e =>
-      (e.type === 'feed' || e.type === 'sleep') &&
-      e.time instanceof Date &&
-      e.time.getTime() > cutoffTime.getTime()
+    const upcomingEvent = schedule.find(event =>
+      (event.type === 'feed' || event.type === 'sleep') &&
+      event.time instanceof Date &&
+      event.time.getTime() > nowMs
     );
+
+    const overdueEvent = isSleepingNow ? overdueFeed : overdueAny;
+    const nextEvent = overdueEvent || upcomingEvent;
     if (!nextEvent) return null;
     const isFeed = nextEvent.type === 'feed';
     const label = isFeed ? 'Feed' : getSleepLabel(nextEvent.time, sleepSettings);
-    return { type: nextEvent.type, scheduledTime: nextEvent.time, label };
+    return {
+      type: nextEvent.type,
+      scheduledTime: nextEvent.time,
+      label,
+      isOverdue: !!overdueEvent
+    };
   })();
   const nextUpBabyState = activeSleep && activeSleep.startTime ? 'sleeping' : 'awake';
   const nextUpSleepStart = activeSleep && activeSleep.startTime ? activeSleep.startTime : null;
@@ -5455,13 +5475,13 @@ const HighlightMiniVizViewport = ({ height = 180, children }) => {
     };
   }, [childCount]);
 
-  // NOTE: HighlightCard has 24px padding. We full-bleed by 24px on each side (-mx-6)
+  // NOTE: HighlightCard has 20px padding. We full-bleed by 20px on each side (-mx-5)
   // and then re-add inner padding so bars align to the card edges.
   return React.createElement(
     'div',
     {
-      className: 'relative overflow-hidden -mx-6',
-      style: { height: `${height}px`, width: 'calc(100% + 48px)' }
+      className: 'relative overflow-hidden -mx-5',
+      style: { height: `${height}px`, width: 'calc(100% + 40px)' }
     },
     React.createElement(
       'div',
@@ -5470,8 +5490,8 @@ const HighlightMiniVizViewport = ({ height = 180, children }) => {
         className: 'tt-hide-scrollbar overflow-x-auto overflow-y-visible',
         style: {
           height: `${height}px`,
-          paddingLeft: 24,
-          paddingRight: 32, // extra right padding so the last value pill doesn't kiss the edge
+          paddingLeft: 20,
+          paddingRight: 28, // extra right padding so the last value pill doesn't kiss the edge
           WebkitOverflowScrolling: 'touch',
           overscrollBehavior: 'contain',
           // Disable all user interaction/scrolling while still allowing programmatic scrollLeft.
@@ -5636,7 +5656,7 @@ const SleepChart = ({ data = [], average = 0 }) => {
         React.createElement(
           'span',
           {
-            className: 'text-[39.6px] font-bold leading-none',
+            className: 'text-[40px] font-bold leading-none',
             style: { color: sleepColor }
           },
           formatV2Number(average)
@@ -5871,7 +5891,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
         React.createElement(
           'span',
           {
-            className: 'text-[39.6px] font-bold leading-none',
+            className: 'text-[40px] font-bold leading-none',
             style: { color: feedColor }
           },
           formatV2Number(average)
@@ -5955,6 +5975,7 @@ const FeedingChart = ({ data = [], average = 0 }) => {
 };
 
 const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick, children, isFeeding = false, showInsightText = true }) => {
+  const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
   const headerIconEl = React.createElement(Icon, {
     className: 'w-5 h-5',
@@ -5977,13 +5998,18 @@ const HighlightCard = ({ icon: Icon, label, insightText, categoryColor, onClick,
     className: 'w-5 h-5',
     style: { color: 'var(--tt-text-tertiary)' }
   });
+  const Card = TTCard || 'div';
+  const cardProps = TTCard
+    ? { variant: "tracker", className: "cursor-pointer", onClick }
+    : {
+        className: 'rounded-2xl shadow-sm p-5 cursor-pointer',
+        style: { backgroundColor: 'var(--tt-tracker-card-bg)', borderColor: 'var(--tt-card-border)' },
+        onClick
+      };
+
   return React.createElement(
-    'div',
-    {
-      className: 'rounded-2xl shadow-sm p-6 cursor-pointer',
-      style: { backgroundColor: 'var(--tt-card-bg)' },
-      onClick: onClick
-    },
+    Card,
+    cardProps,
     // Header: icon + label left, chevron right
     TTCardHeader
       ? React.createElement(TTCardHeader, {

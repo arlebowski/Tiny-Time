@@ -1435,7 +1435,7 @@ const handleInvite = async () => {
                 'label',
                 {
                   className:
-                    'block text-xs font-medium mb-1',
+                    'tt-card-label',
                   style: { color: 'var(--tt-text-secondary)' }
                 },
                 "Child's Name"
@@ -1459,7 +1459,7 @@ const handleInvite = async () => {
                   'label',
                   {
                     className:
-                      'block text-xs font-medium mb-1',
+                      'tt-card-label',
                     style: { color: 'var(--tt-text-secondary)' }
                   },
                   'Weight (lbs)'
@@ -1481,7 +1481,7 @@ const handleInvite = async () => {
                   'label',
                   {
                     className:
-                      'block text-xs font-medium mb-1',
+                      'tt-card-label',
                     style: { color: 'var(--tt-text-secondary)' }
                   },
                   'Birth date'

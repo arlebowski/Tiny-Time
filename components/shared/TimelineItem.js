@@ -35,13 +35,14 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
   const __ttTimelineItemAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence) ? window.Motion.AnimatePresence : null;
 
   const isScheduled = card.variant === 'scheduled';
+  const isScheduledGray = isScheduled && !disableScheduledGrayscale;
   const isLogged = card.variant === 'logged';
   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
   const unitText = (card.unit || '').toLowerCase();
@@ -102,8 +103,8 @@ const __ttEnsureZzzStyles = () => {
   const scheduledLabelTimeDate = Number.isFinite(scheduledTimeMs) ? new Date(scheduledTimeMs) : null;
   const scheduledLabelTime = card.time || '';
   const scheduledLabel = card.type === 'feed'
-    ? `Feed around ${scheduledLabelTime}`
-    : `${getSleepLabel(scheduledLabelTimeDate)} around ${scheduledLabelTime}`;
+    ? 'Feed'
+    : getSleepLabel(scheduledLabelTimeDate);
   const [activeElapsedMs, setActiveElapsedMs] = React.useState(() => {
     if (isActiveSleep && typeof card.startTime === 'number') {
       return Math.max(0, Date.now() - card.startTime);
@@ -143,7 +144,7 @@ const __ttEnsureZzzStyles = () => {
   const resolvedEndTime = typeof card.endTime === 'number'
     ? formatTime12Hour(card.endTime)
     : card.endTime;
-  const showScheduledAction = isScheduled && Number.isFinite(scheduledTimeMs)
+  const showScheduledAction = !disableScheduledAction && isScheduled && Number.isFinite(scheduledTimeMs)
     ? Math.abs(Date.now() - scheduledTimeMs) <= 10 * 60 * 1000
     : false;
   const detailsContentRef = React.useRef(null);
@@ -196,9 +197,11 @@ const __ttEnsureZzzStyles = () => {
     React.createElement('div', {
       className: __ttTimelineItemCn(
         "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative",
-        card.variant === 'scheduled' && "grayscale opacity-50"
+        isScheduledGray && "grayscale opacity-50"
       ),
       style: {
+        width: `${iconWrapSize}px`,
+        height: `${iconWrapSize}px`,
         backgroundColor: card.type === 'feed'
           ? 'color-mix(in srgb, var(--tt-feed) 20%, transparent)'
           : 'color-mix(in srgb, var(--tt-sleep) 20%, transparent)'
@@ -208,8 +211,8 @@ const __ttEnsureZzzStyles = () => {
         ? React.createElement(bottleIcon, {
             style: {
               color: 'var(--tt-feed)',
-              width: '1.5rem',
-              height: '1.5rem',
+              width: `${iconSize}px`,
+              height: `${iconSize}px`,
               strokeWidth: '1.5',
               fill: 'none',
               transform: 'rotate(20deg)'
@@ -219,8 +222,8 @@ const __ttEnsureZzzStyles = () => {
           ? React.createElement(moonIcon, {
               style: {
                 color: 'var(--tt-sleep)',
-                width: '1.5rem',
-                height: '1.5rem',
+                width: `${iconSize}px`,
+                height: `${iconSize}px`,
                 strokeWidth: '1.5'
               }
             })
@@ -286,7 +289,9 @@ const __ttEnsureZzzStyles = () => {
               ? { color: 'var(--tt-sleep)' }
               : (isLogged
                   ? { color: 'var(--tt-text-primary)' }
-                  : { color: 'var(--tt-text-tertiary)' })
+                  : (isScheduled && scheduledLabelColor
+                      ? { color: scheduledLabelColor }
+                      : { color: 'var(--tt-text-tertiary)' }))
           }, labelText),
           isActiveSleep ? zzzElement : null
         ),
@@ -311,17 +316,17 @@ const __ttEnsureZzzStyles = () => {
               React.createElement('path', { d: "M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z" })
             )
           ),
-          !isScheduled && !isActiveSleep && React.createElement('span', {
+          !isActiveSleep && React.createElement('span', {
             className: "text-xs",
-            style: isLogged
+            style: (isLogged || isScheduled)
               ? { color: 'var(--tt-text-secondary)' }
               : { color: 'var(--tt-text-tertiary)' }
           },
             // For sleep items, show "[start] – [end]" format
             // For cross-day sleeps, card.time already has "YD" prefix
             card.type === 'sleep' && resolvedEndTime
-              ? `${isJustNow ? 'Just now' : card.time} – ${resolvedEndTime}`
-              : (isJustNow ? 'Just now' : card.time)
+              ? `${isLogged && isJustNow ? 'Just now' : card.time} – ${resolvedEndTime}`
+              : (isLogged && isJustNow ? 'Just now' : card.time)
           ),
           showChevron && ChevronIcon
             ? (__ttTimelineItemMotion
@@ -352,17 +357,7 @@ const __ttEnsureZzzStyles = () => {
               color: '#ffffff'
             }
           }, 'Open Timer'),
-          isScheduled && showScheduledAction && React.createElement('button', {
-            onClick: (e) => {
-              e.stopPropagation();
-              if (onScheduledAdd) onScheduledAdd(card);
-            },
-            className: "px-3 py-1 rounded-full text-xs font-semibold",
-            style: {
-              backgroundColor: card.type === 'feed' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-              color: '#ffffff'
-            }
-          }, card.type === 'feed' ? 'Add Feed' : `Start ${getSleepLabel(scheduledLabelTimeDate)}`),
+          // Scheduled CTA disabled per request.
           null
         )
       ),

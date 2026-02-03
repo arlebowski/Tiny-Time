@@ -33,13 +33,30 @@
     return normalized.length > 0 ? normalized : null;
   };
 
+  const _getStorageKeyForDate = (dateKey) => `${STORAGE_KEY}:${dateKey}`;
+
   const readProjectionSchedule = (dateKey) => {
     try {
+      const perDayKey = _getStorageKeyForDate(dateKey);
+      const perDayRaw = localStorage.getItem(perDayKey);
+      if (perDayRaw) {
+        const perDayParsed = JSON.parse(perDayRaw);
+        if (perDayParsed && Array.isArray(perDayParsed.items)) {
+          return _normalizeStoredItems(perDayParsed.items);
+        }
+      }
+
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return null;
       const parsed = JSON.parse(raw);
       if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) return null;
-      return _normalizeStoredItems(parsed.items);
+      const normalized = _normalizeStoredItems(parsed.items);
+      if (normalized) {
+        try {
+          localStorage.setItem(perDayKey, JSON.stringify({ dateKey, items: parsed.items }));
+        } catch (e) {}
+      }
+      return normalized;
     } catch {
       return null;
     }
@@ -49,7 +66,8 @@
     try {
       const items = (schedule || [])
         .map((item) => {
-          const timeMs = item?.time instanceof Date ? item.time.getTime() : Number(item?.timeMs);
+          const rawMs = item?.time instanceof Date ? item.time.getTime() : Number(item?.timeMs);
+          const timeMs = _roundTimeMs(rawMs);
           if (!Number.isFinite(timeMs)) return null;
           return {
             type: item.type,
@@ -63,10 +81,13 @@
             adjusted: !!item.adjusted,
             actual: !!item.actual,
             isCompleted: !!item.isCompleted,
+            matched: !!item.matched,
             source: item.source || null
           };
         })
         .filter(Boolean);
+      const perDayKey = _getStorageKeyForDate(dateKey);
+      localStorage.setItem(perDayKey, JSON.stringify({ dateKey, items }));
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ dateKey, items }));
       if (typeof window.dispatchEvent === 'function') {
         try {
@@ -79,11 +100,111 @@
     }
   };
 
+  const _eventPriority = (e) => {
+    if (!e) return 0;
+    if (e.actual) return 3;
+    if (e.patternBased) return 2;
+    if (e.intervalBased) return 1;
+    return 0;
+  };
+
+  const _eventStrength = (e) => {
+    const n = (e && (e.patternCount ?? e.occurrences ?? e.count ?? e.sampleCount)) || 0;
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const _normalizeEventTime = (e) => {
+    if (!e) return null;
+    if (e.time instanceof Date) return e.time;
+    const t = Number(e.timeMs);
+    if (Number.isFinite(t)) return new Date(t);
+    return null;
+  };
+
+  const _roundTimeMs = (timeMs, minutes = 15) => {
+    if (!Number.isFinite(timeMs)) return timeMs;
+    const intervalMs = minutes * 60 * 1000;
+    return Math.round(timeMs / intervalMs) * intervalMs;
+  };
+
+  const _enforceMinGaps = (schedule, config = {}) => {
+    if (!Array.isArray(schedule) || schedule.length < 2) return schedule || [];
+
+    const minSameSleepMinutes = Number.isFinite(Number(config.minSameSleepMinutes))
+      ? Number(config.minSameSleepMinutes)
+      : 75;
+    const minSameFeedMinutes = Number.isFinite(Number(config.minSameFeedMinutes))
+      ? Number(config.minSameFeedMinutes)
+      : 90;
+    const minDiffTypeMinutes = Number.isFinite(Number(config.minDiffTypeMinutes))
+      ? Number(config.minDiffTypeMinutes)
+      : 20;
+
+    const ordered = schedule
+      .map(e => ({ ...e, __time: _normalizeEventTime(e) }))
+      .filter(e => e.__time instanceof Date && Number.isFinite(e.__time.getTime()))
+      .sort((a, b) => a.__time.getTime() - b.__time.getTime());
+
+    const kept = [];
+    for (const cur of ordered) {
+      if (kept.length === 0) {
+        kept.push(cur);
+        continue;
+      }
+
+      const prev = kept[kept.length - 1];
+      const diffMin = Math.abs(cur.__time.getTime() - prev.__time.getTime()) / (1000 * 60);
+
+      const sameType = cur.type && prev.type && cur.type === prev.type;
+      const minGap = sameType
+        ? (cur.type === 'sleep' ? minSameSleepMinutes : (cur.type === 'feed' ? minSameFeedMinutes : 0))
+        : minDiffTypeMinutes;
+
+      if (minGap > 0 && diffMin < minGap) {
+        const pPrev = _eventPriority(prev);
+        const pCur = _eventPriority(cur);
+        if (pCur > pPrev) {
+          kept[kept.length - 1] = cur;
+        } else if (pCur === pPrev && _eventStrength(cur) > _eventStrength(prev)) {
+          kept[kept.length - 1] = cur;
+        }
+        continue;
+      }
+
+      kept.push(cur);
+    }
+
+    return kept.map(({ __time, ...e }) => e);
+  };
+
   const _fallbackFeedIntervalHours = (ageInMonths) => {
     if (ageInMonths < 1) return 2;
     if (ageInMonths < 3) return 2.5;
     if (ageInMonths < 6) return 3;
     return 3.5;
+  };
+
+  const _buildIntervalScheduleForDay = (now, intervalHours) => {
+    const hours = Number(intervalHours);
+    if (!Number.isFinite(hours) || hours <= 0) return [];
+    const dayStart = new Date(now);
+    dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(now);
+    dayEnd.setHours(23, 59, 59, 999);
+    const intervalMs = hours * 60 * 60 * 1000;
+    const events = [];
+    let t = new Date(dayStart.getTime() + intervalMs);
+    while (t.getTime() <= dayEnd.getTime()) {
+      events.push({
+        type: 'feed',
+        time: new Date(t),
+        patternBased: false,
+        intervalBased: true,
+        source: 'interval-based (fallback)'
+      });
+      t = new Date(t.getTime() + intervalMs);
+    }
+    return events;
   };
 
   const formatTimeHmma = (date) => {
@@ -319,9 +440,12 @@ IMPORTANT:
       ? interval
       : _fallbackFeedIntervalHours(ageInMonths);
 
-    const baseSchedule = scheduleUtils.buildDailySchedule
+    let baseSchedule = scheduleUtils.buildDailySchedule
       ? scheduleUtils.buildDailySchedule(analysis || {}, resolvedInterval, ageInMonths, { now, config: mergedConfig })
       : [];
+    if (!Array.isArray(baseSchedule) || baseSchedule.length === 0) {
+      baseSchedule = _buildIntervalScheduleForDay(now, resolvedInterval);
+    }
     const adjustedSchedule = scheduleUtils.adjustScheduleForActualEvents
       ? scheduleUtils.adjustScheduleForActualEvents(
           baseSchedule,
@@ -379,6 +503,9 @@ IMPORTANT:
         ? scheduleUtils.buildDailySchedule(analysis || {}, resolvedInterval, ageInMonths, { now, config: mergedConfig })
         : [];
     }
+    if (!Array.isArray(baseSchedule) || baseSchedule.length === 0) {
+      baseSchedule = _buildIntervalScheduleForDay(now, resolvedInterval);
+    }
 
     const adjustedSchedule = scheduleUtils.adjustScheduleForActualEvents
       ? scheduleUtils.adjustScheduleForActualEvents(
@@ -435,7 +562,7 @@ IMPORTANT:
       }, RETRY_MS);
     };
 
-    const rebuildNow = async (reason) => {
+    const rebuildNow = async (reason, options = {}) => {
       const now = Date.now();
       if (state.inFlight) return state.inFlight;
       if (now - state.lastRun < MIN_INTERVAL_MS) return null;
@@ -446,6 +573,9 @@ IMPORTANT:
 
       state.inFlight = (async () => {
         try {
+          const targetDate = options?.date instanceof Date ? options.date : null;
+          const targetDateKey = typeof options?.dateKey === 'string' ? options.dateKey : null;
+          const targetNow = options?.now instanceof Date ? options.now : null;
           const [feedings, sleeps, kid, sleepSettings] = await Promise.all([
             firestoreStorage.getAllFeedings(),
             firestoreStorage.getAllSleepSessions(),
@@ -455,7 +585,8 @@ IMPORTANT:
           const ageInMonths = kid?.birthDate && window.TT?.shared?.calculateAgeInMonths
             ? window.TT.shared.calculateAgeInMonths(kid.birthDate)
             : 0;
-          const dateKey = getScheduleDateKey(new Date());
+          const resolvedNow = targetNow || new Date();
+          const dateKey = targetDateKey || (targetDate ? getScheduleDateKey(targetDate) : getScheduleDateKey(resolvedNow));
           return await window.TT.store.scheduleStore.rebuildAndPersist({
             feedings,
             sleepSessions: sleeps,
@@ -463,7 +594,8 @@ IMPORTANT:
             sleepSettings,
             kidId: firestoreStorage.currentKidId,
             dateKey,
-            persistAdjusted: true
+            persistAdjusted: true,
+            now: resolvedNow
           });
         } catch (e) {
           return null;
@@ -481,15 +613,26 @@ IMPORTANT:
       state.timer = setTimeout(() => rebuildNow(reason), delay);
     };
 
-    const scheduleMidnight = () => {
+    const scheduleNextDayPrebuild = () => {
       if (state.midnightTimer) clearTimeout(state.midnightTimer);
       const now = new Date();
       const next = new Date(now);
-      next.setHours(24, 0, 0, 0);
+      next.setHours(21, 0, 0, 0);
+      if (next.getTime() <= now.getTime()) {
+        next.setDate(next.getDate() + 1);
+      }
       const ms = Math.max(0, next.getTime() - now.getTime()) + 50;
       state.midnightTimer = setTimeout(() => {
-        queueRebuild('midnight', 0);
-        scheduleMidnight();
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const startOfTomorrow = new Date(tomorrow);
+        startOfTomorrow.setHours(0, 0, 0, 0);
+        rebuildNow('prebuild-next-day', {
+          date: tomorrow,
+          dateKey: getScheduleDateKey(tomorrow),
+          now: startOfTomorrow
+        });
+        scheduleNextDayPrebuild();
       }, ms);
     };
 
@@ -506,7 +649,7 @@ IMPORTANT:
     }
 
     queueRebuild('init', 0);
-    scheduleMidnight();
+    scheduleNextDayPrebuild();
   };
 
   window.TT.store.scheduleStore = {
@@ -545,11 +688,14 @@ IMPORTANT:
         ? (result.adjustedSchedule || result.baseSchedule)
         : result.baseSchedule;
       if (Array.isArray(scheduleToPersist)) {
-        writeProjectionSchedule(resolvedDateKey, scheduleToPersist);
+        const sanitizedSchedule = _enforceMinGaps(scheduleToPersist, result.config || {});
+        writeProjectionSchedule(resolvedDateKey, sanitizedSchedule);
       }
       return result;
     }
   };
+
+
 
   // Single-owner schedule rebuild controller
   initScheduleRebuildController();

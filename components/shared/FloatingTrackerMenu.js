@@ -132,6 +132,29 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
                   overflow: 'visible'
                 }
               },
+              React.createElement(
+                motion.button,
+                {
+                  key: 'center-close',
+                  onClick: handleClose,
+                  'aria-label': 'Close tracker menu',
+                  initial: { scale: 0.8, opacity: 0 },
+                  animate: { scale: 1, opacity: 1 },
+                  exit: { scale: 0.8, opacity: 0 },
+                  transition: { duration: 0.2, ease: 'easeOut' },
+                  style: {
+                    position: 'absolute',
+                    top: '-32px',
+                    left: '-32px',
+                    width: '64px',
+                    height: '64px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer'
+                  }
+                }
+              ),
               React.createElement(SplitButton, {
                 icon: BottleIcon,
                 label: 'Feed',
@@ -159,7 +182,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
         motion.button,
         {
           onClick: onClick,
-          initial: { scale: 1, rotate: 0 },
+          initial: { scale: 0.2, rotate: 180, opacity: 0 },
+          animate: { scale: 1, rotate: 0, opacity: 1 },
           exit: {
             scale: 0.2,
             rotate: 180,
@@ -282,7 +306,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
               alignItems: 'center',
               justifyContent: 'center',
               background: `linear-gradient(135deg, var(${gradientVar}) 0%, var(${gradientStrongVar}) 100%)`,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.4)'
+              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
             }
           },
           IconComponent && React.createElement(
@@ -313,7 +337,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
               color: 'var(--tt-text-primary, #fff)',
               fontSize: '14px',
               fontWeight: '600',
-              textShadow: '0 2px 8px rgba(0,0,0,0.6)',
+              textShadow: '0 2px 8px rgba(0,0,0,0.15)',
               whiteSpace: 'nowrap'
             }
           },

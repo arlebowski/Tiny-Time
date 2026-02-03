@@ -1994,6 +1994,7 @@ const TrackerCard = ({
   const HeaderIcon = mode === 'feeding' 
     ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) || null;
+  const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
 
   // v3 "main" icons - use BottleV2 and MoonV2 for both variants
@@ -2076,9 +2077,10 @@ const TrackerCard = ({
               style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
             }, mode === 'feeding' ? 'Feed' : 'Sleep'))
       : null;
-    return React.createElement(
-    CardWrapper,
-    { 
+    const CardComp = TTCard || CardWrapper;
+    const cardProps = TTCard ? {
+      as: CardWrapper,
+      variant: 'tracker',
       className: cardClassName,
       style: {
         backgroundColor: "var(--tt-tracker-card-bg)",
@@ -2088,7 +2090,21 @@ const TrackerCard = ({
       },
       onClick: handleCardTap,
       ...cardMotionProps
-    },
+    } : {
+      className: cardClassName,
+      style: {
+        backgroundColor: "var(--tt-tracker-card-bg)",
+        borderColor: "var(--tt-card-border)",
+        cursor: 'pointer',
+        transition: isV4CardMotion ? 'none' : 'all 0.3s ease-out'
+      },
+      onClick: handleCardTap,
+      ...cardMotionProps
+    };
+
+    return React.createElement(
+    CardComp,
+    cardProps,
     showHeaderRow ? (
       TTCardHeader
         ? React.createElement(TTCardHeader, {
@@ -2777,7 +2793,7 @@ const TrackerCard = ({
         : "flex items-baseline gap-1 mb-[13px]",  // Consistent alignment for both feeding and sleep
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
-      bigNumberValueClassName: "text-[39.6px] leading-none font-bold",
+      bigNumberValueClassName: "text-[40px] leading-none font-bold",
       bigNumberTargetClassName: isVariant1 
         ? "relative -top-[2px] text-[17.6px] leading-none font-normal"  // variant 1: consistent for both feeding and sleep
         : "relative -top-[1px] text-[17.6px] leading-none font-normal",  // variant 2: consistent for both feeding and sleep
@@ -3145,7 +3161,7 @@ const TrackerCard = ({
         : "flex items-baseline gap-1 mb-[13px]",  // Consistent alignment for both feeding and sleep
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
-      bigNumberValueClassName: "text-[39.6px] leading-none font-bold",
+      bigNumberValueClassName: isV4Sizing ? "text-[40px] leading-none font-bold" : "text-[39.6px] leading-none font-bold",
       bigNumberTargetClassName: v3TargetClassName,
       bigNumberTargetColor: 'var(--tt-text-tertiary)',  // v3: match tertiary text color
       bigNumberTargetVariant: 'unit',  // v3: show just "oz" or "hrs" next to big number

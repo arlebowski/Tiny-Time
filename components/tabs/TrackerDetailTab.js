@@ -68,6 +68,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   };
 
   const scheduleStorageKey = 'tt_daily_projection_schedule_v1';
+  const getScheduleStorageKeyForDate = (dateKey) => `${scheduleStorageKey}:${dateKey}`;
   const getScheduleDateKey = (date = new Date()) => {
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
@@ -116,7 +117,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       return;
     }
     try {
-      const raw = localStorage.getItem(scheduleStorageKey);
+      const perDayRaw = localStorage.getItem(getScheduleStorageKeyForDate(dateKey));
+      const raw = perDayRaw || localStorage.getItem(scheduleStorageKey);
       if (!raw) {
         projectedScheduleRef.current = null;
         setScheduledTimelineItems([]);
@@ -885,7 +887,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   }, [summaryLayoutMode]);
 
   return React.createElement('div', {
-    className: "pt-4 px-4 flex flex-col h-full",
+    className: "pt-4 flex flex-col h-full",
     style: { minHeight: 0 }
   },
     React.createElement('div', { className: "flex-none space-y-4" },

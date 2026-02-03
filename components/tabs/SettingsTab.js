@@ -630,7 +630,7 @@ const SettingsTab = ({ user, kidId }) => {
         className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-50 transition-colors"
       },
       React.createElement('div', { className: "flex-1" },
-        React.createElement('div', { className: "text-xs text-gray-500 mb-1" }, label),
+        React.createElement('div', { className: "tt-card-label" }, label),
         React.createElement('div', {
           className: showPlaceholder 
             ? "text-base font-semibold text-gray-400" 
@@ -757,11 +757,11 @@ const SettingsTab = ({ user, kidId }) => {
 
     pickerContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' },
     label: {
-      fontSize: '14px',
-      fontWeight: '600',
+      fontSize: '12px',
+      lineHeight: '16px',
+      fontWeight: '400',
       color: 'var(--tt-text-secondary)',
-      textTransform: 'uppercase',
-      letterSpacing: '0.5px'
+      marginBottom: '4px'
     },
     picker: {
       position: 'relative',
@@ -1500,7 +1500,7 @@ const SettingsTab = ({ user, kidId }) => {
       // UI Version Toggle (single source of truth for v1/v2/v3)
       React.createElement('div', { className: "mb-4" },
         React.createElement('label', { 
-          className: "block text-sm font-medium text-gray-700 mb-2" 
+          className: "tt-card-label" 
         }, 'UI Version'),
         window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
           value: uiVersion,
@@ -1532,7 +1532,7 @@ const SettingsTab = ({ user, kidId }) => {
       // Wheel Pickers Toggle (controls feature flag)
       React.createElement('div', { className: "mb-4" },
         React.createElement('label', { 
-          className: "block text-sm font-medium text-gray-700 mb-2" 
+          className: "tt-card-label" 
         }, 'Wheel Pickers in Trays'),
         window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
           value: useWheelPickers ? 'on' : 'off',
@@ -1555,7 +1555,7 @@ const SettingsTab = ({ user, kidId }) => {
       // New Input Flow Toggle (v4 only)
       React.createElement('div', { className: "mb-4" },
         React.createElement('label', {
-          className: "block text-sm font-medium text-gray-700 mb-2"
+          className: "tt-card-label"
         }, 'New Input Flow (v4)'),
         window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
           value: newInputFlow ? 'on' : 'off',
@@ -2512,7 +2512,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Default'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Default'),
                   React.createElement('input', {
                     type: "text",
                     placeholder: "Enter text",
@@ -2520,7 +2520,7 @@ const SettingsTab = ({ user, kidId }) => {
                   })
                 ),
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Focused'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Focused'),
                   React.createElement('input', {
                     type: "text",
                     value: "Sample text",
@@ -2528,7 +2528,7 @@ const SettingsTab = ({ user, kidId }) => {
                   })
                 ),
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Error'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Error'),
                   React.createElement('input', {
                     type: "text",
                     value: "Invalid input",
@@ -2536,7 +2536,7 @@ const SettingsTab = ({ user, kidId }) => {
                   })
                 ),
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Disabled'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Disabled'),
                   React.createElement('input', {
                     type: "text",
                     value: "Disabled",
@@ -2555,7 +2555,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Ounces'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Ounces'),
                   React.createElement('div', { className: "relative" },
                     React.createElement('input', {
                       type: "number",
@@ -2568,7 +2568,7 @@ const SettingsTab = ({ user, kidId }) => {
                   )
                 ),
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Weight'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Weight'),
                   React.createElement('div', { className: "relative" },
                     React.createElement('input', {
                       type: "number",
@@ -2591,7 +2591,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Email'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Email'),
                   React.createElement('input', {
                     type: "email",
                     placeholder: "email@example.com",
@@ -2600,7 +2600,7 @@ const SettingsTab = ({ user, kidId }) => {
                   })
                 ),
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Password'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Password'),
                   React.createElement('input', {
                     type: "password",
                     placeholder: "Password",
@@ -2619,7 +2619,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "space-y-4" },
                 React.createElement('div', null,
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Time'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Time'),
                   React.createElement('input', {
                     type: "time",
                     defaultValue: "14:30",
@@ -2627,7 +2627,7 @@ const SettingsTab = ({ user, kidId }) => {
                   })
                 ),
                 React.createElement('div', { className: "min-w-0" },
-                  React.createElement('label', { className: "block text-sm font-medium text-gray-700 mb-2" }, 'Birth Date'),
+                  React.createElement('label', { className: "tt-card-label" }, 'Birth Date'),
                   React.createElement('input', {
                     type: "date",
                     defaultValue: "2024-01-15",
@@ -2650,7 +2650,7 @@ const SettingsTab = ({ user, kidId }) => {
                   onClick: () => {}
                 },
                   React.createElement('div', { className: 'flex items-center' },
-                    React.createElement('div', { className: 'text-xs font-medium text-gray-500' }, 'Target multiplier (oz/lb)'),
+                    React.createElement('div', { className: 'tt-card-label' }, 'Target multiplier (oz/lb)'),
                     React.createElement('div', {
                       className: 'ml-2 w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] flex items-center justify-center cursor-help',
                       title: 'Info tooltip'
@@ -2666,7 +2666,7 @@ const SettingsTab = ({ user, kidId }) => {
                   className: 'rounded-xl border border-gray-200 bg-gray-50 px-4 py-3'
                 },
                   React.createElement('div', { className: 'flex items-center' },
-                    React.createElement('div', { className: 'text-xs font-medium text-gray-500' }, 'Target multiplier (oz/lb)'),
+                    React.createElement('div', { className: 'tt-card-label' }, 'Target multiplier (oz/lb)'),
                     React.createElement('div', {
                       className: 'ml-2 w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] flex items-center justify-center cursor-help',
                       title: 'Info tooltip'
@@ -3791,7 +3791,7 @@ const SettingsTab = ({ user, kidId }) => {
             React.createElement(TTCard, { variant: "default", className: "rounded-xl" },
               React.createElement('div', { className: "flex items-center gap-4" },
                 React.createElement('div', { className: "flex items-center gap-2" },
-                  React.createElement('span', { className: "text-xs font-medium text-gray-500" }, 'Target multiplier (oz/lb)'),
+                  React.createElement('span', { className: "tt-card-label" }, 'Target multiplier (oz/lb)'),
                   React.createElement('div', {
                     className: "w-4 h-4 rounded-full bg-gray-400 text-white text-[10px] flex items-center justify-center cursor-help",
                     title: 'Info tooltip'

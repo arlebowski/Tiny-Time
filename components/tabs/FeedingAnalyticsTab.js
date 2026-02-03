@@ -202,7 +202,27 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const formatInterval = (minutes) => {
     const hours = Math.floor(Math.abs(minutes) / 60);
     const mins = Math.round(Math.abs(minutes) % 60);
-    return hours === 0 ? `${mins}m` : `${hours}h ${mins}m`;
+    const unitClass = 'text-[20px] font-normal leading-none ml-1';
+    const unitStyle = { color: 'var(--tt-text-tertiary)' };
+
+    if (hours === 0) {
+      return React.createElement(
+        React.Fragment,
+        null,
+        `${mins}`,
+        React.createElement('span', { className: unitClass, style: unitStyle }, 'm')
+      );
+    }
+
+    return React.createElement(
+      React.Fragment,
+      null,
+      `${hours}`,
+      React.createElement('span', { className: unitClass, style: unitStyle }, 'h'),
+      ' ',
+      `${mins}`,
+      React.createElement('span', { className: unitClass, style: unitStyle }, 'm')
+    );
   };
 
   if (loading) {
@@ -263,7 +283,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           'span',
           {
-            className: 'text-[17.6px] font-semibold leading-6',
+            className: 'text-[15px] font-semibold leading-6',
             style: { color: 'var(--tt-feed)' }
           },
           'Feeding'
@@ -311,25 +331,25 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             'div',
             {
               key: stat.label,
-              className: 'rounded-2xl shadow-sm p-6 flex flex-col',
+              className: 'rounded-2xl shadow-sm p-5 flex flex-col gap-[18px]',
               style: { backgroundColor: 'var(--tt-card-bg)' }
             },
             React.createElement('div', { 
-              className: 'text-[15.4px] font-medium mb-2',
+              className: 'text-[15px] font-semibold',
               style: { color: 'var(--tt-text-secondary)' }
             }, stat.label),
             React.createElement('div', { 
-              className: 'text-2xl font-bold',
+              className: 'text-[30px] font-bold leading-none -mb-[8px]',
               style: { color: 'var(--tt-feed)' }
             }, 
               stat.value,
               React.createElement('span', { 
-                className: 'text-[15.4px] font-normal ml-1',
+                className: 'text-[20px] font-normal leading-none ml-1',
                 style: { color: 'var(--tt-text-tertiary)' }
               }, 'oz')
             ),
             React.createElement('div', { 
-              className: 'text-xs mt-1',
+              className: 'text-[12px] font-normal leading-none',
               style: { color: 'var(--tt-text-tertiary)' }
             }, stats.labelText)
           )
@@ -343,38 +363,38 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           'div',
           { 
-            className: 'rounded-2xl shadow-sm p-6 flex flex-col',
+            className: 'rounded-2xl shadow-sm p-5 flex flex-col gap-[18px]',
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement('div', { 
-            className: 'text-[15.4px] font-medium mb-2',
+            className: 'text-[15px] font-semibold',
             style: { color: 'var(--tt-text-secondary)' }
           }, 'Feeds / Day'),
           React.createElement('div', { 
-            className: 'text-2xl font-bold',
+            className: 'text-[30px] font-bold leading-none -mb-[8px]',
             style: { color: 'var(--tt-feed)' }
           }, stats.avgFeedingsPerDay.toFixed(1)),
           React.createElement('div', { 
-            className: 'text-xs mt-1',
+            className: 'text-[12px] font-normal leading-none',
             style: { color: 'var(--tt-text-tertiary)' }
           }, stats.labelText)
         ),
         React.createElement(
           'div',
           { 
-            className: 'rounded-2xl shadow-sm p-6 flex flex-col',
+            className: 'rounded-2xl shadow-sm p-5 flex flex-col gap-[18px]',
             style: { backgroundColor: 'var(--tt-card-bg)' }
           },
           React.createElement('div', { 
-            className: 'text-[15.4px] font-medium mb-2',
+            className: 'text-[15px] font-semibold',
             style: { color: 'var(--tt-text-secondary)' }
           }, 'Interval'),
           React.createElement('div', { 
-            className: 'text-2xl font-bold',
+            className: 'text-[30px] font-bold leading-none -mb-[8px]',
             style: { color: 'var(--tt-feed)' }
           }, formatInterval(stats.avgInterval)),
           React.createElement('div', { 
-            className: 'text-xs mt-1',
+            className: 'text-[12px] font-normal leading-none',
             style: { color: 'var(--tt-text-tertiary)' }
           }, stats.labelText)
         )
@@ -384,11 +404,11 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       React.createElement(
         'div',
         { 
-          className: 'rounded-2xl shadow-sm p-6 mt-4',
+          className: 'rounded-2xl shadow-sm p-5 mt-4',
           style: { backgroundColor: 'var(--tt-card-bg)' }
         },
         React.createElement('div', { 
-          className: 'text-sm font-medium mb-2.5 text-center',
+          className: 'text-[15px] font-semibold mb-1.5',
           style: { color: 'var(--tt-text-secondary)' }
         }, 'Volume History'),
         stats.chartData.length > 0
@@ -399,7 +419,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
                 'div',
                 {
                   ref: chartScrollRef,
-                  className: 'overflow-x-auto overflow-y-hidden -mx-6 px-6',
+                  className: 'overflow-x-auto overflow-y-hidden -mx-5 px-5',
                   style: { scrollBehavior: 'smooth' }
                 },
                 React.createElement(
