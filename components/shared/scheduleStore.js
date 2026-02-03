@@ -507,7 +507,7 @@ IMPORTANT:
       }, RETRY_MS);
     };
 
-    const rebuildNow = async (reason) => {
+    const rebuildNow = async (reason, options = {}) => {
       const now = Date.now();
       if (state.inFlight) return state.inFlight;
       if (now - state.lastRun < MIN_INTERVAL_MS) return null;
@@ -518,6 +518,9 @@ IMPORTANT:
 
       state.inFlight = (async () => {
         try {
+          const targetDate = options?.date instanceof Date ? options.date : null;
+          const targetDateKey = typeof options?.dateKey === 'string' ? options.dateKey : null;
+          const targetNow = options?.now instanceof Date ? options.now : null;
           const [feedings, sleeps, kid, sleepSettings] = await Promise.all([
             firestoreStorage.getAllFeedings(),
             firestoreStorage.getAllSleepSessions(),
@@ -527,7 +530,8 @@ IMPORTANT:
           const ageInMonths = kid?.birthDate && window.TT?.shared?.calculateAgeInMonths
             ? window.TT.shared.calculateAgeInMonths(kid.birthDate)
             : 0;
-          const dateKey = getScheduleDateKey(new Date());
+          const resolvedNow = targetNow || new Date();
+          const dateKey = targetDateKey || (targetDate ? getScheduleDateKey(targetDate) : getScheduleDateKey(resolvedNow));
           return await window.TT.store.scheduleStore.rebuildAndPersist({
             feedings,
             sleepSessions: sleeps,
@@ -535,7 +539,8 @@ IMPORTANT:
             sleepSettings,
             kidId: firestoreStorage.currentKidId,
             dateKey,
-            persistAdjusted: true
+            persistAdjusted: true,
+            now: resolvedNow
           });
         } catch (e) {
           return null;
@@ -553,15 +558,26 @@ IMPORTANT:
       state.timer = setTimeout(() => rebuildNow(reason), delay);
     };
 
-    const scheduleMidnight = () => {
+    const scheduleNextDayPrebuild = () => {
       if (state.midnightTimer) clearTimeout(state.midnightTimer);
       const now = new Date();
       const next = new Date(now);
-      next.setHours(24, 0, 0, 0);
+      next.setHours(21, 0, 0, 0);
+      if (next.getTime() <= now.getTime()) {
+        next.setDate(next.getDate() + 1);
+      }
       const ms = Math.max(0, next.getTime() - now.getTime()) + 50;
       state.midnightTimer = setTimeout(() => {
-        queueRebuild('midnight', 0);
-        scheduleMidnight();
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const startOfTomorrow = new Date(tomorrow);
+        startOfTomorrow.setHours(0, 0, 0, 0);
+        rebuildNow('prebuild-next-day', {
+          date: tomorrow,
+          dateKey: getScheduleDateKey(tomorrow),
+          now: startOfTomorrow
+        });
+        scheduleNextDayPrebuild();
       }, ms);
     };
 
@@ -578,7 +594,7 @@ IMPORTANT:
     }
 
     queueRebuild('init', 0);
-    scheduleMidnight();
+    scheduleNextDayPrebuild();
   };
 
   window.TT.store.scheduleStore = {

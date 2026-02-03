@@ -9,6 +9,7 @@ const ScheduleTimeline = ({
   useSchedBot = false,
   scheduleDate = null,
   hideCompletedScheduled = true,
+  showProjectedOnly = true,
   hideLoggedItems = false,
   disableExpanded = false,
   allowItemExpand = true,
@@ -67,11 +68,16 @@ const ScheduleTimeline = ({
       const schedBot = window.TT?.store?.schedBot;
       if (!schedBot || typeof schedBot.getTimelineCards !== 'function') return [];
       const cards = schedBot.getTimelineCards(scheduleDateValue || new Date()) || [];
-      return hideCompletedScheduled ? cards.filter((item) => !item?.isCompleted) : cards;
+      const filtered = hideCompletedScheduled ? cards.filter((item) => !item?.isCompleted) : cards;
+      return showProjectedOnly
+        ? filtered.filter((item) => !item?.isCompleted && !item?.matched && !item?.actual)
+        : filtered;
     }
-    if (Array.isArray(initialScheduledItems)) return initialScheduledItems;
-    return defaultScheduledItems;
-  }, [useSchedBot, scheduleDateValue, hideCompletedScheduled, initialScheduledItems]);
+    const base = Array.isArray(initialScheduledItems) ? initialScheduledItems : defaultScheduledItems;
+    return showProjectedOnly
+      ? base.filter((item) => !item?.isCompleted && !item?.matched && !item?.actual)
+      : base;
+  }, [useSchedBot, scheduleDateValue, hideCompletedScheduled, showProjectedOnly, initialScheduledItems]);
 
   const resolvedScheduledItems = resolveScheduledItems();
 
