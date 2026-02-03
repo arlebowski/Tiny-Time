@@ -6,6 +6,9 @@ const __ttScheduleTimelineCn = (...classes) => classes.filter(Boolean).join(' ')
 const ScheduleTimeline = ({
   initialLoggedItems = null,
   initialScheduledItems = null,
+  useSchedBot = false,
+  scheduleDate = null,
+  hideCompletedScheduled = true,
   hideLoggedItems = false,
   disableExpanded = false,
   allowItemExpand = true,
@@ -54,9 +57,23 @@ const ScheduleTimeline = ({
     { id: 'sched-5', time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep', amount: 2, unit: 'hrs' }
   ];
 
-  const resolvedScheduledItems = Array.isArray(initialScheduledItems)
-    ? initialScheduledItems
-    : defaultScheduledItems;
+  const scheduleDateValue = React.useMemo(
+    () => (scheduleDate instanceof Date ? scheduleDate : null),
+    [scheduleDate]
+  );
+
+  const resolveScheduledItems = React.useCallback(() => {
+    if (useSchedBot) {
+      const schedBot = window.TT?.store?.schedBot;
+      if (!schedBot || typeof schedBot.getTimelineCards !== 'function') return [];
+      const cards = schedBot.getTimelineCards(scheduleDateValue || new Date()) || [];
+      return hideCompletedScheduled ? cards.filter((item) => !item?.isCompleted) : cards;
+    }
+    if (Array.isArray(initialScheduledItems)) return initialScheduledItems;
+    return defaultScheduledItems;
+  }, [useSchedBot, scheduleDateValue, hideCompletedScheduled, initialScheduledItems]);
+
+  const resolvedScheduledItems = resolveScheduledItems();
 
   // Start with just scheduled items - production logged data comes via prop
   const [cards, setCards] = React.useState(() => {
@@ -69,19 +86,46 @@ const ScheduleTimeline = ({
 
   // Update cards when initialLoggedItems changes (e.g., date change)
   React.useEffect(() => {
-    const scheduledItems = Array.isArray(initialScheduledItems)
-      ? initialScheduledItems
-      : defaultScheduledItems;
+    const scheduledItems = resolveScheduledItems();
     const loggedItems = Array.isArray(initialLoggedItems) ? initialLoggedItems : null;
 
     if (hideLoggedItems) {
       setCards([...scheduledItems]);
       return;
     }
-    if (loggedItems || Array.isArray(initialScheduledItems)) {
+    setCards([...(loggedItems || []), ...scheduledItems]);
+  }, [initialLoggedItems, hideLoggedItems, resolveScheduledItems]);
+
+  React.useEffect(() => {
+    if (!useSchedBot) return undefined;
+    const schedBot = window.TT?.store?.schedBot;
+    if (!schedBot || typeof schedBot.subscribe !== 'function') return undefined;
+
+    const scheduleDateKey = schedBot.getScheduleDateKey
+      ? schedBot.getScheduleDateKey(scheduleDateValue || new Date())
+      : null;
+
+    const updateFromBot = () => {
+      const scheduledItems = resolveScheduledItems();
+      const loggedItems = Array.isArray(initialLoggedItems) ? initialLoggedItems : null;
+      if (hideLoggedItems) {
+        setCards([...scheduledItems]);
+        return;
+      }
       setCards([...(loggedItems || []), ...scheduledItems]);
-    }
-  }, [initialLoggedItems, initialScheduledItems, hideLoggedItems]);
+    };
+
+    updateFromBot();
+
+    const unsubscribe = schedBot.subscribe((payload) => {
+      if (payload?.dateKey && scheduleDateKey && payload.dateKey !== scheduleDateKey) return;
+      updateFromBot();
+    });
+
+    return () => {
+      if (typeof unsubscribe === 'function') unsubscribe();
+    };
+  }, [useSchedBot, scheduleDateValue, hideLoggedItems, initialLoggedItems, resolveScheduledItems]);
   const [draggingCard, setDraggingCard] = React.useState(null);
   const [holdingCard, setHoldingCard] = React.useState(null);
   const dragTimer = React.useRef(null);

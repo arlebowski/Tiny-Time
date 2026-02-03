@@ -426,7 +426,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           "div",
           { 
-            className: "text-sm font-medium mb-2.5 text-center",
+            className: "text-[18px] font-semibold mb-2.5",
             style: { color: 'var(--tt-text-secondary)' }
           },
           "Sleep history"

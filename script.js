@@ -4703,35 +4703,8 @@ window.TT.api.sendDailyCheckIn = async function() {
     
     console.log('Stats:', stats);
     
-    // Generate message with Gemini
-    const prompt = `You are Tiny Tracker, a friendly baby tracking assistant. Generate a warm daily check-in message.
-
-Baby's name: ${babyName}
-Yesterday: ${stats.totalOz}oz over ${stats.feedCount} feeds
-
-Guidelines:
-- Be warm and reassuring
-- Use baby's name naturally (once)
-- Share ONE specific insight
-- End with a thoughtful question
-- Keep it 2-3 sentences
-- Be conversational
-
-Generate the message:`;
-
-    const geminiResp = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=AIzaSyAMQF8q_cQ3QK2BsVJvX_d7x_KVEz8KnKU`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
-      }
-    );
-    
-    const geminiData = await geminiResp.json();
-    const message = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || 
+    // Gemini call disabled: use deterministic fallback message instead.
+    const message =
       `${babyName} had ${stats.totalOz}oz yesterday over ${stats.feedCount} feeds. You're doing great! How are things going?`;
     
     console.log('Generated message:', message);
@@ -4777,7 +4750,6 @@ const checkDailyCheckIn = async () => {
       await window.TT.api.sendDailyCheckIn();
       localStorage.setItem('tt_last_checkin', today);
     } else {
-      console.log('✅ Daily check-in already sent today.');
     }
   } catch (error) {
     console.error('Error in daily check-in:', error);
@@ -4787,8 +4759,8 @@ const checkDailyCheckIn = async () => {
 // Run check-in after user is authenticated
 window.firebase.auth().onAuthStateChanged((user) => {
   if (user) {
-    // Wait 5 seconds after login, then check
-    setTimeout(checkDailyCheckIn, 5000);
+    // Disabled for now: stop auto daily check-in after login.
+    // setTimeout(checkDailyCheckIn, 5000);
   }
 });
 

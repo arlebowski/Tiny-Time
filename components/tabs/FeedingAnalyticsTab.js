@@ -408,7 +408,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           style: { backgroundColor: 'var(--tt-card-bg)' }
         },
         React.createElement('div', { 
-          className: 'text-sm font-medium mb-2.5 text-center',
+          className: 'text-[18px] font-semibold mb-2.5',
           style: { color: 'var(--tt-text-secondary)' }
         }, 'Volume History'),
         stats.chartData.length > 0

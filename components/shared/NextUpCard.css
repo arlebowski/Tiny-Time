@@ -53,18 +53,6 @@
   white-space: nowrap;
 }
 
-.tt-next-up-card__line {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-}
-
-.tt-next-up-card__alarm-icon {
-  width: 1em;
-  height: 1em;
-  flex: 0 0 auto;
-}
-
 .tt-next-up-card__subtext {
   font-size: 0.875rem;
   line-height: 1.2;

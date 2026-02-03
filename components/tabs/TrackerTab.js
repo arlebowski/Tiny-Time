@@ -384,8 +384,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   
   // Schedule projection uses shared scheduleStore (AI handled there).
 
-  const scheduleStore = (typeof window !== 'undefined' && window.TT && window.TT.store && window.TT.store.scheduleStore)
-    ? window.TT.store.scheduleStore
+  const scheduleStore = (typeof window !== 'undefined' && window.TT && window.TT.store && (window.TT.store.schedBot || window.TT.store.scheduleStore))
+    ? (window.TT.store.schedBot || window.TT.store.scheduleStore)
     : null;
   const getScheduleDateKey = (date = new Date()) => {
     if (scheduleStore && typeof scheduleStore.getScheduleDateKey === 'function') {
