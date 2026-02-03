@@ -1994,6 +1994,7 @@ const TrackerCard = ({
   const HeaderIcon = mode === 'feeding' 
     ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) || null
     : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) || null;
+  const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
 
   // v3 "main" icons - use BottleV2 and MoonV2 for both variants
@@ -2076,9 +2077,10 @@ const TrackerCard = ({
               style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
             }, mode === 'feeding' ? 'Feed' : 'Sleep'))
       : null;
-    return React.createElement(
-    CardWrapper,
-    { 
+    const CardComp = TTCard || CardWrapper;
+    const cardProps = TTCard ? {
+      as: CardWrapper,
+      variant: 'tracker',
       className: cardClassName,
       style: {
         backgroundColor: "var(--tt-tracker-card-bg)",
@@ -2088,7 +2090,21 @@ const TrackerCard = ({
       },
       onClick: handleCardTap,
       ...cardMotionProps
-    },
+    } : {
+      className: cardClassName,
+      style: {
+        backgroundColor: "var(--tt-tracker-card-bg)",
+        borderColor: "var(--tt-card-border)",
+        cursor: 'pointer',
+        transition: isV4CardMotion ? 'none' : 'all 0.3s ease-out'
+      },
+      onClick: handleCardTap,
+      ...cardMotionProps
+    };
+
+    return React.createElement(
+    CardComp,
+    cardProps,
     showHeaderRow ? (
       TTCardHeader
         ? React.createElement(TTCardHeader, {

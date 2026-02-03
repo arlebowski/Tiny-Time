@@ -573,6 +573,7 @@
           // Add the matched scheduled event to adjustedSchedule, marking it as actual/completed
           adjustedSchedule.push({
             ...scheduledEvent,
+            matched: true,
             actual: true,
             isCompleted: true
           });

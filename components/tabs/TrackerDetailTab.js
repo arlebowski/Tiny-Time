@@ -885,7 +885,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   }, [summaryLayoutMode]);
 
   return React.createElement('div', {
-    className: "pt-4 px-4 flex flex-col h-full",
+    className: "pt-4 flex flex-col h-full",
     style: { minHeight: 0 }
   },
     React.createElement('div', { className: "flex-none space-y-4" },

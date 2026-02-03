@@ -103,8 +103,8 @@ const __ttEnsureZzzStyles = () => {
   const scheduledLabelTimeDate = Number.isFinite(scheduledTimeMs) ? new Date(scheduledTimeMs) : null;
   const scheduledLabelTime = card.time || '';
   const scheduledLabel = card.type === 'feed'
-    ? `Feed at ${scheduledLabelTime}`
-    : `${getSleepLabel(scheduledLabelTimeDate)} at ${scheduledLabelTime}`;
+    ? 'Feed'
+    : getSleepLabel(scheduledLabelTimeDate);
   const [activeElapsedMs, setActiveElapsedMs] = React.useState(() => {
     if (isActiveSleep && typeof card.startTime === 'number') {
       return Math.max(0, Date.now() - card.startTime);
@@ -316,17 +316,17 @@ const __ttEnsureZzzStyles = () => {
               React.createElement('path', { d: "M208,56H180.28L166.65,35.56A8,8,0,0,0,160,32H96a8,8,0,0,0-6.65,3.56L75.71,56H48A24,24,0,0,0,24,80V192a24,24,0,0,0,24,24H208a24,24,0,0,0,24-24V80A24,24,0,0,0,208,56Zm8,136a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V80a8,8,0,0,1,8-8H80a8,8,0,0,0,6.66-3.56L100.28,48h55.43l13.63,20.44A8,8,0,0,0,176,72h32a8,8,0,0,1,8,8ZM128,88a44,44,0,1,0,44,44A44.05,44.05,0,0,0,128,88Zm0,72a28,28,0,1,1,28-28A28,28,0,0,1,128,160Z" })
             )
           ),
-          !isScheduled && !isActiveSleep && React.createElement('span', {
+          !isActiveSleep && React.createElement('span', {
             className: "text-xs",
-            style: isLogged
+            style: (isLogged || isScheduled)
               ? { color: 'var(--tt-text-secondary)' }
               : { color: 'var(--tt-text-tertiary)' }
           },
             // For sleep items, show "[start] – [end]" format
             // For cross-day sleeps, card.time already has "YD" prefix
             card.type === 'sleep' && resolvedEndTime
-              ? `${isJustNow ? 'Just now' : card.time} – ${resolvedEndTime}`
-              : (isJustNow ? 'Just now' : card.time)
+              ? `${isLogged && isJustNow ? 'Just now' : card.time} – ${resolvedEndTime}`
+              : (isLogged && isJustNow ? 'Just now' : card.time)
           ),
           showChevron && ChevronIcon
             ? (__ttTimelineItemMotion

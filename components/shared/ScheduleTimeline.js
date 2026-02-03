@@ -212,10 +212,6 @@ const ScheduleTimeline = ({
       position: (i / 24) * 100
     };
   });
-  const halfHours = Array.from({ length: 24 }, (_, i) => ({
-    position: ((i + 0.5) / 24) * 100
-  }));
-  const lineLeftOffset = 'calc(4rem + 6px)';
 
   const getCardPosition = (card) => {
     const totalMinutes = card.hour * 60 + card.minute;
@@ -268,13 +264,13 @@ const ScheduleTimeline = ({
     const cardTop = needsExpandedOffset ? cardTopBase + expandedContentHeight : cardTopBase;
     touchOffset.current = currentY - cardTop;
     
-    dragTimer.current = setTimeout(() => {
-      setDraggingCard(card.id);
-      setDragY(cardTop); 
-      setHoldingCard(null);
-    }, 500);
-
-    setHoldingCard(card.id);
+    if (dragTimer.current) {
+      clearTimeout(dragTimer.current);
+      dragTimer.current = null;
+    }
+    setDraggingCard(card.id);
+    setDragY(cardTop);
+    setHoldingCard(null);
   };
 
   const handleDragMove = (e) => {
@@ -302,14 +298,28 @@ const ScheduleTimeline = ({
     const maxTop = Math.max(0, timelineRect.height - 1);
     const clampedTop = Math.max(0, Math.min(maxTop, newCardTop));
     
-    setDragY(clampedTop);
-    
     const percentage = Math.max(0, Math.min(100, (clampedTop / 1400) * 100));
     const newTime = positionToTime(percentage);
+    const rawMinutes = newTime.hour * 60 + newTime.minute;
+    const snappedMinutes = Math.min(23 * 60 + 55, Math.round(rawMinutes / 15) * 15);
+    const snappedHour = Math.floor(snappedMinutes / 60) % 24;
+    const snappedMinute = snappedMinutes % 60;
+    const snappedPeriod = snappedHour >= 12 ? 'PM' : 'AM';
+    const snappedDisplayHour = snappedHour === 0 ? 12 : snappedHour > 12 ? snappedHour - 12 : snappedHour;
+    const snappedPercent = (snappedMinutes / (24 * 60)) * 100;
+    const snappedTop = (snappedPercent / 100) * 1400;
+    const snapStrength = 0.7;
+    const blendedTop = clampedTop + (snappedTop - clampedTop) * snapStrength;
+    setDragY(blendedTop);
+    const snappedTime = {
+      hour: snappedHour,
+      minute: snappedMinute,
+      time: `${snappedDisplayHour}:${snappedMinute.toString().padStart(2, '0')} ${snappedPeriod}`
+    };
     
     window.requestAnimationFrame(() => {
-      setCards(prevCards => prevCards.map(card => 
-        card.id === draggingCard ? { ...card, ...newTime } : card
+      setCards(prevCards => prevCards.map(card =>
+        card.id === draggingCard ? { ...card, ...snappedTime } : card
       ));
     });
   };
@@ -977,13 +987,63 @@ const ScheduleTimeline = ({
     React.createElement('div', { className: "relative", style: { backgroundColor: 'var(--tt-app-bg)' } },
       React.createElement('div', { className: "w-full select-none" },
         React.createElement('div', { className: "sticky top-0 z-[100] backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all", style: { backgroundColor: 'var(--tt-app-bg)' } },
-          null,
+          React.createElement(
+            (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
+            {
+              value: filter,
+              options: [
+                { label: 'All', value: 'all' },
+                { label: 'Feed', value: 'feed' },
+                { label: 'Sleep', value: 'sleep' }
+              ],
+              onChange: handleFilterChange,
+              variant: 'body',
+              size: 'medium',
+              fullWidth: false
+            }
+          ),
           React.createElement('div', { className: "flex items-center gap-2" },
+            React.createElement('button', {
+              onClick: handleToggleSort,
+              className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
+              style: {
+                backgroundColor: 'var(--tt-subtle-surface)',
+                borderColor: 'var(--tt-card-border)',
+                color: 'var(--tt-text-primary)'
+              },
+              'aria-label': sortOrder === 'desc' ? 'Sort chronological' : 'Sort reverse chronological'
+            },
+              sortOrder === 'desc'
+                ? React.createElement('svg', {
+                    xmlns: "http://www.w3.org/2000/svg",
+                    width: "32",
+                    height: "32",
+                    fill: "currentColor",
+                    viewBox: "0 0 256 256",
+                    className: "w-5 h-5"
+                  },
+                    React.createElement('path', {
+                      d: "M40,128a8,8,0,0,1,8-8h72a8,8,0,0,1,0,16H48A8,8,0,0,1,40,128Zm8-56h56a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16ZM184,184H48a8,8,0,0,0,0,16H184a8,8,0,0,0,0-16ZM229.66,82.34l-40-40a8,8,0,0,0-11.32,0l-40,40a8,8,0,0,0,11.32,11.32L176,67.31V144a8,8,0,0,0,16,0V67.31l26.34,26.35a8,8,0,0,0,11.32-11.32Z"
+                    })
+                  )
+                : React.createElement('svg', {
+                    xmlns: "http://www.w3.org/2000/svg",
+                    width: "32",
+                    height: "32",
+                    fill: "currentColor",
+                    viewBox: "0 0 256 256",
+                    className: "w-5 h-5"
+                  },
+                    React.createElement('path', {
+                      d: "M128,128a8,8,0,0,1-8,8H48a8,8,0,0,1,0-16h72A8,8,0,0,1,128,128ZM48,72H184a8,8,0,0,0,0-16H48a8,8,0,0,0,0,16Zm56,112H48a8,8,0,0,0,0,16h56a8,8,0,0,0,0-16Zm125.66-21.66a8,8,0,0,0-11.32,0L192,188.69V112a8,8,0,0,0-16,0v76.69l-26.34-26.35a8,8,0,0,0-11.32,11.32l40,40a8,8,0,0,0,11.32,0l40-40A8,8,0,0,0,229.66,162.34Z"
+                    })
+                  )
+            ),
             !disableExpanded
               ? (__ttTimelineMotion
                 ? React.createElement(__ttTimelineMotion.button, {
                     onClick: handleToggleExpanded,
-                    className: "px-4 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
+                    className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
                     animate: {
                       backgroundColor: isExpandedEffective ? '#111827' : '#2563eb',
                       color: '#ffffff',
@@ -994,58 +1054,40 @@ const ScheduleTimeline = ({
                   }, isExpandedEffective ? 'Done' : 'Edit')
                 : React.createElement('button', {
                     onClick: handleToggleExpanded,
-                    className: "bg-blue-600 text-white px-4 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
+                    className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
                   }, isExpandedEffective ? 'Done' : 'Edit'))
               : null
           )
         ),
-          React.createElement('div', {
-            ref: timelineRef,
-            className: "relative transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
-            style: {
-              height: isExpandedEffective
-                ? '1400px'
-                : `${filteredCards.length * 84 + 20 + (expandedCardId ? expandedContentHeight : 0)}px`,
+        React.createElement('div', {
+          ref: timelineRef,
+          className: "relative transition-all duration-700 ease-[cubic-bezier(0.4,0,0.2,1)]",
+          style: {
+            height: isExpandedEffective
+              ? '1400px'
+              : `${filteredCards.length * 84 + 20 + (expandedCardId ? expandedContentHeight : 0)}px`,
           }
         },
-          isExpandedEffective && React.createElement('div', { className: "absolute left-0 top-0 w-full h-full pointer-events-none" },
+          isExpandedEffective && React.createElement('div', { className: "absolute left-0 top-0 w-16 h-full" },
             hours.map((h, idx) =>
-              React.createElement('div', { key: `hour-${idx}` },
+              React.createElement('div', { key: idx },
                 React.createElement('div', {
-                  className: "absolute left-0 w-16 text-left text-xs whitespace-nowrap",
+                  className: "absolute left-0 text-xs font-normal whitespace-nowrap",
                   style: {
-                    top: `${h.position}%`,
-                    transform: idx === 0 ? 'translateY(0)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
+                    top: `calc(${h.position}% + 8px)`,
+                    transform: idx === 0 ? 'translateY(-50%)' : (idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'),
                     color: 'var(--tt-text-secondary)',
                     opacity: isExpandedEffective ? 1 : 0,
                   }
                 }, h.label),
                 React.createElement('div', {
-                  className: "absolute right-0 border-t",
+                  className: "absolute left-16 w-full border-t border-zinc-900/50",
                   style: {
-                    top: `${h.position}%`,
-                    left: lineLeftOffset,
-                    transform: idx === 0
-                      ? 'translateY(8px)'
-                      : `${idx === hours.length - 1 ? 'translateY(-100%)' : 'translateY(-50%)'} translateY(-1px)`,
-                    borderColor: 'var(--tt-text-tertiary)',
-                    opacity: isExpandedEffective ? 0.35 : 0,
+                    top: `calc(${h.position}% + 8px)`,
+                    opacity: isExpandedEffective ? 0.3 : 0,
                   }
                 })
               )
-            ),
-            halfHours.map((h, idx) =>
-              React.createElement('div', {
-                key: `half-${idx}`,
-                className: "absolute right-0 border-t",
-                style: {
-                  top: `${h.position}%`,
-                  left: lineLeftOffset,
-                  transform: 'translateY(-50%) translateY(-1px)',
-                  borderColor: 'var(--tt-text-tertiary)',
-                  opacity: isExpandedEffective ? 0.18 : 0,
-                }
-              })
             )
           ),
           React.createElement('div', { className: __ttScheduleTimelineCn("relative transition-all duration-700", isExpandedEffective ? 'ml-20 h-full' : 'w-full') },
@@ -1061,17 +1103,9 @@ const ScheduleTimeline = ({
                 const expandedCardTopBase = expandedCard
                   ? (getCardPosition(expandedCard) / 100) * timelineHeight
                   : null;
-                const collapsedSpacing = 64;
-                const lineSpan = 72;
-                const scheduledIndices = filteredCards.reduce((acc, c, i) => {
-                  if (c && c.variant === 'scheduled') acc.push(i);
-                  return acc;
-                }, []);
-                const firstScheduledIndex = scheduledIndices[0];
-                const lastScheduledIndex = scheduledIndices[scheduledIndices.length - 1];
                 return filteredCards.map((card, index) => {
                   const expandedTop = getCardPosition(card);
-                  const compressedTop = index * collapsedSpacing;
+                  const compressedTop = index * 84;
                   const expandedTopPx = (expandedTop / 100) * timelineHeight;
                   const isDragging = draggingCard === card.id;
                   const isHolding = holdingCard === card.id;
@@ -1081,12 +1115,6 @@ const ScheduleTimeline = ({
                   const isExpandedCard = expandedCardId === card.id;
                   const showScheduleGutter = !isExpandedEffective && card.variant === 'scheduled';
                   const scheduleTime = card.time || '';
-                  const scheduleIconCenter = 'calc(24px + 16px)';
-                  const scheduleIconRadius = 16;
-                  const scheduleIconGap = 8;
-                  const scheduleHalfSpan = lineSpan / 2;
-                  const isFirstScheduled = index === firstScheduledIndex;
-                  const isLastScheduled = index === lastScheduledIndex;
                   const extraOffset = expandedCardId && expandedCardTopBase !== null && expandedTopPx > expandedCardTopBase
                     ? expandedContentHeight
                     : 0;
@@ -1097,16 +1125,11 @@ const ScheduleTimeline = ({
                     ? dragY
                     : (isExpandedEffective ? expandedTopPx + extraOffset : compressedTop + compressedExtraOffset);
 
-                  const showCollapsed = !isExpandedEffective;
-                  const isScheduled = card.variant === 'scheduled';
-                  const hideCollapsedBorder = showCollapsed && isScheduled;
-                  const gapClassName = showCollapsed ? "gap-[36px]" : "gap-6";
                   const cardClassName = __ttScheduleTimelineCn(
-                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-6 flex items-center",
-                    gapClassName,
+                    "w-full min-h-[72px] backdrop-blur-md rounded-2xl p-4 flex items-start gap-4 border",
                     isDragging && "shadow-2xl cursor-grabbing",
                     isHolding && "shadow-xl",
-                    (!isLogged || isActiveSleep) && !hideCollapsedBorder && "border border-dashed"
+                    (!isLogged || isActiveSleep) && "border-dashed"
                   );
                   const isSwiping = swipingCardId === card.id;
                   const cardStyle = {
@@ -1139,7 +1162,8 @@ const ScheduleTimeline = ({
                     },
                     exit: { opacity: 0, scale: 0.8 },
                     transition: {
-                      type: isDragging ? "just" : "spring",
+                      type: isDragging ? "tween" : "spring",
+                      duration: isDragging ? 0 : undefined,
                       stiffness: 500,
                       damping: 35,
                     },
@@ -1147,100 +1171,26 @@ const ScheduleTimeline = ({
                     onMouseDown: (e) => handleDragStart(e, card),
                     onTouchStart: (e) => handleDragStart(e, card),
                   },
-                    showScheduleGutter
-                      ? React.createElement('div', { className: "flex items-center gap-0 w-full" },
-                          React.createElement('div', {
-                            className: "text-xs w-16 text-left whitespace-nowrap",
-                            style: { color: 'var(--tt-text-secondary)' }
-                          }, scheduleTime),
-                          React.createElement('div', { className: "flex-1" },
-                            React.createElement(
-                              TimelineSwipeRow,
-                              {
-                                card,
-                                isSwipeEnabled: isLogged && !isExpandedEffective,
-                                cardClassName,
-                                cardStyle,
-                                onPrimaryAction: handleDeleteCard,
-                                onSecondaryAction: handleEditCard,
-                                openSwipeId,
-                                setOpenSwipeId,
-                                onSwipeStart: (id) => setSwipingCardId(id),
-                                onSwipeEnd: () => setSwipingCardId(null),
-                                onRowClick: () => {
-                                  if (!isLogged || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
-                                  setExpandedCardId((prev) => (prev === card.id ? null : card.id));
-                                }
-                              },
-                              React.createElement(
-                                React.Fragment,
-                                null,
-                                React.createElement(React.Fragment, null,
-                                  !isFirstScheduled && React.createElement('div', {
-                                    className: "absolute w-px",
-                                    style: {
-                                      left: scheduleIconCenter,
-                                      top: `calc(50% - ${scheduleHalfSpan}px)`,
-                                      height: `calc(${scheduleHalfSpan}px - ${scheduleIconRadius + scheduleIconGap}px)`,
-                                      backgroundColor: 'var(--tt-text-tertiary)',
-                                      opacity: 0.35,
-                                      pointerEvents: 'none'
-                                    }
-                                  }),
-                                  !isLastScheduled && React.createElement('div', {
-                                    className: "absolute w-px",
-                                    style: {
-                                      left: scheduleIconCenter,
-                                      top: `calc(50% + ${scheduleIconRadius + scheduleIconGap}px)`,
-                                      height: `calc(${scheduleHalfSpan}px - ${scheduleIconRadius + scheduleIconGap}px)`,
-                                      backgroundColor: 'var(--tt-text-tertiary)',
-                                      opacity: 0.35,
-                                      pointerEvents: 'none'
-                                    }
-                                  })
-                                ),
-                                TimelineItem
-                                  ? React.createElement(TimelineItem, {
-                                      card,
-                                      bottleIcon,
-                                      moonIcon,
-                                      isExpanded: isExpandedCard,
-                                      detailsHeight: expandedContentHeight,
-                                      hasDetails,
-                                      onPhotoClick: handleTimelinePhotoClick,
-                                      onScheduledAdd,
-                                      onActiveSleepClick,
-                                      onExpandedContentHeight: handleExpandedContentHeight,
-                                      disableScheduledGrayscale: true,
-                                      iconSize: 18,
-                                      iconWrapSize: 32,
-                                      disableScheduledAction: true,
-                                      scheduledLabelColor: 'var(--tt-text-primary)'
-                                    })
-                                  : null
-                              )
-                            )
-                          )
-                        )
-                      : React.createElement(
-                          TimelineSwipeRow,
-                          {
-                            card,
-                            isSwipeEnabled: isLogged && !isExpandedEffective,
-                            cardClassName,
-                            cardStyle,
-                            onPrimaryAction: handleDeleteCard,
-                            onSecondaryAction: handleEditCard,
-                            openSwipeId,
-                            setOpenSwipeId,
-                            onSwipeStart: (id) => setSwipingCardId(id),
-                            onSwipeEnd: () => setSwipingCardId(null),
-                            onRowClick: () => {
-                              if (!isLogged || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
-                              setExpandedCardId((prev) => (prev === card.id ? null : card.id));
-                            }
-                          },
-                          TimelineItem
+                    React.createElement(
+                      TimelineSwipeRow,
+                      {
+                        card,
+                        isSwipeEnabled: isLogged && !isExpandedEffective,
+                        cardClassName,
+                        cardStyle,
+                        onPrimaryAction: handleDeleteCard,
+                        onSecondaryAction: handleEditCard,
+                        openSwipeId,
+                        setOpenSwipeId,
+                        onSwipeStart: (id) => setSwipingCardId(id),
+                        onSwipeEnd: () => setSwipingCardId(null),
+                        onRowClick: () => {
+                          if (!isLogged || !hasDetails || isDragging || isHolding || (!allowItemExpand)) return;
+                          setExpandedCardId((prev) => (prev === card.id ? null : card.id));
+                        }
+                      },
+                      showScheduleGutter
+                        ? (TimelineItem
                             ? React.createElement(TimelineItem, {
                                 card,
                                 bottleIcon,
@@ -1252,14 +1202,25 @@ const ScheduleTimeline = ({
                                 onScheduledAdd,
                                 onActiveSleepClick,
                                 onExpandedContentHeight: handleExpandedContentHeight,
-                                disableScheduledGrayscale: true,
-                                iconSize: 18,
-                                iconWrapSize: 32,
-                                disableScheduledAction: true,
-                                scheduledLabelColor: 'var(--tt-text-primary)'
+                                disableScheduledGrayscale: true
                               })
-                            : null
-                        )
+                            : null)
+                        : (TimelineItem
+                            ? React.createElement(TimelineItem, {
+                                card,
+                                bottleIcon,
+                                moonIcon,
+                                isExpanded: isExpandedCard,
+                                detailsHeight: expandedContentHeight,
+                                hasDetails,
+                                onPhotoClick: handleTimelinePhotoClick,
+                                onScheduledAdd,
+                                onActiveSleepClick,
+                                onExpandedContentHeight: handleExpandedContentHeight,
+                                disableScheduledGrayscale: true
+                              })
+                            : null)
+                    )
                   );
                 });
               })()

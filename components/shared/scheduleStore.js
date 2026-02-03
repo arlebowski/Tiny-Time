@@ -63,6 +63,7 @@
             adjusted: !!item.adjusted,
             actual: !!item.actual,
             isCompleted: !!item.isCompleted,
+            matched: !!item.matched,
             source: item.source || null
           };
         })

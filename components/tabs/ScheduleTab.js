@@ -75,6 +75,7 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
         return;
       }
       const scheduledCards = storedItems
+        .filter((item) => !item?.matched)
         .map((item, idx) => {
           const timeMs = Number(item?.timeMs ?? (item?.time instanceof Date ? item.time.getTime() : NaN));
           if (!Number.isFinite(timeMs)) return null;
@@ -439,10 +440,10 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
     className: "space-y-4 pb-24 px-4"
   },
     React.createElement('div', {
-      className: "px-0",
+      className: "mb-1 -mx-4 pl-3 pr-4",
       style: {
         color: 'var(--tt-text-primary)',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif'
+        fontFamily: '-apple-system, BlinkMacSystemFont, \"SF Pro Display\", \"SF Pro Text\", system-ui, sans-serif'
       }
     },
       React.createElement('div', {
@@ -493,14 +494,19 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
     //     rotateIcon: false
     //   })
     // ),
-    Timeline ? React.createElement(Timeline, {
-      key: selectedDate.toDateString(),
-      initialLoggedItems: loggedTimelineItems,
-      initialScheduledItems: scheduledTimelineItems,
-      initialSortOrder: 'asc',
-      hideLoggedItems: true,
-      onActiveSleepClick: handleActiveSleepClick
-    }) : null,
+    React.createElement('div', {
+      className: "min-h-0 overflow-y-auto mt-4 -mx-4",
+      style: { WebkitOverflowScrolling: 'touch' }
+    },
+      Timeline ? React.createElement(Timeline, {
+        key: selectedDate.toDateString(),
+        initialLoggedItems: loggedTimelineItems,
+        initialScheduledItems: scheduledTimelineItems,
+        initialSortOrder: 'asc',
+        hideLoggedItems: true,
+        onActiveSleepClick: handleActiveSleepClick
+      }) : null
+    ),
     window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
       isOpen: showInputSheet,
       onClose: () => setShowInputSheet(false),

@@ -173,8 +173,7 @@ const NextUpCard = ({
   if (!stateData) return null;
 
   const { motion } = __ttNextUpResolveFramer();
-  const Root = motion ? motion.div : 'div';
-  const rootMotionProps = motion ? {
+  const Root = motion ? motion.div : 'div';  const rootMotionProps = motion ? {
     initial: { opacity: 0, y: 6 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: 0.18, ease: 'easeOut' }
