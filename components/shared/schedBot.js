@@ -226,4 +226,9 @@
       return rows;
     };
   }
+
+  if (!window.sched) window.sched = {};
+  if (!window.sched.rebuild) {
+    window.sched.rebuild = (date = new Date()) => refresh(date);
+  }
 })();
