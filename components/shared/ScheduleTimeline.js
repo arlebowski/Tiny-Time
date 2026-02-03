@@ -3,6 +3,21 @@
 
 const __ttScheduleTimelineCn = (...classes) => classes.filter(Boolean).join(' ');
 
+const __ttEnsureHideNavStyles = () => {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('tt-hide-bottom-nav-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'tt-hide-bottom-nav-styles';
+  style.textContent = `
+    .tt-hide-bottom-nav .tt-bottom-nav,
+    .tt-hide-bottom-nav .tt-floating-plus,
+    .tt-hide-bottom-nav .tt-nav-fade {
+      display: none !important;
+    }
+  `;
+  document.head.appendChild(style);
+};
+
 const ScheduleTimeline = ({
   initialLoggedItems = null,
   initialScheduledItems = null,
@@ -33,6 +48,7 @@ const ScheduleTimeline = ({
   const [openSwipeId, setOpenSwipeId] = React.useState(null);
   const [swipingCardId, setSwipingCardId] = React.useState(null);
   const isExpandedEffective = disableExpanded ? false : isExpanded;
+  const originalCardsRef = React.useRef(null);
 
   // Access app icons
   const bottleIcon =
@@ -231,6 +247,15 @@ const ScheduleTimeline = ({
     }
   }, [disableExpanded, isExpanded]);
 
+  React.useEffect(() => {
+    if (typeof document === 'undefined') return;
+    if (isExpandedEffective) __ttEnsureHideNavStyles();
+    document.body.classList.toggle('tt-hide-bottom-nav', isExpandedEffective);
+    return () => {
+      document.body.classList.remove('tt-hide-bottom-nav');
+    };
+  }, [isExpandedEffective]);
+
   const getCardTimeMs = React.useCallback((card) => {
     if (!card) return null;
     const direct = Number(card.timeMs);
@@ -359,6 +384,60 @@ const ScheduleTimeline = ({
     setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
   };
 
+  const formatTimeLabel = (hour, minute) => {
+    const h = Number(hour);
+    const m = Number(minute);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return '';
+    const period = h >= 12 ? 'PM' : 'AM';
+    const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${displayHour}:${String(m).padStart(2, '0')} ${period}`;
+  };
+
+  const roundUpToQuarter = (dateObj) => {
+    const d = new Date(dateObj);
+    const minutes = d.getMinutes();
+    const rounded = Math.ceil(minutes / 15) * 15;
+    if (rounded >= 60) {
+      d.setHours(d.getHours() + 1, 0, 0, 0);
+      return d;
+    }
+    d.setMinutes(rounded, 0, 0);
+    return d;
+  };
+
+  const handleAddScheduledItem = React.useCallback((type) => {
+    const base = scheduleDateValue instanceof Date ? new Date(scheduleDateValue) : new Date();
+    if (isExpandedEffective && dayFilter === 'tomorrow') {
+      base.setDate(base.getDate() + 1);
+    }
+    const now = new Date();
+    let target = base;
+    if (isExpandedEffective && dayFilter === 'tomorrow') {
+      target.setHours(8, 0, 0, 0);
+    } else {
+      target = roundUpToQuarter(now);
+    }
+
+    const hour = target.getHours();
+    const minute = target.getMinutes();
+    const timeMs = target.getTime();
+    const dateKey = `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, '0')}-${String(target.getDate()).padStart(2, '0')}`;
+
+    const newCard = {
+      id: `sched-${dateKey}-${type}-${Date.now()}`,
+      time: formatTimeLabel(hour, minute),
+      hour,
+      minute,
+      timeMs,
+      variant: 'scheduled',
+      type,
+      amount: null,
+      unit: type === 'feed' ? 'oz' : 'hrs'
+    };
+
+    setCards((prev) => [...prev, newCard]);
+  }, [dayFilter, isExpandedEffective, scheduleDateValue]);
+
   const saveScheduleChanges = React.useCallback(() => {
     if (!useSchedBot) return;
     const schedBot = window.TT?.store?.schedBot;
@@ -397,15 +476,25 @@ const ScheduleTimeline = ({
     });
   }, [cards, scheduleDateValue, useSchedBot]);
 
-  const handleToggleExpanded = React.useCallback(() => {
+  const handleStartExpanded = React.useCallback(() => {
     if (disableExpanded) return;
-    if (isExpandedEffective) {
-      saveScheduleChanges();
-      setIsExpanded(false);
-      return;
-    }
+    originalCardsRef.current = cards.map((card) => ({ ...card }));
     setIsExpanded(true);
-  }, [disableExpanded, isExpandedEffective, saveScheduleChanges]);
+  }, [disableExpanded, cards]);
+
+  const handleSaveExpanded = React.useCallback(() => {
+    saveScheduleChanges();
+    originalCardsRef.current = null;
+    setIsExpanded(false);
+  }, [saveScheduleChanges]);
+
+  const handleDiscardExpanded = React.useCallback(() => {
+    if (originalCardsRef.current) {
+      setCards(originalCardsRef.current.map((card) => ({ ...card })));
+    }
+    originalCardsRef.current = null;
+    setIsExpanded(false);
+  }, []);
 
   const handleDragStart = (e, card) => {
     if (!isExpandedEffective) return;
@@ -1187,7 +1276,7 @@ const ScheduleTimeline = ({
                 }
               ),
           React.createElement('div', { className: "flex items-center gap-2" },
-            React.createElement('button', {
+            !isExpandedEffective && React.createElement('button', {
               onClick: handleToggleSort,
               className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
               style: {
@@ -1224,22 +1313,43 @@ const ScheduleTimeline = ({
                   )
             ),
             !disableExpanded
-              ? (__ttTimelineMotion
-                ? React.createElement(__ttTimelineMotion.button, {
-                    onClick: handleToggleExpanded,
-                    className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
-                    animate: {
-                      backgroundColor: isExpandedEffective ? '#111827' : '#2563eb',
-                      color: '#ffffff',
-                      boxShadow: isExpandedEffective
-                        ? '0 10px 25px rgba(0,0,0,0.25)'
-                        : '0 10px 25px rgba(37,99,235,0.25)'
-                    }
-                  }, isExpandedEffective ? 'Done' : 'Edit')
-                : React.createElement('button', {
-                    onClick: handleToggleExpanded,
-                    className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
-                  }, isExpandedEffective ? 'Done' : 'Edit'))
+              ? (isExpandedEffective
+                ? React.createElement(
+                    React.Fragment,
+                    null,
+                    React.createElement('button', {
+                      onClick: handleSaveExpanded,
+                      className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
+                      style: {
+                        backgroundColor: '#2563eb',
+                        color: '#ffffff',
+                        boxShadow: '0 10px 25px rgba(37,99,235,0.25)'
+                      }
+                    }, 'Save'),
+                    React.createElement('button', {
+                      onClick: handleDiscardExpanded,
+                      className: "px-4 py-1.5 rounded-xl font-semibold text-sm transition-all border",
+                      style: {
+                        backgroundColor: 'var(--tt-subtle-surface)',
+                        borderColor: 'var(--tt-card-border)',
+                        color: 'var(--tt-text-primary)'
+                      }
+                    }, 'Discard')
+                  )
+                : (__ttTimelineMotion
+                  ? React.createElement(__ttTimelineMotion.button, {
+                      onClick: handleStartExpanded,
+                      className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
+                      animate: {
+                        backgroundColor: '#2563eb',
+                        color: '#ffffff',
+                        boxShadow: '0 10px 25px rgba(37,99,235,0.25)'
+                      }
+                    }, 'Edit')
+                  : React.createElement('button', {
+                      onClick: handleStartExpanded,
+                      className: "bg-blue-600 text-white px-5 py-1.5 rounded-xl font-semibold text-sm hover:bg-blue-700 active:scale-95 transition-all shadow-lg shadow-blue-900/20"
+                    }, 'Edit')))
               : null
           )
         ),
@@ -1418,6 +1528,102 @@ const ScheduleTimeline = ({
           )
         )
       )
+    ),
+    isExpandedEffective && React.createElement('div', {
+      className: "fixed right-6 bottom-24 z-[120] flex flex-col gap-3"
+    },
+      __ttTimelineMotion
+        ? React.createElement(__ttTimelineMotion.button, {
+            onClick: () => handleAddScheduledItem('sleep'),
+            className: "w-14 h-14 rounded-full shadow-lg flex items-center justify-center relative",
+            style: { backgroundColor: 'var(--tt-sleep)', color: '#fff' },
+            initial: { opacity: 0, y: 20 },
+            animate: { opacity: 1, y: 0 },
+            transition: { duration: 0.25 }
+          },
+            moonIcon ? React.createElement(moonIcon, { className: "w-6 h-6", style: { color: '#fff' } }) : '💤',
+            React.createElement('div', {
+              className: "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
+              style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
+            },
+              React.createElement('svg', {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "16",
+                height: "16",
+                fill: "#000000",
+                viewBox: "0 0 256 256"
+              }, React.createElement('path', {
+                d: "M222,128a6,6,0,0,1-6,6H134v82a6,6,0,0,1-12,0V134H40a6,6,0,0,1,0-12h82V40a6,6,0,0,1,12,0v82h82A6,6,0,0,1,222,128Z"
+              }))
+            )
+          )
+        : React.createElement('button', {
+            onClick: () => handleAddScheduledItem('sleep'),
+            className: "w-14 h-14 rounded-full shadow-lg flex items-center justify-center relative",
+            style: { backgroundColor: 'var(--tt-sleep)', color: '#fff' }
+          },
+            moonIcon ? React.createElement(moonIcon, { className: "w-6 h-6", style: { color: '#fff' } }) : '💤',
+            React.createElement('div', {
+              className: "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
+              style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
+            },
+              React.createElement('svg', {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "16",
+                height: "16",
+                fill: "#000000",
+                viewBox: "0 0 256 256"
+              }, React.createElement('path', {
+                d: "M222,128a6,6,0,0,1-6,6H134v82a6,6,0,0,1-12,0V134H40a6,6,0,0,1,0-12h82V40a6,6,0,0,1,12,0v82h82A6,6,0,0,1,222,128Z"
+              }))
+            )
+          ),
+      __ttTimelineMotion
+        ? React.createElement(__ttTimelineMotion.button, {
+            onClick: () => handleAddScheduledItem('feed'),
+            className: "w-14 h-14 rounded-full shadow-lg flex items-center justify-center relative",
+            style: { backgroundColor: 'var(--tt-feed)', color: '#fff' },
+            initial: { opacity: 0, y: 20 },
+            animate: { opacity: 1, y: 0 },
+            transition: { duration: 0.25, delay: 0.05 }
+          },
+            bottleIcon ? React.createElement(bottleIcon, { className: "w-6 h-6", style: { color: '#fff' } }) : '🍼',
+            React.createElement('div', {
+              className: "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
+              style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
+            },
+              React.createElement('svg', {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "16",
+                height: "16",
+                fill: "#000000",
+                viewBox: "0 0 256 256"
+              }, React.createElement('path', {
+                d: "M222,128a6,6,0,0,1-6,6H134v82a6,6,0,0,1-12,0V134H40a6,6,0,0,1,0-12h82V40a6,6,0,0,1,12,0v82h82A6,6,0,0,1,222,128Z"
+              }))
+            )
+          )
+        : React.createElement('button', {
+            onClick: () => handleAddScheduledItem('feed'),
+            className: "w-14 h-14 rounded-full shadow-lg flex items-center justify-center relative",
+            style: { backgroundColor: 'var(--tt-feed)', color: '#fff' }
+          },
+            bottleIcon ? React.createElement(bottleIcon, { className: "w-6 h-6", style: { color: '#fff' } }) : '🍼',
+            React.createElement('div', {
+              className: "absolute -top-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center",
+              style: { backgroundColor: 'var(--tt-timeline-item-bg)' }
+            },
+              React.createElement('svg', {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "16",
+                height: "16",
+                fill: "#000000",
+                viewBox: "0 0 256 256"
+              }, React.createElement('path', {
+                d: "M222,128a6,6,0,0,1-6,6H134v82a6,6,0,0,1-12,0V134H40a6,6,0,0,1,0-12h82V40a6,6,0,0,1,12,0v82h82A6,6,0,0,1,222,128Z"
+              }))
+            )
+          )
     ),
     timelinePhotoModal,
     deletingCard && ReactDOM.createPortal(

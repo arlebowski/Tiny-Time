@@ -339,7 +339,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
               style: { color: 'var(--tt-text-secondary)' }
             }, stat.label),
             React.createElement('div', { 
-              className: 'text-[30px] font-bold leading-none -mb-[2px]',
+              className: 'text-[30px] font-bold leading-none -mb-[8px]',
               style: { color: 'var(--tt-feed)' }
             }, 
               stat.value,
@@ -371,7 +371,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             style: { color: 'var(--tt-text-secondary)' }
           }, 'Feeds / Day'),
           React.createElement('div', { 
-            className: 'text-[30px] font-bold leading-none -mb-[2px]',
+            className: 'text-[30px] font-bold leading-none -mb-[8px]',
             style: { color: 'var(--tt-feed)' }
           }, stats.avgFeedingsPerDay.toFixed(1)),
           React.createElement('div', { 
@@ -390,7 +390,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
             style: { color: 'var(--tt-text-secondary)' }
           }, 'Interval'),
           React.createElement('div', { 
-            className: 'text-[30px] font-bold leading-none -mb-[2px]',
+            className: 'text-[30px] font-bold leading-none -mb-[8px]',
             style: { color: 'var(--tt-feed)' }
           }, formatInterval(stats.avgInterval)),
           React.createElement('div', { 

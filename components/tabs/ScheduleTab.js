@@ -399,8 +399,7 @@ const ScheduleTab = ({ user, kidId, familyId }) => {
     //   })
     // ),
     React.createElement('div', {
-      className: "min-h-0 overflow-y-auto mt-4 -mx-4",
-      style: { WebkitOverflowScrolling: 'touch' }
+      className: "min-h-0 mt-4 -mx-4"
     },
       Timeline ? React.createElement(Timeline, {
         key: selectedDate.toDateString(),

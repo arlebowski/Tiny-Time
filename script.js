@@ -3362,23 +3362,27 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
       }
     }),
 
-    shouldUseNewInputFlow && FloatingTrackerMenu && React.createElement(FloatingTrackerMenu, {
-      onSelectTracker: (type) => {
-        openInputSheet(type);
-        setShowShareMenu(false);
-        setShowKidMenu(false);
-      },
-      position: {
-        bottom: 'calc(env(safe-area-inset-bottom) + 40px)',
-        left: '50%'
-      }
-    }),
+    shouldUseNewInputFlow && FloatingTrackerMenu && React.createElement(
+      'div',
+      { className: "tt-floating-plus" },
+      React.createElement(FloatingTrackerMenu, {
+        onSelectTracker: (type) => {
+          openInputSheet(type);
+          setShowShareMenu(false);
+          setShowKidMenu(false);
+        },
+        position: {
+          bottom: 'calc(env(safe-area-inset-bottom) + 40px)',
+          left: '50%'
+        }
+      })
+    ),
 
     // Gradient fade above footer for smooth content fade
     React.createElement(
       'div',
       {
-        className: "fixed left-0 right-0 pointer-events-none",
+        className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
         style: {
           bottom: 'calc(env(safe-area-inset-bottom) + 70px)', // Position at footer top edge
           height: '32px', // Taller for better visibility
@@ -3392,7 +3396,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
     React.createElement(
       'div',
       {
-        className: "fixed bottom-0 left-0 right-0 z-50",
+        className: "tt-bottom-nav fixed bottom-0 left-0 right-0 z-50",
         style: {
           backgroundColor: "var(--tt-nav-bg)",
           boxShadow: 'var(--tt-nav-shadow)',

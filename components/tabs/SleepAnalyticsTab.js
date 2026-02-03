@@ -354,7 +354,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           }, "Hours / Day"),
           React.createElement(
             "div",
-            { className: "flex items-baseline gap-1 text-[30px] font-bold leading-none -mb-[2px]", style: { color: 'var(--tt-sleep)' } },
+            { className: "flex items-baseline gap-1 text-[30px] font-bold leading-none -mb-[8px]", style: { color: 'var(--tt-sleep)' } },
             Number(sleepCards.avgTotal || 0).toFixed(1),
             React.createElement("span", { className: "text-[20px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
@@ -372,7 +372,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           }, "Sleeps / Day"),
           React.createElement(
             "div",
-            { className: "text-[30px] font-bold leading-none -mb-[2px]", style: { color: 'var(--tt-sleep)' } },
+            { className: "text-[30px] font-bold leading-none -mb-[8px]", style: { color: 'var(--tt-sleep)' } },
             Number(sleepCards.avgSleeps || 0).toFixed(1)
           ),
           React.createElement("div", { className: "text-[12px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } }, sleepCards.label)
@@ -390,7 +390,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           }, "Day Sleep"),
           React.createElement(
             "div",
-            { className: "flex items-baseline gap-1 text-[30px] font-bold leading-none -mb-[2px]", style: { color: 'var(--tt-sleep)' } },
+            { className: "flex items-baseline gap-1 text-[30px] font-bold leading-none -mb-[8px]", style: { color: 'var(--tt-sleep)' } },
             Number(sleepCards.avgDay || 0).toFixed(1),
             React.createElement("span", { className: "text-[20px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
@@ -408,7 +408,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           }, "Night Sleep"),
           React.createElement(
             "div",
-            { className: "flex items-baseline gap-1 text-[30px] font-bold leading-none -mb-[2px]", style: { color: 'var(--tt-sleep)' } },
+            { className: "flex items-baseline gap-1 text-[30px] font-bold leading-none -mb-[8px]", style: { color: 'var(--tt-sleep)' } },
             Number(sleepCards.avgNight || 0).toFixed(1),
             React.createElement("span", { className: "text-[20px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } }, "hrs")
           ),
