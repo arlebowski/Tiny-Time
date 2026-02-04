@@ -3180,15 +3180,15 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         e.stopPropagation();
                         setShowShareMenu(false);
                         setShowKidMenu(false);
-                        setActiveTab('settings');
+                        setActiveTab('family');
                       },
                       className:
                         "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
-                      'aria-label': 'Settings'
+                      'aria-label': 'Family'
                     },
-                    React.createElement(window.TT?.shared?.icons?.MenuIcon || Menu, {
+                    React.createElement(window.TT?.shared?.icons?.Users || Users, {
                       className: "w-6 h-6",
-                      isSelected: activeTab === 'settings',
+                      isSelected: activeTab === 'family',
                       selectedWeight: 'fill',
                       style: { color: 'var(--tt-text-primary)' }
                     })
@@ -3306,7 +3306,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
           requestAddChild: headerRequestedAddChild,
           onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
         }),
-        activeTab === 'settings' && React.createElement(window.TT.tabs.SettingsTab, { user })
+        
       )
     ),
 
@@ -3459,37 +3459,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     color: 'var(--tt-text-primary)'
                   }
                 }, 'Trends')
-              ),
-              React.createElement(
-                'button',
-                {
-                  key: 'family',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('family');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: {
-                    color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
-                  }
-                },
-                React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
-                  className: "w-6 h-6",
-                  isSelected: activeTab === 'family',
-                  selectedWeight: 'fill',
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }),
-                React.createElement('span', {
-                  className: "text-xs font-light",
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }, 'Family')
               )
             )
           : React.createElement(
@@ -3588,37 +3557,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     color: 'var(--tt-text-primary)'
                   }
                 }, 'Trends')
-              ),
-              React.createElement(
-                'button',
-                {
-                  key: 'family',
-                  type: 'button',
-                  onClick: () => {
-                    setActiveTab('family');
-                    setShowShareMenu(false);
-                    setShowKidMenu(false);
-                  },
-                  className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
-                  style: {
-                    color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
-                  }
-                },
-                React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
-                  className: "w-6 h-6",
-                  isSelected: activeTab === 'family',
-                  selectedWeight: 'fill',
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }),
-                React.createElement('span', {
-                  className: "text-xs font-light",
-                  style: {
-                    color: 'var(--tt-text-primary)'
-                  }
-                }, 'Family')
               )
             )
       )
