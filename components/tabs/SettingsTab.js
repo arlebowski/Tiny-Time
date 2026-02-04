@@ -28,8 +28,8 @@ if (typeof window !== 'undefined') {
   window.TT.shared = window.TT.shared || {};
   window.TT.shared.flags = window.TT.shared.flags || {
     useWheelPickers: {
-      get: () => readBool('tt_use_wheel_pickers', false),
-      set: (val) => writeBool('tt_use_wheel_pickers', !!val),
+      get: () => true,
+      set: () => {}
     }
   };
 }
@@ -63,17 +63,7 @@ const SettingsTab = ({ user, kidId }) => {
   const uiVersion = 'v4';
   
   // Wheel pickers feature flag (UI Lab)
-  const [useWheelPickers, setUseWheelPickers] = useState(() => {
-    // Prefer shared helper when available
-    if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useWheelPickers?.get) {
-      return !!window.TT.shared.flags.useWheelPickers.get();
-    }
-    try {
-      return localStorage.getItem('tt_use_wheel_pickers') === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
+  const [useWheelPickers] = useState(() => true);
 
   
   // Production data for UI Lab
@@ -1341,20 +1331,12 @@ const SettingsTab = ({ user, kidId }) => {
           className: "tt-card-label" 
         }, 'Wheel Pickers in Trays'),
         window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-          value: useWheelPickers ? 'on' : 'off',
+          value: 'on',
           options: [
             { value: 'on', label: 'On' },
             { value: 'off', label: 'Off' }
           ],
-          onChange: (value) => {
-            const isOn = value === 'on';
-            setUseWheelPickers(isOn);
-            if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useWheelPickers?.set) {
-              window.TT.shared.flags.useWheelPickers.set(isOn);
-            } else {
-              try { localStorage.setItem('tt_use_wheel_pickers', isOn ? 'true' : 'false'); } catch (e) {}
-            }
-          }
+          onChange: () => {}
         })
       ),
 
