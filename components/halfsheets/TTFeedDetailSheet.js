@@ -30,7 +30,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     }
   });
 
-  const _getUiVersion = () => 'v4';
 
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};

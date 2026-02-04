@@ -89,20 +89,8 @@ const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
 // Use window.TT.shared.SegmentedToggle or window.SegmentedToggle
 
 // ========================================
-// UI VERSION: Hardcode to v4 (single source of truth)
+// UI VERSION: v4 only
 // ========================================
-if (typeof window !== 'undefined') {
-  window.TT = window.TT || {};
-  window.TT.shared = window.TT.shared || {};
-  window.TT.shared.uiVersion = {
-    getUIVersion: () => 'v4',
-    shouldUseNewUI: () => true,
-    getCardDesign: () => 'v4',
-    setUIVersion: async () => {},
-    onVersionChange: () => () => {},
-    init: () => {}
-  };
-}
 
 // ========================================
 // TINY TRACKER - PART 1
@@ -2781,18 +2769,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [inputSheetOpen, setInputSheetOpen] = useState(false);
   const [inputSheetMode, setInputSheetMode] = useState('feeding');
 
-  const uiVersion = 'v4';
   const isV2OrV3OrV4 = true;
-  const shouldUseNewInputFlow = (() => {
-    try {
-      if (window.TT?.shared?.flags?.newInputFlow?.get) {
-        return !!window.TT.shared.flags.newInputFlow.get();
-      }
-      return window.localStorage?.getItem('tt_new_input_flow') === 'true';
-    } catch {
-      return false;
-    }
-  })();
+  const shouldUseNewInputFlow = true;
   const FloatingTrackerMenu = window.TT?.shared?.FloatingTrackerMenu || null;
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;

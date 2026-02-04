@@ -48,18 +48,6 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     }
   });
 
-  const _ttUseNewInputFlow = window.TT?.utils?.useNewInputFlow || (() => {
-    try {
-      if (typeof window !== 'undefined' && window.TT?.shared?.flags?.newInputFlow?.get) {
-        return !!window.TT.shared.flags.newInputFlow.get();
-      }
-      return localStorage.getItem('tt_new_input_flow') === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
-
-  const _getUiVersion = () => 'v4';
 
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
@@ -108,14 +96,12 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
   const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
   const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
   
-  const HeaderSegmentedToggle = window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div';
-
   // TTInputHalfSheet Component
   const TTInputHalfSheetLegacy = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null, __ttUseV4Sheet = false }) => {
     const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
       ? window.TT.shared.useActiveSleep
       : (() => ({ activeSleep: null, activeSleepLoaded: true }));
-    const useNewInputFlow = __ttUseV4Sheet && _ttUseNewInputFlow();
+    const useNewInputFlow = true;
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     // Check localStorage for active sleep on mount to determine initial mode
     const getInitialMode = () => {
@@ -435,12 +421,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         return;
       }
       if (activeSleepSessionId && !forcedSleepOnOpenRef.current) {
-        if (!useNewInputFlow && mode !== 'sleep') {
-          setMode('sleep');
-        }
         forcedSleepOnOpenRef.current = true;
       }
-    }, [isOpen, activeSleepSessionId, mode, useNewInputFlow]);
+    }, [isOpen, activeSleepSessionId, mode]);
 
     React.useEffect(() => {
       if (!__ttUseV4Sheet || !isOpen) return;
@@ -1989,23 +1972,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                     window.XIcon,
                     { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
                   )),
-                  useNewInputFlow
-                    ? React.createElement('div', { className: "flex-1 flex justify-center" },
-                        React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
-                      )
-                    : React.createElement('div', { className: "flex-1 flex justify-center" },
-                        React.createElement(HeaderSegmentedToggle, {
-                          value: mode,
-                          options: [
-                            { value: 'feeding', label: 'Feed' },
-                            { value: 'sleep', label: 'Sleep' }
-                          ],
-                          onChange: setMode,
-                          variant: 'header',
-                          size: 'medium',
-                          fullWidth: false
-                        })
-                      ),
+                  React.createElement('div', { className: "flex-1 flex justify-center" },
+                    React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
+                  ),
                   React.createElement('div', { className: "w-6" })
                 ),
                 React.createElement('div', {
@@ -2062,23 +2031,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           onClick: handleClose,
           className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
         }, React.createElement(ChevronDown, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
-        useNewInputFlow
-          ? React.createElement('div', { className: "flex-1 flex justify-center" },
-              React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
-            )
-          : React.createElement('div', { className: "flex-1 flex justify-center" },
-              React.createElement(HeaderSegmentedToggle, {
-                value: mode,
-                options: [
-                  { value: 'feeding', label: 'Feed' },
-                  { value: 'sleep', label: 'Sleep' }
-                ],
-                onChange: setMode,
-                variant: 'header',
-                size: 'medium',
-                fullWidth: false
-              })
-            ),
+        React.createElement('div', { className: "flex-1 flex justify-center" },
+          React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
+        ),
         React.createElement('div', { className: "w-6" })
       ),
       bodyContent

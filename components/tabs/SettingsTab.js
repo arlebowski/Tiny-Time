@@ -30,10 +30,6 @@ if (typeof window !== 'undefined') {
     useWheelPickers: {
       get: () => readBool('tt_use_wheel_pickers', false),
       set: (val) => writeBool('tt_use_wheel_pickers', !!val),
-    },
-    newInputFlow: {
-      get: () => readBool('tt_new_input_flow', false),
-      set: (val) => writeBool('tt_new_input_flow', !!val),
     }
   };
 }
@@ -79,17 +75,6 @@ const SettingsTab = ({ user, kidId }) => {
     }
   });
 
-  const [newInputFlow, setNewInputFlow] = useState(() => {
-    if (typeof window !== 'undefined' && window.TT?.shared?.flags?.newInputFlow?.get) {
-      return !!window.TT.shared.flags.newInputFlow.get();
-    }
-    try {
-      return localStorage.getItem('tt_new_input_flow') === 'true';
-    } catch (e) {
-      return false;
-    }
-  });
-  
   
   // Production data for UI Lab
   const [feedings, setFeedings] = useState([]);
@@ -1373,31 +1358,8 @@ const SettingsTab = ({ user, kidId }) => {
         })
       ),
 
-      // New Input Flow Toggle (v4 only)
-      React.createElement('div', { className: "mb-4" },
-        React.createElement('label', {
-          className: "tt-card-label"
-        }, 'New Input Flow (v4)'),
-        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-          value: newInputFlow ? 'on' : 'off',
-          options: [
-            { value: 'on', label: 'On' },
-            { value: 'off', label: 'Off' }
-          ],
-          onChange: (value) => {
-            const isOn = value === 'on';
-            setNewInputFlow(isOn);
-            if (typeof window !== 'undefined' && window.TT?.shared?.flags?.newInputFlow?.set) {
-              window.TT.shared.flags.newInputFlow.set(isOn);
-            } else {
-              try { localStorage.setItem('tt_new_input_flow', isOn ? 'true' : 'false'); } catch (e) {}
-            }
-            if (typeof window !== 'undefined') {
-              window.location.reload();
-            }
-          }
-        })
-      ),
+      // New Input Flow (v4 only)
+      React.createElement('div', { className: "mb-4 text-sm", style: { color: 'var(--tt-text-secondary)' } }, 'New Input Flow: On'),
 
       // Title and subtitle
       React.createElement('div', { className: "mb-6" },
