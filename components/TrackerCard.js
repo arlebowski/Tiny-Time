@@ -643,8 +643,6 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOv
       const BottleIcon =
         window.TT?.shared?.icons?.BottleV2 ||
         window.TT?.shared?.icons?.["bottle-v2"] ||
-        window.TT?.shared?.icons?.BottleMain ||
-        window.TT?.shared?.icons?.["bottle-main"] ||
         null;
       const accentColor = 'var(--tt-feed)';
       // 15% larger than card header: 1.25rem * 1.15 = 1.4375rem (23px)
@@ -1328,8 +1326,8 @@ const TrackerCard = ({
   
   // Get the icon for yesterday comparison
   const YesterdayIcon = mode === 'feeding' 
-    ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"] || window.TT.shared.icons.Bottle2)) || null
-    : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"] || window.TT.shared.icons.Moon2)) || null;
+    ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) || null
+    : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) || null;
   
   // Handle card tap (not timeline button or interactive elements)
   const handleCardTap = (e) => {
@@ -1769,8 +1767,8 @@ const TrackerCard = ({
 
   // Get the appropriate icon for the header (v4)
   const HeaderIcon = mode === 'feeding'
-    ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || window.TT?.shared?.icons?.BottleMain || window.TT?.shared?.icons?.["bottle-main"]) || null
-    : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || window.TT?.shared?.icons?.MoonMain || window.TT?.shared?.icons?.["moon-main"]) || null;
+    ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"]) || null
+    : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null;
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
 
@@ -1778,15 +1776,11 @@ const TrackerCard = ({
   const BottleMainIcon =
     window.TT?.shared?.icons?.BottleV2 ||
     window.TT?.shared?.icons?.["bottle-v2"] ||
-    window.TT?.shared?.icons?.BottleMain ||
-    window.TT?.shared?.icons?.["bottle-main"] ||
     HeaderIcon ||
     null;
   const MoonMainIcon =
     window.TT?.shared?.icons?.MoonV2 ||
     window.TT?.shared?.icons?.["moon-v2"] ||
-    window.TT?.shared?.icons?.MoonMain ||
-    window.TT?.shared?.icons?.["moon-main"] ||
     HeaderIcon ||
     null;
 

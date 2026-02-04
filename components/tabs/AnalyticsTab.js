@@ -595,8 +595,8 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     ...stats.chartData.map(d => d.volume)
   );
 
-  const feedLabelIcon = (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || window.TT?.shared?.icons?.BottleMain || window.TT?.shared?.icons?.["bottle-main"]) || Milk;
-  const sleepLabelIcon = (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || window.TT?.shared?.icons?.MoonMain || window.TT?.shared?.icons?.["moon-main"]) || Moon;
+  const feedLabelIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null;
+  const sleepLabelIcon = window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || null;
 
   return React.createElement(
     'div',

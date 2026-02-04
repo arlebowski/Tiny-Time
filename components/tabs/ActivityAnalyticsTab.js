@@ -7,6 +7,7 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   
   // Get chevron icon
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
+  const ActivityIcon = window.TT?.shared?.icons?.ScheduleIcon || null;
 
   useEffect(() => {
     loadAnalytics();
@@ -75,7 +76,7 @@ const ActivityAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       React.createElement(
         'div',
         { className: 'flex items-center justify-center gap-1' },
-        typeof Kanban !== 'undefined' && React.createElement(Kanban, {
+        ActivityIcon && React.createElement(ActivityIcon, {
           className: 'w-5 h-5',
           style: { color: 'var(--color-daily)' }
         }),

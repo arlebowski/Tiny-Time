@@ -2301,7 +2301,7 @@ const LoginScreen = () => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-4" },
-            React.createElement(window.TT?.shared?.icons?.BabyIcon || Baby, {
+            React.createElement(window.TT?.shared?.icons?.BabyIcon || (() => null), {
               className: "w-12 h-12 text-indigo-600",
             })
           )
@@ -2576,7 +2576,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
           React.createElement(
             "div",
             { className: "bg-indigo-100 rounded-full p-3" },
-            React.createElement(window.TT?.shared?.icons?.BabyIcon || Baby, { className: "w-10 h-10 text-indigo-600" })
+            React.createElement(window.TT?.shared?.icons?.BabyIcon || (() => null), { className: "w-10 h-10 text-indigo-600" })
           )
         ),
         React.createElement(
@@ -2678,26 +2678,6 @@ const BabySetupScreen = ({ user, onComplete }) => {
 // TINY TRACKER - PART 3
 // Main App with Bottom Navigation (family-aware)
 // ========================================
-
-// Lucide-style "share" (box + arrow up)
-const ShareIcon = (props) => React.createElement(
-  'svg',
-  {
-    ...props,
-    xmlns: "http://www.w3.org/2000/svg",
-    width: "24",
-    height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
-  },
-  React.createElement('path', { d: "M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7" }),
-  React.createElement('polyline', { points: "16 6 12 2 8 6" }),
-  React.createElement('line', { x1: "12", y1: "2", x2: "12", y2: "15" })
-);
 
 // Lucide-style link icon
 const LinkIcon = (props) => React.createElement(
@@ -3163,7 +3143,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     ? "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
                     : "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
                 },
-                React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || ShareIcon, {
+                React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || (() => null), {
                   className: isV2OrV3OrV4 ? "w-6 h-6" : "w-4 h-4",
                   isTapped: showShareMenu,
                   selectedWeight: 'fill',
@@ -3186,7 +3166,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                         "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
                       'aria-label': 'Family'
                     },
-                    React.createElement(window.TT?.shared?.icons?.Users || Users, {
+                    React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
                       className: "w-6 h-6",
                       isSelected: activeTab === 'family',
                       selectedWeight: 'fill',
@@ -3594,24 +3574,6 @@ const ChevronRight = (props) => React.createElement('svg', { ...props, xmlns: "h
   React.createElement('path', { d: "m9 18 6-6-6-6" })
 );
 
-// Lucide-style Milk icon (for Eating/Feeding)
-const Milk = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M8 2h8" }),
-  React.createElement('path', { d: "M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2" }),
-  React.createElement('path', { d: "M7 15a6.47 6.47 0 0 1 5 0 6.47 6.47 0 0 0 5 0" })
-);
-
-// Lucide-style Kanban icon (for Daily Activity)
-const Kanban = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M6 5v11" }),
-  React.createElement('path', { d: "M12 5v6" }),
-  React.createElement('path', { d: "M18 5v14" })
-);
-
-// Lucide-style Moon icon (for Sleep)
-const Moon = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" })
-);
 
 // Clock icon
 const Clock = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
@@ -3659,27 +3621,6 @@ const MessageCircle = (props) => React.createElement('svg', { ...props, xmlns: "
   React.createElement('path', { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" })
 );
 
-// Users (Family tab)
-const Users = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" }),
-  React.createElement('circle', { cx: "9", cy: "7", r: "4" }),
-  React.createElement('path', { d: "M23 21v-2a4 4 0 0 0-3-3.87" }),
-  React.createElement('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
-);
-
-// Menu/Hamburger (Settings tab)
-const Menu = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('line', { x1: "4", y1: "12", x2: "20", y2: "12" }),
-  React.createElement('line', { x1: "4", y1: "6", x2: "20", y2: "6" }),
-  React.createElement('line', { x1: "4", y1: "18", x2: "20", y2: "18" })
-);
-
-const Baby = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M9 12h.01" }),
-  React.createElement('path', { d: "M15 12h.01" }),
-  React.createElement('path', { d: "M10 16c.5.3 1.2.5 2 .5s1.5-.2 2-.5" }),
-  React.createElement('path', { d: "M19 6.3a9 9 0 0 1 1.8 3.9 2 2 0 0 1 0 3.6 9 9 0 0 1-17.6 0 2 2 0 0 1 0-3.6A9 9 0 0 1 12 3c2 0 3.5 1.1 3.5 2.5s-.9 2.5-2 2.5c-.8 0-1.5-.4-1.5-1" })
-);
 
 // ========================================
 // TINY TRACKER - PART 9

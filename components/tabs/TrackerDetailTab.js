@@ -352,10 +352,10 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   };
 
   const bottleIcon =
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"] || window.TT.shared.icons.BottleMain || window.TT.shared.icons["bottle-main"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
     null;
   const moonIcon =
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"] || window.TT.shared.icons.MoonMain || window.TT.shared.icons["moon-main"])) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
     null;
 
   const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null }) => {

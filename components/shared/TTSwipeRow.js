@@ -213,8 +213,6 @@ const TTSwipeRow = ({
     const BottleIcon =
       window.TT?.shared?.icons?.BottleV2 ||
       window.TT?.shared?.icons?.["bottle-v2"] ||
-      window.TT?.shared?.icons?.BottleMain ||
-      window.TT?.shared?.icons?.["bottle-main"] ||
       null;
     const accentColor = 'var(--tt-feed)';
     const iconSize = '1.4375rem';

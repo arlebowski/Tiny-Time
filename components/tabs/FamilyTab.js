@@ -42,6 +42,7 @@ const FamilyTab = ({
   const DatePickerTray = window.TT?.shared?.pickers?.DatePickerTray || null;
   const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
   const TTEditIcon = window.TT?.shared?.icons?.Edit2 || window.Edit2;
+  const BabyIcon = window.TT?.shared?.icons?.BabyIcon || null;
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
   const TT_ICON_BTN_BASE =
@@ -1401,10 +1402,10 @@ const FamilyTab = ({
                       'w-full h-full flex items-center justify-center',
                       style: { backgroundColor: 'var(--tt-feed-soft)' }
                   },
-                  React.createElement(Baby, {
+                  BabyIcon ? React.createElement(BabyIcon, {
                     className: 'w-12 h-12',
                     style: { color: 'var(--tt-feed)' }
-                  })
+                  }) : null
                 )
           ),
           React.createElement(
