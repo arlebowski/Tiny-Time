@@ -47,8 +47,18 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
       const [isOpen, setIsOpen] = useState(false);
       const containerRef = useRef(null);
 
-      const BottleIcon = global.TT?.shared?.icons?.BottleV2 || null;
-      const MoonIcon = global.TT?.shared?.icons?.MoonV2 || null;
+      const BottleIcon =
+        global.TT?.shared?.icons?.BottleV2 ||
+        global.TT?.shared?.icons?.["bottle-v2"] ||
+        global.TT?.shared?.icons?.BottleMain ||
+        global.TT?.shared?.icons?.["bottle-main"] ||
+        null;
+      const MoonIcon =
+        global.TT?.shared?.icons?.MoonV2 ||
+        global.TT?.shared?.icons?.["moon-v2"] ||
+        global.TT?.shared?.icons?.MoonMain ||
+        global.TT?.shared?.icons?.["moon-main"] ||
+        null;
 
       const handleClose = useCallback(() => setIsOpen(false), []);
       const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);

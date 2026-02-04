@@ -6,162 +6,27 @@
 // ========================================
 // UI VERSION HELPERS (Single Source of Truth)
 // ========================================
-// Initialize shared UI version helpers (only once)
-if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
-  window.TT = window.TT || {};
-  window.TT.shared = window.TT.shared || {};
-  
-  // Cached version (updated from Firestore)
-  let cachedVersion = 'v2';
-  let versionListeners = [];
-  let unsubscribeListener = null;
-  
-  // Helper to get UI version (defaults to v2 for backward compatibility)
-  window.TT.shared.uiVersion = {
-    getUIVersion: () => {
-      // Return cached version (will be updated from Firestore)
-      return cachedVersion;
-    },
-    shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => {
-      if (version === 'v4') return 'v4';
-      if (version === 'v3') return 'v3';
-      if (version === 'v2') return 'new';
-      return 'current';
-    },
-    
-    // Set global UI version in Firestore (for all users)
-    setUIVersion: async (version) => {
-      if (!version || !['v1', 'v2', 'v3', 'v4'].includes(version)) {
-        console.error('Invalid UI version:', version);
-        return;
-      }
-      
-      try {
-        // Access firebase from global scope
-        if (typeof window !== 'undefined' && window.firebase && window.firebase.firestore) {
-          const db = window.firebase.firestore();
-          await db.collection('appConfig').doc('global').set({
-            uiVersion: version,
-            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-          }, { merge: true });
-          
-          // Update cache immediately
-          cachedVersion = version;
-          // Notify all listeners
-          versionListeners.forEach(listener => listener(version));
-        } else {
-          console.error('Firebase not available');
-        }
-      } catch (error) {
-        console.error('Error setting global UI version:', error);
-        throw error;
-      }
-    },
-    
-    // Subscribe to version changes
-    onVersionChange: (callback) => {
-      versionListeners.push(callback);
-      return () => {
-        versionListeners = versionListeners.filter(cb => cb !== callback);
-      };
-    },
-    
-    // Initialize: fetch from Firestore and set up real-time listener
-    init: async () => {
-      if (typeof window === 'undefined' || !window.firebase || !window.firebase.firestore) {
-        // Fallback to localStorage if Firebase not available
-        if (window.localStorage) {
-          const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
-            cachedVersion = version;
-          }
-        }
-        return;
-      }
-      
-      try {
-        const db = window.firebase.firestore();
-        // First, try to get from Firestore
-        const doc = await db.collection('appConfig').doc('global').get();
-        if (doc.exists) {
-          const data = doc.data();
-          if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
-            cachedVersion = data.uiVersion;
-            // Notify all listeners
-            versionListeners.forEach(listener => listener(cachedVersion));
-          }
-        } else {
-          // Document doesn't exist, create it with default
-          await db.collection('appConfig').doc('global').set({
-            uiVersion: 'v2',
-            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-          });
-          cachedVersion = 'v2';
-        }
-        
-        // Set up real-time listener
-        unsubscribeListener = db.collection('appConfig').doc('global')
-          .onSnapshot((doc) => {
-            if (doc.exists) {
-              const data = doc.data();
-              if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
-                const newVersion = data.uiVersion;
-                if (newVersion !== cachedVersion) {
-                  cachedVersion = newVersion;
-                  // Notify all listeners
-                  versionListeners.forEach(listener => listener(cachedVersion));
-                }
-              }
-            }
-          });
-      } catch (error) {
-        console.error('Error initializing UI version from Firestore:', error);
-        // Fallback to localStorage
-        if (window.localStorage) {
-          const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
-            cachedVersion = version;
-          }
-        }
-      }
-    }
-  };
-  
-  // Initialize on load
-  if (typeof window !== 'undefined') {
-    // Wait a bit for Firebase to be available
-    setTimeout(() => {
-      window.TT.shared.uiVersion.init();
-    }, 100);
+// Initialize shared flags (only once)
+const readBool = (key, fallback = false) => {
+  try {
+    const v = localStorage.getItem(key);
+    if (v === null || v === undefined) return fallback;
+    return v === 'true';
+  } catch (e) {
+    return fallback;
   }
-}
+};
 
-// ========================================
-// FEATURE FLAGS (UI Lab)
-// ========================================
-// Shared, lightweight feature-flag helpers (localStorage-backed)
-if (typeof window !== 'undefined' && !window.TT?.shared?.flags) {
+const writeBool = (key, val) => {
+  try {
+    localStorage.setItem(key, val ? 'true' : 'false');
+  } catch (e) {}
+};
+
+if (typeof window !== 'undefined') {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
-
-  const readBool = (key, fallback = false) => {
-    try {
-      const v = localStorage.getItem(key);
-      if (v === null || v === undefined) return fallback;
-      return v === 'true';
-    } catch (e) {
-      return fallback;
-    }
-  };
-
-  const writeBool = (key, val) => {
-    try {
-      localStorage.setItem(key, val ? 'true' : 'false');
-    } catch (e) {}
-  };
-
-  window.TT.shared.flags = {
+  window.TT.shared.flags = window.TT.shared.flags || {
     useWheelPickers: {
       get: () => readBool('tt_use_wheel_pickers', false),
       set: (val) => writeBool('tt_use_wheel_pickers', !!val),
@@ -198,23 +63,8 @@ const SettingsTab = ({ user, kidId }) => {
     document.head.appendChild(style);
   }, []);
   
-  // UI Version - single source of truth (v1, v2, or v3)
-  const [uiVersion, setUiVersion] = useState(() => {
-    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
-  });
-  
-  // Listen for global UI version changes
-  React.useEffect(() => {
-    if (!window.TT?.shared?.uiVersion?.onVersionChange) return;
-    
-    const unsubscribe = window.TT.shared.uiVersion.onVersionChange((newVersion) => {
-      setUiVersion(newVersion);
-      // Force reload to apply changes
-      window.location.reload();
-    });
-    
-    return unsubscribe;
-  }, []);
+  // UI Version (v4 only)
+  const uiVersion = 'v4';
   
   // Wheel pickers feature flag (UI Lab)
   const [useWheelPickers, setUseWheelPickers] = useState(() => {
@@ -308,7 +158,7 @@ const SettingsTab = ({ user, kidId }) => {
     };
     
     fetchData();
-  }, [showUILab, uiVersion, kidId]);
+  }, [showUILab, kidId]);
 
   // Data transformation helpers (same as TrackerTab)
   const formatFeedingsForCard = (feedings, targetOunces, currentDate) => {
@@ -1497,37 +1347,8 @@ const SettingsTab = ({ user, kidId }) => {
         React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
       ),
 
-      // UI Version Toggle (single source of truth for v1/v2/v3)
-      React.createElement('div', { className: "mb-4" },
-        React.createElement('label', { 
-          className: "tt-card-label" 
-        }, 'UI Version'),
-        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-          value: uiVersion,
-          options: [
-            { value: 'v1', label: 'v1' },
-            { value: 'v2', label: 'v2' },
-            { value: 'v3', label: 'v3' },
-            { value: 'v4', label: 'v4' }
-          ],
-          onChange: async (value) => {
-            try {
-              if (window.TT?.shared?.uiVersion?.setUIVersion) {
-                await window.TT.shared.uiVersion.setUIVersion(value);
-                // The listener will trigger a reload automatically
-              } else {
-                // Fallback to localStorage if Firestore not available
-                if (typeof window !== 'undefined' && window.localStorage) {
-                  window.localStorage.setItem('tt_ui_version', value);
-                  window.location.reload();
-                }
-              }
-            } catch (error) {
-              console.error('Error setting UI version:', error);
-            }
-          }
-        })
-      ),
+      // UI Version (v4 only)
+      React.createElement('div', { className: "mb-4 text-sm", style: { color: 'var(--tt-text-secondary)' } }, 'UI Version: v4'),
 
       // Wheel Pickers Toggle (controls feature flag)
       React.createElement('div', { className: "mb-4" },
@@ -1582,13 +1403,7 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement('div', { className: "mb-6" },
         React.createElement('h2', { className: "text-2xl font-bold text-gray-900 mb-2" }, 'UI Lab'),
         React.createElement('p', { className: "text-sm text-gray-600" }, 
-          uiVersion === 'v1'
-            ? 'View old tracker UI with production data (v1)'
-            : uiVersion === 'v2'
-              ? 'View new tracker card components with current design (v2)'
-              : uiVersion === 'v3'
-                ? 'View new tracker card components with new design (v3)'
-                : 'View experimental v4 UI with latest design changes (v4)'
+          'View v4 tracker card components with production data.'
         )
       ),
 
@@ -1744,8 +1559,8 @@ const SettingsTab = ({ user, kidId }) => {
         )
       ),
 
-      // New UI - TrackerCard components with production data (v2, v3, and v4)
-      (uiVersion === 'v2' || uiVersion === 'v3' || uiVersion === 'v4') && (() => {
+      // v4 TrackerCard components with production data
+      (() => {
         if (loading) {
           return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
         }
@@ -1774,18 +1589,6 @@ const SettingsTab = ({ user, kidId }) => {
           })
         );
       })(),
-
-      // Old UI Section (v1)
-      uiVersion === 'v1' && React.createElement('div', { className: "mt-8" },
-        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Old UI'),
-        React.createElement('div', { className: "text-sm text-gray-600 mb-4" }, 
-          'This is the previous tracker interface. Switch to "New UI" to see the updated design.'
-        ),
-        loading ? React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...') :
-        React.createElement('div', { className: "bg-gray-50 rounded-2xl p-6 text-center text-gray-500" },
-          'Old UI components will be rendered here with production data'
-        )
-      ),
 
       // Detail Sheet previews with launch buttons
       React.createElement('div', { className: "border-t border-gray-100 pt-6" }),

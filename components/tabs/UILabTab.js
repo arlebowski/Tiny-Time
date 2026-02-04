@@ -3,7 +3,7 @@
 // Extracted from SettingsTab for better organization
 // ========================================
 
-const UILabTab = ({ kidId, uiVersion, onClose }) => {
+const UILabTab = ({ kidId, onClose }) => {
   const { useState, useEffect, useRef, useMemo } = React;
   
   // Production data for UI Lab
@@ -14,6 +14,7 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
   const [sleepSettings, setSleepSettings] = useState(null);
   const [currentDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
+  const showUILab = true;
   
   // Bottom sheet state for EditableRow (UI Lab only)
   const [editorState, setEditorState] = useState({
@@ -73,7 +74,7 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
     };
     
     fetchData();
-  }, [uiVersion, kidId]);
+  }, [kidId]);
 
   // Data transformation helpers (same as TrackerTab)
   const formatFeedingsForCard = (feedings, targetOunces, currentDate) => {
@@ -354,9 +355,6 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
 
   // Cleanup: restore body scroll when UI Lab closes
   React.useEffect(() => {
-    // Component always renders when mounted
-      document.body.style.overflow = '';
-    }
     return () => {
       document.body.style.overflow = '';
     };
@@ -1227,46 +1225,20 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
         React.createElement('button', {
           onClick: () => onClose(),
           className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
-      ,
+        },
           React.createElement(ChevronLeft, { className: "w-5 h-5" })
         ),
         React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
       ),
 
-      // UI Version Toggle (single source of truth for v1/v2/v3)
-      React.createElement('div', { className: "mb-4" },
-        React.createElement('label', { 
-          className: "block text-sm font-medium text-gray-700 mb-2" 
-      , 'UI Version'),
-        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-          value: uiVersion,
-          options: [
-            { value: 'v1', label: 'v1' },
-            { value: 'v2', label: 'v2' },
-            { value: 'v3', label: 'v3' },
-            { value: 'v4', label: 'v4' }
-          ],
-          onChange: (value) => {
-            if (typeof window !== 'undefined' && window.localStorage) {
-              window.localStorage.setItem('tt_ui_version', value);
-              // Force reload to apply changes
-              window.location.reload();
-          
-        
-      )
-      ),
+      // UI Version (v4 only)
+      React.createElement('div', { className: "mb-4 text-sm text-gray-600" }, 'UI Lab runs in v4 only.'),
 
       // Title and subtitle
       React.createElement('div', { className: "mb-6" },
         React.createElement('h2', { className: "text-2xl font-bold text-gray-900 mb-2" }, 'UI Lab'),
         React.createElement('p', { className: "text-sm text-gray-600" }, 
-          uiVersion === 'v1'
-            ? 'View old tracker UI with production data (v1)'
-            : uiVersion === 'v2'
-              ? 'View new tracker card components with current design (v2)'
-              : uiVersion === 'v3'
-                ? 'View new tracker card components with new design (v3)'
-                : 'View experimental v4 UI with latest design changes (v4)'
+          'View v4 tracker card components with production data.'
         )
       ),
 
@@ -1422,17 +1394,17 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
         )
       ),
 
-      // New UI - TrackerCard components with production data (v2, v3, and v4)
-      (uiVersion === 'v2' || uiVersion === 'v3' || uiVersion === 'v4') && (() => {
+      // v4 TrackerCard components with production data
+      (() => {
         if (loading) {
           return React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...');
-      
-        
+        }
+
         const targetOunces = (babyWeight || 0) * multiplier;
         const targetHours = sleepSettings?.sleepTargetHours || 14;
         const feedingCardData = formatFeedingsForCard(feedings, targetOunces, currentDate);
-        const sleepCardData = formatSleepSessionsForCard(sleepSessions, targetHours, currentDate, null); // No active sleep in UI Lab
-        
+        const sleepCardData = formatSleepSessionsForCard(sleepSessions, targetHours, currentDate);
+
         return React.createElement(React.Fragment, null,
           window.TrackerCard && React.createElement(window.TrackerCard, {
             mode: 'feeding',
@@ -1440,30 +1412,18 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
             target: feedingCardData.target,
             timelineItems: feedingCardData.timelineItems,
             lastEntryTime: feedingCardData.lastEntryTime,
-            onItemClick: () => {} // No-op for UI Lab
-        ),
+            onItemClick: () => {}
+          }),
           window.TrackerCard && React.createElement(window.TrackerCard, {
             mode: 'sleep',
             total: sleepCardData.total,
             target: sleepCardData.target,
             timelineItems: sleepCardData.timelineItems,
             lastEntryTime: sleepCardData.lastEntryTime,
-            onItemClick: () => {} // No-op for UI Lab
-        )
+            onItemClick: () => {}
+          })
         );
-    )(),
-
-      // Old UI Section (v1)
-      uiVersion === 'v1' && React.createElement('div', { className: "mt-8" },
-        React.createElement('h3', { className: "text-lg font-semibold text-gray-800 mb-4" }, 'Old UI'),
-        React.createElement('div', { className: "text-sm text-gray-600 mb-4" }, 
-          'This is the previous tracker interface. Switch to "New UI" to see the updated design.'
-        ),
-        loading ? React.createElement('div', { className: "text-center py-8 text-gray-500" }, 'Loading production data...') :
-        React.createElement('div', { className: "bg-gray-50 rounded-2xl p-6 text-center text-gray-500" },
-          'Old UI components will be rendered here with production data'
-        )
-      ),
+      })(),
 
       // Detail Sheet previews with launch buttons
       React.createElement('div', { className: "border-t border-gray-100 pt-6" }),
@@ -1474,7 +1434,7 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
           React.createElement('button', {
             onClick: () => setShowFeedSheet(true),
             className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-        , 'Open Feed Sheet'),
+          }, 'Open Feed Sheet'),
           // Static preview (unchanged)
           window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet)
         ),
@@ -1484,7 +1444,7 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
           React.createElement('button', {
             onClick: () => setShowSleepSheet(true),
             className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-        , 'Open Sleep Sheet'),
+          }, 'Open Sleep Sheet'),
           // Static preview (unchanged)
           window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet)
         )
@@ -1498,12 +1458,19 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
           React.createElement('button', {
             onClick: () => setShowInputSheet(true),
             className: "w-full bg-indigo-50 text-indigo-700 py-3 rounded-xl font-semibold active:opacity-80 transition mb-4"
-        , 'Open Input Sheet'),
+          }, 'Open Input Sheet'),
           // Static preview
           window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet)
         )
       ),
 
+    );
+  }
+
+  return null;
+};
+
+/*
       // Wheel Pickers section (moved under Input Half Sheet, wrapped in trays)
       React.createElement('div', { className: "mb-6" },
         React.createElement('div', { className: "border-t border-gray-100 pt-6 mb-4" }),
@@ -3588,6 +3555,7 @@ const UILabTab = ({ kidId, uiVersion, onClose }) => {
 
 };
 
+*/
 // Export
 window.TT = window.TT || {};
 window.TT.tabs = window.TT.tabs || {};

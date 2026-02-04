@@ -274,7 +274,11 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         return aMinutes - bMinutes;
       });
 
-      setLoggedTimelineItems(allCards);
+      if (activeSleepCard) {
+        setLoggedTimelineItems([activeSleepCard, ...allCards]);
+      } else {
+        setLoggedTimelineItems(allCards);
+      }
       const feedTotal = dayFeedings.reduce((sum, f) => {
         const amount = f.ounces ?? f.amountOz ?? f.amount ?? f.volumeOz ?? f.volume ?? 0;
         const n = Number(amount);
@@ -348,14 +352,10 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   };
 
   const bottleIcon =
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"] || window.TT.shared.icons.BottleMain || window.TT.shared.icons["bottle-main"])) ||
     null;
   const moonIcon =
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
+    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"] || window.TT.shared.icons.MoonMain || window.TT.shared.icons["moon-main"])) ||
     null;
 
   const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null }) => {

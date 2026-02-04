@@ -259,7 +259,7 @@ if (typeof window !== 'undefined') {
   window.TT.utils.formatElapsedHmsTT = formatElapsedHmsTT;
 }
 
-// v3 number formatting:
+// Number formatting:
 // - whole numbers: "7"
 // - non-whole: "7.3" (one decimal)
 function formatV2Number(n) {
@@ -639,10 +639,13 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOv
         style: { ...iconStyle, width: '2.475rem', height: '2.475rem', strokeWidth: '3' } // 20% bigger (1.875rem * 1.2 = 2.25rem = 36px), +10% = 2.475rem = 39.6px + 0.5 stroke
       }) : React.createElement('div', { style: { width: '2.475rem', height: '2.475rem', borderRadius: '1rem', backgroundColor: 'var(--tt-input-bg)' } });
     } else {
-      // In v3 we override the feeding icon with the masked PNG bottle (already mirrored to point right).
       const OverrideIcon = iconOverride || null;
-      // Always use BottleV2 for feed timeline items (both variants)
-      const BottleIcon = (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null);
+      const BottleIcon =
+        window.TT?.shared?.icons?.BottleV2 ||
+        window.TT?.shared?.icons?.["bottle-v2"] ||
+        window.TT?.shared?.icons?.BottleMain ||
+        window.TT?.shared?.icons?.["bottle-main"] ||
+        null;
       const accentColor = 'var(--tt-feed)';
       // 15% larger than card header: 1.25rem * 1.15 = 1.4375rem (23px)
       const iconSize = '1.4375rem';
@@ -968,190 +971,6 @@ const TimelineItem = ({ entry, mode = 'sleep', mirrorFeedingIcon = false, iconOv
   );
 };
 
-// ========================================
-// UI VERSION HELPERS (Single Source of Truth)
-// ========================================
-// Initialize shared UI version helpers (only once)
-// Note: This is initialized in SettingsTab.js with Firestore support
-// This check ensures it exists, but won't re-initialize if already set
-if (typeof window !== 'undefined' && !window.TT?.shared?.uiVersion) {
-  window.TT = window.TT || {};
-  window.TT.shared = window.TT.shared || {};
-  
-  // Cached version (updated from Firestore)
-  let cachedVersion = 'v2';
-  let versionListeners = [];
-  let unsubscribeListener = null;
-  
-  // Helper to get UI version (defaults to v2 for backward compatibility)
-  window.TT.shared.uiVersion = {
-    getUIVersion: () => {
-      // Return cached version (will be updated from Firestore)
-      return cachedVersion;
-    },
-    shouldUseNewUI: (version) => version !== 'v1',
-    getCardDesign: (version) => {
-      if (version === 'v4') return 'v4';
-      if (version === 'v3') return 'v3';
-      if (version === 'v2') return 'new';
-      return 'current';
-    },
-    
-    // Set global UI version in Firestore (for all users)
-    setUIVersion: async (version) => {
-      if (!version || !['v1', 'v2', 'v3', 'v4'].includes(version)) {
-        console.error('Invalid UI version:', version);
-        return;
-      }
-      
-      // Check if Firebase is properly initialized
-      const isFirebaseReady = () => {
-        try {
-          return typeof window !== 'undefined' && 
-                 window.firebase && 
-                 window.firebase.apps && 
-                 window.firebase.apps.length > 0 &&
-                 window.firebase.firestore;
-        } catch {
-          return false;
-        }
-      };
-      
-      if (!isFirebaseReady()) {
-        console.error('Firebase not initialized, cannot set UI version');
-        return;
-      }
-      
-      try {
-        const db = window.firebase.firestore();
-        await db.collection('appConfig').doc('global').set({
-          uiVersion: version,
-          updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-        }, { merge: true });
-        
-        // Update cache immediately
-        cachedVersion = version;
-        // Notify all listeners
-        versionListeners.forEach(listener => listener(version));
-      } catch (error) {
-        console.error('Error setting global UI version:', error);
-        throw error;
-      }
-    },
-    
-    // Subscribe to version changes
-    onVersionChange: (callback) => {
-      versionListeners.push(callback);
-      return () => {
-        versionListeners = versionListeners.filter(cb => cb !== callback);
-      };
-    },
-    
-    // Initialize: fetch from Firestore and set up real-time listener
-    init: async () => {
-      // Check if Firebase is properly initialized
-      const isFirebaseReady = () => {
-        try {
-          return typeof window !== 'undefined' && 
-                 window.firebase && 
-                 window.firebase.apps && 
-                 window.firebase.apps.length > 0 &&
-                 window.firebase.firestore;
-        } catch {
-          return false;
-        }
-      };
-      
-      // Wait for Firebase to be initialized (max 5 seconds)
-      let attempts = 0;
-      const maxAttempts = 50; // 50 * 100ms = 5 seconds
-      while (!isFirebaseReady() && attempts < maxAttempts) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        attempts++;
-      }
-      
-      if (!isFirebaseReady()) {
-        // Fallback to localStorage if Firebase not available
-        if (window.localStorage) {
-          const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
-            cachedVersion = version;
-          }
-        }
-        return;
-      }
-      
-      try {
-        const db = window.firebase.firestore();
-        // First, try to get from Firestore
-        const doc = await db.collection('appConfig').doc('global').get();
-        if (doc.exists) {
-          const data = doc.data();
-          if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
-            cachedVersion = data.uiVersion;
-            // Notify all listeners
-            versionListeners.forEach(listener => listener(cachedVersion));
-          }
-        } else {
-          // Document doesn't exist, create it with default
-          await db.collection('appConfig').doc('global').set({
-            uiVersion: 'v2',
-            updatedAt: window.firebase.firestore.FieldValue.serverTimestamp()
-          });
-          cachedVersion = 'v2';
-        }
-        
-        // Set up real-time listener
-        unsubscribeListener = db.collection('appConfig').doc('global')
-          .onSnapshot((doc) => {
-            if (doc.exists) {
-              const data = doc.data();
-              if (data.uiVersion && ['v1', 'v2', 'v3', 'v4'].includes(data.uiVersion)) {
-                const newVersion = data.uiVersion;
-                if (newVersion !== cachedVersion) {
-                  cachedVersion = newVersion;
-                  // Notify all listeners
-                  versionListeners.forEach(listener => listener(cachedVersion));
-                }
-              }
-            }
-          });
-      } catch (error) {
-        console.error('Error initializing UI version from Firestore:', error);
-        // Fallback to localStorage
-        if (window.localStorage) {
-          const version = window.localStorage.getItem('tt_ui_version');
-          if (version && ['v1', 'v2', 'v3', 'v4'].includes(version)) {
-            cachedVersion = version;
-          }
-        }
-      }
-    }
-  };
-  
-  // Initialize on load - wait for Firebase to be ready
-  if (typeof window !== 'undefined') {
-    // Wait for script.js to load and initialize Firebase
-    const initWhenReady = () => {
-      if (window.TT && window.TT.shared && window.TT.shared.uiVersion) {
-        window.TT.shared.uiVersion.init();
-      } else {
-        // Check if script.js has loaded (it sets up window.TT)
-        if (window.firebase && window.firebase.apps && window.firebase.apps.length > 0) {
-          // Firebase is initialized, but TT might not be set up yet
-          setTimeout(initWhenReady, 100);
-        } else {
-          // Firebase not ready yet, wait a bit more
-          setTimeout(initWhenReady, 100);
-        }
-      }
-    };
-    
-    // Start checking after a short delay to let scripts load
-    setTimeout(initWhenReady, 200);
-  }
-}
-
 const __ttV4ResolveFramer = () => {
   if (typeof window === 'undefined') return {};
   const candidates = [
@@ -1264,27 +1083,12 @@ const TrackerCard = ({
     }
   }, [timelineFullSizePhoto]);
   
-  // UI Version - single source of truth (v1, v2, v3, or v4)
-  // Part of UI Version system:
-  // - v1: Old UI (not used here, TrackerCard only shows in v2/v3/v4)
-  // - v2: useNewUI = true, cardDesign = 'current'
-  // - v3: useNewUI = true, cardDesign = 'v3'
-  // - v4: useNewUI = true, cardDesign = 'v4' (experimental)
-  const [uiVersion, setUiVersion] = React.useState(() => {
-    return (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
-  });
-  const cardDesign = (window.TT?.shared?.uiVersion?.getCardDesign || ((v) => {
-    if (v === 'v4') return 'v4';
-    if (v === 'v3') return 'v3';
-    if (v === 'v2') return 'new';
-    return 'current';
-  }))(uiVersion);
-
-  const __ttV4Framer = uiVersion === 'v4' ? __ttV4ResolveFramer() : {};
+  // UI Version (v4-only)
+  const __ttV4Framer = __ttV4ResolveFramer();
   const __ttV4Motion = __ttV4Framer.motion || null;
-  const isV4CardMotion = uiVersion === 'v4' && !!__ttV4Motion;
+  const isV4CardMotion = !!__ttV4Motion;
   const CardWrapper = isV4CardMotion ? __ttV4Motion.div : 'div';
-  const cardClassName = `rounded-2xl p-5 shadow-sm${uiVersion === 'v4' ? ' tt-card-tap' : ''}`;
+  const cardClassName = `rounded-2xl p-5 shadow-sm tt-card-tap`;
   const cardMotionProps = isV4CardMotion ? {
     whileTap: {
       scale: 0.992,
@@ -1292,30 +1096,6 @@ const TrackerCard = ({
     },
     transition: { duration: 0.14, ease: [0.22, 1, 0.36, 1] }
   } : {};
-  
-
-  
-  // Listen for changes to the feature flags
-  React.useEffect(() => {
-    const handleStorageChange = () => {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const version = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
-        setUiVersion(version);
-
-      }
-    };
-    
-    // Listen for storage events (when changed from another tab/window)
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Also check periodically (for same-tab changes)
-    const interval = setInterval(handleStorageChange, 100);
-    
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
-  }, []);
   
   const [expanded, setExpanded] = React.useState(false);
   const [hasInteracted, setHasInteracted] = React.useState(false); // Track if user has clicked expand/collapse
@@ -1569,16 +1349,13 @@ const TrackerCard = ({
       }
       return;
     }
-    // For v3/v4: toggle accordion when card is tapped
-    if (uiVersion === 'v3' || uiVersion === 'v4') {
-      setHasInteracted(true);
-      setExpanded(!expanded);
-      // Also show yesterday comparison when expanded
-      if (!expanded && isViewingToday) {
-        setShowYesterdayComparison(true);
-      }
-      return;
+    setHasInteracted(true);
+    setExpanded(!expanded);
+    // Also show yesterday comparison when expanded
+    if (!expanded && isViewingToday) {
+      setShowYesterdayComparison(true);
     }
+    return;
     // Only trigger on direct card area clicks (header, numbers, progress track, etc.)
     // Only allow toggling when viewing today
     if (isViewingToday) {
@@ -1990,31 +1767,33 @@ const TrackerCard = ({
   // Match the subtle background used by TimelineItem rows
   const timelineSubtleBg = 'var(--tt-timeline-track-bg)';
 
-  // Get the appropriate icon for the header - use BottleV2 and MoonV2 for both variants
-  const HeaderIcon = mode === 'feeding' 
-    ? (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) || null
-    : (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) || null;
+  // Get the appropriate icon for the header (v4)
+  const HeaderIcon = mode === 'feeding'
+    ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || window.TT?.shared?.icons?.BottleMain || window.TT?.shared?.icons?.["bottle-main"]) || null
+    : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || window.TT?.shared?.icons?.MoonMain || window.TT?.shared?.icons?.["moon-main"]) || null;
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
 
-  // v3 "main" icons - use BottleV2 and MoonV2 for both variants
+  // Main icons (v4)
   const BottleMainIcon =
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
+    window.TT?.shared?.icons?.BottleV2 ||
+    window.TT?.shared?.icons?.["bottle-v2"] ||
+    window.TT?.shared?.icons?.BottleMain ||
+    window.TT?.shared?.icons?.["bottle-main"] ||
     HeaderIcon ||
     null;
   const MoonMainIcon =
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
+    window.TT?.shared?.icons?.MoonV2 ||
+    window.TT?.shared?.icons?.["moon-v2"] ||
+    window.TT?.shared?.icons?.MoonMain ||
+    window.TT?.shared?.icons?.["moon-main"] ||
     HeaderIcon ||
     null;
 
-  // Shared renderer: v2 ("current") and v3 ("new") can vary styling without duplicating markup.
+  // Shared renderer for v4 card layout.
   const renderDesign = ({
     showHeaderRow = true,                   // show the old header row (icon + Feed/Sleep + headerRight)
-    iconOverride = null,                    // override icon component (v3 uses bottle-main/moon-main)
+    iconOverride = null,                    // override icon component
     headerGapClass = 'gap-2',                 // icon ↔ label spacing
     headerBottomMarginClass = 'mb-6',         // header ↔ big number spacing
     headerLabelClassName = 'text-[18px] font-semibold',
@@ -2029,26 +1808,26 @@ const TrackerCard = ({
     bigNumberIconClassName = null,           // icon size for big number row (defaults to headerIconClassName)
     bigNumberRight = null,                   // optional right-side content in big number row (e.g. status pill)
     bigNumberRowClassName = "flex items-baseline gap-1 mb-1",
-    bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value (v3)
+    bigNumberIconValueGapClassName = "gap-[6px]", // spacing between icon and big-number value
     bigNumberValueClassName = "text-[40px] leading-none font-bold",
     bigNumberTargetClassName = "relative -top-[1px] text-[16px] leading-none",
     bigNumberTargetColor = 'var(--tt-text-secondary)',
-    bigNumberTargetVariant = 'target',        // 'target' | 'unit' (v3 uses 'unit')
-    bigNumberTopLabel = null,                 // optional icon + label above big number (for v3 feeding)
+    bigNumberTargetVariant = 'target',        // 'target' | 'unit'
+    bigNumberTopLabel = null,                 // optional icon + label above big number
     progressTrackHeightClass = 'h-6',         // progress track (fill uses h-full)
     progressTrackBg = 'var(--tt-progress-track)',   // progress track background
-    progressBarGoalText = null,               // Goal text below progress bar (for v3, e.g., "Goal 14.5 oz" or "Goal 12 hours")
+    progressBarGoalText = null,               // Goal text below progress bar
     progressBarGoalTextClassName = "text-[15.4px] font-normal leading-none",
-    statusRow = null,                         // optional row below progress bar (v3)
+    statusRow = null,                         // optional row below progress bar
     statusRowClassName = '',                  // spacing wrapper for statusRow
     showDotsRow = true,                       // dots row under progress bar
     progressBottomMarginClass = 'mb-1',       // spacing after progress bar
     dividerMarginClass = 'my-4',              // divider spacing
     timelineTextColor = 'var(--tt-text-secondary)',
-    timelineVariant = 'v2',                   // 'v2' | 'v3' (v3 uses pill + no bullet)
-    timelineCountPill = null,                 // optional v3 pill shown inline next to "Timeline"
-    hideTimelineBar = false,                   // Hide timeline bar button (for v3)
-    accordionCountPill = null                 // Count pill to show in accordion (for v3)
+    timelineVariant = 'v4',                   // 'v4' uses pill + no bullet
+    timelineCountPill = null,                 // optional pill shown inline next to "Timeline"
+    hideTimelineBar = false,                   // Hide timeline bar button
+    accordionCountPill = null                 // Count pill to show in accordion
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
     const withFeedingMirror = (t) => {
@@ -2058,342 +1837,174 @@ const TrackerCard = ({
       return `scaleX(-1) ${s}`;
     };
     const effectiveFeedingTransform = mirrorFeedingIcon ? withFeedingMirror(feedingIconTransform) : feedingIconTransform;
-    const headerIconEl = showHeaderIcon
-      ? (IconComp ? React.createElement(IconComp, {
-          className: headerIconClassName,
-          style: {
-            color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-            transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
-            strokeWidth: mode === 'feeding' ? '1.5' : undefined,
-            fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
-          }
-        }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
-      : null;
-    const headerTitleEl = (headerLabel || (!headerRight || showHeaderIcon))
-      ? (headerLabel
-          ? headerLabel
-          : React.createElement('div', {
-              className: headerLabelClassName,
-              style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-            }, mode === 'feeding' ? 'Feed' : 'Sleep'))
-      : null;
-    const CardComp = TTCard || CardWrapper;
-    const cardProps = TTCard ? {
-      as: CardWrapper,
-      variant: 'tracker',
-      className: cardClassName,
-      style: {
-        backgroundColor: "var(--tt-tracker-card-bg)",
-        borderColor: "var(--tt-card-border)",
-        cursor: 'pointer',
-        transition: isV4CardMotion ? 'none' : 'all 0.3s ease-out'
-      },
-      onClick: handleCardTap,
-      ...cardMotionProps
-    } : {
-      className: cardClassName,
-      style: {
-        backgroundColor: "var(--tt-tracker-card-bg)",
-        borderColor: "var(--tt-card-border)",
-        cursor: 'pointer',
-        transition: isV4CardMotion ? 'none' : 'all 0.3s ease-out'
-      },
-      onClick: handleCardTap,
-      ...cardMotionProps
-    };
-
     return React.createElement(
-    CardComp,
-    cardProps,
-    showHeaderRow ? (
-      TTCardHeader
-        ? React.createElement(TTCardHeader, {
-            icon: headerIconEl,
-            title: headerTitleEl,
-            right: headerRight,
-            showIcon: !!headerIconEl,
-            showTitle: !!headerTitleEl,
-            gapClass: headerGapClass,
-            className: `${headerBottomMarginClass} ${(headerRight && !showHeaderIcon && !headerLabel) ? '' : 'h-6'}`,
-            align: (headerRight && !showHeaderIcon && !headerLabel) ? 'end' : 'between',
-            style: (headerRight && !showHeaderIcon && !headerLabel) ? {
-              width: '100%',
-              marginLeft: 0,
-              marginRight: 0,
-              paddingLeft: 0,
-              paddingRight: 0,
-              boxSizing: 'border-box',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'flex-end'
-            } : null
-          })
-        : React.createElement(
+      CardWrapper,
+      { 
+        className: cardClassName,
+        style: {
+          backgroundColor: "var(--tt-card-bg)",
+          borderColor: "var(--tt-card-border)",
+          cursor: 'pointer',
+          transition: 'all 0.3s ease-out'
+        },
+        onClick: handleCardTap,
+        ...cardMotionProps
+      },
+      showHeaderRow ? React.createElement(
+        'div',
+        { 
+          className: `flex items-center w-full ${(headerRight && !showHeaderIcon && !headerLabel) ? 'justify-end' : 'justify-between'} ${headerBottomMarginClass} ${(headerRight && !showHeaderIcon && !headerLabel) ? '' : 'h-6'}`,
+          style: (headerRight && !showHeaderIcon && !headerLabel) ? { 
+            width: '100%',
+            marginLeft: 0,
+            marginRight: 0,
+            paddingLeft: 0,
+            paddingRight: 0,
+            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end'
+          } : {}
+        },
+        (showHeaderIcon || headerLabel || (!headerRight)) ? React.createElement(
+          'div',
+          { className: `flex items-center ${headerGapClass}` },
+          showHeaderIcon
+            ? (IconComp ? React.createElement(IconComp, { 
+                className: headerIconClassName,
+                style: { 
+                  color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+                  transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
+                  strokeWidth: mode === 'feeding' ? '1.5' : undefined,
+                  fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
+                }
+              }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
+            : null,
+          (headerLabel || (!headerRight || showHeaderIcon)) ? (
+            headerLabel 
+              ? headerLabel
+              : React.createElement('div', { 
+                  className: headerLabelClassName,
+                  style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+                }, mode === 'feeding' ? 'Feed' : 'Sleep')
+          ) : null
+        ) : null,
+        headerRight
+      ) : null,
+
+      bigNumberTopLabel ? React.createElement(
+        'div',
+        { className: "flex items-center mb-4" },
+        bigNumberTopLabel
+      ) : null,
+
+      (() => {
+        const valueEl = React.createElement('div', { 
+          className: bigNumberValueClassName,
+          style: { 
+            color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+            transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
+          }
+        }, 
+          total !== null ? formatV2Number(total) : '0'
+        );
+
+        const targetEl = React.createElement('div', { 
+          className: bigNumberTargetClassName,
+          style: { color: bigNumberTargetColor } 
+        }, 
+          bigNumberTargetVariant === 'unit'
+            ? (mode === 'sleep' ? 'hrs' : 'oz')
+            : (target !== null 
+                ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : `/ ${formatV2Number(target)} oz`)
+                : (mode === 'sleep' ? '/ 0 hrs' : '/ 0 oz'))
+        );
+
+        const iconEl = (showBigNumberIcon && IconComp)
+          ? React.createElement(IconComp, { 
+              className: bigNumberIconClassName || headerIconClassName,
+              style: { 
+                color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+                transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
+                strokeWidth: mode === 'feeding' ? '1.5' : undefined,
+                fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
+              }
+            })
+          : null;
+
+        if (!showBigNumberIcon && !bigNumberRight) {
+          return React.createElement(
             'div',
-            { 
-              className: `flex items-center w-full ${(headerRight && !showHeaderIcon && !headerLabel) ? 'justify-end' : 'justify-between'} ${headerBottomMarginClass} ${(headerRight && !showHeaderIcon && !headerLabel) ? '' : 'h-6'}`,
-              style: (headerRight && !showHeaderIcon && !headerLabel) ? { 
-                width: '100%',
-                marginLeft: 0,
-                marginRight: 0,
-                paddingLeft: 0,
-                paddingRight: 0,
-                boxSizing: 'border-box',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'flex-end'
-              } : {}
-            },
-            (showHeaderIcon || headerLabel || (!headerRight)) ? React.createElement(
-              'div',
-              { className: `flex items-center ${headerGapClass}` },
-              headerIconEl,
-              headerTitleEl
-            ) : null,
-            headerRight
-          )
-    ) : null,
-
-    // Optional icon + label above big number (for v3 feeding)
-    bigNumberTopLabel ? React.createElement(
-      'div',
-      { className: "flex items-center mb-4" },
-      bigNumberTopLabel
-    ) : null,
-
-    (() => {
-      const valueEl = React.createElement('div', { 
-        className: bigNumberValueClassName,
-        style: { 
-          color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
+            { className: bigNumberRowClassName },
+            valueEl,
+            targetEl
+          );
         }
-      }, 
-        total !== null ? formatV2Number(total) : '0'
-      );
 
-      const targetEl = React.createElement('div', { 
-        className: bigNumberTargetClassName,
-        style: { color: bigNumberTargetColor } 
-      }, 
-        bigNumberTargetVariant === 'unit'
-          ? (mode === 'sleep' ? 'hrs' : 'oz')
-          : (target !== null 
-              ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : `/ ${formatV2Number(target)} oz`)
-              : (mode === 'sleep' ? '/ 0 hrs' : '/ 0 oz'))
-      );
-
-      const iconEl = (showBigNumberIcon && IconComp)
-        ? React.createElement(IconComp, { 
-            className: bigNumberIconClassName || headerIconClassName,
-            style: { 
-              color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-              transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
-              strokeWidth: mode === 'feeding' ? '1.5' : undefined,
-              fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
-            }
-          })
-        : null;
-
-      // Default (v2): number + target only.
-      if (!showBigNumberIcon && !bigNumberRight) {
         return React.createElement(
           'div',
           { className: bigNumberRowClassName },
-          valueEl,
-          targetEl
-        );
-      }
-
-      // v3: icon + number (left) and optional right content (status pill)
-      return React.createElement(
-        'div',
-        { className: bigNumberRowClassName },
-        React.createElement(
-          'div',
-          { className: `flex items-center ${bigNumberIconValueGapClassName} min-w-0` },
-          iconEl,
           React.createElement(
             'div',
-            { className: "flex items-baseline gap-[2px] min-w-0" },
-            valueEl,
-            targetEl
-          )
-        ),
-        bigNumberRight
-      );
-    })(),
-    
-    // Animated Progress Bar (production-style)
-    // Direct percentage calculation like old ProgressBarRow - smooth transitions without resetting
-    React.createElement('div', { 
-      className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, 
-      style: { 
-        backgroundColor: progressTrackBg,
-        marginLeft: 0,
-        marginRight: 0,
-        paddingLeft: 0,
-        paddingRight: 0,
-        width: '100%',
-        boxSizing: 'border-box'
-      } 
-    },
-      React.createElement('div', {
-        className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
-        style: {
-          width: `${displayPercent}%`,
-          backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-          transitionDelay: '0s',
-          minWidth: '0%', // Ensure smooth animation to 0
-          position: 'relative' // Ensure ::after pseudo-element positions correctly
-        }
-      })
-    ),
-    // Goal text below progress bar (for v3) - hide when expanded
-    progressBarGoalText && React.createElement(
-      'div',
-      {
-        className: `flex justify-end ${expanded ? '' : 'mt-[5px]'}`,
+            { className: `flex items-center ${bigNumberIconValueGapClassName} min-w-0` },
+            iconEl,
+            React.createElement(
+              'div',
+              { className: "flex items-baseline gap-[2px] min-w-0" },
+              valueEl,
+              targetEl
+            )
+          ),
+          bigNumberRight
+        );
+      })(),
+      
+      React.createElement('div', { 
+        className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`, 
         style: { 
+          backgroundColor: progressTrackBg,
+          marginLeft: 0,
+          marginRight: 0,
+          paddingLeft: 0,
+          paddingRight: 0,
           width: '100%',
-          display: expanded ? 'none' : 'flex',
-          opacity: expanded ? 0 : 0.7,
-          transition: 'opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
-        }
+          boxSizing: 'border-box'
+        } 
       },
-      React.createElement('span', {
-        className: progressBarGoalTextClassName,
-        style: { color: 'var(--tt-text-tertiary)' }
-      }, progressBarGoalText)
-    ),
-    // Yesterday comparison section (insert after main progress bar, before status/dots)
-    // Only show when viewing today AND comparison is toggled on AND not in accordion (v3 shows it in accordion)
-    (showYesterdayComparison && isViewingToday && !hideTimelineBar) && React.createElement(
-      React.Fragment,
-      null,
-      // Number + label inline, then progress bar below
-      React.createElement('div', {
-        className: "mb-8 mt-3"
-      },
-        // Number + "as of" text inline
         React.createElement('div', {
-          className: "flex items-center gap-2 mb-2"
-        },
-          React.createElement('span', {
-            className: "text-[15.4px] font-bold leading-none",
-            style: {
-              color: mode === 'feeding' ? 'var(--tt-feed-soft, var(--tt-feed))' : 'var(--tt-sleep-soft, var(--tt-sleep))',
-              opacity: 0.7
-            }
-          }, `${formattedYesterdayTotal}${mode === 'feeding' ? ' oz' : ' hrs'}`),
-          React.createElement('span', {
-            className: "text-[15.4px] font-normal leading-none",
-            style: { color: 'var(--tt-text-tertiary)', opacity: 0.6 }
-          }, `as of ${yesterdayTotal.displayTime} yesterday`)
-        ),
-        // Progress bar with track (40% height of main bar - doubled for visibility)
-        React.createElement('div', {
-          className: "relative w-full rounded-2xl overflow-hidden",
+          className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
           style: {
-            height: progressTrackHeightClass === 'h-6' 
-              ? '9.6px'  // 40% of 24px (doubled from 20%)
-              : '6.336px', // 40% of 15.84px (doubled from 20%)
-            backgroundColor: 'var(--tt-progress-track)',
-            minHeight: '4px' // Ensure track is always visible (doubled)
+            width: `${displayPercent}%`,
+            backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+            transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+            transitionDelay: '0s',
+            minWidth: '0%',
+            position: 'relative'
           }
-        },
-          React.createElement('div', {
-            className: "absolute left-0 top-0 h-full rounded-2xl",
-            style: {
-              width: `${Math.max(0, yesterdayPercent)}%`,
-              backgroundColor: mode === 'feeding' 
-                ? 'var(--tt-feed-soft, var(--tt-feed))'
-                : 'var(--tt-sleep-soft, var(--tt-sleep))',
-              opacity: 0.6,
-              transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-              minWidth: yesterdayPercent > 0 ? '2px' : '0px' // Ensure fill is visible if there's data (doubled)
-            }
-          })
-        )
-      )
-    ),
-    statusRow ? React.createElement('div', { className: statusRowClassName }, statusRow) : null,
-    showDotsRow && React.createElement(
-      'div',
-      { className: "flex gap-1.5 pl-1 mb-2" },
-      Array.from({ length: Math.min(timelineItems.length, 10) }, (_, i) =>
-        React.createElement('div', { 
-          key: i, 
-          className: "h-3.5 w-3.5 rounded-full",
-          style: { backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
         })
-      )
-    ),
-    // Divider - always show (unless hiding timeline bar for v3)
-    (!hideTimelineBar && !disableAccordion) && React.createElement('div', { 
-      className: `border-t ${dividerMarginClass}`,
-      style: { 
-        borderColor: document.documentElement.classList.contains('dark') 
-          ? 'rgba(255,255,255,0.06)'  // More subtle in dark mode
-          : 'rgb(243, 244, 246)'  // border-gray-100 equivalent for light mode
-      }
-    }),
-    // Timeline bar button - hide for v3 (chevron moved to header)
-    (!hideTimelineBar && !disableAccordion) && React.createElement(
-      'button',
-      {
-        onClick: () => {
-          setHasInteracted(true);
-          setExpanded(!expanded);
-          if (!expanded && isViewingToday) {
-            setShowYesterdayComparison(true);
+      ),
+      progressBarGoalText && React.createElement(
+        'div',
+        {
+          className: `flex justify-end ${expanded ? '' : 'mt-[4px]'}`,
+          style: { 
+            width: '100%',
+            display: expanded ? 'none' : 'flex',
+            opacity: expanded ? 0 : 0.7,
+            transition: 'opacity 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
           }
         },
-        className: "flex w-full items-center justify-between",
-        style: { color: timelineTextColor }
-      },
-      React.createElement(
-        'span',
-        null,
-        timelineVariant === 'v3'
-          ? (timelineCountPill 
-              ? timelineCountPill  // Feeding: replace "Timeline" with pills
-              : React.createElement(  // Sleep: show "Timeline" text
-                  'span',
-                  { className: "font-normal", style: { color: timelineTextColor } },
-                  'Timeline'
-                ))
-          : timelineLabel
+        React.createElement('span', {
+          className: "text-[15.4px] font-normal leading-none",
+          style: { color: 'var(--tt-text-tertiary)' }
+        }, progressBarGoalText)
       ),
-      expanded
-        ? React.createElement(window.TT?.shared?.icons?.ChevronUpIcon || ChevronUp, { 
-            className: "w-5 h-5",
-            isTapped: true,
-            selectedWeight: 'bold',
-            style: { color: timelineTextColor } 
-          })
-        : React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, { 
-            className: "w-5 h-5",
-            isTapped: false,
-            selectedWeight: 'bold',
-            style: { color: timelineTextColor } 
-          })
-    ),
-    // Accordion content (always rendered to allow collapse animation)
-    !disableAccordion && React.createElement(
-      'div',
-      {
-        className: !hasInteracted
-          ? 'mt-2'
-          : `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
-        style: !hasInteracted && !expanded
-          ? { overflow: 'hidden', maxHeight: 0, opacity: 0 }
-          : { overflow: 'hidden' }
-      },
-      // Show yesterday comparison in accordion for v3 (moved before count pill)
-      (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(React.Fragment, null, React.createElement('div', { className: "mb-8 mt-1.5" },
-          // Number + "as of" text inline
+      (showYesterdayComparison && isViewingToday && !hideTimelineBar) && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', {
+          className: "mb-8 mt-3"
+        },
           React.createElement('div', {
             className: "flex items-center gap-2 mb-2"
           },
@@ -2401,7 +2012,7 @@ const TrackerCard = ({
               className: "text-[15.4px] font-bold leading-none",
               style: {
                 color: mode === 'feeding' ? 'var(--tt-feed-soft, var(--tt-feed))' : 'var(--tt-sleep-soft, var(--tt-sleep))',
-                opacity: 0.85
+                opacity: 0.7
               }
             }, `${formattedYesterdayTotal}${mode === 'feeding' ? ' oz' : ' hrs'}`),
             React.createElement('span', {
@@ -2409,15 +2020,14 @@ const TrackerCard = ({
               style: { color: 'var(--tt-text-tertiary)', opacity: 0.6 }
             }, `as of ${yesterdayTotal.displayTime} yesterday`)
           ),
-          // Progress bar with track (40% height of main bar - doubled for visibility)
           React.createElement('div', {
             className: "relative w-full rounded-2xl overflow-hidden",
             style: {
               height: progressTrackHeightClass === 'h-6' 
-                ? '9.6px'  // 40% of 24px (doubled from 20%)
-                : '6.336px', // 40% of 15.84px (doubled from 20%)
-              backgroundColor: 'var(--tt-progress-track)',
-              minHeight: '4px' // Ensure track is always visible (doubled)
+                ? '9.6px'
+                : '6.336px',
+              backgroundColor: 'var(--tt-subtle-surface)',
+              minHeight: '4px'
             }
           },
             React.createElement('div', {
@@ -2429,393 +2039,164 @@ const TrackerCard = ({
                   : 'var(--tt-sleep-soft, var(--tt-sleep))',
                 opacity: 0.6,
                 transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
-                minWidth: yesterdayPercent > 0 ? '2px' : '0px' // Ensure fill is visible if there's data (doubled)
+                minWidth: yesterdayPercent > 0 ? '2px' : '0px'
               }
             })
           )
-        )),
-      // Show count pill after yesterday comparison for v3
-      accordionCountPill && React.createElement(
-        'div',
-        { className: "mb-4" },
-        accordionCountPill
+        )
       ),
-      // Timeline items
-      ((localTimelineItems && localTimelineItems.length > 0) || exitingIds.size > 0)
-        ? (() => {
-            return localTimelineItems.map((entry, index) => {
-              const itemId = getStableItemId(entry);
-              const isEntering = enteringIds.has(itemId);
-              const isExiting = exitingIds.has(itemId);
-              
-              const animationClass = isExiting 
-                ? 'timeline-item-exit' 
-                : isEntering 
-                  ? 'timeline-item-enter' 
-                  : '';
-              
-              return React.createElement(
-                'div',
-                {
-                  key: itemId,
-                  className: `mb-4 ${animationClass || ''}`.trim()
-                },
-                React.createElement(TimelineItem, { 
-                  entry,
-                  mode,
-                  mirrorFeedingIcon: timelineVariant === 'v3',
-                  iconOverride: iconOverride,
-                  onClick: onItemClick,
-                  onDelete: onDelete,
-                  onPhotoClick: handleTimelinePhotoClick
-                })
-              );
-            });
-          })()
-        : React.createElement('div', { 
-            className: "text-[15.4px] font-normal text-center py-4",
-            style: { color: 'var(--tt-text-tertiary)' }
-          }, mode === 'feeding' ? 'No feedings yet' : 'No sleeps yet')
-    )
-  );
-  };
-
-
-  // v2: current design (production)
-  const renderCurrentDesign = () => renderDesign();
-
-  // v3: new design (experimental) — ONLY change styling here
-  const renderNewDesign = () => {
-    // Prefer PNG icons (if present) with SVG fallback.
-    // Drop these files in the project root:
-    // - assets/ui-icons/inv bottle-main-right-v3@3x.png.png
-    // - assets/ui-icons/inv moon-main@3x.png
-    //
-    // NOTE: This component must be stable across renders to avoid image flicker
-    // (active sleep re-renders every second).
-    // Use BottleV2 and MoonV2 directly for both variants
-    const v2IconSvg = mode === 'feeding'
-      ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || BottleMainIcon)
-      : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || MoonMainIcon);
-    const v2IconSrc = (mode === 'feeding')
-      ? 'assets/ui-icons/inv bottle-main-right-v3@3x.png.png'
-      : 'assets/ui-icons/inv moon-main@3x.png';
-
-    const V2Icon = React.useMemo(() => {
-      const currentMode = mode; // Capture mode in closure
-      const isVariant2 = true; // Always use variant2
-      // For variant 2, skip PNG and use SVG directly for feeding mode
-      const skipPNG = isVariant2 && currentMode === 'feeding';
-      
-      return function V2IconComponent(props) {
-        const [failed, setFailed] = React.useState(skipPNG ? true : false);
-        // Prefer CSS mask tinting (works great for silhouette PNGs) so icons can use accent tokens.
-        // Fall back to SVG if mask isn't supported or if PNG fails to load.
-        const canMask = (() => {
-          try {
-            if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
-            // Safari uses -webkit-mask-image; other browsers support mask-image.
-            return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
-          } catch {
-            return false;
-          }
-        })();
-
-        // Preload the PNG so we can fall back cleanly if the file is missing.
-        // Skip PNG loading for variant 2 feeding mode
-        React.useEffect(() => {
-          if (skipPNG) return; // Skip PNG loading for variant 2 feeding
-          
-          let cancelled = false;
-          try { setFailed(false); } catch {}
-          try {
-            const img = new Image();
-            img.onload = () => { /* noop */ };
-            img.onerror = () => { if (!cancelled) setFailed(true); };
-            img.src = v2IconSrc;
-          } catch {
-            if (!cancelled) setFailed(true);
-          }
-          return () => { cancelled = true; };
-        }, [v2IconSrc, skipPNG]);
-
-        if (failed || !v2IconSrc || skipPNG) {
-          // When using SVG fallback, ensure correct styling for BottleV2/MoonV2
-          const svgProps = {
-            ...props,
-            style: {
-              ...(props?.style || {}),
-              strokeWidth: currentMode === 'feeding' ? '1.5' : undefined,
-              fill: currentMode === 'feeding' ? 'none' : (currentMode === 'sleep' ? (props?.style?.color || 'var(--tt-sleep)') : undefined)
-            }
-          };
-          return v2IconSvg ? React.createElement(v2IconSvg, svgProps) : null;
+      statusRow ? React.createElement('div', { className: statusRowClassName }, statusRow) : null,
+      showDotsRow && React.createElement(
+        'div',
+        { className: "flex gap-1.5 pl-1 mb-2" },
+        Array.from({ length: Math.min(timelineItems.length, 10) }, (_, i) =>
+          React.createElement('div', { 
+            key: i, 
+            className: "h-3.5 w-3.5 rounded-full",
+            style: { backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+          })
+        )
+      ),
+      !disableAccordion && !hideTimelineBar && React.createElement('div', { 
+        className: `border-t ${dividerMarginClass}`,
+        style: { 
+          borderColor: document.documentElement.classList.contains('dark') 
+            ? 'rgba(255,255,255,0.06)'
+            : 'rgb(243, 244, 246)'
         }
-        const { style, alt, ...rest } = props || {};
-        const baseStyle = { ...(style || {}) };
-        // Bottle PNG is stored already mirrored (points right), so no runtime flip needed here.
-
-        const tintColor = baseStyle.color || 'currentColor';
-
-        if (canMask) {
-          // Safari can be finicky about transforms on elements that also have -webkit-mask-image.
-          // To make mirroring 100% reliable, apply transforms on an outer wrapper and keep the mask on an inner span.
-          const { transform, WebkitTransform, transformOrigin, WebkitTransformOrigin, ...innerBase } = baseStyle;
-
-          const outerStyle = {
-            ...innerBase,
-            display: 'inline-block',
-            // keep transforms only on outer wrapper
-            ...(transform ? { transform } : null),
-            ...(WebkitTransform ? { WebkitTransform } : null),
-            ...(transformOrigin ? { transformOrigin } : null),
-            ...(WebkitTransformOrigin ? { WebkitTransformOrigin } : null)
-          };
-
-          const innerStyle = {
-            width: '100%',
-            height: '100%',
-            display: 'block',
-            backgroundColor: tintColor,
-            // CSS mask (tints the silhouette)
-            WebkitMaskImage: `url("${v2IconSrc}")`,
-            WebkitMaskRepeat: 'no-repeat',
-            WebkitMaskSize: 'contain',
-            WebkitMaskPosition: 'center',
-            maskImage: `url("${v2IconSrc}")`,
-            maskRepeat: 'no-repeat',
-            maskSize: 'contain',
-            maskPosition: 'center'
-          };
-
-          return React.createElement(
-            'span',
-            {
-              ...rest,
-              'aria-hidden': alt ? undefined : true,
-              role: alt ? 'img' : undefined,
-              'aria-label': alt || undefined,
-              style: outerStyle
-            },
-            React.createElement('span', { style: innerStyle })
-          );
-        }
-
-        // No mask support: fall back to SVG (keeps accent colors via currentColor).
-        return v2IconSvg ? React.createElement(v2IconSvg, props) : null;
-      };
-    }, [mode, v2IconSrc, v2IconSvg]);
-
-    const v2StatusText = mode === 'feeding'
-      ? (lastEntryTime ? `Last ate at ${formatTime12Hour(lastEntryTime)}` : 'No feedings yet')
-      : (() => {
-          const activeEntry = localTimelineItems.find(item => item.isActive && item.startTime);
-          if (activeEntry) {
-            return React.createElement(
-              'span',
-              { className: "inline-flex items-center gap-2" },
-              React.createElement(ActiveSleepTimer, { startTime: activeEntry.startTime, sessionId: activeEntry.id }),
-              React.createElement(
-                'span',
-                { className: "inline-flex items-center font-light", style: { color: 'currentColor' } },
-                zzzElementMemo
-              )
-            );
-          }
-          const lastCompletedSleep = localTimelineItems.find(item => item.endTime && !item.isActive);
-          if (lastCompletedSleep && lastCompletedSleep.endTime) {
-            return `Last woke at ${formatTime12Hour(lastCompletedSleep.endTime)}`;
-          }
-          return 'No sleep logged';
-        })();
-
-    // Get variant state (will be defined later, but we need it here)
-    // Always use variant2 behavior
-    const isVariant2ForStatus = true;
-    
-    const v2HeaderRight = (() => {
-      // Active sleep: special tappable/pulsing pill that opens sleep controls.
-      const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
-      
-      // Variant 2: only show pill if there's an active sleep, otherwise plain text
-      if (isVariant2ForStatus && !isActiveSleepPill) {
-        return React.createElement(
+      }),
+      !disableAccordion && !hideTimelineBar && React.createElement(
+        'button',
+        {
+          onClick: () => setExpanded(!expanded),
+          className: "flex w-full items-center justify-between",
+          style: { color: timelineTextColor }
+        },
+        React.createElement(
           'span',
-          {
-            className: "text-[15.4px] font-normal leading-none",
-            style: { color: 'var(--tt-text-tertiary)' }
-          },
-          v2StatusText
-        );
-      }
-      
-      // v2 pills: keep a single source of truth so height/radius stays consistent.
-      // Fixed height avoids subtle font/animation differences changing pill size.
-      const v2PillBaseClass =
-        "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
-
-      const pillInner = React.createElement(
-        'span',
-        { className: "inline-flex items-center" },
-        React.createElement('span', null, v2StatusText)
-      );
-
-      // Active sleep: special tappable/pulsing pill that opens sleep controls.
-      if (isActiveSleepPill && typeof onActiveSleepClick === 'function') {
-        return React.createElement(
-          'button',
-          {
-            type: 'button',
-            onClick: (e) => {
-              try { e.preventDefault(); e.stopPropagation(); } catch {}
-              try { onActiveSleepClick(); } catch {}
-            },
-            className: `${v2PillBaseClass} gap-1 tt-tapable tt-sleep-progress-pulse`,
-            style: {
-              backgroundColor: 'var(--tt-sleep-softer, var(--tt-sleep-soft))',
-              color: 'var(--tt-sleep)'
-            },
-            title: "Sleep controls",
-            'aria-label': "Sleep controls"
-          },
-          pillInner
-        );
-      }
-
-      // Default v2 status pill (non-interactive)
-      return React.createElement(
-        'span',
-        {
-          className: `${v2PillBaseClass} gap-1`,
-          style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
-        },
-        pillInner
-      );
-    })();
-
-    // Always use variant2 (small icon + label in header)
-    const isVariant1 = false;
-    const isVariant2 = true;
-
-    const v2CountPill = (() => {
-      const n = Number(entriesTodayCount);
-      const abs = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
-      const nounBase = (mode === 'feeding') ? 'feed' : 'sleep';
-      const noun = abs === 1 ? nounBase : `${nounBase}s`;
-      return React.createElement(
-        'span',
-        {
-          className:
-            "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none",
-          style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
-        },
-        `${abs} ${noun} today`
-      );
-    })();
-
-    // v2 pills: keep a single source of truth so height/radius stays consistent.
-    const v2PillBaseClass =
-      "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
-
-    // For feeding: pills go in timeline (count only for variant 2, count + status for variant 1)
-    const v2FeedingTimelinePills = mode === 'feeding' ? React.createElement(
-      'span',
-      { className: "flex items-center gap-3" },
-      v2CountPill,
-      isVariant1 ? v2HeaderRight : null  // Status pill moved to header for variant 2
-    ) : null;
-
-    // For sleep: pills go in timeline (count only for variant 2, count + status for variant 1)
-    const v2SleepTimelinePills = mode === 'sleep' ? React.createElement(
-      'span',
-      { className: "flex items-center gap-3" },
-      v2CountPill,
-      isVariant1 ? v2HeaderRight : null  // Status pill moved to header for variant 2
-    ) : null;
-
-    // Helper function to create icon + label component (for variant 2)
-    const createIconLabel = (m) => {
-      const isFeed = m === 'feeding';
-      // Variant 2 uses new SVG icons (BottleV2 and MoonV2)
-      const v2Svg = isFeed
-        ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.BottleV2) ||
-           (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-v2"]) ||
-           null)
-        : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
-           (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
-           null);
-      const color = isFeed ? 'var(--tt-feed)' : 'var(--tt-sleep)';
-      const label = isFeed ? 'Feeding' : 'Sleep';
-      
-      // Variant 2 uses SVG icons directly (no PNG mask needed)
-      return React.createElement(
+          null,
+          timelineVariant === 'v4'
+            ? (timelineCountPill 
+                ? timelineCountPill
+                : React.createElement(
+                    'span',
+                    { className: "font-normal", style: { color: timelineTextColor } },
+                    'Timeline'
+                  ))
+            : timelineLabel
+        ),
+        expanded
+          ? React.createElement(window.TT?.shared?.icons?.ChevronUpIcon || ChevronUp, { 
+              className: "w-5 h-5",
+              isTapped: true,
+              selectedWeight: 'bold',
+              style: { color: timelineTextColor } 
+            })
+          : React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, { 
+              className: "w-5 h-5",
+              isTapped: false,
+              selectedWeight: 'bold',
+              style: { color: timelineTextColor } 
+            })
+      ),
+      !disableAccordion && React.createElement(
         'div',
         { 
-          className: "text-[18px] font-semibold inline-flex items-center gap-1",
-          style: { color }
+          className: `mt-2 ${expanded ? 'accordion-expand' : 'accordion-collapse'}`,
+          style: { overflow: 'hidden' }
         },
-        v2Svg ? React.createElement(v2Svg, { 
-          className: "w-5 h-5", 
-          style: { 
-            color, 
-            strokeWidth: isFeed ? '1.5' : undefined,
-            fill: isFeed ? 'none' : color,
-            transform: isFeed ? 'rotate(20deg)' : undefined
-          } 
-        }) : null,
-        React.createElement('span', null, label)
-      );
-    };
-
-    const v2HeaderLabel = isVariant2 ? createIconLabel(mode) : null;
-    const v2TopLabel = isVariant2 ? createIconLabel(mode) : null;
-
-    return renderDesign({
-      showHeaderRow: isVariant2,                    // show header row for variant 2 (with icon + label)
-      headerGapClass: 'gap-2',
-      headerBottomMarginClass: 'mb-8',
-      headerLabelClassName: 'text-[15.4px] font-medium',
-      iconOverride: V2Icon,
-      feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
-      sleepIconTransform: 'translateY(2px)',                // nudge moon down 2px
-      mirrorFeedingIcon: false,
-      showHeaderIcon: false,
-      headerRight: isVariant2 ? v2HeaderRight : null,  // variant 2: status pill in header, variant 1: in timeline
-      headerLabel: isVariant2 ? v2HeaderLabel : null,  // variant 2: icon + label in header
-      showBigNumberIcon: isVariant1,                // show big icon inline for variant 1
-      bigNumberTopLabel: null,                      // not used in header (use headerLabel instead)
-      // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px), +10% = 35.739px / 33.858px
-      bigNumberIconClassName: mode === 'feeding' ? 'h-[35.739px] w-[35.739px]' : 'h-[33.858px] w-[33.858px]',
-      // v2: big-number row is just icon + number + target (left-aligned)
-      bigNumberRight: null,
-      bigNumberRowClassName: isVariant1 
-        ? "flex items-baseline gap-1 mb-[13px]"  // Consistent alignment for both feeding and sleep
-        : "flex items-baseline gap-1 mb-[13px]",  // Consistent alignment for both feeding and sleep
-      // Icons were matched; add +1px only for sleep (moon) per request.
-      bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
-      bigNumberValueClassName: "text-[40px] leading-none font-bold",
-      bigNumberTargetClassName: isVariant1 
-        ? "relative -top-[2px] text-[17.6px] leading-none font-normal"  // variant 1: consistent for both feeding and sleep
-        : "relative -top-[1px] text-[17.6px] leading-none font-normal",  // variant 2: consistent for both feeding and sleep
-      bigNumberTargetColor: 'var(--tt-text-secondary)',
-      bigNumberTargetVariant: 'target',
-      // 12px * 1.2 = 14.4px, +10% = 15.84px
-      progressTrackHeightClass: 'h-[15.84px]',
-      progressTrackBg: 'var(--tt-progress-track)',
-      // v2: no status row below progress bar (pills moved to timeline/header)
-      statusRow: null,
-      statusRowClassName: "",
-      showDotsRow: false,
-      progressBottomMarginClass: 'mb-0',
-      dividerMarginClass: 'my-4',
-      timelineTextColor: 'var(--tt-text-tertiary)',
-      timelineVariant: 'v2',
-      timelineCountPill: mode === 'feeding' ? v2FeedingTimelinePills : v2SleepTimelinePills  // pills replace "Timeline" for both modes
-    });
+        (showYesterdayComparison && isViewingToday && hideTimelineBar) && React.createElement(
+          React.Fragment,
+          null,
+          React.createElement('div', {
+            className: "mb-8 mt-1.5"
+          },
+            React.createElement('div', {
+              className: "flex items-center gap-2 mb-2"
+            },
+              React.createElement('span', {
+                className: "text-[15.4px] font-bold leading-none",
+                style: {
+                  color: mode === 'feeding' ? 'var(--tt-feed-soft, var(--tt-feed))' : 'var(--tt-sleep-soft, var(--tt-sleep))',
+                  opacity: 0.85
+                }
+              }, `${formattedYesterdayTotal}${mode === 'feeding' ? ' oz' : ' hrs'}`),
+              React.createElement('span', {
+                className: "text-[15.4px] font-normal leading-none",
+                style: { color: 'var(--tt-text-tertiary)', opacity: 0.6 }
+              }, `as of ${yesterdayTotal.displayTime} yesterday`)
+            ),
+            React.createElement('div', {
+              className: "relative w-full rounded-2xl overflow-hidden",
+              style: {
+                height: progressTrackHeightClass === 'h-6' 
+                  ? '9.6px'
+                  : '6.336px',
+                backgroundColor: 'var(--tt-subtle-surface)',
+                minHeight: '4px'
+              }
+            },
+              React.createElement('div', {
+                className: "absolute left-0 top-0 h-full rounded-2xl",
+                style: {
+                  width: `${Math.max(0, yesterdayPercent)}%`,
+                  backgroundColor: mode === 'feeding' 
+                    ? 'var(--tt-feed-soft, var(--tt-feed))'
+                    : 'var(--tt-sleep-soft, var(--tt-sleep))',
+                  opacity: 0.6,
+                  transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
+                  minWidth: yesterdayPercent > 0 ? '2px' : '0px'
+                }
+              })
+            )
+          )
+        ),
+        accordionCountPill && React.createElement(
+          'div',
+          { className: "mb-4" },
+          accordionCountPill
+        ),
+        ((localTimelineItems && localTimelineItems.length > 0) || exitingIds.size > 0)
+          ? (() => {
+              return localTimelineItems.map((entry) => {
+                const itemId = getStableItemId(entry);
+                const isEntering = enteringIds.has(itemId);
+                const isExiting = exitingIds.has(itemId);
+                
+                const animationClass = isExiting 
+                  ? 'timeline-item-exit' 
+                  : isEntering 
+                    ? 'timeline-item-enter' 
+                    : '';
+                
+                return React.createElement(
+                  'div',
+                  {
+                    key: itemId,
+                    className: `mb-4 ${animationClass || ''}`.trim()
+                  },
+                  React.createElement(TimelineItem, { 
+                    entry,
+                    mode,
+                    mirrorFeedingIcon: timelineVariant === 'v4',
+                    iconOverride: iconOverride,
+                    onClick: onItemClick,
+                    onDelete: onDelete,
+                    onPhotoClick: handleTimelinePhotoClick
+                  })
+                );
+              });
+            })()
+          : React.createElement('div', { 
+              className: "text-[15.4px] font-normal text-center py-4",
+              style: { color: 'var(--tt-text-tertiary)' }
+            }, mode === 'feeding' ? 'No feedings yet' : 'No sleeps yet')
+      )
+    );
   };
 
-  // v3: new design (copied from v2, edit independently) — ONLY change styling here
-  const renderV3Design = () => {
+  // v4: design (v4-only)
+  const renderV4Design = () => {
     // Helper function to format relative time with "ago" (e.g., "1h 12m ago")
     const formatRelativeTime = (timestamp) => {
       if (!timestamp) return '';
@@ -2846,138 +2227,22 @@ const TrackerCard = ({
       return `${hours}h ${remainingMinutes}m`;
     };
     
-    // Prefer PNG icons (if present) with SVG fallback.
-    // Drop these files in the project root:
-    // - assets/ui-icons/inv bottle-main-right-v3@3x.png.png
-    // - assets/ui-icons/inv moon-main@3x.png
-    //
-    // NOTE: This component must be stable across renders to avoid image flicker
-    // (active sleep re-renders every second).
-    // Use BottleV2 and MoonV2 directly for both variants
-    const v3IconSvg = mode === 'feeding'
+    const v4IconSvg = mode === 'feeding'
       ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || BottleMainIcon)
       : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || MoonMainIcon);
-    const v3IconSrc = (mode === 'feeding')
-      ? 'assets/ui-icons/inv bottle-main-right-v3@3x.png.png'
-      : 'assets/ui-icons/inv moon-main@3x.png';
-
-    const V3Icon = React.useMemo(() => {
-      const currentMode = mode; // Capture mode in closure
-      const isVariant2 = true; // Always use variant2
-      // For variant 2, skip PNG and use SVG directly for feeding mode
-      const skipPNG = isVariant2 && currentMode === 'feeding';
-      
-      return function V3IconComponent(props) {
-        const [failed, setFailed] = React.useState(skipPNG ? true : false);
-        // Prefer CSS mask tinting (works great for silhouette PNGs) so icons can use accent tokens.
-        // Fall back to SVG if mask isn't supported or if PNG fails to load.
-        const canMask = (() => {
-          try {
-            if (typeof CSS === 'undefined' || typeof CSS.supports !== 'function') return false;
-            // Safari uses -webkit-mask-image; other browsers support mask-image.
-            return CSS.supports('(-webkit-mask-image: url("x"))') || CSS.supports('(mask-image: url("x"))');
-          } catch {
-            return false;
-          }
-        })();
-
-        // Preload the PNG so we can fall back cleanly if the file is missing.
-        // Skip PNG loading for variant 2 feeding mode
-        React.useEffect(() => {
-          if (skipPNG) return; // Skip PNG loading for variant 2 feeding
-          
-          let cancelled = false;
-          try { setFailed(false); } catch {}
-          try {
-            const img = new Image();
-            img.onload = () => { /* noop */ };
-            img.onerror = () => { if (!cancelled) setFailed(true); };
-            img.src = v3IconSrc;
-          } catch {
-            if (!cancelled) setFailed(true);
-          }
-          return () => { cancelled = true; };
-        }, [v3IconSrc, skipPNG]);
-
-        if (failed || !v3IconSrc || skipPNG) {
-          // When using SVG fallback, ensure correct styling for BottleV2/MoonV2
-          const svgProps = {
-            ...props,
-            style: {
-              ...(props?.style || {}),
-              strokeWidth: currentMode === 'feeding' ? '1.5' : undefined,
-              fill: currentMode === 'feeding' ? 'none' : (currentMode === 'sleep' ? (props?.style?.color || 'var(--tt-sleep)') : undefined)
-            }
-          };
-          return v3IconSvg ? React.createElement(v3IconSvg, svgProps) : null;
-        }
-        const { style, alt, ...rest } = props || {};
-        const baseStyle = { ...(style || {}) };
-        // Bottle PNG is stored already mirrored (points right), so no runtime flip needed here.
-
-        const tintColor = baseStyle.color || 'currentColor';
-
-        if (canMask) {
-          // Safari can be finicky about transforms on elements that also have -webkit-mask-image.
-          // To make mirroring 100% reliable, apply transforms on an outer wrapper and keep the mask on an inner span.
-          const { transform, WebkitTransform, transformOrigin, WebkitTransformOrigin, ...innerBase } = baseStyle;
-
-          const outerStyle = {
-            ...innerBase,
-            display: 'inline-block',
-            // keep transforms only on outer wrapper
-            ...(transform ? { transform } : null),
-            ...(WebkitTransform ? { WebkitTransform } : null),
-            ...(transformOrigin ? { transformOrigin } : null),
-            ...(WebkitTransformOrigin ? { WebkitTransformOrigin } : null)
-          };
-
-          const innerStyle = {
-            width: '100%',
-            height: '100%',
-            display: 'block',
-            backgroundColor: tintColor,
-            // CSS mask (tints the silhouette)
-            WebkitMaskImage: `url("${v3IconSrc}")`,
-            WebkitMaskRepeat: 'no-repeat',
-            WebkitMaskSize: 'contain',
-            WebkitMaskPosition: 'center',
-            maskImage: `url("${v3IconSrc}")`,
-            maskRepeat: 'no-repeat',
-            maskSize: 'contain',
-            maskPosition: 'center'
-          };
-
-          return React.createElement(
-            'span',
-            {
-              ...rest,
-              'aria-hidden': alt ? undefined : true,
-              role: alt ? 'img' : undefined,
-              'aria-label': alt || undefined,
-              style: outerStyle
-            },
-            React.createElement('span', { style: innerStyle })
-          );
-        }
-
-        // No mask support: fall back to SVG (keeps accent colors via currentColor).
-        return v3IconSvg ? React.createElement(v3IconSvg, props) : null;
-      };
-    }, [mode, v3IconSrc, v3IconSvg]);
 
     // Always use variant2 (small icon + label in header)
     const isVariant1 = false;
     const isVariant2 = true;
 
-    const isV4Sizing = uiVersion === 'v4';
-    const v3StatusTextClassName = isV4Sizing
+    const isV4Sizing = true;
+    const v4StatusTextClassName = isV4Sizing
       ? "text-[16px] font-normal leading-none"
       : "text-[16px] font-normal leading-none";
-    const v3GoalTextClassName = isV4Sizing
+    const v4GoalTextClassName = isV4Sizing
       ? "text-[16px] font-normal leading-none"
       : "text-[16px] font-normal leading-none";
-    const v3TargetClassName = isVariant1
+    const v4TargetClassName = isVariant1
       ? (isV4Sizing
           ? "relative -top-[2px] text-[20px] leading-none font-normal"
           : "relative -top-[2px] text-[20px] leading-none font-normal")
@@ -2985,7 +2250,7 @@ const TrackerCard = ({
           ? "relative -top-[1px] text-[20px] leading-none font-normal"
           : "relative -top-[1px] text-[20px] leading-none font-normal");
 
-    const v3StatusText = mode === 'feeding'
+    const v4StatusText = mode === 'feeding'
       ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No feedings yet')
       : (() => {
           const activeEntry = localTimelineItems.find(item => item.isActive && item.startTime);
@@ -3011,36 +2276,26 @@ const TrackerCard = ({
     // Always use variant2 behavior
     const isVariant2ForStatus = true;
     
-    const v3HeaderRight = (() => {
+    const v4HeaderRight = (() => {
       // Active sleep: special tappable/pulsing pill that opens sleep controls.
       const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
       
       // Create chevron element
-      const chevronEl = uiVersion === 'v4'
-        ? React.createElement(
-            'svg',
-            {
-              xmlns: "http://www.w3.org/2000/svg",
-              viewBox: "0 0 256 256",
-              className: "w-5 h-5",
-              style: { color: 'var(--tt-text-tertiary)' }
-            },
-            React.createElement('path', {
-              d: "M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z",
-              fill: "currentColor"
-            })
-          )
-        : (expanded
-            ? React.createElement(window.TT?.shared?.icons?.ChevronUpIcon || ChevronUp, { 
-                className: "w-5 h-5 chevron-rotate",
-                style: { color: 'var(--tt-text-tertiary)' } 
-              })
-            : React.createElement(window.TT?.shared?.icons?.ChevronDownIcon || ChevronDown, { 
-                className: "w-5 h-5 chevron-rotate",
-                style: { color: 'var(--tt-text-tertiary)' } 
-              }));
+      const chevronEl = React.createElement(
+        'svg',
+        {
+          xmlns: "http://www.w3.org/2000/svg",
+          viewBox: "0 0 256 256",
+          className: "w-5 h-5",
+          style: { color: 'var(--tt-text-tertiary)' }
+        },
+        React.createElement('path', {
+          d: "M181.66,133.66l-80,80a8,8,0,0,1-11.32-11.32L164.69,128,90.34,53.66a8,8,0,0,1,11.32-11.32l80,80A8,8,0,0,1,181.66,133.66Z",
+          fill: "currentColor"
+        })
+      );
       
-      // v3: show "Sleeping now" when sleep timer is running, otherwise show typical text
+      // Show "Sleeping now" when sleep timer is running, otherwise show typical text
       if (isActiveSleepPill) {
         return React.createElement(
           'span',
@@ -3048,7 +2303,7 @@ const TrackerCard = ({
             className: "inline-flex items-center gap-2",
             style: { color: 'var(--tt-text-tertiary)' }
           },
-          React.createElement('span', { className: v3StatusTextClassName }, "Sleeping now"),
+          React.createElement('span', { className: v4StatusTextClassName }, "Sleeping now"),
           chevronEl
         );
       }
@@ -3060,12 +2315,12 @@ const TrackerCard = ({
           className: "inline-flex items-center gap-2",
           style: { color: 'var(--tt-text-tertiary)' }
         },
-        React.createElement('span', { className: v3StatusTextClassName }, v3StatusText),
+        React.createElement('span', { className: v4StatusTextClassName }, v4StatusText),
         chevronEl
       );
     })();
 
-    const v3CountPill = (() => {
+    const v4CountPill = (() => {
       const n = Number(entriesTodayCount);
       const abs = Number.isFinite(n) ? Math.max(0, Math.floor(n)) : 0;
       const nounBase = (mode === 'feeding') ? 'feed' : 'sleep';
@@ -3081,31 +2336,30 @@ const TrackerCard = ({
       );
     })();
 
-    // v3 pills: keep a single source of truth so height/radius stays consistent.
-    const v3PillBaseClass =
+    // Pills: keep a single source of truth so height/radius stays consistent.
+    const v4PillBaseClass =
       "inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none";
 
     // For feeding: pills go in timeline (count only for variant 2, count + status for variant 1)
-    const v3FeedingTimelinePills = mode === 'feeding' ? React.createElement(
+    const v4FeedingTimelinePills = mode === 'feeding' ? React.createElement(
       'span',
       { className: "flex items-center gap-3" },
-      v3CountPill,
-      isVariant1 ? v3HeaderRight : null  // Status pill moved to header for variant 2
+      v4CountPill,
+      isVariant1 ? v4HeaderRight : null  // Status pill moved to header for variant 2
     ) : null;
 
     // For sleep: pills go in timeline (count only for variant 2, count + status for variant 1)
-    const v3SleepTimelinePills = mode === 'sleep' ? React.createElement(
+    const v4SleepTimelinePills = mode === 'sleep' ? React.createElement(
       'span',
       { className: "flex items-center gap-3" },
-      v3CountPill,
-      isVariant1 ? v3HeaderRight : null  // Status pill moved to header for variant 2
+      v4CountPill,
+      isVariant1 ? v4HeaderRight : null  // Status pill moved to header for variant 2
     ) : null;
 
     // Helper function to create icon + label component (for variant 2)
     const createIconLabel = (m) => {
       const isFeed = m === 'feeding';
-      // Variant 2 uses new SVG icons (BottleV2 and MoonV2)
-      const v3Svg = isFeed
+      const v4Svg = isFeed
         ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.BottleV2) ||
            (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-v2"]) ||
            null)
@@ -3115,14 +2369,13 @@ const TrackerCard = ({
       const color = isFeed ? 'var(--tt-feed)' : 'var(--tt-sleep)';
       const label = isFeed ? 'Feed' : 'Sleep';
       
-      // Variant 2 uses SVG icons directly (no PNG mask needed)
       return React.createElement(
         'div',
         { 
           className: "text-[18px] font-semibold inline-flex items-center gap-[5px]",
           style: { color }
         },
-        v3Svg ? React.createElement(v3Svg, { 
+        v4Svg ? React.createElement(v4Svg, { 
           className: "w-[22px] h-[22px]", 
           style: { 
             color, 
@@ -3135,26 +2388,26 @@ const TrackerCard = ({
       );
     };
 
-    const v3HeaderLabel = isVariant2 ? createIconLabel(mode) : null;
-    const v3TopLabel = isVariant2 ? createIconLabel(mode) : null;
+    const v4HeaderLabel = isVariant2 ? createIconLabel(mode) : null;
+    const v4TopLabel = isVariant2 ? createIconLabel(mode) : null;
 
     return renderDesign({
       showHeaderRow: isVariant2,                    // show header row for variant 2 (with icon + label)
       headerGapClass: 'gap-2',
       headerBottomMarginClass: 'mb-[36px]',
       headerLabelClassName: 'text-[15.4px] font-medium',
-      iconOverride: V3Icon,
+      iconOverride: v4IconSvg,
       feedingIconTransform: 'none',                        // bottle PNG is pre-flipped to point right
       sleepIconTransform: 'translateY(2px)',                // nudge moon down 2px
       mirrorFeedingIcon: false,
       showHeaderIcon: false,
-      headerRight: isVariant2 ? v3HeaderRight : null,  // variant 2: status pill in header, variant 1: in timeline
-      headerLabel: isVariant2 ? v3HeaderLabel : null,  // variant 2: icon + label in header
+      headerRight: isVariant2 ? v4HeaderRight : null,  // variant 2: status pill in header, variant 1: in timeline
+      headerLabel: isVariant2 ? v4HeaderLabel : null,  // variant 2: icon + label in header
       showBigNumberIcon: isVariant1,                // show big icon inline for variant 1
       bigNumberTopLabel: null,                      // not used in header (use headerLabel instead)
       // Per-mode sizing: 5% smaller than current (bottle 34.2px -> 32.49px, moon 32.4px -> 30.78px), +10% = 35.739px / 33.858px
       bigNumberIconClassName: mode === 'feeding' ? 'h-[35.739px] w-[35.739px]' : 'h-[33.858px] w-[33.858px]',
-      // v3: big-number row is just icon + number + target (left-aligned)
+      // Big-number row is just icon + number + target (left-aligned)
       bigNumberRight: null,
       bigNumberRowClassName: isVariant1 
         ? "flex items-baseline gap-1 mb-[13px]"  // Consistent alignment for both feeding and sleep
@@ -3162,32 +2415,27 @@ const TrackerCard = ({
       // Icons were matched; add +1px only for sleep (moon) per request.
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
       bigNumberValueClassName: isV4Sizing ? "text-[40px] leading-none font-bold" : "text-[39.6px] leading-none font-bold",
-      bigNumberTargetClassName: v3TargetClassName,
-      bigNumberTargetColor: 'var(--tt-text-tertiary)',  // v3: match tertiary text color
-      bigNumberTargetVariant: 'unit',  // v3: show just "oz" or "hrs" next to big number
+      bigNumberTargetClassName: v4TargetClassName,
+      bigNumberTargetColor: 'var(--tt-text-tertiary)',  // match tertiary text color
+      bigNumberTargetVariant: 'unit',  // show just "oz" or "hrs" next to big number
       // 12px * 1.2 = 14.4px, +10% = 15.84px
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-progress-track)',
       progressBarGoalText: target !== null 
         ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
-        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),  // Goal text below progress bar for v3
-      progressBarGoalTextClassName: v3GoalTextClassName,
-      // v3: no status row below progress bar (pills moved to timeline/header)
+        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),  // Goal text below progress bar
+      progressBarGoalTextClassName: v4GoalTextClassName,
+      // No status row below progress bar (pills moved to timeline/header)
       statusRow: null,
       statusRowClassName: "",
       showDotsRow: false,
       progressBottomMarginClass: 'mb-0',
       dividerMarginClass: 'my-4',
       timelineTextColor: 'var(--tt-text-tertiary)',
-      timelineVariant: 'v3',
-      hideTimelineBar: true,  // Hide the timeline bar button for v3
-      accordionCountPill: v3CountPill  // Pass count pill to show in accordion
+      timelineVariant: 'v4',
+      hideTimelineBar: true,  // Hide the timeline bar button
+      accordionCountPill: v4CountPill  // Pass count pill to show in accordion
     });
-  };
-
-  // v4: experimental design (clone of v3, edit independently for testing)
-  const renderV4Design = () => {
-    return renderV3Design();
   };
 
   // Timeline photo modal (PORTAL to body so it isn't trapped inside transform/stacking contexts)
@@ -3246,34 +2494,9 @@ const TrackerCard = ({
     document.body
   );
 
-  // Conditional render based on feature flag
-  if (uiVersion === 'v1') {
-    return React.createElement(React.Fragment, null,
-      renderCurrentDesign(),
-      timelinePhotoModal
-    );
-  }
-  if (uiVersion === 'v2') {
-    return React.createElement(React.Fragment, null,
-      renderNewDesign(),
-      timelinePhotoModal
-    );
-  }
-  if (uiVersion === 'v3') {
-    return React.createElement(React.Fragment, null,
-      renderV3Design(),
-      timelinePhotoModal
-    );
-  }
-  if (uiVersion === 'v4') {
-    return React.createElement(React.Fragment, null,
-      renderV4Design(),
-      timelinePhotoModal
-    );
-  }
-  // Fallback to v2
+  // Render (v4-only)
   return React.createElement(React.Fragment, null,
-    renderNewDesign(),
+    renderV4Design(),
     timelinePhotoModal
   );
 };

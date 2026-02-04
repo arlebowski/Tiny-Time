@@ -30,17 +30,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     }
   });
 
-  const _getUiVersion = () => {
-    try {
-      if (window.TT?.shared?.uiVersion?.getUIVersion) {
-        return window.TT.shared.uiVersion.getUIVersion();
-      }
-      const v = window.localStorage?.getItem('tt_ui_version');
-      return v || null;
-    } catch (e) {
-      return null;
-    }
-  };
+  const _getUiVersion = () => 'v4';
 
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
@@ -940,13 +930,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     __ttUseV4Sheet: true
   });
 
-  const TTFeedDetailSheet = (props) => {
-    const uiVersion = _getUiVersion();
-    if (uiVersion === 'v4') {
-      return React.createElement(TTFeedDetailSheetV4, props);
-    }
-    return React.createElement(TTFeedDetailSheetLegacy, props);
-  };
+  const TTFeedDetailSheet = (props) => React.createElement(TTFeedDetailSheetV4, props);
 
   // Expose component globally
   if (typeof window !== 'undefined') {
