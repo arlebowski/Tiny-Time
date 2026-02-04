@@ -2749,7 +2749,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
   const [inputSheetOpen, setInputSheetOpen] = useState(false);
   const [inputSheetMode, setInputSheetMode] = useState('feeding');
 
-  const isV2OrV3OrV4 = true;
   const shouldUseNewInputFlow = true;
   const FloatingTrackerMenu = window.TT?.shared?.FloatingTrackerMenu || null;
 
@@ -2940,8 +2939,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
   const isAnalyticsSubtab = [
     'analytics-feeding',
-    'analytics-sleep',
-    'analytics-activity'
+    'analytics-sleep'
   ].includes(activeTab);
 
   return React.createElement(
@@ -3139,41 +3137,37 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                     setShowShareMenu((v) => !v);
                     setShowKidMenu(false);
                   },
-                  className: isV2OrV3OrV4
-                    ? "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
-                    : "w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-sm hover:bg-gray-50 transition"
+                  className: "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
                 },
                 React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || (() => null), {
-                  className: isV2OrV3OrV4 ? "w-6 h-6" : "w-4 h-4",
+                  className: "w-6 h-6",
                   isTapped: showShareMenu,
                   selectedWeight: 'fill',
-                  style: { color: isV2OrV3OrV4 ? 'var(--tt-text-primary)' : theme.accent }
+                  style: { color: 'var(--tt-text-primary)' }
                 })
               ),
-              isV2OrV3OrV4
-                ? React.createElement(
-                    'button',
-                    {
-                      type: 'button',
-                      onClick: (e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setShowShareMenu(false);
-                        setShowKidMenu(false);
-                        setActiveTab('family');
-                      },
-                      className:
-                        "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
-                      'aria-label': 'Family'
-                    },
-                    React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
-                      className: "w-6 h-6",
-                      isSelected: activeTab === 'family',
-                      selectedWeight: 'fill',
-                      style: { color: 'var(--tt-text-primary)' }
-                    })
-                  )
-                : null
+              React.createElement(
+                'button',
+                {
+                  type: 'button',
+                  onClick: (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setShowShareMenu(false);
+                    setShowKidMenu(false);
+                    setActiveTab('family');
+                  },
+                  className:
+                    "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
+                  'aria-label': 'Family'
+                },
+                React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
+                  className: "w-6 h-6",
+                  isSelected: activeTab === 'family',
+                  selectedWeight: 'fill',
+                  style: { color: 'var(--tt-text-primary)' }
+                })
+              )
             ),
 
             // Share dropdown
@@ -3252,10 +3246,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         React.createElement('div', {
           style: { display: activeTab === 'analytics-sleep' ? 'block' : 'none' }
         }, React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab })),
-        React.createElement('div', {
-          style: { display: activeTab === 'analytics-activity' ? 'block' : 'none' }
-        }, React.createElement(window.TT.tabs.ActivityAnalyticsTab, { user, kidId, familyId, setActiveTab })),
-        activeTab === 'chat' && React.createElement(window.TT.tabs.AIChatTab, { user, kidId, familyId, themeKey }),
         window.TT?.tabs?.TrackerDetailTab && React.createElement('div', {
           style: activeTab === 'tracker-detail'
             ? {
@@ -3399,7 +3389,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   style: {
                     color: 'var(--tt-text-primary)'
                   }
-                }, 'Today')
+                }, 'Track')
               ),
               React.createElement('div', {
                 key: 'plus-spacer',
@@ -3473,7 +3463,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
                   style: {
                     color: 'var(--tt-text-primary)'
                   }
-                }, 'Today')
+                }, 'Track')
               ),
               // Plus button (center)
               shouldUseNewInputFlow && FloatingTrackerMenu
@@ -3595,11 +3585,6 @@ const UserPlus = (props) => React.createElement('svg', { ...props, xmlns: "http:
   React.createElement('line', { x1: "22", x2: "16", y1: "11", y2: "11" })
 );
 
-// Send icon (for chat)
-const Send = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "m22 2-7 20-4-9-9-4Z" }),
-  React.createElement('path', { d: "M22 2 11 13" })
-);
 
 // Navigation Icons
 
@@ -3616,10 +3601,6 @@ const TrendingUp = (props) => React.createElement('svg', { ...props, xmlns: "htt
   React.createElement('polyline', { points: "17 6 23 6 23 12" })
 );
 
-// MessageCircle (AI Chat tab)
-const MessageCircle = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2", strokeLinecap: "round", strokeLinejoin: "round" },
-  React.createElement('path', { d: "M7.9 20A9 9 0 1 0 4 16.1L2 22Z" })
-);
 
 
 // ========================================
@@ -4344,154 +4325,3 @@ ReactDOM.render(
   React.createElement(App),
   document.getElementById('root')
 );
-
-
-// ========================================
-// Cloudfare worker: daily check-in used for AI chat tab
-// ========================================
-
-// API endpoint for daily check-ins
-// This runs in your app where Firebase is already set up
-window.TT = window.TT || {};
-window.TT.api = window.TT.api || {};
-
-window.TT.api.sendDailyCheckIn = async function() {
-  console.log('📨 Sending daily check-in...');
-  
-  try {
-    const db = window.firebase.firestore();
-    const userId = window.firebase.auth().currentUser?.uid;
-    
-    if (!userId) {
-      throw new Error('Not logged in');
-    }
-    
-    // Get family and kid data
-    const familiesSnapshot = await db.collection('families')
-      .where('members', 'array-contains', userId)
-      .limit(1)
-      .get();
-    
-    if (familiesSnapshot.empty) {
-      throw new Error('No family found');
-    }
-    
-    const familyDoc = familiesSnapshot.docs[0];
-    const familyId = familyDoc.id;
-    
-    // Get kids
-    const kidsSnapshot = await db.collection('families')
-      .doc(familyId)
-      .collection('kids')
-      .get();
-    
-    if (kidsSnapshot.empty) {
-      throw new Error('No kids found');
-    }
-    
-    const kidDoc = kidsSnapshot.docs[0];
-    const kidData = kidDoc.data();
-    const kidId = kidDoc.id;
-    const babyName = kidData.name || 'Baby';
-    
-    // Get last 7 days of data
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
-    
-    // Get feedings
-    const feedingsSnapshot = await db.collection('families')
-      .doc(familyId)
-      .collection('kids')
-      .doc(kidId)
-      .collection('feedings')
-      .where('timestamp', '>', sevenDaysAgo)
-      .orderBy('timestamp', 'desc')
-      .limit(50)
-      .get();
-    
-    const feedings = [];
-    feedingsSnapshot.forEach(doc => {
-      feedings.push(doc.data());
-    });
-    
-    console.log(`Found ${feedings.length} feedings in last 7 days`);
-    
-    // Analyze data
-    const now = Date.now();
-    const oneDayAgo = now - (24 * 60 * 60 * 1000);
-    const yesterday = feedings.filter(f => f.timestamp > oneDayAgo);
-    
-    const totalOzYesterday = yesterday.reduce((sum, f) => sum + (f.ounces || 0), 0);
-    const feedCount = yesterday.length;
-    const avgOzPerFeed = feedCount > 0 ? totalOzYesterday / feedCount : 0;
-    
-    const stats = {
-      babyName,
-      totalOz: Math.round(totalOzYesterday * 10) / 10,
-      feedCount,
-      avgOzPerFeed: Math.round(avgOzPerFeed * 10) / 10
-    };
-    
-    console.log('Stats:', stats);
-    
-    // Gemini call disabled: use deterministic fallback message instead.
-    const message =
-      `${babyName} had ${stats.totalOz}oz yesterday over ${stats.feedCount} feeds. You're doing great! How are things going?`;
-    
-    console.log('Generated message:', message);
-    
-    // Send to family chat
-    const chatRef = db.collection('chats').doc('family');
-    const messageRef = chatRef.collection('messages').doc();
-    
-    await messageRef.set({
-      senderId: 'ai',
-      text: message.trim(),
-      photoURLs: [],
-      createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
-    });
-    
-    await chatRef.set({
-      updatedAt: window.firebase.firestore.FieldValue.serverTimestamp(),
-      lastMessage: {
-        text: message.trim(),
-        senderId: 'ai',
-        createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
-      }
-    }, { merge: true });
-    
-    console.log('✅ Daily check-in sent!');
-    return { success: true, message };
-    
-  } catch (error) {
-    console.error('❌ Error sending daily check-in:', error);
-    throw error;
-  }
-};
-
-// Auto-send daily check-in (once per day)
-const checkDailyCheckIn = async () => {
-  try {
-    const lastCheckIn = localStorage.getItem('tt_last_checkin');
-    const today = new Date().toDateString();
-    
-    // Only send if we haven't sent today
-    if (lastCheckIn !== today) {
-      console.log('📨 Time for daily check-in...');
-      await window.TT.api.sendDailyCheckIn();
-      localStorage.setItem('tt_last_checkin', today);
-    } else {
-    }
-  } catch (error) {
-    console.error('Error in daily check-in:', error);
-  }
-};
-
-// Run check-in after user is authenticated
-window.firebase.auth().onAuthStateChanged((user) => {
-  if (user) {
-    // Disabled for now: stop auto daily check-in after login.
-    // setTimeout(checkDailyCheckIn, 5000);
-  }
-});
-
-// Test it manually: window.TT.api.sendDailyCheckIn()

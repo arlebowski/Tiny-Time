@@ -1350,7 +1350,7 @@ const FamilyTab = ({
             className: 'mt-3 text-xs',
             style: { color: 'var(--tt-text-secondary)' }
           },
-          'Active kid controls what you see in Tracker, Analytics, and AI Chat.'
+          'Active kid controls what you see in Tracker and Analytics.'
         )
       ),
 
