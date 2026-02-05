@@ -35,7 +35,7 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -80,7 +80,7 @@ const __ttEnsureZzzStyles = () => {
   const amountText = (typeof card.amount === 'number' || typeof card.amount === 'string')
     ? (card.type === 'sleep' ? resolveSleepAmountText() : `${card.amount} ${unitText}`.trim())
     : '';
-  const prefix = card.type === 'feed' ? 'Feed' : 'Sleep';
+  const prefix = card.type === 'feed' ? 'Feed' : (card.type === 'sleep' ? 'Sleep' : 'Diaper');
   const sleepSettings =
     (window.TT && window.TT.shared && window.TT.shared.sleepSettings) ||
     (window.TT && window.TT.sleepSettings) ||
@@ -104,7 +104,7 @@ const __ttEnsureZzzStyles = () => {
   const scheduledLabelTime = card.time || '';
   const scheduledLabel = card.type === 'feed'
     ? 'Feed'
-    : getSleepLabel(scheduledLabelTimeDate);
+    : (card.type === 'sleep' ? getSleepLabel(scheduledLabelTimeDate) : 'Diaper');
   const [activeElapsedMs, setActiveElapsedMs] = React.useState(() => {
     if (isActiveSleep && typeof card.startTime === 'number') {
       return Math.max(0, Date.now() - card.startTime);
@@ -204,7 +204,9 @@ const __ttEnsureZzzStyles = () => {
         height: `${iconWrapSize}px`,
         backgroundColor: card.type === 'feed'
           ? 'color-mix(in srgb, var(--tt-feed) 20%, transparent)'
-          : 'color-mix(in srgb, var(--tt-sleep) 20%, transparent)'
+          : (card.type === 'sleep'
+              ? 'color-mix(in srgb, var(--tt-sleep) 20%, transparent)'
+              : 'color-mix(in srgb, var(--tt-diaper) 20%, transparent)')
       }
     },
       card.type === 'feed' && bottleIcon
@@ -227,7 +229,15 @@ const __ttEnsureZzzStyles = () => {
                 strokeWidth: '1.5'
               }
             })
-          : card.type === 'feed' ? '🍼' : '💤',
+          : card.type === 'diaper' && diaperIcon
+            ? React.createElement(diaperIcon, {
+                style: {
+                  color: 'var(--tt-diaper)',
+                  width: `${iconSize}px`,
+                  height: `${iconSize}px`
+                }
+              })
+          : (card.type === 'feed' ? '🍼' : (card.type === 'sleep' ? '💤' : '🧷')),
       React.createElement('div', {
         className: "absolute -bottom-1 -right-1 rounded-full p-0.5",
         style: { backgroundColor: 'var(--tt-timeline-item-bg)' }

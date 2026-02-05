@@ -176,7 +176,8 @@ const DEFAULT_APPEARANCE = {
   darkMode: false,
   background: "health-gray", // allowed: "health-gray" | "eggshell"
   feedAccent: "#d45d5c",
-  sleepAccent: "#4a8ac2"
+  sleepAccent: "#4a8ac2",
+  diaperAccent: "#C28F5C"
 };
 
 // Initialize TT.appearance namespace
@@ -215,7 +216,8 @@ window.TT.appearance = (() => {
               ? stored.background 
               : DEFAULT_APPEARANCE.background,
             feedAccent: typeof stored.feedAccent === 'string' ? stored.feedAccent : DEFAULT_APPEARANCE.feedAccent,
-            sleepAccent: typeof stored.sleepAccent === 'string' ? stored.sleepAccent : DEFAULT_APPEARANCE.sleepAccent
+            sleepAccent: typeof stored.sleepAccent === 'string' ? stored.sleepAccent : DEFAULT_APPEARANCE.sleepAccent,
+            diaperAccent: typeof stored.diaperAccent === 'string' ? stored.diaperAccent : DEFAULT_APPEARANCE.diaperAccent
           };
         } else {
           // No appearance stored yet - use defaults but don't write yet
@@ -323,6 +325,9 @@ window.TT.appearance = (() => {
       }
       if (typeof updated.sleepAccent !== 'string' || !updated.sleepAccent.startsWith('#')) {
         updated.sleepAccent = DEFAULT_APPEARANCE.sleepAccent;
+      }
+      if (typeof updated.diaperAccent !== 'string' || !updated.diaperAccent.startsWith('#')) {
+        updated.diaperAccent = DEFAULT_APPEARANCE.diaperAccent;
       }
 
       // Update in-memory state
@@ -513,7 +518,7 @@ window.TT.applyAppearance = function(appearance) {
     return;
   }
 
-  const { darkMode, background, feedAccent, sleepAccent } = appearance;
+  const { darkMode, background, feedAccent, sleepAccent, diaperAccent } = appearance;
 
   // Toggle dark mode class
   if (darkMode) {
@@ -525,6 +530,7 @@ window.TT.applyAppearance = function(appearance) {
   // Sanitize accent colors (FIX 1: validate hex format before deriving variants)
   const sanitizedFeedAccent = isValidHex(feedAccent) ? feedAccent : DEFAULT_APPEARANCE.feedAccent;
   const sanitizedSleepAccent = isValidHex(sleepAccent) ? sleepAccent : DEFAULT_APPEARANCE.sleepAccent;
+  const sanitizedDiaperAccent = isValidHex(diaperAccent) ? diaperAccent : DEFAULT_APPEARANCE.diaperAccent;
 
   // Get background theme
   const mode = darkMode ? 'dark' : 'light';
@@ -534,6 +540,7 @@ window.TT.applyAppearance = function(appearance) {
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
   const sleepVariants = deriveAccentVariants(sanitizedSleepAccent, darkMode);
+  const diaperVariants = deriveAccentVariants(sanitizedDiaperAccent, darkMode);
 
   // Batch all CSS variable updates in a single frame for smooth, synchronized transition
   requestAnimationFrame(() => {
@@ -663,6 +670,11 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-sleep-soft-medium', sleepVariants.softMedium);
     root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
     root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
+
+    // Diaper accents
+    root.style.setProperty('--tt-diaper', sanitizedDiaperAccent);
+    root.style.setProperty('--tt-diaper-soft', diaperVariants.soft);
+    root.style.setProperty('--tt-diaper-strong', diaperVariants.strong);
 
     // Update meta theme-color after CSS vars are applied.
     if (typeof window.updateMetaThemeColor === 'function') {
@@ -919,6 +931,7 @@ const firestoreStorage = {
   _cacheState: {
     feedings: null,
     sleepSessions: null,
+    diaperChanges: null,
     lastSyncMs: 0,
     settings: null,
     sleepSettings: null,
@@ -940,6 +953,7 @@ const firestoreStorage = {
     this._cacheState = {
       feedings: null,
       sleepSessions: null,
+      diaperChanges: null,
       lastSyncMs: 0,
       settings: null,
       sleepSettings: null,
@@ -988,20 +1002,27 @@ const firestoreStorage = {
     return [...(list || [])].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
   },
 
+  _sortDiaperAsc(list) {
+    return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  },
+
   async _initCache() {
     if (this._cacheState.initPromise) return this._cacheState.initPromise;
     const keyFeed = this._cacheKey('feedings');
     const keySleep = this._cacheKey('sleepSessions');
+    const keyDiaper = this._cacheKey('diaperChanges');
     const keyMeta = this._cacheKey('meta');
-    if (!keyFeed || !keySleep || !keyMeta) return null;
+    if (!keyFeed || !keySleep || !keyDiaper || !keyMeta) return null;
     this._cacheState.initPromise = (async () => {
-      const [feedings, sleeps, meta] = await Promise.all([
+      const [feedings, sleeps, diapers, meta] = await Promise.all([
         __ttDataCache.get(keyFeed),
         __ttDataCache.get(keySleep),
+        __ttDataCache.get(keyDiaper),
         __ttDataCache.get(keyMeta)
       ]);
       if (Array.isArray(feedings)) this._cacheState.feedings = feedings;
       if (Array.isArray(sleeps)) this._cacheState.sleepSessions = sleeps;
+      if (Array.isArray(diapers)) this._cacheState.diaperChanges = diapers;
       if (meta && Number.isFinite(meta.lastSyncMs)) this._cacheState.lastSyncMs = meta.lastSyncMs;
       return true;
     })();
@@ -1011,11 +1032,13 @@ const firestoreStorage = {
   async _saveCache() {
     const keyFeed = this._cacheKey('feedings');
     const keySleep = this._cacheKey('sleepSessions');
+    const keyDiaper = this._cacheKey('diaperChanges');
     const keyMeta = this._cacheKey('meta');
-    if (!keyFeed || !keySleep || !keyMeta) return;
+    if (!keyFeed || !keySleep || !keyDiaper || !keyMeta) return;
     await Promise.all([
       __ttDataCache.set(keyFeed, this._cacheState.feedings || []),
       __ttDataCache.set(keySleep, this._cacheState.sleepSessions || []),
+      __ttDataCache.set(keyDiaper, this._cacheState.diaperChanges || []),
       __ttDataCache.set(keyMeta, { lastSyncMs: this._cacheState.lastSyncMs || 0 })
     ]);
   },
@@ -1114,12 +1137,14 @@ const firestoreStorage = {
     }
     if (this._cacheState.refreshPromise) return this._cacheState.refreshPromise;
     this._cacheState.refreshPromise = (async () => {
-      const [feedings, sleeps] = await Promise.all([
+      const [feedings, sleeps, diapers] = await Promise.all([
         this._getAllFeedingsRemote(),
-        this._getAllSleepSessionsRemote()
+        this._getAllSleepSessionsRemote(),
+        this._getAllDiaperChangesRemote()
       ]);
       this._cacheState.feedings = this._sortFeedingsAsc(feedings);
       this._cacheState.sleepSessions = this._sortSleepAsc(sleeps);
+      this._cacheState.diaperChanges = this._sortDiaperAsc(diapers);
       this._cacheState.lastSyncMs = Date.now();
       await this._saveCache();
       return true;
@@ -1139,6 +1164,11 @@ const firestoreStorage = {
   async _getCachedSleepSessions() {
     await this._initCache();
     return Array.isArray(this._cacheState.sleepSessions) ? this._cacheState.sleepSessions : null;
+  },
+
+  async _getCachedDiaperChanges() {
+    await this._initCache();
+    return Array.isArray(this._cacheState.diaperChanges) ? this._cacheState.diaperChanges : null;
   },
 
   // -----------------------
@@ -1345,6 +1375,66 @@ const firestoreStorage = {
     }
   },
 
+  async uploadDiaperPhoto(base64DataUrl) {
+    console.log('[uploadDiaperPhoto] Starting upload...');
+    if (!base64DataUrl || typeof base64DataUrl !== "string") {
+      console.error('[uploadDiaperPhoto] Error: missing base64 data URL');
+      throw new Error("uploadDiaperPhoto: missing base64 data URL");
+    }
+    if (!this.currentFamilyId || !this.currentKidId) {
+      console.error('[uploadDiaperPhoto] Error: Storage not initialized', { currentFamilyId: this.currentFamilyId, currentKidId: this.currentKidId });
+      throw new Error("Storage not initialized");
+    }
+
+    const user = auth.currentUser;
+    if (!user) {
+      console.error('[uploadDiaperPhoto] Error: User not authenticated');
+      throw new Error("User must be authenticated to upload photos");
+    }
+    console.log('[uploadDiaperPhoto] User authenticated:', user.uid);
+
+    if (!window.TT || typeof window.TT.uploadPhotoToSupabase !== "function") {
+      throw new Error("Supabase uploader not initialized (check script tags + keys)");
+    }
+
+    let compressedBase64 = base64DataUrl;
+    try {
+      console.log('[uploadDiaperPhoto] Compressing image...');
+      compressedBase64 = await this._compressImage(base64DataUrl, 1200);
+      console.log('[uploadDiaperPhoto] Image compressed');
+    } catch (e) {
+      console.warn('[uploadDiaperPhoto] Compression failed, using original:', e);
+      compressedBase64 = base64DataUrl;
+    }
+
+    console.log('[uploadDiaperPhoto] Converting to blob...');
+    const blob = this._dataUrlToBlob(compressedBase64);
+    console.log('[uploadDiaperPhoto] Blob created:', { size: blob.size, type: blob.type });
+
+    const photoId = `photo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const storagePath = `families/${this.currentFamilyId}/kids/${this.currentKidId}/diaperPhotos/${photoId}`;
+    console.log('[uploadDiaperPhoto] Storage path:', storagePath);
+
+    try {
+      console.log('[uploadDiaperPhoto] Uploading to Supabase Storage...');
+      const publicUrl = await window.TT.uploadPhotoToSupabase({
+        blob,
+        path: storagePath,
+        contentType: blob.type || 'image/jpeg'
+      });
+      console.log('[uploadDiaperPhoto] Upload successful:', publicUrl);
+      return publicUrl;
+    } catch (uploadError) {
+      console.error('[uploadDiaperPhoto] Upload failed:', uploadError);
+      console.error('[uploadDiaperPhoto] Upload error details:', {
+        message: uploadError.message,
+        stack: uploadError.stack,
+        name: uploadError.name
+      });
+      throw uploadError;
+    }
+  },
+
   // -----------------------
   // FEEDINGS
   // -----------------------
@@ -1469,6 +1559,110 @@ const firestoreStorage = {
       );
       await this._saveCache();
     }
+  },
+
+  // -----------------------
+  // DIAPER CHANGES
+  // -----------------------
+  async addDiaperChange({ timestamp, isWet = false, isDry = false, isPoo = false, notes = null, photoURLs = null }) {
+    const data = {
+      timestamp: typeof timestamp === 'number' ? timestamp : Date.now(),
+      isWet: !!isWet,
+      isDry: !!isDry,
+      isPoo: !!isPoo
+    };
+    if (notes !== null && notes !== undefined && String(notes).trim() !== '') {
+      data.notes = notes;
+    }
+    if (photoURLs !== null && photoURLs !== undefined && Array.isArray(photoURLs) && photoURLs.length > 0) {
+      data.photoURLs = photoURLs;
+    }
+    data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    const ref = await this._kidRef().collection("diaperChanges").add(data);
+    const item = { id: ref.id, ...data };
+    const cached = await this._getCachedDiaperChanges();
+    if (cached) {
+      this._cacheState.diaperChanges = this._sortDiaperAsc([...cached, item]);
+      await this._saveCache();
+    }
+    logEvent("diaper_added", { isWet: !!isWet, isDry: !!isDry, isPoo: !!isPoo });
+    return item;
+  },
+
+  async getDiaperChanges() {
+    const cached = await this._getCachedDiaperChanges();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return [...cached].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    }
+    const snap = await this._kidRef()
+      .collection("diaperChanges")
+      .orderBy("timestamp", "desc")
+      .get();
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    this._cacheState.diaperChanges = this._sortDiaperAsc(data);
+    this._cacheState.lastSyncMs = Date.now();
+    await this._saveCache();
+    return data;
+  },
+
+  async getDiaperChangesLastNDays(days) {
+    const cutoff = Date.now() - days * 86400000;
+    const cached = await this._getCachedDiaperChanges();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached.filter((c) => (c.timestamp || 0) > cutoff);
+    }
+    const snap = await this._kidRef()
+      .collection("diaperChanges")
+      .where("timestamp", ">", cutoff)
+      .orderBy("timestamp", "asc")
+      .get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  async updateDiaperChange(id, data) {
+    if (!id) throw new Error("Missing diaper change id");
+    const updateData = { ...data };
+    if (updateData.notes !== null && updateData.notes !== undefined) {
+      if (updateData.notes === '') {
+        updateData.notes = firebase.firestore.FieldValue.delete();
+      }
+    }
+    if (updateData.photoURLs !== null && updateData.photoURLs !== undefined) {
+      if (Array.isArray(updateData.photoURLs) && updateData.photoURLs.length === 0) {
+        updateData.photoURLs = firebase.firestore.FieldValue.delete();
+      } else if (Array.isArray(updateData.photoURLs)) {
+        updateData.photoURLs = updateData.photoURLs;
+      }
+    }
+    await this._kidRef().collection("diaperChanges").doc(id).update(updateData || {});
+    const cached = await this._getCachedDiaperChanges();
+    if (cached) {
+      this._cacheState.diaperChanges = this._sortDiaperAsc(
+        cached.map((c) => (c.id === id ? { ...c, ...updateData } : c))
+      );
+      await this._saveCache();
+    }
+  },
+
+  async deleteDiaperChange(id) {
+    if (!id) throw new Error("Missing diaper change id");
+    await this._kidRef().collection("diaperChanges").doc(id).delete();
+    const cached = await this._getCachedDiaperChanges();
+    if (cached) {
+      this._cacheState.diaperChanges = cached.filter((c) => c.id !== id);
+      await this._saveCache();
+    }
+  },
+
+  async getAllDiaperChanges() {
+    const cached = await this._getCachedDiaperChanges();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached;
+    }
+    return await this._getAllDiaperChangesRemote();
   },
 
   // -----------------------
@@ -1871,6 +2065,18 @@ firestoreStorage._getAllFeedingsRemote = async function () {
     .get();
   const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   this._cacheState.feedings = this._sortFeedingsAsc(data);
+  this._cacheState.lastSyncMs = Date.now();
+  await this._saveCache();
+  return data;
+};
+
+firestoreStorage._getAllDiaperChangesRemote = async function () {
+  const snap = await this._kidRef()
+    .collection("diaperChanges")
+    .orderBy("timestamp", "asc")
+    .get();
+  const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  this._cacheState.diaperChanges = this._sortDiaperAsc(data);
   this._cacheState.lastSyncMs = Date.now();
   await this._saveCache();
   return data;
@@ -3294,20 +3500,38 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         }
       }),
 
-    window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
-      isOpen: inputSheetOpen,
-      onClose: closeInputSheet,
-      kidId: kidId,
-      initialMode: inputSheetMode,
-      onAdd: async (mode) => {
-        try {
-          const event = new CustomEvent('tt-input-sheet-added', { detail: { mode } });
-          window.dispatchEvent(event);
-        } catch (e) {
-          // Non-fatal if CustomEvent is unavailable
-        }
+    (() => {
+      const isDiaperMode = inputSheetMode === 'diaper';
+      const InputSheet = isDiaperMode ? window.TTDiaperDetailSheet : window.TTInputHalfSheet;
+      if (!InputSheet) return null;
+      if (isDiaperMode) {
+        return React.createElement(InputSheet, {
+          isOpen: inputSheetOpen,
+          onClose: closeInputSheet,
+          entry: null,
+          onSave: async () => {
+            try {
+              const event = new CustomEvent('tt-input-sheet-added', { detail: { mode: 'diaper' } });
+              window.dispatchEvent(event);
+            } catch (e) {}
+          }
+        });
       }
-    }),
+      return React.createElement(InputSheet, {
+        isOpen: inputSheetOpen,
+        onClose: closeInputSheet,
+        kidId: kidId,
+        initialMode: inputSheetMode,
+        onAdd: async (mode) => {
+          try {
+            const event = new CustomEvent('tt-input-sheet-added', { detail: { mode } });
+            window.dispatchEvent(event);
+          } catch (e) {
+            // Non-fatal if CustomEvent is unavailable
+          }
+        }
+      });
+    })(),
 
     shouldUseNewInputFlow && FloatingTrackerMenu && React.createElement(
       'div',

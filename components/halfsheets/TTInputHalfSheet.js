@@ -98,8 +98,6 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     return React.createElement('div', null, 'InputRow fallback');
   };
   
-  const HalfSheet = window.TT?.shared?.TTHalfSheet || window.TTHalfSheet || window.TT?.utils?.HalfSheet;
-  
   const PenIcon = window.PenIcon;
   const ChevronDown = window.ChevronDown;
   
@@ -109,7 +107,8 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
   const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
   
   // TTInputHalfSheet Component
-  const TTInputHalfSheetLegacy = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null, __ttUseV4Sheet = false }) => {
+  const TTInputHalfSheetLegacy = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null }) => {
+    const __ttUseV4Sheet = true;
     const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
       ? window.TT.shared.useActiveSleep
       : (() => ({ activeSleep: null, activeSleepLoaded: true }));
@@ -384,9 +383,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     const CTA_BOTTOM_OFFSET_PX = 30;
     const CTA_SPACER_PX = 86 + CTA_BOTTOM_OFFSET_PX; // base + offset
     const [ctaHeightPx, setCtaHeightPx] = React.useState(CTA_SPACER_PX);
-    const ctaPaddingPx = __ttUseV4Sheet
-      ? (Math.max(ctaHeightPx || 0, CTA_SPACER_PX) + CTA_BOTTOM_OFFSET_PX + 24)
-      : CTA_SPACER_PX;
+    const ctaPaddingPx = Math.max(ctaHeightPx || 0, CTA_SPACER_PX) + CTA_BOTTOM_OFFSET_PX + 24;
     const HEADER_HEIGHT_PX = 60;
     const CONTENT_PADDING_PX = 32 + 8; // pt-8 + pb-2
     
@@ -1808,7 +1805,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         )
       ),
 
-      // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside HalfSheet transform/stacking)
+    // Full-size photo modal (shared for both modes) (PORTAL to body so it isn't trapped inside sheet transforms)
       fullSizePhoto && ReactDOM.createPortal(
         React.createElement('div', {
           onClick: () => setFullSizePhoto(null),
@@ -1847,182 +1844,146 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       )
     );
 
-    const bodyContent = __ttUseV4Sheet
-      ? React.createElement(
-          React.Fragment,
-          null,
-          React.createElement('div', {
-            className: "flex-1 px-6 pt-10 pb-2",
-            style: {
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              overflowY: 'visible',
-              overscrollBehavior: 'none',
-              WebkitOverflowScrolling: 'auto'
-            }
-          }, contentWrapper),
-          React.createElement('div', {
-            ref: ctaFooterRef,
-            className: "px-6 pt-3 pb-1",
-            style: {
-              backgroundColor: 'var(--tt-halfsheet-bg)',
-              display: isKeyboardOpen ? 'none' : 'block',
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
-              flexShrink: 0
-            }
-          }, ctaButton),
-          overlayContent
-        )
-      : React.createElement(
-          'div',
-          { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
-          contentWrapper,
-          React.createElement('div', {
-            ref: ctaFooterRef,
-            className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
-            style: { 
-              zIndex: 10,
-              backgroundColor: 'var(--tt-halfsheet-bg)',
-              display: isKeyboardOpen ? 'none' : 'block',
-              bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
-              left: 0,
-              right: 0,
-              position: 'sticky'
-            }
-          }, ctaButton),
-          overlayContent
-        );
+    const bodyContent = React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('div', {
+        className: "flex-1 px-6 pt-10 pb-2",
+        style: {
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'visible',
+          overscrollBehavior: 'none',
+          WebkitOverflowScrolling: 'auto'
+        }
+      }, contentWrapper),
+      React.createElement('div', {
+        ref: ctaFooterRef,
+        className: "px-6 pt-3 pb-1",
+        style: {
+          backgroundColor: 'var(--tt-halfsheet-bg)',
+          display: isKeyboardOpen ? 'none' : 'block',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
+          flexShrink: 0
+        }
+      }, ctaButton),
+      overlayContent
+    );
 
-    // If overlay mode (isOpen provided), wrap in HalfSheet
+    // If overlay mode (isOpen provided), render v4 overlay
     if (isOpen !== undefined) {
-      if (__ttUseV4Sheet) {
-        const v4Overlay = React.createElement(
-          __ttV4AnimatePresence,
-          null,
-          isOpen
-            ? React.createElement(
-                __ttV4Motion.div,
-                {
-                  initial: { opacity: 0 },
-                  animate: { opacity: 1 },
-                  exit: { opacity: 0 },
-                  className: "fixed",
-                  style: {
-                    zIndex: 10000,
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    width: '100vw',
-                    height: '100vh',
-                    backgroundColor: 'rgba(0,0,0,0.6)',
-                    backdropFilter: 'blur(6px)',
-                    WebkitBackdropFilter: 'blur(6px)'
-                  },
-                  onClick: handleClose
+      const v4Overlay = React.createElement(
+        __ttV4AnimatePresence,
+        null,
+        isOpen
+          ? React.createElement(
+              __ttV4Motion.div,
+              {
+                initial: { opacity: 0 },
+                animate: { opacity: 1 },
+                exit: { opacity: 0 },
+                className: "fixed",
+                style: {
+                  zIndex: 10000,
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  backdropFilter: 'blur(6px)',
+                  WebkitBackdropFilter: 'blur(6px)'
+                },
+                onClick: handleClose
+              }
+            )
+          : null,
+        isOpen
+          ? React.createElement(
+              __ttV4Motion.div,
+              {
+                initial: { y: "100%" },
+                animate: { y: 0 },
+                exit: { y: "100%" },
+                transition: { type: "spring", damping: 35, stiffness: 400 },
+                drag: "y",
+                dragControls: dragControls || undefined,
+                dragListener: !dragControls,
+                dragConstraints: { top: 0, bottom: 0 },
+                dragElastic: { top: 0, bottom: 0.7 },
+                dragMomentum: true,
+                onDragEnd: (e, info) => {
+                  if (info.offset.y > 60 || info.velocity.y > 500) {
+                    handleClose();
+                  }
+                },
+                className: "fixed left-0 right-0 bottom-0 shadow-2xl",
+                onClick: (e) => e.stopPropagation(),
+                style: {
+                  backgroundColor: "var(--tt-halfsheet-bg)",
+                  willChange: 'transform',
+                  paddingBottom: 'env(safe-area-inset-bottom, 0)',
+                  maxHeight: '83vh',
+                  height: 'auto',
+                  minHeight: '60vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  touchAction: 'pan-y',
+                  overscrollBehavior: 'contain',
+                  borderTopLeftRadius: '20px',
+                  borderTopRightRadius: '20px',
+                  zIndex: 10001
                 }
-              )
-            : null,
-          isOpen
-            ? React.createElement(
-                __ttV4Motion.div,
-                {
-                  layout: "size",
-                  initial: { y: "100%" },
-                  animate: { y: 0 },
-                  exit: { y: "100%" },
-                  transition: { type: "spring", damping: 35, stiffness: 400 },
-                  drag: "y",
-                  dragControls: dragControls || undefined,
-                  dragListener: !dragControls,
-                  dragConstraints: { top: 0, bottom: 0 },
-                  dragElastic: { top: 0, bottom: 0.7 },
-                  dragMomentum: true,
-                  onDragEnd: (e, info) => {
-                    if (info.offset.y > 60 || info.velocity.y > 500) {
-                      handleClose();
-                    }
-                  },
-                  className: "fixed left-0 right-0 bottom-0 shadow-2xl",
-                  onClick: (e) => e.stopPropagation(),
-                  style: {
-                    backgroundColor: "var(--tt-halfsheet-bg)",
-                    willChange: 'transform',
-                    paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                    maxHeight: '83vh',
-                    height: measuredHeightPx ? `${measuredHeightPx}px` : 'auto',
-                    minHeight: '60vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    touchAction: 'pan-y',
-                    overscrollBehavior: 'contain',
-                    borderTopLeftRadius: '20px',
-                    borderTopRightRadius: '20px',
-                    zIndex: 10001
-                  }
+              },
+              React.createElement('div', {
+                className: "",
+                style: {
+                  backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+                  borderTopLeftRadius: '20px',
+                  borderTopRightRadius: '20px',
+                  padding: '0 1.5rem',
+                  height: '60px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexShrink: 0,
+                  touchAction: 'none'
                 },
-                React.createElement('div', {
-                  className: "",
-                  style: {
-                    backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-                    borderTopLeftRadius: '20px',
-                    borderTopRightRadius: '20px',
-                    padding: '0 1.5rem',
-                    height: '60px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexShrink: 0,
-                    touchAction: 'none'
-                  },
-                  onPointerDown: (e) => {
-                    if (dragControls && dragControls.start) {
-                      dragControls.start(e);
-                    }
+                onPointerDown: (e) => {
+                  if (dragControls && dragControls.start) {
+                    dragControls.start(e);
                   }
-                },
-                  React.createElement('button', {
-                    onClick: handleClose,
-                    className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-                  }, React.createElement(
-                    window.TT?.shared?.icons?.ChevronDownIcon ||
-                    window.ChevronDown ||
-                    window.XIcon,
-                    { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
-                  )),
-                  React.createElement('div', { className: "flex-1 flex justify-center" },
-                    React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
-                  ),
-                  React.createElement('div', { className: "w-6" })
+                }
+              },
+                React.createElement('button', {
+                  onClick: handleClose,
+                  className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+                }, React.createElement(
+                  window.TT?.shared?.icons?.ChevronDownIcon ||
+                  window.ChevronDown ||
+                  window.XIcon,
+                  { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
+                )),
+                React.createElement('div', { className: "flex-1 flex justify-center" },
+                  React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
                 ),
-                React.createElement('div', {
-                  className: "flex-1",
-                  style: {
-                    minHeight: 0,
-                    display: 'flex',
-                    flexDirection: 'column'
-                  }
-                }, bodyContent)
-              )
-            : null
-        );
-        return ReactDOM.createPortal(v4Overlay, document.body);
-      }
-
-      return React.createElement(
-        HalfSheet,
-        {
-          isOpen: isOpen || false,
-          onClose: handleClose,
-          fixedHeight: calculateHeight,
-          accentColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          title: mode === 'feeding' ? 'Feed' : 'Sleep',
-          rightAction: null
-        },
-        bodyContent
+                React.createElement('div', { className: "w-6" })
+              ),
+              React.createElement('div', {
+                className: "flex-1",
+                style: {
+                  minHeight: 0,
+                  display: 'flex',
+                  flexDirection: 'column'
+                }
+              }, bodyContent)
+            )
+          : null
       );
+      return ReactDOM.createPortal(v4Overlay, document.body);
     }
 
     // Static preview mode (for UI Lab inline display)

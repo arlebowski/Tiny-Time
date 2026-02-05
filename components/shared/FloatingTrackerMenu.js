@@ -55,6 +55,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
         global.TT?.shared?.icons?.MoonV2 ||
         global.TT?.shared?.icons?.["moon-v2"] ||
         null;
+      const DiaperIcon =
+        global.TT?.shared?.icons?.DiaperIcon ||
+        null;
 
       const handleClose = useCallback(() => setIsOpen(false), []);
       const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);
@@ -169,6 +172,13 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
                 onClick: () => handleTrackerSelect('feeding')
               }),
               React.createElement(SplitButton, {
+                icon: DiaperIcon,
+                label: 'Diaper',
+                type: 'diaper',
+                direction: 'top',
+                onClick: () => handleTrackerSelect('diaper')
+              }),
+              React.createElement(SplitButton, {
                 icon: MoonIcon,
                 label: 'Sleep',
                 type: 'sleep',
@@ -239,8 +249,13 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
       } = props;
 
       const isLeft = direction === 'left';
-      const gradientVar = type === 'feeding' ? '--tt-feed' : '--tt-sleep';
-      const gradientStrongVar = type === 'feeding' ? '--tt-feed-strong' : '--tt-sleep-strong';
+      const isTop = direction === 'top';
+      const gradientVar = type === 'feeding'
+        ? '--tt-feed'
+        : (type === 'sleep' ? '--tt-sleep' : '--tt-diaper');
+      const gradientStrongVar = type === 'feeding'
+        ? '--tt-feed-strong'
+        : (type === 'sleep' ? '--tt-sleep-strong' : '--tt-diaper-strong');
 
       return React.createElement(
         motion.div,
@@ -252,8 +267,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
             opacity: 0
           },
           animate: {
-            x: isLeft ? -60 : 60,
-            y: -92,
+            x: isLeft ? -74 : (isTop ? 0 : 74),
+            y: isTop ? -164 : -112,
             scale: 1,
             opacity: 1
           },
@@ -271,7 +286,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
           },
           whileHover: {
             scale: 1.08,
-            y: -98,
+            y: isTop ? -172 : -120,
             transition: { duration: 0.2 }
           },
           whileTap: { scale: 0.95 },
@@ -290,7 +305,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '8px',
+            gap: '10px',
             cursor: 'pointer',
             outline: 'none'
           }
@@ -298,7 +313,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
         React.createElement(
           motion.div,
           {
-            initial: { rotate: isLeft ? -90 : 90 },
+            initial: { rotate: isLeft ? -90 : (isTop ? 0 : 90) },
             animate: { rotate: 0 },
             transition: {
               duration: 0.5,

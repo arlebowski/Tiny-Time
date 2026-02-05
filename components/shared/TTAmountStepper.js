@@ -75,7 +75,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
       ),
       React.createElement(
         'div',
-        { className: "flex items-center justify-between px-12 pb-8 pt-9" },
+        { className: "flex items-center justify-between px-12 pb-10 pt-11" },
         React.createElement('button', {
           type: 'button',
           onClick: () => handleStep(-1),

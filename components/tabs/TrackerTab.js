@@ -41,12 +41,16 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [sleepSessions, setSleepSessions] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+  const [diaperChanges, setDiaperChanges] = React.useState([]);
+  const [allDiaperChanges, setAllDiaperChanges] = React.useState([]);
   const [sleepSettings, setSleepSettings] = React.useState(null);
   const [yesterdayConsumed, setYesterdayConsumed] = React.useState(0);
   const [yesterdayFeedingCount, setYesterdayFeedingCount] = React.useState(0);
   const [sleepTodayMs, setSleepTodayMs] = React.useState(0);
   const [sleepTodayCount, setSleepTodayCount] = React.useState(0);
   const [sleepYesterdayMs, setSleepYesterdayMs] = React.useState(0);
+  const [diaperTodayCount, setDiaperTodayCount] = React.useState(0);
+  const [diaperYesterdayCount, setDiaperYesterdayCount] = React.useState(0);
   const [currentDate, setCurrentDate] = React.useState(new Date());
   const [kidPhotoUrl, setKidPhotoUrl] = React.useState(null);
   const [kidDisplayName, setKidDisplayName] = React.useState(null);
@@ -56,6 +60,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   // State for smooth date transitions - preserve previous values while loading
   const [prevFeedingCardData, setPrevFeedingCardData] = React.useState(null);
   const [prevSleepCardData, setPrevSleepCardData] = React.useState(null);
+  const [prevDiaperCardData, setPrevDiaperCardData] = React.useState(null);
   const [isDateTransitioning, setIsDateTransitioning] = React.useState(false);
   const transitionIdRef = React.useRef(0);
   const [transitionPending, setTransitionPending] = React.useState(0);
@@ -74,7 +79,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   }, [onRequestOpenInputSheet]);
   const handleV4CardTap = React.useCallback((e, payload) => {
     if (typeof window === 'undefined') return;
-    const nextFilter = payload?.mode === 'feeding' ? 'feed' : payload?.mode || null;
+    const nextFilter = payload?.mode === 'feeding'
+      ? 'feed'
+      : (payload?.mode === 'sleep'
+          ? 'sleep'
+          : (payload?.mode === 'diaper' ? 'diaper' : payload?.mode || null));
     window.TT = window.TT || {};
     window.TT.shared = window.TT.shared || {};
     if (nextFilter) {
@@ -90,8 +99,10 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   // Detail sheet state
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
+  const [showDiaperDetailSheet, setShowDiaperDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
+  const [selectedDiaperEntry, setSelectedDiaperEntry] = React.useState(null);
 
   // One-shot "gates" log whenever key render inputs change.
   React.useEffect(() => {
@@ -617,7 +628,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   useEffect(() => {
     if (!loading && kidId) {
       loadFeedings();
-      const interval = setInterval(loadFeedings, 5000);
+      loadDiaperChanges();
+      const interval = setInterval(() => {
+        loadFeedings();
+        loadDiaperChanges();
+      }, 5000);
       return () => clearInterval(interval);
     }
   }, [currentDate, loading, kidId]);
@@ -670,6 +685,55 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     }
   };
 
+  const loadDiaperChanges = async () => {
+    const myTransitionId = transitionIdRef.current; // Capture transition ID
+    try {
+      const allChanges = await firestoreStorage.getAllDiaperChanges();
+      setAllDiaperChanges(allChanges || []);
+      const startOfDay = new Date(currentDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(currentDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const yDate = new Date(currentDate);
+      yDate.setDate(yDate.getDate() - 1);
+      const yStart = new Date(yDate);
+      yStart.setHours(0, 0, 0, 0);
+      const yEnd = new Date(yDate);
+      yEnd.setHours(23, 59, 59, 999);
+
+      const yChanges = (allChanges || []).filter(c => {
+        const ts = c.timestamp || 0;
+        return ts >= yStart.getTime() && ts <= yEnd.getTime();
+      });
+      setDiaperYesterdayCount(yChanges.length);
+
+      const dayChanges = (allChanges || []).filter(c => {
+        const ts = c.timestamp || 0;
+        return ts >= startOfDay.getTime() && ts <= endOfDay.getTime();
+      }).map(c => ({
+        ...c,
+        time: new Date(c.timestamp).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      setDiaperChanges(dayChanges);
+      setDiaperTodayCount(dayChanges.length);
+
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
+    } catch (error) {
+      console.error('Error loading diaper changes:', error);
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
+    }
+  };
+
   React.useEffect(() => {
     const handleInputSheetAdded = (event) => {
       const mode = event?.detail?.mode;
@@ -679,11 +743,15 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       }
       if (mode === 'sleep') {
         loadSleepSessions();
+        return;
+      }
+      if (mode === 'diaper') {
+        loadDiaperChanges();
       }
     };
     window.addEventListener('tt-input-sheet-added', handleInputSheetAdded);
     return () => window.removeEventListener('tt-input-sheet-added', handleInputSheetAdded);
-  }, [loadFeedings, loadSleepSessions]);
+  }, [loadFeedings, loadSleepSessions, loadDiaperChanges]);
 
   const loadData = async () => {
     // Never leave the tab stuck in "Loading..." if kidId isn't ready yet.
@@ -705,6 +773,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       setKidDisplayName(kidData?.name || null);
       setKidBirthDate(kidData?.birthDate || null);
       await loadFeedings();
+      await loadDiaperChanges();
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -746,11 +815,13 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
     const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
+    const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
     setPrevFeedingCardData(currentFeedingData);
     setPrevSleepCardData(currentSleepData);
-    // Start new transition and expect 2 completions
+    setPrevDiaperCardData(currentDiaperData);
+    // Start new transition and expect 3 completions
     transitionIdRef.current += 1;
-    setTransitionPending(2);
+    setTransitionPending(3);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -765,11 +836,13 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
     const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
+    const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
     setPrevFeedingCardData(currentFeedingData);
     setPrevSleepCardData(currentSleepData);
-    // Start new transition and expect 2 completions
+    setPrevDiaperCardData(currentDiaperData);
+    // Start new transition and expect 3 completions
     transitionIdRef.current += 1;
-    setTransitionPending(2);
+    setTransitionPending(3);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -1009,6 +1082,38 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     return { total, target, percent, timelineItems, lastEntryTime };
   };
 
+  const formatDiaperChangesForCard = (changes, currentDate) => {
+    if (!changes || !Array.isArray(changes)) return { total: 0, target: null, percent: 0, timelineItems: [], lastEntryTime: null };
+
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todayChanges = changes.filter(c => {
+      const ts = c.timestamp || 0;
+      return ts >= startOfDay.getTime() && ts <= endOfDay.getTime();
+    });
+
+    const total = todayChanges.length;
+
+    const timelineItems = todayChanges
+      .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
+      .map(c => ({
+        id: c.id,
+        timestamp: c.timestamp,
+        notes: c.notes || null,
+        photoURLs: c.photoURLs || null,
+        isWet: !!c.isWet,
+        isDry: !!c.isDry,
+        isPoo: !!c.isPoo
+      }));
+
+    const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
+
+    return { total, target: null, percent: 0, timelineItems, lastEntryTime };
+  };
+
   const formatTimelineItem = (entry, mode) => {
     // This is handled by TimelineItem component itself
     // Just return the entry as-is
@@ -1069,6 +1174,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   // Use previous data during date transitions to prevent showing zeros
   const currentFeedingData = formatFeedingsForCard(feedings, targetOunces, currentDate);
   const currentSleepData = formatSleepSessionsForCard(sleepSessions, sleepTargetHours, currentDate, activeSleep);
+  const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
   
   const feedingCardData = isDateTransitioning && prevFeedingCardData 
     ? prevFeedingCardData 
@@ -1077,6 +1183,10 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const sleepCardData = isDateTransitioning && prevSleepCardData 
     ? prevSleepCardData 
     : currentSleepData;
+
+  const diaperCardData = isDateTransitioning && prevDiaperCardData
+    ? prevDiaperCardData
+    : currentDiaperData;
   
   // End transition when both loaders complete
   React.useEffect(() => {
@@ -1087,11 +1197,12 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
 
   // Clear previous data when transition completes
   React.useEffect(() => {
-    if (!isDateTransitioning && (prevFeedingCardData || prevSleepCardData)) {
+    if (!isDateTransitioning && (prevFeedingCardData || prevSleepCardData || prevDiaperCardData)) {
       setPrevFeedingCardData(null);
       setPrevSleepCardData(null);
+      setPrevDiaperCardData(null);
     }
-  }, [isDateTransitioning, prevFeedingCardData, prevSleepCardData]);
+  }, [isDateTransitioning, prevFeedingCardData, prevSleepCardData, prevDiaperCardData]);
 
   // Handlers for timeline item clicks
   const handleFeedItemClick = (entry) => {
@@ -1109,6 +1220,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     }
     setSelectedSleepEntry(entry);
     setShowSleepDetailSheet(true);
+  };
+
+  const handleDiaperItemClick = (entry) => {
+    setSelectedDiaperEntry(entry);
+    setShowDiaperDetailSheet(true);
   };
 
   if (loading && !hasLoadedOnce) {
@@ -1248,6 +1364,23 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           await loadSleepSessions();
         }
       }),
+      React.createElement(window.TrackerCard, {
+        mode: 'diaper',
+        total: diaperCardData.total,
+        target: null,
+        timelineItems: diaperCardData.timelineItems,
+        lastEntryTime: diaperCardData.lastEntryTime,
+        rawFeedings: [],
+        rawSleepSessions: [],
+        currentDate: currentDate,
+        disableAccordion: true,
+        onCardTap: handleV4CardTap,
+        onItemClick: handleDiaperItemClick,
+        onDelete: async () => {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          await loadDiaperChanges();
+        }
+      }),
     ),
 
     // Detail Sheet Instances
@@ -1285,6 +1418,22 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         // Small delay for sheet close animation (animation handled locally in TrackerCard)
         await new Promise(resolve => setTimeout(resolve, 200));
         await loadSleepSessions();
+      }
+    }),
+    window.TTDiaperDetailSheet && React.createElement(window.TTDiaperDetailSheet, {
+      isOpen: showDiaperDetailSheet,
+      onClose: () => {
+        setShowDiaperDetailSheet(false);
+        setSelectedDiaperEntry(null);
+      },
+      entry: selectedDiaperEntry,
+      onDelete: async () => {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await loadDiaperChanges();
+      },
+      onSave: async () => {
+        await new Promise(resolve => setTimeout(resolve, 200));
+        await loadDiaperChanges();
       }
     })
   );
