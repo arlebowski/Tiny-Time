@@ -363,7 +363,6 @@ const TrackerCard = ({
           backgroundColor: "var(--tt-card-bg)",
           borderColor: "var(--tt-card-border)",
           cursor: 'pointer',
-          transition: 'all 0.3s ease-out'
         },
         onClick: (e) => {
           if (typeof onCardTap === 'function') onCardTap(e, { mode });
