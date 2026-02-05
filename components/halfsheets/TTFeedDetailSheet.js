@@ -29,6 +29,17 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       return false;
     }
   });
+  
+  const _ttUseAmountStepper = () => {
+    try {
+      if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useAmountStepper?.get) {
+        return !!window.TT.shared.flags.useAmountStepper.get();
+      }
+      return localStorage.getItem('tt_use_amount_stepper') === 'true';
+    } catch (e) {
+      return false;
+    }
+  };
 
 
   const __ttV4ResolveFramer = () => {
@@ -72,6 +83,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
   const PenIcon = window.PenIcon;
   const XIcon = window.XIcon;
   const ChevronDown = window.ChevronDown;
+  const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
 
   const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
@@ -106,6 +118,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     const [showAmountTray, setShowAmountTray] = React.useState(false);
     const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState('oz');
     const [amountPickerAmountLocal, setAmountPickerAmountLocal] = React.useState(4);
+    const [amountDisplayUnit, setAmountDisplayUnit] = React.useState('oz');
 
     const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
     const [dtTarget, setDtTarget] = React.useState('feeding'); // 'feeding'
@@ -455,19 +468,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       null,
       React.createElement('div', { className: "space-y-2" },
         React.createElement(InputRow, {
-          label: 'Amount',
-          value: ounces,
-          onChange: setOunces,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          valueClassName: inputValueClassName,
-          type: 'number',
-          placeholder: '0',
-          suffix: 'oz',
-          inlineSuffix: true,
-          pickerMode: 'amount',
-          onOpenPicker: openTrayPicker
-        }),
-        React.createElement(InputRow, {
           label: 'Start time',
           value: formatDateTime(dateTime),
           rawValue: dateTime,
@@ -478,6 +478,27 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
           pickerMode: 'datetime_feeding',
           onOpenPicker: openTrayPicker,
         }),
+        (_ttUseAmountStepper() && TTAmountStepper)
+          ? React.createElement(TTAmountStepper, {
+              label: 'Amount',
+              valueOz: parseFloat(ounces) || 0,
+              unit: amountDisplayUnit,
+              onChangeUnit: setAmountDisplayUnit,
+              onChangeOz: (nextOz) => setOunces(_formatOz(nextOz))
+            })
+          : React.createElement(InputRow, {
+              label: 'Amount',
+              value: ounces,
+              onChange: setOunces,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              valueClassName: inputValueClassName,
+              type: 'number',
+              placeholder: '0',
+              suffix: 'oz',
+              inlineSuffix: true,
+              pickerMode: 'amount',
+              onOpenPicker: openTrayPicker
+            }),
         (!notesExpanded && !photosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
           React.createElement('div', {
             onClick: () => setNotesExpanded(true),

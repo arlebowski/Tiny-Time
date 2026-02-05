@@ -6,33 +6,6 @@
 // ========================================
 // UI VERSION HELPERS (Single Source of Truth)
 // ========================================
-// Initialize shared flags (only once)
-const readBool = (key, fallback = false) => {
-  try {
-    const v = localStorage.getItem(key);
-    if (v === null || v === undefined) return fallback;
-    return v === 'true';
-  } catch (e) {
-    return fallback;
-  }
-};
-
-const writeBool = (key, val) => {
-  try {
-    localStorage.setItem(key, val ? 'true' : 'false');
-  } catch (e) {}
-};
-
-if (typeof window !== 'undefined') {
-  window.TT = window.TT || {};
-  window.TT.shared = window.TT.shared || {};
-  window.TT.shared.flags = window.TT.shared.flags || {
-    useWheelPickers: {
-      get: () => true,
-      set: () => {}
-    }
-  };
-}
 
 const SettingsTab = ({ user, kidId }) => {
   const [showUILab, setShowUILab] = useState(false);

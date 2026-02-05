@@ -8,6 +8,11 @@ const UILabTab = ({ onClose }) => {
     window.TT?.shared?.flags?.useWheelPickers?.get
       ? !!window.TT.shared.flags.useWheelPickers.get()
       : true;
+  const amountStepperOn =
+    typeof window !== 'undefined' &&
+    window.TT?.shared?.flags?.useAmountStepper?.get
+      ? !!window.TT.shared.flags.useAmountStepper.get()
+      : true;
 
   return React.createElement('div', { className: 'space-y-4' },
     React.createElement('div', { className: 'flex items-center gap-3 mb-4' },
@@ -28,7 +33,27 @@ const UILabTab = ({ onClose }) => {
           { value: 'on', label: 'On' },
           { value: 'off', label: 'Off' }
         ],
-        onChange: () => {}
+        onChange: (val) => {
+          if (window.TT?.shared?.flags?.useWheelPickers?.set) {
+            window.TT.shared.flags.useWheelPickers.set(val === 'on');
+          }
+        }
+      })
+    ),
+
+    React.createElement('div', { className: 'mb-4' },
+      React.createElement('label', { className: 'tt-card-label' }, 'Amount Stepper'),
+      window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+        value: amountStepperOn ? 'on' : 'off',
+        options: [
+          { value: 'on', label: 'On' },
+          { value: 'off', label: 'Off' }
+        ],
+        onChange: (val) => {
+          if (window.TT?.shared?.flags?.useAmountStepper?.set) {
+            window.TT.shared.flags.useAmountStepper.set(val === 'on');
+          }
+        }
       })
     )
   );
