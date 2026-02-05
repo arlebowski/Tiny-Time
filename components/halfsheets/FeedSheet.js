@@ -1,8 +1,8 @@
-// TTFeedDetailSheet Component
-// Extracted from TrackerCard.js for better organization
+// FeedSheet Component
+// Unified feed input + feed detail sheet
 
 // Guard to prevent redeclaration
-if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
+if (typeof window !== 'undefined' && !window.FeedSheet) {
   
   // Get utilities from window (exposed by TrackerCard.js)
   const formatDateTime = window.TT?.utils?.formatDateTime || ((date) => {
@@ -85,7 +85,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
   const ChevronDown = window.ChevronDown;
   const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
 
-  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
+  const FeedSheet = ({
+    variant = 'input', // 'input' | 'detail'
+    isOpen,
+    onClose,
+    entry = null,
+    onDelete = null,
+    onSave = null,
+    onAdd = null
+  }) => {
+    const isInputVariant = variant !== 'detail';
+    const effectiveEntry = isInputVariant ? null : entry;
+    const effectiveOnSave = isInputVariant ? onAdd : onSave;
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
@@ -264,20 +275,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       }
     };
 
+    const userEditedAmountRef = React.useRef(false);
+
+    const handleOuncesChange = (nextValue) => {
+      userEditedAmountRef.current = true;
+      setOunces(nextValue);
+    };
+
     // Populate form from entry when it exists
     React.useEffect(() => {
-      if (entry && isOpen) {
-        setOunces(entry.ounces ? entry.ounces.toString() : '');
-        setDateTime(entry.timestamp ? new Date(entry.timestamp).toISOString() : new Date().toISOString());
-        setNotes(entry.notes || '');
-        setExistingPhotoURLs(entry.photoURLs || []);
-        originalPhotoURLsRef.current = entry.photoURLs || []; // Track original URLs
+      if (effectiveEntry && isOpen) {
+        setOunces(effectiveEntry.ounces ? effectiveEntry.ounces.toString() : '');
+        setDateTime(effectiveEntry.timestamp ? new Date(effectiveEntry.timestamp).toISOString() : new Date().toISOString());
+        setNotes(effectiveEntry.notes || '');
+        setExistingPhotoURLs(effectiveEntry.photoURLs || []);
+        originalPhotoURLsRef.current = effectiveEntry.photoURLs || []; // Track original URLs
         setPhotos([]); // Reset new photos
         // Auto-expand if there's existing content
-        setNotesExpanded(!!entry.notes);
-        setPhotosExpanded(!!(entry.photoURLs && entry.photoURLs.length > 0));
-      } else if (!entry && isOpen) {
+        setNotesExpanded(!!effectiveEntry.notes);
+        setPhotosExpanded(!!(effectiveEntry.photoURLs && effectiveEntry.photoURLs.length > 0));
+      } else if (!effectiveEntry && isOpen) {
         // Create mode - reset to defaults
+        userEditedAmountRef.current = false;
         setOunces('');
         setDateTime(new Date().toISOString());
         setNotes('');
@@ -287,7 +306,41 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         setNotesExpanded(false);
         setPhotosExpanded(false);
       }
-    }, [entry, isOpen]);
+    }, [effectiveEntry, isOpen]);
+
+    React.useEffect(() => {
+      let cancelled = false;
+      const maybePrefillFromServer = async () => {
+        if (!isOpen || effectiveEntry) return;
+        if (userEditedAmountRef.current) return;
+        if (typeof firestoreStorage === 'undefined' || !firestoreStorage.getAllFeedings) return;
+        try {
+          const all = await firestoreStorage.getAllFeedings();
+          if (cancelled) return;
+          if (userEditedAmountRef.current) return;
+          if (!Array.isArray(all) || all.length === 0) return;
+          const last = all.reduce((acc, cur) => {
+            if (!cur) return acc;
+            const t = Number(cur.timestamp || cur.time || cur.createdAt || 0);
+            if (!acc) return cur;
+            const accT = Number(acc.timestamp || acc.time || acc.createdAt || 0);
+            return t > accT ? cur : acc;
+          }, null);
+          const lastOz = Number(last?.ounces ?? last?.amountOz ?? last?.amount ?? last?.volumeOz ?? last?.volume);
+          if (!Number.isFinite(lastOz) || lastOz <= 0) return;
+          setOunces(String(lastOz));
+          setAmountPickerUnitLocal('oz');
+          setAmountPickerAmountLocal(lastOz);
+          setAmountDisplayUnit('oz');
+        } catch (e) {
+          // non-fatal
+        }
+      };
+      maybePrefillFromServer();
+      return () => {
+        cancelled = true;
+      };
+    }, [isOpen, effectiveEntry]);
 
     // Reset expand state when sheet closes
     React.useEffect(() => {
@@ -325,8 +378,8 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
             const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
             newPhotoURLs.push(downloadURL);
           } catch (error) {
-              console.error(`[TTFeedDetailSheet] Failed to upload photo ${i + 1}:`, error);
-              console.error('[TTFeedDetailSheet] Photo upload error details:', {
+              console.error(`[FeedSheet] Failed to upload photo ${i + 1}:`, error);
+              console.error('[FeedSheet] Photo upload error details:', {
                 message: error.message,
                 stack: error.stack,
                 name: error.name
@@ -339,10 +392,10 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         // Combine existing and new photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
         
-        if (entry && entry.id) {
+        if (effectiveEntry && effectiveEntry.id) {
           // Update existing feeding
           await firestoreStorage.updateFeedingWithNotes(
-            entry.id,
+            effectiveEntry.id,
             amount,
             timestamp,
             notes || null,
@@ -384,12 +437,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         // Close the sheet first
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
-        if (onSave) {
-          await onSave();
+        if (effectiveOnSave) {
+          await effectiveOnSave();
         }
       } catch (error) {
-        console.error('[TTFeedDetailSheet] Failed to save feeding:', error);
-        console.error('[TTFeedDetailSheet] Error details:', {
+        console.error('[FeedSheet] Failed to save feeding:', error);
+        console.error('[FeedSheet] Error details:', {
           message: error.message,
           stack: error.stack,
           name: error.name,
@@ -402,11 +455,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     };
 
     const handleDelete = async () => {
-      if (!entry || !entry.id) return;
+      if (!effectiveEntry || !effectiveEntry.id) return;
       
       setSaving(true);
       try {
-        await firestoreStorage.deleteFeeding(entry.id);
+        await firestoreStorage.deleteFeeding(effectiveEntry.id);
         // Close the sheet first
         handleClose();
         // Then refresh timeline after sheet closes (onDelete callback handles the delay)
@@ -462,6 +515,9 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       }
     };
 
+    const headerTitle = effectiveEntry && effectiveEntry.id ? 'Feed' : 'Feeding';
+    const saveButtonLabel = effectiveEntry && effectiveEntry.id ? 'Save' : 'Add';
+
     // Body content (used in both static and overlay modes)
     const contentBlock = React.createElement(
       React.Fragment,
@@ -484,12 +540,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
               valueOz: parseFloat(ounces) || 0,
               unit: amountDisplayUnit,
               onChangeUnit: setAmountDisplayUnit,
-              onChangeOz: (nextOz) => setOunces(_formatOz(nextOz))
+              onChangeOz: (nextOz) => handleOuncesChange(_formatOz(nextOz))
             })
           : React.createElement(InputRow, {
               label: 'Amount',
               value: ounces,
-              onChange: setOunces,
+              onChange: handleOuncesChange,
               icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
               valueClassName: inputValueClassName,
               type: 'number',
@@ -512,7 +568,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
           }, '+ Add photos')
         ),
         notesExpanded
-          ? React.createElement(InputRow, {
+          ? React.createElement(__ttV4Motion.div, {
+              initial: { opacity: 0, y: 6, scale: 0.98 },
+              animate: { opacity: 1, y: 0, scale: 1 },
+              transition: { type: "spring", damping: 25, stiffness: 300 }
+            },
+            React.createElement(InputRow, {
               label: 'Notes',
               value: notes,
               onChange: setNotes,
@@ -521,21 +582,28 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
               type: 'text',
               placeholder: 'Add a note...'
             })
+          )
           : photosExpanded ? React.createElement('div', {
               onClick: () => setNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
               style: { color: 'var(--tt-text-tertiary)' }
             }, '+ Add notes') : null
       ),
-      TTPhotoRow && photosExpanded && React.createElement(TTPhotoRow, {
-        expanded: photosExpanded,
-        onExpand: () => setPhotosExpanded(true),
-        existingPhotos: existingPhotoURLs,
-        newPhotos: photos,
-        onAddPhoto: handleAddPhoto,
-        onRemovePhoto: handleRemovePhoto,
-        onPreviewPhoto: setFullSizePhoto
-      }),
+      TTPhotoRow && photosExpanded && React.createElement(__ttV4Motion.div, {
+        initial: { opacity: 0, y: 6, scale: 0.98 },
+        animate: { opacity: 1, y: 0, scale: 1 },
+        transition: { type: "spring", damping: 25, stiffness: 300 }
+      },
+        React.createElement(TTPhotoRow, {
+          expanded: photosExpanded,
+          onExpand: () => setPhotosExpanded(true),
+          existingPhotos: existingPhotoURLs,
+          newPhotos: photos,
+          onAddPhoto: handleAddPhoto,
+          onRemovePhoto: handleRemovePhoto,
+          onPreviewPhoto: setFullSizePhoto
+        })
+      ),
       TTPhotoRow && !photosExpanded && notesExpanded && React.createElement('div', {
         onClick: () => setPhotosExpanded(true),
         className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
@@ -706,6 +774,11 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       )
     );
 
+    const animatedContent = React.createElement(__ttV4Motion.div, {
+      layout: true,
+      transition: { type: "spring", damping: 25, stiffness: 300 }
+    }, contentBlock);
+
     const bodyContent = React.createElement(
       React.Fragment,
       null,
@@ -719,7 +792,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
           overscrollBehavior: 'none',
           WebkitOverflowScrolling: 'auto'
         }
-      }, contentBlock),
+      }, animatedContent),
       React.createElement('div', {
         ref: ctaFooterRef,
         className: "px-6 pt-3 pb-1",
@@ -858,13 +931,13 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         }, XIcon ? React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }) : '×'),
         
         // Centered title
-        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feed'),
+        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, headerTitle),
         
         // Save button
         React.createElement('button', {
           onClick: handleSave,
           className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, 'Save')
+        }, saveButtonLabel)
       ),
       bodyContent
     );
@@ -872,6 +945,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
 
   // Expose component globally
   if (typeof window !== 'undefined') {
-    window.TTFeedDetailSheet = TTFeedDetailSheet;
+    window.FeedSheet = FeedSheet;
   }
 }

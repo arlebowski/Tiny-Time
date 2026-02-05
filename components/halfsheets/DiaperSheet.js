@@ -1,7 +1,7 @@
-// TTDiaperDetailSheet Component
-// Handles create/edit for diaper changes
+// DiaperSheet Component
+// Unified diaper input + edit sheet
 
-if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
+if (typeof window !== 'undefined' && !window.DiaperSheet) {
   const formatDateTime = window.TT?.utils?.formatDateTime || ((date) => {
     if (!date) return '';
     const d = new Date(date);
@@ -72,7 +72,7 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
   const DiaperDryIcon = window.TT?.shared?.icons?.DiaperDryIcon || null;
   const DiaperPooIcon = window.TT?.shared?.icons?.DiaperPooIcon || null;
 
-  const TTDiaperDetailSheet = ({ isOpen, onClose, entry = null, onSave = null }) => {
+  const DiaperSheet = ({ isOpen, onClose, entry = null, onSave = null }) => {
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
     const [notes, setNotes] = React.useState('');
@@ -232,7 +232,7 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
             const url = await firestoreStorage.uploadDiaperPhoto(photos[i]);
             uploadedURLs.push(url);
           } catch (error) {
-            console.error(`[TTDiaperDetailSheet] Failed to upload photo ${i + 1}:`, error);
+            console.error(`[DiaperSheet] Failed to upload photo ${i + 1}:`, error);
           }
         }
         const mergedPhotos = [...(existingPhotoURLs || []), ...uploadedURLs];
@@ -256,7 +256,7 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
         }
         handleClose();
       } catch (error) {
-        console.error('[TTDiaperDetailSheet] Failed to save diaper change:', error);
+        console.error('[DiaperSheet] Failed to save diaper change:', error);
         alert('Failed to save diaper change. Please try again.');
       } finally {
         setSaving(false);
@@ -343,7 +343,12 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
           }, '+ Add photos')
         ),
         notesExpanded
-          ? React.createElement(InputRow, {
+          ? React.createElement(__ttV4Motion.div, {
+              initial: { opacity: 0, y: 6, scale: 0.98 },
+              animate: { opacity: 1, y: 0, scale: 1 },
+              transition: { type: "spring", damping: 25, stiffness: 300 }
+            },
+            React.createElement(InputRow, {
               label: 'Notes',
               value: notes,
               onChange: setNotes,
@@ -352,21 +357,28 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
               type: 'text',
               placeholder: 'Add a note...'
             })
+          )
           : photosExpanded ? React.createElement('div', {
               onClick: () => setNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
               style: { color: 'var(--tt-text-tertiary)' }
             }, '+ Add notes') : null
       ),
-      TTPhotoRow && photosExpanded && React.createElement(TTPhotoRow, {
-        expanded: photosExpanded,
-        onExpand: () => setPhotosExpanded(true),
-        existingPhotos: existingPhotoURLs,
-        newPhotos: photos,
-        onAddPhoto: handleAddPhoto,
-        onRemovePhoto: handleRemovePhoto,
-        onPreviewPhoto: setFullSizePhoto
-      }),
+      TTPhotoRow && photosExpanded && React.createElement(__ttV4Motion.div, {
+        initial: { opacity: 0, y: 6, scale: 0.98 },
+        animate: { opacity: 1, y: 0, scale: 1 },
+        transition: { type: "spring", damping: 25, stiffness: 300 }
+      },
+        React.createElement(TTPhotoRow, {
+          expanded: photosExpanded,
+          onExpand: () => setPhotosExpanded(true),
+          existingPhotos: existingPhotoURLs,
+          newPhotos: photos,
+          onAddPhoto: handleAddPhoto,
+          onRemovePhoto: handleRemovePhoto,
+          onPreviewPhoto: setFullSizePhoto
+        })
+      ),
       TTPhotoRow && !photosExpanded && notesExpanded && React.createElement('div', {
         onClick: () => setPhotosExpanded(true),
         className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
@@ -498,6 +510,11 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
       )
     );
 
+    const animatedContent = React.createElement(__ttV4Motion.div, {
+      layout: true,
+      transition: { type: "spring", damping: 25, stiffness: 300 }
+    }, contentBlock);
+
     const bodyContent = React.createElement(
       React.Fragment,
       null,
@@ -511,7 +528,7 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
           overscrollBehavior: 'none',
           WebkitOverflowScrolling: 'auto'
         }
-      }, contentBlock),
+      }, animatedContent),
       React.createElement('div', {
         className: "px-6 pt-3 pb-1",
         style: {
@@ -652,8 +669,5 @@ if (typeof window !== 'undefined' && !window.TTDiaperDetailSheet) {
     );
   };
 
-  const TTDiaperInputSheet = (props) => React.createElement(TTDiaperDetailSheet, props);
-
-  window.TTDiaperDetailSheet = TTDiaperDetailSheet;
-  window.TTDiaperInputSheet = TTDiaperInputSheet;
+  window.DiaperSheet = DiaperSheet;
 }

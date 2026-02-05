@@ -1384,7 +1384,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     ),
 
     // Detail Sheet Instances
-    window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
+    window.FeedSheet && React.createElement(window.FeedSheet, {
+      variant: 'detail',
       isOpen: showFeedDetailSheet,
       onClose: () => {
         setShowFeedDetailSheet(false);
@@ -1402,7 +1403,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         await loadFeedings();
       }
     }),
-    window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
+    window.SleepSheet && React.createElement(window.SleepSheet, {
+      variant: 'detail',
       isOpen: showSleepDetailSheet,
       onClose: () => {
         setShowSleepDetailSheet(false);
@@ -1420,7 +1422,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         await loadSleepSessions();
       }
     }),
-    window.TTDiaperDetailSheet && React.createElement(window.TTDiaperDetailSheet, {
+    window.DiaperSheet && React.createElement(window.DiaperSheet, {
       isOpen: showDiaperDetailSheet,
       onClose: () => {
         setShowDiaperDetailSheet(false);

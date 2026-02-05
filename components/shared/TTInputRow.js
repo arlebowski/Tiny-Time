@@ -219,7 +219,10 @@ const TTInputRow = ({
                 )
               : React.createElement(
                   'div',
-                  { className: (suffix || showInlineSuffix) ? "inline-flex items-baseline w-full" : undefined },
+                  {
+                    className: (suffix || showInlineSuffix) ? "inline-flex items-baseline w-full" : undefined,
+                    style: { minWidth: 0 }
+                  },
                   React.createElement('input', {
                     ref: type === 'datetime' ? timeAnchorRef : inputRef,
                     type: (type === 'datetime' || (shouldUseWheelPickers() && pickerMode === 'amount')) ? 'text' : type,
@@ -245,6 +248,7 @@ const TTInputRow = ({
                       background: 'transparent',
                       width: showInlineSuffix ? `${inlineWidthCh}ch` : undefined,
                       minWidth: showInlineSuffix ? '2ch' : undefined,
+                      minWidth: 0,
                       color: invalid
                         ? '#ef4444'
                         : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
