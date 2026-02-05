@@ -313,6 +313,71 @@ const TrackerCard = ({
   const HeaderIcon = mode === 'feeding'
     ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"]) || null
     : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null;
+  const modeColor = mode === 'feeding' ? 'var(--tt-feed)' : (mode === 'sleep' ? 'var(--tt-sleep)' : 'var(--tt-diaper)');
+
+  const renderDiaperIconRow = () => {
+    if (!Array.isArray(timelineItems) || timelineItems.length === 0) return null;
+    const maxIcons = 10;
+    const items = timelineItems.slice(0, maxIcons);
+    const WetIcon = window.TT?.shared?.icons?.DiaperWetIcon || null;
+    const DryIcon = window.TT?.shared?.icons?.DiaperDryIcon || null;
+    const PooIcon = window.TT?.shared?.icons?.DiaperPooIcon || null;
+    const wetColor = 'var(--tt-diaper-strong)';
+    const dryColor = 'var(--tt-text-tertiary)';
+    const pooColor = 'var(--tt-diaper)';
+
+    return React.createElement(
+      'div',
+      { className: "flex gap-2 items-center flex-wrap" },
+      items.map((item, idx) => {
+        const isWet = !!item.isWet;
+        const isDry = !!item.isDry;
+        const isPoo = !!item.isPoo;
+
+        if (isDry && DryIcon) {
+          return React.createElement(DryIcon, {
+            key: item.id || idx,
+            className: "w-5 h-5",
+            style: { color: dryColor, fill: dryColor }
+          });
+        }
+
+        if (isPoo && isWet && PooIcon) {
+          return React.createElement(
+            'span',
+            { key: item.id || idx, className: "relative inline-flex items-center" },
+            React.createElement(PooIcon, { className: "w-5 h-5", style: { color: pooColor, fill: pooColor } }),
+            WetIcon ? React.createElement(
+              'span',
+              {
+                className: "absolute -right-1.5 -top-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center",
+                style: { backgroundColor: 'var(--tt-card-bg)', boxShadow: '0 0 0 1px var(--tt-border-subtle)' }
+              },
+              React.createElement(WetIcon, { className: "w-2.5 h-2.5", style: { color: wetColor, fill: wetColor } })
+            ) : null
+          );
+        }
+
+        if (isPoo && PooIcon) {
+          return React.createElement(PooIcon, {
+            key: item.id || idx,
+            className: "w-5 h-5",
+            style: { color: pooColor, fill: pooColor }
+          });
+        }
+
+        if (isWet && WetIcon) {
+          return React.createElement(WetIcon, {
+            key: item.id || idx,
+            className: "w-5 h-5",
+            style: { color: wetColor, fill: wetColor }
+          });
+        }
+
+        return null;
+      })
+    );
+  };
 
   const renderDesign = ({
     showHeaderRow = true,
@@ -344,7 +409,8 @@ const TrackerCard = ({
     statusRow = null,
     statusRowClassName = '',
     showDotsRow = true,
-    progressBottomMarginClass = 'mb-1'
+    progressBottomMarginClass = 'mb-1',
+    showProgress = true
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
     const withFeedingMirror = (t) => {
@@ -392,10 +458,10 @@ const TrackerCard = ({
             ? (IconComp ? React.createElement(IconComp, {
                 className: headerIconClassName,
                 style: {
-                  color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-                  transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
-                  strokeWidth: mode === 'feeding' ? '1.5' : undefined,
-                  fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
+                  color: modeColor,
+                  transform: isFeed ? effectiveFeedingTransform : (isSleep ? sleepIconTransform : 'none'),
+                  strokeWidth: isFeed ? '1.5' : undefined,
+                  fill: isFeed ? 'none' : modeColor
                 }
               }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
             : null,
@@ -404,8 +470,8 @@ const TrackerCard = ({
               ? headerLabel
               : React.createElement('div', {
                   className: headerLabelClassName,
-                  style: { color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
-                }, mode === 'feeding' ? 'Feed' : 'Sleep')
+                  style: { color: modeColor }
+                }, isFeed ? 'Feed' : (isSleep ? 'Sleep' : 'Diaper'))
           ) : null
         ) : null,
         headerRight
@@ -421,7 +487,7 @@ const TrackerCard = ({
         const valueEl = React.createElement('div', {
           className: bigNumberValueClassName,
           style: {
-            color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+            color: modeColor,
             transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
           }
         },
@@ -433,20 +499,20 @@ const TrackerCard = ({
           style: { color: bigNumberTargetColor }
         },
           bigNumberTargetVariant === 'unit'
-            ? (mode === 'sleep' ? 'hrs' : 'oz')
+            ? (mode === 'sleep' ? 'hrs' : (mode === 'diaper' ? 'changes' : 'oz'))
             : (target !== null
-                ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : `/ ${formatV2Number(target)} oz`)
-                : (mode === 'sleep' ? '/ 0 hrs' : '/ 0 oz'))
+                ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : (mode === 'diaper' ? `/ ${formatV2Number(target)} changes` : `/ ${formatV2Number(target)} oz`))
+                : (mode === 'sleep' ? '/ 0 hrs' : (mode === 'diaper' ? '/ 0 changes' : '/ 0 oz')))
         );
 
         const iconEl = (showBigNumberIcon && IconComp)
           ? React.createElement(IconComp, {
               className: bigNumberIconClassName || headerIconClassName,
               style: {
-                color: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-                transform: mode === 'feeding' ? effectiveFeedingTransform : sleepIconTransform,
-                strokeWidth: mode === 'feeding' ? '1.5' : undefined,
-                fill: mode === 'feeding' ? 'none' : (mode === 'sleep' ? 'var(--tt-sleep)' : undefined)
+                color: modeColor,
+                transform: isFeed ? effectiveFeedingTransform : (isSleep ? sleepIconTransform : 'none'),
+                strokeWidth: isFeed ? '1.5' : undefined,
+                fill: isFeed ? 'none' : modeColor
               }
             })
           : null;
@@ -478,7 +544,7 @@ const TrackerCard = ({
         );
       })(),
 
-      React.createElement('div', {
+      showProgress ? React.createElement('div', {
         className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`,
         style: {
           backgroundColor: progressTrackBg,
@@ -494,15 +560,15 @@ const TrackerCard = ({
           className: `absolute left-0 top-0 h-full rounded-2xl ${isSleepActive ? 'tt-sleep-progress-pulse' : ''}`,
           style: {
             width: `${displayPercent}%`,
-            backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
+            backgroundColor: modeColor,
             transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
             transitionDelay: '0s',
             minWidth: '0%',
             position: 'relative'
           }
         })
-      ),
-      progressBarGoalText && React.createElement(
+      ) : null,
+      showProgress && progressBarGoalText && React.createElement(
         'div',
         { className: "flex justify-end mt-1" },
         React.createElement('span', {
@@ -518,7 +584,7 @@ const TrackerCard = ({
           React.createElement('div', {
             key: i,
             className: "h-3.5 w-3.5 rounded-full",
-            style: { backgroundColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)' }
+            style: { backgroundColor: modeColor }
           })
         )
       )
@@ -556,14 +622,16 @@ const TrackerCard = ({
 
     const v4IconSvg = mode === 'feeding'
       ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || HeaderIcon)
-      : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || HeaderIcon);
+      : mode === 'sleep'
+        ? (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || HeaderIcon)
+        : (window.TT?.shared?.icons?.DiaperIcon || HeaderIcon);
     const v4StatusTextClassName = "text-[15px] font-normal leading-none";
     const v4GoalTextClassName = "text-[15px] font-normal leading-none";
     const v4TargetClassName = "relative -top-[1px] text-[20px] leading-none font-normal";
 
     const v4StatusText = mode === 'feeding'
       ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No feedings yet')
-      : (() => {
+      : (mode === 'sleep' ? (() => {
           const activeEntry = timelineItems.find(item => item.isActive && item.startTime);
           if (activeEntry) {
             return React.createElement(
@@ -582,7 +650,8 @@ const TrackerCard = ({
             return `Awake ${formatRelativeTimeNoAgo(lastCompletedSleep.endTime)}`;
           }
           return 'No sleep logged';
-        })();
+        })()
+        : (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No changes yet'));
 
     const v4HeaderRight = (() => {
       const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
@@ -620,15 +689,19 @@ const TrackerCard = ({
 
     const createIconLabel = (m) => {
       const isFeed = m === 'feeding';
+      const isSleep = m === 'sleep';
       const v4Svg = isFeed
         ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.BottleV2) ||
            (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-v2"]) ||
            null)
-        : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
-           (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
-           null);
-      const color = isFeed ? 'var(--tt-feed)' : 'var(--tt-sleep)';
-      const label = isFeed ? 'Feed' : 'Sleep';
+        : (isSleep
+            ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
+               (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
+               null)
+            : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
+               null));
+      const color = isFeed ? 'var(--tt-feed)' : (isSleep ? 'var(--tt-sleep)' : 'var(--tt-diaper)');
+      const label = isFeed ? 'Feed' : (isSleep ? 'Sleep' : 'Diaper');
 
       return React.createElement(
         'div',
@@ -650,6 +723,8 @@ const TrackerCard = ({
     };
     const v4HeaderLabel = createIconLabel(mode);
 
+    const isDiaperLocal = mode === 'diaper';
+
     return renderDesign({
       showHeaderRow: true,
       headerGapClass: 'gap-2',
@@ -666,7 +741,7 @@ const TrackerCard = ({
       bigNumberTopLabel: null,
       bigNumberIconClassName: mode === 'feeding' ? 'h-[35.739px] w-[35.739px]' : 'h-[33.858px] w-[33.858px]',
       bigNumberRight: null,
-      bigNumberRowClassName: "flex items-baseline gap-1 mb-[13px]",
+      bigNumberRowClassName: "flex items-baseline gap-1.5 mb-[13px]",
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
       bigNumberValueClassName: "text-[40px] leading-none font-bold",
       bigNumberTargetClassName: v4TargetClassName,
@@ -674,14 +749,15 @@ const TrackerCard = ({
       bigNumberTargetVariant: 'unit',
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-progress-track)',
-      progressBarGoalText: target !== null
+      progressBarGoalText: isDiaperLocal ? null : (target !== null
         ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
-        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal'),
+        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal')),
       progressBarGoalTextClassName: v4GoalTextClassName,
-      statusRow: null,
+      statusRow: isDiaperLocal ? renderDiaperIconRow() : null,
       statusRowClassName: "",
       showDotsRow: false,
-      progressBottomMarginClass: 'mb-0'
+      showProgress: !isDiaperLocal,
+      progressBottomMarginClass: isDiaperLocal ? 'mb-2' : 'mb-0'
     });
   };
 

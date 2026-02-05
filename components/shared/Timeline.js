@@ -36,6 +36,9 @@ const Timeline = ({
   const moonIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
     null;
+  const diaperIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
+    null;
   const TimelineItem =
     (window.TT && window.TT.shared && window.TT.shared.TimelineItem) ||
     null;
@@ -967,7 +970,8 @@ const Timeline = ({
               options: [
                 { label: 'All', value: 'all' },
                 { label: 'Feed', value: 'feed' },
-                { label: 'Sleep', value: 'sleep' }
+                { label: 'Sleep', value: 'sleep' },
+                { label: 'Diaper', value: 'diaper' }
               ],
               onChange: handleFilterChange,
               variant: 'body',
@@ -1158,11 +1162,12 @@ const Timeline = ({
                           setExpandedCardId((prev) => (prev === card.id ? null : card.id));
                         }
                       },
-                      TimelineItem
+                          TimelineItem
                         ? React.createElement(TimelineItem, {
                             card,
                             bottleIcon,
                             moonIcon,
+                            diaperIcon,
                             isExpanded: isExpandedCard,
                             detailsHeight: expandedContentHeight,
                             hasDetails,

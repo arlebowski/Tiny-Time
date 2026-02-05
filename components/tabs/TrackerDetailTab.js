@@ -5,12 +5,13 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
-  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0, feedPct: 0, sleepPct: 0 });
+  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0, diaperCount: 0, feedPct: 0, sleepPct: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
+  const [allDiaperChanges, setAllDiaperChanges] = React.useState([]);
   const [babyWeight, setBabyWeight] = React.useState(null);
   const [multiplier, setMultiplier] = React.useState(2.5);
   const [sleepSettings, setSleepSettings] = React.useState(null);
@@ -19,8 +20,10 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
+  const [showDiaperDetailSheet, setShowDiaperDetailSheet] = React.useState(false);
   const [selectedFeedEntry, setSelectedFeedEntry] = React.useState(null);
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
+  const [selectedDiaperEntry, setSelectedDiaperEntry] = React.useState(null);
   const [calendarMountKey, setCalendarMountKey] = React.useState(0);
   const prevActiveTabRef = React.useRef(activeTab);
   const __ttInitialFilter = (() => {
@@ -63,7 +66,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     return `${hours}:${mins} ${ampm}`;
   };
   const handleScheduledAdd = React.useCallback((card) => {
-    const mode = card?.type === 'sleep' ? 'sleep' : 'feeding';
+    const mode = card?.type === 'sleep' ? 'sleep' : (card?.type === 'diaper' ? 'diaper' : 'feeding');
     setInputSheetMode(mode);
     setShowInputSheet(true);
   }, []);
@@ -216,6 +219,32 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     };
   };
 
+  const diaperToCard = (c) => {
+    const d = new Date(c.timestamp);
+    const isWet = !!c.isWet;
+    const isDry = !!c.isDry;
+    const isPoo = !!c.isPoo;
+    const diaperType = isDry ? 'Dry' : (isWet && isPoo ? 'Wet + Poo' : (isPoo ? 'Poo' : 'Wet'));
+    return {
+      id: c.id,
+      timestamp: c.timestamp,
+      isWet,
+      isDry,
+      isPoo,
+      diaperType,
+      notes: c.notes || null,
+      photoURLs: c.photoURLs || null,
+      time: formatTime12Hour(c.timestamp),
+      hour: d.getHours(),
+      minute: d.getMinutes(),
+      variant: 'logged',
+      type: 'diaper',
+      amount: diaperType,
+      unit: '',
+      note: c.notes || null
+    };
+  };
+
   // Load timeline data for selected date
   const loadTimelineData = React.useCallback(async (date) => {
     if (!firestoreStorage || !firestoreStorage.currentFamilyId || !firestoreStorage.currentKidId) {
@@ -233,12 +262,14 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       const dayEndMs = endOfDay.getTime() + 1; // +1 to make end inclusive (same as TrackerTab)
 
       // Fetch all feedings and sleep sessions
-      const [allFeedings, allSleepSessions] = await Promise.all([
+      const [allFeedings, allSleepSessions, allDiaperChanges] = await Promise.all([
         firestoreStorage.getAllFeedings(),
-        firestoreStorage.getAllSleepSessions()
+        firestoreStorage.getAllSleepSessions(),
+        firestoreStorage.getAllDiaperChanges()
       ]);
       setAllFeedings(allFeedings || []);
       setAllSleepSessions(allSleepSessions || []);
+      setAllDiaperChanges(allDiaperChanges || []);
 
       // Filter feedings for the selected day
       const dayFeedings = (allFeedings || []).filter(f => {
@@ -257,18 +288,24 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         return overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs) > 0;
       });
 
+      const dayDiaperChanges = (allDiaperChanges || []).filter(c => {
+        const ts = c.timestamp || 0;
+        return ts >= dayStartMs && ts <= dayEndMs;
+      });
+
       // Transform to Timeline card format
       const feedingCards = dayFeedings.map(feedingToCard);
       // Pass day boundaries to sleepToCard for cross-day handling
       const sleepCards = daySleepSessions
         .map(s => sleepToCard(s, dayStartMs, dayEndMs))
         .filter(Boolean); // Filter out any null results
+      const diaperCards = dayDiaperChanges.map(diaperToCard);
       const activeSleepCard = sleepCards.find(card => card && card.isActive) || null;
       const visibleSleepCards = sleepCards.filter(card => !card.isActive);
 
       // Combine and sort by time (hour * 60 + minute)
       // Cross-day sleeps will naturally sort first (hour=0, minute=0)
-      const allCards = [...feedingCards, ...visibleSleepCards].sort((a, b) => {
+      const allCards = [...feedingCards, ...visibleSleepCards, ...diaperCards].sort((a, b) => {
         const aMinutes = a.hour * 60 + a.minute;
         const bMinutes = b.hour * 60 + b.minute;
         return aMinutes - bMinutes;
@@ -294,11 +331,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       setSelectedSummary({
         feedOz: Math.round(feedTotal * 10) / 10,
         sleepMs: sleepTotalMs,
+        diaperCount: dayDiaperChanges.length,
         feedPct: 0,
         sleepPct: 0
       });
     } catch (error) {
-      console.error('[ScheduleTab] Error loading timeline data:', error);
+      console.error('[TrackerDetailTab] Error loading timeline data:', error);
       setLoggedTimelineItems([]);
     } finally {
       setIsLoadingTimeline(false);
@@ -356,6 +394,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     null;
   const moonIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
+    null;
+  const diaperIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
     null;
 
   const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null }) => {
@@ -529,6 +570,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const feedDisplay = formatV2NumberSafe(selectedSummary.feedOz);
   const sleepHours = Number(selectedSummary.sleepMs || 0) / 3600000;
   const sleepDisplay = formatV2NumberSafe(sleepHours);
+  const diaperDisplay = formatV2NumberSafe(Number(selectedSummary.diaperCount || 0));
   const feedTarget = babyWeight ? babyWeight * multiplier : 0;
   const sleepTargetHours = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number")
     ? sleepSettings.sleepTargetHours
@@ -541,6 +583,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     : 0;
   const feedPercent = (feedPercentBase <= 0 && Number(selectedSummary.feedOz) <= 0) ? 2 : feedPercentBase;
   const sleepPercent = (sleepPercentBase <= 0 && sleepHours <= 0) ? 2 : sleepPercentBase;
+  const diaperPercent = Number(selectedSummary.diaperCount || 0) > 0 ? 100 : 2;
 
   React.useEffect(() => {
     const interval = setInterval(() => {
@@ -629,6 +672,15 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     return totalMs / 3600000;
   }, [allSleepSessions, comparisonNow]);
 
+  const yesterdayDiaperCount = React.useMemo(() => {
+    if (!Array.isArray(allDiaperChanges)) return 0;
+    const { yesterdayStart, feedCutoffMs } = getYesterdayCutoffInfo(comparisonNow);
+    return allDiaperChanges.filter((c) => {
+      const ts = c.timestamp || 0;
+      return ts >= yesterdayStart && ts <= feedCutoffMs;
+    }).length;
+  }, [allDiaperChanges, comparisonNow]);
+
   const feedComparison = isViewingToday
     ? buildComparison(
         Number(selectedSummary.feedOz || 0) - Number(yesterdayFeedTotal || 0),
@@ -640,6 +692,13 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     ? buildComparison(
         sleepHours - Number(yesterdaySleepTotal || 0),
         'hrs',
+        summaryLayoutMode === 'all'
+      )
+    : null;
+  const diaperComparison = isViewingToday
+    ? buildComparison(
+        Number(selectedSummary.diaperCount || 0) - Number(yesterdayDiaperCount || 0),
+        'changes',
         summaryLayoutMode === 'all'
       )
     : null;
@@ -655,6 +714,11 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     if (card.type === 'sleep') {
       setSelectedSleepEntry(card);
       setShowSleepDetailSheet(true);
+      return;
+    }
+    if (card.type === 'diaper') {
+      setSelectedDiaperEntry(card);
+      setShowDiaperDetailSheet(true);
     }
   }, []);
   const handleTimelineDeleteCard = React.useCallback(async (card) => {
@@ -664,6 +728,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         await firestoreStorage.deleteFeeding(card.id);
       } else if (card.type === 'sleep') {
         await firestoreStorage.deleteSleepSession(card.id);
+      } else if (card.type === 'diaper') {
+        await firestoreStorage.deleteDiaperChange(card.id);
       }
       await loadTimelineData(selectedDate);
     } catch (error) {
@@ -765,6 +831,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                 setSelectedSummary({
                   feedOz: payload.feedOz || 0,
                   sleepMs: payload.sleepMs || 0,
+                  diaperCount: payload.diaperCount || 0,
                   feedPct: payload.feedPct || 0,
                   sleepPct: payload.sleepPct || 0
                 });
@@ -795,7 +862,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         return React.createElement(
           container,
           {
-            className: `grid gap-4 -mt-2 ${summaryLayoutMode === 'all' ? 'grid-cols-2' : 'grid-cols-1'}`,
+            className: `grid gap-4 -mt-2 ${summaryLayoutMode === 'all' ? 'grid-cols-3' : 'grid-cols-1'}`,
             layout: shouldAnimateCards ? true : undefined,
             transition: shouldAnimateCards
               ? { type: "spring", stiffness: 180, damping: 24 }
@@ -803,7 +870,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
           },
           shouldAnimateCards
             ? React.createElement(__ttAnimatePresence, { mode: "popLayout", initial: true },
-                summaryLayoutMode !== 'sleep' && React.createElement(
+                summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && React.createElement(
                   __ttMotion.div,
                   {
                     key: `summary-feed-${summaryCardsEpoch}`,
@@ -824,7 +891,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                     comparison: feedComparison
                   })
                 ),
-                summaryLayoutMode !== 'feed' && React.createElement(
+                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && React.createElement(
                   __ttMotion.div,
                   {
                     key: `summary-sleep-${summaryCardsEpoch}`,
@@ -845,11 +912,33 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                     comparison: sleepComparison
                   })
                 )
+                ,
+                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && React.createElement(
+                  __ttMotion.div,
+                  {
+                    key: `summary-diaper-${summaryCardsEpoch}`,
+                    layout: true,
+                    initial: { opacity: 0, x: sleepInitialX },
+                    animate: { opacity: 1, x: 0 },
+                    exit: { opacity: 0, x: sleepInitialX },
+                    transition: { type: "spring", stiffness: 220, damping: 26 }
+                  },
+                  renderSummaryCard({
+                    icon: diaperIcon,
+                    color: 'var(--tt-diaper)',
+                    value: diaperDisplay,
+                    unit: 'changes',
+                    rotateIcon: false,
+                    progressPercent: diaperPercent,
+                    progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                    comparison: diaperComparison
+                  })
+                )
               )
             : React.createElement(
                 React.Fragment,
                 null,
-                summaryLayoutMode !== 'sleep' && renderSummaryCard({
+                summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && renderSummaryCard({
                   icon: bottleIcon,
                   color: 'var(--tt-feed)',
                   value: feedDisplay,
@@ -859,7 +948,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                   progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
                   comparison: feedComparison
                 }),
-                summaryLayoutMode !== 'feed' && renderSummaryCard({
+                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && renderSummaryCard({
                   icon: moonIcon,
                   color: 'var(--tt-sleep)',
                   value: sleepDisplay,
@@ -868,6 +957,17 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                   progressPercent: sleepPercent,
                   progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
                   comparison: sleepComparison
+                })
+                ,
+                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && renderSummaryCard({
+                  icon: diaperIcon,
+                  color: 'var(--tt-diaper)',
+                  value: diaperDisplay,
+                  unit: 'changes',
+                  rotateIcon: false,
+                  progressPercent: diaperPercent,
+                  progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                  comparison: diaperComparison
                 })
               )
         );
@@ -891,7 +991,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         onActiveSleepClick: handleActiveSleepClick
       }) : null
     ),
-    window.TTInputHalfSheet && React.createElement(window.TTInputHalfSheet, {
+    (window.TTInputHalfSheet || window.TTDiaperInputSheet) && React.createElement(
+      (inputSheetMode === 'diaper' ? window.TTDiaperInputSheet : window.TTInputHalfSheet),
+      {
       isOpen: showInputSheet,
       onClose: () => setShowInputSheet(false),
       kidId,
@@ -923,6 +1025,21 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         setSelectedSleepEntry(null);
       },
       entry: selectedSleepEntry,
+      __ttUseV4Sheet: true,
+      onDelete: async () => {
+        await loadTimelineData(selectedDate);
+      },
+      onSave: async () => {
+        await loadTimelineData(selectedDate);
+      }
+    }),
+    window.TTDiaperDetailSheet && React.createElement(window.TTDiaperDetailSheet, {
+      isOpen: showDiaperDetailSheet,
+      onClose: () => {
+        setShowDiaperDetailSheet(false);
+        setSelectedDiaperEntry(null);
+      },
+      entry: selectedDiaperEntry,
       __ttUseV4Sheet: true,
       onDelete: async () => {
         await loadTimelineData(selectedDate);
