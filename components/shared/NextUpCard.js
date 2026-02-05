@@ -188,10 +188,6 @@ const NextUpCard = ({
   const SleepIcon =
     (typeof window !== 'undefined' && window.TT && window.TT.shared && window.TT.shared.icons &&
       (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
-    (typeof window !== 'undefined' && window.TT && window.TT.shared && window.TT.shared.icons &&
-      (window.TT.shared.icons["moon-main"] || window.TT.shared.icons.MoonMain)) ||
-    (typeof window !== 'undefined' && window.TT && window.TT.shared && window.TT.shared.icons &&
-      window.TT.shared.icons.Moon2) ||
     null;
 
   return React.createElement(

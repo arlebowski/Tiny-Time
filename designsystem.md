@@ -1,8 +1,8 @@
 # Tiny Tracker Design System
 
-**Version**: 1.0  
-**Last Updated**: January 2025  
-**Primary Design**: v2 variant2 (production standard)
+**Version**: 1.1  
+**Last Updated**: February 4, 2026  
+**Primary Design**: v4 summary card (current app)
 
 ---
 
@@ -76,7 +76,8 @@
 1. **Category colors**: Use for primary UI (icons, buttons, progress)
 2. **Soft variants**: Use for secondary UI (pills, backgrounds)
 3. **Text hierarchy**: primary > secondary > tertiary (decreasing emphasis)
-4. **Dark mode**: Tokens auto-adapt (no manual `dark:` variants needed)
+4. **Token-first**: Prefer tokens, but current app still uses some Tailwind colors (notably date navigation/month view).  
+5. **Dark mode**: Tokens auto-adapt (no manual `dark:` variants needed)
 
 ### Opacity Standards
 
@@ -112,21 +113,22 @@ backgroundColor: hexToRgba(categoryColor, 0.08) // Subtle backgrounds
 
 ```javascript
 // Headers
-'text-[17.6px] font-semibold'  // Card headers (v2 variant2)
+'text-[18px] font-semibold'    // TrackerCard header label (v4)
 'text-[16px] font-semibold'    // Page titles, section headers
 
 // Display Numbers
-'text-[39.6px] font-bold leading-none'  // Main tracker value (v2)
-'text-[40px] font-bold leading-none'    // Main tracker value (v2)
+'text-[40px] font-bold leading-none'    // Main tracker value (v4 default)
+'text-[39.6px] font-bold leading-none'  // Legacy tracker value (fallback)
 'text-[2.25rem] font-bold leading-none' // Chart average (36px)
+'text-[30px] font-bold leading-none'    // Analytics stat card value
 'text-[24px] font-bold leading-none'    // Compact metric value (half-height cards)
 
 // Body
-'text-[17.6px] font-normal'  // Units, target text (v2)
-'text-[15.4px] font-normal'  // Status pills, timeline secondary, stat card units
-'text-[15.4px] font-medium'  // Stat card labels
-'text-2xl font-bold'          // Stat card main numbers (24px)
-'text-sm font-medium'         // Labels (14px)
+'text-[16px] font-normal'    // TrackerCard target text
+'text-[15.4px] font-normal'  // Status pills, timeline secondary
+'text-[15px] font-semibold'  // Analytics stat card labels
+'text-[20px] font-normal'    // Analytics stat card units
+'text-sm font-medium'        // Labels (14px)
 'text-xs font-normal'        // Stat card average labels, tiny labels (12px)
 ```
 
@@ -163,15 +165,12 @@ formatV2Number(7.0) → "7"
 ### Time Formatting
 
 ```javascript
-// 12-hour format: "3:45pm" (lowercase, no space)
-function formatTime12Hour(timestamp) {
-  const d = new Date(timestamp);
-  let hours = d.getHours();
-  const minutes = d.getMinutes();
-  const ampm = hours >= 12 ? 'pm' : 'am';
-  hours = hours % 12 || 12;
-  const mins = String(minutes).padStart(2, '0');
-  return `${hours}:${mins}${ampm}`;
+// 12-hour format: "3:45 pm" (lowercase, with space)
+function formatTime12Hour(date) {
+  if (!date || !(date instanceof Date)) return '';
+  return date
+    .toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+    .toLowerCase();
 }
 
 // HMS format (smart formatting)
@@ -209,8 +208,8 @@ function formatElapsedHmsTT(ms) {
 ### Card Padding
 
 ```javascript
-'p-5'  // TrackerCard internal (20px) - v2 standard
-'p-6'  // Standard card padding (24px) - Today card, Analytics
+'p-5'  // TrackerCard internal (20px) - v4 standard
+'p-6'  // Standard card padding (24px) - larger/detail cards (not analytics stat cards)
 ```
 
 ### Vertical Spacing
@@ -219,7 +218,7 @@ function formatElapsedHmsTT(ms) {
 'mb-8'  // Header to big number (32px)
 'mb-6'  // Section spacing (24px)
 'mb-4'  // Subsection spacing (16px)
-'mb-[13px]' // Big number to progress (v2 specific)
+'mb-[13px]' // Big number to progress (v4 variants)
 'mb-3'  // Divider to content (12px)
 'mb-2'  // Tight row spacing (8px)
 'mb-1'  // Minimal spacing (4px)
@@ -259,7 +258,7 @@ margin: '0 -1rem'  // Break out of px-4 padding
 
 ## Component Patterns
 
-### 1. TrackerCard (v2 variant2) - Production Standard
+### 1. TrackerCard (v4 summary card) - Production Standard
 
 #### Structure
 
@@ -281,13 +280,13 @@ margin: '0 -1rem'  // Break out of px-4 padding
 └─────────────────────────────────────────────────┘
 ```
 
-#### Header Pattern (v2 variant2)
+#### Header Pattern (v4)
 
 ```javascript
 // Left side: Icon + Label
 React.createElement('div', { className: 'flex items-center gap-1' },
   React.createElement(IconComponent, {
-    className: 'w-5 h-5', // 20px
+    className: 'h-8 w-8', // 32px (v4 header)
     style: { 
       color: 'var(--tt-feed)' or 'var(--tt-sleep)',
       strokeWidth: mode === 'feeding' ? '1.5' : undefined,
@@ -296,9 +295,9 @@ React.createElement('div', { className: 'flex items-center gap-1' },
     }
   }),
   React.createElement('span', {
-    className: 'text-[17.6px] font-semibold',
+    className: 'text-[18px] font-semibold',
     style: { color: 'var(--tt-feed)' or 'var(--tt-sleep)' }
-  }, 'Feeding' or 'Sleep')
+  }, 'Feed' or 'Sleep')
 )
 
 // Right side: Status Pill
@@ -311,7 +310,7 @@ React.createElement('span', {
 }, statusText)
 ```
 
-#### Big Number Pattern (v2 variant2)
+#### Big Number Pattern (v4)
 
 ```javascript
 // No icon in variant2 - just number + target
@@ -320,13 +319,13 @@ React.createElement('div', {
 },
   // Number
   React.createElement('div', { 
-    className: 'text-[39.6px] leading-none font-bold',
+    className: 'text-[40px] leading-none font-bold',
     style: { color: 'var(--tt-feed)' or 'var(--tt-sleep)' }
   }, formatV2Number(total)),
   
   // Target
   React.createElement('div', { 
-    className: 'relative -top-[1px] text-[17.6px] leading-none font-normal',
+    className: 'relative -top-[1px] text-[16px] leading-none font-normal',
     style: { color: 'var(--tt-text-secondary)' }
   }, `/ ${formatV2Number(target)} ${unit}`)
 )
@@ -397,25 +396,31 @@ React.createElement('div', { className: 'mb-8 mt-3' },
 )
 ```
 
-#### Timeline Header Pattern (v2 variant2)
+#### Timeline Header Pattern (v4)
 
 ```javascript
-// Feeding: Replace "Timeline" with pills
-[Count Pill] [Status Pill] ........... [Chevron]
+// Accordion button; left is "Timeline" or a pill group, right is chevron.
+React.createElement('button', {
+  className: 'flex w-full items-center justify-between',
+  style: { color: timelineTextColor }
+},
+  React.createElement('span', null,
+    timelineCountPill
+      ? timelineCountPill
+      : React.createElement('span', { className: 'font-normal' }, 'Timeline')
+  ),
+  expanded
+    ? React.createElement(ChevronUp, { className: 'w-5 h-5', style: { color: timelineTextColor } })
+    : React.createElement(ChevronDown, { className: 'w-5 h-5', style: { color: timelineTextColor } })
+)
 
-// Sleep: Show pills inline
-[Count Pill] [Status Pill] ........... [Chevron]
-
-// Count Pill
+// Count pill (used in v4 timeline pills)
 React.createElement('span', {
-  className: 'inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg text-[15.4px] font-normal',
-  style: { 
-    backgroundColor: 'var(--tt-subtle-surface)',
-    color: 'var(--tt-text-tertiary)' 
-  }
+  className: 'inline-flex items-center h-[35.2px] px-[13.2px] rounded-lg whitespace-nowrap text-[15.4px] font-normal leading-none',
+  style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-tertiary)' }
 }, `${count} ${noun}${count !== 1 ? 's' : ''} today`)
 
-// Status Pill (same as header right pill)
+// Status pill can appear alongside the count pill (variant-dependent).
 ```
 
 #### Timeline Item Pattern
@@ -482,7 +487,7 @@ React.createElement('div', {
 ```javascript
 // Toggle: localStorage.getItem('tt_show_today_card') === 'true'
 
-// Structure (v2 variant2)
+// Structure (v4)
 ┌─────────────────────────────────────────────────┐
 │ [Icon+Label] Feeding                             │
 │ 14.5 / 24.0 oz                                   │
@@ -635,10 +640,10 @@ React.createElement('div', {
 ```javascript
 // Standard icon + label header
 React.createElement('div', { 
-  className: 'flex items-center gap-1' 
+  className: 'flex items-center gap-[5px]' 
 },
   React.createElement(IconComponent, {
-    className: 'w-5 h-5', // 20px
+    className: 'w-[22px] h-[22px]', // v4 header icon
     style: { 
       color: categoryColor, // 'var(--tt-feed)' or 'var(--tt-sleep)' or custom
       strokeWidth: isFeeding ? '1.5' : undefined,
@@ -647,16 +652,16 @@ React.createElement('div', {
     }
   }),
   React.createElement('span', {
-    className: 'text-[17.6px] font-semibold',
+    className: 'text-[18px] font-semibold',
     style: { color: categoryColor }
-  }, label) // 'Feeding', 'Sleep', 'Daily Activity', etc.
+  }, label) // 'Feed', 'Sleep'
 )
 ```
 
 **Specifications**:
-- Icon size: `w-5 h-5` (20px)
-- Gap: `gap-1` (4px)
-- Text: `text-[17.6px] font-semibold`
+- Icon size: `w-[22px] h-[22px]`
+- Gap: `gap-[5px]`
+- Text: `text-[18px] font-semibold`
 - Color: Use category color token (`var(--tt-feed)`, `var(--tt-sleep)`, or custom)
 - Icon styling: 
   - Feeding icons: `strokeWidth: 1.5`, `fill: none`, `transform: rotate(20deg)`
@@ -664,7 +669,7 @@ React.createElement('div', {
   - Other icons: Use appropriate styling for the icon type
 
 **Used in**:
-- TrackerCard headers (v2 variant2)
+- TrackerCard headers (v4)
 - Analytics highlight cards
 - Any category header requiring icon + label consistency
 
@@ -693,7 +698,7 @@ React.createElement('div', {
   React.createElement('div', { className: 'flex items-center justify-between mb-3 h-6' },
     React.createElement('div', { className: 'flex items-center gap-1' },
       React.createElement(Icon, {
-        className: 'w-5 h-5',
+        className: 'w-[22px] h-[22px]',
         style: { 
           color: categoryColor,
           strokeWidth: isFeeding ? '1.5' : undefined,
@@ -702,7 +707,7 @@ React.createElement('div', {
         }
       }),
       React.createElement('span', {
-        className: 'text-[17.6px] font-semibold leading-6',
+        className: 'text-[18px] font-semibold leading-6',
         style: { color: categoryColor }
       }, label)
     ),
@@ -822,7 +827,7 @@ React.createElement('div', {
 - This creates a visible but not harsh selection indicator
 
 **Used in**:
-- Analytics subtabs (FeedingAnalyticsTab, SleepAnalyticsTab, ActivityAnalyticsTab)
+- Analytics subtabs (FeedingAnalyticsTab, SleepAnalyticsTab)
 - Any segmented control requiring timeframe or option selection
 
 ### 7. Chevron Icon Pattern
@@ -876,11 +881,9 @@ React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
 3. **Date Navigation** (TrackerTab date picker):
    ```javascript
    // Left/right arrows for date navigation
-   React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
+   React.createElement(ChevronLeft, {
      className: 'w-5 h-5',
-     isTapped: false,
-     selectedWeight: 'bold',
-     style: { color: chevronColor }
+     style: { strokeWidth: '3' }
    })
    ```
 
@@ -890,7 +893,7 @@ React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
 - TrackerTab date navigation (left/right chevrons)
 - Any navigation or tappable card indicator
 
-**Note**: Always use the Phosphor icon system with fallback for backward compatibility. The Phosphor icons are fill-based (no stroke), so remove any `strokeWidth` properties when migrating from legacy icons.
+**Note**: The current app mixes shared icon components (when available) with local SVG chevrons. Date navigation still uses local chevrons with explicit `strokeWidth` and Tailwind colors, so do not assume Phosphor-only behavior.
 
 ### 8. Stat Card Pattern (2-Column Grid)
 
@@ -900,30 +903,30 @@ React.createElement(window.TT?.shared?.icons?.ChevronLeftIcon || ChevronLeft, {
 
 // Card Container
 React.createElement('div', {
-  className: 'rounded-2xl shadow-sm p-6 flex flex-col',
+  className: 'rounded-2xl shadow-sm p-5 flex flex-col gap-[18px]',
   style: { backgroundColor: 'var(--tt-card-bg)' }
 },
   // Label (top)
   React.createElement('div', {
-    className: 'text-[15.4px] font-medium mb-2',
+    className: 'text-[15px] font-semibold',
     style: { color: 'var(--tt-text-secondary)' }
   }, 'Oz / Feed'),
   
   // Value + Unit (main number)
   React.createElement('div', {
-    className: 'text-2xl font-bold',
+    className: 'text-[30px] font-bold leading-none -mb-[8px]',
     style: { color: 'var(--tt-feed)' } // or 'var(--tt-sleep)'
   },
     '3.6',
     React.createElement('span', {
-      className: 'text-[15.4px] font-normal ml-1',
+      className: 'text-[20px] font-normal leading-none ml-1',
       style: { color: 'var(--tt-text-tertiary)' }
     }, 'oz')
   ),
   
   // Average label (bottom)
   React.createElement('div', {
-    className: 'text-xs mt-1',
+    className: 'text-[12px] font-normal leading-none',
     style: { color: 'var(--tt-text-tertiary)' }
   }, '3-day avg')
 )
@@ -932,31 +935,29 @@ React.createElement('div', {
 **Specifications**:
 - **Card Container**:
   - Layout: `flex flex-col` (left-aligned, vertical stack)
-  - Padding: `p-6` (24px)
+  - Padding: `p-5` (20px)
   - Border radius: `rounded-2xl` (16px)
   - Shadow: `shadow-sm`
   - Background: `var(--tt-card-bg)`
 - **Label** (e.g., "Oz / Feed", "Total Sleep"):
-  - Font size: `text-[15.4px]` (matches status text size)
-  - Font weight: `font-medium` (500)
+  - Font size: `text-[15px]`
+  - Font weight: `font-semibold` (600)
   - Color: `var(--tt-text-secondary)`
-  - Margin: `mb-2` (8px bottom)
   - Alignment: Left (no center classes)
 - **Main Number**:
-  - Font size: `text-2xl` (24px)
+  - Font size: `text-[30px]`
   - Font weight: `font-bold` (700)
   - Color: Category color (`var(--tt-feed)` or `var(--tt-sleep)`)
   - Alignment: Left
 - **Unit** (inline with number, e.g., "oz", "hrs"):
-  - Font size: `text-[15.4px]` (matches status text size)
+  - Font size: `text-[20px]`
   - Font weight: `font-normal` (400)
   - Color: `var(--tt-text-tertiary)`
   - Margin: `ml-1` (4px left) or `gap-1` (when using flex)
 - **Average Label** (e.g., "3-day avg"):
-  - Font size: `text-xs` (12px)
+  - Font size: `text-[12px]`
   - Font weight: `font-normal` (400, default)
   - Color: `var(--tt-text-tertiary)`
-  - Margin: `mt-1` (4px top)
   - Alignment: Left
 
 **Layout**:
@@ -967,7 +968,7 @@ React.createElement('div', {
 - FeedingAnalyticsTab (4 stat cards: Oz/Feed, Oz/Day, Feedings/Day, Time Between Feeds)
 - SleepAnalyticsTab (4 stat cards: Total Sleep, Day Sleep, Night Sleep, Sleeps/Day)
 
-**Note**: The label and unit both use `text-[15.4px]` to match the status text size used in TrackerCard, ensuring consistency across the app.
+**Note**: Analytics cards use `text-[15px]` labels and `text-[20px]` units; this is distinct from TrackerCard status text sizing.
 
 ### 9. Bar Chart Pattern (Week View)
 
@@ -1339,92 +1340,58 @@ style: {
 #### Gesture Thresholds
 
 ```javascript
-const SWIPE_THRESHOLD = 80;           // Pixels to reveal delete button
-const DELETE_BUTTON_WIDTH = 80;       // Base button width
-const DELETE_BUTTON_MAX_WIDTH = 100;  // Elastic maximum
-const FULL_SWIPE_THRESHOLD = 120;     // Instant delete threshold
+// Width-relative thresholds (Timeline.js)
+const FULL_SWIPE_THRESHOLD = 0.8;  // lock to full swipe when |x| > 80% of row width
+const OPEN_THRESHOLD = 0.3;        // snap open when |x| > 30% of row width
+const OPEN_POSITION = 0.5;         // open position is ~50% of row width
+
+// Legacy fallback (TrackerCard TimelineItem when shared TTSwipeRow is unavailable)
+const SWIPE_THRESHOLD_PX = 80;
+const FULL_SWIPE_THRESHOLD_PX = 120; // 1.5 * delete button width
 ```
 
 #### Behavior States
 
 ```javascript
-// 1. Tiny swipe (< 80px)
+// 1. Small swipe (< 30% width)
 // → Snap back to closed
 
-// 2. Partial swipe (80px - 120px)
-// → Reveal delete button, snap to 80px width
+// 2. Partial swipe (30% - 80% width)
+// → Snap open to ~50% width
 
-// 3. Full swipe (> 120px)
-// → Instant delete (no confirmation modal)
+// 3. Full swipe (> 80% width)
+// → Trigger primary action and spring back
+//
+// Legacy fallback uses fixed pixel thresholds (80px / 120px) with direct delete on full swipe.
 ```
 
 #### Implementation
 
 ```javascript
-// Touch handlers (non-passive for preventDefault)
-const handleTouchStart = (e) => {
-  const touch = e.touches[0];
-  touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-  setIsSwiping(false);
+// Pointer-based swipe with Framer Motion (Timeline.js)
+const handlePointerDown = (event) => {
+  if (!isSwipeEnabled) return;
+  if (dragState.current.pointerId != null) return;
+  event.stopPropagation();
+  event.currentTarget?.setPointerCapture?.(event.pointerId);
+  dragState.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, startOffset: x.get(), lock: null };
+  draggingRef.current = true;
+  addDocListeners();
 };
 
-const handleTouchMove = (e) => {
-  if (!touchStartRef.current) return;
-  
-  const touch = e.touches[0];
-  const deltaX = touch.clientX - touchStartRef.current.x;
-  const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
-  
-  // Only handle horizontal swipes
-  if (Math.abs(deltaX) > deltaY && deltaX < 0) {
-    setIsSwiping(true);
-    e.preventDefault(); // Prevent scroll
-    const newOffset = Math.max(-DELETE_BUTTON_WIDTH * 2, deltaX);
-    setSwipeOffset(newOffset);
-  }
+const onMove = (event) => {
+  if (!draggingRef.current) return;
+  // Lock vertical vs horizontal based on movement ratio
+  // Rubberband within [-width, 0]
+  // Track velocity for fling behavior
 };
 
-const handleTouchEnd = () => {
-  if (!isSwiping) return;
-  
-  const currentOffset = swipeOffset;
-  
-  // Full swipe delete (> 1.5x width = 120px)
-  if (currentOffset < -FULL_SWIPE_THRESHOLD) {
-    if (navigator.vibrate) navigator.vibrate(10);
-    handleDelete();
-  }
-  // Partial swipe - reveal button
-  else if (currentOffset < -SWIPE_THRESHOLD) {
-    if (navigator.vibrate) navigator.vibrate(5);
-    setSwipeOffset(-DELETE_BUTTON_WIDTH);
-  }
-  // Snap back
-  else {
-    setSwipeOffset(0);
-  }
-  
-  setIsSwiping(false);
+const onUp = () => {
+  // Full swipe if |x| > 0.8 * width → trigger primary action, then spring back
+  // Otherwise snap to 0 or -0.5 * width based on distance/velocity
 };
 
-// Delete button (elastic width growth)
-style: {
-  width: swipeOffset < 0 
-    ? (() => {
-        const absOffset = Math.abs(swipeOffset);
-        // 1:1 growth to base width
-        if (absOffset <= DELETE_BUTTON_WIDTH) {
-          return `${absOffset}px`;
-        }
-        // Elastic expansion beyond base (0.3x)
-        const extra = absOffset - DELETE_BUTTON_WIDTH;
-        return `${Math.min(DELETE_BUTTON_MAX_WIDTH, DELETE_BUTTON_WIDTH + extra * 0.3)}px`;
-      })()
-    : '0px',
-  backgroundColor: '#ef4444',
-  transition: isSwiping ? 'none' : 'width 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-  opacity: swipeOffset < 0 ? Math.min(1, Math.abs(swipeOffset) / 60) : 0
-}
+// Two action columns live beneath the content (Edit + Delete), revealed as the row slides.
 ```
 
 ### 2. Card Tap for Yesterday Toggle
@@ -1733,12 +1700,12 @@ style: { backgroundColor: 'var(--tt-card-bg)' }
 // Header row
 className: 'flex items-center justify-between mb-8'
 
-// Icon
-className: 'w-5 h-5'
+// Icon (TrackerCard header)
+className: 'h-8 w-8'
 style: { color: 'var(--tt-feed)' or 'var(--tt-sleep)' }
 
 // Big number
-className: 'text-[39.6px] font-bold leading-none'
+className: 'text-[40px] font-bold leading-none'
 style: { color: 'var(--tt-feed)' or 'var(--tt-sleep)' }
 
 // Progress bar
@@ -1813,7 +1780,7 @@ animation: 'ttSleepPulsePillBorder 4.5s linear infinite'
 When asking AI to implement features:
 
 1. **Provide this document** as context
-2. **Specify which pattern** to follow (e.g., "Use v2 variant2 TrackerCard pattern")
+2. **Specify which pattern** to follow (e.g., "Use v4 TrackerCard pattern")
 3. **Include screenshots** of current state for visual reference
 4. **Point to specific sections** (e.g., "See Animation Standards > Progress Bars")
 
@@ -1822,7 +1789,7 @@ When asking AI to implement features:
 ## Version History
 
 - **v1.0** (January 2025): Initial comprehensive documentation
-  - Codified v2 variant2 as production standard
+  - Codified v4 summary card as production standard
   - Documented all component patterns, animations, interactions
   - Established token-first color system
   - Created quick reference for common patterns

@@ -32,31 +32,18 @@ const Timeline = ({
   // Access app icons
   const bottleIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
     null;
   const moonIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
     null;
   const TimelineItem =
     (window.TT && window.TT.shared && window.TT.shared.TimelineItem) ||
     null;
   const [expandedCardId, setExpandedCardId] = React.useState(null);
 
-  // Default scheduled items (kept as fallback/placeholder)
-  const defaultScheduledItems = [
-    { id: 'sched-1', time: '3:47 PM', hour: 15, minute: 47, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
-    { id: 'sched-2', time: '5:20 PM', hour: 17, minute: 20, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
-    { id: 'sched-3', time: '7:55 PM', hour: 19, minute: 55, variant: 'scheduled', type: 'sleep', amount: 3, unit: 'hrs' },
-    { id: 'sched-4', time: '9:08 PM', hour: 21, minute: 8, variant: 'scheduled', type: 'feed', amount: 4, unit: 'oz' },
-    { id: 'sched-5', time: '11:33 PM', hour: 23, minute: 33, variant: 'scheduled', type: 'sleep', amount: 2, unit: 'hrs' }
-  ];
-
   const resolvedScheduledItems = Array.isArray(initialScheduledItems)
     ? initialScheduledItems
-    : defaultScheduledItems;
+    : [];
 
   // Start with just scheduled items - production logged data comes via prop
   const [cards, setCards] = React.useState(() => {
@@ -71,7 +58,7 @@ const Timeline = ({
   React.useEffect(() => {
     const scheduledItems = Array.isArray(initialScheduledItems)
       ? initialScheduledItems
-      : defaultScheduledItems;
+      : [];
     const loggedItems = Array.isArray(initialLoggedItems) ? initialLoggedItems : null;
 
     if (hideLoggedItems) {

@@ -24,16 +24,25 @@ const FamilyTab = ({
   const [tempDayStartInput, setTempDayStartInput] = useState('');
   const [tempDayEndInput, setTempDayEndInput] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteLink, setInviteLink] = useState('');
-  const [copying, setCopying] = useState(false);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
+  const [showUILab, setShowUILab] = useState(false);
+  const [appearance, setAppearance] = useState(() => {
+    if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
+      return window.TT.appearance.get();
+    }
+    return { darkMode: false, background: "health-gray", feedAccent: "#d45d5c", sleepAccent: "#4a8ac2" };
+  });
+  const [showFeedColorModal, setShowFeedColorModal] = useState(false);
+  const [showSleepColorModal, setShowSleepColorModal] = useState(false);
+  const [feedVariant, setFeedVariant] = useState('normal'); // 'normal' | 'soft'
+  const [sleepVariant, setSleepVariant] = useState('normal'); // 'normal' | 'soft'
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
   const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
   const DatePickerTray = window.TT?.shared?.pickers?.DatePickerTray || null;
   const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
   const TTEditIcon = window.TT?.shared?.icons?.Edit2 || window.Edit2;
+  const BabyIcon = window.TT?.shared?.icons?.BabyIcon || null;
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
   const TT_ICON_BTN_BASE =
@@ -75,6 +84,97 @@ const FamilyTab = ({
     return Number.isInteger(num) ? String(num) : num.toFixed(1);
   };
 
+  const COLOR_DEFINITIONS = [
+    { name: 'Ocean Blue', normal: { light: '#4a8ac2', dark: '#6ba8dc' }, soft: { light: '#6b9dcc', dark: '#88b8e6' } },
+    { name: 'Slate Blue', normal: { light: '#6b7c9d', dark: '#8d9dbd' }, soft: { light: '#8595ad', dark: '#a5b3cd' } },
+    { name: 'Mint Green', normal: { light: '#3a9679', dark: '#5cb899' }, soft: { light: '#5ca98a', dark: '#7dc9aa' } },
+    { name: 'Eucalyptus', normal: { light: '#92ADA4', dark: '#a8c4bb' }, soft: { light: '#a8beb7', dark: '#bdd4cc' } },
+    { name: 'Jalapeno', normal: { light: '#758C4F', dark: '#92a96f' }, soft: { light: '#8f9f6a', dark: '#a9bb88' } },
+    { name: 'Purple', normal: { light: '#8b6ba8', dark: '#a98cc5' }, soft: { light: '#a085b8', dark: '#bba3d5' } },
+    { name: 'Coral', normal: { light: '#d45d5c', dark: '#e88378' }, soft: { light: '#dd7978', dark: '#ed9d93' } },
+    { name: 'Rose Pink', normal: { light: '#d1547c', dark: '#e5749b' }, soft: { light: '#db7090', dark: '#ec8fac' } },
+    { name: 'Cinnabar', normal: { light: '#AE6455', dark: '#c98275' }, soft: { light: '#be8073', dark: '#d69a8e' } },
+    { name: 'Warm Orange', normal: { light: '#d4704b', dark: '#e89368' }, soft: { light: '#dd8a6a', dark: '#edaa87' } },
+    { name: 'Apricot', normal: { light: '#EF9E70', dark: '#f5b690' }, soft: { light: '#f3b28c', dark: '#f8c7a8' } },
+    { name: 'Roasted Peach', normal: { light: '#DAA58F', dark: '#e8bda8' }, soft: { light: '#e4b8a5', dark: '#eeddc2' } },
+    { name: 'Golden Yellow', normal: { light: '#c9952e', dark: '#e0b04d' }, soft: { light: '#d5a84f', dark: '#e8c26e' } },
+    { name: 'Cream', normal: { light: '#FED8A6', dark: '#ffe4be' }, soft: { light: '#fee2ba', dark: '#ffedce' } },
+    { name: 'Milky Coffee', normal: { light: '#9B7D61', dark: '#b59881' }, soft: { light: '#af9479', dark: '#c7ad99' } }
+  ];
+
+  const BACKGROUND_COLORS = {
+    light: {
+      'health-gray': '#f2f2f7',
+      'eggshell': '#FAF7F2'
+    },
+    dark: {
+      'health-gray': '#0F0F10',
+      'eggshell': '#1C1C1C'
+    }
+  };
+
+  const ChevronDown = (props) => React.createElement('svg', { 
+    ...props, 
+    xmlns: "http://www.w3.org/2000/svg", 
+    width: "24", 
+    height: "24", 
+    viewBox: "0 0 24 24", 
+    fill: "none", 
+    stroke: "currentColor", 
+    strokeWidth: "2", 
+    strokeLinecap: "round", 
+    strokeLinejoin: "round" 
+  },
+    React.createElement('path', { d: "m6 9 6 6 6-6" })
+  );
+
+  const getPreviewColor = (accentColor, variant, isDark) => {
+    const colorDef = COLOR_DEFINITIONS.find(c => 
+      c.normal.light === accentColor || 
+      c.normal.dark === accentColor ||
+      c.soft.light === accentColor ||
+      c.soft.dark === accentColor
+    );
+    if (colorDef) {
+      const variantColors = colorDef[variant] || colorDef.normal;
+      return isDark ? variantColors.dark : variantColors.light;
+    }
+    return accentColor;
+  };
+
+  const handleAppearanceChange = async (partial) => {
+    if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
+      await window.TT.appearance.set(partial);
+      setAppearance(window.TT.appearance.get());
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (confirm('Sign out of Tiny Tracker?')) {
+      await signOut();
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmDelete = confirm(
+      "Are you sure you want to delete your account?\n\n" +
+      "- You will be removed from the family.\n" +
+      "- If you are the owner, ownership will transfer to another member.\n" +
+      "- Your baby's data will NOT be deleted.\n\n" +
+      "This action cannot be undone."
+    );
+    
+    if (!confirmDelete) return;
+
+    try {
+      await deleteCurrentUserAccount();
+      alert("Your account has been deleted.");
+    } catch (err) {
+      console.error("Account deletion failed:", err);
+      alert("Something went wrong deleting your account. Please try again.");
+    }
+  };
+
   // --------------------------------------
   // Data loading
   // --------------------------------------
@@ -82,6 +182,13 @@ const FamilyTab = ({
   useEffect(() => {
     loadData();
   }, [kidId, familyId]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
+      const current = window.TT.appearance.get();
+      setAppearance(current);
+    }
+  }, []);
 
   useEffect(() => {
     if (requestAddChild) {
@@ -611,60 +718,8 @@ const FamilyTab = ({
   };
 
   // --------------------------------------
-  // Invite / members
+  // Members
   // --------------------------------------
-
-const handleInvite = async () => {
-  const resolvedKidId = kidId || (kids && kids.length ? kids[0].id : null);
-
-  if (!familyId || !resolvedKidId) {
-    alert("Something went wrong. Try refreshing.");
-    return;
-  }
-
-  let link;
-
-  // ---- ONLY invite creation can fail ----
-  try {
-    const code = await createInvite(familyId, resolvedKidId);
-    link = `${window.location.origin}${window.location.pathname}?invite=${code}`;
-  } catch (err) {
-    console.error("Invite creation failed:", err);
-    alert("Failed to create invite");
-    return;
-  }
-
-  // ---- Optional UX only ----
-  if (navigator.share) {
-    try {
-      await navigator.share({
-        title: "Join Tiny Tracker",
-        text: "Join our family on Tiny Tracker:",
-        url: link
-      });
-      return; // shared successfully
-    } catch {
-      return; // user cancelled → STOP here
-    }
-  }
-
-  // Only reach here if share is NOT supported
-  setInviteLink(link);
-  setShowInvite(true);
-};
-
-  const handleCopyLink = async () => {
-    if (!inviteLink) return;
-  
-    try {
-      await navigator.clipboard.writeText(inviteLink);
-      setCopying(true);
-      setTimeout(() => setCopying(false), 2000);
-    } catch (err) {
-      // Safari fallback that always works
-      window.prompt("Copy this invite link:", inviteLink);
-    }
-  };
 
   const handleRemoveMember = async (memberId) => {
     if (!confirm("Remove this person's access?")) return;
@@ -677,9 +732,324 @@ const handleInvite = async () => {
     }
   };
 
+  const AppearanceSection = () =>
+    React.createElement(React.Fragment, null,
+      React.createElement(TTCard, { variant: "default" },
+        React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Appearance'),
+        React.createElement('div', { className: "grid grid-cols-2 gap-4" },
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Background Theme'),
+            React.createElement('div', { className: "flex gap-2" },
+              React.createElement('button', {
+                type: 'button',
+                onClick: async () => {
+                  await handleAppearanceChange({ background: "health-gray" });
+                },
+                className: "w-11 h-11 rounded-full border-2 transition-all",
+                style: { 
+                  backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['health-gray'] : BACKGROUND_COLORS.light['health-gray']),
+                  borderColor: appearance.background === "health-gray" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  boxShadow: appearance.background === "health-gray" 
+                    ? (appearance.darkMode 
+                        ? '0 0 0 1.5px var(--tt-text-primary)' 
+                        : '0 0 0 1.5px var(--tt-card-bg)')
+                    : 'none',
+                  transition: 'all 0.12s ease'
+                },
+                title: 'Gray'
+              }),
+              React.createElement('button', {
+                type: 'button',
+                onClick: async () => {
+                  await handleAppearanceChange({ background: "eggshell" });
+                },
+                className: "w-11 h-11 rounded-full border-2 transition-all",
+                style: { 
+                  backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['eggshell'] : BACKGROUND_COLORS.light['eggshell']),
+                  borderColor: appearance.background === "eggshell" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  boxShadow: appearance.background === "eggshell" 
+                    ? (appearance.darkMode 
+                        ? '0 0 0 1.5px var(--tt-text-primary)' 
+                        : '0 0 0 1.5px var(--tt-card-bg)')
+                    : 'none',
+                  transition: 'all 0.12s ease'
+                },
+                title: 'Coffee'
+              })
+            ),
+            null
+          ),
+
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Dark Mode'),
+            window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+              value: appearance.darkMode ? 'dark' : 'light',
+              options: [
+                { value: 'light', label: 'Light' },
+                { value: 'dark', label: 'Dark' }
+              ],
+              onChange: async (value) => {
+                await handleAppearanceChange({ darkMode: value === 'dark' });
+              },
+              variant: 'body',
+              size: 'medium'
+            })
+          ),
+
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Feed Accent'),
+            React.createElement('button', {
+              type: 'button',
+              onClick: () => setShowFeedColorModal(true),
+              className: "flex items-center gap-2 py-2 rounded-lg transition w-full justify-start",
+              style: {
+                backgroundColor: 'var(--tt-card-bg)',
+                paddingLeft: '0',
+                paddingRight: '12px'
+              }
+            },
+              React.createElement('div', {
+                className: "w-11 h-11 rounded-full border-2",
+                style: { 
+                  backgroundColor: getPreviewColor(appearance.feedAccent, feedVariant, appearance.darkMode),
+                  borderColor: 'var(--tt-card-border)'
+                }
+              }),
+              React.createElement(ChevronDown, { 
+                className: "w-4 h-4", 
+                style: { color: 'var(--tt-text-secondary)' } 
+              })
+            )
+          ),
+
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Sleep Accent'),
+            React.createElement('button', {
+              type: 'button',
+              onClick: () => setShowSleepColorModal(true),
+              className: "flex items-center gap-2 py-2 rounded-lg transition w-full justify-start",
+              style: {
+                backgroundColor: 'var(--tt-card-bg)',
+                paddingLeft: '0',
+                paddingRight: '12px'
+              }
+            },
+              React.createElement('div', {
+                className: "w-11 h-11 rounded-full border-2",
+                style: { 
+                  backgroundColor: getPreviewColor(appearance.sleepAccent, sleepVariant, appearance.darkMode),
+                  borderColor: 'var(--tt-card-border)'
+                }
+              }),
+              React.createElement(ChevronDown, { 
+                className: "w-4 h-4", 
+                style: { color: 'var(--tt-text-secondary)' } 
+              })
+            )
+          )
+        )
+      ),
+
+      window.TTHalfSheet && React.createElement(window.TTHalfSheet, {
+        isOpen: showFeedColorModal,
+        onClose: () => setShowFeedColorModal(false),
+        title: '',
+        accentColor: getPreviewColor(appearance.feedAccent, feedVariant, appearance.darkMode),
+        titleElement: window.SegmentedToggle ? React.createElement(window.SegmentedToggle, {
+          value: feedVariant,
+          options: [
+            { value: 'normal', label: 'Normal' },
+            { value: 'soft', label: 'Soft' }
+          ],
+          onChange: setFeedVariant,
+          variant: 'header',
+          size: 'medium'
+        }) : null,
+        rightAction: React.createElement('div', { className: "w-6" })
+      },
+        React.createElement('div', { className: "px-6 py-6" },
+          React.createElement('div', { 
+            className: "grid grid-cols-5",
+            style: { 
+              gap: '16px',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              justifyItems: 'center'
+            }
+          },
+            COLOR_DEFINITIONS.map((colorDef) => {
+              const variantColors = colorDef[feedVariant] || colorDef.normal;
+              const displayColor = appearance.darkMode ? variantColors.dark : variantColors.light;
+              const isSelected = appearance.feedAccent === colorDef.normal.light || 
+                                appearance.feedAccent === colorDef.normal.dark ||
+                                appearance.feedAccent === colorDef.soft.light ||
+                                appearance.feedAccent === colorDef.soft.dark;
+              return React.createElement('button', {
+                key: colorDef.name,
+                type: 'button',
+                onClick: async () => {
+                  await handleAppearanceChange({ feedAccent: colorDef.normal.light });
+                  setShowFeedColorModal(false);
+                },
+                className: `rounded-full border-2 transition-all`,
+                style: { 
+                  width: '44px',
+                  height: '44px',
+                  backgroundColor: displayColor,
+                  borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  boxShadow: isSelected 
+                    ? (appearance.darkMode 
+                        ? '0 0 0 1.5px var(--tt-text-primary)' 
+                        : '0 0 0 1.5px var(--tt-card-bg)')
+                    : 'none',
+                  transform: 'scale(1)',
+                  transition: 'all 0.12s ease',
+                  position: 'relative'
+                },
+                onMouseEnter: (e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.transform = 'scale(1.2)';
+                    e.currentTarget.style.zIndex = '10';
+                  }
+                },
+                onMouseLeave: (e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.zIndex = '1';
+                },
+                title: colorDef.name
+              });
+            })
+          )
+        )
+      ),
+
+      window.TTHalfSheet && React.createElement(window.TTHalfSheet, {
+        isOpen: showSleepColorModal,
+        onClose: () => setShowSleepColorModal(false),
+        title: '',
+        accentColor: getPreviewColor(appearance.sleepAccent, sleepVariant, appearance.darkMode),
+        titleElement: window.SegmentedToggle ? React.createElement(window.SegmentedToggle, {
+          value: sleepVariant,
+          options: [
+            { value: 'normal', label: 'Normal' },
+            { value: 'soft', label: 'Soft' }
+          ],
+          onChange: setSleepVariant,
+          variant: 'header',
+          size: 'medium'
+        }) : null,
+        rightAction: React.createElement('div', { className: "w-6" })
+      },
+        React.createElement('div', { className: "px-6 py-6" },
+          React.createElement('div', { 
+            className: "grid grid-cols-5",
+            style: { 
+              gap: '16px',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
+              justifyItems: 'center'
+            }
+          },
+            COLOR_DEFINITIONS.map((colorDef) => {
+              const variantColors = colorDef[sleepVariant] || colorDef.normal;
+              const displayColor = appearance.darkMode ? variantColors.dark : variantColors.light;
+              const isSelected = appearance.sleepAccent === colorDef.normal.light || 
+                                appearance.sleepAccent === colorDef.normal.dark ||
+                                appearance.sleepAccent === colorDef.soft.light ||
+                                appearance.sleepAccent === colorDef.soft.dark;
+              return React.createElement('button', {
+                key: colorDef.name,
+                type: 'button',
+                onClick: async () => {
+                  await handleAppearanceChange({ sleepAccent: colorDef.normal.light });
+                  setShowSleepColorModal(false);
+                },
+                className: `rounded-full border-2 transition-all`,
+                style: { 
+                  width: '44px',
+                  height: '44px',
+                  backgroundColor: displayColor,
+                  borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  boxShadow: isSelected 
+                    ? (appearance.darkMode 
+                        ? '0 0 0 1.5px var(--tt-text-primary)' 
+                        : '0 0 0 1.5px var(--tt-card-bg)')
+                    : 'none',
+                  transform: 'scale(1)',
+                  transition: 'all 0.12s ease',
+                  position: 'relative'
+                },
+                onMouseEnter: (e) => {
+                  if (!isSelected) {
+                    e.currentTarget.style.transform = 'scale(1.2)';
+                    e.currentTarget.style.zIndex = '10';
+                  }
+                },
+                onMouseLeave: (e) => {
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.zIndex = '1';
+                },
+                title: colorDef.name
+              });
+            })
+          )
+        )
+      )
+    );
+
+  const AccountSection = () =>
+    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
+      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Account'),
+      React.createElement('div', { className: "space-y-3" },
+        React.createElement('div', { className: "flex items-center justify-between p-3 rounded-lg", style: { backgroundColor: 'var(--tt-card-bg)' } },
+          React.createElement('div', null,
+            React.createElement('div', { className: "text-sm font-medium", style: { color: 'var(--tt-text-primary)' } }, user.displayName || 'User'),
+            React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, user.email)
+          ),
+          user.photoURL &&
+            React.createElement('img', {
+              src: user.photoURL,
+              alt: user.displayName,
+              className: "w-10 h-10 rounded-full"
+            })
+        ),
+        React.createElement('button', {
+          onClick: handleSignOut,
+          className: "w-full py-3 rounded-xl font-semibold transition",
+          style: {
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            color: '#ef4444'
+          }
+        }, 'Sign Out'),
+        React.createElement('button', {
+          onClick: handleDeleteAccount,
+          className: "w-full py-3 rounded-xl font-semibold transition",
+          style: {
+            backgroundColor: '#ef4444',
+            color: 'white'
+          }
+        }, 'Delete My Account')
+      )
+    );
+
+  const InternalSection = () =>
+    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
+      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Internal'),
+      React.createElement('button', {
+        onClick: () => setShowUILab(true),
+        className: "w-full py-3 rounded-xl font-semibold transition",
+        style: {
+          backgroundColor: 'var(--tt-feed-soft)',
+          color: 'var(--tt-feed)'
+        }
+      }, 'UI Lab')
+    );
+
   // --------------------------------------
   // Render
   // --------------------------------------
+
+  if (showUILab && window.TT?.tabs?.UILabTab) {
+    return React.createElement(window.TT.tabs.UILabTab, { onClose: () => setShowUILab(false) });
+  }
 
   if (loading) {
     return React.createElement(
@@ -876,6 +1246,8 @@ const handleInvite = async () => {
       style: { display: 'none' }
     }),
 
+    AppearanceSection(),
+
     // Kids Card (multi-kid)
     kids && kids.length > 0 &&
       React.createElement(
@@ -978,7 +1350,7 @@ const handleInvite = async () => {
             className: 'mt-3 text-xs',
             style: { color: 'var(--tt-text-secondary)' }
           },
-          'Active kid controls what you see in Tracker, Analytics, and AI Chat.'
+          'Active kid controls what you see in Tracker and Analytics.'
         )
       ),
 
@@ -1030,10 +1402,10 @@ const handleInvite = async () => {
                       'w-full h-full flex items-center justify-center',
                       style: { backgroundColor: 'var(--tt-feed-soft)' }
                   },
-                  React.createElement(Baby, {
+                  BabyIcon ? React.createElement(BabyIcon, {
                     className: 'w-12 h-12',
                     style: { color: 'var(--tt-feed)' }
-                  })
+                  }) : null
                 )
           ),
           React.createElement(
@@ -1293,60 +1665,11 @@ const handleInvite = async () => {
               )
           )
         )
-      ),
-      React.createElement(
-        'button',
-        {
-          onClick: handleInvite,
-          className:
-            'w-full mt-1 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition flex items-center justify-center gap-2 py-3'
-        },
-        React.createElement(UserPlus, { className: 'w-5 h-5' }),
-        '+ Invite Partner'
       )
     ),
 
-    // Invite link panel
-    showInvite &&
-      React.createElement(
-        TTCard,
-        { variant: 'tracker', className: 'p-4' },
-        React.createElement(
-          'div',
-          { className: 'text-sm mb-2', style: { color: 'var(--tt-text-secondary)' } },
-          'Share this link with your partner:'
-        ),
-        React.createElement(
-          'div',
-          { className: 'flex gap-2' },
-          React.createElement('input', {
-            type: 'text',
-            value: inviteLink,
-            readOnly: true,
-            className:
-              'flex-1 px-3 py-2 border rounded-lg text-sm',
-            style: { backgroundColor: 'var(--tt-card-bg)', borderColor: 'var(--tt-card-border)', color: 'var(--tt-text-primary)' }
-          }),
-          React.createElement(
-            'button',
-            {
-              onClick: handleCopyLink,
-              className:
-                'px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition text-sm font-medium'
-            },
-            copying ? 'Copied!' : 'Copy'
-          )
-        ),
-        React.createElement(
-          'button',
-          {
-            onClick: () => setShowInvite(false),
-            className: 'mt-2 text-sm hover:opacity-80',
-            style: { color: 'var(--tt-text-secondary)' }
-          },
-          'Close'
-        )
-      ),
+    AccountSection(),
+    InternalSection(),
 
     DatePickerTray && React.createElement(DatePickerTray, {
       isOpen: showBirthDatePicker,

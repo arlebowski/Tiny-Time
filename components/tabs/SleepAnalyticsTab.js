@@ -6,7 +6,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const sleepHistoryScrollRef = React.useRef(null);
 
   // Get icons (matching AnalyticsTab highlight cards)
-  const sleepLabelIcon = (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null;
+  const sleepLabelIcon = window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || null;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
 
   useEffect(() => {

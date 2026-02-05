@@ -13,7 +13,7 @@ const FeedingAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const chartScrollRef = React.useRef(null);
 
   // Get icons (matching AnalyticsTab highlight cards)
-  const feedLabelIcon = (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"]) || null;
+  const feedLabelIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
 
   useEffect(() => {

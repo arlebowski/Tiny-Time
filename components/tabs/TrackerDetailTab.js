@@ -14,11 +14,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const [babyWeight, setBabyWeight] = React.useState(null);
   const [multiplier, setMultiplier] = React.useState(2.5);
   const [sleepSettings, setSleepSettings] = React.useState(null);
-  const [scheduledTimelineItems, setScheduledTimelineItems] = React.useState(null);
   const [showInputSheet, setShowInputSheet] = React.useState(false);
   const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
-  const projectedScheduleRef = React.useRef(null);
-  const latestActualEventsRef = React.useRef({ dateKey: null, feedings: [], sleeps: [], activeSleep: null });
   const [isLoadingTimeline, setIsLoadingTimeline] = React.useState(false);
   const [showFeedDetailSheet, setShowFeedDetailSheet] = React.useState(false);
   const [showSleepDetailSheet, setShowSleepDetailSheet] = React.useState(false);
@@ -37,7 +34,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const [initialTimelineFilter, setInitialTimelineFilter] = React.useState(__ttInitialFilter);
   const [summaryLayoutMode, setSummaryLayoutMode] = React.useState(__ttInitialFilter || 'all');
   const [filterEpoch, setFilterEpoch] = React.useState(0);
-  const [projectedTargets, setProjectedTargets] = React.useState({ feedTarget: 0, sleepTarget: 0 });
   const [summaryAnimationEpoch, setSummaryAnimationEpoch] = React.useState(0);
   const [summaryCardsEpoch, setSummaryCardsEpoch] = React.useState(0);
   const summaryAnimationMountRef = React.useRef(false);
@@ -66,104 +62,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     const mins = minutes < 10 ? '0' + minutes : minutes;
     return `${hours}:${mins} ${ampm}`;
   };
-
-  const scheduleStorageKey = 'tt_daily_projection_schedule_v1';
-  const getScheduleStorageKeyForDate = (dateKey) => `${scheduleStorageKey}:${dateKey}`;
-  const getScheduleDateKey = (date = new Date()) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-
-  const buildScheduledCard = (item, dateKey, index) => {
-    const timeMs = Number(item?.timeMs);
-    if (!Number.isFinite(timeMs)) return null;
-    const d = new Date(timeMs);
-    const isFeed = item.type === 'feed';
-    let amount = isFeed ? Number(item?.targetOz) : Number(item?.avgDurationHours);
-    if (!Number.isFinite(amount) && isFeed && Array.isArray(item?.targetOzRange)) {
-      const [low, high] = item.targetOzRange;
-      if (Number.isFinite(low) && Number.isFinite(high)) {
-        amount = Math.round(((low + high) / 2) * 10) / 10;
-      }
-    }
-    return {
-      id: `sched-${dateKey}-${item.type}-${index}`,
-      time: formatTime12Hour(timeMs),
-      hour: d.getHours(),
-      minute: d.getMinutes(),
-      variant: 'scheduled',
-      type: item.type,
-      amount: Number.isFinite(amount) ? amount : null,
-      unit: isFeed ? 'oz' : 'hrs',
-      timeMs
-    };
-  };
-
-
-  const updateNextScheduledItem = (date, projectedItems, dayFeedings, daySleepSessions, activeSleepSession = null, filterMode = 'all') => {
-    if (activeSleepSession && activeSleepSession.startTime) return;
-    setScheduledTimelineItems([]);
-  };
-
-  const loadProjectedSchedule = React.useCallback((date) => {
-    const dateKey = getScheduleDateKey(date);
-    const todayKey = getScheduleDateKey(new Date());
-    if (dateKey !== todayKey) {
-      projectedScheduleRef.current = null;
-      setScheduledTimelineItems([]);
-      setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
-      return;
-    }
-    try {
-      const perDayRaw = localStorage.getItem(getScheduleStorageKeyForDate(dateKey));
-      const raw = perDayRaw || localStorage.getItem(scheduleStorageKey);
-      if (!raw) {
-        projectedScheduleRef.current = null;
-        setScheduledTimelineItems([]);
-        setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
-        return;
-      }
-      const parsed = JSON.parse(raw);
-      if (!parsed || parsed.dateKey !== dateKey || !Array.isArray(parsed.items)) {
-        projectedScheduleRef.current = null;
-        setScheduledTimelineItems([]);
-        setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
-        return;
-      }
-      projectedScheduleRef.current = parsed.items;
-      const targets = parsed.items.reduce((acc, item) => {
-        if (item?.type === 'feed') {
-          const oz = Number(item?.targetOz);
-          if (Number.isFinite(oz)) {
-            acc.feedTarget += oz;
-          } else if (Array.isArray(item?.targetOzRange)) {
-            const [low, high] = item.targetOzRange;
-            if (Number.isFinite(low) && Number.isFinite(high)) {
-              acc.feedTarget += (low + high) / 2;
-            }
-          }
-        }
-        if (item?.type === 'sleep') {
-          const hrs = Number(item?.avgDurationHours);
-          if (Number.isFinite(hrs)) acc.sleepTarget += hrs;
-        }
-        return acc;
-      }, { feedTarget: 0, sleepTarget: 0 });
-      setProjectedTargets(targets);
-      const latest = latestActualEventsRef.current;
-      const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
-      const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
-      const activeSleep = latest && latest.dateKey === dateKey ? latest.activeSleep : null;
-      updateNextScheduledItem(date, parsed.items, feedings, sleeps, activeSleep, summaryLayoutMode);
-    } catch (error) {
-      projectedScheduleRef.current = null;
-      setScheduledTimelineItems([]);
-      setProjectedTargets({ feedTarget: 0, sleepTarget: 0 });
-    }
-  }, []);
-
   const handleScheduledAdd = React.useCallback((card) => {
     const mode = card?.type === 'sleep' ? 'sleep' : 'feeding';
     setInputSheetMode(mode);
@@ -376,7 +274,11 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         return aMinutes - bMinutes;
       });
 
-      setLoggedTimelineItems(allCards);
+      if (activeSleepCard) {
+        setLoggedTimelineItems([activeSleepCard, ...allCards]);
+      } else {
+        setLoggedTimelineItems(allCards);
+      }
       const feedTotal = dayFeedings.reduce((sum, f) => {
         const amount = f.ounces ?? f.amountOz ?? f.amount ?? f.volumeOz ?? f.volume ?? 0;
         const n = Number(amount);
@@ -395,16 +297,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         feedPct: 0,
         sleepPct: 0
       });
-      setScheduledTimelineItems(activeSleepCard ? [activeSleepCard] : []);
-      const activeSleepSession = (allSleepSessions || []).find(s => s && s.startTime && (s.isActive || !s.endTime)) || null;
-      const dateKey = getScheduleDateKey(date);
-      latestActualEventsRef.current = {
-        dateKey,
-        feedings: dayFeedings,
-        sleeps: daySleepSessions,
-        activeSleep: activeSleepSession
-      };
-      updateNextScheduledItem(date, projectedScheduleRef.current, dayFeedings, daySleepSessions, activeSleepSession, summaryLayoutMode);
     } catch (error) {
       console.error('[ScheduleTab] Error loading timeline data:', error);
       setLoggedTimelineItems([]);
@@ -419,10 +311,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   }, [selectedDate, loadTimelineData]);
 
   React.useEffect(() => {
-    loadProjectedSchedule(selectedDate);
-  }, [selectedDate, loadProjectedSchedule]);
-
-  React.useEffect(() => {
     const handleAdded = () => {
       loadTimelineData(selectedDate);
     };
@@ -435,24 +323,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       }
     };
   }, [selectedDate, loadTimelineData]);
-
-  React.useEffect(() => {
-    const onProjectionUpdate = (event) => {
-      const dateKey = event?.detail?.dateKey;
-      const selectedKey = getScheduleDateKey(selectedDate);
-      if (dateKey && dateKey === selectedKey) {
-        loadProjectedSchedule(selectedDate);
-      }
-    };
-    if (typeof window !== 'undefined') {
-      window.addEventListener('tt:projection-schedule-updated', onProjectionUpdate);
-    }
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('tt:projection-schedule-updated', onProjectionUpdate);
-      }
-    };
-  }, [selectedDate, loadProjectedSchedule]);
 
   const formatV2NumberSafe = (n) => {
     try {
@@ -483,13 +353,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
 
   const bottleIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["bottle-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Bottle2) ||
     null;
   const moonIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons["moon-main"])) ||
-    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.Moon2) ||
     null;
 
   const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null }) => {
@@ -849,27 +715,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   }, []);
 
   React.useEffect(() => {
-    const dateKey = getScheduleDateKey(selectedDate);
-    const todayKey = getScheduleDateKey(new Date());
-    if (dateKey !== todayKey) {
-      setScheduledTimelineItems([]);
-      return;
-    }
-    const latest = latestActualEventsRef.current;
-    const feedings = latest && latest.dateKey === dateKey ? latest.feedings : [];
-    const sleeps = latest && latest.dateKey === dateKey ? latest.sleeps : [];
-    const activeSleep = latest && latest.dateKey === dateKey ? latest.activeSleep : null;
-    updateNextScheduledItem(
-      selectedDate,
-      projectedScheduleRef.current,
-      feedings,
-      sleeps,
-      activeSleep,
-      summaryLayoutMode
-    );
-  }, [summaryLayoutMode, selectedDate]);
-
-  React.useEffect(() => {
     const isFirst = !summaryAnimationMountRef.current;
     const prevMode = summaryAnimationPrevRef.current;
     const shouldAnimateTransition = isFirst
@@ -1035,7 +880,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       Timeline ? React.createElement(Timeline, {
         key: `tracker-detail-timeline-${filterEpoch}`,
         initialLoggedItems: loggedTimelineItems,
-        initialScheduledItems: Array.isArray(scheduledTimelineItems) ? scheduledTimelineItems : [],
+        initialScheduledItems: [],
         disableExpanded: true,
         allowItemExpand: true,
         initialFilter: initialTimelineFilter,

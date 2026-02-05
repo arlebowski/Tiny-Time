@@ -29,18 +29,18 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       return false;
     }
   });
-
-  const _getUiVersion = () => {
+  
+  const _ttUseAmountStepper = () => {
     try {
-      if (window.TT?.shared?.uiVersion?.getUIVersion) {
-        return window.TT.shared.uiVersion.getUIVersion();
+      if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useAmountStepper?.get) {
+        return !!window.TT.shared.flags.useAmountStepper.get();
       }
-      const v = window.localStorage?.getItem('tt_ui_version');
-      return v || null;
+      return localStorage.getItem('tt_use_amount_stepper') === 'true';
     } catch (e) {
-      return null;
+      return false;
     }
   };
+
 
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
@@ -80,12 +80,12 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     return React.createElement('input', props);
   };
   
-  const HalfSheet = window.TT?.shared?.TTHalfSheet || window.TTHalfSheet || window.TT?.utils?.HalfSheet;
   const PenIcon = window.PenIcon;
   const XIcon = window.XIcon;
   const ChevronDown = window.ChevronDown;
+  const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
 
-  const TTFeedDetailSheetLegacy = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null, __ttUseV4Sheet = false }) => {
+  const TTFeedDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState(new Date().toISOString());
@@ -99,10 +99,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     // Track keyboard state to hide sticky button when keyboard is open
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
     const ctaFooterRef = React.useRef(null);
-    const CTA_BOTTOM_OFFSET_PX = 30;
-    const CTA_SPACER_PX = 86 + CTA_BOTTOM_OFFSET_PX;
-    const [ctaHeightPx, setCtaHeightPx] = React.useState(CTA_SPACER_PX);
-    
     // Track original photo URLs to detect deletions
     const originalPhotoURLsRef = React.useRef([]);
     
@@ -122,6 +118,7 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
     const [showAmountTray, setShowAmountTray] = React.useState(false);
     const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState('oz');
     const [amountPickerAmountLocal, setAmountPickerAmountLocal] = React.useState(4);
+    const [amountDisplayUnit, setAmountDisplayUnit] = React.useState('oz');
 
     const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
     const [dtTarget, setDtTarget] = React.useState('feeding'); // 'feeding'
@@ -180,21 +177,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         vv.removeEventListener('scroll', checkKeyboard);
       };
     }, [isOpen]);
-
-    React.useEffect(() => {
-      if (!__ttUseV4Sheet) return;
-      const measure = () => {
-        const el = ctaFooterRef.current;
-        if (!el) return;
-        const rect = el.getBoundingClientRect();
-        if (rect && rect.height) {
-          setCtaHeightPx(rect.height);
-        }
-      };
-      measure();
-      window.addEventListener('resize', measure);
-      return () => window.removeEventListener('resize', measure);
-    }, [__ttUseV4Sheet, isKeyboardOpen, saving]);
 
     const _formatOz = (n) => {
       const num = Number(n);
@@ -281,14 +263,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
         setShowDateTimeTray(true);
       }
     };
-
-    // Calculate height based on expanded fields
-    const calculateHeight = React.useMemo(() => {
-      const expandedCount = (notesExpanded ? 1 : 0) + (photosExpanded ? 1 : 0);
-      if (expandedCount === 0) return 70;
-      if (expandedCount === 1) return 78;
-      return 83; // expandedCount === 2
-    }, [notesExpanded, photosExpanded]);
 
     // Populate form from entry when it exists
     React.useEffect(() => {
@@ -494,19 +468,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       null,
       React.createElement('div', { className: "space-y-2" },
         React.createElement(InputRow, {
-          label: 'Amount',
-          value: ounces,
-          onChange: setOunces,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          valueClassName: inputValueClassName,
-          type: 'number',
-          placeholder: '0',
-          suffix: 'oz',
-          inlineSuffix: true,
-          pickerMode: 'amount',
-          onOpenPicker: openTrayPicker
-        }),
-        React.createElement(InputRow, {
           label: 'Start time',
           value: formatDateTime(dateTime),
           rawValue: dateTime,
@@ -517,6 +478,27 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
           pickerMode: 'datetime_feeding',
           onOpenPicker: openTrayPicker,
         }),
+        (_ttUseAmountStepper() && TTAmountStepper)
+          ? React.createElement(TTAmountStepper, {
+              label: 'Amount',
+              valueOz: parseFloat(ounces) || 0,
+              unit: amountDisplayUnit,
+              onChangeUnit: setAmountDisplayUnit,
+              onChangeOz: (nextOz) => setOunces(_formatOz(nextOz))
+            })
+          : React.createElement(InputRow, {
+              label: 'Amount',
+              value: ounces,
+              onChange: setOunces,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              valueClassName: inputValueClassName,
+              type: 'number',
+              placeholder: '0',
+              suffix: 'oz',
+              inlineSuffix: true,
+              pickerMode: 'amount',
+              onOpenPicker: openTrayPicker
+            }),
         (!notesExpanded && !photosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
           React.createElement('div', {
             onClick: () => setNotesExpanded(true),
@@ -724,184 +706,137 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       )
     );
 
-    const bodyContent = __ttUseV4Sheet
-      ? React.createElement(
-          React.Fragment,
-          null,
-          React.createElement('div', {
-            className: "flex-1 px-6 pt-10 pb-2",
-            style: {
-              minHeight: 0,
-              display: 'flex',
-              flexDirection: 'column',
-              overflowY: 'visible',
-              overscrollBehavior: 'none',
-              WebkitOverflowScrolling: 'auto'
-            }
-          }, contentBlock),
-          React.createElement('div', {
-            ref: ctaFooterRef,
-            className: "px-6 pt-3 pb-1",
-            style: {
-              backgroundColor: 'var(--tt-halfsheet-bg)',
-              display: isKeyboardOpen ? 'none' : 'block',
-              paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
-              flexShrink: 0
-            }
-          }, ctaButton),
-          overlayContent
-        )
-      : React.createElement(
-          'div',
-          { style: { minHeight: '100%', display: 'flex', flexDirection: 'column' } },
-          React.createElement('div', {
-            style: {
-              position: 'relative',
-              overflow: 'hidden',
-              width: '100%',
-              flex: 1,
-              minHeight: 0
-            }
-          }, contentBlock),
-          React.createElement('div', {
-            ref: ctaFooterRef,
-            className: "sticky bottom-0 left-0 right-0 pt-3 pb-1",
-            style: { 
-              zIndex: 10,
-              backgroundColor: 'var(--tt-halfsheet-bg)',
-              display: isKeyboardOpen ? 'none' : 'block',
-              bottom: `${CTA_BOTTOM_OFFSET_PX}px`,
-              left: 0,
-              right: 0,
-              position: 'sticky'
-            }
-          }, ctaButton),
-          overlayContent
-        );
+    const bodyContent = React.createElement(
+      React.Fragment,
+      null,
+      React.createElement('div', {
+        className: "flex-1 px-6 pt-10 pb-2",
+        style: {
+          minHeight: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflowY: 'visible',
+          overscrollBehavior: 'none',
+          WebkitOverflowScrolling: 'auto'
+        }
+      }, contentBlock),
+      React.createElement('div', {
+        ref: ctaFooterRef,
+        className: "px-6 pt-3 pb-1",
+        style: {
+          backgroundColor: 'var(--tt-halfsheet-bg)',
+          display: isKeyboardOpen ? 'none' : 'block',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
+          flexShrink: 0
+        }
+      }, ctaButton),
+      overlayContent
+    );
 
-    // If overlay mode (isOpen provided), wrap in HalfSheet
+    // If overlay mode (isOpen provided), render v4 sheet overlay
     if (isOpen !== undefined) {
-      if (__ttUseV4Sheet) {
-        const v4Overlay = React.createElement(
-          __ttV4AnimatePresence,
-          null,
-          isOpen
-            ? React.createElement(
-                __ttV4Motion.div,
-                {
-                  initial: { opacity: 0 },
-                  animate: { opacity: 1 },
-                  exit: { opacity: 0 },
-                  className: "fixed",
-                  style: {
-                    zIndex: 10000,
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    bottom: 0,
-                    width: '100vw',
-                    height: '100vh',
-                    backgroundColor: 'rgba(0,0,0,0.6)',
-                    backdropFilter: 'blur(6px)',
-                    WebkitBackdropFilter: 'blur(6px)'
-                  },
-                  onClick: handleClose
+      const v4Overlay = React.createElement(
+        __ttV4AnimatePresence,
+        null,
+        isOpen
+          ? React.createElement(
+              __ttV4Motion.div,
+              {
+                initial: { opacity: 0 },
+                animate: { opacity: 1 },
+                exit: { opacity: 0 },
+                className: "fixed",
+                style: {
+                  zIndex: 10000,
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  backdropFilter: 'blur(6px)',
+                  WebkitBackdropFilter: 'blur(6px)'
+                },
+                onClick: handleClose
+              }
+            )
+          : null,
+        isOpen
+          ? React.createElement(
+              __ttV4Motion.div,
+              {
+                initial: { y: "100%" },
+                animate: { y: 0 },
+                exit: { y: "100%" },
+                transition: { type: "spring", damping: 35, stiffness: 400 },
+                drag: "y",
+                dragControls: dragControls || undefined,
+                dragListener: !dragControls,
+                dragConstraints: { top: 0, bottom: 0 },
+                dragElastic: { top: 0, bottom: 0.7 },
+                dragMomentum: true,
+                onDragEnd: (e, info) => {
+                  if (info.offset.y > 60 || info.velocity.y > 500) {
+                    handleClose();
+                  }
+                },
+                className: "fixed left-0 right-0 bottom-0 shadow-2xl",
+                onClick: (e) => e.stopPropagation(),
+                style: {
+                  backgroundColor: "var(--tt-halfsheet-bg)",
+                  willChange: 'transform',
+                  paddingBottom: 'env(safe-area-inset-bottom, 0)',
+                  maxHeight: '83vh',
+                  height: 'auto',
+                  minHeight: '60vh',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  touchAction: 'pan-y',
+                  overscrollBehavior: 'contain',
+                  borderTopLeftRadius: '20px',
+                  borderTopRightRadius: '20px',
+                  zIndex: 10001
                 }
-              )
-            : null,
-          isOpen
-            ? React.createElement(
-                __ttV4Motion.div,
-                {
-                  initial: { y: "100%" },
-                  animate: { y: 0 },
-                  exit: { y: "100%" },
-                  transition: { type: "spring", damping: 35, stiffness: 400 },
-                  drag: "y",
-                  dragControls: dragControls || undefined,
-                  dragListener: !dragControls,
-                  dragConstraints: { top: 0, bottom: 0 },
-                  dragElastic: { top: 0, bottom: 0.7 },
-                  dragMomentum: true,
-                  onDragEnd: (e, info) => {
-                    if (info.offset.y > 60 || info.velocity.y > 500) {
-                      handleClose();
-                    }
-                  },
-                  className: "fixed left-0 right-0 bottom-0 shadow-2xl",
-                  onClick: (e) => e.stopPropagation(),
-                  style: {
-                    backgroundColor: "var(--tt-halfsheet-bg)",
-                    willChange: 'transform',
-                    paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                    maxHeight: '83vh',
-                    height: 'auto',
-                    minHeight: '60vh',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    overflow: 'hidden',
-                    touchAction: 'pan-y',
-                    overscrollBehavior: 'contain',
-                    borderTopLeftRadius: '20px',
-                    borderTopRightRadius: '20px',
-                    zIndex: 10001
-                  }
+              },
+              React.createElement('div', {
+                className: "bg-black",
+                style: {
+                  backgroundColor: 'var(--tt-feed)',
+                  borderTopLeftRadius: '20px',
+                  borderTopRightRadius: '20px',
+                  padding: '0 1.5rem',
+                  height: '60px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexShrink: 0,
+                  touchAction: 'none'
                 },
-                React.createElement('div', {
-                  className: "bg-black",
-                  style: {
-                    backgroundColor: 'var(--tt-feed)',
-                    borderTopLeftRadius: '20px',
-                    borderTopRightRadius: '20px',
-                    padding: '0 1.5rem',
-                    height: '60px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    flexShrink: 0,
-                    touchAction: 'none'
-                  },
-                  onPointerDown: (e) => {
-                    if (dragControls && dragControls.start) {
-                      dragControls.start(e);
-                    }
+                onPointerDown: (e) => {
+                  if (dragControls && dragControls.start) {
+                    dragControls.start(e);
                   }
-                },
-                  React.createElement('button', {
-                    onClick: handleClose,
-                    className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-                  }, React.createElement(
-                    window.TT?.shared?.icons?.ChevronDownIcon ||
-                    window.ChevronDown ||
-                    window.XIcon,
-                    { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
-                  )),
-                  React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feed'),
-                  React.createElement('div', { className: "w-6" })
-                ),
-                bodyContent
-              )
-            : null
-        );
-        return ReactDOM.createPortal(v4Overlay, document.body);
-      }
-
-      if (!HalfSheet) {
-        console.warn('[TTFeedDetailSheet] HalfSheet not available');
-        return null;
-      }
-      return React.createElement(
-        HalfSheet,
-        {
-          isOpen: isOpen || false,
-          onClose: handleClose,
-          title: 'Feed',
-          accentColor: 'var(--tt-feed)',
-          rightAction: null,
-          fixedHeight: calculateHeight
-        },
-        bodyContent
+                }
+              },
+                React.createElement('button', {
+                  onClick: handleClose,
+                  className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+                }, React.createElement(
+                  window.TT?.shared?.icons?.ChevronDownIcon ||
+                  window.ChevronDown ||
+                  window.XIcon,
+                  { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
+                )),
+                React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feed'),
+                React.createElement('div', { className: "w-6" })
+              ),
+              bodyContent
+            )
+          : null
       );
+      return ReactDOM.createPortal(v4Overlay, document.body);
     }
 
     // Static preview mode (for UI Lab inline display)
@@ -933,19 +868,6 @@ if (typeof window !== 'undefined' && !window.TTFeedDetailSheet) {
       ),
       bodyContent
     );
-  };
-
-  const TTFeedDetailSheetV4 = (props) => React.createElement(TTFeedDetailSheetLegacy, {
-    ...props,
-    __ttUseV4Sheet: true
-  });
-
-  const TTFeedDetailSheet = (props) => {
-    const uiVersion = _getUiVersion();
-    if (uiVersion === 'v4') {
-      return React.createElement(TTFeedDetailSheetV4, props);
-    }
-    return React.createElement(TTFeedDetailSheetLegacy, props);
   };
 
   // Expose component globally

@@ -47,29 +47,18 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       return false;
     }
   });
-
-  const _ttUseNewInputFlow = window.TT?.utils?.useNewInputFlow || (() => {
+  
+  const _ttUseAmountStepper = () => {
     try {
-      if (typeof window !== 'undefined' && window.TT?.shared?.flags?.newInputFlow?.get) {
-        return !!window.TT.shared.flags.newInputFlow.get();
+      if (typeof window !== 'undefined' && window.TT?.shared?.flags?.useAmountStepper?.get) {
+        return !!window.TT.shared.flags.useAmountStepper.get();
       }
-      return localStorage.getItem('tt_new_input_flow') === 'true';
+      return localStorage.getItem('tt_use_amount_stepper') === 'true';
     } catch (e) {
       return false;
     }
-  });
-
-  const _getUiVersion = () => {
-    try {
-      if (window.TT?.shared?.uiVersion?.getUIVersion) {
-        return window.TT.shared.uiVersion.getUIVersion();
-      }
-      const v = window.localStorage?.getItem('tt_ui_version');
-      return v || null;
-    } catch (e) {
-      return null;
-    }
   };
+
 
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
@@ -117,15 +106,14 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
   // Wheel picker components
   const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
   const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
+  const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
   
-  const HeaderSegmentedToggle = window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div';
-
   // TTInputHalfSheet Component
   const TTInputHalfSheetLegacy = ({ isOpen, onClose, kidId, initialMode = 'feeding', onAdd = null, __ttUseV4Sheet = false }) => {
     const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
       ? window.TT.shared.useActiveSleep
       : (() => ({ activeSleep: null, activeSleepLoaded: true }));
-    const useNewInputFlow = __ttUseV4Sheet && _ttUseNewInputFlow();
+    const useNewInputFlow = true;
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     // Check localStorage for active sleep on mount to determine initial mode
     const getInitialMode = () => {
@@ -203,6 +191,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     const [showAmountTray, setShowAmountTray] = React.useState(false);
     const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState('oz');
     const [amountPickerAmountLocal, setAmountPickerAmountLocal] = React.useState(4);
+    const [amountDisplayUnit, setAmountDisplayUnit] = React.useState('oz');
 
     const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
     const [dtTarget, setDtTarget] = React.useState('feeding'); // 'feeding' | 'sleep_start' | 'sleep_end'
@@ -445,12 +434,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
         return;
       }
       if (activeSleepSessionId && !forcedSleepOnOpenRef.current) {
-        if (!useNewInputFlow && mode !== 'sleep') {
-          setMode('sleep');
-        }
         forcedSleepOnOpenRef.current = true;
       }
-    }, [isOpen, activeSleepSessionId, mode, useNewInputFlow]);
+    }, [isOpen, activeSleepSessionId, mode]);
 
     React.useEffect(() => {
       if (!__ttUseV4Sheet || !isOpen) return;
@@ -1224,22 +1210,6 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
       null,
       // Input rows wrapped in spacing container
       React.createElement('div', { className: "space-y-2" },
-        // Ounces
-        React.createElement(InputRow, {
-          label: 'Amount',
-          value: ounces,
-          onChange: setOunces,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          valueClassName: inputValueClassName,
-          type: 'number',
-          placeholder: '0',
-          suffix: 'oz',
-          inlineSuffix: true,
-          pickerMode: 'amount',
-          onOpenPicker: openTrayPicker
-        }),
-
-        // Start time
         React.createElement(InputRow, {
           label: 'Start time',
           value: formatDateTime(feedingDateTime),
@@ -1251,6 +1221,29 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           pickerMode: 'datetime_feeding',
           onOpenPicker: openTrayPicker,
         }),
+        
+        // Ounces
+        (_ttUseAmountStepper() && TTAmountStepper)
+          ? React.createElement(TTAmountStepper, {
+              label: 'Amount',
+              valueOz: parseFloat(ounces) || 0,
+              unit: amountDisplayUnit,
+              onChangeUnit: setAmountDisplayUnit,
+              onChangeOz: (nextOz) => setOunces(_formatOz(nextOz))
+            })
+          : React.createElement(InputRow, {
+              label: 'Amount',
+              value: ounces,
+              onChange: setOunces,
+              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+              valueClassName: inputValueClassName,
+              type: 'number',
+              placeholder: '0',
+              suffix: 'oz',
+              inlineSuffix: true,
+              pickerMode: 'amount',
+              onOpenPicker: openTrayPicker
+            }),
 
         // Notes/photos compact toggles (side-by-side when both collapsed)
         (!feedingNotesExpanded && !feedingPhotosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
@@ -1999,23 +1992,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
                     window.XIcon,
                     { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
                   )),
-                  useNewInputFlow
-                    ? React.createElement('div', { className: "flex-1 flex justify-center" },
-                        React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
-                      )
-                    : React.createElement('div', { className: "flex-1 flex justify-center" },
-                        React.createElement(HeaderSegmentedToggle, {
-                          value: mode,
-                          options: [
-                            { value: 'feeding', label: 'Feed' },
-                            { value: 'sleep', label: 'Sleep' }
-                          ],
-                          onChange: setMode,
-                          variant: 'header',
-                          size: 'medium',
-                          fullWidth: false
-                        })
-                      ),
+                  React.createElement('div', { className: "flex-1 flex justify-center" },
+                    React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
+                  ),
                   React.createElement('div', { className: "w-6" })
                 ),
                 React.createElement('div', {
@@ -2039,17 +2018,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           onClose: handleClose,
           fixedHeight: calculateHeight,
           accentColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          titleElement: React.createElement(HeaderSegmentedToggle, {
-            value: mode,
-            options: [
-              { value: 'feeding', label: 'Feed' },
-              { value: 'sleep', label: 'Sleep' }
-            ],
-            onChange: setMode,
-            variant: 'header',
-            size: 'medium',
-            fullWidth: false
-          }),
+          title: mode === 'feeding' ? 'Feed' : 'Sleep',
           rightAction: null
         },
         bodyContent
@@ -2072,23 +2041,9 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           onClick: handleClose,
           className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
         }, React.createElement(ChevronDown, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } })),
-        useNewInputFlow
-          ? React.createElement('div', { className: "flex-1 flex justify-center" },
-              React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
-            )
-          : React.createElement('div', { className: "flex-1 flex justify-center" },
-              React.createElement(HeaderSegmentedToggle, {
-                value: mode,
-                options: [
-                  { value: 'feeding', label: 'Feed' },
-                  { value: 'sleep', label: 'Sleep' }
-                ],
-                onChange: setMode,
-                variant: 'header',
-                size: 'medium',
-                fullWidth: false
-              })
-            ),
+        React.createElement('div', { className: "flex-1 flex justify-center" },
+          React.createElement('h2', { className: "text-base font-semibold text-white" }, mode === 'feeding' ? 'Feeding' : 'Sleep')
+        ),
         React.createElement('div', { className: "w-6" })
       ),
       bodyContent
@@ -2100,13 +2055,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
     __ttUseV4Sheet: true
   });
 
-  const TTInputHalfSheet = (props) => {
-    const uiVersion = _getUiVersion();
-    if (uiVersion === 'v4') {
-      return React.createElement(TTInputHalfSheetV4, props);
-    }
-    return React.createElement(TTInputHalfSheetLegacy, props);
-  };
+  const TTInputHalfSheet = (props) => React.createElement(TTInputHalfSheetV4, props);
 
   // Expose component globally
   if (typeof window !== 'undefined') {

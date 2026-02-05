@@ -1,5 +1,5 @@
 const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
-  const uiVersion = (window.TT?.shared?.uiVersion?.getUIVersion || (() => 'v2'))();
+  const uiVersion = 'v4';
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('day');
@@ -595,8 +595,8 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     ...stats.chartData.map(d => d.volume)
   );
 
-  const feedLabelIcon = (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"]) || Milk;
-  const sleepLabelIcon = (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || Moon;
+  const feedLabelIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null;
+  const sleepLabelIcon = window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || null;
 
   return React.createElement(
     'div',
@@ -650,21 +650,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         })
       ),
 
-      // Daily Activity highlight (hide in v4)
-      uiVersion !== 'v4' && React.createElement(
-        HighlightCard,
-        {
-          icon: Kanban,
-          label: 'Daily Activity',
-          showInsightText: false,
-          insightText: [
-            'Levi has been eating and sleeping like a champ this week!',
-            'Great work, Levi!'
-          ],
-          categoryColor: 'var(--color-daily)',
-          onClick: () => setActiveTab('analytics-activity')
-        }
-      )
+      // Daily Activity highlight (hidden in v4)
     )
   );
 };
