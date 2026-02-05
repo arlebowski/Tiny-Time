@@ -991,26 +991,37 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         onActiveSleepClick: handleActiveSleepClick
       }) : null
     ),
-    (window.TTInputHalfSheet || window.TTDiaperInputSheet) && React.createElement(
-      (inputSheetMode === 'diaper' ? window.TTDiaperInputSheet : window.TTInputHalfSheet),
-      {
-      isOpen: showInputSheet,
-      onClose: () => setShowInputSheet(false),
-      kidId,
-      initialMode: inputSheetMode,
-      __ttUseV4Sheet: true,
-      onAdd: async () => {
-        await loadTimelineData(selectedDate);
-      }
-    }),
-    window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
+    (window.FeedSheet || window.SleepSheet || window.DiaperSheet) && React.createElement(
+      (inputSheetMode === 'diaper'
+        ? window.DiaperSheet
+        : (inputSheetMode === 'sleep' ? window.SleepSheet : window.FeedSheet)),
+      (inputSheetMode === 'diaper'
+        ? {
+            isOpen: showInputSheet,
+            onClose: () => setShowInputSheet(false),
+            entry: null,
+            onSave: async () => {
+              await loadTimelineData(selectedDate);
+            }
+          }
+        : {
+            variant: 'input',
+            isOpen: showInputSheet,
+            onClose: () => setShowInputSheet(false),
+            kidId,
+            onAdd: async () => {
+              await loadTimelineData(selectedDate);
+            }
+          })
+    ),
+    window.FeedSheet && React.createElement(window.FeedSheet, {
+      variant: 'detail',
       isOpen: showFeedDetailSheet,
       onClose: () => {
         setShowFeedDetailSheet(false);
         setSelectedFeedEntry(null);
       },
       entry: selectedFeedEntry,
-      __ttUseV4Sheet: true,
       onDelete: async () => {
         await loadTimelineData(selectedDate);
       },
@@ -1018,14 +1029,14 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         await loadTimelineData(selectedDate);
       }
     }),
-    window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
+    window.SleepSheet && React.createElement(window.SleepSheet, {
+      variant: 'detail',
       isOpen: showSleepDetailSheet,
       onClose: () => {
         setShowSleepDetailSheet(false);
         setSelectedSleepEntry(null);
       },
       entry: selectedSleepEntry,
-      __ttUseV4Sheet: true,
       onDelete: async () => {
         await loadTimelineData(selectedDate);
       },
@@ -1033,7 +1044,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         await loadTimelineData(selectedDate);
       }
     }),
-    window.TTDiaperDetailSheet && React.createElement(window.TTDiaperDetailSheet, {
+    window.DiaperSheet && React.createElement(window.DiaperSheet, {
       isOpen: showDiaperDetailSheet,
       onClose: () => {
         setShowDiaperDetailSheet(false);

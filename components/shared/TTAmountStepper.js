@@ -2,6 +2,26 @@
 // Large-number amount control with +/- and unit toggle
 
 if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
+  const __ttResolveFramer = () => {
+    if (typeof window === 'undefined') return {};
+    const candidates = [
+      window.FramerMotion,
+      window.framerMotion,
+      window['framer-motion'],
+      window.Motion,
+      window.motion
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (candidate.motion || candidate.AnimatePresence) return candidate;
+      if (candidate.default && (candidate.default.motion || candidate.default.AnimatePresence)) {
+        return candidate.default;
+      }
+    }
+    return {};
+  };
+  const __ttFramer = __ttResolveFramer();
+  const __ttMotion = __ttFramer.motion || null;
   const formatOz = (n) => {
     const num = Number(n);
     if (!Number.isFinite(num)) return '0';
@@ -75,8 +95,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
       ),
       React.createElement(
         'div',
-        { className: "flex items-center justify-between px-12 pb-10 pt-11" },
-        React.createElement('button', {
+        { className: "flex items-center justify-between px-12 pb-9 pt-9" },
+        React.createElement(__ttMotion ? __ttMotion.button : 'button', {
           type: 'button',
           onClick: () => handleStep(-1),
           className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
@@ -85,7 +105,11 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
             borderColor: 'var(--tt-card-border)',
             color: 'var(--tt-text-primary)'
           },
-          'aria-label': 'Decrease amount'
+          'aria-label': 'Decrease amount',
+          ...( __ttMotion ? {
+            whileTap: { scale: 0.94 },
+            transition: { type: 'spring', stiffness: 500, damping: 30 }
+          } : {})
         }, '–'),
         React.createElement('div', {
           className: "text-[40px] leading-none font-bold flex items-end justify-center",
@@ -97,7 +121,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
             style: { color: 'var(--tt-text-secondary)' }
           }, unit)
         ),
-        React.createElement('button', {
+        React.createElement(__ttMotion ? __ttMotion.button : 'button', {
           type: 'button',
           onClick: () => handleStep(1),
           className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
@@ -106,7 +130,11 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
             borderColor: 'var(--tt-card-border)',
             color: 'var(--tt-text-primary)'
           },
-          'aria-label': 'Increase amount'
+          'aria-label': 'Increase amount',
+          ...( __ttMotion ? {
+            whileTap: { scale: 0.94 },
+            transition: { type: 'spring', stiffness: 500, damping: 30 }
+          } : {})
         }, '+')
       )
     );

@@ -1,8 +1,8 @@
-// TTSleepDetailSheet Component
-// Extracted from TrackerCard.js for better organization
+// SleepSheet Component
+// Unified sleep input + sleep detail sheet
 
 // Guard to prevent redeclaration
-if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
+if (typeof window !== 'undefined' && !window.SleepSheet) {
   
   // Get utilities from window (exposed by TrackerCard.js)
   const formatDateTime = window.TT?.utils?.formatDateTime || ((date) => {
@@ -98,10 +98,71 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
   const PenIcon = window.PenIcon;
   const ChevronDown = window.ChevronDown;
 
-  const TTSleepDetailSheet = ({ isOpen, onClose, entry = null, onDelete = null, onSave = null }) => {
+  const SleepSheet = ({
+    variant = 'input', // 'input' | 'detail'
+    isOpen,
+    onClose,
+    kidId = null,
+    entry = null,
+    onDelete = null,
+    onSave = null,
+    onAdd = null
+  }) => {
+    const isInputVariant = variant !== 'detail';
+    const effectiveEntry = isInputVariant ? null : entry;
+    const effectiveOnSave = isInputVariant ? onAdd : onSave;
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
-    const [startTime, setStartTime] = React.useState(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
-    const [endTime, setEndTime] = React.useState(new Date().toISOString());
+    const normalizeIsoTime = (value) => {
+      if (!value) return null;
+      const parsed = new Date(value);
+      if (Number.isNaN(parsed.getTime())) return null;
+      return parsed.toISOString();
+    };
+
+    const clampStartIsoToNow = (value) => {
+      const normalized = normalizeIsoTime(value);
+      const now = Date.now();
+      if (!normalized) return new Date(now).toISOString();
+      const startMs = new Date(normalized).getTime();
+      return startMs > now ? new Date(now).toISOString() : normalized;
+    };
+
+    const getInitialSleepState = () => {
+      if (!isInputVariant) return 'idle';
+      try {
+        const activeSleepLocal = localStorage.getItem('tt_active_sleep');
+        if (activeSleepLocal) {
+          const parsed = JSON.parse(activeSleepLocal);
+          if (parsed.startTime && !parsed.endTime) {
+            return 'running';
+          }
+        }
+      } catch (e) {}
+      return 'idle';
+    };
+
+    const getInitialStartTime = () => {
+      if (!isInputVariant) return new Date().toISOString();
+      try {
+        const activeSleepLocal = localStorage.getItem('tt_active_sleep');
+        if (activeSleepLocal) {
+          const parsed = JSON.parse(activeSleepLocal);
+          if (parsed.startTime) {
+            return normalizeIsoTime(parsed.startTime);
+          }
+        }
+      } catch (e) {}
+      return null;
+    };
+
+    const [sleepState, setSleepState] = React.useState(getInitialSleepState());
+    const [startTime, setStartTime] = React.useState(getInitialStartTime());
+    const [endTime, setEndTime] = React.useState(null);
+    const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
+    const sleepIntervalRef = React.useRef(null);
+    const [endTimeManuallyEdited, setEndTimeManuallyEdited] = React.useState(false);
+    const endTimeManuallyEditedRef = React.useRef(false);
+    const [activeSleepSessionId, setActiveSleepSessionId] = React.useState(null);
     const [notes, setNotes] = React.useState('');
     const [photos, setPhotos] = React.useState([]); // Array of base64 data URLs for new photos
     const [existingPhotoURLs, setExistingPhotoURLs] = React.useState([]); // Array of Firebase Storage URLs
@@ -129,7 +190,7 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
 
     const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
-    const [dtTarget, setDtTarget] = React.useState('start'); // 'start' | 'end'
+    const [dtTarget, setDtTarget] = React.useState('sleep_start'); // 'sleep_start' | 'sleep_end'
     const [dtSelectedDate, setDtSelectedDate] = React.useState(() => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
@@ -162,10 +223,10 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
 
     const openTrayPicker = (mode) => {
       if (!_ttUseWheelPickers()) return;
-      if (mode === 'datetime_start' || mode === 'datetime_end') {
-        const target = (mode === 'datetime_end') ? 'end' : 'start';
+      if (mode === 'datetime_sleep_start' || mode === 'datetime_sleep_end') {
+        const target = (mode === 'datetime_sleep_end') ? 'sleep_end' : 'sleep_start';
         setDtTarget(target);
-        const iso = (target === 'end' ? (endTime || new Date().toISOString()) : (startTime || new Date().toISOString()));
+        const iso = (target === 'sleep_end' ? (endTime || new Date().toISOString()) : (startTime || new Date().toISOString()));
         const parts = _isoToDateParts(iso);
         setDtSelectedDate(parts.dayISO);
         setDtHour(parts.hour);
@@ -176,22 +237,35 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     };
 
     // Calculate height based on expanded fields
+    const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
+      ? window.TT.shared.useActiveSleep
+      : (() => ({ activeSleep: null, activeSleepLoaded: true }));
+    const { activeSleep, activeSleepLoaded } = useActiveSleep(kidId);
+    const activeSleepId = activeSleep && activeSleep.id ? activeSleep.id : null;
+    const hasActiveSleep = !!(activeSleepId && activeSleep && activeSleep.startTime);
+
     // Populate form from entry when it exists
     React.useEffect(() => {
-      if (entry && isOpen) {
-        setStartTime(entry.startTime ? new Date(entry.startTime).toISOString() : new Date().toISOString());
-        setEndTime(entry.endTime ? new Date(entry.endTime).toISOString() : new Date().toISOString());
-        setNotes(entry.notes || '');
-        setExistingPhotoURLs(entry.photoURLs || []);
-        originalPhotoURLsRef.current = entry.photoURLs || []; // Track original URLs
+      if (effectiveEntry && isOpen) {
+        setStartTime(effectiveEntry.startTime ? new Date(effectiveEntry.startTime).toISOString() : new Date().toISOString());
+        setEndTime(effectiveEntry.endTime ? new Date(effectiveEntry.endTime).toISOString() : null);
+        setNotes(effectiveEntry.notes || '');
+        setExistingPhotoURLs(effectiveEntry.photoURLs || []);
+        originalPhotoURLsRef.current = effectiveEntry.photoURLs || []; // Track original URLs
         setPhotos([]); // Reset new photos
         // Auto-expand if there's existing content
-        setNotesExpanded(!!entry.notes);
-        setPhotosExpanded(!!(entry.photoURLs && entry.photoURLs.length > 0));
-      } else if (!entry && isOpen) {
+        setNotesExpanded(!!effectiveEntry.notes);
+        setPhotosExpanded(!!(effectiveEntry.photoURLs && effectiveEntry.photoURLs.length > 0));
+      } else if (!effectiveEntry && isOpen) {
         // Create mode - reset to defaults
-        setStartTime(new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString());
-        setEndTime(new Date().toISOString());
+        setStartTime(getInitialStartTime());
+        setEndTime(null);
+        if (isInputVariant && !activeSleepId) {
+          setSleepState('idle');
+          setSleepElapsedMs(0);
+          setEndTimeManuallyEdited(false);
+          endTimeManuallyEditedRef.current = false;
+        }
         setNotes('');
         setExistingPhotoURLs([]);
         originalPhotoURLsRef.current = []; // Reset
@@ -199,15 +273,91 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         setNotesExpanded(false);
         setPhotosExpanded(false);
       }
-    }, [entry, isOpen]);
+    }, [effectiveEntry, isOpen]);
+
+    const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
+      if (!startMs) return null;
+      return (startMs > nowMs + 3 * 3600000) ? (startMs - 86400000) : startMs;
+    };
+
+    // Sync active sleep with Firebase-backed hook (input variant only)
+    React.useEffect(() => {
+      if (!isInputVariant || !activeSleepLoaded) return;
+      if (activeSleep && activeSleep.id) {
+        if (!activeSleepSessionId || activeSleepSessionId !== activeSleep.id) {
+          setActiveSleepSessionId(activeSleep.id);
+        }
+        if (activeSleep.startTime) {
+          const serverStartIso = new Date(activeSleep.startTime).toISOString();
+          setStartTime(serverStartIso);
+          const normalizedStart = _normalizeSleepStartMs(activeSleep.startTime);
+          if (normalizedStart) {
+            setSleepElapsedMs(Date.now() - normalizedStart);
+          }
+        }
+        if (!endTimeManuallyEditedRef.current) {
+          setEndTime(null);
+          setEndTimeManuallyEdited(false);
+        }
+        if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
+          setSleepState('running');
+        }
+      } else {
+        if (sleepState === 'running') {
+          setSleepState('idle');
+        }
+        // No active sleep: blank out times for input variant
+        setStartTime(null);
+        setEndTime(null);
+        setSleepElapsedMs(0);
+        setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
+        try {
+          localStorage.removeItem('tt_active_sleep');
+        } catch (e) {}
+        if (activeSleepSessionId) {
+          setActiveSleepSessionId(null);
+        }
+      }
+    }, [isInputVariant, activeSleep, activeSleepLoaded, sleepState, activeSleepSessionId]);
+
+    React.useEffect(() => {
+      if (sleepIntervalRef.current) {
+        clearInterval(sleepIntervalRef.current);
+        sleepIntervalRef.current = null;
+      }
+      if (!isInputVariant || sleepState !== 'running' || endTimeManuallyEditedRef.current) return;
+      if (!startTime) return;
+      const startMs = _normalizeSleepStartMs(new Date(startTime).getTime());
+      if (!startMs) return;
+      const tick = () => setSleepElapsedMs(Math.max(0, Date.now() - startMs));
+      tick();
+      sleepIntervalRef.current = setInterval(tick, 1000);
+      return () => {
+        if (sleepIntervalRef.current) {
+          clearInterval(sleepIntervalRef.current);
+          sleepIntervalRef.current = null;
+        }
+      };
+    }, [isInputVariant, sleepState, startTime]);
 
     // Reset expand state when sheet closes
     React.useEffect(() => {
       if (!isOpen) {
         setNotesExpanded(false);
         setPhotosExpanded(false);
+        setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
       }
     }, [isOpen]);
+
+    React.useEffect(() => {
+      if (!isInputVariant) return;
+      if (!activeSleep || !activeSleep.id) {
+        setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
+      }
+    }, [activeSleep, isInputVariant]);
 
     // Calculate duration with validation
     const calculateDuration = () => {
@@ -272,10 +422,12 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       setSaving(true);
       try {
         const startMs = new Date(startTime).getTime();
-        const endMs = new Date(endTime).getTime();
+        const endMs = endTime ? new Date(endTime).getTime() : Date.now();
         
         // Check for overlaps (exclude current entry if editing)
-        const excludeId = entry && entry.id ? entry.id : null;
+        const excludeId = effectiveEntry && effectiveEntry.id
+          ? effectiveEntry.id
+          : (isInputVariant && activeSleepId ? activeSleepId : null);
         const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
         if (hasOverlap) {
           alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
@@ -301,8 +453,8 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
             const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
             newPhotoURLs.push(downloadURL);
           } catch (error) {
-              console.error(`[TTSleepDetailSheet] Failed to upload photo ${i + 1}:`, error);
-              console.error('[TTSleepDetailSheet] Photo upload error details:', {
+              console.error(`[SleepSheet] Failed to upload photo ${i + 1}:`, error);
+              console.error('[SleepSheet] Photo upload error details:', {
                 message: error.message,
                 stack: error.stack,
                 name: error.name,
@@ -316,9 +468,19 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         // Combine existing and new photo URLs
         const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
         
-        if (entry && entry.id) {
+        if (effectiveEntry && effectiveEntry.id) {
           // Update existing sleep session
-          await firestoreStorage.updateSleepSession(entry.id, {
+          await firestoreStorage.updateSleepSession(effectiveEntry.id, {
+            startTime: startMs,
+            endTime: endMs,
+            isActive: false,
+            notes: notes || null,
+            photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : []
+          });
+        } else if (isInputVariant && activeSleepId) {
+          // End currently running sleep session
+          await firestoreStorage.endSleep(activeSleepId, endMs);
+          await firestoreStorage.updateSleepSession(activeSleepId, {
             startTime: startMs,
             endTime: endMs,
             isActive: false,
@@ -360,12 +522,12 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         // Close the sheet first
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
-        if (onSave) {
-          await onSave();
+        if (effectiveOnSave) {
+          await effectiveOnSave();
         }
       } catch (error) {
-        console.error('[TTSleepDetailSheet] Failed to save sleep session:', error);
-        console.error('[TTSleepDetailSheet] Error details:', {
+        console.error('[SleepSheet] Failed to save sleep session:', error);
+        console.error('[SleepSheet] Error details:', {
           message: error.message,
           stack: error.stack,
           name: error.name,
@@ -378,11 +540,11 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
     };
 
     const handleDelete = async () => {
-      if (!entry || !entry.id) return;
+      if (!effectiveEntry || !effectiveEntry.id) return;
       
       setSaving(true);
       try {
-        await firestoreStorage.deleteSleepSession(entry.id);
+        await firestoreStorage.deleteSleepSession(effectiveEntry.id);
         // Close the sheet first
         handleClose();
         // Then refresh timeline after sheet closes (onDelete callback handles the delay)
@@ -437,29 +599,221 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       }
     };
 
+    const handleStartTimeChange = (nextValue) => {
+      const clamped = clampStartIsoToNow(nextValue);
+      setStartTime(clamped);
+      if (isInputVariant && sleepState === 'running') {
+        setEndTime(null);
+        setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
+      }
+    };
+
+    const handleEndTimeChange = (nextValue) => {
+      setEndTime(nextValue);
+      setEndTimeManuallyEdited(true);
+      endTimeManuallyEditedRef.current = true;
+      if (isInputVariant && sleepState === 'running') {
+        setSleepState('idle');
+      }
+    };
+
+    const isIdleWithTimes = sleepState === 'idle' && startTime && endTime;
+
+    const handleStartSleep = async () => {
+      if (!isInputVariant || saving) return;
+      try {
+        let sessionId = activeSleepSessionId || activeSleepId;
+        let startMs;
+        let effectiveStartIso = startTime;
+
+        if (isIdleWithTimes) {
+          startMs = new Date(startTime).getTime();
+          setEndTime(null);
+        } else {
+          const parsed = effectiveStartIso ? new Date(effectiveStartIso).getTime() : NaN;
+          if (!effectiveStartIso || !Number.isFinite(parsed)) {
+            effectiveStartIso = new Date().toISOString();
+            setStartTime(effectiveStartIso);
+            startMs = new Date(effectiveStartIso).getTime();
+          } else {
+            const clamped = clampStartIsoToNow(effectiveStartIso);
+            if (clamped !== effectiveStartIso) {
+              effectiveStartIso = clamped;
+              setStartTime(effectiveStartIso);
+            }
+            startMs = new Date(effectiveStartIso).getTime();
+          }
+          setEndTime(null);
+        }
+
+        if (!sessionId) {
+          const session = await firestoreStorage.startSleep(startMs);
+          sessionId = session.id;
+          setActiveSleepSessionId(sessionId);
+        } else {
+          await firestoreStorage.updateSleepSession(sessionId, {
+            startTime: startMs,
+            endTime: null,
+            isActive: true
+          });
+        }
+
+        setSleepState('running');
+      } catch (error) {
+        console.error('Failed to start sleep:', error);
+        alert('Failed to start sleep. Please try again.');
+      }
+    };
+
+    const handleEndSleep = async () => {
+      if (!isInputVariant || sleepState !== 'running' || saving) return;
+      setSaving(true);
+      try {
+        const nowIso = new Date().toISOString();
+        const endMs = Date.now();
+        setEndTime(nowIso);
+
+        const sessionId = activeSleepSessionId || activeSleepId;
+        if (sessionId) {
+          await firestoreStorage.endSleep(sessionId, endMs);
+          const photoURLs = [];
+          for (const photoBase64 of photos) {
+            try {
+              const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
+              photoURLs.push(downloadURL);
+            } catch (error) {
+              console.error('Failed to upload photo:', error);
+            }
+          }
+
+          if (notes || photoURLs.length > 0) {
+            await firestoreStorage.updateSleepSession(sessionId, {
+              notes: notes || null,
+              photoURLs: photoURLs.length > 0 ? photoURLs : []
+            });
+          }
+          setActiveSleepSessionId(null);
+        }
+
+        setSleepState('idle');
+        setStartTime(new Date().toISOString());
+        setEndTime(null);
+        setNotes('');
+        setPhotos([]);
+        setSleepElapsedMs(0);
+        setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
+
+        if (onClose) onClose();
+        if (onAdd) {
+          await onAdd('sleep');
+        }
+      } catch (error) {
+        console.error('Failed to end sleep:', error);
+        alert('Failed to end sleep. Please try again.');
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const handleSaveSleep = async () => {
+      if (!isInputVariant || saving) return;
+      if (!isValid) return;
+      setSaving(true);
+      try {
+        const startMs = new Date(startTime).getTime();
+        const endMs = new Date(endTime).getTime();
+        const excludeId = activeSleepSessionId || null;
+        const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
+        if (hasOverlap) {
+          alert('This sleep session overlaps with an existing sleep session. Please adjust the times.');
+          setSaving(false);
+          return;
+        }
+
+        const photoURLs = [];
+        for (const photoBase64 of photos) {
+          try {
+            const downloadURL = await firestoreStorage.uploadSleepPhoto(photoBase64);
+            photoURLs.push(downloadURL);
+          } catch (error) {
+            console.error('Failed to upload photo:', error);
+          }
+        }
+
+        if (activeSleepSessionId) {
+          await firestoreStorage.endSleep(activeSleepSessionId, endMs);
+          if (notes || photoURLs.length > 0) {
+            await firestoreStorage.updateSleepSession(activeSleepSessionId, {
+              notes: notes || null,
+              photoURLs: photoURLs.length > 0 ? photoURLs : []
+            });
+          }
+          setActiveSleepSessionId(null);
+        } else {
+          const session = await firestoreStorage.startSleep(startMs);
+          await firestoreStorage.endSleep(session.id, endMs);
+          if (notes || photoURLs.length > 0) {
+            await firestoreStorage.updateSleepSession(session.id, {
+              notes: notes || null,
+              photoURLs: photoURLs.length > 0 ? photoURLs : []
+            });
+          }
+        }
+
+        setSleepState('idle');
+        setStartTime(new Date().toISOString());
+        setEndTime(null);
+        setNotes('');
+        setPhotos([]);
+        setSleepElapsedMs(0);
+        setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
+
+        if (onClose) onClose();
+        if (onAdd) {
+          await onAdd('sleep');
+        }
+      } catch (error) {
+        console.error('Failed to save sleep session:', error);
+        alert('Failed to save sleep session. Please try again.');
+      } finally {
+        setSaving(false);
+      }
+    };
+
     // Timer display (apply shared formatting rules)
-    const durationMs = (Number(duration.hours || 0) * 3600000) + (Number(duration.minutes || 0) * 60000) + (Number(duration.seconds || 0) * 1000);
-    const tParts = formatElapsedHmsTT(durationMs);
+    const displayMs = (() => {
+      if (isInputVariant && sleepState === 'running' && !endTimeManuallyEditedRef.current) {
+        return sleepElapsedMs;
+      }
+      if (!startTime || !endTime) return 0;
+      return (Number(duration.hours || 0) * 3600000) +
+        (Number(duration.minutes || 0) * 60000) +
+        (Number(duration.seconds || 0) * 1000);
+    })();
+    const tParts = formatElapsedHmsTT(displayMs);
 
     // Body content (used in both static and overlay modes)
     const contentBlock = React.createElement(
       React.Fragment,
       null,
       React.createElement('div', { className: "text-center mb-10" },
-        React.createElement('div', { className: "text-[40px] leading-none font-bold", style: { color: 'var(--tt-text-primary)' } },
+        React.createElement('div', { className: "text-[40px] leading-none font-bold flex items-end justify-center", style: { color: 'var(--tt-text-primary)' } },
           React.createElement(React.Fragment, null,
             tParts.showH && React.createElement(React.Fragment, null,
               React.createElement('span', null, tParts.hStr),
-              React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
+              React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
               React.createElement('span', { className: "ml-2" })
             ),
             tParts.showM && React.createElement(React.Fragment, null,
               React.createElement('span', null, tParts.mStr),
-              React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
+              React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
               React.createElement('span', { className: "ml-2" })
             ),
             React.createElement('span', null, tParts.sStr),
-            React.createElement('span', { className: "text-base font-normal ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
+            React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
           )
         )
       ),
@@ -467,25 +821,27 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
         React.createElement('div', { className: "grid grid-cols-2 gap-3" },
           React.createElement(InputRow, {
             label: 'Start time',
-            value: formatDateTime(startTime),
+            value: startTime ? formatDateTime(startTime) : 'Add...',
             rawValue: startTime,
-            onChange: setStartTime,
+            onChange: handleStartTimeChange,
             icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
             valueClassName: inputValueClassName,
             type: 'datetime',
-            pickerMode: 'datetime_start',
+            pickerMode: 'datetime_sleep_start',
             onOpenPicker: openTrayPicker,
+            placeholder: 'Add...'
           }),
             React.createElement(InputRow, {
               label: 'End time',
-              value: formatDateTime(endTime),
+              value: endTime ? formatDateTime(endTime) : 'Add...',
               rawValue: endTime,
-              onChange: setEndTime,
+              onChange: handleEndTimeChange,
               icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
               valueClassName: inputValueClassName,
               type: 'datetime',
-              pickerMode: 'datetime_end',
+              pickerMode: 'datetime_sleep_end',
               onOpenPicker: openTrayPicker,
+              placeholder: 'Add...',
               invalid: !saving && !isValid
             })
           ),
@@ -502,7 +858,12 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
           }, '+ Add photos')
         ),
         notesExpanded
-          ? React.createElement(InputRow, {
+          ? React.createElement(__ttV4Motion.div, {
+              initial: { opacity: 0, y: 6, scale: 0.98 },
+              animate: { opacity: 1, y: 0, scale: 1 },
+              transition: { type: "spring", damping: 25, stiffness: 300 }
+            },
+            React.createElement(InputRow, {
               label: 'Notes',
               value: notes,
               onChange: setNotes,
@@ -511,21 +872,28 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
               type: 'text',
               placeholder: 'Add a note...'
             })
+          )
           : photosExpanded ? React.createElement('div', {
               onClick: () => setNotesExpanded(true),
               className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
               style: { color: 'var(--tt-text-tertiary)' }
             }, '+ Add notes') : null
       ),
-      TTPhotoRow && photosExpanded && React.createElement(TTPhotoRow, {
-        expanded: photosExpanded,
-        onExpand: () => setPhotosExpanded(true),
-        existingPhotos: existingPhotoURLs,
-        newPhotos: photos,
-        onAddPhoto: handleAddPhoto,
-        onRemovePhoto: handleRemovePhoto,
-        onPreviewPhoto: setFullSizePhoto
-      }),
+      TTPhotoRow && photosExpanded && React.createElement(__ttV4Motion.div, {
+        initial: { opacity: 0, y: 6, scale: 0.98 },
+        animate: { opacity: 1, y: 0, scale: 1 },
+        transition: { type: "spring", damping: 25, stiffness: 300 }
+      },
+        React.createElement(TTPhotoRow, {
+          expanded: photosExpanded,
+          onExpand: () => setPhotosExpanded(true),
+          existingPhotos: existingPhotoURLs,
+          newPhotos: photos,
+          onAddPhoto: handleAddPhoto,
+          onRemovePhoto: handleRemovePhoto,
+          onPreviewPhoto: setFullSizePhoto
+        })
+      ),
       TTPhotoRow && !photosExpanded && notesExpanded && React.createElement('div', {
         onClick: () => setPhotosExpanded(true),
         className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
@@ -533,33 +901,115 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       }, '+ Add photos')
     );
 
-    const ctaButton = React.createElement('button', {
-      type: 'button',
-      onClick: handleSave,
-      disabled: saving || !isValid,
-      onTouchStart: (e) => {
-        e.stopPropagation();
-      },
-      className: "w-full py-3 rounded-2xl font-semibold transition",
-      style: { 
-        backgroundColor: saving ? 'var(--tt-sleep-strong)' : (isValid ? 'var(--tt-sleep)' : 'transparent'),
-        color: saving ? 'white' : (isValid ? 'white' : '#ef4444'),
-        border: (!saving && !isValid) ? '1px solid #ef4444' : 'none',
-        touchAction: 'manipulation',
-        opacity: (saving || !isValid) ? 0.7 : 1,
-        cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'
-      },
-      onMouseEnter: (e) => {
-        if (!saving && isValid) {
-          e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
-        }
-      },
-      onMouseLeave: (e) => {
-        if (!saving && isValid) {
-          e.target.style.backgroundColor = 'var(--tt-sleep)';
-        }
+    const ctaButton = (() => {
+      if (saving) {
+        return React.createElement('button', {
+          type: 'button',
+          disabled: true,
+          onTouchStart: (e) => e.stopPropagation(),
+          className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: 'var(--tt-sleep-strong)',
+            touchAction: 'manipulation',
+            opacity: 0.7,
+            cursor: 'not-allowed'
+          }
+        }, 'Saving...');
       }
-    }, saving ? 'Saving...' : 'Save');
+
+      if (isInputVariant && sleepState === 'running') {
+        return React.createElement('button', {
+          type: 'button',
+          onClick: handleEndSleep,
+          onTouchStart: (e) => e.stopPropagation(),
+          className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: 'var(--tt-sleep)',
+            touchAction: 'manipulation'
+          },
+          onMouseEnter: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+          },
+          onMouseLeave: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-sleep)';
+          }
+        }, 'Stop timer');
+      }
+
+      if (isInputVariant && endTimeManuallyEdited) {
+        const canSave = isValid;
+        return React.createElement('button', {
+          type: 'button',
+          onClick: canSave ? handleSaveSleep : undefined,
+          onTouchStart: (e) => e.stopPropagation(),
+          disabled: !canSave,
+          className: "w-full py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: canSave ? 'var(--tt-sleep)' : 'transparent',
+            color: canSave ? 'white' : '#ef4444',
+            border: canSave ? 'none' : '1px solid #ef4444',
+            cursor: canSave ? 'pointer' : 'not-allowed',
+            opacity: canSave ? 1 : 0.7,
+            touchAction: 'manipulation'
+          },
+          onMouseEnter: (e) => {
+            if (canSave) {
+              e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+            }
+          },
+          onMouseLeave: (e) => {
+            if (canSave) {
+              e.target.style.backgroundColor = 'var(--tt-sleep)';
+            }
+          }
+        }, 'Save');
+      }
+
+      if (isInputVariant) {
+        return React.createElement('button', {
+          type: 'button',
+          onClick: handleStartSleep,
+          onTouchStart: (e) => e.stopPropagation(),
+          className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+          style: {
+            backgroundColor: 'var(--tt-sleep)',
+            touchAction: 'manipulation'
+          },
+          onMouseEnter: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+          },
+          onMouseLeave: (e) => {
+            e.target.style.backgroundColor = 'var(--tt-sleep)';
+          }
+        }, 'Start Sleep');
+      }
+
+      return React.createElement('button', {
+        type: 'button',
+        onClick: handleSave,
+        disabled: saving || !isValid,
+        onTouchStart: (e) => e.stopPropagation(),
+        className: "w-full py-3 rounded-2xl font-semibold transition",
+        style: {
+          backgroundColor: saving ? 'var(--tt-sleep-strong)' : (isValid ? 'var(--tt-sleep)' : 'transparent'),
+          color: saving ? 'white' : (isValid ? 'white' : '#ef4444'),
+          border: (!saving && !isValid) ? '1px solid #ef4444' : 'none',
+          touchAction: 'manipulation',
+          opacity: (saving || !isValid) ? 0.7 : 1,
+          cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'
+        },
+        onMouseEnter: (e) => {
+          if (!saving && isValid) {
+            e.target.style.backgroundColor = 'var(--tt-sleep-strong)';
+          }
+        },
+        onMouseLeave: (e) => {
+          if (!saving && isValid) {
+            e.target.style.backgroundColor = 'var(--tt-sleep)';
+          }
+        }
+      }, 'Save');
+    })();
 
     const overlayContent = React.createElement(
       React.Fragment,
@@ -573,12 +1023,12 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
             onClick: () => setShowDateTimeTray(false),
             style: { justifySelf: 'start', background: 'none', border: 'none', padding: 0, color: 'var(--tt-text-secondary)', fontSize: 17 }
           }, 'Cancel'),
-          React.createElement('div', { style: { justifySelf: 'center', fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, dtTarget === 'end' ? 'End time' : 'Start time'),
+          React.createElement('div', { style: { justifySelf: 'center', fontWeight: 600, fontSize: 17, color: 'var(--tt-text-primary)' } }, dtTarget === 'sleep_end' ? 'End time' : 'Start time'),
           React.createElement('button', {
             onClick: () => {
               const nextISO = _partsToISO({ dayISO: dtSelectedDate, hour: dtHour, minute: dtMinute, ampm: dtAmpm });
-              if (dtTarget === 'end') setEndTime(nextISO);
-              else setStartTime(nextISO);
+              if (dtTarget === 'sleep_end') handleEndTimeChange(nextISO);
+              else handleStartTimeChange(nextISO);
               setShowDateTimeTray(false);
             },
             style: { justifySelf: 'end', background: 'none', border: 'none', padding: 0, color: 'var(--tt-sleep)', fontSize: 17, fontWeight: 600 }
@@ -663,6 +1113,11 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
       )
     );
 
+    const animatedContent = React.createElement(__ttV4Motion.div, {
+      layout: true,
+      transition: { type: "spring", damping: 25, stiffness: 300 }
+    }, contentBlock);
+
     const bodyContent = React.createElement(
       React.Fragment,
       null,
@@ -676,7 +1131,7 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
           overscrollBehavior: 'none',
           WebkitOverflowScrolling: 'auto'
         }
-      }, contentBlock),
+      }, animatedContent),
       React.createElement('div', {
         ref: ctaFooterRef,
         className: "px-6 pt-3 pb-1",
@@ -823,6 +1278,6 @@ if (typeof window !== 'undefined' && !window.TTSleepDetailSheet) {
 
   // Expose component globally
   if (typeof window !== 'undefined') {
-    window.TTSleepDetailSheet = TTSleepDetailSheet;
+    window.SleepSheet = SleepSheet;
   }
 }

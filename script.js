@@ -420,8 +420,8 @@ const deriveAccentVariants = (hex, isDark) => {
 const BACKGROUND_THEMES = {
   light: {
     "health-gray": {
-      appBg: "#f3f4f6",
-      cardBg: "#ffffff",
+      appBg: "rgba(255, 255, 255, 1)",
+      cardBg: "rgba(251, 248, 239, 1)",
       cardBorder: "transparent"
     },
     "eggshell": {
@@ -432,8 +432,8 @@ const BACKGROUND_THEMES = {
   },
   dark: {
     "health-gray": {
-      appBg: "#1F2022",      // Clubhouse app background
-      cardBg: "#2A2B30",     // Clubhouse card/nav background
+      appBg: "rgba(31, 32, 34, 1)", 
+      cardBg: "rgba(42, 43, 48, 1)",
       cardBorder: "transparent"
     },
     "eggshell": {
@@ -446,20 +446,20 @@ const BACKGROUND_THEMES = {
 
 const LIGHT_MODE_TOKENS = {
   "health-gray": {
-    inputBg: "#f5f5f5",
+    inputBg: "rgba(251, 248, 239, 1)",
     subtleSurface: "rgba(0,0,0,0.03)",
     surfaceSubtle: "rgba(0,0,0,0.03)",
     surfaceSelected: "rgba(0,0,0,0.08)",
     surfaceHover: "rgba(0,0,0,0.03)",
     progressTrack: "rgba(0,0,0,0.03)",
-    timelineItemBg: "#ffffff",
-    timelineTrackBg: "rgba(0,0,0,0.03)",
-    halfsheetBg: "#ffffff",
+    timelineItemBg: "rgba(251, 248, 239, 1)",
+    timelineTrackBg: "rgba(251, 248, 239, 1)",
+    halfsheetBg: "rgba(255, 255, 255, 1)",
     wheelpickerBar: "rgba(0,0,0,0.03)",
-    iconBg: "#f5f5f5",
+    iconBg: "rgba(251, 248, 239, 1)",
     inputBorder: "rgba(0,0,0,0.08)",
     divider: "rgba(0,0,0,0.08)",
-    trackerCardBg: "#ffffff",
+    trackerCardBg: "rgba(251, 248, 239, 1)",
     segTrack: "rgba(0,0,0,0.03)",
     segPill: "#ffffff",
     swipeRowBg: "#F7F7F7",
@@ -3502,7 +3502,10 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
 
     (() => {
       const isDiaperMode = inputSheetMode === 'diaper';
-      const InputSheet = isDiaperMode ? window.TTDiaperDetailSheet : window.TTInputHalfSheet;
+      const isSleepMode = inputSheetMode === 'sleep';
+      const InputSheet = isDiaperMode
+        ? window.DiaperSheet
+        : (isSleepMode ? window.SleepSheet : window.FeedSheet);
       if (!InputSheet) return null;
       if (isDiaperMode) {
         return React.createElement(InputSheet, {
@@ -3518,13 +3521,13 @@ const MainApp = ({ user, kidId, familyId, onKidChange }) => {
         });
       }
       return React.createElement(InputSheet, {
+        variant: 'input',
         isOpen: inputSheetOpen,
         onClose: closeInputSheet,
         kidId: kidId,
-        initialMode: inputSheetMode,
-        onAdd: async (mode) => {
+        onAdd: async () => {
           try {
-            const event = new CustomEvent('tt-input-sheet-added', { detail: { mode } });
+            const event = new CustomEvent('tt-input-sheet-added', { detail: { mode: inputSheetMode } });
             window.dispatchEvent(event);
           } catch (e) {
             // Non-fatal if CustomEvent is unavailable
