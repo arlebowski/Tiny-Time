@@ -1199,7 +1199,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
                   backgroundColor: "var(--tt-halfsheet-bg)",
                   willChange: 'transform',
                   paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                  maxHeight: '83vh',
+                  maxHeight: '90vh',
                   height: 'auto',
                   minHeight: '60vh',
                   display: 'flex',
