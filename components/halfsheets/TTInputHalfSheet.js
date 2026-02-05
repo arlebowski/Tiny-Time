@@ -1998,17 +1998,7 @@ if (typeof window !== 'undefined' && !window.TTInputHalfSheet) {
           onClose: handleClose,
           fixedHeight: calculateHeight,
           accentColor: mode === 'feeding' ? 'var(--tt-feed)' : 'var(--tt-sleep)',
-          titleElement: React.createElement(HeaderSegmentedToggle, {
-            value: mode,
-            options: [
-              { value: 'feeding', label: 'Feed' },
-              { value: 'sleep', label: 'Sleep' }
-            ],
-            onChange: setMode,
-            variant: 'header',
-            size: 'medium',
-            fullWidth: false
-          }),
+          title: mode === 'feeding' ? 'Feed' : 'Sleep',
           rightAction: null
         },
         bodyContent
