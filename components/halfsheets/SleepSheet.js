@@ -213,6 +213,9 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
     const inputValueClassName = 'text-[18px]';
+    const draftCache = (typeof window !== 'undefined' && window.TT?.shared?.dataCache)
+      ? window.TT.shared.dataCache
+      : null;
 
     // Wheel picker trays (feature flagged)
     const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
@@ -356,6 +359,51 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         }
       }
     }, [isInputVariant, activeSleep, activeSleepLoaded, sleepState, activeSleepSessionId]);
+
+    const getDraftKey = () => {
+      const sleepId = activeSleepSessionId || activeSleepId;
+      if (!sleepId || !kidId) return null;
+      return `tt_sleep_draft:${kidId}:${sleepId}`;
+    };
+
+    React.useEffect(() => {
+      let cancelled = false;
+      const loadDraft = async () => {
+        if (!draftCache || !isInputVariant) return;
+        const key = getDraftKey();
+        if (!key) return;
+        const draft = await draftCache.get(key);
+        if (cancelled || !draft) return;
+        if (draft.notes != null) setNotes(draft.notes);
+        if (Array.isArray(draft.photos)) setPhotos(draft.photos);
+      };
+      loadDraft();
+      return () => {
+        cancelled = true;
+      };
+    }, [draftCache, isInputVariant, activeSleepSessionId, activeSleepId, kidId]);
+
+    React.useEffect(() => {
+      if (!draftCache || !isInputVariant) return;
+      if (sleepState !== 'running') return;
+      const key = getDraftKey();
+      if (!key) return;
+      const timeout = setTimeout(() => {
+        draftCache.set(key, {
+          notes: notes || '',
+          photos: Array.isArray(photos) ? photos : [],
+          updatedAt: Date.now()
+        });
+      }, 250);
+      return () => clearTimeout(timeout);
+    }, [draftCache, isInputVariant, sleepState, notes, photos, activeSleepSessionId, activeSleepId, kidId]);
+
+    const clearDraft = async () => {
+      if (!draftCache) return;
+      const key = getDraftKey();
+      if (!key) return;
+      await draftCache.remove(key);
+    };
 
     React.useEffect(() => {
       if (sleepIntervalRef.current) {
@@ -746,6 +794,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         if (onAdd) {
           await onAdd('sleep');
         }
+        await clearDraft();
       } catch (error) {
         console.error('Failed to end sleep:', error);
         alert('Failed to end sleep. Please try again.');
@@ -812,6 +861,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         if (onAdd) {
           await onAdd('sleep');
         }
+        await clearDraft();
       } catch (error) {
         console.error('Failed to save sleep session:', error);
         alert('Failed to save sleep session. Please try again.');
