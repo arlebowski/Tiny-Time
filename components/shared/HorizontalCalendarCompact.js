@@ -1,5 +1,7 @@
 // HorizontalCalendar Component
-// Shared weekly calendar with feed/sleep bars
+// Shared weekly calendar with feed/sleep bars (compact fork)
+// Wrapped to avoid global collisions.
+(function () {
 
 const __ttHorizontalCn = (...classes) => classes.filter(Boolean).join(' ');
 
@@ -433,7 +435,7 @@ const HorizontalCalendar = ({
               }, dateLabel),
               React.createElement('div', {
                 className: "text-[24px] font-semibold",
-                style: { color: 'var(--tt-text-primary)', marginBottom: '0px' }
+                style: { color: 'var(--tt-text-primary)', marginBottom: '16px' }
               }, greeting)
             )
             )
@@ -449,35 +451,7 @@ const HorizontalCalendar = ({
                 textAlign: headerLeft ? 'center' : undefined
               }
             }, monthKey),
-        !hideNav && React.createElement('div', {
-          className: "flex gap-1",
-          style: headerLeft ? { justifySelf: 'end', justifyContent: 'center' } : undefined
-        },
-          React.createElement('button', {
-            onClick: () => paginate(1),
-            className: "p-2 rounded-xl transition-colors group active:bg-[var(--tt-selected-surface)]",
-            'data-testid': "button-prev"
-          },
-            React.createElement(__ttHorizontalChevronLeftIcon, {
-              className: "w-5 h-5 transition-colors",
-              style: { color: 'var(--tt-text-secondary)' }
-            })
-          ),
-          React.createElement('button', {
-            onClick: () => paginate(-1),
-            disabled: weeksOffset === 0,
-            className: __ttHorizontalCn(
-              "p-2 rounded-xl transition-colors group active:bg-[var(--tt-selected-surface)]",
-              weeksOffset === 0 && "opacity-0 pointer-events-none"
-            ),
-            'data-testid': "button-next"
-          },
-            React.createElement(__ttHorizontalChevronRightIcon, {
-              className: "w-5 h-5 transition-colors",
-              style: { color: 'var(--tt-text-tertiary)' }
-            })
-          )
-        )
+        null
       ),
       !hideBody && React.createElement('div', { className: "relative touch-none" },
         React.createElement(__ttHorizontalAnimatePresence, { mode: "wait", custom: direction },
@@ -522,7 +496,7 @@ const HorizontalCalendar = ({
                     if (onDateSelect) onDateSelect(getMetricsForDate(date));
                   },
                   className: __ttHorizontalCn(
-                    "relative z-10 flex flex-col items-center justify-center flex-1 h-[80px] group focus:outline-none shrink-0",
+                    "relative z-10 flex flex-col items-center justify-center flex-1 h-[64px] group focus:outline-none shrink-0",
                     isSelected ? "rounded-xl" : "rounded-2xl hover:bg-white/5"
                   ),
                   style: {
@@ -531,7 +505,8 @@ const HorizontalCalendar = ({
                     // No background fallback - pill handles all selection highlighting
                     paddingLeft: isSelected ? '8px' : undefined,
                     paddingRight: isSelected ? '8px' : undefined,
-                    paddingBottom: isSelected ? '5px' : undefined
+                    paddingTop: '6px',
+                    paddingBottom: '6px'
                   },
                   'data-testid': `date-item-${index}`
                 },
@@ -553,36 +528,13 @@ const HorizontalCalendar = ({
                   React.createElement('span', {
                     className: __ttHorizontalCn(
                       isSelected
-                        ? "text-[17.6px] font-bold mb-[22px] leading-none block relative z-10"
-                        : "text-sm font-medium mb-[22px] leading-none block relative z-10"
+                        ? "text-[17.6px] font-bold mb-0 leading-none block relative z-10"
+                        : "text-sm font-medium mb-0 leading-none block relative z-10"
                     ),
                     style: {
                       color: isSelected ? 'var(--tt-text-primary)' : 'var(--tt-text-secondary)'
                     }
                   }, __ttHorizontalFormat(date, "d")),
-                  React.createElement('div', { className: "absolute bottom-3 flex flex-col gap-1 w-full px-2" },
-                      React.createElement('div', {
-                        className: "h-1.5 w-full rounded-full overflow-hidden",
-                        style: { backgroundColor: 'var(--tt-progress-track)' }
-                      },
-                        React.createElement(__ttHorizontalMotion.div, {
-                          variants: progressVariants,
-                          className: "h-full rounded-full origin-left",
-                          style: { width: `${metrics.feedPct}%`, backgroundColor: 'var(--tt-feed)' }
-                        })
-                      ),
-                      React.createElement('div', {
-                        className: "h-1.5 w-full rounded-full overflow-hidden",
-                        style: { backgroundColor: 'var(--tt-progress-track)' }
-                      },
-                        React.createElement(__ttHorizontalMotion.div, {
-                          variants: progressVariants,
-                          transition: { delay: 0.7 },
-                          className: "h-full rounded-full origin-left",
-                          style: { width: `${metrics.sleepPct}%`, backgroundColor: 'var(--tt-sleep)' }
-                      })
-                    )
-                  )
                 )
               );
             })
@@ -597,5 +549,6 @@ const HorizontalCalendar = ({
 if (typeof window !== 'undefined') {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
-  window.TT.shared.HorizontalCalendar = HorizontalCalendar;
+  window.TT.shared.HorizontalCalendarCompact = HorizontalCalendar;
 }
+})();
