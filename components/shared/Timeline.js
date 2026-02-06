@@ -995,22 +995,7 @@ const Timeline = ({
     React.createElement('div', { className: "relative", style: { backgroundColor: 'var(--tt-app-bg)' } },
       React.createElement('div', { className: "w-full select-none" },
         React.createElement('div', { className: "sticky top-0 z-[100] backdrop-blur-md pt-0 pb-4 mb-0 flex justify-between items-center transition-all", style: { backgroundColor: 'var(--tt-app-bg)' } },
-          React.createElement(
-            (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle || 'div'),
-            {
-              value: filter,
-              options: [
-                { label: 'All', value: 'all' },
-                { label: 'Feed', value: 'feed' },
-                { label: 'Sleep', value: 'sleep' },
-                { label: 'Diaper', value: 'diaper' }
-              ],
-              onChange: handleFilterChange,
-              variant: 'body',
-              size: 'medium',
-              fullWidth: false
-            }
-          ),
+          React.createElement('div', { className: "text-[18px] font-semibold pl-3", style: { color: 'var(--tt-text-primary)' } }, 'Timeline'),
           React.createElement('div', { className: "flex items-center gap-2" },
             React.createElement('button', {
               onClick: handleToggleSort,

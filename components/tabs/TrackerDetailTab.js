@@ -3,7 +3,7 @@
 
 const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = null }) => {
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
-  const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
+  const HorizontalCalendar = window.TT?.shared?.HorizontalCalendarCompact || window.TT?.shared?.HorizontalCalendar;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
   const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0, diaperCount: 0, diaperWetCount: 0, diaperPooCount: 0, feedPct: 0, sleepPct: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
@@ -907,6 +907,14 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     setSummaryLayoutMode(nextFilter);
   }, []);
 
+  const SegmentedToggle = (window.TT?.shared?.SegmentedToggle || window.SegmentedToggle) || null;
+  const handleSummaryToggleChange = React.useCallback((nextFilter) => {
+    if (!nextFilter) return;
+    setInitialTimelineFilter(nextFilter);
+    setSummaryLayoutMode(nextFilter);
+    setFilterEpoch((prev) => prev + 1);
+  }, []);
+
   React.useEffect(() => {
     const isFirst = !summaryAnimationMountRef.current;
     const prevMode = summaryAnimationPrevRef.current;
@@ -976,6 +984,22 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
               }
             })
           : null
+      ),
+      SegmentedToggle && React.createElement(
+        SegmentedToggle,
+        {
+          value: summaryLayoutMode,
+          options: [
+            { label: 'All', value: 'all' },
+            { label: 'Feed', value: 'feed' },
+            { label: 'Sleep', value: 'sleep' },
+            { label: 'Diaper', value: 'diaper' }
+          ],
+          onChange: handleSummaryToggleChange,
+          variant: 'body',
+          size: 'medium',
+          fullWidth: true
+        }
       ),
       (() => {
         const prevMode = summaryAnimationPrevRef.current;
