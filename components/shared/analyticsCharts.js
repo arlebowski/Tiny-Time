@@ -112,9 +112,12 @@ const _formatV2NumberSafe = (n) => {
 const SleepChart = ({ data = [], average = 0 }) => {
   const getComputedColor = (cssVar) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
-      return '#4a8ac2';
+      return '';
     }
-    return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#4a8ac2';
+    const defaultSleep = (window.TT && window.TT.themeTokens && window.TT.themeTokens.DEFAULT_APPEARANCE)
+      ? window.TT.themeTokens.DEFAULT_APPEARANCE.sleepAccent
+      : '';
+    return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || defaultSleep;
   };
 
   const sleepColor = getComputedColor('--tt-sleep');
@@ -327,9 +330,12 @@ const SleepChart = ({ data = [], average = 0 }) => {
 const FeedingChart = ({ data = [], average = 0 }) => {
   const getComputedColor = (cssVar) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
-      return '#d45d5c';
+      return '';
     }
-    return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || '#d45d5c';
+    const defaultFeed = (window.TT && window.TT.themeTokens && window.TT.themeTokens.DEFAULT_APPEARANCE)
+      ? window.TT.themeTokens.DEFAULT_APPEARANCE.feedAccent
+      : '';
+    return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || defaultFeed;
   };
 
   const feedColor = getComputedColor('--tt-feed');

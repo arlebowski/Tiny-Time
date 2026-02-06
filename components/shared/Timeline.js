@@ -3,6 +3,38 @@
 
 const __ttTimelineCn = (...classes) => classes.filter(Boolean).join(' ');
 
+var __ttNormalizePhotoUrls = (typeof window !== 'undefined' && window.__ttNormalizePhotoUrls)
+  ? window.__ttNormalizePhotoUrls
+  : (input) => {
+      if (!input) return [];
+      const items = Array.isArray(input) ? input : [input];
+      const urls = [];
+      for (const item of items) {
+        if (typeof item === 'string' && item.trim()) {
+          urls.push(item);
+          continue;
+        }
+        if (item && typeof item === 'object') {
+          const maybe =
+            item.url ||
+            item.publicUrl ||
+            item.publicURL ||
+            item.downloadURL ||
+            item.downloadUrl ||
+            item.src ||
+            item.uri;
+          if (typeof maybe === 'string' && maybe.trim()) {
+            urls.push(maybe);
+          }
+        }
+      }
+      return urls;
+    };
+
+if (typeof window !== 'undefined' && !window.__ttNormalizePhotoUrls) {
+  window.__ttNormalizePhotoUrls = __ttNormalizePhotoUrls;
+}
+
 const Timeline = ({
   initialLoggedItems = null,
   initialScheduledItems = null,
@@ -211,7 +243,7 @@ const Timeline = ({
   const getHasDetails = (card) => {
     if (!card) return false;
     const photoList = card.photoURLs || card.photoUrls || card.photos;
-    const hasPhotos = Array.isArray(photoList) ? photoList.length > 0 : Boolean(photoList);
+    const hasPhotos = __ttNormalizePhotoUrls(photoList).length > 0;
     const hasNote = Boolean(card.note || card.notes);
     return hasPhotos || hasNote;
   };
@@ -864,7 +896,7 @@ const Timeline = ({
           progressValue: progress,
           side: 'right',
           primary: false,
-          bgColor: 'rgba(0, 190, 104, 1)',
+          bgColor: 'var(--tt-positive-alt)',
           icon: EditIcon,
           label: 'Edit',
           onClick: (e) => {
@@ -877,7 +909,7 @@ const Timeline = ({
           progressValue: progress,
           side: 'right',
           primary: true,
-          bgColor: 'rgba(255, 96, 55, 1)',
+          bgColor: 'var(--tt-negative-warm)',
           icon: DeleteIcon,
           label: 'Delete',
           onClick: (e) => {
@@ -917,7 +949,7 @@ const Timeline = ({
           xmlns: "http://www.w3.org/2000/svg",
           width: "32",
           height: "32",
-          fill: "#ffffff",
+          fill: "var(--tt-text-on-accent)",
           viewBox: "0 0 256 256",
           className: "w-5 h-5"
         },
@@ -938,7 +970,7 @@ const Timeline = ({
           xmlns: "http://www.w3.org/2000/svg",
           width: "32",
           height: "32",
-          fill: "#ffffff",
+          fill: "var(--tt-text-on-accent)",
           viewBox: "0 0 256 256",
           className: "w-5 h-5"
         },
@@ -1022,11 +1054,11 @@ const Timeline = ({
                     onClick: handleToggleExpanded,
                     className: "px-5 py-1.5 rounded-xl font-semibold text-sm transition-all shadow-lg",
                     animate: {
-                      backgroundColor: isExpandedEffective ? '#111827' : '#2563eb',
-                      color: '#ffffff',
+                      backgroundColor: isExpandedEffective ? 'var(--tt-primary-action-bg-active)' : 'var(--tt-primary-action-bg)',
+                      color: 'var(--tt-primary-action-text)',
                       boxShadow: isExpandedEffective
-                        ? '0 10px 25px rgba(0,0,0,0.25)'
-                        : '0 10px 25px rgba(37,99,235,0.25)'
+                        ? 'var(--tt-primary-action-shadow-active)'
+                        : 'var(--tt-primary-action-shadow)'
                     }
                   }, isExpandedEffective ? 'Done' : 'Edit')
                 : React.createElement('button', {
@@ -1219,8 +1251,8 @@ const Timeline = ({
               onClick: confirmDelete,
               className: "flex-1 px-4 py-3 rounded-xl font-semibold text-base transition-all shadow-lg",
               style: {
-                backgroundColor: '#ef4444',
-                color: '#ffffff'
+                backgroundColor: 'var(--tt-error)',
+                color: 'var(--tt-text-on-accent)'
               }
             }, 'Delete')
           )

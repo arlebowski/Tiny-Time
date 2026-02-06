@@ -35,6 +35,13 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   
   const [babyWeight, setBabyWeight] = React.useState(null);
   const [multiplier, setMultiplier] = React.useState(2.5);
+  const [preferredVolumeUnit, setPreferredVolumeUnit] = React.useState(() => {
+    try {
+      const stored = localStorage.getItem('tt_volume_unit');
+      if (stored === 'ml' || stored === 'oz') return stored;
+    } catch (e) {}
+    return 'oz';
+  });
   const [ounces, setOunces] = React.useState('');
   const [customTime, setCustomTime] = React.useState('');
   const [feedings, setFeedings] = React.useState([]);
@@ -55,6 +62,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const [kidPhotoUrl, setKidPhotoUrl] = React.useState(null);
   const [kidDisplayName, setKidDisplayName] = React.useState(null);
   const [kidBirthDate, setKidBirthDate] = React.useState(null);
+  const [kidDataState, setKidDataState] = React.useState(null);
+  const [avgByTimeCache, setAvgByTimeCache] = React.useState(null);
   const [calendarMountKey, setCalendarMountKey] = React.useState(0);
   const prevActiveTabRef = React.useRef(activeTab);
   // State for smooth date transitions - preserve previous values while loading
@@ -72,6 +81,12 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const [logMode, setLogMode] = React.useState('feeding');
   const [cardVisible, setCardVisible] = React.useState(false);
   const cardRef = React.useRef(null);
+  const avgByTimeCacheRef = React.useRef(null);
+  const lastAvgByTimeWriteRef = React.useRef(0);
+  const avgCacheKey = React.useMemo(() => {
+    if (!familyId || !kidId) return null;
+    return `tt_avg_by_time:${familyId}:${kidId}`;
+  }, [familyId, kidId]);
   const requestInputSheetOpen = React.useCallback((mode = 'feeding') => {
     if (typeof onRequestOpenInputSheet === 'function') {
       onRequestOpenInputSheet(mode);
@@ -104,30 +119,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const [selectedSleepEntry, setSelectedSleepEntry] = React.useState(null);
   const [selectedDiaperEntry, setSelectedDiaperEntry] = React.useState(null);
 
-  // One-shot "gates" log whenever key render inputs change.
-  React.useEffect(() => {
-    if (!__ttDebugCardsOn()) return;
-    __ttDebugCardsLog('gates', {
-      hasTrackerCard: typeof window !== 'undefined' && !!window.TrackerCard,
-      kidId: kidId || null,
-      loading,
-      // These names should exist in your component; if not, the log will show "undefined".
-      feedingsCount: Array.isArray(feedings) ? feedings.length : typeof feedings,
-      sleepSessionsCount: Array.isArray(sleepSessions) ? sleepSessions.length : typeof sleepSessions
-    });
-  }, [
-    kidId,
-    loading,
-    typeof window !== 'undefined' && window.TrackerCard,
-    feedings,
-    sleepSessions
-  ]);
-
   // Sleep logging state
   const useActiveSleep = (typeof window !== 'undefined' && window.TT?.shared?.useActiveSleep)
     ? window.TT.shared.useActiveSleep
     : (() => ({ activeSleep: null, activeSleepLoaded: true }));
-  const { activeSleep } = useActiveSleep(kidId);
+  const { activeSleep, activeSleepLoaded } = useActiveSleep(kidId);
   const [sleepElapsedMs, setSleepElapsedMs] = React.useState(0);
   const [sleepStartStr, setSleepStartStr] = React.useState('');
   const [sleepEndStr, setSleepEndStr] = React.useState('');
@@ -266,7 +262,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           background: linear-gradient(
             90deg,
             transparent,
-            rgba(255, 255, 255, 0.5),
+            var(--tt-pulse-highlight),
             transparent
           );
           animation: ttSleepPulse 2.5s ease-in-out infinite;
@@ -753,6 +749,17 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     return () => window.removeEventListener('tt-input-sheet-added', handleInputSheetAdded);
   }, [loadFeedings, loadSleepSessions, loadDiaperChanges]);
 
+  React.useEffect(() => {
+    const handleUnitChanged = (event) => {
+      const nextUnit = event?.detail?.unit;
+      if (nextUnit === 'ml' || nextUnit === 'oz') {
+        setPreferredVolumeUnit(nextUnit);
+      }
+    };
+    window.addEventListener('tt:volume-unit-changed', handleUnitChanged);
+    return () => window.removeEventListener('tt:volume-unit-changed', handleUnitChanged);
+  }, []);
+
   const loadData = async () => {
     // Never leave the tab stuck in "Loading..." if kidId isn't ready yet.
     setLoading(true);
@@ -765,10 +772,17 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       if (settings) {
         if (settings.babyWeight) setBabyWeight(settings.babyWeight);
         if (settings.multiplier) setMultiplier(settings.multiplier);
+        if (settings.preferredVolumeUnit === 'ml' || settings.preferredVolumeUnit === 'oz') {
+          setPreferredVolumeUnit(settings.preferredVolumeUnit);
+          try {
+            localStorage.setItem('tt_volume_unit', settings.preferredVolumeUnit);
+          } catch (e) {}
+        }
       }
       const ss = await firestoreStorage.getSleepSettings();
       setSleepSettings(ss || null);
       const kidData = await firestoreStorage.getKidData();
+      setKidDataState(kidData || null);
       setKidPhotoUrl(kidData?.photoURL || null);
       setKidDisplayName(kidData?.name || null);
       setKidBirthDate(kidData?.birthDate || null);
@@ -1146,6 +1160,226 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
   };
 
+  const TT_AVG_BUCKET_MINUTES = 15;
+  const TT_AVG_BUCKET_MS = TT_AVG_BUCKET_MINUTES * 60000;
+  const TT_AVG_BUCKETS = 96;
+  const TT_AVG_DAYS = 7;
+  const TT_AVG_EVEN_EPSILON = 0.05;
+
+  const _startOfDayMsLocal = (ts) => {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
+
+  const _bucketIndexCeilFromMinutes = (mins) => {
+    const clamped = Math.max(0, Math.min(1440, Math.ceil(mins / TT_AVG_BUCKET_MINUTES) * TT_AVG_BUCKET_MINUTES));
+    return Math.min(TT_AVG_BUCKETS - 1, Math.floor(clamped / TT_AVG_BUCKET_MINUTES));
+  };
+
+  const _bucketIndexCeilFromMs = (ts) => {
+    const d = new Date(ts);
+    const mins = d.getHours() * 60 + d.getMinutes();
+    return _bucketIndexCeilFromMinutes(mins);
+  };
+
+  const _avgCacheEqual = (a, b) => {
+    if (!a && !b) return true;
+    if (!a || !b) return false;
+    const sectionEqual = (x, y) => {
+      if (!x && !y) return true;
+      if (!x || !y) return false;
+      if (x.daysUsed !== y.daysUsed) return false;
+      if (!Array.isArray(x.buckets) || !Array.isArray(y.buckets)) return false;
+      if (x.buckets.length !== y.buckets.length) return false;
+      for (let i = 0; i < x.buckets.length; i += 1) {
+        if (Math.abs((x.buckets[i] || 0) - (y.buckets[i] || 0)) > 1e-6) return false;
+      }
+      return true;
+    };
+    return sectionEqual(a.feed, b.feed) && sectionEqual(a.sleep, b.sleep);
+  };
+
+  const _pickLatestAvgCache = (local, remote) => {
+    if (!local) return remote || null;
+    if (!remote) return local;
+    const localAt = Number(local.computedAt || 0);
+    const remoteAt = Number(remote.computedAt || 0);
+    return localAt >= remoteAt ? local : remote;
+  };
+
+  const _readAvgCacheLocal = () => {
+    if (!avgCacheKey) return null;
+    try {
+      const raw = localStorage.getItem(avgCacheKey);
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const _writeAvgCacheLocal = (value) => {
+    if (!avgCacheKey) return;
+    try {
+      if (!value) {
+        localStorage.removeItem(avgCacheKey);
+        return;
+      }
+      localStorage.setItem(avgCacheKey, JSON.stringify(value));
+    } catch {
+      // ignore cache write errors
+    }
+  };
+
+  const _buildFeedAvgBuckets = (all) => {
+    if (!Array.isArray(all) || all.length === 0) return null;
+    const todayStartMs = _startOfDayMsLocal(Date.now());
+    const dayMap = new Map();
+    all.forEach((f) => {
+      const ts = Number(f?.timestamp || 0);
+      if (!Number.isFinite(ts) || ts >= todayStartMs) return;
+      const dayStartMs = _startOfDayMsLocal(ts);
+      const list = dayMap.get(dayStartMs) || [];
+      list.push(f);
+      dayMap.set(dayStartMs, list);
+    });
+    const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
+    if (dayStarts.length === 0) return null;
+    const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
+    dayStarts.forEach((dayStartMs) => {
+      const increments = Array(TT_AVG_BUCKETS).fill(0);
+      const dayFeedings = dayMap.get(dayStartMs) || [];
+      dayFeedings.forEach((f) => {
+        const ts = Number(f?.timestamp || 0);
+        const oz = Number(f?.ounces || 0);
+        if (!Number.isFinite(ts) || !Number.isFinite(oz) || oz <= 0) return;
+        const idx = _bucketIndexCeilFromMs(ts);
+        increments[idx] += oz;
+      });
+      let running = 0;
+      for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
+        running += increments[i];
+        sumBuckets[i] += running;
+      }
+    });
+    return {
+      buckets: sumBuckets.map((v) => v / dayStarts.length),
+      daysUsed: dayStarts.length,
+      dayStarts
+    };
+  };
+
+  const _normalizeSleepIntervalForAvg = (startMs, endMs, nowMs = Date.now()) => {
+    let sMs = Number(startMs);
+    let eMs = Number(endMs);
+    if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+    if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+    if (eMs < sMs) sMs -= 86400000;
+    if (eMs < sMs) return null;
+    return { startMs: sMs, endMs: eMs };
+  };
+
+  const _addSleepOverlapToBuckets = (startMs, endMs, dayStartMs, increments) => {
+    const dayEndMs = dayStartMs + 86400000;
+    const overlapStart = Math.max(startMs, dayStartMs);
+    const overlapEnd = Math.min(endMs, dayEndMs);
+    if (overlapEnd <= overlapStart) return;
+    const startBucket = Math.max(0, Math.floor((overlapStart - dayStartMs) / TT_AVG_BUCKET_MS));
+    const endBucket = Math.min(TT_AVG_BUCKETS - 1, Math.floor((overlapEnd - dayStartMs - 1) / TT_AVG_BUCKET_MS));
+    for (let i = startBucket; i <= endBucket; i += 1) {
+      const bucketStart = dayStartMs + i * TT_AVG_BUCKET_MS;
+      const bucketEnd = bucketStart + TT_AVG_BUCKET_MS;
+      const overlap = Math.max(0, Math.min(overlapEnd, bucketEnd) - Math.max(overlapStart, bucketStart));
+      if (overlap > 0) increments[i] += overlap;
+    }
+  };
+
+  const _buildSleepAvgBuckets = (sessions) => {
+    if (!Array.isArray(sessions) || sessions.length === 0) return null;
+    const todayStartMs = _startOfDayMsLocal(Date.now());
+    const normalized = sessions.map((s) => {
+      if (!s?.startTime || !s?.endTime) return null;
+      const norm = _normalizeSleepIntervalForAvg(s.startTime, s.endTime);
+      return norm ? { startMs: norm.startMs, endMs: norm.endMs } : null;
+    }).filter(Boolean);
+    if (normalized.length === 0) return null;
+    const daySet = new Set();
+    normalized.forEach((s) => {
+      let dayStart = _startOfDayMsLocal(s.startMs);
+      const endDayStart = _startOfDayMsLocal(s.endMs);
+      for (let ds = dayStart; ds <= endDayStart; ds += 86400000) {
+        if (ds < todayStartMs) daySet.add(ds);
+      }
+    });
+    const dayStarts = Array.from(daySet).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
+    if (dayStarts.length === 0) return null;
+    const dayIndex = new Map(dayStarts.map((d, i) => [d, i]));
+    const perDayIncrements = dayStarts.map(() => Array(TT_AVG_BUCKETS).fill(0));
+    normalized.forEach((s) => {
+      let dayStart = _startOfDayMsLocal(s.startMs);
+      const endDayStart = _startOfDayMsLocal(s.endMs);
+      for (let ds = dayStart; ds <= endDayStart; ds += 86400000) {
+        const idx = dayIndex.get(ds);
+        if (idx == null) continue;
+        _addSleepOverlapToBuckets(s.startMs, s.endMs, ds, perDayIncrements[idx]);
+      }
+    });
+    const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
+    perDayIncrements.forEach((increments) => {
+      let running = 0;
+      for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
+        running += increments[i];
+        sumBuckets[i] += running;
+      }
+    });
+    return {
+      buckets: sumBuckets.map((v) => (v / dayStarts.length) / 3600000),
+      daysUsed: dayStarts.length,
+      dayStarts
+    };
+  };
+
+  const _calcFeedCumulativeAtBucket = (entries, bucketIdx) => {
+    if (!Array.isArray(entries) || entries.length === 0) return 0;
+    const increments = Array(TT_AVG_BUCKETS).fill(0);
+    entries.forEach((f) => {
+      const ts = Number(f?.timestamp || 0);
+      const oz = Number(f?.ounces || 0);
+      if (!Number.isFinite(ts) || !Number.isFinite(oz) || oz <= 0) return;
+      const idx = _bucketIndexCeilFromMs(ts);
+      increments[idx] += oz;
+    });
+    let running = 0;
+    for (let i = 0; i <= bucketIdx && i < TT_AVG_BUCKETS; i += 1) {
+      running += increments[i];
+    }
+    return running;
+  };
+
+  const _calcSleepCumulativeAtBucket = (entries, bucketIdx, activeSleepSession = null) => {
+    if ((!Array.isArray(entries) || entries.length === 0) && !(activeSleepSession && activeSleepSession.startTime)) return 0;
+    const nowMs = Date.now();
+    const dayStartMs = _startOfDayMsLocal(nowMs);
+    const increments = Array(TT_AVG_BUCKETS).fill(0);
+    (entries || []).forEach((s) => {
+      const startMs = Number(s?._normStartTime || s?.startTime || 0);
+      const endMs = Number(s?._normEndTime || s?.endTime || 0);
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return;
+      _addSleepOverlapToBuckets(startMs, endMs, dayStartMs, increments);
+    });
+    if (activeSleepSession && activeSleepSession.startTime) {
+      const startMs = _normalizeSleepStartMs(activeSleepSession.startTime, nowMs);
+      if (startMs) {
+        _addSleepOverlapToBuckets(startMs, nowMs, dayStartMs, increments);
+      }
+    }
+    let running = 0;
+    for (let i = 0; i <= bucketIdx && i < TT_AVG_BUCKETS; i += 1) {
+      running += increments[i];
+    }
+    return running / 3600000;
+  };
+
   const totalConsumed = feedings.reduce((sum, f) => sum + f.ounces, 0);
   const targetOunces = babyWeight ? babyWeight * multiplier : 0;
   const remaining = Math.max(0, targetOunces - totalConsumed);
@@ -1169,6 +1403,116 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const feedingDeltaIsGood = feedingDeltaOz >= 0;
   const sleepDeltaLabel = `${sleepDeltaHours >= 0 ? '+' : '-'}${_fmtDelta(sleepDeltaHours)} hrs`;
   const sleepDeltaIsGood = sleepDeltaHours >= 0;
+
+  React.useEffect(() => {
+    if (!avgCacheKey) return;
+    const local = _readAvgCacheLocal();
+    const remote = kidDataState?.avgByTime || null;
+    const chosen = _pickLatestAvgCache(local, remote);
+    if (chosen && !_avgCacheEqual(chosen, avgByTimeCacheRef.current)) {
+      avgByTimeCacheRef.current = chosen;
+      setAvgByTimeCache(chosen);
+      _writeAvgCacheLocal(chosen);
+    } else if (!chosen) {
+      avgByTimeCacheRef.current = null;
+      setAvgByTimeCache(null);
+    }
+  }, [avgCacheKey, kidDataState]);
+
+  React.useEffect(() => {
+    if (!avgCacheKey) return;
+    const nextFeed = _buildFeedAvgBuckets(allFeedings);
+    const nextSleep = _buildSleepAvgBuckets(allSleepSessions);
+    if (!nextFeed && !nextSleep) {
+      avgByTimeCacheRef.current = null;
+      setAvgByTimeCache(null);
+      _writeAvgCacheLocal(null);
+      const now = Date.now();
+      if (now - lastAvgByTimeWriteRef.current > 60000) {
+        lastAvgByTimeWriteRef.current = now;
+        firestoreStorage.updateKidData({ avgByTime: null });
+        setKidDataState((prev) => {
+          if (!prev) return prev;
+          const nextState = { ...prev };
+          delete nextState.avgByTime;
+          return nextState;
+        });
+      }
+      return;
+    }
+    const next = {
+      version: 1,
+      computedAt: Date.now(),
+      feed: nextFeed,
+      sleep: nextSleep
+    };
+    if (_avgCacheEqual(next, avgByTimeCacheRef.current)) return;
+    avgByTimeCacheRef.current = next;
+    setAvgByTimeCache(next);
+    _writeAvgCacheLocal(next);
+    const now = Date.now();
+    if (now - lastAvgByTimeWriteRef.current > 60000) {
+      lastAvgByTimeWriteRef.current = now;
+      firestoreStorage.updateKidData({ avgByTime: next });
+      setKidDataState((prev) => ({ ...(prev || {}), avgByTime: next }));
+    }
+  }, [avgCacheKey, allFeedings, allSleepSessions]);
+
+  const nowBucketIndex = _bucketIndexCeilFromMs(Date.now());
+  const feedAvgValue = avgByTimeCache?.feed?.buckets?.[nowBucketIndex];
+  const sleepAvgValue = avgByTimeCache?.sleep?.buckets?.[nowBucketIndex];
+  const feedDaysUsed = avgByTimeCache?.feed?.daysUsed || 0;
+  const sleepDaysUsed = avgByTimeCache?.sleep?.daysUsed || 0;
+  const todayFeedValue = _calcFeedCumulativeAtBucket(feedings, nowBucketIndex);
+  const todaySleepValue = _calcSleepCumulativeAtBucket(sleepSessions, nowBucketIndex, activeSleep);
+  const feedingComparison = isToday() && Number.isFinite(feedAvgValue) && feedDaysUsed > 0
+    ? { delta: todayFeedValue - feedAvgValue, unit: 'oz', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const sleepComparison = isToday() && Number.isFinite(sleepAvgValue) && sleepDaysUsed > 0
+    ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.__ttAvgByTimeDebug = () => {
+      const bucketMinutes = nowBucketIndex * TT_AVG_BUCKET_MINUTES;
+      const bucketLabel = (() => {
+        const now = new Date();
+        const hh = Math.min(23, Math.floor(bucketMinutes / 60));
+        const mm = Math.min(59, bucketMinutes % 60);
+        const d = new Date(now);
+        d.setHours(hh, mm, 0, 0);
+        return formatTime12Hour(d);
+      })();
+      return {
+        bucketIndex: nowBucketIndex,
+        bucketMinutes,
+        bucketLabel,
+        feedDaysUsed,
+        sleepDaysUsed,
+        feedAvgValue,
+        sleepAvgValue,
+        todayFeedValue,
+        todaySleepValue,
+        feedingDelta: feedingComparison ? feedingComparison.delta : null,
+        sleepDelta: sleepComparison ? sleepComparison.delta : null
+      };
+    };
+    return () => {
+      if (window.__ttAvgByTimeDebug) delete window.__ttAvgByTimeDebug;
+    };
+  }, [
+    nowBucketIndex,
+    feedDaysUsed,
+    sleepDaysUsed,
+    feedAvgValue,
+    sleepAvgValue,
+    todayFeedValue,
+    todaySleepValue,
+    feedingComparison,
+    sleepComparison,
+    formatTime12Hour
+  ]);
 
   // Format data for new TrackerCard components
   // Use previous data during date transitions to prevent showing zeros
@@ -1246,12 +1590,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const feedingPercent = targetOunces > 0 ? Math.min(100, (totalConsumed / targetOunces) * 100) : 0;
   // sleepPercent is already calculated above (line 2795)
 
-  const isDark = document.documentElement.classList.contains('dark');
   const chevronColor = 'var(--tt-text-tertiary)'; // match TrackerCard timeline chevron token
   // Disabled but still visible against the track (esp. in dark mode)
-  const chevronDisabledColor = isDark ? 'rgba(255,255,255,0.28)' : 'rgba(0,0,0,0.24)';
+  const chevronDisabledColor = 'var(--tt-nav-disabled)';
   const dateNavTrackBg = 'var(--tt-subtle-surface)';
-  const dateNavDividerColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgb(243, 244, 246)';
+  const dateNavDividerColor = 'var(--tt-nav-divider)';
 
   // Add a little bottom padding so the last card isn't obscured by mobile safe-area / nav.
   const HorizontalCalendar = (window.TT && window.TT.shared && window.TT.shared.HorizontalCalendar) || null;
@@ -1284,7 +1627,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           style: {
             padding: '8px 12px',
             borderRadius: '12px',
-            border: '1px solid rgba(255,255,255,0.18)',
+            border: '1px solid var(--tt-nav-pill-border)',
             fontSize: 12,
             opacity: 0.9,
             marginBottom: 12
@@ -1329,9 +1672,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         mode: 'feeding',
         total: feedingCardData.total,
         target: feedingCardData.target,
+        volumeUnit: preferredVolumeUnit,
         timelineItems: feedingCardData.timelineItems,
         entriesTodayCount: Array.isArray(feedingCardData.timelineItems) ? feedingCardData.timelineItems.length : 0,
         lastEntryTime: feedingCardData.lastEntryTime,
+        comparison: feedingComparison,
         rawFeedings: allFeedings,
         rawSleepSessions: [],
         currentDate: currentDate,
@@ -1348,9 +1693,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         mode: 'sleep',
         total: sleepCardData.total,
         target: sleepCardData.target,
+        volumeUnit: preferredVolumeUnit,
         timelineItems: sleepCardData.timelineItems,
         entriesTodayCount: sleepTodayCount,
         lastEntryTime: sleepCardData.lastEntryTime,
+        comparison: sleepComparison,
         rawFeedings: [],
         rawSleepSessions: allSleepSessions,
         currentDate: currentDate,
@@ -1368,6 +1715,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         mode: 'diaper',
         total: diaperCardData.total,
         target: null,
+        volumeUnit: preferredVolumeUnit,
         timelineItems: diaperCardData.timelineItems,
         lastEntryTime: diaperCardData.lastEntryTime,
         rawFeedings: [],
@@ -1384,8 +1732,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     ),
 
     // Detail Sheet Instances
-    window.FeedSheet && React.createElement(window.FeedSheet, {
-      variant: 'detail',
+    window.TTFeedDetailSheet && React.createElement(window.TTFeedDetailSheet, {
       isOpen: showFeedDetailSheet,
       onClose: () => {
         setShowFeedDetailSheet(false);
@@ -1403,8 +1750,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         await loadFeedings();
       }
     }),
-    window.SleepSheet && React.createElement(window.SleepSheet, {
-      variant: 'detail',
+    window.TTSleepDetailSheet && React.createElement(window.TTSleepDetailSheet, {
       isOpen: showSleepDetailSheet,
       onClose: () => {
         setShowSleepDetailSheet(false);
@@ -1422,7 +1768,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         await loadSleepSessions();
       }
     }),
-    window.DiaperSheet && React.createElement(window.DiaperSheet, {
+    window.TTDiaperDetailSheet && React.createElement(window.TTDiaperDetailSheet, {
       isOpen: showDiaperDetailSheet,
       onClose: () => {
         setShowDiaperDetailSheet(false);

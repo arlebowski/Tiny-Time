@@ -20,8 +20,11 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
     }
     return {};
   };
-  const __ttFramer = __ttResolveFramer();
-  const __ttMotion = __ttFramer.motion || null;
+  const __ttGetMotion = () => {
+    const framer = __ttResolveFramer();
+    const motion = framer.motion || null;
+    return motion;
+  };
   const formatOz = (n) => {
     const num = Number(n);
     if (!Number.isFinite(num)) return '0';
@@ -60,6 +63,10 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
       onChangeOz(Math.max(0, oz + (delta * step)));
     };
 
+    const Motion = __ttGetMotion();
+    const MotionButton = Motion
+      ? (Motion.button || (typeof Motion === 'function' ? Motion('button') : null))
+      : null;
     return React.createElement(
       'div',
       {
@@ -96,21 +103,35 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
       React.createElement(
         'div',
         { className: "flex items-center justify-between px-12 pb-9 pt-9" },
-        React.createElement(__ttMotion ? __ttMotion.button : 'button', {
+        React.createElement(MotionButton || 'button', {
           type: 'button',
           onClick: () => handleStep(-1),
-          className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
+          className: "w-[52px] h-[52px] flex items-center justify-center rounded-xl border transition-all",
           style: {
             backgroundColor: 'var(--tt-subtle-surface)',
             borderColor: 'var(--tt-card-border)',
-            color: 'var(--tt-text-primary)'
+            color: 'var(--tt-text-primary)',
+            touchAction: 'manipulation'
           },
           'aria-label': 'Decrease amount',
-          ...( __ttMotion ? {
-            whileTap: { scale: 0.94 },
-            transition: { type: 'spring', stiffness: 500, damping: 30 }
+          ...( MotionButton ? {
+            whileTap: { scale: 0.86 },
+            transition: { type: 'spring', stiffness: 650, damping: 24 }
           } : {})
-        }, '–'),
+        }, React.createElement(
+          'svg',
+          {
+            xmlns: "http://www.w3.org/2000/svg",
+            width: "24",
+            height: "24",
+            viewBox: "0 0 256 256",
+            style: { display: 'block', fill: 'var(--tt-text-primary)' },
+            'aria-hidden': 'true'
+          },
+          React.createElement('path', {
+            d: "M224,128a8,8,0,0,1-8,8H40a8,8,0,0,1,0-16H216A8,8,0,0,1,224,128Z"
+          })
+        )),
         React.createElement('div', {
           className: "text-[40px] leading-none font-bold flex items-end justify-center",
           style: { color: 'var(--tt-text-primary)' }
@@ -121,21 +142,35 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
             style: { color: 'var(--tt-text-secondary)' }
           }, unit)
         ),
-        React.createElement(__ttMotion ? __ttMotion.button : 'button', {
+        React.createElement(MotionButton || 'button', {
           type: 'button',
           onClick: () => handleStep(1),
-          className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
+          className: "w-[52px] h-[52px] flex items-center justify-center rounded-xl border transition-all",
           style: {
             backgroundColor: 'var(--tt-subtle-surface)',
             borderColor: 'var(--tt-card-border)',
-            color: 'var(--tt-text-primary)'
+            color: 'var(--tt-text-primary)',
+            touchAction: 'manipulation'
           },
           'aria-label': 'Increase amount',
-          ...( __ttMotion ? {
-            whileTap: { scale: 0.94 },
-            transition: { type: 'spring', stiffness: 500, damping: 30 }
+          ...( MotionButton ? {
+            whileTap: { scale: 0.86 },
+            transition: { type: 'spring', stiffness: 650, damping: 24 }
           } : {})
-        }, '+')
+        }, React.createElement(
+          'svg',
+          {
+            xmlns: "http://www.w3.org/2000/svg",
+            width: "24",
+            height: "24",
+            viewBox: "0 0 256 256",
+            style: { display: 'block', fill: 'var(--tt-text-primary)' },
+            'aria-hidden': 'true'
+          },
+          React.createElement('path', {
+            d: "M224,128a8,8,0,0,1-8,8H136v80a8,8,0,0,1-16,0V136H40a8,8,0,0,1,0-16h80V40a8,8,0,0,1,16,0v80h80A8,8,0,0,1,224,128Z"
+          })
+        ))
       )
     );
   };

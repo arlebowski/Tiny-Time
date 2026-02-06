@@ -1,6 +1,38 @@
 // Timeline Item Component (shared)
 const __ttTimelineItemCn = (...classes) => classes.filter(Boolean).join(' ');
 
+var __ttNormalizePhotoUrls = (typeof window !== 'undefined' && window.__ttNormalizePhotoUrls)
+  ? window.__ttNormalizePhotoUrls
+  : (input) => {
+      if (!input) return [];
+      const items = Array.isArray(input) ? input : [input];
+      const urls = [];
+      for (const item of items) {
+        if (typeof item === 'string' && item.trim()) {
+          urls.push(item);
+          continue;
+        }
+        if (item && typeof item === 'object') {
+          const maybe =
+            item.url ||
+            item.publicUrl ||
+            item.publicURL ||
+            item.downloadURL ||
+            item.downloadUrl ||
+            item.src ||
+            item.uri;
+          if (typeof maybe === 'string' && maybe.trim()) {
+            urls.push(maybe);
+          }
+        }
+      }
+      return urls;
+    };
+
+if (typeof window !== 'undefined' && !window.__ttNormalizePhotoUrls) {
+  window.__ttNormalizePhotoUrls = __ttNormalizePhotoUrls;
+}
+
 const __ttEnsureZzzStyles = () => {
   if (typeof document === 'undefined') return;
   if (document.getElementById('tt-zzz-anim')) return;
@@ -120,13 +152,13 @@ const __ttEnsureZzzStyles = () => {
             : (isLogged ? '' : prefix)));
 
   const photoList = card.photoURLs || card.photoUrls || card.photos;
-  const hasPhotos = Array.isArray(photoList) ? photoList.length > 0 : Boolean(photoList);
+  const photoUrls = __ttNormalizePhotoUrls(photoList);
+  const hasPhotos = photoUrls.length > 0;
   const hasNote = Boolean(card.note || card.notes);
   const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos);
   const showChevron = isLogged && hasDetails && !isActiveSleep;
   const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.ChevronDownIcon) || null;
   const noteText = card.note || card.notes || '';
-  const photoUrls = Array.isArray(photoList) ? photoList : (photoList ? [photoList] : []);
   const recentMs = 60 * 1000;
   const startTimestamp = (typeof card.timestamp === 'number' ? card.timestamp : (typeof card.startTime === 'number' ? card.startTime : null));
   const isJustNow = typeof startTimestamp === 'number' && (Date.now() - startTimestamp) >= 0 && (Date.now() - startTimestamp) <= recentMs;
@@ -364,7 +396,7 @@ const __ttEnsureZzzStyles = () => {
             className: "px-3 py-1 rounded-full text-xs font-semibold",
             style: {
               backgroundColor: 'var(--tt-sleep)',
-              color: '#ffffff'
+              color: 'var(--tt-text-on-accent)'
             }
           }, 'Open Timer'),
           // Scheduled CTA disabled per request.

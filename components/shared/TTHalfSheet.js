@@ -335,7 +335,7 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
             ref: headerRef,
             className: accentColor ? "" : "bg-black",
             style: { 
-              backgroundColor: accentColor || '#000000',
+              backgroundColor: accentColor || 'var(--tt-primary-brand)',
               borderTopLeftRadius: '20px', 
               borderTopRightRadius: '20px',
               padding: '0 1.5rem',
@@ -392,4 +392,3 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
   // Temporary backward compatibility (will remove later)
   window.TTHalfSheet = TTHalfSheet;
 }
-

@@ -49,13 +49,13 @@ const SegmentedToggle = ({
   const containerClass = fullWidth ? "flex rounded-xl w-full" : "inline-flex rounded-xl";
   
   // Variant-based colors (structure stays the same)
-  const containerStyle = variant === 'header' 
-    ? { background: 'rgba(255,255,255,0.2)' }  // HeaderSegmentedToggle EXACT
+  const containerStyle = variant === 'header'
+    ? { background: 'var(--tt-segmented-track-bg)' }  // HeaderSegmentedToggle EXACT
     : { backgroundColor: 'var(--tt-seg-track)' };
   
   // Header variant: use Tailwind classes (unchanged)
-  const btnOnHeader = "bg-white text-gray-900 shadow-sm";
-  const btnOffHeader = "bg-transparent text-white/80";
+  const btnOnHeader = "";
+  const btnOffHeader = "bg-transparent";
   
   // Body variant: use inline styles with CSS tokens
   const getBodyBtnOnStyle = () => {
@@ -64,22 +64,28 @@ const SegmentedToggle = ({
     return {
       backgroundColor: 'var(--tt-seg-pill)',
       color: 'var(--tt-text-primary)',
-      boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)'
+      boxShadow: 'var(--tt-segmented-shadow)'
     };
   };
   
-  const btnOnStyle = getBodyBtnOnStyle();
-    
-  const btnOffStyle = variant === 'body'
+  const btnOnStyle = variant === 'header'
     ? {
-        color: 'var(--tt-text-secondary)'
+        backgroundColor: 'var(--tt-segmented-on-bg)',
+        color: 'var(--tt-segmented-on-text)',
+        boxShadow: 'var(--tt-segmented-shadow)'
       }
-    : undefined;
+    : getBodyBtnOnStyle();
+  
+  const btnOffStyle = variant === 'header'
+    ? { color: 'var(--tt-segmented-off-text)' }
+    : (variant === 'body'
+        ? { color: 'var(--tt-text-secondary)' }
+        : undefined);
   
   // Class names for body variant (no background classes, handled by inline styles)
   const btnOn = variant === 'header'
     ? btnOnHeader
-    : "shadow-sm"; // Only shadow class, background via inline style
+    : ""; // Shadow handled via inline style
     
   const btnOff = variant === 'header'
     ? btnOffHeader
@@ -87,7 +93,7 @@ const SegmentedToggle = ({
 
   const getPillStyle = () => {
     if (variant === 'header') {
-      return { backgroundColor: '#ffffff', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)' };
+      return { backgroundColor: 'var(--tt-segmented-on-bg)', boxShadow: 'var(--tt-segmented-shadow)' };
     }
     const base = getBodyBtnOnStyle() || {};
     const { color, ...rest } = base;

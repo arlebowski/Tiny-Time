@@ -11,7 +11,7 @@ const FamilyTab = ({
 }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5 });
+  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5, preferredVolumeUnit: 'oz' });
   const [sleepTargetInput, setSleepTargetInput] = useState(null);
   const [daySleepStartMin, setDaySleepStartMin] = useState(390);
   const [daySleepEndMin, setDaySleepEndMin] = useState(1170);
@@ -26,11 +26,19 @@ const FamilyTab = ({
   const [loading, setLoading] = useState(true);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
   const [showUILab, setShowUILab] = useState(false);
+  const themeTokens = (typeof window !== 'undefined' && window.TT && window.TT.themeTokens) ? window.TT.themeTokens : null;
   const [appearance, setAppearance] = useState(() => {
     if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
       return window.TT.appearance.get();
     }
-    return { darkMode: false, background: "health-gray", feedAccent: "#d45d5c", sleepAccent: "#4a8ac2" };
+    return themeTokens?.DEFAULT_APPEARANCE
+      ? {
+          darkMode: themeTokens.DEFAULT_APPEARANCE.darkMode,
+          background: themeTokens.DEFAULT_APPEARANCE.background,
+          feedAccent: themeTokens.DEFAULT_APPEARANCE.feedAccent,
+          sleepAccent: themeTokens.DEFAULT_APPEARANCE.sleepAccent
+        }
+      : { darkMode: false, background: "health-gray", feedAccent: "", sleepAccent: "" };
   });
   const [showFeedColorModal, setShowFeedColorModal] = useState(false);
   const [showSleepColorModal, setShowSleepColorModal] = useState(false);
@@ -84,34 +92,13 @@ const FamilyTab = ({
     return Number.isInteger(num) ? String(num) : num.toFixed(1);
   };
 
-  const COLOR_DEFINITIONS = [
-    { name: 'Ocean Blue', normal: { light: '#4a8ac2', dark: '#6ba8dc' }, soft: { light: '#6b9dcc', dark: '#88b8e6' } },
-    { name: 'Slate Blue', normal: { light: '#6b7c9d', dark: '#8d9dbd' }, soft: { light: '#8595ad', dark: '#a5b3cd' } },
-    { name: 'Mint Green', normal: { light: '#3a9679', dark: '#5cb899' }, soft: { light: '#5ca98a', dark: '#7dc9aa' } },
-    { name: 'Eucalyptus', normal: { light: '#92ADA4', dark: '#a8c4bb' }, soft: { light: '#a8beb7', dark: '#bdd4cc' } },
-    { name: 'Jalapeno', normal: { light: '#758C4F', dark: '#92a96f' }, soft: { light: '#8f9f6a', dark: '#a9bb88' } },
-    { name: 'Purple', normal: { light: '#8b6ba8', dark: '#a98cc5' }, soft: { light: '#a085b8', dark: '#bba3d5' } },
-    { name: 'Coral', normal: { light: '#d45d5c', dark: '#e88378' }, soft: { light: '#dd7978', dark: '#ed9d93' } },
-    { name: 'Rose Pink', normal: { light: '#d1547c', dark: '#e5749b' }, soft: { light: '#db7090', dark: '#ec8fac' } },
-    { name: 'Cinnabar', normal: { light: '#AE6455', dark: '#c98275' }, soft: { light: '#be8073', dark: '#d69a8e' } },
-    { name: 'Warm Orange', normal: { light: '#d4704b', dark: '#e89368' }, soft: { light: '#dd8a6a', dark: '#edaa87' } },
-    { name: 'Apricot', normal: { light: '#EF9E70', dark: '#f5b690' }, soft: { light: '#f3b28c', dark: '#f8c7a8' } },
-    { name: 'Roasted Peach', normal: { light: '#DAA58F', dark: '#e8bda8' }, soft: { light: '#e4b8a5', dark: '#eeddc2' } },
-    { name: 'Golden Yellow', normal: { light: '#c9952e', dark: '#e0b04d' }, soft: { light: '#d5a84f', dark: '#e8c26e' } },
-    { name: 'Cream', normal: { light: '#FED8A6', dark: '#ffe4be' }, soft: { light: '#fee2ba', dark: '#ffedce' } },
-    { name: 'Milky Coffee', normal: { light: '#9B7D61', dark: '#b59881' }, soft: { light: '#af9479', dark: '#c7ad99' } }
-  ];
+  const COLOR_DEFINITIONS = (window.TT && window.TT.themeTokens && window.TT.themeTokens.ACCENT_COLOR_DEFINITIONS)
+    ? window.TT.themeTokens.ACCENT_COLOR_DEFINITIONS
+    : [];
 
-  const BACKGROUND_COLORS = {
-    light: {
-      'health-gray': '#f2f2f7',
-      'eggshell': '#FAF7F2'
-    },
-    dark: {
-      'health-gray': '#0F0F10',
-      'eggshell': '#1C1C1C'
-    }
-  };
+  const BACKGROUND_COLORS = (window.TT && window.TT.themeTokens && window.TT.themeTokens.BACKGROUND_PREVIEW_COLORS)
+    ? window.TT.themeTokens.BACKGROUND_PREVIEW_COLORS
+    : { light: {}, dark: {} };
 
   const ChevronDown = (props) => React.createElement('svg', { 
     ...props, 
@@ -345,18 +332,26 @@ const FamilyTab = ({
             typeof settingsData.multiplier === 'number'
               ? settingsData.multiplier
               : 2.5,
-          themeKey: settingsData.themeKey || themeKey || 'indigo'
+          themeKey: settingsData.themeKey || themeKey || 'indigo',
+          preferredVolumeUnit: (settingsData.preferredVolumeUnit === 'ml') ? 'ml' : 'oz'
         };
         setSettings(merged);
+        try {
+          localStorage.setItem('tt_volume_unit', merged.preferredVolumeUnit);
+        } catch (e) {}
 
         // Note: onThemeChange callback removed - themeKey no longer affects global appearance
       } else {
         const merged = {
           babyWeight: null,
           multiplier: 2.5,
-          themeKey: themeKey || 'indigo'
+          themeKey: themeKey || 'indigo',
+          preferredVolumeUnit: 'oz'
         };
         setSettings(merged);
+        try {
+          localStorage.setItem('tt_volume_unit', merged.preferredVolumeUnit);
+        } catch (e) {}
       }
 
       const ss = await firestoreStorage.getSleepSettings();
@@ -449,6 +444,7 @@ const FamilyTab = ({
         .set({
           babyWeight: weight,
           multiplier: 2.5,
+          preferredVolumeUnit: 'oz',
           themeKey: defaultTheme,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
@@ -574,6 +570,26 @@ const FamilyTab = ({
       setEditingMultiplier(false);
     } catch (error) {
       console.error('Error updating multiplier:', error);
+    }
+  };
+
+  const handleVolumeUnitChange = async (nextUnit) => {
+    const unit = nextUnit === 'ml' ? 'ml' : 'oz';
+    try {
+      await firestoreStorage.saveSettings({
+        ...settings,
+        preferredVolumeUnit: unit
+      });
+      setSettings((prev) => ({ ...prev, preferredVolumeUnit: unit }));
+      try {
+        localStorage.setItem('tt_volume_unit', unit);
+      } catch (e) {}
+      try {
+        const event = new CustomEvent('tt:volume-unit-changed', { detail: { unit } });
+        window.dispatchEvent(event);
+      } catch (e) {}
+    } catch (error) {
+      console.error('Error updating volume unit:', error);
     }
   };
 
@@ -748,7 +764,7 @@ const FamilyTab = ({
                 className: "w-11 h-11 rounded-full border-2 transition-all",
                 style: { 
                   backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['health-gray'] : BACKGROUND_COLORS.light['health-gray']),
-                  borderColor: appearance.background === "health-gray" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  borderColor: appearance.background === "health-gray" ? 'var(--tt-outline-strong)' : 'transparent',
                   boxShadow: appearance.background === "health-gray" 
                     ? (appearance.darkMode 
                         ? '0 0 0 1.5px var(--tt-text-primary)' 
@@ -766,7 +782,7 @@ const FamilyTab = ({
                 className: "w-11 h-11 rounded-full border-2 transition-all",
                 style: { 
                   backgroundColor: (appearance.darkMode ? BACKGROUND_COLORS.dark['eggshell'] : BACKGROUND_COLORS.light['eggshell']),
-                  borderColor: appearance.background === "eggshell" ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  borderColor: appearance.background === "eggshell" ? 'var(--tt-outline-strong)' : 'transparent',
                   boxShadow: appearance.background === "eggshell" 
                     ? (appearance.darkMode 
                         ? '0 0 0 1.5px var(--tt-text-primary)' 
@@ -895,7 +911,7 @@ const FamilyTab = ({
                   width: '44px',
                   height: '44px',
                   backgroundColor: displayColor,
-                  borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  borderColor: isSelected ? 'var(--tt-outline-strong)' : 'transparent',
                   boxShadow: isSelected 
                     ? (appearance.darkMode 
                         ? '0 0 0 1.5px var(--tt-text-primary)' 
@@ -967,7 +983,7 @@ const FamilyTab = ({
                   width: '44px',
                   height: '44px',
                   backgroundColor: displayColor,
-                  borderColor: isSelected ? (appearance.darkMode ? 'white' : '#333') : 'transparent',
+                  borderColor: isSelected ? 'var(--tt-outline-strong)' : 'transparent',
                   boxShadow: isSelected 
                     ? (appearance.darkMode 
                         ? '0 0 0 1.5px var(--tt-text-primary)' 
@@ -1015,15 +1031,15 @@ const FamilyTab = ({
           onClick: handleSignOut,
           className: "w-full py-3 rounded-xl font-semibold transition",
           style: {
-            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-            color: '#ef4444'
+            backgroundColor: 'var(--tt-error-soft)',
+            color: 'var(--tt-error)'
           }
         }, 'Sign Out'),
         React.createElement('button', {
           onClick: handleDeleteAccount,
           className: "w-full py-3 rounded-xl font-semibold transition",
           style: {
-            backgroundColor: '#ef4444',
+            backgroundColor: 'var(--tt-error)',
             color: 'white'
           }
         }, 'Delete My Account')
@@ -1174,7 +1190,7 @@ const FamilyTab = ({
             borderColor: 'var(--tt-card-border)'
           }
         },
-        React.createElement("div", { className: "absolute inset-y-0", style: { left: `${leftPct}%`, width: `${widthPct}%`, background: "rgba(99,102,241,0.25)" } }),
+        React.createElement("div", { className: "absolute inset-y-0", style: { left: `${leftPct}%`, width: `${widthPct}%`, background: "var(--tt-highlight-indigo-soft)" } }),
         // left handle visual
         React.createElement("div", { 
           className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full shadow-sm border",
@@ -1551,6 +1567,21 @@ const FamilyTab = ({
               e.currentTarget.blur();
             }
           }
+        })
+      ),
+      React.createElement(
+        'div',
+        { className: 'mt-4 pt-4 border-t', style: { borderColor: 'var(--tt-card-border)' } },
+        React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Feeding unit'),
+        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+          value: settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
+          options: [
+            { value: 'oz', label: 'oz' },
+            { value: 'ml', label: 'ml' }
+          ],
+          onChange: handleVolumeUnitChange,
+          variant: 'body',
+          size: 'medium'
         })
       ),
 

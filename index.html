@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <meta name="theme-color" content="#E0E7FF">
   <title>Tiny Tracker</title>
+  <script src="theme/tokens.js"></script>
   <!-- Blocking script to prevent theme flash -->
   <script>
     (function() {
@@ -26,100 +27,89 @@
           const darkMode = appearance.darkMode || false;
           const background = appearance.background || 'health-gray';
           
+          const themeTokens = (window.TT && window.TT.themeTokens) ? window.TT.themeTokens : {};
+          const backgroundThemes = themeTokens.BACKGROUND_THEMES || {};
+          const lightModeTokens = themeTokens.LIGHT_MODE_TOKENS || {};
+          const darkModeTokens = themeTokens.DARK_MODE_TOKENS || {};
+          const analyticsColors = themeTokens.ANALYTICS_CATEGORY_COLORS || {};
+
+          const modeThemes = darkMode ? backgroundThemes.dark : backgroundThemes.light;
+          const themeEntry = (modeThemes && (modeThemes[background] || modeThemes["health-gray"])) || {};
+
           // Basic theme colors (will be refined by applyAppearance() later)
           if (darkMode) {
-            root.style.setProperty('--tt-app-bg', '#0F0F10');
-            root.style.setProperty('--tt-card-bg', '#1E1E20');
-            root.style.setProperty('--tt-card-border', 'transparent');
-            root.style.setProperty('--tt-input-bg', '#2C2C2E');
+            root.style.setProperty('--tt-app-bg', themeEntry.appBg);
+            root.style.setProperty('--tt-card-bg', themeEntry.cardBg);
+            root.style.setProperty('--tt-card-border', themeEntry.cardBorder);
+            root.style.setProperty('--tt-input-bg', darkModeTokens.inputBg);
             // Subtle surface (used for log list items, pills, etc.)
-            root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
-            root.style.setProperty('--tt-surface-subtle', 'rgba(255,255,255,0.05)');
-            root.style.setProperty('--tt-surface-selected', 'rgba(255,255,255,0.12)');
-            root.style.setProperty('--tt-surface-hover', 'rgba(255,255,255,0.08)');
-            root.style.setProperty('--tt-progress-track', 'rgba(255,255,255,0.05)');
-            root.style.setProperty('--tt-timeline-item-bg', '#1E1E20');
-            root.style.setProperty('--tt-timeline-track-bg', 'rgba(255,255,255,0.05)');
-            root.style.setProperty('--tt-halfsheet-bg', '#1E1E20');
-            root.style.setProperty('--tt-wheelpicker-bar', 'rgba(255,255,255,0.05)');
-            root.style.setProperty('--tt-icon-bg', '#2C2C2E');
-            root.style.setProperty('--tt-input-border', 'rgba(255,255,255,0.10)');
-            root.style.setProperty('--tt-divider', 'rgba(255,255,255,0.10)');
-            root.style.setProperty('--tt-tracker-card-bg', '#1E1E20');
-            root.style.setProperty('--tt-seg-track', 'rgba(255,255,255,0.05)');
-            root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
+            root.style.setProperty('--tt-subtle-surface', darkModeTokens.subtleSurface);
+            root.style.setProperty('--tt-surface-subtle', darkModeTokens.surfaceSubtle);
+            root.style.setProperty('--tt-surface-selected', darkModeTokens.surfaceSelected);
+            root.style.setProperty('--tt-surface-hover', darkModeTokens.surfaceHover);
+            root.style.setProperty('--tt-progress-track', darkModeTokens.progressTrack);
+            root.style.setProperty('--tt-timeline-item-bg', themeEntry.cardBg);
+            root.style.setProperty('--tt-timeline-track-bg', darkModeTokens.timelineTrackBg);
+            root.style.setProperty('--tt-halfsheet-bg', themeEntry.cardBg);
+            root.style.setProperty('--tt-wheelpicker-bar', darkModeTokens.wheelpickerBar);
+            root.style.setProperty('--tt-icon-bg', darkModeTokens.iconBg);
+            root.style.setProperty('--tt-input-border', darkModeTokens.inputBorder);
+            root.style.setProperty('--tt-divider', darkModeTokens.divider);
+            root.style.setProperty('--tt-tracker-card-bg', themeEntry.cardBg);
+            root.style.setProperty('--tt-seg-track', darkModeTokens.segTrack);
+            root.style.setProperty('--tt-seg-pill', darkModeTokens.segPill);
             // Swipe row background (opaque)
-            root.style.setProperty('--tt-swipe-row-bg', '#272727');
+            root.style.setProperty('--tt-swipe-row-bg', darkModeTokens.swipeRowBg);
             // Selected surface (e.g., calendar selected pill)
-            root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
-            root.style.setProperty('--tt-text-primary', 'rgba(255,255,255,0.87)');
-            root.style.setProperty('--tt-text-secondary', 'rgba(255,255,255,0.60)');
-            root.style.setProperty('--tt-text-tertiary', 'rgba(255,255,255,0.38)');
-            root.style.setProperty('--tt-tray-bg', '#222224');
-            root.style.setProperty('--tt-tray-shadow', '0 -10px 28px rgba(0,0,0,0.35)');
-            root.style.setProperty('--tt-tray-divider', 'rgba(255,255,255,0.08)');
+            root.style.setProperty('--tt-selected-surface', darkModeTokens.selectedSurface);
+            root.style.setProperty('--tt-text-primary', darkModeTokens.textPrimary);
+            root.style.setProperty('--tt-text-secondary', darkModeTokens.textSecondary);
+            root.style.setProperty('--tt-text-tertiary', darkModeTokens.textTertiary);
+            root.style.setProperty('--tt-text-on-accent', darkModeTokens.textOnAccent);
+            root.style.setProperty('--tt-tapable-bg', darkModeTokens.tapableBg);
+            root.style.setProperty('--tt-overlay-scrim', darkModeTokens.overlayScrim);
+            root.style.setProperty('--tt-overlay-scrim-strong', darkModeTokens.overlayScrimStrong);
+            root.style.setProperty('--tt-shadow-soft', darkModeTokens.shadowSoft);
+            root.style.setProperty('--tt-shadow-floating', darkModeTokens.shadowFloating);
+            root.style.setProperty('--tt-text-shadow', darkModeTokens.textShadow);
+            root.style.setProperty('--tt-outline-strong', darkModeTokens.outlineStrong);
+            root.style.setProperty('--tt-nav-disabled', darkModeTokens.navDisabled);
+            root.style.setProperty('--tt-nav-divider', darkModeTokens.navDivider);
+            root.style.setProperty('--tt-nav-pill-border', darkModeTokens.navPillBorder);
+            root.style.setProperty('--tt-segmented-track-bg', darkModeTokens.segmentedTrackBg);
+            root.style.setProperty('--tt-segmented-shadow', darkModeTokens.segmentedShadow);
+            root.style.setProperty('--tt-segmented-on-bg', darkModeTokens.segmentedOnBg);
+            root.style.setProperty('--tt-segmented-on-text', darkModeTokens.segmentedOnText);
+            root.style.setProperty('--tt-segmented-off-text', darkModeTokens.segmentedOffText);
+            root.style.setProperty('--tt-primary-action-bg', darkModeTokens.primaryActionBg);
+            root.style.setProperty('--tt-primary-action-bg-active', darkModeTokens.primaryActionBgActive);
+            root.style.setProperty('--tt-primary-action-shadow', darkModeTokens.primaryActionShadow);
+            root.style.setProperty('--tt-primary-action-shadow-active', darkModeTokens.primaryActionShadowActive);
+            root.style.setProperty('--tt-primary-action-text', darkModeTokens.primaryActionText);
+            root.style.setProperty('--tt-primary-brand', darkModeTokens.primaryBrand);
+            root.style.setProperty('--tt-primary-brand-soft', darkModeTokens.primaryBrandSoft);
+            root.style.setProperty('--tt-primary-brand-strong', darkModeTokens.primaryBrandStrong);
+            root.style.setProperty('--tt-recovery-bg', darkModeTokens.recoveryBg);
+            root.style.setProperty('--tt-error', darkModeTokens.error);
+            root.style.setProperty('--tt-error-soft', darkModeTokens.errorSoft);
+            root.style.setProperty('--tt-positive', darkModeTokens.positive);
+            root.style.setProperty('--tt-positive-soft', darkModeTokens.positiveSoft);
+            root.style.setProperty('--tt-positive-alt', darkModeTokens.positiveAlt);
+            root.style.setProperty('--tt-positive-alt-soft', darkModeTokens.positiveAltSoft);
+            root.style.setProperty('--tt-negative', darkModeTokens.negative);
+            root.style.setProperty('--tt-negative-soft', darkModeTokens.negativeSoft);
+            root.style.setProperty('--tt-negative-warm', darkModeTokens.negativeWarm);
+            root.style.setProperty('--tt-negative-warm-soft', darkModeTokens.negativeWarmSoft);
+            root.style.setProperty('--tt-pulse-highlight', darkModeTokens.pulseHighlight);
+            root.style.setProperty('--tt-highlight-indigo-soft', darkModeTokens.highlightIndigoSoft);
+            root.style.setProperty('--tt-tray-bg', darkModeTokens.trayBg);
+            root.style.setProperty('--tt-tray-shadow', darkModeTokens.trayShadow);
+            root.style.setProperty('--tt-tray-divider', darkModeTokens.trayDivider);
           } else {
-            const bgTheme = background === 'eggshell' ? '#f6f1e7' : '#f3f4f6';
-            const lightTokens = background === 'eggshell'
-              ? {
-                  inputBg: '#3C3E43',
-                  subtleSurface: 'rgba(0,0,0,0.03)',
-                  surfaceSubtle: 'rgba(0,0,0,0.03)',
-                  surfaceSelected: 'rgba(0,0,0,0.08)',
-                  surfaceHover: 'rgba(0,0,0,0.03)',
-                  progressTrack: 'rgba(0,0,0,0.03)',
-                  timelineItemBg: '#ffffff',
-                  timelineTrackBg: 'rgba(0,0,0,0.03)',
-                  halfsheetBg: '#ffffff',
-                  wheelpickerBar: 'rgba(0,0,0,0.03)',
-                  iconBg: '#f5f5f5',
-                  inputBorder: 'rgba(0,0,0,0.08)',
-                  divider: 'rgba(0,0,0,0.08)',
-                  trackerCardBg: '#ffffff',
-                  segTrack: 'rgba(0,0,0,0.03)',
-                  segPill: '#ffffff',
-                  swipeRowBg: '#F7F7F7',
-                  selectedSurface: 'rgba(0,0,0,0.08)',
-                  plusBg: '#000000',
-                  plusFg: '#ffffff',
-                  textPrimary: 'rgba(0,0,0,0.87)',
-                  textSecondary: 'rgba(0,0,0,0.60)',
-                  textTertiary: 'rgba(0,0,0,0.38)',
-                  trayBg: '#ffffff',
-                  trayShadow: '0 -10px 28px rgba(0,0,0,0.18)',
-                  trayDivider: 'rgba(0,0,0,0.06)'
-                }
-              : {
-                  inputBg: '#3C3E43',
-                  subtleSurface: 'rgba(0,0,0,0.03)',
-                  surfaceSubtle: 'rgba(0,0,0,0.03)',
-                  surfaceSelected: 'rgba(0,0,0,0.08)',
-                  surfaceHover: 'rgba(0,0,0,0.03)',
-                  progressTrack: 'rgba(0,0,0,0.03)',
-                  timelineItemBg: '#ffffff',
-                  timelineTrackBg: 'rgba(0,0,0,0.03)',
-                  halfsheetBg: '#ffffff',
-                  wheelpickerBar: 'rgba(0,0,0,0.03)',
-                  iconBg: '#f5f5f5',
-                  inputBorder: 'rgba(0,0,0,0.08)',
-                  divider: 'rgba(0,0,0,0.08)',
-                  trackerCardBg: '#ffffff',
-                  segTrack: 'rgba(0,0,0,0.03)',
-                  segPill: '#ffffff',
-                  swipeRowBg: '#F7F7F7',
-                  selectedSurface: 'rgba(0,0,0,0.08)',
-                  plusBg: '#000000',
-                  plusFg: '#ffffff',
-                  textPrimary: 'rgba(0,0,0,0.87)',
-                  textSecondary: 'rgba(0,0,0,0.60)',
-                  textTertiary: 'rgba(0,0,0,0.38)',
-                  trayBg: '#ffffff',
-                  trayShadow: '0 -10px 28px rgba(0,0,0,0.18)',
-                  trayDivider: 'rgba(0,0,0,0.06)'
-                };
-            root.style.setProperty('--tt-app-bg', bgTheme);
-            root.style.setProperty('--tt-card-bg', '#ffffff');
-            root.style.setProperty('--tt-card-border', 'transparent');
+            const lightTokens = lightModeTokens[background] || lightModeTokens["health-gray"] || {};
+            root.style.setProperty('--tt-app-bg', themeEntry.appBg);
+            root.style.setProperty('--tt-card-bg', themeEntry.cardBg);
+            root.style.setProperty('--tt-card-border', themeEntry.cardBorder);
             root.style.setProperty('--tt-input-bg', lightTokens.inputBg);
             // Subtle surface (used for log list items, pills, etc.)
             root.style.setProperty('--tt-subtle-surface', lightTokens.subtleSurface);
@@ -144,9 +134,56 @@
             root.style.setProperty('--tt-text-primary', lightTokens.textPrimary);
             root.style.setProperty('--tt-text-secondary', lightTokens.textSecondary);
             root.style.setProperty('--tt-text-tertiary', lightTokens.textTertiary);
+            root.style.setProperty('--tt-text-on-accent', lightTokens.textOnAccent);
+            root.style.setProperty('--tt-tapable-bg', lightTokens.tapableBg);
+            root.style.setProperty('--tt-overlay-scrim', lightTokens.overlayScrim);
+            root.style.setProperty('--tt-overlay-scrim-strong', lightTokens.overlayScrimStrong);
+            root.style.setProperty('--tt-shadow-soft', lightTokens.shadowSoft);
+            root.style.setProperty('--tt-shadow-floating', lightTokens.shadowFloating);
+            root.style.setProperty('--tt-text-shadow', lightTokens.textShadow);
+            root.style.setProperty('--tt-outline-strong', lightTokens.outlineStrong);
+            root.style.setProperty('--tt-nav-disabled', lightTokens.navDisabled);
+            root.style.setProperty('--tt-nav-divider', lightTokens.navDivider);
+            root.style.setProperty('--tt-nav-pill-border', lightTokens.navPillBorder);
+            root.style.setProperty('--tt-segmented-track-bg', lightTokens.segmentedTrackBg);
+            root.style.setProperty('--tt-segmented-shadow', lightTokens.segmentedShadow);
+            root.style.setProperty('--tt-segmented-on-bg', lightTokens.segmentedOnBg);
+            root.style.setProperty('--tt-segmented-on-text', lightTokens.segmentedOnText);
+            root.style.setProperty('--tt-segmented-off-text', lightTokens.segmentedOffText);
+            root.style.setProperty('--tt-primary-action-bg', lightTokens.primaryActionBg);
+            root.style.setProperty('--tt-primary-action-bg-active', lightTokens.primaryActionBgActive);
+            root.style.setProperty('--tt-primary-action-shadow', lightTokens.primaryActionShadow);
+            root.style.setProperty('--tt-primary-action-shadow-active', lightTokens.primaryActionShadowActive);
+            root.style.setProperty('--tt-primary-action-text', lightTokens.primaryActionText);
+            root.style.setProperty('--tt-primary-brand', lightTokens.primaryBrand);
+            root.style.setProperty('--tt-primary-brand-soft', lightTokens.primaryBrandSoft);
+            root.style.setProperty('--tt-primary-brand-strong', lightTokens.primaryBrandStrong);
+            root.style.setProperty('--tt-recovery-bg', lightTokens.recoveryBg);
+            root.style.setProperty('--tt-error', lightTokens.error);
+            root.style.setProperty('--tt-error-soft', lightTokens.errorSoft);
+            root.style.setProperty('--tt-positive', lightTokens.positive);
+            root.style.setProperty('--tt-positive-soft', lightTokens.positiveSoft);
+            root.style.setProperty('--tt-positive-alt', lightTokens.positiveAlt);
+            root.style.setProperty('--tt-positive-alt-soft', lightTokens.positiveAltSoft);
+            root.style.setProperty('--tt-negative', lightTokens.negative);
+            root.style.setProperty('--tt-negative-soft', lightTokens.negativeSoft);
+            root.style.setProperty('--tt-negative-warm', lightTokens.negativeWarm);
+            root.style.setProperty('--tt-negative-warm-soft', lightTokens.negativeWarmSoft);
+            root.style.setProperty('--tt-pulse-highlight', lightTokens.pulseHighlight);
+            root.style.setProperty('--tt-highlight-indigo-soft', lightTokens.highlightIndigoSoft);
             root.style.setProperty('--tt-tray-bg', lightTokens.trayBg);
             root.style.setProperty('--tt-tray-shadow', lightTokens.trayShadow);
             root.style.setProperty('--tt-tray-divider', lightTokens.trayDivider);
+          }
+
+          if (analyticsColors.daily) {
+            root.style.setProperty('--color-daily', analyticsColors.daily);
+          }
+          if (analyticsColors.sleep) {
+            root.style.setProperty('--color-sleep', analyticsColors.sleep);
+          }
+          if (analyticsColors.eating) {
+            root.style.setProperty('--color-eating', analyticsColors.eating);
           }
           
           // Set accent colors if available
@@ -205,6 +242,50 @@
     body {
       overscroll-behavior: none;
     }
+
+    /* Tokenized utility overrides (single source of truth) */
+    .bg-white { background-color: var(--tt-card-bg) !important; }
+    .bg-white\/70 { background-color: var(--tt-segmented-track-bg) !important; }
+    .bg-white\/10 { background-color: var(--tt-bg-hover) !important; }
+    .bg-white\/5 { background-color: var(--tt-bg-hover) !important; }
+    .bg-gray-50 { background-color: var(--tt-bg-hover) !important; }
+    .bg-gray-100 { background-color: var(--tt-subtle-surface) !important; }
+    .bg-gray-200 { background-color: var(--tt-surface-selected) !important; }
+    .bg-black { background-color: var(--tt-overlay-scrim-strong) !important; }
+    .bg-black\/75 { background-color: var(--tt-overlay-scrim-strong) !important; }
+    .bg-black\/60 { background-color: var(--tt-overlay-scrim-strong) !important; }
+    .bg-black\/50 { background-color: var(--tt-overlay-scrim) !important; }
+    .bg-black\/5 { background-color: var(--tt-bg-hover) !important; }
+
+    .hover\:bg-indigo-50:hover { background-color: var(--tt-highlight-indigo-soft) !important; }
+    .hover\:bg-indigo-700:hover { background-color: var(--tt-primary-brand-strong) !important; }
+    .hover\:bg-gray-50:hover { background-color: var(--tt-bg-hover) !important; }
+    .hover\:bg-black\/5:hover { background-color: var(--tt-bg-hover) !important; }
+    .active\:bg-black\/10:active { background-color: var(--tt-bg-hover) !important; }
+    .dark .dark\:hover\:bg-white\/10:hover { background-color: var(--tt-bg-hover) !important; }
+
+    .text-white { color: var(--tt-text-on-accent) !important; }
+    .text-gray-900, .text-gray-800 { color: var(--tt-text-primary) !important; }
+    .text-gray-700, .text-gray-600 { color: var(--tt-text-secondary) !important; }
+    .text-gray-500, .text-gray-400 { color: var(--tt-text-tertiary) !important; }
+
+    .text-indigo-600 { color: var(--tt-primary-brand) !important; }
+    .bg-indigo-600 { background-color: var(--tt-primary-brand) !important; }
+    .bg-indigo-700 { background-color: var(--tt-primary-brand-strong) !important; }
+    .bg-indigo-100 { background-color: var(--tt-primary-brand-soft) !important; }
+    .border-indigo-600 { border-color: var(--tt-primary-brand) !important; }
+
+    .bg-blue-600 { background-color: var(--tt-primary-action-bg) !important; }
+    .bg-blue-700 { background-color: var(--tt-primary-action-bg-active) !important; }
+
+    .text-red-600, .text-red-500 { color: var(--tt-error) !important; }
+    .bg-red-50 { background-color: var(--tt-error-soft) !important; }
+    .border-red-200 { border-color: var(--tt-error) !important; }
+
+    .text-green-600, .text-green-500 { color: var(--tt-positive) !important; }
+
+    .border-gray-100, .border-gray-200 { border-color: var(--tt-border-subtle) !important; }
+    .border-gray-300 { border-color: var(--tt-border-strong) !important; }
     
     /* ============================================
        FIX: Date/Time input overflow on mobile devices
@@ -285,7 +366,7 @@
       font-size: 12px;
       line-height: 12px;
       margin-bottom: 6px;
-      color: rgba(0,0,0,0.55);
+      color: var(--tt-text-secondary);
       font-weight: 600;
     }
 
@@ -314,7 +395,7 @@
       transform: translateY(-50%);
       pointer-events: none;
       user-select: none;
-      color: rgba(0,0,0,0.55);
+      color: var(--tt-text-secondary);
       font-size: 13px;
     }
 
@@ -326,13 +407,6 @@
       justify-content: center;
       gap: 10px;
       box-sizing: border-box;
-    }
-
-    /* Category accent colors for Analytics highlight cards */
-    :root {
-      --color-daily: #3B82F6;
-      --color-sleep: #4F46E5;
-      --color-eating: #EC4899;
     }
 
     /* 2-line clamp for insight text */
