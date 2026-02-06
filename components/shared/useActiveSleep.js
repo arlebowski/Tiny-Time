@@ -73,9 +73,30 @@
     }, []);
 
     React.useEffect(() => {
+      if (!kidId) return;
       if (kidId !== store.kidId) {
         resetSubscription(kidId);
       }
+    }, [kidId]);
+
+    React.useEffect(() => {
+      const handler = (event) => {
+        const detail = event && event.detail ? event.detail : {};
+        const nextKidId = detail.kidId || kidId || null;
+        if (!nextKidId) return;
+        if (detail.kidId && kidId && detail.kidId !== kidId) return;
+        if (nextKidId !== store.kidId) {
+          resetSubscription(nextKidId);
+        }
+      };
+      if (typeof window !== 'undefined') {
+        window.addEventListener('tt:storage-ready', handler);
+      }
+      return () => {
+        if (typeof window !== 'undefined') {
+          window.removeEventListener('tt:storage-ready', handler);
+        }
+      };
     }, [kidId]);
 
     return { activeSleep: state.session, activeSleepLoaded: state.loaded };

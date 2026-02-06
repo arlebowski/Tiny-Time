@@ -5,7 +5,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendar;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
-  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0, diaperCount: 0, feedPct: 0, sleepPct: 0 });
+  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, sleepMs: 0, diaperCount: 0, diaperWetCount: 0, diaperPooCount: 0, feedPct: 0, sleepPct: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
@@ -14,6 +14,13 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const [allDiaperChanges, setAllDiaperChanges] = React.useState([]);
   const [babyWeight, setBabyWeight] = React.useState(null);
   const [multiplier, setMultiplier] = React.useState(2.5);
+  const [preferredVolumeUnit, setPreferredVolumeUnit] = React.useState(() => {
+    try {
+      const stored = localStorage.getItem('tt_volume_unit');
+      if (stored === 'ml' || stored === 'oz') return stored;
+    } catch (e) {}
+    return 'oz';
+  });
   const [sleepSettings, setSleepSettings] = React.useState(null);
   const [showInputSheet, setShowInputSheet] = React.useState(false);
   const [inputSheetMode, setInputSheetMode] = React.useState('feeding');
@@ -41,7 +48,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const [summaryCardsEpoch, setSummaryCardsEpoch] = React.useState(0);
   const summaryAnimationMountRef = React.useRef(false);
   const summaryAnimationPrevRef = React.useRef(summaryLayoutMode);
-  const [comparisonTick, setComparisonTick] = React.useState(0);
   const __ttMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion)
     ? window.Motion.motion
     : null;
@@ -83,6 +89,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       if (settings) {
         if (settings.babyWeight) setBabyWeight(settings.babyWeight);
         if (settings.multiplier) setMultiplier(settings.multiplier);
+        if (settings.preferredVolumeUnit === 'ml' || settings.preferredVolumeUnit === 'oz') {
+          setPreferredVolumeUnit(settings.preferredVolumeUnit);
+          try {
+            localStorage.setItem('tt_volume_unit', settings.preferredVolumeUnit);
+          } catch (e) {}
+        }
       }
       const ss = await firestoreStorage.getSleepSettings();
       setSleepSettings(ss || null);
@@ -94,6 +106,17 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   React.useEffect(() => {
     loadSettings();
   }, [loadSettings]);
+
+  React.useEffect(() => {
+    const handleUnitChanged = (event) => {
+      const nextUnit = event?.detail?.unit;
+      if (nextUnit === 'ml' || nextUnit === 'oz') {
+        setPreferredVolumeUnit(nextUnit);
+      }
+    };
+    window.addEventListener('tt:volume-unit-changed', handleUnitChanged);
+    return () => window.removeEventListener('tt:volume-unit-changed', handleUnitChanged);
+  }, []);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -224,7 +247,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     const isWet = !!c.isWet;
     const isDry = !!c.isDry;
     const isPoo = !!c.isPoo;
-    const diaperType = isDry ? 'Dry' : (isWet && isPoo ? 'Wet + Poo' : (isPoo ? 'Poo' : 'Wet'));
+    const diaperType = isDry ? 'Dry' : (isWet && isPoo ? 'Wet + Poop' : (isPoo ? 'Poop' : 'Wet'));
     return {
       id: c.id,
       timestamp: c.timestamp,
@@ -328,10 +351,14 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         if (!norm) return sum;
         return sum + overlapMs(norm.startMs, norm.endMs, dayStartMs, dayEndMs);
       }, 0);
+      const diaperWetCount = dayDiaperChanges.filter((c) => !!c.isWet).length;
+      const diaperPooCount = dayDiaperChanges.filter((c) => !!c.isPoo).length;
       setSelectedSummary({
         feedOz: Math.round(feedTotal * 10) / 10,
         sleepMs: sleepTotalMs,
         diaperCount: dayDiaperChanges.length,
+        diaperWetCount,
+        diaperPooCount,
         feedPct: 0,
         sleepPct: 0
       });
@@ -373,21 +400,43 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     return x.toFixed(1);
   };
 
-  const buildComparison = (delta, unit, stacked = false) => {
+  const buildAvgComparison = (delta, unit) => {
     const raw = Number(delta);
     const normalized = Number.isFinite(raw) ? raw : 0;
     const roundedDelta = Math.round(normalized * 10) / 10;
     const safeDelta = Math.abs(roundedDelta) < 1e-6 ? 0 : roundedDelta;
-    const isZero = safeDelta === 0;
+    const isZero = Math.abs(safeDelta) < 0.05;
     const isPositive = safeDelta >= 0;
     return {
       isZero,
       isPositive,
-      color: isZero ? 'var(--tt-text-tertiary)' : (isPositive ? '#00BE68' : '#FF6037'),
-      stacked,
-      text: `${isZero ? '' : (isPositive ? '+' : '-')}${formatV2NumberSafe(Math.abs(safeDelta))} ${unit}`
+      color: isZero ? 'var(--tt-text-tertiary)' : (isPositive ? 'var(--tt-positive)' : 'var(--tt-negative)'),
+      bg: isZero ? 'var(--tt-subtle-surface)' : (isPositive ? 'var(--tt-positive-soft)' : 'var(--tt-negative-soft)'),
+      text: isZero ? 'Even' : `${formatV2NumberSafe(Math.abs(safeDelta))} ${unit}`
     };
   };
+
+  const UpArrowIcon = (props) => React.createElement(
+    'svg',
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: "0 0 256 256",
+      fill: "currentColor"
+    },
+    React.createElement('path', { d: "M205.66,117.66a8,8,0,0,1-11.32,0L136,59.31V216a8,8,0,0,1-16,0V59.31L61.66,117.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0l72,72A8,8,0,0,1,205.66,117.66Z" })
+  );
+
+  const DownArrowIcon = (props) => React.createElement(
+    'svg',
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: "0 0 256 256",
+      fill: "currentColor"
+    },
+    React.createElement('path', { d: "M205.66,149.66l-72,72a8,8,0,0,1-11.32,0l-72-72a8,8,0,0,1,11.32-11.32L120,196.69V40a8,8,0,0,1,16,0V196.69l58.34-58.35a8,8,0,0,1,11.32,11.32Z" })
+  );
 
   const bottleIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
@@ -398,52 +447,48 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const diaperIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
     null;
+  const diaperWetIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperWetIcon) ||
+    null;
+  const diaperPoopIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperPooIcon) ||
+    null;
 
-  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null }) => {
+  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null, subline = null }) => {
     const Card = TTCard || 'div';
     const cardProps = TTCard
-      ? { variant: "tracker", className: "min-h-[56px] p-[14px]" }
+      ? { variant: "tracker", className: `min-h-[56px] h-full ${summaryLayoutMode === 'all' ? 'p-[10px]' : 'p-[14px]'}` }
       : {
           className: "rounded-2xl shadow-sm min-h-[60px] p-5",
           style: { backgroundColor: "var(--tt-tracker-card-bg)", borderColor: "var(--tt-card-border)" }
         };
 
-    const clampedPercent = Math.max(0, Math.min(100, Number(progressPercent) || 0));
-    const progressWidth = clampedPercent > 0 ? Math.max(4, clampedPercent) : 0;
-
+    const isAllSummary = summaryLayoutMode === 'all';
+    const iconSize = isAllSummary ? '22px' : '1.5rem';
+    const valueClassAnimated = isAllSummary ? "text-[22px]" : "text-[25px]";
+    const unitClassAnimated = isAllSummary ? "text-[15px]" : "text-[17.5px]";
+    const valueClassStatic = isAllSummary ? "text-[22px]" : "text-[24px]";
+    const unitClassStatic = isAllSummary ? "text-[15px]" : "text-[17.6px]";
     const comparisonContent = comparison
       ? React.createElement('div', {
-          className: `flex ${comparison.stacked ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
+          className: `flex ${isAllSummary ? 'flex-col' : 'flex-row'} items-center justify-center gap-2`
         },
-          comparison.isZero
-            ? React.createElement('span', {
-                className: "text-[12px] font-normal leading-none",
-                style: { color: 'var(--tt-text-tertiary)' }
-              }, 'Same as yesterday')
-            : React.createElement(
-                React.Fragment,
-                null,
-                React.createElement('div', {
-                  className: "flex items-center gap-1.5 text-[12px] font-semibold leading-none",
-                  style: { color: comparison.color }
-                },
-                  React.createElement('svg', {
-                    width: 10,
-                    height: 8,
-                    viewBox: "0 0 10 8",
-                    fill: "currentColor",
-                    'aria-hidden': true,
-                    style: comparison.isPositive ? undefined : { transform: 'rotate(180deg)' }
-                  },
-                    React.createElement('path', { d: "M5 0L10 8H0L5 0Z" })
-                  ),
-                  React.createElement('span', null, comparison.text)
-                ),
-                React.createElement('span', {
-                  className: "text-[12px] font-normal leading-none",
-                  style: { color: 'var(--tt-text-tertiary)' }
-                }, 'vs this time yesterday')
-              )
+          React.createElement(
+            'div',
+            {
+              className: "inline-flex items-center gap-1.5 text-[12px] font-semibold tabular-nums",
+              style: { color: comparison.color }
+            },
+            comparison.isZero ? null : React.createElement(
+              comparison.isPositive ? UpArrowIcon : DownArrowIcon,
+              { className: "w-3.5 h-3.5", style: { color: comparison.color } }
+            ),
+            React.createElement('span', null, comparison.text)
+            ),
+          (!isAllSummary) && React.createElement('span', {
+            className: "text-[12px] font-normal leading-none",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, comparison.isZero ? 'on pace' : (comparison.isPositive ? 'ahead of pace' : 'behind pace'))
         )
       : null;
 
@@ -458,6 +503,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
           }, comparisonContent)
         )
       : comparisonContent;
+    const footerContent = animatedComparison || subline;
 
     return React.createElement(
       Card,
@@ -468,7 +514,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
             ? React.createElement(__ttAnimatePresence, { mode: "wait" },
                 React.createElement(__ttMotion.div, {
                   key: selectedSummaryKey,
-                  className: "flex items-baseline gap-2 min-w-0",
+                  className: `flex items-baseline ${isAllSummary ? 'gap-1' : 'gap-2'} min-w-0`,
                   initial: { opacity: 0, y: -10, scale: 0.95 },
                   animate: { opacity: 1, y: 0, scale: 1 },
                   exit: { opacity: 0, y: 10, scale: 0.95 },
@@ -478,8 +524,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                     ? React.createElement(icon, {
                         style: {
                           color,
-                          width: '1.5rem',
-                          height: '1.5rem',
+                          width: iconSize,
+                          height: iconSize,
                           strokeWidth: rotateIcon ? '1.5' : undefined,
                           fill: rotateIcon ? 'none' : undefined,
                           transform: rotateIcon ? 'translateY(3px) rotate(20deg)' : 'translateY(3px)'
@@ -487,33 +533,33 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                       })
                     : React.createElement('div', {
                         style: {
-                          width: '1.5rem',
-                          height: '1.5rem',
+                          width: iconSize,
+                          height: iconSize,
                           borderRadius: '1rem',
                           backgroundColor: 'var(--tt-progress-track)',
                           transform: 'translateY(3px)'
                         }
                       }),
                   React.createElement('div', {
-                    className: "text-[25px] font-bold leading-none whitespace-nowrap",
+                    className: `${valueClassAnimated} font-bold leading-none whitespace-nowrap`,
                     style: { color }
                   }, value),
-                  React.createElement('div', {
-                    className: "text-[17.5px] font-normal leading-none whitespace-nowrap",
+                  unit ? React.createElement('div', {
+                    className: `${unitClassAnimated} font-normal leading-none whitespace-nowrap`,
                     style: { color: 'var(--tt-text-tertiary)' }
-                  }, unit)
+                  }, unit) : null
                 )
               )
             : React.createElement('div', { 
                 key: selectedSummaryKey,
-                className: "flex items-baseline gap-2 min-w-0"
+                className: `flex items-baseline ${isAllSummary ? 'gap-1' : 'gap-2'} min-w-0`
               },
                 icon
                   ? React.createElement(icon, {
                       style: {
                         color,
-                        width: '1.5rem',
-                        height: '1.5rem',
+                        width: iconSize,
+                        height: iconSize,
                         strokeWidth: rotateIcon ? '1.5' : undefined,
                         fill: rotateIcon ? 'none' : undefined,
                         transform: rotateIcon ? 'translateY(3px) rotate(20deg)' : 'translateY(3px)'
@@ -521,48 +567,24 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                     })
                   : React.createElement('div', {
                       style: {
-                        width: '1.5rem',
-                        height: '1.5rem',
+                        width: iconSize,
+                        height: iconSize,
                         borderRadius: '1rem',
                         backgroundColor: 'var(--tt-progress-track)',
                         transform: 'translateY(3px)'
                       }
                     }),
                 React.createElement('div', {
-                  className: "text-[24px] font-bold leading-none whitespace-nowrap",
+                  className: `${valueClassStatic} font-bold leading-none whitespace-nowrap`,
                   style: { color }
                 }, value),
-                React.createElement('div', {
-                  className: "text-[17.6px] font-normal leading-none whitespace-nowrap",
+                unit ? React.createElement('div', {
+                  className: `${unitClassStatic} font-normal leading-none whitespace-nowrap`,
                   style: { color: 'var(--tt-text-secondary)' }
-                }, unit)
+                }, unit) : null
               )
         ),
-        React.createElement('div', {
-          className: "w-full rounded-full overflow-hidden",
-          style: {
-            height: '6px',
-            backgroundColor: 'var(--tt-progress-track)'
-          }
-        },
-          __ttMotion
-            ? React.createElement(__ttMotion.div, {
-                key: `progress-${progressKey}`,
-                className: "h-full rounded-full",
-                initial: { width: 0 },
-                animate: { width: `${progressWidth}%` },
-                transition: { type: "spring", stiffness: 220, damping: 24 },
-                style: { backgroundColor: color }
-              })
-            : React.createElement('div', {
-                className: "h-full rounded-full transition-all duration-500",
-                style: {
-                  width: `${progressWidth}%`,
-                  backgroundColor: color
-                }
-              })
-        ),
-        animatedComparison
+        footerContent
       )
     );
   };
@@ -571,6 +593,42 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const sleepHours = Number(selectedSummary.sleepMs || 0) / 3600000;
   const sleepDisplay = formatV2NumberSafe(sleepHours);
   const diaperDisplay = formatV2NumberSafe(Number(selectedSummary.diaperCount || 0));
+  const diaperUnit = summaryLayoutMode === 'all' ? '' : 'changes';
+  const diaperTally = (() => {
+    const wet = Number(selectedSummary.diaperWetCount || 0);
+    const poop = Number(selectedSummary.diaperPooCount || 0);
+    const parts = [];
+    if (wet > 0) {
+      parts.push(React.createElement(
+        'span',
+        { key: 'wet', className: "inline-flex items-center gap-1" },
+        diaperWetIcon ? React.createElement(diaperWetIcon, {
+          className: "w-3.5 h-3.5",
+          style: { color: 'var(--tt-diaper-strong)', fill: 'var(--tt-diaper-strong)' }
+        }) : React.createElement('span', null, '💧'),
+        React.createElement('span', null, `×${wet}`)
+      ));
+    }
+    if (poop > 0) {
+      parts.push(React.createElement(
+        'span',
+        { key: 'poop', className: "inline-flex items-center gap-1" },
+        diaperPoopIcon ? React.createElement(diaperPoopIcon, {
+          className: "w-3.5 h-3.5",
+          style: { color: 'var(--tt-diaper)', fill: 'var(--tt-diaper)' }
+        }) : React.createElement('span', null, '💩'),
+        React.createElement('span', null, `×${poop}`)
+      ));
+    }
+    return parts.length > 0 ? parts : null;
+  })();
+  const diaperSubline = diaperTally
+    ? React.createElement(
+        'div',
+        { className: "flex items-center justify-center gap-2 text-[12px] font-normal leading-none", style: { color: 'var(--tt-text-tertiary)' } },
+        ...diaperTally
+      )
+    : null;
   const feedTarget = babyWeight ? babyWeight * multiplier : 0;
   const sleepTargetHours = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number")
     ? sleepSettings.sleepTargetHours
@@ -585,41 +643,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const sleepPercent = (sleepPercentBase <= 0 && sleepHours <= 0) ? 2 : sleepPercentBase;
   const diaperPercent = Number(selectedSummary.diaperCount || 0) > 0 ? 100 : 2;
 
-  React.useEffect(() => {
-    const interval = setInterval(() => {
-      setComparisonTick((tick) => tick + 1);
-    }, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  const getYesterdayCutoffInfo = (nowDate) => {
-    const currentHour = nowDate.getHours();
-    const currentMinute = nowDate.getMinutes();
-    const roundedMinutes = Math.round(currentMinute / 30) * 30;
-    let roundedHour = roundedMinutes === 60 ? currentHour + 1 : currentHour;
-    let finalMinutes = roundedMinutes === 60 ? 0 : roundedMinutes;
-    if (roundedHour >= 24) {
-      roundedHour = 23;
-      finalMinutes = 30;
-    }
-
-    const yesterday = new Date(nowDate);
-    yesterday.setDate(yesterday.getDate() - 1);
-    yesterday.setHours(0, 0, 0, 0);
-    const yesterdayStart = yesterday.getTime();
-
-    const feedCutoffDate = new Date(yesterday);
-    feedCutoffDate.setHours(roundedHour, finalMinutes, 59, 999);
-    const sleepCutoffDate = new Date(yesterday);
-    sleepCutoffDate.setHours(roundedHour, finalMinutes, 0, 0);
-
-    return {
-      yesterdayStart,
-      feedCutoffMs: feedCutoffDate.getTime(),
-      sleepCutoffMs: sleepCutoffDate.getTime() + 1
-    };
-  };
-
   const isViewingToday = React.useMemo(() => {
     const today = new Date();
     const viewing = new Date(selectedDate);
@@ -630,78 +653,182 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     );
   }, [selectedDate]);
 
-  const comparisonNow = React.useMemo(() => {
-    const now = new Date();
-    const base = new Date(selectedDate);
-    base.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-    return base;
-  }, [comparisonTick, selectedDate]);
+  const AVG_BUCKET_MINUTES = 15;
+  const AVG_BUCKET_MS = AVG_BUCKET_MINUTES * 60000;
+  const AVG_BUCKETS = 96;
+  const AVG_DAYS = 7;
 
-  const yesterdayFeedTotal = React.useMemo(() => {
-    if (!Array.isArray(allFeedings)) return 0;
-    const { yesterdayStart, feedCutoffMs } = getYesterdayCutoffInfo(comparisonNow);
-    const total = allFeedings
-      .filter((f) => {
-        const timestamp = f.timestamp || 0;
-        return timestamp >= yesterdayStart && timestamp <= feedCutoffMs;
-      })
-      .reduce((sum, f) => sum + (f.ounces || 0), 0);
-    return total;
-  }, [allFeedings, comparisonNow]);
+  const startOfDayMsLocal = (ts) => {
+    const d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  };
 
-  const yesterdaySleepTotal = React.useMemo(() => {
-    if (!Array.isArray(allSleepSessions)) return 0;
-    const { yesterdayStart, sleepCutoffMs } = getYesterdayCutoffInfo(comparisonNow);
-    const dayStartMs = yesterdayStart;
-    const dayEndMs = sleepCutoffMs;
+  const bucketIndexCeilFromMs = (ts) => {
+    const d = new Date(ts);
+    const mins = d.getHours() * 60 + d.getMinutes();
+    const clamped = Math.max(0, Math.min(1440, Math.ceil(mins / AVG_BUCKET_MINUTES) * AVG_BUCKET_MINUTES));
+    return Math.min(AVG_BUCKETS - 1, Math.floor(clamped / AVG_BUCKET_MINUTES));
+  };
 
-    const normSessions = allSleepSessions.map((s) => {
-      if (!s || !s.endTime) return null;
-      const norm = normalizeSleepInterval(s.startTime, s.endTime);
-      return norm ? { ...s, _normStartTime: norm.startMs, _normEndTime: norm.endMs } : null;
+  const buildFeedAvgBuckets = (all) => {
+    if (!Array.isArray(all) || all.length === 0) return null;
+    const todayStartMs = startOfDayMsLocal(Date.now());
+    const dayMap = new Map();
+    all.forEach((f) => {
+      const ts = Number(f?.timestamp || 0);
+      if (!Number.isFinite(ts) || ts >= todayStartMs) return;
+      const dayStartMs = startOfDayMsLocal(ts);
+      const list = dayMap.get(dayStartMs) || [];
+      list.push(f);
+      dayMap.set(dayStartMs, list);
+    });
+    const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, AVG_DAYS);
+    if (dayStarts.length === 0) return null;
+    const sumBuckets = Array(AVG_BUCKETS).fill(0);
+    dayStarts.forEach((dayStartMs) => {
+      const increments = Array(AVG_BUCKETS).fill(0);
+      const dayFeedings = dayMap.get(dayStartMs) || [];
+      dayFeedings.forEach((f) => {
+        const ts = Number(f?.timestamp || 0);
+        const oz = Number(f?.ounces || 0);
+        if (!Number.isFinite(ts) || !Number.isFinite(oz) || oz <= 0) return;
+        const idx = bucketIndexCeilFromMs(ts);
+        increments[idx] += oz;
+      });
+      let running = 0;
+      for (let i = 0; i < AVG_BUCKETS; i += 1) {
+        running += increments[i];
+        sumBuckets[i] += running;
+      }
+    });
+    return {
+      buckets: sumBuckets.map((v) => v / dayStarts.length),
+      daysUsed: dayStarts.length
+    };
+  };
+
+  const normalizeSleepIntervalForAvg = (startMs, endMs, nowMs = Date.now()) => {
+    let sMs = Number(startMs);
+    let eMs = Number(endMs);
+    if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+    if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+    if (eMs < sMs) sMs -= 86400000;
+    if (eMs < sMs) return null;
+    return { startMs: sMs, endMs: eMs };
+  };
+
+  const addSleepOverlapToBuckets = (startMs, endMs, dayStartMs, increments) => {
+    const dayEndMs = dayStartMs + 86400000;
+    const overlapStart = Math.max(startMs, dayStartMs);
+    const overlapEnd = Math.min(endMs, dayEndMs);
+    if (overlapEnd <= overlapStart) return;
+    const startBucket = Math.max(0, Math.floor((overlapStart - dayStartMs) / AVG_BUCKET_MS));
+    const endBucket = Math.min(AVG_BUCKETS - 1, Math.floor((overlapEnd - dayStartMs - 1) / AVG_BUCKET_MS));
+    for (let i = startBucket; i <= endBucket; i += 1) {
+      const bucketStart = dayStartMs + i * AVG_BUCKET_MS;
+      const bucketEnd = bucketStart + AVG_BUCKET_MS;
+      const overlap = Math.max(0, Math.min(overlapEnd, bucketEnd) - Math.max(overlapStart, bucketStart));
+      if (overlap > 0) increments[i] += overlap;
+    }
+  };
+
+  const buildSleepAvgBuckets = (sessions) => {
+    if (!Array.isArray(sessions) || sessions.length === 0) return null;
+    const todayStartMs = startOfDayMsLocal(Date.now());
+    const normalized = sessions.map((s) => {
+      if (!s?.startTime || !s?.endTime) return null;
+      const norm = normalizeSleepIntervalForAvg(s.startTime, s.endTime);
+      return norm ? { startMs: norm.startMs, endMs: norm.endMs } : null;
     }).filter(Boolean);
+    if (normalized.length === 0) return null;
+    const daySet = new Set();
+    normalized.forEach((s) => {
+      let dayStart = startOfDayMsLocal(s.startMs);
+      const endDayStart = startOfDayMsLocal(s.endMs);
+      for (let ds = dayStart; ds <= endDayStart; ds += 86400000) {
+        if (ds < todayStartMs) daySet.add(ds);
+      }
+    });
+    const dayStarts = Array.from(daySet).sort((a, b) => b - a).slice(0, AVG_DAYS);
+    if (dayStarts.length === 0) return null;
+    const dayIndex = new Map(dayStarts.map((d, i) => [d, i]));
+    const perDayIncrements = dayStarts.map(() => Array(AVG_BUCKETS).fill(0));
+    normalized.forEach((s) => {
+      let dayStart = startOfDayMsLocal(s.startMs);
+      const endDayStart = startOfDayMsLocal(s.endMs);
+      for (let ds = dayStart; ds <= endDayStart; ds += 86400000) {
+        const idx = dayIndex.get(ds);
+        if (idx == null) continue;
+        addSleepOverlapToBuckets(s.startMs, s.endMs, ds, perDayIncrements[idx]);
+      }
+    });
+    const sumBuckets = Array(AVG_BUCKETS).fill(0);
+    perDayIncrements.forEach((increments) => {
+      let running = 0;
+      for (let i = 0; i < AVG_BUCKETS; i += 1) {
+        running += increments[i];
+        sumBuckets[i] += running;
+      }
+    });
+    return {
+      buckets: sumBuckets.map((v) => (v / dayStarts.length) / 3600000),
+      daysUsed: dayStarts.length
+    };
+  };
 
-    const yesterdaySessions = normSessions.filter((s) => (
-      overlapMs(s._normStartTime || s.startTime, s._normEndTime || s.endTime, dayStartMs, dayEndMs) > 0
-    ));
+  const buildDiaperAvgBuckets = (all) => {
+    if (!Array.isArray(all) || all.length === 0) return null;
+    const todayStartMs = startOfDayMsLocal(Date.now());
+    const dayMap = new Map();
+    all.forEach((c) => {
+      const ts = Number(c?.timestamp || 0);
+      if (!Number.isFinite(ts) || ts >= todayStartMs) return;
+      const dayStartMs = startOfDayMsLocal(ts);
+      const list = dayMap.get(dayStartMs) || [];
+      list.push(c);
+      dayMap.set(dayStartMs, list);
+    });
+    const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, AVG_DAYS);
+    if (dayStarts.length === 0) return null;
+    const sumBuckets = Array(AVG_BUCKETS).fill(0);
+    dayStarts.forEach((dayStartMs) => {
+      const increments = Array(AVG_BUCKETS).fill(0);
+      const dayChanges = dayMap.get(dayStartMs) || [];
+      dayChanges.forEach((c) => {
+        const ts = Number(c?.timestamp || 0);
+        if (!Number.isFinite(ts)) return;
+        const idx = bucketIndexCeilFromMs(ts);
+        increments[idx] += 1;
+      });
+      let running = 0;
+      for (let i = 0; i < AVG_BUCKETS; i += 1) {
+        running += increments[i];
+        sumBuckets[i] += running;
+      }
+    });
+    return {
+      buckets: sumBuckets.map((v) => v / dayStarts.length),
+      daysUsed: dayStarts.length
+    };
+  };
 
-    const totalMs = yesterdaySessions.reduce((sum, s) => (
-      sum + overlapMs(s._normStartTime, s._normEndTime, dayStartMs, dayEndMs)
-    ), 0);
+  const nowBucketIndex = bucketIndexCeilFromMs(Date.now());
+  const feedAvg = buildFeedAvgBuckets(allFeedings);
+  const sleepAvg = buildSleepAvgBuckets(allSleepSessions);
+  const diaperAvg = buildDiaperAvgBuckets(allDiaperChanges);
 
-    return totalMs / 3600000;
-  }, [allSleepSessions, comparisonNow]);
+  const feedAvgValue = feedAvg?.buckets?.[nowBucketIndex];
+  const sleepAvgValue = sleepAvg?.buckets?.[nowBucketIndex];
+  const diaperAvgValue = diaperAvg?.buckets?.[nowBucketIndex];
 
-  const yesterdayDiaperCount = React.useMemo(() => {
-    if (!Array.isArray(allDiaperChanges)) return 0;
-    const { yesterdayStart, feedCutoffMs } = getYesterdayCutoffInfo(comparisonNow);
-    return allDiaperChanges.filter((c) => {
-      const ts = c.timestamp || 0;
-      return ts >= yesterdayStart && ts <= feedCutoffMs;
-    }).length;
-  }, [allDiaperChanges, comparisonNow]);
-
-  const feedComparison = isViewingToday
-    ? buildComparison(
-        Number(selectedSummary.feedOz || 0) - Number(yesterdayFeedTotal || 0),
-        'oz',
-        summaryLayoutMode === 'all'
-      )
+  const feedComparison = isViewingToday && Number.isFinite(feedAvgValue) && (feedAvg?.daysUsed || 0) > 0
+    ? buildAvgComparison(Number(selectedSummary.feedOz || 0) - feedAvgValue, 'oz')
     : null;
-  const sleepComparison = isViewingToday
-    ? buildComparison(
-        sleepHours - Number(yesterdaySleepTotal || 0),
-        'hrs',
-        summaryLayoutMode === 'all'
-      )
+  const sleepComparison = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
+    ? buildAvgComparison(sleepHours - sleepAvgValue, 'hrs')
     : null;
-  const diaperComparison = isViewingToday
-    ? buildComparison(
-        Number(selectedSummary.diaperCount || 0) - Number(yesterdayDiaperCount || 0),
-        'changes',
-        summaryLayoutMode === 'all'
-      )
-    : null;
+  const diaperComparison = null;
 
   const Timeline = window.TT?.shared?.Timeline || null;
   const handleTimelineEditCard = React.useCallback((card) => {
@@ -862,7 +989,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         return React.createElement(
           container,
           {
-            className: `grid gap-4 -mt-2 ${summaryLayoutMode === 'all' ? 'grid-cols-3' : 'grid-cols-1'}`,
+            className: `grid gap-3 -mt-2 items-stretch ${summaryLayoutMode === 'all' ? 'grid-cols-3' : 'grid-cols-1'}`,
             layout: shouldAnimateCards ? true : undefined,
             transition: shouldAnimateCards
               ? { type: "spring", stiffness: 180, damping: 24 }
@@ -927,11 +1054,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                     icon: diaperIcon,
                     color: 'var(--tt-diaper)',
                     value: diaperDisplay,
-                    unit: 'changes',
+                    unit: diaperUnit,
                     rotateIcon: false,
                     progressPercent: diaperPercent,
                     progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                    comparison: diaperComparison
+                    comparison: diaperComparison,
+                    subline: diaperSubline
                   })
                 )
               )
@@ -963,11 +1091,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                   icon: diaperIcon,
                   color: 'var(--tt-diaper)',
                   value: diaperDisplay,
-                  unit: 'changes',
+                  unit: diaperUnit,
                   rotateIcon: false,
                   progressPercent: diaperPercent,
                   progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                  comparison: diaperComparison
+                  comparison: diaperComparison,
+                  subline: diaperSubline
                 })
               )
         );
@@ -1009,6 +1138,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
             isOpen: showInputSheet,
             onClose: () => setShowInputSheet(false),
             kidId,
+            preferredVolumeUnit,
             onAdd: async () => {
               await loadTimelineData(selectedDate);
             }
@@ -1021,6 +1151,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         setShowFeedDetailSheet(false);
         setSelectedFeedEntry(null);
       },
+      preferredVolumeUnit,
       entry: selectedFeedEntry,
       onDelete: async () => {
         await loadTimelineData(selectedDate);

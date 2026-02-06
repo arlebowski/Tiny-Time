@@ -56,6 +56,38 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
     }
   });
 
+  var __ttNormalizePhotoUrls = (typeof window !== 'undefined' && window.__ttNormalizePhotoUrls)
+    ? window.__ttNormalizePhotoUrls
+    : (input) => {
+        if (!input) return [];
+        const items = Array.isArray(input) ? input : [input];
+        const urls = [];
+        for (const item of items) {
+          if (typeof item === 'string' && item.trim()) {
+            urls.push(item);
+            continue;
+          }
+          if (item && typeof item === 'object') {
+            const maybe =
+              item.url ||
+              item.publicUrl ||
+              item.publicURL ||
+              item.downloadURL ||
+              item.downloadUrl ||
+              item.src ||
+              item.uri;
+            if (typeof maybe === 'string' && maybe.trim()) {
+              urls.push(maybe);
+            }
+          }
+        }
+        return urls;
+      };
+
+  if (typeof window !== 'undefined' && !window.__ttNormalizePhotoUrls) {
+    window.__ttNormalizePhotoUrls = __ttNormalizePhotoUrls;
+  }
+
 
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
@@ -250,15 +282,19 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         setStartTime(effectiveEntry.startTime ? new Date(effectiveEntry.startTime).toISOString() : new Date().toISOString());
         setEndTime(effectiveEntry.endTime ? new Date(effectiveEntry.endTime).toISOString() : null);
         setNotes(effectiveEntry.notes || '');
-        setExistingPhotoURLs(effectiveEntry.photoURLs || []);
-        originalPhotoURLsRef.current = effectiveEntry.photoURLs || []; // Track original URLs
+        const normalizedExisting = __ttNormalizePhotoUrls(effectiveEntry.photoURLs);
+        setExistingPhotoURLs(normalizedExisting);
+        originalPhotoURLsRef.current = normalizedExisting; // Track original URLs
         setPhotos([]); // Reset new photos
         // Auto-expand if there's existing content
         setNotesExpanded(!!effectiveEntry.notes);
-        setPhotosExpanded(!!(effectiveEntry.photoURLs && effectiveEntry.photoURLs.length > 0));
+        setPhotosExpanded(normalizedExisting.length > 0);
       } else if (!effectiveEntry && isOpen) {
         // Create mode - reset to defaults
-        setStartTime(getInitialStartTime());
+        const activeStartIso = (isInputVariant && activeSleep && activeSleep.startTime)
+          ? new Date(activeSleep.startTime).toISOString()
+          : null;
+        setStartTime(activeStartIso || getInitialStartTime());
         setEndTime(null);
         if (isInputVariant && !activeSleepId) {
           setSleepState('idle');
@@ -273,7 +309,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         setNotesExpanded(false);
         setPhotosExpanded(false);
       }
-    }, [effectiveEntry, isOpen]);
+    }, [effectiveEntry, isOpen, activeSleep, activeSleepId, isInputVariant]);
 
     const _normalizeSleepStartMs = (startMs, nowMs = Date.now()) => {
       if (!startMs) return null;
@@ -414,6 +450,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
       };
     }, [isOpen]);
 
+
     const handleSave = async () => {
       if (!isValid) {
         return; // Don't save if invalid
@@ -466,7 +503,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         }
         
         // Combine existing and new photo URLs
-        const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+        const allPhotoURLs = __ttNormalizePhotoUrls([...existingPhotoURLs, ...newPhotoURLs]);
         
         if (effectiveEntry && effectiveEntry.id) {
           // Update existing sleep session
@@ -946,8 +983,8 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
           className: "w-full py-3 rounded-2xl font-semibold transition",
           style: {
             backgroundColor: canSave ? 'var(--tt-sleep)' : 'transparent',
-            color: canSave ? 'white' : '#ef4444',
-            border: canSave ? 'none' : '1px solid #ef4444',
+            color: canSave ? 'var(--tt-text-on-accent)' : 'var(--tt-error)',
+            border: canSave ? 'none' : '1px solid var(--tt-error)',
             cursor: canSave ? 'pointer' : 'not-allowed',
             opacity: canSave ? 1 : 0.7,
             touchAction: 'manipulation'
@@ -992,8 +1029,8 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         className: "w-full py-3 rounded-2xl font-semibold transition",
         style: {
           backgroundColor: saving ? 'var(--tt-sleep-strong)' : (isValid ? 'var(--tt-sleep)' : 'transparent'),
-          color: saving ? 'white' : (isValid ? 'white' : '#ef4444'),
-          border: (!saving && !isValid) ? '1px solid #ef4444' : 'none',
+          color: saving ? 'var(--tt-text-on-accent)' : (isValid ? 'var(--tt-text-on-accent)' : 'var(--tt-error)'),
+          border: (!saving && !isValid) ? '1px solid var(--tt-error)' : 'none',
           touchAction: 'manipulation',
           opacity: (saving || !isValid) ? 0.7 : 1,
           cursor: (saving || !isValid) ? 'not-allowed' : 'pointer'
@@ -1093,7 +1130,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
               xmlns: "http://www.w3.org/2000/svg",
               width: "32",
               height: "32",
-              fill: "#ffffff",
+              fill: "var(--tt-text-on-accent)",
               viewBox: "0 0 256 256",
               className: "w-5 h-5"
             },
@@ -1166,7 +1203,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
                   bottom: 0,
                   width: '100vw',
                   height: '100vh',
-                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  backgroundColor: 'var(--tt-overlay-scrim-strong)',
                   backdropFilter: 'blur(6px)',
                   WebkitBackdropFilter: 'blur(6px)'
                 },
@@ -1199,7 +1236,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
                   backgroundColor: "var(--tt-halfsheet-bg)",
                   willChange: 'transform',
                   paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                  maxHeight: '83vh',
+                  maxHeight: '90vh',
                   height: 'auto',
                   minHeight: '60vh',
                   display: 'flex',
@@ -1213,7 +1250,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
                 }
               },
               React.createElement('div', {
-                className: "bg-black",
+                className: "",
                 style: {
                   backgroundColor: 'var(--tt-sleep)',
                   borderTopLeftRadius: '20px',
@@ -1251,29 +1288,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
       return ReactDOM.createPortal(v4Overlay, document.body);
     }
 
-    // Static preview mode (for UI Lab inline display)
-    return React.createElement(
-      'div',
-      { 
-        className: "rounded-2xl shadow-sm p-6 space-y-0",
-        style: {
-          backgroundColor: "var(--tt-halfsheet-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
-          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
-        }
-      },
-      // Header: [ChevronDown] [Sleep] [empty]
-      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 h-[60px] mb-6 flex items-center justify-between" },
-        React.createElement('button', {
-          onClick: handleClose,
-          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, ChevronDown ? React.createElement(ChevronDown, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }) : '↓'),
-        React.createElement('div', { className: "flex-1 flex justify-center" },
-          React.createElement('h2', { className: "text-base font-semibold text-white" }, 'Sleep')
-        ),
-        React.createElement('div', { className: "w-6" })
-      ),
-      bodyContent
-    );
+    return null;
   };
 
   // Expose component globally

@@ -41,6 +41,38 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     }
   };
 
+  var __ttNormalizePhotoUrls = (typeof window !== 'undefined' && window.__ttNormalizePhotoUrls)
+    ? window.__ttNormalizePhotoUrls
+    : (input) => {
+        if (!input) return [];
+        const items = Array.isArray(input) ? input : [input];
+        const urls = [];
+        for (const item of items) {
+          if (typeof item === 'string' && item.trim()) {
+            urls.push(item);
+            continue;
+          }
+          if (item && typeof item === 'object') {
+            const maybe =
+              item.url ||
+              item.publicUrl ||
+              item.publicURL ||
+              item.downloadURL ||
+              item.downloadUrl ||
+              item.src ||
+              item.uri;
+            if (typeof maybe === 'string' && maybe.trim()) {
+              urls.push(maybe);
+            }
+          }
+        }
+        return urls;
+      };
+
+  if (typeof window !== 'undefined' && !window.__ttNormalizePhotoUrls) {
+    window.__ttNormalizePhotoUrls = __ttNormalizePhotoUrls;
+  }
+
 
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
@@ -92,7 +124,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     entry = null,
     onDelete = null,
     onSave = null,
-    onAdd = null
+    onAdd = null,
+    preferredVolumeUnit = null
   }) => {
     const isInputVariant = variant !== 'detail';
     const effectiveEntry = isInputVariant ? null : entry;
@@ -126,10 +159,32 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const wheelStyles = _pickers.wheelStyles || {};
     const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
 
+    const _resolveVolumeUnit = (value) => (value === 'ml' || value === 'oz') ? value : null;
+    const _getStoredVolumeUnit = () => {
+      try {
+        const stored = localStorage.getItem('tt_volume_unit');
+        return (stored === 'ml' || stored === 'oz') ? stored : null;
+      } catch (e) {
+        return null;
+      }
+    };
+    const _persistVolumeUnit = (unit) => {
+      try { localStorage.setItem('tt_volume_unit', unit); } catch (e) {}
+      if (typeof firestoreStorage !== 'undefined' && firestoreStorage.saveSettings) {
+        firestoreStorage.saveSettings({ preferredVolumeUnit: unit }).catch(() => {});
+      }
+      try {
+        const event = new CustomEvent('tt:volume-unit-changed', { detail: { unit } });
+        window.dispatchEvent(event);
+      } catch (e) {}
+    };
+    const initialVolumeUnit = _resolveVolumeUnit(preferredVolumeUnit) || _getStoredVolumeUnit() || 'oz';
+
     const [showAmountTray, setShowAmountTray] = React.useState(false);
-    const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState('oz');
-    const [amountPickerAmountLocal, setAmountPickerAmountLocal] = React.useState(4);
-    const [amountDisplayUnit, setAmountDisplayUnit] = React.useState('oz');
+    const [amountPickerUnitLocal, setAmountPickerUnitLocal] = React.useState(initialVolumeUnit);
+    const [amountPickerAmountLocal, setAmountPickerAmountLocal] = React.useState(initialVolumeUnit === 'ml' ? 120 : 4);
+    const [amountDisplayUnit, setAmountDisplayUnit] = React.useState(initialVolumeUnit);
+    const [amountDisplayInput, setAmountDisplayInput] = React.useState('');
 
     const [showDateTimeTray, setShowDateTimeTray] = React.useState(false);
     const [dtTarget, setDtTarget] = React.useState('feeding'); // 'feeding'
@@ -187,7 +242,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         vv.removeEventListener('resize', checkKeyboard);
         vv.removeEventListener('scroll', checkKeyboard);
       };
-    }, [isOpen]);
+    }, [isOpen, preferredVolumeUnit]);
 
     const _formatOz = (n) => {
       const num = Number(n);
@@ -196,11 +251,41 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       return (fixed % 1 === 0) ? String(fixed) : String(fixed).replace(/0+$/,'').replace(/\.$/,'');
     };
 
+    const _formatMl = (n) => {
+      const num = Number(n);
+      if (!Number.isFinite(num)) return '';
+      return String(Math.max(0, Math.round(num)));
+    };
+
+    const _ozToMl = (oz) => Number(oz) * 29.5735;
+    const _mlToOz = (ml) => Number(ml) / 29.5735;
+
     const _snapToStep = (val, step) => {
       const n = Number(val) || 0;
       const s = Number(step) || 1;
       const snapped = Math.round(n / s) * s;
       return s < 1 ? parseFloat(snapped.toFixed(2)) : snapped;
+    };
+
+    const _syncDisplayInputForUnit = (nextUnit, sourceOz = ounces) => {
+      if (nextUnit === 'ml') {
+        const ozVal = Number(sourceOz);
+        if (!Number.isFinite(ozVal)) {
+          setAmountDisplayInput('');
+          return;
+        }
+        setAmountDisplayInput(_formatMl(_ozToMl(ozVal)));
+        return;
+      }
+      setAmountDisplayInput(sourceOz || '');
+    };
+
+    const _setDisplayUnit = (nextUnit, { persist = false } = {}) => {
+      if (!nextUnit || nextUnit === amountDisplayUnit) return;
+      userEditedUnitRef.current = true;
+      setAmountDisplayUnit(nextUnit);
+      _syncDisplayInputForUnit(nextUnit);
+      if (persist) _persistVolumeUnit(nextUnit);
     };
 
     const setAmountUnitWithConversion = (nextUnit) => {
@@ -209,10 +294,12 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         const ml = _snapToStep(amountPickerAmountLocal * 29.5735, 10);
         setAmountPickerUnitLocal('ml');
         setAmountPickerAmountLocal(ml);
+        _setDisplayUnit('ml', { persist: true });
       } else {
         const oz = _snapToStep(amountPickerAmountLocal / 29.5735, 0.25);
         setAmountPickerUnitLocal('oz');
         setAmountPickerAmountLocal(oz);
+        _setDisplayUnit('oz', { persist: true });
       }
     };
 
@@ -244,8 +331,14 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
       if (wantsAmount) {
         const currentOz = parseFloat(ounces);
-        setAmountPickerUnitLocal('oz');
-        setAmountPickerAmountLocal(Number.isFinite(currentOz) ? currentOz : 4);
+        const unit = amountDisplayUnit === 'ml' ? 'ml' : 'oz';
+        setAmountPickerUnitLocal(unit);
+        if (unit === 'ml') {
+          const ml = Number.isFinite(currentOz) ? _snapToStep(_ozToMl(currentOz), 10) : 120;
+          setAmountPickerAmountLocal(ml);
+        } else {
+          setAmountPickerAmountLocal(Number.isFinite(currentOz) ? currentOz : 4);
+        }
       }
       if (wantsDateTime) {
         setDtTarget('feeding');
@@ -276,28 +369,55 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     };
 
     const userEditedAmountRef = React.useRef(false);
+    const userEditedUnitRef = React.useRef(false);
 
     const handleOuncesChange = (nextValue) => {
       userEditedAmountRef.current = true;
+      if (amountDisplayUnit === 'ml') {
+        setAmountDisplayInput(nextValue);
+        const ml = parseFloat(nextValue);
+        if (!Number.isFinite(ml)) {
+          setOunces('');
+          return;
+        }
+        setOunces(_formatOz(_mlToOz(ml)));
+        return;
+      }
+      setAmountDisplayInput(nextValue);
       setOunces(nextValue);
+    };
+
+    const handleOuncesChangeFromStepper = (nextOz) => {
+      userEditedAmountRef.current = true;
+      const formattedOz = _formatOz(nextOz);
+      setOunces(formattedOz);
+      if (amountDisplayUnit === 'ml') {
+        setAmountDisplayInput(_formatMl(_ozToMl(nextOz)));
+      } else {
+        setAmountDisplayInput(formattedOz);
+      }
     };
 
     // Populate form from entry when it exists
     React.useEffect(() => {
       if (effectiveEntry && isOpen) {
-        setOunces(effectiveEntry.ounces ? effectiveEntry.ounces.toString() : '');
+        const nextOz = effectiveEntry.ounces ? effectiveEntry.ounces.toString() : '';
+        setOunces(nextOz);
+        _syncDisplayInputForUnit(amountDisplayUnit, nextOz);
         setDateTime(effectiveEntry.timestamp ? new Date(effectiveEntry.timestamp).toISOString() : new Date().toISOString());
         setNotes(effectiveEntry.notes || '');
-        setExistingPhotoURLs(effectiveEntry.photoURLs || []);
-        originalPhotoURLsRef.current = effectiveEntry.photoURLs || []; // Track original URLs
+        const normalizedExisting = __ttNormalizePhotoUrls(effectiveEntry.photoURLs);
+        setExistingPhotoURLs(normalizedExisting);
+        originalPhotoURLsRef.current = normalizedExisting; // Track original URLs
         setPhotos([]); // Reset new photos
         // Auto-expand if there's existing content
         setNotesExpanded(!!effectiveEntry.notes);
-        setPhotosExpanded(!!(effectiveEntry.photoURLs && effectiveEntry.photoURLs.length > 0));
+        setPhotosExpanded(normalizedExisting.length > 0);
       } else if (!effectiveEntry && isOpen) {
         // Create mode - reset to defaults
         userEditedAmountRef.current = false;
         setOunces('');
+        _syncDisplayInputForUnit(amountDisplayUnit, '');
         setDateTime(new Date().toISOString());
         setNotes('');
         setExistingPhotoURLs([]);
@@ -328,10 +448,18 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           }, null);
           const lastOz = Number(last?.ounces ?? last?.amountOz ?? last?.amount ?? last?.volumeOz ?? last?.volume);
           if (!Number.isFinite(lastOz) || lastOz <= 0) return;
+          const unit = userEditedUnitRef.current
+            ? (amountDisplayUnit === 'ml' ? 'ml' : 'oz')
+            : (_resolveVolumeUnit(preferredVolumeUnit) || _getStoredVolumeUnit() || 'oz');
           setOunces(String(lastOz));
-          setAmountPickerUnitLocal('oz');
-          setAmountPickerAmountLocal(lastOz);
-          setAmountDisplayUnit('oz');
+          _syncDisplayInputForUnit(unit, String(lastOz));
+          setAmountPickerUnitLocal(unit);
+          if (unit === 'ml') {
+            setAmountPickerAmountLocal(_snapToStep(_ozToMl(lastOz), 10));
+          } else {
+            setAmountPickerAmountLocal(lastOz);
+          }
+          setAmountDisplayUnit(unit);
         } catch (e) {
           // non-fatal
         }
@@ -347,6 +475,25 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       if (!isOpen) {
         setNotesExpanded(false);
         setPhotosExpanded(false);
+        userEditedUnitRef.current = false;
+        return;
+      }
+      const preferred = _resolveVolumeUnit(preferredVolumeUnit) || _getStoredVolumeUnit();
+      if (preferred && !userEditedUnitRef.current) {
+        setAmountDisplayUnit(preferred);
+        _syncDisplayInputForUnit(preferred);
+      }
+      if (!preferred && typeof firestoreStorage !== 'undefined' && firestoreStorage.getSettings) {
+        let cancelled = false;
+        firestoreStorage.getSettings().then((settings) => {
+          if (cancelled) return;
+          if (userEditedUnitRef.current) return;
+          const unit = (settings?.preferredVolumeUnit === 'ml') ? 'ml' : 'oz';
+          setAmountDisplayUnit(unit);
+          _syncDisplayInputForUnit(unit);
+          try { localStorage.setItem('tt_volume_unit', unit); } catch (e) {}
+        }).catch(() => {});
+        return () => { cancelled = true; };
       }
     }, [isOpen]);
 
@@ -390,7 +537,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         }
         
         // Combine existing and new photo URLs
-        const allPhotoURLs = [...existingPhotoURLs, ...newPhotoURLs];
+        const allPhotoURLs = __ttNormalizePhotoUrls([...existingPhotoURLs, ...newPhotoURLs]);
         
         if (effectiveEntry && effectiveEntry.id) {
           // Update existing feeding
@@ -539,18 +686,18 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
               label: 'Amount',
               valueOz: parseFloat(ounces) || 0,
               unit: amountDisplayUnit,
-              onChangeUnit: setAmountDisplayUnit,
-              onChangeOz: (nextOz) => handleOuncesChange(_formatOz(nextOz))
+              onChangeUnit: (nextUnit) => _setDisplayUnit(nextUnit, { persist: true }),
+              onChangeOz: handleOuncesChangeFromStepper
             })
           : React.createElement(InputRow, {
               label: 'Amount',
-              value: ounces,
+              value: amountDisplayInput,
               onChange: handleOuncesChange,
               icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
               valueClassName: inputValueClassName,
               type: 'number',
               placeholder: '0',
-              suffix: 'oz',
+              suffix: amountDisplayUnit,
               inlineSuffix: true,
               pickerMode: 'amount',
               onOpenPicker: openTrayPicker
@@ -663,7 +810,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             React.createElement('button', {
               onClick: () => {
                 const oz = (amountPickerUnitLocal === 'ml') ? (amountPickerAmountLocal / 29.5735) : amountPickerAmountLocal;
-                setOunces(_formatOz(oz));
+                const formattedOz = _formatOz(oz);
+                setOunces(formattedOz);
+                _syncDisplayInputForUnit(amountDisplayUnit, formattedOz);
                 setShowAmountTray(false);
               },
               style: { background: 'none', border: 'none', padding: 0, color: 'var(--tt-feed)', fontSize: 17, fontWeight: 600 }
@@ -754,7 +903,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
               xmlns: "http://www.w3.org/2000/svg",
               width: "32",
               height: "32",
-              fill: "#ffffff",
+              fill: "var(--tt-text-on-accent)",
               viewBox: "0 0 256 256",
               className: "w-5 h-5"
             },
@@ -827,7 +976,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                   bottom: 0,
                   width: '100vw',
                   height: '100vh',
-                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  backgroundColor: 'var(--tt-overlay-scrim-strong)',
                   backdropFilter: 'blur(6px)',
                   WebkitBackdropFilter: 'blur(6px)'
                 },
@@ -860,7 +1009,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                   backgroundColor: "var(--tt-halfsheet-bg)",
                   willChange: 'transform',
                   paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                  maxHeight: '83vh',
+                  maxHeight: '90vh',
                   height: 'auto',
                   minHeight: '60vh',
                   display: 'flex',
@@ -874,7 +1023,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 }
               },
               React.createElement('div', {
-                className: "bg-black",
+                className: "",
                 style: {
                   backgroundColor: 'var(--tt-feed)',
                   borderTopLeftRadius: '20px',
@@ -912,35 +1061,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       return ReactDOM.createPortal(v4Overlay, document.body);
     }
 
-    // Static preview mode (for UI Lab inline display)
-    return React.createElement(
-      'div',
-      { 
-        className: "rounded-2xl shadow-sm p-6 space-y-0",
-        style: {
-          backgroundColor: "var(--tt-halfsheet-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
-          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
-        }
-      },
-      // Header: [X] [Feeding] [Save]
-      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
-        // X button (close)
-        React.createElement('button', {
-          onClick: handleClose,
-          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, XIcon ? React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }) : '×'),
-        
-        // Centered title
-        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, headerTitle),
-        
-        // Save button
-        React.createElement('button', {
-          onClick: handleSave,
-          className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, saveButtonLabel)
-      ),
-      bodyContent
-    );
+    return null;
   };
 
   // Expose component globally

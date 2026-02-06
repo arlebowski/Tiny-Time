@@ -27,6 +27,38 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
     }
   });
 
+  var __ttNormalizePhotoUrls = (typeof window !== 'undefined' && window.__ttNormalizePhotoUrls)
+    ? window.__ttNormalizePhotoUrls
+    : (input) => {
+        if (!input) return [];
+        const items = Array.isArray(input) ? input : [input];
+        const urls = [];
+        for (const item of items) {
+          if (typeof item === 'string' && item.trim()) {
+            urls.push(item);
+            continue;
+          }
+          if (item && typeof item === 'object') {
+            const maybe =
+              item.url ||
+              item.publicUrl ||
+              item.publicURL ||
+              item.downloadURL ||
+              item.downloadUrl ||
+              item.src ||
+              item.uri;
+            if (typeof maybe === 'string' && maybe.trim()) {
+              urls.push(maybe);
+            }
+          }
+        }
+        return urls;
+      };
+
+  if (typeof window !== 'undefined' && !window.__ttNormalizePhotoUrls) {
+    window.__ttNormalizePhotoUrls = __ttNormalizePhotoUrls;
+  }
+
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
     const candidates = [
@@ -142,7 +174,8 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
       if (entry && entry.timestamp) {
         setDateTime(new Date(entry.timestamp).toISOString());
         setNotes(entry.notes || '');
-        setExistingPhotoURLs(Array.isArray(entry.photoURLs) ? entry.photoURLs : (entry.photoURLs ? [entry.photoURLs] : []));
+        const normalizedExisting = __ttNormalizePhotoUrls(entry.photoURLs);
+        setExistingPhotoURLs(normalizedExisting);
         setIsWet(!!entry.isWet);
         setIsDry(!!entry.isDry);
         setIsPoo(!!entry.isPoo);
@@ -235,7 +268,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
             console.error(`[DiaperSheet] Failed to upload photo ${i + 1}:`, error);
           }
         }
-        const mergedPhotos = [...(existingPhotoURLs || []), ...uploadedURLs];
+        const mergedPhotos = __ttNormalizePhotoUrls([...(existingPhotoURLs || []), ...uploadedURLs]);
         const payload = {
           timestamp,
           isWet: !!isWet,
@@ -490,7 +523,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
               xmlns: "http://www.w3.org/2000/svg",
               width: "32",
               height: "32",
-              fill: "#ffffff",
+              fill: "var(--tt-text-on-accent)",
               viewBox: "0 0 256 256",
               className: "w-5 h-5"
             },
@@ -560,7 +593,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
                   bottom: 0,
                   width: '100vw',
                   height: '100vh',
-                  backgroundColor: 'rgba(0,0,0,0.6)',
+                  backgroundColor: 'var(--tt-overlay-scrim-strong)',
                   backdropFilter: 'blur(6px)',
                   WebkitBackdropFilter: 'blur(6px)'
                 },
@@ -593,7 +626,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
                   backgroundColor: "var(--tt-halfsheet-bg)",
                   willChange: 'transform',
                   paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                  maxHeight: '83vh',
+                  maxHeight: '90vh',
                   height: 'auto',
                   minHeight: '60vh',
                   display: 'flex',
@@ -607,7 +640,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
                 }
               },
               React.createElement('div', {
-                className: "bg-black",
+                className: "",
                 style: {
                   backgroundColor: 'var(--tt-diaper)',
                   borderTopLeftRadius: '20px',
@@ -645,28 +678,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
       return ReactDOM.createPortal(v4Overlay, document.body);
     }
 
-    return React.createElement(
-      'div',
-      {
-        className: "rounded-2xl shadow-sm p-6 space-y-0",
-        style: {
-          backgroundColor: "var(--tt-halfsheet-bg, var(--tt-subtle-surface, rgba(0,0,0,0.04)))",
-          border: "1px solid var(--tt-card-border, rgba(0,0,0,0.06))"
-        }
-      },
-      React.createElement('div', { className: "bg-black rounded-t-2xl -mx-6 -mt-6 px-6 py-4 mb-6 flex items-center justify-between" },
-        React.createElement('button', {
-          onClick: handleClose,
-          className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, XIcon ? React.createElement(XIcon, { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }) : '×'),
-        React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Diaper'),
-        React.createElement('button', {
-          onClick: handleSave,
-          className: "text-base font-normal text-white hover:opacity-70 active:opacity-50 transition-opacity"
-        }, 'Save')
-      ),
-      bodyContent
-    );
+    return null;
   };
 
   window.DiaperSheet = DiaperSheet;

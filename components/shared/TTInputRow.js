@@ -41,7 +41,7 @@ const TTInputRow = ({
         content: '';
         position: absolute;
         inset: 0;
-        background: rgba(0, 0, 0, 0.05);
+        background: var(--tt-tapable-bg);
         opacity: 0;
         transition: opacity 0.1s ease-out;
         pointer-events: none;
@@ -52,7 +52,7 @@ const TTInputRow = ({
         opacity: 1;
       }
       .dark .tt-tapable::before {
-        background: rgba(255, 255, 255, 0.1);
+        background: var(--tt-tapable-bg);
       }
     `;
     document.head.appendChild(style);
@@ -180,7 +180,7 @@ const TTInputRow = ({
                 className: (suffix || showInlineSuffix) ? "inline-flex items-baseline gap-1 w-full" : `${valueClassCombined} font-normal w-full`,
                 style: {
                   color: invalid
-                    ? '#ef4444'
+                    ? 'var(--tt-error)'
                     : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
                 }
               },
@@ -212,7 +212,7 @@ const TTInputRow = ({
                       background: 'transparent',
                       maxHeight: '4.5rem',
                       overflowY: 'auto',
-                      color: invalid ? '#ef4444' : 'var(--tt-text-primary)'
+                      color: invalid ? 'var(--tt-error)' : 'var(--tt-text-primary)'
                     }
                   }),
                   suffix && React.createElement('span', { className: suffixClassCombined }, suffix)
@@ -243,14 +243,14 @@ const TTInputRow = ({
                     onBlur,
                     onFocus,
                     onKeyDown,
-                    className: `tt-placeholder-tertiary ${valueClassCombined} font-normal outline-none ${invalid ? 'text-red-600' : ''} ${(suffix && !showInlineSuffix) ? 'flex-1' : 'w-full'}`,
+                    className: `tt-placeholder-tertiary ${valueClassCombined} font-normal outline-none ${(suffix && !showInlineSuffix) ? 'flex-1' : 'w-full'}`,
                     style: {
                       background: 'transparent',
                       width: showInlineSuffix ? `${inlineWidthCh}ch` : undefined,
                       minWidth: showInlineSuffix ? '2ch' : undefined,
                       minWidth: 0,
                       color: invalid
-                        ? '#ef4444'
+                        ? 'var(--tt-error)'
                         : (type === 'datetime' && !rawValue && placeholder ? 'var(--tt-text-tertiary)' : 'var(--tt-text-primary)')
                     },
                     readOnly: (type === 'datetime') || (shouldUseWheelPickers() && pickerMode === 'amount')

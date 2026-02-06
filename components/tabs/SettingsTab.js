@@ -281,17 +281,18 @@ const SettingsTab = ({ user, kidId }) => {
       'div',
       {
         onClick: onPress,
-        className: "flex items-center justify-between py-3 border-b border-gray-100 cursor-pointer active:bg-gray-50 transition-colors"
+        className: "flex items-center justify-between py-3 border-b cursor-pointer transition-colors active:bg-[var(--tt-bg-hover)]",
+        style: { borderColor: 'var(--tt-border-subtle)' }
       },
       React.createElement('div', { className: "flex-1" },
         React.createElement('div', { className: "tt-card-label" }, label),
         React.createElement('div', {
           className: showPlaceholder 
-            ? "text-base font-semibold text-gray-400" 
-            : "text-base font-semibold text-black"
+            ? "text-base font-semibold text-[var(--tt-text-tertiary)]"
+            : "text-base font-semibold text-[var(--tt-text-primary)]"
         }, showPlaceholder ? placeholder : displayValue)
       ),
-      React.createElement(ChevronRight, { className: "w-5 h-5 text-gray-400" })
+      React.createElement(ChevronRight, { className: "w-5 h-5", style: { color: 'var(--tt-text-tertiary)' } })
     );
   };
 
@@ -321,8 +322,9 @@ const SettingsTab = ({ user, kidId }) => {
       null,
       // Backdrop
       React.createElement('div', {
-        className: "fixed inset-0 bg-black bg-opacity-40 z-50",
+        className: "fixed inset-0 z-50",
         style: {
+          backgroundColor: 'var(--tt-overlay-scrim)',
           opacity: isOpen ? 1 : 0,
           transition: 'opacity 220ms ease'
         }
@@ -330,8 +332,10 @@ const SettingsTab = ({ user, kidId }) => {
       // Bottom Sheet
       React.createElement('div', {
         ref: sheetRef,
-        className: "fixed left-0 right-0 bottom-0 z-50 bg-white rounded-t-3xl shadow-2xl",
+        className: "fixed left-0 right-0 bottom-0 z-50 rounded-t-3xl",
         style: {
+          backgroundColor: 'var(--tt-card-bg)',
+          boxShadow: 'var(--tt-tray-shadow)',
           transform: 'translateY(100%)',
           transition: 'transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
           willChange: 'transform',
@@ -343,14 +347,17 @@ const SettingsTab = ({ user, kidId }) => {
       },
         // Header
         React.createElement('div', {
-          className: "flex items-center justify-between px-6 py-4 border-b border-gray-100"
+          className: "flex items-center justify-between px-6 py-4",
+          style: { borderBottom: '1px solid var(--tt-divider)' }
         },
           React.createElement('h2', {
-            className: "text-lg font-semibold text-gray-800"
+            className: "text-lg font-semibold",
+            style: { color: 'var(--tt-text-primary)' }
           }, title),
           React.createElement('button', {
             onClick: onDone,
-            className: "text-base font-semibold text-indigo-600 active:opacity-70"
+            className: "text-base font-semibold active:opacity-70",
+            style: { color: 'var(--tt-primary-brand)' }
           }, 'Done')
         ),
         // Content
@@ -1065,7 +1072,7 @@ const SettingsTab = ({ user, kidId }) => {
           right: 0,
           top: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.3)',
+          backgroundColor: 'var(--tt-overlay-scrim)',
           zIndex: 999,
           opacity: 0,
           transition: 'opacity 250ms ease'
@@ -1087,7 +1094,7 @@ const SettingsTab = ({ user, kidId }) => {
             height: '40vh',
             paddingTop: '0px',
             paddingBottom: 'env(safe-area-inset-bottom, 0)',
-            boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+            boxShadow: 'var(--tt-shadow-soft)',
             zIndex: 1000,
             transform: isOpen && hasEntered ? 'translateY(0)' : 'translateY(100%)',
             willChange: 'transform',
@@ -1148,11 +1155,11 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement('div', { className: "flex items-center gap-3 mb-4" },
         React.createElement('button', {
           onClick: () => setShowUILab(false),
-          className: "p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition"
+          className: "p-2 rounded-lg transition text-[var(--tt-primary-brand)] hover:bg-[var(--tt-highlight-indigo-soft)]"
         },
           React.createElement(ChevronLeft, { className: "w-5 h-5" })
         ),
-        React.createElement('h1', { className: "text-xl font-semibold text-gray-800" }, 'UI Lab')
+        React.createElement('h1', { className: "text-xl font-semibold", style: { color: 'var(--tt-text-primary)' } }, 'UI Lab')
       ),
 
       React.createElement('div', { className: "mb-2 text-sm", style: { color: 'var(--tt-text-secondary)' } }, 'Feature Flags'),
@@ -1176,7 +1183,7 @@ const SettingsTab = ({ user, kidId }) => {
   return React.createElement('div', { className: "space-y-4" },
 
     // Share & Support Card
-    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
+    React.createElement('div', { className: "rounded-2xl p-6", style: { backgroundColor: 'var(--tt-card-bg)', boxShadow: 'var(--tt-shadow-soft)' } },
       React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Share & Support'),
       React.createElement('button', {
         onClick: handleShareApp,

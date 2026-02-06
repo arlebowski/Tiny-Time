@@ -77,6 +77,28 @@ const XIcon = (props) => React.createElement(
   React.createElement('path', { d: "m6 6 12 12" })
 );
 
+const UpArrowIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    viewBox: "0 0 256 256",
+    fill: "currentColor"
+  },
+  React.createElement('path', { d: "M205.66,117.66a8,8,0,0,1-11.32,0L136,59.31V216a8,8,0,0,1-16,0V59.31L61.66,117.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0l72,72A8,8,0,0,1,205.66,117.66Z" })
+);
+
+const DownArrowIcon = (props) => React.createElement(
+  'svg',
+  {
+    ...props,
+    xmlns: "http://www.w3.org/2000/svg",
+    viewBox: "0 0 256 256",
+    fill: "currentColor"
+  },
+  React.createElement('path', { d: "M205.66,149.66l-72,72a8,8,0,0,1-11.32,0l-72-72a8,8,0,0,1,11.32-11.32L120,196.69V40a8,8,0,0,1,16,0V196.69l58.34-58.35a8,8,0,0,1,11.32,11.32Z" })
+);
+
 // Expose icons globally so shared components can use them
 if (typeof window !== 'undefined') {
   window.ChevronDown = ChevronDown;
@@ -119,7 +141,7 @@ function ensureTapAnimationStyles() {
       content: '';
       position: absolute;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.05);
+      background: var(--tt-tapable-bg);
       opacity: 0;
       transition: opacity 0.1s ease-out;
       pointer-events: none;
@@ -127,7 +149,7 @@ function ensureTapAnimationStyles() {
       z-index: 1;
     }
     .tt-tapable:active::before { opacity: 1; }
-    .dark .tt-tapable::before { background: rgba(255, 255, 255, 0.1); }
+    .dark .tt-tapable::before { background: var(--tt-tapable-bg); }
   `;
   document.head.appendChild(style);
 }
@@ -263,6 +285,8 @@ const TrackerCard = ({
   target = null,
   timelineItems = [],
   lastEntryTime = null,
+  comparison = null,
+  volumeUnit = null,
   onCardTap = null
 }) => {
   ensureZzzStyles();
@@ -280,6 +304,27 @@ const TrackerCard = ({
     },
     transition: { duration: 0.14, ease: [0.22, 1, 0.36, 1] }
   } : {};
+
+  const isFeed = mode === 'feeding';
+  const isSleep = mode === 'sleep';
+  const isDiaper = mode === 'diaper';
+
+  const resolvedVolumeUnit = (() => {
+    if (!isFeed) return 'oz';
+    if (volumeUnit === 'ml' || volumeUnit === 'oz') return volumeUnit;
+    try {
+      const stored = localStorage.getItem('tt_volume_unit');
+      if (stored === 'ml' || stored === 'oz') return stored;
+    } catch (e) {}
+    return 'oz';
+  })();
+
+  const formatVolumeValue = (valueOz) => {
+    const v = Number(valueOz);
+    if (!Number.isFinite(v)) return '0';
+    if (resolvedVolumeUnit === 'ml') return String(Math.round(v * 29.5735));
+    return formatV2Number(v);
+  };
 
   // Keep the active sleep detection for status pill
   const isSleepActive = React.useMemo(() => {
@@ -318,7 +363,16 @@ const TrackerCard = ({
   const renderDiaperIconRow = () => {
     if (!Array.isArray(timelineItems) || timelineItems.length === 0) return null;
     const maxIcons = 10;
-    const items = timelineItems.slice(0, maxIcons);
+    const sorted = [...timelineItems].sort((a, b) => {
+      const at = (a.timestamp || a.startTime || 0);
+      const bt = (b.timestamp || b.startTime || 0);
+      return at - bt;
+    });
+    const items = sorted.slice(Math.max(0, sorted.length - maxIcons));
+    const perRow = 5;
+    const splitIndex = Math.max(0, items.length - perRow);
+    const topRow = items.slice(0, splitIndex);
+    const bottomRow = items.slice(splitIndex);
     const WetIcon = window.TT?.shared?.icons?.DiaperWetIcon || null;
     const DryIcon = window.TT?.shared?.icons?.DiaperDryIcon || null;
     const PooIcon = window.TT?.shared?.icons?.DiaperPooIcon || null;
@@ -326,56 +380,68 @@ const TrackerCard = ({
     const dryColor = 'var(--tt-text-tertiary)';
     const pooColor = 'var(--tt-diaper)';
 
+    const renderIcon = (item, idx) => {
+      const isWet = !!item.isWet;
+      const isDry = !!item.isDry;
+      const isPoo = !!item.isPoo;
+
+      if (isDry && DryIcon) {
+        return React.createElement(DryIcon, {
+          key: item.id || idx,
+          className: "w-5 h-5",
+          style: { color: dryColor, fill: dryColor }
+        });
+      }
+
+      if (isPoo && isWet && PooIcon) {
+        return React.createElement(
+          'span',
+          { key: item.id || idx, className: "relative inline-flex items-center" },
+          React.createElement(PooIcon, { className: "w-5 h-5", style: { color: pooColor, fill: pooColor } }),
+          WetIcon ? React.createElement(
+            'span',
+            {
+              className: "absolute -right-1.5 -top-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center",
+              style: { backgroundColor: 'var(--tt-card-bg)', boxShadow: '0 0 0 1px var(--tt-border-subtle)' }
+            },
+            React.createElement(WetIcon, { className: "w-2.5 h-2.5", style: { color: wetColor, fill: wetColor } })
+          ) : null
+        );
+      }
+
+      if (isPoo && PooIcon) {
+        return React.createElement(PooIcon, {
+          key: item.id || idx,
+          className: "w-5 h-5",
+          style: { color: pooColor, fill: pooColor }
+        });
+      }
+
+      if (isWet && WetIcon) {
+        return React.createElement(WetIcon, {
+          key: item.id || idx,
+          className: "w-5 h-5",
+          style: { color: wetColor, fill: wetColor }
+        });
+      }
+
+      return null;
+    };
+
+    const renderRow = (rowItems, rowKey) => {
+      if (!rowItems.length) return null;
+      return React.createElement(
+        'div',
+        { key: rowKey, className: "flex gap-2 items-center justify-end" },
+        rowItems.map((item, idx) => renderIcon(item, `${rowKey}-${idx}`))
+      );
+    };
+
     return React.createElement(
       'div',
-      { className: "flex gap-2 items-center flex-wrap" },
-      items.map((item, idx) => {
-        const isWet = !!item.isWet;
-        const isDry = !!item.isDry;
-        const isPoo = !!item.isPoo;
-
-        if (isDry && DryIcon) {
-          return React.createElement(DryIcon, {
-            key: item.id || idx,
-            className: "w-5 h-5",
-            style: { color: dryColor, fill: dryColor }
-          });
-        }
-
-        if (isPoo && isWet && PooIcon) {
-          return React.createElement(
-            'span',
-            { key: item.id || idx, className: "relative inline-flex items-center" },
-            React.createElement(PooIcon, { className: "w-5 h-5", style: { color: pooColor, fill: pooColor } }),
-            WetIcon ? React.createElement(
-              'span',
-              {
-                className: "absolute -right-1.5 -top-1.5 w-3.5 h-3.5 rounded-full flex items-center justify-center",
-                style: { backgroundColor: 'var(--tt-card-bg)', boxShadow: '0 0 0 1px var(--tt-border-subtle)' }
-              },
-              React.createElement(WetIcon, { className: "w-2.5 h-2.5", style: { color: wetColor, fill: wetColor } })
-            ) : null
-          );
-        }
-
-        if (isPoo && PooIcon) {
-          return React.createElement(PooIcon, {
-            key: item.id || idx,
-            className: "w-5 h-5",
-            style: { color: pooColor, fill: pooColor }
-          });
-        }
-
-        if (isWet && WetIcon) {
-          return React.createElement(WetIcon, {
-            key: item.id || idx,
-            className: "w-5 h-5",
-            style: { color: wetColor, fill: wetColor }
-          });
-        }
-
-        return null;
-      })
+      { className: "flex flex-col gap-2" },
+      renderRow(topRow, 'top'),
+      renderRow(bottomRow, 'bottom')
     );
   };
 
@@ -410,7 +476,9 @@ const TrackerCard = ({
     statusRowClassName = '',
     showDotsRow = true,
     progressBottomMarginClass = 'mb-1',
-    showProgress = true
+    showProgress = true,
+    bigNumberBottomSpacerClassName = null,
+    comparison = null
   } = {}) => {
     const IconComp = iconOverride || HeaderIcon;
     const withFeedingMirror = (t) => {
@@ -420,6 +488,34 @@ const TrackerCard = ({
       return `scaleX(-1) ${s}`;
     };
     const effectiveFeedingTransform = mirrorFeedingIcon ? withFeedingMirror(feedingIconTransform) : feedingIconTransform;
+    const chicklet = (() => {
+      if (!comparison || comparison.delta == null) return null;
+      const rawDelta = Number(comparison.delta || 0);
+      const absDelta = Math.abs(rawDelta);
+      const epsilon = Number.isFinite(comparison.evenEpsilon) ? comparison.evenEpsilon : 0.05;
+      const isEven = absDelta < epsilon;
+      const unit = comparison.unit ? ` ${comparison.unit}` : '';
+      const label = isEven ? 'Even' : `${formatV2Number(absDelta)}${unit}`;
+      const color = isEven
+        ? 'var(--tt-text-tertiary)'
+        : (rawDelta >= 0 ? 'var(--tt-positive)' : 'var(--tt-negative)');
+      const bg = isEven
+        ? 'var(--tt-subtle-surface)'
+        : (rawDelta >= 0 ? 'var(--tt-positive-soft)' : 'var(--tt-negative-soft)');
+      const Icon = rawDelta >= 0 ? UpArrowIcon : DownArrowIcon;
+      return React.createElement(
+        'div',
+        {
+          className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-semibold tabular-nums flex-shrink-0",
+          style: {
+            backgroundColor: bg,
+            color
+          }
+        },
+        isEven ? null : React.createElement(Icon, { className: "w-4 h-4", style: { color } }),
+        React.createElement('span', null, label)
+      );
+    })();
 
     return React.createElement(
       CardWrapper,
@@ -491,7 +587,7 @@ const TrackerCard = ({
             transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
           }
         },
-          total !== null ? formatV2Number(total) : '0'
+          total !== null ? (isFeed ? formatVolumeValue(total) : formatV2Number(total)) : '0'
         );
 
         const targetEl = React.createElement('div', {
@@ -499,10 +595,10 @@ const TrackerCard = ({
           style: { color: bigNumberTargetColor }
         },
           bigNumberTargetVariant === 'unit'
-            ? (mode === 'sleep' ? 'hrs' : (mode === 'diaper' ? 'changes' : 'oz'))
+            ? (mode === 'sleep' ? 'hrs' : (mode === 'diaper' ? 'changes' : resolvedVolumeUnit))
             : (target !== null
-                ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : (mode === 'diaper' ? `/ ${formatV2Number(target)} changes` : `/ ${formatV2Number(target)} oz`))
-                : (mode === 'sleep' ? '/ 0 hrs' : (mode === 'diaper' ? '/ 0 changes' : '/ 0 oz')))
+                ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : (mode === 'diaper' ? `/ ${formatV2Number(target)} changes` : `/ ${formatVolumeValue(target)} ${resolvedVolumeUnit}`))
+                : (mode === 'sleep' ? '/ 0 hrs' : (mode === 'diaper' ? '/ 0 changes' : `/ 0 ${resolvedVolumeUnit}`)))
         );
 
         const iconEl = (showBigNumberIcon && IconComp)
@@ -517,7 +613,9 @@ const TrackerCard = ({
             })
           : null;
 
-        if (!showBigNumberIcon && !bigNumberRight) {
+        const resolvedRight = bigNumberRight || chicklet;
+
+        if (!showBigNumberIcon && !resolvedRight) {
           return React.createElement(
             'div',
             { className: bigNumberRowClassName },
@@ -535,14 +633,17 @@ const TrackerCard = ({
             iconEl,
             React.createElement(
               'div',
-              { className: "flex items-baseline gap-[2px] min-w-0" },
+              { className: "flex items-baseline gap-[4px] min-w-0" },
               valueEl,
               targetEl
             )
           ),
-          bigNumberRight
+          resolvedRight
         );
       })(),
+      bigNumberBottomSpacerClassName
+        ? React.createElement('div', { className: bigNumberBottomSpacerClassName })
+        : null,
 
       showProgress ? React.createElement('div', {
         className: `relative w-full ${progressTrackHeightClass} rounded-2xl overflow-hidden ${progressBottomMarginClass}`,
@@ -627,7 +728,7 @@ const TrackerCard = ({
         : (window.TT?.shared?.icons?.DiaperIcon || HeaderIcon);
     const v4StatusTextClassName = "text-[15px] font-normal leading-none";
     const v4GoalTextClassName = "text-[15px] font-normal leading-none";
-    const v4TargetClassName = "relative -top-[1px] text-[20px] leading-none font-normal";
+    const v4TargetClassName = "relative -top-[1px] text-[28px] leading-none font-normal";
 
     const v4StatusText = mode === 'feeding'
       ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No feedings yet')
@@ -670,10 +771,12 @@ const TrackerCard = ({
         })
       );
 
+      const statusStyle = { color: 'var(--tt-text-tertiary)', marginRight: -4 };
+
       if (isActiveSleepPill) {
         return React.createElement(
           'span',
-          { className: "inline-flex items-center gap-2", style: { color: 'var(--tt-text-tertiary)' } },
+          { className: "inline-flex items-center gap-2", style: statusStyle },
           React.createElement('span', { className: v4StatusTextClassName }, "Sleeping now"),
           chevronEl
         );
@@ -681,7 +784,7 @@ const TrackerCard = ({
 
       return React.createElement(
         'span',
-        { className: "inline-flex items-center gap-2", style: { color: 'var(--tt-text-tertiary)' } },
+        { className: "inline-flex items-center gap-2", style: statusStyle },
         React.createElement('span', { className: v4StatusTextClassName }, v4StatusText),
         chevronEl
       );
@@ -724,6 +827,14 @@ const TrackerCard = ({
     const v4HeaderLabel = createIconLabel(mode);
 
     const isDiaperLocal = mode === 'diaper';
+    const diaperIconsInline = isDiaperLocal
+      ? React.createElement(
+          'div',
+          { className: "ml-3 flex-1 min-w-0 flex justify-end", style: { marginRight: -4 } },
+          renderDiaperIconRow()
+        )
+      : null;
+    const hasComparison = !!comparison && comparison.delta != null;
 
     return renderDesign({
       showHeaderRow: true,
@@ -740,24 +851,26 @@ const TrackerCard = ({
       showBigNumberIcon: false,
       bigNumberTopLabel: null,
       bigNumberIconClassName: mode === 'feeding' ? 'h-[35.739px] w-[35.739px]' : 'h-[33.858px] w-[33.858px]',
-      bigNumberRight: null,
-      bigNumberRowClassName: "flex items-baseline gap-1.5 mb-[13px]",
+      bigNumberRight: diaperIconsInline,
+      bigNumberRowClassName: (hasComparison || isDiaperLocal)
+        ? "flex items-end justify-between gap-3 mb-0"
+        : "flex items-baseline gap-1.5 mb-[13px]",
       bigNumberIconValueGapClassName: mode === 'sleep' ? 'gap-[8px]' : 'gap-[6px]',
-      bigNumberValueClassName: "text-[40px] leading-none font-bold",
+      bigNumberValueClassName: "text-[48px] leading-none font-bold [font-smoothing:antialiased] [-webkit-font-smoothing:antialiased] [-moz-osx-font-smoothing:grayscale]",
       bigNumberTargetClassName: v4TargetClassName,
       bigNumberTargetColor: 'var(--tt-text-tertiary)',
       bigNumberTargetVariant: 'unit',
+      bigNumberBottomSpacerClassName: null,
       progressTrackHeightClass: 'h-[15.84px]',
       progressTrackBg: 'var(--tt-progress-track)',
-      progressBarGoalText: isDiaperLocal ? null : (target !== null
-        ? (mode === 'sleep' ? `${formatV2Number(target)} hrs goal` : `${formatV2Number(target)} oz goal`)
-        : (mode === 'sleep' ? '0 hrs goal' : '0 oz goal')),
+      progressBarGoalText: null,
       progressBarGoalTextClassName: v4GoalTextClassName,
-      statusRow: isDiaperLocal ? renderDiaperIconRow() : null,
+      statusRow: null,
       statusRowClassName: "",
       showDotsRow: false,
-      showProgress: !isDiaperLocal,
-      progressBottomMarginClass: isDiaperLocal ? 'mb-2' : 'mb-0'
+      showProgress: false,
+      progressBottomMarginClass: isDiaperLocal ? 'mb-2' : 'mb-0',
+      comparison: hasComparison ? comparison : null
     });
   };
 

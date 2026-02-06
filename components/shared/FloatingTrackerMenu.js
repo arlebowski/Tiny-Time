@@ -204,7 +204,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
             scale: 0.2,
             rotate: 180,
             opacity: 0,
-            backgroundColor: 'rgba(0,0,0,0)',
+            backgroundColor: 'transparent',
             boxShadow: 'none'
           },
           transition: {
@@ -221,7 +221,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
             left: 0,
             width: '64px',
             height: '64px',
-            background: 'var(--tt-plus-bg, #000)',
+            background: 'var(--tt-plus-bg)',
             borderRadius: '50%',
             border: 'none',
             display: 'flex',
@@ -229,9 +229,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
             justifyContent: 'center',
             fontSize: '32px',
             fontWeight: '300',
-            color: 'var(--tt-plus-fg, #fff)',
+            color: 'var(--tt-plus-fg)',
             cursor: 'pointer',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            boxShadow: 'var(--tt-shadow-floating)',
             outline: 'none'
           }
         },
@@ -327,7 +327,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
               alignItems: 'center',
               justifyContent: 'center',
               background: `linear-gradient(135deg, var(${gradientVar}) 0%, var(${gradientStrongVar}) 100%)`,
-              boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+              boxShadow: 'var(--tt-shadow-floating)'
             }
           },
           IconComponent && React.createElement(
@@ -339,7 +339,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'white'
+                color: 'var(--tt-text-on-accent)'
               }
             },
             React.createElement(IconComponent, {
@@ -355,10 +355,10 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
             animate: { opacity: 1, y: 0 },
             transition: { delay: 0.2, duration: 0.3 },
             style: {
-              color: 'var(--tt-text-primary, #fff)',
+              color: 'var(--tt-text-primary)',
               fontSize: '14px',
               fontWeight: '600',
-              textShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              textShadow: 'var(--tt-text-shadow)',
               whiteSpace: 'nowrap'
             }
           },

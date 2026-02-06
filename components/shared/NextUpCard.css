@@ -95,18 +95,18 @@
 .tt-next-up-card__zzz span:nth-child(3) { animation-delay: 0.6s; }
 
 .tt-next-up-card--sleeping {
-  background: var(--tt-sleep, #4F46E5);
-  color: #ffffff;
+  background: var(--tt-sleep);
+  color: var(--tt-text-on-accent);
 }
 
 .tt-next-up-card--sleeping .tt-next-up-card__duration,
 .tt-next-up-card--sleeping .tt-next-up-card__subtext,
 .tt-next-up-card--sleeping .tt-next-up-card__zzz {
-  color: #ffffff;
+  color: var(--tt-text-on-accent);
 }
 
 .tt-next-up-card--sleeping .tt-next-up-card__sleep-icon {
-  color: #ffffff;
+  color: var(--tt-text-on-accent);
 }
 
 .tt-next-up-card--sleeping .tt-next-up-card__subtext {
@@ -114,18 +114,18 @@
 }
 
 .tt-next-up-card--sleeping .tt-next-up-card__cta {
-  background: #ffffff;
-  color: var(--tt-sleep, #4F46E5);
+  background: var(--tt-text-on-accent);
+  color: var(--tt-sleep);
 }
 
 .tt-next-up-card--feedReady {
-  background: var(--tt-feed, #DB2777);
-  color: #ffffff;
+  background: var(--tt-feed);
+  color: var(--tt-text-on-accent);
 }
 
 .tt-next-up-card--feedReady .tt-next-up-card__duration,
 .tt-next-up-card--feedReady .tt-next-up-card__subtext {
-  color: #ffffff;
+  color: var(--tt-text-on-accent);
 }
 
 .tt-next-up-card--feedReady .tt-next-up-card__subtext {
@@ -133,18 +133,18 @@
 }
 
 .tt-next-up-card--feedReady .tt-next-up-card__cta {
-  background: #ffffff;
-  color: var(--tt-feed, #DB2777);
+  background: var(--tt-text-on-accent);
+  color: var(--tt-feed);
 }
 
 .tt-next-up-card--sleepReady {
-  background: var(--tt-sleep, #4F46E5);
-  color: #ffffff;
+  background: var(--tt-sleep);
+  color: var(--tt-text-on-accent);
 }
 
 .tt-next-up-card--sleepReady .tt-next-up-card__duration,
 .tt-next-up-card--sleepReady .tt-next-up-card__subtext {
-  color: #ffffff;
+  color: var(--tt-text-on-accent);
 }
 
 .tt-next-up-card--sleepReady .tt-next-up-card__subtext {
@@ -152,22 +152,22 @@
 }
 
 .tt-next-up-card--sleepReady .tt-next-up-card__cta {
-  background: #ffffff;
-  color: var(--tt-sleep, #4F46E5);
+  background: var(--tt-text-on-accent);
+  color: var(--tt-sleep);
 }
 
 .tt-next-up-card--upcoming {
-  background: var(--tt-subtle-surface, rgba(0, 0, 0, 0.03));
-  color: var(--tt-text-primary, rgba(0, 0, 0, 0.87));
+  background: var(--tt-subtle-surface);
+  color: var(--tt-text-primary);
 }
 
 .tt-next-up-card--upcoming .tt-next-up-card__duration {
   font-size: 1.5rem;
-  color: var(--tt-text-primary, rgba(0, 0, 0, 0.87));
+  color: var(--tt-text-primary);
 }
 
 .tt-next-up-card--upcoming .tt-next-up-card__subtext {
-  color: var(--tt-text-tertiary, rgba(0, 0, 0, 0.38));
+  color: var(--tt-text-tertiary);
 }
 
 @keyframes tt-next-up-floating-zs {

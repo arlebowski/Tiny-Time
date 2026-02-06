@@ -50,12 +50,12 @@ const TimeframeToggle = ({ value, onChange, className = '' }) => {
 const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
   return React.createElement(
     'div',
-    { className: 'min-h-screen w-full flex items-center justify-center bg-[#F2F2F7] px-4 py-10' },
+    { className: 'min-h-screen w-full flex items-center justify-center px-4 py-10', style: { backgroundColor: 'var(--tt-recovery-bg)' } },
     React.createElement(
       'div',
-      { className: 'w-full max-w-md bg-white rounded-2xl shadow-sm border border-gray-100 p-5' },
-      React.createElement('div', { className: 'text-[18px] font-semibold text-gray-900 mb-2' }, title || 'Couldn’t load Tiny Tracker'),
-      React.createElement('div', { className: 'text-[14px] text-gray-700 leading-relaxed mb-4' },
+      { className: 'w-full max-w-md rounded-2xl shadow-sm p-5', style: { backgroundColor: 'var(--tt-card-bg)', border: '1px solid var(--tt-border-subtle)' } },
+      React.createElement('div', { className: 'text-[18px] font-semibold mb-2', style: { color: 'var(--tt-text-primary)' } }, title || 'Couldn’t load Tiny Tracker'),
+      React.createElement('div', { className: 'text-[14px] leading-relaxed mb-4', style: { color: 'var(--tt-text-secondary)' } },
         message || 'We’re having trouble loading your data. This can happen if your connection is spotty or the app is temporarily out of sync.'
       ),
       React.createElement(
@@ -64,7 +64,8 @@ const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
         React.createElement(
           'button',
           {
-            className: 'flex-1 h-11 rounded-xl bg-[#4F46E5] text-white font-medium',
+            className: 'flex-1 h-11 rounded-xl font-medium',
+            style: { backgroundColor: 'var(--tt-primary-brand)', color: 'var(--tt-text-on-accent)' },
             onClick: onRetry
           },
           'Retry'
@@ -72,7 +73,8 @@ const TinyRecoveryScreen = ({ title, message, onRetry, onSignOut }) => {
         React.createElement(
           'button',
           {
-            className: 'flex-1 h-11 rounded-xl bg-gray-100 text-gray-900 font-medium',
+            className: 'flex-1 h-11 rounded-xl font-medium',
+            style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-primary)' },
             onClick: onSignOut
           },
           'Sign out'
@@ -171,13 +173,15 @@ const ensureUserProfile = async (user, inviteCode = null) => {
 // USER APPEARANCE PREFERENCES (Step 1)
 // ========================================
 
+const THEME_TOKENS = (window.TT && window.TT.themeTokens) ? window.TT.themeTokens : {};
+
 // Default appearance schema
-const DEFAULT_APPEARANCE = {
+const DEFAULT_APPEARANCE = THEME_TOKENS.DEFAULT_APPEARANCE || {
   darkMode: false,
   background: "health-gray", // allowed: "health-gray" | "eggshell"
-  feedAccent: "#d45d5c",
-  sleepAccent: "#4a8ac2",
-  diaperAccent: "#C28F5C"
+  feedAccent: '',
+  sleepAccent: '',
+  diaperAccent: ''
 };
 
 // Initialize TT.appearance namespace
@@ -417,99 +421,9 @@ const deriveAccentVariants = (hex, isDark) => {
 };
 
 // Background theme mapping
-const BACKGROUND_THEMES = {
-  light: {
-    "health-gray": {
-      appBg: "rgba(255, 255, 255, 1)",
-      cardBg: "rgba(251, 248, 239, 1)",
-      cardBorder: "transparent"
-    },
-    "eggshell": {
-      appBg: "rgba(251, 248, 239, 1)",
-      cardBg: "rgba(242, 235, 217, 1)",
-      cardBorder: "transparent"
-    }
-  },
-  dark: {
-    "health-gray": {
-      appBg: "rgba(31, 32, 34, 1)", 
-      cardBg: "rgba(42, 43, 48, 1)",
-      cardBorder: "transparent"
-    },
-    "eggshell": {
-      appBg: "#1C1C1C",      // --tt-bg-app
-      cardBg: "#202020",     // --tt-bg-surface
-      cardBorder: "transparent"  // --tt-border-subtle
-    }
-  }
-};
+const BACKGROUND_THEMES = THEME_TOKENS.BACKGROUND_THEMES || {};
 
-const LIGHT_MODE_TOKENS = {
-  "health-gray": {
-    inputBg: "rgba(251, 248, 239, 1)",
-    subtleSurface: "rgba(0,0,0,0.03)",
-    surfaceSubtle: "rgba(0,0,0,0.03)",
-    surfaceSelected: "rgba(0,0,0,0.08)",
-    surfaceHover: "rgba(0,0,0,0.03)",
-    progressTrack: "rgba(0,0,0,0.03)",
-    timelineItemBg: "rgba(251, 248, 239, 1)",
-    timelineTrackBg: "rgba(251, 248, 239, 1)",
-    halfsheetBg: "rgba(255, 255, 255, 1)",
-    wheelpickerBar: "rgba(0,0,0,0.03)",
-    iconBg: "rgba(251, 248, 239, 1)",
-    inputBorder: "rgba(0,0,0,0.08)",
-    divider: "rgba(0,0,0,0.08)",
-    trackerCardBg: "rgba(251, 248, 239, 1)",
-    segTrack: "rgba(0,0,0,0.03)",
-    segPill: "#ffffff",
-    swipeRowBg: "#F7F7F7",
-    selectedSurface: "rgba(0,0,0,0.08)",
-    plusBg: "#000000",
-    plusFg: "#ffffff",
-    textPrimary: "rgba(0,0,0,0.87)",
-    textSecondary: "rgba(0,0,0,0.60)",
-    textTertiary: "rgba(0,0,0,0.38)",
-    textDisabled: "rgba(0,0,0,0.28)",
-    bgHover: "rgba(0,0,0,0.03)",
-    borderSubtle: "rgba(0,0,0,0.08)",
-    borderStrong: "rgba(0,0,0,0.16)",
-    trayBg: "#ffffff",
-    trayShadow: "0 -10px 28px rgba(0,0,0,0.18)",
-    trayDivider: "rgba(0,0,0,0.06)"
-  },
-  "eggshell": {
-    inputBg: "#ffffff",
-    subtleSurface: "#ffffff",
-    surfaceSubtle: "#ffffff",
-    surfaceSelected: "rgba(242, 235, 217, 1)",
-    surfaceHover: "rgba(0,0,0,0.03)",
-    progressTrack: "#ffffff",
-    timelineItemBg: "#ffffff",
-    timelineTrackBg: "#ffffff",
-    halfsheetBg: "#ffffff",
-    wheelpickerBar: "#ffffff",
-    iconBg: "#ffffff",
-    inputBorder: "rgba(0,0,0,0.08)",
-    divider: "rgba(0,0,0,0.08)",
-    trackerCardBg: "#ffffff",
-    segTrack: "rgba(242, 235, 217, 1)",
-    segPill: "#ffffff",
-    swipeRowBg: "#F7F7F7",
-    selectedSurface: "rgba(242, 235, 217, 1)",
-    plusBg: "rgba(0, 0, 0, 1)",
-    plusFg: "rgba(255, 255, 255, 1)",
-    textPrimary: "rgba(38, 38, 38, 1)",
-    textSecondary: "rgba(60, 62, 67, 1)",
-    textTertiary: "rgba(119, 119, 119, 1)",
-    textDisabled: "rgba(0,0,0,0.28)",
-    bgHover: "rgba(0,0,0,0.03)",
-    borderSubtle: "rgba(0,0,0,0.08)",
-    borderStrong: "rgba(0,0,0,0.16)",
-    trayBg: "#ffffff",
-    trayShadow: "0 -10px 28px rgba(0,0,0,0.18)",
-    trayDivider: "rgba(0,0,0,0.06)"
-  }
-};
+const LIGHT_MODE_TOKENS = THEME_TOKENS.LIGHT_MODE_TOKENS || {};
 
 // Apply appearance to DOM
 window.TT.applyAppearance = function(appearance) {
@@ -537,6 +451,10 @@ window.TT.applyAppearance = function(appearance) {
   const theme = BACKGROUND_THEMES[mode][background] || BACKGROUND_THEMES[mode]["health-gray"]; // FIX 2: mode-aware fallback
   const isClaudeDark = !!darkMode && background === 'eggshell';
 
+  const darkTokens = THEME_TOKENS.DARK_MODE_TOKENS || {};
+  const claudeTokens = THEME_TOKENS.DARK_MODE_TOKENS_CLAUDE || {};
+  const analyticsColors = THEME_TOKENS.ANALYTICS_CATEGORY_COLORS || {};
+
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
   const sleepVariants = deriveAccentVariants(sanitizedSleepAccent, darkMode);
@@ -556,7 +474,11 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-header-bg', theme.appBg);
     root.style.setProperty('--tt-nav-bg', theme.appBg);
     // Reduce/disable nav shadow in dark mode (rely on surface step instead)
-    root.style.setProperty('--tt-nav-shadow', darkMode ? 'none' : '0 -1px 3px rgba(0,0,0,0.1)');
+    const lightNavShadow = (THEME_TOKENS.LIGHT_MODE_TOKENS && THEME_TOKENS.LIGHT_MODE_TOKENS[background])
+      ? THEME_TOKENS.LIGHT_MODE_TOKENS[background].navShadow
+      : 'none';
+    const darkNavShadow = isClaudeDark ? claudeTokens.navShadow : darkTokens.navShadow;
+    root.style.setProperty('--tt-nav-shadow', darkMode ? (darkNavShadow || 'none') : (lightNavShadow || 'none'));
     // Footer fade gradient with actual color value
     root.style.setProperty('--tt-nav-fade-gradient', `linear-gradient(to top, ${theme.appBg} 0%, transparent 100%)`);
 
@@ -587,76 +509,197 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-text-secondary', lightTokens.textSecondary);
       root.style.setProperty('--tt-text-tertiary', lightTokens.textTertiary);
       root.style.setProperty('--tt-text-disabled', lightTokens.textDisabled);
+      root.style.setProperty('--tt-text-on-accent', lightTokens.textOnAccent);
+      root.style.setProperty('--tt-tapable-bg', lightTokens.tapableBg);
+      root.style.setProperty('--tt-overlay-scrim', lightTokens.overlayScrim);
+      root.style.setProperty('--tt-overlay-scrim-strong', lightTokens.overlayScrimStrong);
+      root.style.setProperty('--tt-shadow-soft', lightTokens.shadowSoft);
+      root.style.setProperty('--tt-shadow-floating', lightTokens.shadowFloating);
+      root.style.setProperty('--tt-text-shadow', lightTokens.textShadow);
       root.style.setProperty('--tt-bg-hover', lightTokens.bgHover);
       root.style.setProperty('--tt-border-subtle', lightTokens.borderSubtle);
       root.style.setProperty('--tt-border-strong', lightTokens.borderStrong);
+      root.style.setProperty('--tt-outline-strong', lightTokens.outlineStrong);
+      root.style.setProperty('--tt-nav-disabled', lightTokens.navDisabled);
+      root.style.setProperty('--tt-nav-divider', lightTokens.navDivider);
+      root.style.setProperty('--tt-nav-pill-border', lightTokens.navPillBorder);
+      root.style.setProperty('--tt-segmented-track-bg', lightTokens.segmentedTrackBg);
+      root.style.setProperty('--tt-segmented-shadow', lightTokens.segmentedShadow);
+      root.style.setProperty('--tt-segmented-on-bg', lightTokens.segmentedOnBg);
+      root.style.setProperty('--tt-segmented-on-text', lightTokens.segmentedOnText);
+      root.style.setProperty('--tt-segmented-off-text', lightTokens.segmentedOffText);
+      root.style.setProperty('--tt-primary-action-bg', lightTokens.primaryActionBg);
+      root.style.setProperty('--tt-primary-action-bg-active', lightTokens.primaryActionBgActive);
+      root.style.setProperty('--tt-primary-action-shadow', lightTokens.primaryActionShadow);
+      root.style.setProperty('--tt-primary-action-shadow-active', lightTokens.primaryActionShadowActive);
+      root.style.setProperty('--tt-primary-action-text', lightTokens.primaryActionText);
+      root.style.setProperty('--tt-primary-brand', lightTokens.primaryBrand);
+      root.style.setProperty('--tt-primary-brand-soft', lightTokens.primaryBrandSoft);
+      root.style.setProperty('--tt-primary-brand-strong', lightTokens.primaryBrandStrong);
+      root.style.setProperty('--tt-recovery-bg', lightTokens.recoveryBg);
+      root.style.setProperty('--tt-error', lightTokens.error);
+      root.style.setProperty('--tt-error-soft', lightTokens.errorSoft);
+      root.style.setProperty('--tt-positive', lightTokens.positive);
+      root.style.setProperty('--tt-positive-soft', lightTokens.positiveSoft);
+      root.style.setProperty('--tt-positive-alt', lightTokens.positiveAlt);
+      root.style.setProperty('--tt-positive-alt-soft', lightTokens.positiveAltSoft);
+      root.style.setProperty('--tt-negative', lightTokens.negative);
+      root.style.setProperty('--tt-negative-soft', lightTokens.negativeSoft);
+      root.style.setProperty('--tt-negative-warm', lightTokens.negativeWarm);
+      root.style.setProperty('--tt-negative-warm-soft', lightTokens.negativeWarmSoft);
+      root.style.setProperty('--tt-pulse-highlight', lightTokens.pulseHighlight);
+      root.style.setProperty('--tt-highlight-indigo-soft', lightTokens.highlightIndigoSoft);
       root.style.setProperty('--tt-tray-bg', lightTokens.trayBg);
       root.style.setProperty('--tt-tray-shadow', lightTokens.trayShadow);
       root.style.setProperty('--tt-tray-divider', lightTokens.trayDivider);
     } else if (isClaudeDark) {
       // Dark mode: Claude-inspired palette (mapped to existing TT vars)
-      root.style.setProperty('--tt-input-bg', '#262626');        // --tt-bg-elevated
-      root.style.setProperty('--tt-subtle-surface', '#262626');  // pills/tracks/etc.
-      root.style.setProperty('--tt-surface-subtle', '#262626');
-      root.style.setProperty('--tt-surface-selected', 'rgba(255,255,255,0.12)');
-      root.style.setProperty('--tt-surface-hover', '#2A2A2A');
-      root.style.setProperty('--tt-progress-track', '#262626');
+      root.style.setProperty('--tt-input-bg', claudeTokens.inputBg);
+      root.style.setProperty('--tt-subtle-surface', claudeTokens.subtleSurface);
+      root.style.setProperty('--tt-surface-subtle', claudeTokens.surfaceSubtle);
+      root.style.setProperty('--tt-surface-selected', claudeTokens.surfaceSelected);
+      root.style.setProperty('--tt-surface-hover', claudeTokens.surfaceHover);
+      root.style.setProperty('--tt-progress-track', claudeTokens.progressTrack);
       root.style.setProperty('--tt-timeline-item-bg', theme.cardBg);
-      root.style.setProperty('--tt-timeline-track-bg', '#262626');
+      root.style.setProperty('--tt-timeline-track-bg', claudeTokens.timelineTrackBg);
       root.style.setProperty('--tt-halfsheet-bg', theme.cardBg);
-      root.style.setProperty('--tt-wheelpicker-bar', '#262626');
-      root.style.setProperty('--tt-icon-bg', '#262626');
-      root.style.setProperty('--tt-input-border', '#2E2E2E');
-      root.style.setProperty('--tt-divider', '#2E2E2E');
+      root.style.setProperty('--tt-wheelpicker-bar', claudeTokens.wheelpickerBar);
+      root.style.setProperty('--tt-icon-bg', claudeTokens.iconBg);
+      root.style.setProperty('--tt-input-border', claudeTokens.inputBorder);
+      root.style.setProperty('--tt-divider', claudeTokens.divider);
       root.style.setProperty('--tt-tracker-card-bg', theme.cardBg);
-      root.style.setProperty('--tt-seg-track', '#262626');
-      root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
-      root.style.setProperty('--tt-swipe-row-bg', '#272727');
-      root.style.setProperty('--tt-selected-surface', 'rgba(255,255,255,0.12)');
-      root.style.setProperty('--tt-plus-bg', '#ffffff');
-      root.style.setProperty('--tt-plus-fg', '#000000');
-      root.style.setProperty('--tt-text-primary', '#EDEDED');
-      root.style.setProperty('--tt-text-secondary', '#B3B3B3');
-      root.style.setProperty('--tt-text-tertiary', '#8A8A8A');
-      root.style.setProperty('--tt-text-disabled', '#6F6F6F');
-      root.style.setProperty('--tt-bg-hover', '#2A2A2A');
-      root.style.setProperty('--tt-border-subtle', '#2E2E2E');
-      root.style.setProperty('--tt-border-strong', '#3A3A3A');
-      root.style.setProperty('--tt-tray-bg', '#262626');
-      root.style.setProperty('--tt-tray-shadow', '0 -10px 28px rgba(0,0,0,0.35)');
-      root.style.setProperty('--tt-tray-divider', 'rgba(255,255,255,0.08)');
+      root.style.setProperty('--tt-seg-track', claudeTokens.segTrack);
+      root.style.setProperty('--tt-seg-pill', claudeTokens.segPill);
+      root.style.setProperty('--tt-swipe-row-bg', claudeTokens.swipeRowBg);
+      root.style.setProperty('--tt-selected-surface', claudeTokens.selectedSurface);
+      root.style.setProperty('--tt-plus-bg', claudeTokens.plusBg);
+      root.style.setProperty('--tt-plus-fg', claudeTokens.plusFg);
+      root.style.setProperty('--tt-text-primary', claudeTokens.textPrimary);
+      root.style.setProperty('--tt-text-secondary', claudeTokens.textSecondary);
+      root.style.setProperty('--tt-text-tertiary', claudeTokens.textTertiary);
+      root.style.setProperty('--tt-text-disabled', claudeTokens.textDisabled);
+      root.style.setProperty('--tt-text-on-accent', claudeTokens.textOnAccent);
+      root.style.setProperty('--tt-tapable-bg', claudeTokens.tapableBg);
+      root.style.setProperty('--tt-overlay-scrim', claudeTokens.overlayScrim);
+      root.style.setProperty('--tt-overlay-scrim-strong', claudeTokens.overlayScrimStrong);
+      root.style.setProperty('--tt-shadow-soft', claudeTokens.shadowSoft);
+      root.style.setProperty('--tt-shadow-floating', claudeTokens.shadowFloating);
+      root.style.setProperty('--tt-text-shadow', claudeTokens.textShadow);
+      root.style.setProperty('--tt-bg-hover', claudeTokens.bgHover);
+      root.style.setProperty('--tt-border-subtle', claudeTokens.borderSubtle);
+      root.style.setProperty('--tt-border-strong', claudeTokens.borderStrong);
+      root.style.setProperty('--tt-outline-strong', claudeTokens.outlineStrong);
+      root.style.setProperty('--tt-nav-disabled', claudeTokens.navDisabled);
+      root.style.setProperty('--tt-nav-divider', claudeTokens.navDivider);
+      root.style.setProperty('--tt-nav-pill-border', claudeTokens.navPillBorder);
+      root.style.setProperty('--tt-segmented-track-bg', claudeTokens.segmentedTrackBg);
+      root.style.setProperty('--tt-segmented-shadow', claudeTokens.segmentedShadow);
+      root.style.setProperty('--tt-segmented-on-bg', claudeTokens.segmentedOnBg);
+      root.style.setProperty('--tt-segmented-on-text', claudeTokens.segmentedOnText);
+      root.style.setProperty('--tt-segmented-off-text', claudeTokens.segmentedOffText);
+      root.style.setProperty('--tt-primary-action-bg', claudeTokens.primaryActionBg);
+      root.style.setProperty('--tt-primary-action-bg-active', claudeTokens.primaryActionBgActive);
+      root.style.setProperty('--tt-primary-action-shadow', claudeTokens.primaryActionShadow);
+      root.style.setProperty('--tt-primary-action-shadow-active', claudeTokens.primaryActionShadowActive);
+      root.style.setProperty('--tt-primary-action-text', claudeTokens.primaryActionText);
+      root.style.setProperty('--tt-primary-brand', claudeTokens.primaryBrand);
+      root.style.setProperty('--tt-primary-brand-soft', claudeTokens.primaryBrandSoft);
+      root.style.setProperty('--tt-primary-brand-strong', claudeTokens.primaryBrandStrong);
+      root.style.setProperty('--tt-recovery-bg', claudeTokens.recoveryBg);
+      root.style.setProperty('--tt-error', claudeTokens.error);
+      root.style.setProperty('--tt-error-soft', claudeTokens.errorSoft);
+      root.style.setProperty('--tt-positive', claudeTokens.positive);
+      root.style.setProperty('--tt-positive-soft', claudeTokens.positiveSoft);
+      root.style.setProperty('--tt-positive-alt', claudeTokens.positiveAlt);
+      root.style.setProperty('--tt-positive-alt-soft', claudeTokens.positiveAltSoft);
+      root.style.setProperty('--tt-negative', claudeTokens.negative);
+      root.style.setProperty('--tt-negative-soft', claudeTokens.negativeSoft);
+      root.style.setProperty('--tt-negative-warm', claudeTokens.negativeWarm);
+      root.style.setProperty('--tt-negative-warm-soft', claudeTokens.negativeWarmSoft);
+      root.style.setProperty('--tt-pulse-highlight', claudeTokens.pulseHighlight);
+      root.style.setProperty('--tt-highlight-indigo-soft', claudeTokens.highlightIndigoSoft);
+      root.style.setProperty('--tt-tray-bg', claudeTokens.trayBg);
+      root.style.setProperty('--tt-tray-shadow', claudeTokens.trayShadow);
+      root.style.setProperty('--tt-tray-divider', claudeTokens.trayDivider);
     } else {
       // Dark mode: existing palette (current behavior)
-      root.style.setProperty('--tt-input-bg', '#3C3E43');
-      root.style.setProperty('--tt-subtle-surface', 'rgba(255,255,255,0.05)');
-      root.style.setProperty('--tt-surface-subtle', 'rgba(255,255,255,0.05)');
-      root.style.setProperty('--tt-surface-selected', '#2A2B30');
-      root.style.setProperty('--tt-surface-hover', 'rgba(255,255,255,0.08)');
-      root.style.setProperty('--tt-progress-track', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-input-bg', darkTokens.inputBg);
+      root.style.setProperty('--tt-subtle-surface', darkTokens.subtleSurface);
+      root.style.setProperty('--tt-surface-subtle', darkTokens.surfaceSubtle);
+      root.style.setProperty('--tt-surface-selected', darkTokens.surfaceSelected);
+      root.style.setProperty('--tt-surface-hover', darkTokens.surfaceHover);
+      root.style.setProperty('--tt-progress-track', darkTokens.progressTrack);
       root.style.setProperty('--tt-timeline-item-bg', theme.cardBg);
-      root.style.setProperty('--tt-timeline-track-bg', 'rgba(255,255,255,0.05)');
+      root.style.setProperty('--tt-timeline-track-bg', darkTokens.timelineTrackBg);
       root.style.setProperty('--tt-halfsheet-bg', theme.cardBg);
-      root.style.setProperty('--tt-wheelpicker-bar', 'rgba(255,255,255,0.05)');
-      root.style.setProperty('--tt-icon-bg', '#3C3E43');
-      root.style.setProperty('--tt-input-border', 'rgba(255,255,255,0.10)');
-      root.style.setProperty('--tt-divider', 'rgba(255,255,255,0.10)');
+      root.style.setProperty('--tt-wheelpicker-bar', darkTokens.wheelpickerBar);
+      root.style.setProperty('--tt-icon-bg', darkTokens.iconBg);
+      root.style.setProperty('--tt-input-border', darkTokens.inputBorder);
+      root.style.setProperty('--tt-divider', darkTokens.divider);
       root.style.setProperty('--tt-tracker-card-bg', theme.cardBg);
-      root.style.setProperty('--tt-seg-track', 'rgba(255,255,255,0.05)');
-      root.style.setProperty('--tt-seg-pill', 'rgba(255,255,255,0.12)');
-      root.style.setProperty('--tt-swipe-row-bg', '#272727');
-      root.style.setProperty('--tt-selected-surface', '#2A2B30');
-      root.style.setProperty('--tt-plus-bg', '#ffffff');
-      root.style.setProperty('--tt-plus-fg', '#000000');
-      root.style.setProperty('--tt-text-primary', 'rgba(255,255,255,0.87)');
-      root.style.setProperty('--tt-text-secondary', 'rgba(255,255,255,0.60)');
-      root.style.setProperty('--tt-text-tertiary', 'rgba(255,255,255,0.38)');
-      root.style.setProperty('--tt-text-disabled', 'rgba(255,255,255,0.26)');
-      root.style.setProperty('--tt-bg-hover', 'rgba(255,255,255,0.08)');
-      root.style.setProperty('--tt-border-subtle', 'rgba(255,255,255,0.10)');
-      root.style.setProperty('--tt-border-strong', 'rgba(255,255,255,0.16)');
-      root.style.setProperty('--tt-tray-bg', '#222224');
-      root.style.setProperty('--tt-tray-shadow', '0 -10px 28px rgba(0,0,0,0.35)');
-      root.style.setProperty('--tt-tray-divider', 'rgba(255,255,255,0.08)');
+      root.style.setProperty('--tt-seg-track', darkTokens.segTrack);
+      root.style.setProperty('--tt-seg-pill', darkTokens.segPill);
+      root.style.setProperty('--tt-swipe-row-bg', darkTokens.swipeRowBg);
+      root.style.setProperty('--tt-selected-surface', darkTokens.selectedSurface);
+      root.style.setProperty('--tt-plus-bg', darkTokens.plusBg);
+      root.style.setProperty('--tt-plus-fg', darkTokens.plusFg);
+      root.style.setProperty('--tt-text-primary', darkTokens.textPrimary);
+      root.style.setProperty('--tt-text-secondary', darkTokens.textSecondary);
+      root.style.setProperty('--tt-text-tertiary', darkTokens.textTertiary);
+      root.style.setProperty('--tt-text-disabled', darkTokens.textDisabled);
+      root.style.setProperty('--tt-text-on-accent', darkTokens.textOnAccent);
+      root.style.setProperty('--tt-tapable-bg', darkTokens.tapableBg);
+      root.style.setProperty('--tt-overlay-scrim', darkTokens.overlayScrim);
+      root.style.setProperty('--tt-overlay-scrim-strong', darkTokens.overlayScrimStrong);
+      root.style.setProperty('--tt-shadow-soft', darkTokens.shadowSoft);
+      root.style.setProperty('--tt-shadow-floating', darkTokens.shadowFloating);
+      root.style.setProperty('--tt-text-shadow', darkTokens.textShadow);
+      root.style.setProperty('--tt-bg-hover', darkTokens.bgHover);
+      root.style.setProperty('--tt-border-subtle', darkTokens.borderSubtle);
+      root.style.setProperty('--tt-border-strong', darkTokens.borderStrong);
+      root.style.setProperty('--tt-outline-strong', darkTokens.outlineStrong);
+      root.style.setProperty('--tt-nav-disabled', darkTokens.navDisabled);
+      root.style.setProperty('--tt-nav-divider', darkTokens.navDivider);
+      root.style.setProperty('--tt-nav-pill-border', darkTokens.navPillBorder);
+      root.style.setProperty('--tt-segmented-track-bg', darkTokens.segmentedTrackBg);
+      root.style.setProperty('--tt-segmented-shadow', darkTokens.segmentedShadow);
+      root.style.setProperty('--tt-segmented-on-bg', darkTokens.segmentedOnBg);
+      root.style.setProperty('--tt-segmented-on-text', darkTokens.segmentedOnText);
+      root.style.setProperty('--tt-segmented-off-text', darkTokens.segmentedOffText);
+      root.style.setProperty('--tt-primary-action-bg', darkTokens.primaryActionBg);
+      root.style.setProperty('--tt-primary-action-bg-active', darkTokens.primaryActionBgActive);
+      root.style.setProperty('--tt-primary-action-shadow', darkTokens.primaryActionShadow);
+      root.style.setProperty('--tt-primary-action-shadow-active', darkTokens.primaryActionShadowActive);
+      root.style.setProperty('--tt-primary-action-text', darkTokens.primaryActionText);
+      root.style.setProperty('--tt-primary-brand', darkTokens.primaryBrand);
+      root.style.setProperty('--tt-primary-brand-soft', darkTokens.primaryBrandSoft);
+      root.style.setProperty('--tt-primary-brand-strong', darkTokens.primaryBrandStrong);
+      root.style.setProperty('--tt-recovery-bg', darkTokens.recoveryBg);
+      root.style.setProperty('--tt-error', darkTokens.error);
+      root.style.setProperty('--tt-error-soft', darkTokens.errorSoft);
+      root.style.setProperty('--tt-positive', darkTokens.positive);
+      root.style.setProperty('--tt-positive-soft', darkTokens.positiveSoft);
+      root.style.setProperty('--tt-positive-alt', darkTokens.positiveAlt);
+      root.style.setProperty('--tt-positive-alt-soft', darkTokens.positiveAltSoft);
+      root.style.setProperty('--tt-negative', darkTokens.negative);
+      root.style.setProperty('--tt-negative-soft', darkTokens.negativeSoft);
+      root.style.setProperty('--tt-negative-warm', darkTokens.negativeWarm);
+      root.style.setProperty('--tt-negative-warm-soft', darkTokens.negativeWarmSoft);
+      root.style.setProperty('--tt-pulse-highlight', darkTokens.pulseHighlight);
+      root.style.setProperty('--tt-highlight-indigo-soft', darkTokens.highlightIndigoSoft);
+      root.style.setProperty('--tt-tray-bg', darkTokens.trayBg);
+      root.style.setProperty('--tt-tray-shadow', darkTokens.trayShadow);
+      root.style.setProperty('--tt-tray-divider', darkTokens.trayDivider);
+    }
+
+    if (analyticsColors.daily) {
+      root.style.setProperty('--color-daily', analyticsColors.daily);
+    }
+    if (analyticsColors.sleep) {
+      root.style.setProperty('--color-sleep', analyticsColors.sleep);
+    }
+    if (analyticsColors.eating) {
+      root.style.setProperty('--color-eating', analyticsColors.eating);
     }
 
     // Feed accents
@@ -972,6 +1015,16 @@ const firestoreStorage = {
     this._refreshSettingsCache({ force: true });
     this._refreshFamilyMembersCache({ force: true });
     logEvent("kid_selected", { familyId, kidId });
+    try {
+      if (typeof window !== 'undefined' && window.__TT_DEBUG_ACTIVE_SLEEP_SUB) {
+        console.log('[storage-ready]', { familyId, kidId });
+      }
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tt:storage-ready', {
+          detail: { familyId, kidId }
+        }));
+      }
+    } catch (e) {}
   },
 
   _kidRef() {
@@ -2432,6 +2485,9 @@ const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [mode, setMode] = useState("login"); // "login" | "signup"
+  const googleColors = (THEME_TOKENS && THEME_TOKENS.GOOGLE_COLORS)
+    ? THEME_TOKENS.GOOGLE_COLORS
+    : { blue: "currentColor", green: "currentColor", yellow: "currentColor", red: "currentColor" };
 
   const handleSignIn = async () => {
     setSigningIn(true);
@@ -2537,22 +2593,22 @@ const LoginScreen = () => {
           "svg",
           { width: "20", height: "20", viewBox: "0 0 24 24" },
           React.createElement("path", {
-            fill: "#4285F4",
+            fill: googleColors.blue,
             d:
               "M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z",
           }),
           React.createElement("path", {
-            fill: "#34A853",
+            fill: googleColors.green,
             d:
               "M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z",
           }),
           React.createElement("path", {
-            fill: "#FBBC05",
+            fill: googleColors.yellow,
             d:
               "M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z",
           }),
           React.createElement("path", {
-            fill: "#EA4335",
+            fill: googleColors.red,
             d:
               "M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z",
           })
@@ -2748,6 +2804,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
         .set({
           babyWeight: weight,
           multiplier: 2.5,
+          preferredVolumeUnit: 'oz',
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -2928,14 +2985,7 @@ const PersonAddIcon = (props) => React.createElement(
 // ChevronDown and ChevronUp are provided by components/TrackerCard.js
 
 // Per-kid theme palette
-const KID_THEMES = {
-  indigo: { bg: '#E0E7FF', accent: '#4F46E5', soft: '#EEF2FF' },
-  health: { bg: '#F2F2F7', accent: '#4F46E5', soft: '#FFFFFF' },
-  teal:   { bg: '#CCFBF1', accent: '#0F766E', soft: '#E0F2F1' },
-  pink:   { bg: '#FCE7F3', accent: '#DB2777', soft: '#FDF2F8' },
-  amber:  { bg: '#FEF3C7', accent: '#D97706', soft: '#FFFBEB' },
-  purple: { bg: '#EDE9FE', accent: '#7C3AED', soft: '#F5F3FF' }
-};
+const KID_THEMES = THEME_TOKENS.KID_THEMES || {};
 
 
 // =====================================================
@@ -4537,7 +4587,10 @@ const ensureMetaThemeTag = () => {
 const updateMetaThemeColor = () => {
   const meta = ensureMetaThemeTag();
   const appBg = getComputedStyle(document.documentElement).getPropertyValue('--tt-app-bg').trim();
-  const color = appBg || '#f3f4f6'; // fallback to light health-gray
+  const fallbackBg = (THEME_TOKENS.BACKGROUND_PREVIEW_COLORS && THEME_TOKENS.BACKGROUND_PREVIEW_COLORS.light)
+    ? THEME_TOKENS.BACKGROUND_PREVIEW_COLORS.light["health-gray"]
+    : undefined;
+  const color = appBg || fallbackBg;
   meta.setAttribute('content', color);
 };
 
