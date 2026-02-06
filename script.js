@@ -1011,9 +1011,11 @@ const firestoreStorage = {
     };
     await this._initCache();
     await this._loadSettingsCache();
-    this._refreshCache({ force: true });
-    this._refreshSettingsCache({ force: true });
-    this._refreshFamilyMembersCache({ force: true });
+    await Promise.all([
+      this._refreshCache({ force: true }),
+      this._refreshSettingsCache({ force: true }),
+      this._refreshFamilyMembersCache({ force: true })
+    ]);
     logEvent("kid_selected", { familyId, kidId });
     try {
       if (typeof window !== 'undefined' && window.__TT_DEBUG_ACTIVE_SLEEP_SUB) {
@@ -2231,6 +2233,7 @@ const { useState, useEffect, useMemo } = React;
 const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [bootReady, setBootReady] = useState(false);
 
   // These now represent the NEW schema
   const [familyId, setFamilyId] = useState(null);
@@ -2238,6 +2241,10 @@ const App = () => {
 
   const [needsSetup, setNeedsSetup] = useState(false);
   const [loadIssue, setLoadIssue] = useState(null);
+
+  const [bootKids, setBootKids] = useState(null);
+  const [bootActiveKid, setBootActiveKid] = useState(null);
+  const [bootThemeKey, setBootThemeKey] = useState('indigo');
 
   // ----------------------------------------------------
   // KID SWITCH (multi-kid)
@@ -2263,6 +2270,10 @@ const App = () => {
         setFamilyId(null);
         setNeedsSetup(false);
         setLoadIssue(null);
+        setBootReady(false);
+        setBootKids(null);
+        setBootActiveKid(null);
+        setBootThemeKey('indigo');
         setLoading(false);
         // Reset appearance to defaults on sign out
         await window.TT.appearance.init(null);
@@ -2272,6 +2283,11 @@ const App = () => {
 
       setUser(u);
       setLoadIssue(null);
+      setLoading(true);
+      setBootReady(false);
+      setBootKids(null);
+      setBootActiveKid(null);
+      setBootThemeKey('indigo');
 
       const urlParams = new URLSearchParams(window.location.search);
       const inviteCode = urlParams.get("invite");
@@ -2384,12 +2400,56 @@ const App = () => {
 
         await firestoreStorage.initialize(resolvedFamilyId, resolvedKidId);
 
+        await Promise.all([
+          firestoreStorage.getSettings(),
+          firestoreStorage.getSleepSettings(),
+          firestoreStorage.getKidData(),
+          firestoreStorage.getAllFeedings(),
+          firestoreStorage.getAllSleepSessions(),
+          firestoreStorage.getAllDiaperChanges()
+        ]);
+
+        const kidsSnap = await db
+          .collection("families")
+          .doc(resolvedFamilyId)
+          .collection("kids")
+          .get();
+
+        if (kidsSnap.empty) {
+          throw new Error("No kids found for resolved family");
+        }
+
+        const list = kidsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const current = list.find(k => k.id === resolvedKidId) || null;
+        if (!current) {
+          throw new Error("Resolved kid missing from family list");
+        }
+
+        const settingsDoc = await db
+          .collection("families")
+          .doc(resolvedFamilyId)
+          .collection("kids")
+          .doc(resolvedKidId)
+          .collection("settings")
+          .doc("default")
+          .get();
+        const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
+
+        setBootKids(list);
+        setBootActiveKid(current);
+        setBootThemeKey(settingsData.themeKey || "indigo");
+        setBootReady(true);
+
       } catch (err) {
         console.error("Setup error:", err);
         // Signed-in bootstrap failed. Never throw user into onboarding here.
         setNeedsSetup(false);
         setFamilyId(null);
         setKidId(null);
+        setBootReady(false);
+        setBootKids(null);
+        setBootActiveKid(null);
+        setBootThemeKey('indigo');
         setLoadIssue({
           title: "Couldn’t load Tiny Tracker",
           message:
@@ -2471,7 +2531,10 @@ const App = () => {
     user,
     kidId,
     familyId,
-    onKidChange: handleKidChange
+    onKidChange: handleKidChange,
+    bootKids,
+    bootActiveKid,
+    bootThemeKey
   });
 };
 
@@ -2992,13 +3055,13 @@ const KID_THEMES = THEME_TOKENS.KID_THEMES || {};
 // MAIN APP
 // =====================================================
 
-const MainApp = ({ user, kidId, familyId, onKidChange }) => {
+const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, bootThemeKey }) => {
   const [activeTab, setActiveTab] = useState('tracker');
   const [showShareMenu, setShowShareMenu] = useState(false);
 
-  const [kids, setKids] = useState([]);
-  const [activeKid, setActiveKid] = useState(null);
-  const [themeKey, setThemeKey] = useState('indigo');
+  const [kids, setKids] = useState(() => (Array.isArray(bootKids) ? bootKids : []));
+  const [activeKid, setActiveKid] = useState(() => (bootActiveKid || null));
+  const [themeKey, setThemeKey] = useState(() => (bootThemeKey || 'indigo'));
   const [showKidMenu, setShowKidMenu] = useState(false);
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);

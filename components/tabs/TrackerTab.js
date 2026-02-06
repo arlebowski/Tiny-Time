@@ -1420,7 +1420,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   }, [avgCacheKey, kidDataState]);
 
   React.useEffect(() => {
-    if (!avgCacheKey) return;
+    if (!avgCacheKey || !hasLoadedOnce) return;
     const nextFeed = _buildFeedAvgBuckets(allFeedings);
     const nextSleep = _buildSleepAvgBuckets(allSleepSessions);
     if (!nextFeed && !nextSleep) {
@@ -1456,7 +1456,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       firestoreStorage.updateKidData({ avgByTime: next });
       setKidDataState((prev) => ({ ...(prev || {}), avgByTime: next }));
     }
-  }, [avgCacheKey, allFeedings, allSleepSessions]);
+  }, [avgCacheKey, allFeedings, allSleepSessions, hasLoadedOnce]);
 
   const nowBucketIndex = _bucketIndexCeilFromMs(Date.now());
   const feedAvgValue = avgByTimeCache?.feed?.buckets?.[nowBucketIndex];
