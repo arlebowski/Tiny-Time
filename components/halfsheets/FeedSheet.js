@@ -158,12 +158,25 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     onDelete = null,
     onSave = null,
     onAdd = null,
-    preferredVolumeUnit = null
+    preferredVolumeUnit = null,
+    activityVisibility = null
   }) => {
     const isInputVariant = variant !== 'detail';
     const effectiveEntry = isInputVariant ? null : entry;
     const effectiveOnSave = isInputVariant ? onAdd : onSave;
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
+    const _normalizeActivityVisibility = (value) => {
+      const base = { bottle: true, nursing: true };
+      if (!value || typeof value !== 'object') return base;
+      return {
+        bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
+        nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing
+      };
+    };
+    const feedVisibility = _normalizeActivityVisibility(activityVisibility);
+    const initialFeedType = feedVisibility.bottle
+      ? 'bottle'
+      : (feedVisibility.nursing ? 'nursing' : 'bottle');
     const [ounces, setOunces] = React.useState('');
     const [dateTime, setDateTime] = React.useState('');
     const [notes, setNotes] = React.useState('');
@@ -173,7 +186,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const [saving, setSaving] = React.useState(false);
     const dateTimeTouchedRef = React.useRef(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
-    const [feedType, setFeedType] = React.useState('bottle'); // 'bottle' | 'nursing'
+    const [feedType, setFeedType] = React.useState(initialFeedType); // 'bottle' | 'nursing'
 
     const [leftElapsedMs, setLeftElapsedMs] = React.useState(0);
     const [rightElapsedMs, setRightElapsedMs] = React.useState(0);
@@ -214,6 +227,17 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     React.useEffect(() => {
       activeSideRef.current = activeSide;
     }, [activeSide]);
+
+    React.useEffect(() => {
+      if (!isInputVariant) return;
+      if (feedVisibility.bottle && feedVisibility.nursing) return;
+      const next = feedVisibility.bottle
+        ? 'bottle'
+        : (feedVisibility.nursing ? 'nursing' : 'bottle');
+      if (feedType !== next) {
+        setFeedType(next);
+      }
+    }, [feedVisibility.bottle, feedVisibility.nursing, isInputVariant, feedType]);
 
     React.useEffect(() => {
       if (!isOpen || !activeSideRef.current) return undefined;
@@ -961,7 +985,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const leftDisplayMs = leftElapsedMs + (runningSide === 'left' ? liveDelta : 0);
     const rightDisplayMs = rightElapsedMs + (runningSide === 'right' ? liveDelta : 0);
     const totalDisplayMs = leftDisplayMs + rightDisplayMs;
-    const nursingCanSave = !!dateTime && totalDisplayMs > 0;
+    const nursingCanSave = !!dateTime && (totalDisplayMs > 0 || dateTimeTouchedRef.current);
     const shouldAllowScroll = notesExpanded && photosExpanded && notesWrappedLines >= 3;
 
     const handleEditSideDuration = (side) => {
@@ -1031,7 +1055,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       );
     };
 
-    const feedTypePicker = isInputVariant ? React.createElement('div', { className: "grid grid-cols-2 gap-3 pb-3" },
+    const showFeedTypePicker = isInputVariant && feedVisibility.bottle && feedVisibility.nursing;
+    const feedTypePicker = showFeedTypePicker ? React.createElement('div', { className: "grid grid-cols-2 gap-3 pb-3" },
       React.createElement(TypeButton, {
         label: 'Bottle',
         icon: BottleV2,

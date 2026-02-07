@@ -123,6 +123,7 @@ const HorizontalCalendar = ({
   initialDate = new Date(),
   onDateSelect,
   headerLeft = null,
+  headerRight = null,
   headerVariant = 'default',
   hideBody = false,
   hideNav = false,
@@ -381,16 +382,50 @@ const HorizontalCalendar = ({
     }
   };
 
+  const navControls = !hideNav && React.createElement('div', {
+    className: "flex gap-1",
+    style: headerLeft || headerRight ? { justifySelf: 'end', justifyContent: 'center' } : undefined
+  },
+    React.createElement('button', {
+      onClick: () => paginate(1),
+      className: "p-2 rounded-xl transition-colors group active:bg-[var(--tt-selected-surface)]",
+      'data-testid': "button-prev"
+    },
+      React.createElement(__ttHorizontalChevronLeftIcon, {
+        className: "w-5 h-5 transition-colors",
+        style: { color: 'var(--tt-text-secondary)' }
+      })
+    ),
+    React.createElement('button', {
+      onClick: () => paginate(-1),
+      disabled: weeksOffset === 0,
+      className: __ttHorizontalCn(
+        "p-2 rounded-xl transition-colors group active:bg-[var(--tt-selected-surface)]",
+        weeksOffset === 0 && "opacity-0 pointer-events-none"
+      ),
+      'data-testid': "button-next"
+    },
+      React.createElement(__ttHorizontalChevronRightIcon, {
+        className: "w-5 h-5 transition-colors",
+        style: { color: 'var(--tt-text-tertiary)' }
+      })
+    )
+  );
+
+  const rightSlot = headerRight ? (
+    React.createElement('div', { style: { justifySelf: 'end', display: 'flex', alignItems: 'flex-end', paddingBottom: '2px' } }, headerRight)
+  ) : navControls;
+
   return (
     React.createElement('div', {
       className: "w-full font-sans select-none overflow-visible",
       style: { color: 'var(--tt-text-primary)', perspective: '1000px' }
     },
       React.createElement('header', {
-        className: "mb-1 pl-3 pr-4",
+        className: "mb-1",
         style: headerLeft
           ? { display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }
-          : { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
+          : { display: 'flex', alignItems: headerRight ? 'flex-end' : 'center', justifyContent: 'space-between' }
       },
         headerLeft
           ? React.createElement('div', {
@@ -449,35 +484,7 @@ const HorizontalCalendar = ({
                 textAlign: headerLeft ? 'center' : undefined
               }
             }, monthKey),
-        !hideNav && React.createElement('div', {
-          className: "flex gap-1",
-          style: headerLeft ? { justifySelf: 'end', justifyContent: 'center' } : undefined
-        },
-          React.createElement('button', {
-            onClick: () => paginate(1),
-            className: "p-2 rounded-xl transition-colors group active:bg-[var(--tt-selected-surface)]",
-            'data-testid': "button-prev"
-          },
-            React.createElement(__ttHorizontalChevronLeftIcon, {
-              className: "w-5 h-5 transition-colors",
-              style: { color: 'var(--tt-text-secondary)' }
-            })
-          ),
-          React.createElement('button', {
-            onClick: () => paginate(-1),
-            disabled: weeksOffset === 0,
-            className: __ttHorizontalCn(
-              "p-2 rounded-xl transition-colors group active:bg-[var(--tt-selected-surface)]",
-              weeksOffset === 0 && "opacity-0 pointer-events-none"
-            ),
-            'data-testid': "button-next"
-          },
-            React.createElement(__ttHorizontalChevronRightIcon, {
-              className: "w-5 h-5 transition-colors",
-              style: { color: 'var(--tt-text-tertiary)' }
-            })
-          )
-        )
+        headerLeft ? rightSlot : (headerRight || navControls)
       ),
       !hideBody && React.createElement('div', { className: "relative touch-none" },
         React.createElement(__ttHorizontalAnimatePresence, { mode: "wait", custom: direction },

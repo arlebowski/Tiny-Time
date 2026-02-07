@@ -21,7 +21,16 @@ const __ttDebugCardsLog = (...args) => {
 // Initialize shared UI version helpers (only once)
 // Note: This is initialized in SettingsTab.js with Firestore support
 // This check ensures it exists, but won't re-initialize if already set
-const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, activeTab = null }) => {
+const TrackerTab = ({
+  user,
+  kidId,
+  familyId,
+  onRequestOpenInputSheet = null,
+  onRequestToggleActivitySheet = null,
+  isActivitySheetOpen = false,
+  activityVisibility = null,
+  activeTab = null
+}) => {
   // UI Version (v4-only)
 
   React.useEffect(() => {
@@ -90,11 +99,32 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     if (!familyId || !kidId) return null;
     return `tt_avg_by_time:${familyId}:${kidId}`;
   }, [familyId, kidId]);
+  const _normalizeActivityVisibility = (value) => {
+    const base = { bottle: true, nursing: true, sleep: true, diaper: true };
+    if (!value || typeof value !== 'object') return base;
+    return {
+      bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
+      nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing,
+      sleep: typeof value.sleep === 'boolean' ? value.sleep : base.sleep,
+      diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
+    };
+  };
+  const activityVisibilitySafe = _normalizeActivityVisibility(activityVisibility);
+  const canOpenInputSheet = React.useCallback((mode) => {
+    if (mode === 'sleep') return activityVisibilitySafe.sleep;
+    if (mode === 'diaper') return activityVisibilitySafe.diaper;
+    if (mode === 'feeding' || mode === 'nursing') {
+      return activityVisibilitySafe.bottle || activityVisibilitySafe.nursing;
+    }
+    return true;
+  }, [activityVisibilitySafe]);
+
   const requestInputSheetOpen = React.useCallback((mode = 'feeding') => {
+    if (!canOpenInputSheet(mode)) return;
     if (typeof onRequestOpenInputSheet === 'function') {
       onRequestOpenInputSheet(mode);
     }
-  }, [onRequestOpenInputSheet]);
+  }, [canOpenInputSheet, onRequestOpenInputSheet]);
   const handleV4CardTap = React.useCallback((e, payload) => {
     if (typeof window === 'undefined') return;
     const nextFilter = payload?.mode === 'feeding' || payload?.mode === 'nursing'
@@ -1765,8 +1795,44 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const HorizontalCalendar = (window.TT && window.TT.shared && window.TT.shared.HorizontalCalendar) || null;
   const NextUpCard = (window.TT && window.TT.shared && window.TT.shared.NextUpCard) || null;
   const nextUpEvent = null;
-  const nextUpBabyState = activeSleep && activeSleep.startTime ? 'sleeping' : 'awake';
-  const nextUpSleepStart = activeSleep && activeSleep.startTime ? activeSleep.startTime : null;
+  const allowSleepCard = !!activityVisibilitySafe.sleep;
+  const allowFeedingCard = !!activityVisibilitySafe.bottle;
+  const allowNursingCard = !!activityVisibilitySafe.nursing;
+  const allowDiaperCard = !!activityVisibilitySafe.diaper;
+  const activeSleepForUi = allowSleepCard ? activeSleep : null;
+  const nextUpBabyState = activeSleepForUi && activeSleepForUi.startTime ? 'sleeping' : 'awake';
+  const nextUpSleepStart = activeSleepForUi && activeSleepForUi.startTime ? activeSleepForUi.startTime : null;
+  const handleToggleActivitySheet = () => {
+    if (typeof onRequestToggleActivitySheet === 'function') {
+      onRequestToggleActivitySheet();
+    }
+  };
+  const GearIcon = (props) => React.createElement(
+    'svg',
+    {
+      ...props,
+      xmlns: "http://www.w3.org/2000/svg",
+      viewBox: "0 0 256 256",
+      fill: "currentColor"
+    },
+    React.createElement('path', {
+      d: isActivitySheetOpen
+        ? "M216,130.16q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.6,107.6,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.29,107.29,0,0,0-26.25-10.86,8,8,0,0,0-7.06,1.48L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.6,107.6,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"
+        : "M128,80a48,48,0,1,0,48,48A48.05,48.05,0,0,0,128,80Zm0,80a32,32,0,1,1,32-32A32,32,0,0,1,128,160Zm88-29.84q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.21,107.21,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.71,107.71,0,0,0-26.25-10.87,8,8,0,0,0-7.06,1.49L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.21,107.21,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06Zm-16.1-6.5a73.93,73.93,0,0,1,0,8.68,8,8,0,0,0,1.74,5.48l14.19,17.73a91.57,91.57,0,0,1-6.23,15L187,173.11a8,8,0,0,0-5.1,2.64,74.11,74.11,0,0,1-6.14,6.14,8,8,0,0,0-2.64,5.1l-2.51,22.58a91.32,91.32,0,0,1-15,6.23l-17.74-14.19a8,8,0,0,0-5-1.75h-.48a73.93,73.93,0,0,1-8.68,0,8,8,0,0,0-5.48,1.74L100.45,215.8a91.57,91.57,0,0,1-15-6.23L82.89,187a8,8,0,0,0-2.64-5.1,74.11,74.11,0,0,1-6.14-6.14,8,8,0,0,0-5.1-2.64L46.43,170.6a91.32,91.32,0,0,1-6.23-15l14.19-17.74a8,8,0,0,0,1.74-5.48,73.93,73.93,0,0,1,0-8.68,8,8,0,0,0-1.74-5.48L40.2,100.45a91.57,91.57,0,0,1,6.23-15L69,82.89a8,8,0,0,0,5.1-2.64,74.11,74.11,0,0,1,6.14-6.14A8,8,0,0,0,82.89,69L85.4,46.43a91.32,91.32,0,0,1,15-6.23l17.74,14.19a8,8,0,0,0,5.48,1.74,73.93,73.93,0,0,1,8.68,0,8,8,0,0,0,5.48-1.74L155.55,40.2a91.57,91.57,0,0,1,15,6.23L173.11,69a8,8,0,0,0,2.64,5.1,74.11,74.11,0,0,1,6.14,6.14,8,8,0,0,0,5.1,2.64l22.58,2.51a91.32,91.32,0,0,1,6.23,15l-14.19,17.74A8,8,0,0,0,199.87,123.66Z"
+    })
+  );
+  const gearButton = React.createElement('button', {
+    type: 'button',
+    onClick: handleToggleActivitySheet,
+    className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
+    style: {
+      backgroundColor: 'var(--tt-subtle-surface)',
+      borderColor: 'var(--tt-card-border)',
+      color: 'var(--tt-text-primary)'
+    },
+    'aria-label': 'Show & hide activities',
+    'aria-pressed': !!isActivitySheetOpen
+  }, React.createElement(GearIcon, { width: 26, height: 26, style: { display: 'block' } }));
   
   return React.createElement('div', { className: "space-y-4" },
     (loading && hasLoadedOnce) && React.createElement('div', {
@@ -1811,14 +1877,15 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           headerVariant: 'v4',
           hideBody: true,
           hideNav: true,
+          headerRight: gearButton,
           // headerPhotoUrl: kidPhotoUrl (v4 only)
           // headerPhotoAlt: kidDisplayName || 'Baby' (v4 only)
         })
       ),
       // What's Next Card - only show v4 NextUpCard while sleep is active
       // Show card if it's today OR if it's animating out
-      (isToday() || whatsNextCardAnimating === 'exiting') && (
-        (NextUpCard && activeSleep && activeSleep.startTime) ? React.createElement(NextUpCard, {
+      allowSleepCard && (isToday() || whatsNextCardAnimating === 'exiting') && (
+        (NextUpCard && activeSleepForUi && activeSleepForUi.startTime) ? React.createElement(NextUpCard, {
           babyState: nextUpBabyState,
           sleepStartTime: nextUpSleepStart,
           nextEvent: nextUpEvent,
@@ -1833,7 +1900,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         }) : null
       ),
 
-      React.createElement(window.TrackerCard, {
+      allowFeedingCard && React.createElement(window.TrackerCard, {
         mode: 'feeding',
         total: feedingCardData.total,
         target: feedingCardData.target,
@@ -1854,7 +1921,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           await loadFeedings();
         }
       }),
-      React.createElement(window.TrackerCard, {
+      allowNursingCard && React.createElement(window.TrackerCard, {
         mode: 'nursing',
         total: nursingCardData.total,
         target: null,
@@ -1874,7 +1941,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           await loadNursingSessions();
         }
       }),
-      React.createElement(window.TrackerCard, {
+      allowSleepCard && React.createElement(window.TrackerCard, {
         mode: 'sleep',
         total: sleepCardData.total,
         target: sleepCardData.target,
@@ -1896,7 +1963,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           await loadSleepSessions();
         }
       }),
-      React.createElement(window.TrackerCard, {
+      allowDiaperCard && React.createElement(window.TrackerCard, {
         mode: 'diaper',
         total: diaperCardData.total,
         target: null,

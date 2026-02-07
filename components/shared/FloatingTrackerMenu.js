@@ -41,7 +41,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
       const {
         onSelectTracker = () => {},
         position = { bottom: 'calc(env(safe-area-inset-bottom) + 70px)', left: '50%' },
-        className = ''
+        className = '',
+        visibleTypes = null
       } = props;
 
       const [isOpen, setIsOpen] = useState(false);
@@ -51,6 +52,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
         global.TT?.shared?.icons?.BottleV2 ||
         global.TT?.shared?.icons?.["bottle-v2"] ||
         null;
+      const NursingIcon =
+        global.TT?.shared?.icons?.NursingIcon ||
+        null;
       const MoonIcon =
         global.TT?.shared?.icons?.MoonV2 ||
         global.TT?.shared?.icons?.["moon-v2"] ||
@@ -58,6 +62,48 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
       const DiaperIcon =
         global.TT?.shared?.icons?.DiaperIcon ||
         null;
+
+      const getStoredVariant = () => {
+        try {
+          const stored = localStorage.getItem('tt_last_feed_variant');
+          return stored === 'nursing' ? 'nursing' : 'bottle';
+        } catch (e) {
+          return 'bottle';
+        }
+      };
+      const [lastFeedVariant, setLastFeedVariant] = useState(getStoredVariant);
+      const lastFeedVariantRef = useRef(getStoredVariant());
+
+      const resolveLastFeedVariant = useCallback(async () => {
+        const storage = global.firestoreStorage;
+        if (!storage || typeof storage.getAllFeedings !== 'function' || typeof storage.getAllNursingSessions !== 'function') return;
+        try {
+          const [feedsRaw, nursingRaw] = await Promise.all([
+            storage.getAllFeedings(),
+            storage.getAllNursingSessions()
+          ]);
+          const feeds = Array.isArray(feedsRaw) ? feedsRaw : [];
+          const nursing = Array.isArray(nursingRaw) ? nursingRaw : [];
+          const latestTs = (items) => {
+            let maxTs = 0;
+            for (const item of items) {
+              const ts = Number(item?.timestamp ?? item?.startTime ?? 0);
+              if (Number.isFinite(ts) && ts > maxTs) maxTs = ts;
+            }
+            return maxTs;
+          };
+          const feedTs = latestTs(feeds);
+          const nursingTs = latestTs(nursing);
+          const nextVariant = nursingTs > feedTs ? 'nursing' : 'bottle';
+          if (nextVariant !== lastFeedVariantRef.current) {
+            lastFeedVariantRef.current = nextVariant;
+            setLastFeedVariant(nextVariant);
+          }
+          try {
+            localStorage.setItem('tt_last_feed_variant', nextVariant);
+          } catch (e) {}
+        } catch (e) {}
+      }, []);
 
       const handleClose = useCallback(() => setIsOpen(false), []);
       const handleToggle = useCallback(() => setIsOpen((prev) => !prev), []);
@@ -82,6 +128,36 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
         document.addEventListener('pointerdown', onPointerDown, true);
         return () => document.removeEventListener('pointerdown', onPointerDown, true);
       }, [isOpen]);
+
+      useEffect(() => {
+        resolveLastFeedVariant();
+      }, [resolveLastFeedVariant]);
+
+      useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const handleAdded = (e) => {
+          if (e?.detail?.mode === 'feeding') {
+            resolveLastFeedVariant();
+          }
+        };
+        const handleVariant = (e) => {
+          const nextVariant = e?.detail?.variant === 'nursing' ? 'nursing' : 'bottle';
+          if (nextVariant !== lastFeedVariantRef.current) {
+            lastFeedVariantRef.current = nextVariant;
+            setLastFeedVariant(nextVariant);
+          }
+        };
+        window.addEventListener('tt-input-sheet-added', handleAdded);
+        window.addEventListener('tt-last-feed-variant', handleVariant);
+        return () => {
+          window.removeEventListener('tt-input-sheet-added', handleAdded);
+          window.removeEventListener('tt-last-feed-variant', handleVariant);
+        };
+      }, [resolveLastFeedVariant]);
+
+      const showFeed = !visibleTypes || visibleTypes.feeding !== false;
+      const showSleep = !visibleTypes || visibleTypes.sleep !== false;
+      const showDiaper = !visibleTypes || visibleTypes.diaper !== false;
 
       return React.createElement(
         'div',
@@ -164,21 +240,23 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
                   }
                 }
               ),
-              React.createElement(SplitButton, {
-                icon: BottleIcon,
+              showFeed && React.createElement(SplitButton, {
+                icon: lastFeedVariant === 'nursing' ? NursingIcon : BottleIcon,
                 label: 'Feed',
                 type: 'feeding',
+                accentVar: lastFeedVariant === 'nursing' ? '--tt-nursing' : '--tt-feed',
+                accentStrongVar: lastFeedVariant === 'nursing' ? '--tt-nursing-strong' : '--tt-feed-strong',
                 direction: 'left',
                 onClick: () => handleTrackerSelect('feeding')
               }),
-              React.createElement(SplitButton, {
+              showDiaper && React.createElement(SplitButton, {
                 icon: DiaperIcon,
                 label: 'Diaper',
                 type: 'diaper',
                 direction: 'top',
                 onClick: () => handleTrackerSelect('diaper')
               }),
-              React.createElement(SplitButton, {
+              showSleep && React.createElement(SplitButton, {
                 icon: MoonIcon,
                 label: 'Sleep',
                 type: 'sleep',
@@ -245,17 +323,19 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
         label,
         type,
         direction,
-        onClick
+        onClick,
+        accentVar,
+        accentStrongVar
       } = props;
 
       const isLeft = direction === 'left';
       const isTop = direction === 'top';
-      const gradientVar = type === 'feeding'
+      const gradientVar = accentVar || (type === 'feeding'
         ? '--tt-feed'
-        : (type === 'sleep' ? '--tt-sleep' : '--tt-diaper');
-      const gradientStrongVar = type === 'feeding'
+        : (type === 'sleep' ? '--tt-sleep' : '--tt-diaper'));
+      const gradientStrongVar = accentStrongVar || (type === 'feeding'
         ? '--tt-feed-strong'
-        : (type === 'sleep' ? '--tt-sleep-strong' : '--tt-diaper-strong');
+        : (type === 'sleep' ? '--tt-sleep-strong' : '--tt-diaper-strong'));
 
       return React.createElement(
         motion.div,

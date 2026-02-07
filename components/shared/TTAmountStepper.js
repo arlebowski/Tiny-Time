@@ -102,7 +102,13 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
       ),
       React.createElement(
         'div',
-        { className: "flex items-center justify-between px-12 pb-9 pt-9" },
+        {
+          className: "flex items-center justify-between px-12 pb-9 pt-9",
+          style: {
+            paddingTop: 'calc(2.25rem + 8.25px)',
+            paddingBottom: 'calc(2.25rem + 8.25px)'
+          }
+        },
         React.createElement(MotionButton || 'button', {
           type: 'button',
           onClick: () => handleStep(-1),

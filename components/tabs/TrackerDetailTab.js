@@ -1,7 +1,7 @@
 // TrackerDetailTab Component
 // Detail view for tracker cards (v4)
 
-const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = null }) => {
+const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = null, activityVisibility = null }) => {
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendarCompact || window.TT?.shared?.HorizontalCalendar;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
@@ -687,7 +687,18 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const feedPercent = (feedPercentBase <= 0 && Number(selectedSummary.feedOz) <= 0) ? 2 : feedPercentBase;
   const sleepPercent = (sleepPercentBase <= 0 && sleepHours <= 0) ? 2 : sleepPercentBase;
   const diaperPercent = Number(selectedSummary.diaperCount || 0) > 0 ? 100 : 2;
-  const hasNursingSummary = Number(selectedSummary.nursingMs || 0) > 0;
+  const _normalizeActivityVisibility = (value) => {
+    const base = { bottle: true, nursing: true, sleep: true, diaper: true };
+    if (!value || typeof value !== 'object') return base;
+    return {
+      bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
+      nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing,
+      sleep: typeof value.sleep === 'boolean' ? value.sleep : base.sleep,
+      diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
+    };
+  };
+  const activityVisibilitySafe = _normalizeActivityVisibility(activityVisibility);
+  const hasNursingSummary = activityVisibilitySafe.nursing;
 
   const isViewingToday = React.useMemo(() => {
     const today = new Date();
