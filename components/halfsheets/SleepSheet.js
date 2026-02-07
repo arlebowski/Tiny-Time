@@ -213,6 +213,8 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
     const inputValueClassName = 'text-[18px]';
+    const notesInputRef = React.useRef(null);
+    const [notesWrappedLines, setNotesWrappedLines] = React.useState(1);
     const draftCache = (typeof window !== 'undefined' && window.TT?.shared?.dataCache)
       ? window.TT.shared.dataCache
       : null;
@@ -434,6 +436,25 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         endTimeManuallyEditedRef.current = false;
       }
     }, [isOpen]);
+
+    React.useEffect(() => {
+      if (!notesExpanded) {
+        setNotesWrappedLines(1);
+        return;
+      }
+      const host = notesInputRef.current;
+      if (!host) return;
+      const textarea = host.querySelector('textarea');
+      if (!textarea) return;
+      const styles = window.getComputedStyle(textarea);
+      let lineHeight = parseFloat(styles.lineHeight);
+      if (!Number.isFinite(lineHeight)) {
+        const fontSize = parseFloat(styles.fontSize) || 16;
+        lineHeight = fontSize * 1.2;
+      }
+      const lines = Math.max(1, Math.ceil(textarea.scrollHeight / lineHeight));
+      setNotesWrappedLines(lines);
+    }, [notes, notesExpanded]);
 
     React.useEffect(() => {
       if (!isInputVariant) return;
@@ -882,6 +903,8 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
     })();
     const tParts = formatElapsedHmsTT(displayMs);
 
+    const shouldAllowScroll = notesExpanded && photosExpanded && notesWrappedLines >= 3;
+
     // Body content (used in both static and overlay modes)
     const contentBlock = React.createElement(
       React.Fragment,
@@ -950,15 +973,17 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
               animate: { opacity: 1, y: 0, scale: 1 },
               transition: { type: "spring", damping: 25, stiffness: 300 }
             },
-            React.createElement(InputRow, {
-              label: 'Notes',
-              value: notes,
-              onChange: setNotes,
-              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-              valueClassName: inputValueClassName,
-              type: 'text',
-              placeholder: 'Add a note...'
-            })
+            React.createElement('div', { ref: notesInputRef },
+              React.createElement(InputRow, {
+                label: 'Notes',
+                value: notes,
+                onChange: setNotes,
+                icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+                valueClassName: inputValueClassName,
+                type: 'text',
+                placeholder: 'Add a note...'
+              })
+            )
           )
           : photosExpanded ? React.createElement('div', {
               onClick: () => setNotesExpanded(true),
@@ -1214,9 +1239,9 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          overflowY: 'visible',
+          overflowY: shouldAllowScroll ? 'auto' : 'hidden',
           overscrollBehavior: 'none',
-          WebkitOverflowScrolling: 'auto'
+          WebkitOverflowScrolling: shouldAllowScroll ? 'touch' : 'auto'
         }
       }, animatedContent),
       React.createElement('div', {
@@ -1286,7 +1311,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
                   backgroundColor: "var(--tt-halfsheet-bg)",
                   willChange: 'transform',
                   paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                  maxHeight: '90vh',
+                  maxHeight: '100vh',
                   height: 'auto',
                   minHeight: '60vh',
                   display: 'flex',

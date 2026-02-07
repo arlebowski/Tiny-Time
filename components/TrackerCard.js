@@ -306,6 +306,7 @@ const TrackerCard = ({
   } : {};
 
   const isFeed = mode === 'feeding';
+  const isNursing = mode === 'nursing';
   const isSleep = mode === 'sleep';
   const isDiaper = mode === 'diaper';
 
@@ -357,8 +358,14 @@ const TrackerCard = ({
 
   const HeaderIcon = mode === 'feeding'
     ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"]) || null
-    : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null;
-  const modeColor = mode === 'feeding' ? 'var(--tt-feed)' : (mode === 'sleep' ? 'var(--tt-sleep)' : 'var(--tt-diaper)');
+    : (mode === 'nursing'
+        ? (window.TT?.shared?.icons?.NursingIcon || null)
+        : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null);
+  const modeColor = (mode === 'nursing')
+    ? 'var(--tt-nursing)'
+    : (mode === 'feeding'
+        ? 'var(--tt-feed)'
+        : (mode === 'sleep' ? 'var(--tt-sleep)' : 'var(--tt-diaper)'));
 
   const renderDiaperIconRow = () => {
     if (!Array.isArray(timelineItems) || timelineItems.length === 0) return null;
@@ -489,7 +496,20 @@ const TrackerCard = ({
     };
     const effectiveFeedingTransform = mirrorFeedingIcon ? withFeedingMirror(feedingIconTransform) : feedingIconTransform;
     const chicklet = (() => {
-      if (!comparison || comparison.delta == null) return null;
+      if (!comparison || comparison.delta == null) {
+        if (mode !== 'nursing') return null;
+        return React.createElement(
+          'div',
+          {
+            className: "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[13px] font-semibold tabular-nums flex-shrink-0",
+            style: {
+              backgroundColor: 'var(--tt-subtle-surface)',
+              color: 'var(--tt-text-tertiary)'
+            }
+          },
+          React.createElement('span', null, 'No avg')
+        );
+      }
       const rawDelta = Number(comparison.delta || 0);
       const absDelta = Math.abs(rawDelta);
       const epsilon = Number.isFinite(comparison.evenEpsilon) ? comparison.evenEpsilon : 0.05;
@@ -567,7 +587,7 @@ const TrackerCard = ({
               : React.createElement('div', {
                   className: headerLabelClassName,
                   style: { color: modeColor }
-                }, isFeed ? 'Feed' : (isSleep ? 'Sleep' : 'Diaper'))
+                }, isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSleep ? 'Sleep' : 'Diaper')))
           ) : null
         ) : null,
         headerRight
@@ -580,25 +600,48 @@ const TrackerCard = ({
       ) : null,
 
       (() => {
+        const valueText = (() => {
+          if (mode === 'nursing') {
+            return formatElapsedHmsTT(total || 0).str;
+          }
+          return total !== null ? (isFeed ? formatVolumeValue(total) : formatV2Number(total)) : '0';
+        })();
+        const nursingParts = mode === 'nursing' ? formatElapsedHmsTT(total || 0) : null;
+        const nursingUnitClass = `${bigNumberTargetClassName} font-normal leading-none whitespace-nowrap`;
+        const nursingUnitStyle = { color: bigNumberTargetColor };
+        const nursingValue = nursingParts
+          ? React.createElement(React.Fragment, null,
+              nursingParts.showH && React.createElement(React.Fragment, null,
+                React.createElement('span', null, nursingParts.hStr),
+                React.createElement('span', { className: nursingUnitClass, style: nursingUnitStyle }, 'h'),
+                React.createElement('span', { className: "ml-2" })
+              ),
+              nursingParts.showM && React.createElement(React.Fragment, null,
+                React.createElement('span', null, nursingParts.mStr),
+                React.createElement('span', { className: nursingUnitClass, style: nursingUnitStyle }, 'm'),
+                React.createElement('span', { className: "ml-2" })
+              ),
+              React.createElement('span', null, nursingParts.sStr),
+              React.createElement('span', { className: nursingUnitClass, style: nursingUnitStyle }, 's')
+            )
+          : null;
         const valueEl = React.createElement('div', {
           className: bigNumberValueClassName,
           style: {
             color: modeColor,
             transition: 'opacity 0.4s ease-out, transform 0.4s ease-out'
           }
-        },
-          total !== null ? (isFeed ? formatVolumeValue(total) : formatV2Number(total)) : '0'
-        );
+        }, nursingValue || valueText);
 
-        const targetEl = React.createElement('div', {
+        const targetEl = mode === 'nursing' ? null : React.createElement('div', {
           className: bigNumberTargetClassName,
           style: { color: bigNumberTargetColor }
         },
           bigNumberTargetVariant === 'unit'
-            ? (mode === 'sleep' ? 'hrs' : (mode === 'diaper' ? 'changes' : resolvedVolumeUnit))
+            ? (mode === 'sleep' ? 'hrs' : (mode === 'diaper' ? 'changes' : (mode === 'nursing' ? '' : resolvedVolumeUnit)))
             : (target !== null
-                ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : (mode === 'diaper' ? `/ ${formatV2Number(target)} changes` : `/ ${formatVolumeValue(target)} ${resolvedVolumeUnit}`))
-                : (mode === 'sleep' ? '/ 0 hrs' : (mode === 'diaper' ? '/ 0 changes' : `/ 0 ${resolvedVolumeUnit}`)))
+                ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : (mode === 'diaper' ? `/ ${formatV2Number(target)} changes` : (mode === 'nursing' ? '' : `/ ${formatVolumeValue(target)} ${resolvedVolumeUnit}`)))
+                : (mode === 'sleep' ? '/ 0 hrs' : (mode === 'diaper' ? '/ 0 changes' : (mode === 'nursing' ? '' : `/ 0 ${resolvedVolumeUnit}`))))
         );
 
         const iconEl = (showBigNumberIcon && IconComp)
@@ -620,7 +663,7 @@ const TrackerCard = ({
             'div',
             { className: bigNumberRowClassName },
             valueEl,
-            targetEl
+            targetEl ? targetEl : null
           );
         }
 
@@ -635,7 +678,7 @@ const TrackerCard = ({
               'div',
               { className: "flex items-baseline gap-[4px] min-w-0" },
               valueEl,
-              targetEl
+              targetEl ? targetEl : null
             )
           ),
           resolvedRight
@@ -723,15 +766,17 @@ const TrackerCard = ({
 
     const v4IconSvg = mode === 'feeding'
       ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || HeaderIcon)
-      : mode === 'sleep'
-        ? (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || HeaderIcon)
-        : (window.TT?.shared?.icons?.DiaperIcon || HeaderIcon);
+      : mode === 'nursing'
+        ? (window.TT?.shared?.icons?.NursingIcon || HeaderIcon)
+        : mode === 'sleep'
+          ? (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || HeaderIcon)
+          : (window.TT?.shared?.icons?.DiaperIcon || HeaderIcon);
     const v4StatusTextClassName = "text-[15px] font-normal leading-none";
     const v4GoalTextClassName = "text-[15px] font-normal leading-none";
     const v4TargetClassName = "relative -top-[1px] text-[28px] leading-none font-normal";
 
-    const v4StatusText = mode === 'feeding'
-      ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No feedings yet')
+    const v4StatusText = (mode === 'feeding' || mode === 'nursing')
+      ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : (mode === 'nursing' ? 'No nursing yet' : 'No feedings yet'))
       : (mode === 'sleep' ? (() => {
           const activeEntry = timelineItems.find(item => item.isActive && item.startTime);
           if (activeEntry) {
@@ -792,19 +837,22 @@ const TrackerCard = ({
 
     const createIconLabel = (m) => {
       const isFeed = m === 'feeding';
+      const isNursing = m === 'nursing';
       const isSleep = m === 'sleep';
       const v4Svg = isFeed
         ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.BottleV2) ||
            (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["bottle-v2"]) ||
            null)
-        : (isSleep
-            ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
-               (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
-               null)
-            : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
-               null));
-      const color = isFeed ? 'var(--tt-feed)' : (isSleep ? 'var(--tt-sleep)' : 'var(--tt-diaper)');
-      const label = isFeed ? 'Feed' : (isSleep ? 'Sleep' : 'Diaper');
+        : (isNursing
+            ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.NursingIcon) || null)
+            : (isSleep
+                ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
+                   (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
+                   null)
+                : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
+                   null)));
+      const color = isNursing ? 'var(--tt-nursing)' : (isFeed ? 'var(--tt-feed)' : (isSleep ? 'var(--tt-sleep)' : 'var(--tt-diaper)'));
+      const label = isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSleep ? 'Sleep' : 'Diaper'));
 
       return React.createElement(
         'div',
@@ -834,7 +882,7 @@ const TrackerCard = ({
           renderDiaperIconRow()
         )
       : null;
-    const hasComparison = !!comparison && comparison.delta != null;
+    const hasComparison = (!!comparison && comparison.delta != null) || (mode === 'nursing');
 
     return renderDesign({
       showHeaderRow: true,

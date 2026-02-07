@@ -180,6 +180,7 @@ const DEFAULT_APPEARANCE = THEME_TOKENS.DEFAULT_APPEARANCE || {
   darkMode: false,
   background: "health-gray", // allowed: "health-gray" | "eggshell"
   feedAccent: '',
+  nursingAccent: '',
   sleepAccent: '',
   diaperAccent: ''
 };
@@ -220,6 +221,7 @@ window.TT.appearance = (() => {
               ? stored.background 
               : DEFAULT_APPEARANCE.background,
             feedAccent: typeof stored.feedAccent === 'string' ? stored.feedAccent : DEFAULT_APPEARANCE.feedAccent,
+            nursingAccent: typeof stored.nursingAccent === 'string' ? stored.nursingAccent : DEFAULT_APPEARANCE.nursingAccent,
             sleepAccent: typeof stored.sleepAccent === 'string' ? stored.sleepAccent : DEFAULT_APPEARANCE.sleepAccent,
             diaperAccent: typeof stored.diaperAccent === 'string' ? stored.diaperAccent : DEFAULT_APPEARANCE.diaperAccent
           };
@@ -327,6 +329,9 @@ window.TT.appearance = (() => {
       if (typeof updated.feedAccent !== 'string' || !updated.feedAccent.startsWith('#')) {
         updated.feedAccent = DEFAULT_APPEARANCE.feedAccent;
       }
+      if (typeof updated.nursingAccent !== 'string' || !updated.nursingAccent.startsWith('#')) {
+        updated.nursingAccent = DEFAULT_APPEARANCE.nursingAccent;
+      }
       if (typeof updated.sleepAccent !== 'string' || !updated.sleepAccent.startsWith('#')) {
         updated.sleepAccent = DEFAULT_APPEARANCE.sleepAccent;
       }
@@ -432,7 +437,7 @@ window.TT.applyAppearance = function(appearance) {
     return;
   }
 
-  const { darkMode, background, feedAccent, sleepAccent, diaperAccent } = appearance;
+  const { darkMode, background, feedAccent, nursingAccent, sleepAccent, diaperAccent } = appearance;
 
   // Toggle dark mode class
   if (darkMode) {
@@ -443,6 +448,7 @@ window.TT.applyAppearance = function(appearance) {
 
   // Sanitize accent colors (FIX 1: validate hex format before deriving variants)
   const sanitizedFeedAccent = isValidHex(feedAccent) ? feedAccent : DEFAULT_APPEARANCE.feedAccent;
+  const sanitizedNursingAccent = isValidHex(nursingAccent) ? nursingAccent : DEFAULT_APPEARANCE.nursingAccent;
   const sanitizedSleepAccent = isValidHex(sleepAccent) ? sleepAccent : DEFAULT_APPEARANCE.sleepAccent;
   const sanitizedDiaperAccent = isValidHex(diaperAccent) ? diaperAccent : DEFAULT_APPEARANCE.diaperAccent;
 
@@ -457,6 +463,7 @@ window.TT.applyAppearance = function(appearance) {
 
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
+  const nursingVariants = deriveAccentVariants(sanitizedNursingAccent, darkMode);
   const sleepVariants = deriveAccentVariants(sanitizedSleepAccent, darkMode);
   const diaperVariants = deriveAccentVariants(sanitizedDiaperAccent, darkMode);
 
@@ -706,6 +713,11 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-feed', sanitizedFeedAccent);
     root.style.setProperty('--tt-feed-soft', feedVariants.soft);
     root.style.setProperty('--tt-feed-strong', feedVariants.strong);
+
+    // Nursing accents
+    root.style.setProperty('--tt-nursing', sanitizedNursingAccent);
+    root.style.setProperty('--tt-nursing-soft', nursingVariants.soft);
+    root.style.setProperty('--tt-nursing-strong', nursingVariants.strong);
 
     // Sleep accents
     root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
@@ -973,6 +985,7 @@ const firestoreStorage = {
   currentKidId: null,
   _cacheState: {
     feedings: null,
+    nursingSessions: null,
     sleepSessions: null,
     diaperChanges: null,
     lastSyncMs: 0,
@@ -995,6 +1008,7 @@ const firestoreStorage = {
     this.currentKidId = kidId;
     this._cacheState = {
       feedings: null,
+      nursingSessions: null,
       sleepSessions: null,
       diaperChanges: null,
       lastSyncMs: 0,
@@ -1053,6 +1067,10 @@ const firestoreStorage = {
     return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   },
 
+  _sortNursingAsc(list) {
+    return [...(list || [])].sort((a, b) => (a.timestamp || a.startTime || 0) - (b.timestamp || b.startTime || 0));
+  },
+
   _sortSleepAsc(list) {
     return [...(list || [])].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
   },
@@ -1064,18 +1082,21 @@ const firestoreStorage = {
   async _initCache() {
     if (this._cacheState.initPromise) return this._cacheState.initPromise;
     const keyFeed = this._cacheKey('feedings');
+    const keyNursing = this._cacheKey('nursingSessions');
     const keySleep = this._cacheKey('sleepSessions');
     const keyDiaper = this._cacheKey('diaperChanges');
     const keyMeta = this._cacheKey('meta');
-    if (!keyFeed || !keySleep || !keyDiaper || !keyMeta) return null;
+    if (!keyFeed || !keyNursing || !keySleep || !keyDiaper || !keyMeta) return null;
     this._cacheState.initPromise = (async () => {
-      const [feedings, sleeps, diapers, meta] = await Promise.all([
+      const [feedings, nursingSessions, sleeps, diapers, meta] = await Promise.all([
         __ttDataCache.get(keyFeed),
+        __ttDataCache.get(keyNursing),
         __ttDataCache.get(keySleep),
         __ttDataCache.get(keyDiaper),
         __ttDataCache.get(keyMeta)
       ]);
       if (Array.isArray(feedings)) this._cacheState.feedings = feedings;
+      if (Array.isArray(nursingSessions)) this._cacheState.nursingSessions = nursingSessions;
       if (Array.isArray(sleeps)) this._cacheState.sleepSessions = sleeps;
       if (Array.isArray(diapers)) this._cacheState.diaperChanges = diapers;
       if (meta && Number.isFinite(meta.lastSyncMs)) this._cacheState.lastSyncMs = meta.lastSyncMs;
@@ -1086,12 +1107,14 @@ const firestoreStorage = {
 
   async _saveCache() {
     const keyFeed = this._cacheKey('feedings');
+    const keyNursing = this._cacheKey('nursingSessions');
     const keySleep = this._cacheKey('sleepSessions');
     const keyDiaper = this._cacheKey('diaperChanges');
     const keyMeta = this._cacheKey('meta');
-    if (!keyFeed || !keySleep || !keyDiaper || !keyMeta) return;
+    if (!keyFeed || !keyNursing || !keySleep || !keyDiaper || !keyMeta) return;
     await Promise.all([
       __ttDataCache.set(keyFeed, this._cacheState.feedings || []),
+      __ttDataCache.set(keyNursing, this._cacheState.nursingSessions || []),
       __ttDataCache.set(keySleep, this._cacheState.sleepSessions || []),
       __ttDataCache.set(keyDiaper, this._cacheState.diaperChanges || []),
       __ttDataCache.set(keyMeta, { lastSyncMs: this._cacheState.lastSyncMs || 0 })
@@ -1192,12 +1215,14 @@ const firestoreStorage = {
     }
     if (this._cacheState.refreshPromise) return this._cacheState.refreshPromise;
     this._cacheState.refreshPromise = (async () => {
-      const [feedings, sleeps, diapers] = await Promise.all([
+      const [feedings, nursingSessions, sleeps, diapers] = await Promise.all([
         this._getAllFeedingsRemote(),
+        this._getAllNursingSessionsRemote(),
         this._getAllSleepSessionsRemote(),
         this._getAllDiaperChangesRemote()
       ]);
       this._cacheState.feedings = this._sortFeedingsAsc(feedings);
+      this._cacheState.nursingSessions = this._sortNursingAsc(nursingSessions);
       this._cacheState.sleepSessions = this._sortSleepAsc(sleeps);
       this._cacheState.diaperChanges = this._sortDiaperAsc(diapers);
       this._cacheState.lastSyncMs = Date.now();
@@ -1214,6 +1239,11 @@ const firestoreStorage = {
   async _getCachedFeedings() {
     await this._initCache();
     return Array.isArray(this._cacheState.feedings) ? this._cacheState.feedings : null;
+  },
+
+  async _getCachedNursingSessions() {
+    await this._initCache();
+    return Array.isArray(this._cacheState.nursingSessions) ? this._cacheState.nursingSessions : null;
   },
 
   async _getCachedSleepSessions() {
@@ -1614,6 +1644,141 @@ const firestoreStorage = {
       );
       await this._saveCache();
     }
+  },
+
+  // -----------------------
+  // NURSING SESSIONS
+  // -----------------------
+  async addNursingSession(startTime, leftDurationSec, rightDurationSec, lastSide = null) {
+    const timestamp = Number.isFinite(startTime) ? startTime : Date.now();
+    const data = { startTime: timestamp, timestamp, leftDurationSec: Number(leftDurationSec) || 0, rightDurationSec: Number(rightDurationSec) || 0 };
+    if (lastSide) data.lastSide = lastSide;
+    const ref = await this._kidRef().collection("nursingSessions").add(data);
+    const item = { id: ref.id, ...data };
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._cacheState.nursingSessions = this._sortNursingAsc([...cached, item]);
+      await this._saveCache();
+    }
+    logEvent("nursing_added", { leftDurationSec: data.leftDurationSec, rightDurationSec: data.rightDurationSec });
+  },
+
+  async addNursingSessionWithNotes(startTime, leftDurationSec, rightDurationSec, lastSide = null, notes = null, photoURLs = null) {
+    const timestamp = Number.isFinite(startTime) ? startTime : Date.now();
+    const data = { startTime: timestamp, timestamp, leftDurationSec: Number(leftDurationSec) || 0, rightDurationSec: Number(rightDurationSec) || 0 };
+    if (lastSide) data.lastSide = lastSide;
+    if (notes !== null && notes !== undefined && String(notes).trim() !== '') {
+      data.notes = notes;
+    }
+    if (photoURLs !== null && photoURLs !== undefined && Array.isArray(photoURLs) && photoURLs.length > 0) {
+      data.photoURLs = photoURLs;
+    }
+    const ref = await this._kidRef().collection("nursingSessions").add(data);
+    const item = { id: ref.id, ...data };
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._cacheState.nursingSessions = this._sortNursingAsc([...cached, item]);
+      await this._saveCache();
+    }
+    logEvent("nursing_added", { leftDurationSec: data.leftDurationSec, rightDurationSec: data.rightDurationSec });
+  },
+
+  async getNursingSessions() {
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return [...cached].sort((a, b) => ((b.timestamp || b.startTime || 0) - (a.timestamp || a.startTime || 0)));
+    }
+    const snap = await this._kidRef()
+      .collection("nursingSessions")
+      .orderBy("timestamp", "desc")
+      .get();
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    this._cacheState.nursingSessions = this._sortNursingAsc(data);
+    this._cacheState.lastSyncMs = Date.now();
+    await this._saveCache();
+    return data;
+  },
+
+  async getNursingSessionsLastNDays(days) {
+    const cutoff = Date.now() - days * 86400000;
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached.filter((s) => ((s.timestamp || s.startTime || 0) > cutoff));
+    }
+    const snap = await this._kidRef()
+      .collection("nursingSessions")
+      .where("timestamp", ">", cutoff)
+      .orderBy("timestamp", "asc")
+      .get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  async updateNursingSession(id, startTime, leftDurationSec, rightDurationSec, lastSide = null) {
+    const timestamp = Number.isFinite(startTime) ? startTime : Date.now();
+    const data = { startTime: timestamp, timestamp, leftDurationSec: Number(leftDurationSec) || 0, rightDurationSec: Number(rightDurationSec) || 0 };
+    if (lastSide) data.lastSide = lastSide;
+    await this._kidRef()
+      .collection("nursingSessions")
+      .doc(id)
+      .update(data);
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._cacheState.nursingSessions = this._sortNursingAsc(
+        cached.map((s) => (s.id === id ? { ...s, ...data } : s))
+      );
+      await this._saveCache();
+    }
+  },
+
+  async updateNursingSessionWithNotes(id, startTime, leftDurationSec, rightDurationSec, lastSide = null, notes = null, photoURLs = null) {
+    const timestamp = Number.isFinite(startTime) ? startTime : Date.now();
+    const data = { startTime: timestamp, timestamp, leftDurationSec: Number(leftDurationSec) || 0, rightDurationSec: Number(rightDurationSec) || 0 };
+    if (lastSide) data.lastSide = lastSide;
+    if (notes !== null && notes !== undefined) {
+      if (notes === '') {
+        data.notes = firebase.firestore.FieldValue.delete();
+      } else {
+        data.notes = notes;
+      }
+    }
+    if (photoURLs !== null && photoURLs !== undefined) {
+      if (Array.isArray(photoURLs) && photoURLs.length === 0) {
+        data.photoURLs = firebase.firestore.FieldValue.delete();
+      } else if (Array.isArray(photoURLs)) {
+        data.photoURLs = photoURLs;
+      }
+    }
+    await this._kidRef()
+      .collection("nursingSessions")
+      .doc(id)
+      .update(data);
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._cacheState.nursingSessions = this._sortNursingAsc(
+        cached.map((s) => (s.id === id ? { ...s, ...data } : s))
+      );
+      await this._saveCache();
+    }
+  },
+
+  async deleteNursingSession(id) {
+    await this._kidRef().collection("nursingSessions").doc(id).delete();
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._cacheState.nursingSessions = cached.filter((s) => s.id !== id);
+      await this._saveCache();
+    }
+  },
+
+  async getAllNursingSessions() {
+    const cached = await this._getCachedNursingSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached;
+    }
+    return await this._getAllNursingSessionsRemote();
   },
 
   // -----------------------
@@ -2120,6 +2285,18 @@ firestoreStorage._getAllFeedingsRemote = async function () {
     .get();
   const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   this._cacheState.feedings = this._sortFeedingsAsc(data);
+  this._cacheState.lastSyncMs = Date.now();
+  await this._saveCache();
+  return data;
+};
+
+firestoreStorage._getAllNursingSessionsRemote = async function () {
+  const snap = await this._kidRef()
+    .collection("nursingSessions")
+    .orderBy("timestamp", "asc")
+    .get();
+  const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  this._cacheState.nursingSessions = this._sortNursingAsc(data);
   this._cacheState.lastSyncMs = Date.now();
   await this._saveCache();
   return data;

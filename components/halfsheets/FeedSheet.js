@@ -18,6 +18,27 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const mins = minutes < 10 ? '0' + minutes : minutes;
     return `${day} ${hours}:${mins} ${ampm}`;
   });
+
+  const formatElapsedHmsTT = window.TT?.utils?.formatElapsedHmsTT || ((ms) => {
+    const totalSec = Math.floor(Math.max(0, Number(ms) || 0) / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const pad2 = (n) => String(Math.max(0, n)).padStart(2, '0');
+    if (h > 0) {
+      const hStr = h >= 10 ? pad2(h) : String(h);
+      const mStr = pad2(m);
+      const sStr = pad2(s);
+      return { h, m, s, str: `${hStr}h ${mStr}m ${sStr}s` };
+    }
+    if (m > 0) {
+      const mStr = m >= 10 ? pad2(m) : String(m);
+      const sStr = pad2(s);
+      return { h: 0, m, s, str: `${mStr}m ${sStr}s` };
+    }
+    const sStr = s < 10 ? String(s) : pad2(s);
+    return { h: 0, m: 0, s, str: `${sStr}s` };
+  });
   
   const _ttUseWheelPickers = window.TT?.utils?.useWheelPickers || (() => {
     try {
@@ -116,6 +137,18 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
   const XIcon = window.XIcon;
   const ChevronDown = window.ChevronDown;
   const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
+  const BottleV2 = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null;
+  const NursingIcon = window.TT?.shared?.icons?.NursingIcon || null;
+  const PlayIcon = (props) => React.createElement(
+    'svg',
+    { ...props, xmlns: "http://www.w3.org/2000/svg", width: "32", height: "32", viewBox: "0 0 256 256", fill: "currentColor" },
+    React.createElement('path', { d: "M240,128a15.74,15.74,0,0,1-7.6,13.51L88.32,229.65a16,16,0,0,1-16.2.3A15.86,15.86,0,0,1,64,216.13V39.87a15.86,15.86,0,0,1,8.12-13.82,16,16,0,0,1,16.2.3L232.4,114.49A15.74,15.74,0,0,1,240,128Z" })
+  );
+  const PauseIcon = (props) => React.createElement(
+    'svg',
+    { ...props, xmlns: "http://www.w3.org/2000/svg", width: "32", height: "32", viewBox: "0 0 256 256", fill: "currentColor" },
+    React.createElement('path', { d: "M216,48V208a16,16,0,0,1-16,16H160a16,16,0,0,1-16-16V48a16,16,0,0,1,16-16h40A16,16,0,0,1,216,48ZM96,32H56A16,16,0,0,0,40,48V208a16,16,0,0,0,16,16H96a16,16,0,0,0,16-16V48A16,16,0,0,0,96,32Z" })
+  );
 
   const FeedSheet = ({
     variant = 'input', // 'input' | 'detail'
@@ -132,13 +165,23 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const effectiveOnSave = isInputVariant ? onAdd : onSave;
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     const [ounces, setOunces] = React.useState('');
-    const [dateTime, setDateTime] = React.useState(new Date().toISOString());
+    const [dateTime, setDateTime] = React.useState('');
     const [notes, setNotes] = React.useState('');
     const [photos, setPhotos] = React.useState([]); // Array of base64 data URLs for new photos
     const [existingPhotoURLs, setExistingPhotoURLs] = React.useState([]); // Array of Firebase Storage URLs
     const [fullSizePhoto, setFullSizePhoto] = React.useState(null);
     const [saving, setSaving] = React.useState(false);
+    const dateTimeTouchedRef = React.useRef(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
+    const [feedType, setFeedType] = React.useState('bottle'); // 'bottle' | 'nursing'
+
+    const [leftElapsedMs, setLeftElapsedMs] = React.useState(0);
+    const [rightElapsedMs, setRightElapsedMs] = React.useState(0);
+    const [activeSide, setActiveSide] = React.useState(null); // 'left' | 'right' | null
+    const [lastSide, setLastSide] = React.useState(null); // 'left' | 'right' | null
+    const activeSideRef = React.useRef(null);
+    const activeSideStartRef = React.useRef(null);
+    const [timerTick, setTimerTick] = React.useState(0);
     
     // Track keyboard state to hide sticky button when keyboard is open
     const [isKeyboardOpen, setIsKeyboardOpen] = React.useState(false);
@@ -150,6 +193,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
     const inputValueClassName = 'text-[18px]';
+    const notesInputRef = React.useRef(null);
+    const [notesWrappedLines, setNotesWrappedLines] = React.useState(1);
 
     // Wheel picker trays (feature flagged)
     const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
@@ -158,6 +203,58 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const WheelPicker = _pickers.WheelPicker;
     const wheelStyles = _pickers.wheelStyles || {};
     const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
+
+    const resolveFeedType = (entryItem) => {
+      if (!entryItem) return 'bottle';
+      if (entryItem.feedType === 'nursing' || entryItem.type === 'nursing') return 'nursing';
+      if (entryItem.leftDurationSec != null || entryItem.rightDurationSec != null) return 'nursing';
+      return 'bottle';
+    };
+
+    React.useEffect(() => {
+      activeSideRef.current = activeSide;
+    }, [activeSide]);
+
+    React.useEffect(() => {
+      if (!isOpen || !activeSideRef.current) return undefined;
+      const tick = () => setTimerTick(Date.now());
+      tick();
+      const interval = setInterval(tick, 1000);
+      return () => clearInterval(interval);
+    }, [isOpen, activeSide]);
+
+    const stopActiveSide = React.useCallback(() => {
+      const runningSide = activeSideRef.current;
+      const startedAt = activeSideStartRef.current;
+      if (!runningSide || !startedAt) return;
+      const delta = Math.max(0, Date.now() - startedAt);
+      if (runningSide === 'left') {
+        setLeftElapsedMs((prev) => prev + delta);
+      } else if (runningSide === 'right') {
+        setRightElapsedMs((prev) => prev + delta);
+      }
+      activeSideStartRef.current = null;
+      activeSideRef.current = null;
+      setActiveSide(null);
+    }, []);
+
+    const handleToggleSide = React.useCallback((side) => {
+      if (!side) return;
+      if (activeSideRef.current === side) {
+        stopActiveSide();
+        return;
+      }
+      if (activeSideRef.current) {
+        stopActiveSide();
+      }
+      if (!dateTime) {
+        setDateTimeProgrammatic(new Date().toISOString());
+      }
+      activeSideStartRef.current = Date.now();
+      activeSideRef.current = side;
+      setActiveSide(side);
+      setLastSide(side);
+    }, [dateTime, stopActiveSide]);
 
     const _resolveVolumeUnit = (value) => (value === 'ml' || value === 'oz') ? value : null;
     const _getStoredVolumeUnit = () => {
@@ -368,6 +465,16 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       }
     };
 
+    const handleDateTimeChange = (nextValue) => {
+      dateTimeTouchedRef.current = true;
+      setDateTime(nextValue);
+    };
+
+    const setDateTimeProgrammatic = (nextValue) => {
+      dateTimeTouchedRef.current = false;
+      setDateTime(nextValue);
+    };
+
     const userEditedAmountRef = React.useRef(false);
     const userEditedUnitRef = React.useRef(false);
 
@@ -401,32 +508,59 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     // Populate form from entry when it exists
     React.useEffect(() => {
       if (effectiveEntry && isOpen) {
-        const nextOz = effectiveEntry.ounces ? effectiveEntry.ounces.toString() : '';
-        setOunces(nextOz);
-        _syncDisplayInputForUnit(amountDisplayUnit, nextOz);
-        setDateTime(effectiveEntry.timestamp ? new Date(effectiveEntry.timestamp).toISOString() : new Date().toISOString());
-        setNotes(effectiveEntry.notes || '');
+        const nextFeedType = resolveFeedType(effectiveEntry);
+        setFeedType(nextFeedType);
+        setActiveSide(null);
+        activeSideRef.current = null;
+        activeSideStartRef.current = null;
+
         const normalizedExisting = __ttNormalizePhotoUrls(effectiveEntry.photoURLs);
         setExistingPhotoURLs(normalizedExisting);
-        originalPhotoURLsRef.current = normalizedExisting; // Track original URLs
-        setPhotos([]); // Reset new photos
-        // Auto-expand if there's existing content
+        originalPhotoURLsRef.current = normalizedExisting;
+        setPhotos([]);
+        setNotes(effectiveEntry.notes || '');
         setNotesExpanded(!!effectiveEntry.notes);
         setPhotosExpanded(normalizedExisting.length > 0);
+
+        if (nextFeedType === 'nursing') {
+          const startMs = effectiveEntry.startTime || effectiveEntry.timestamp;
+          setDateTimeProgrammatic(startMs ? new Date(startMs).toISOString() : '');
+          setLeftElapsedMs(Math.max(0, Number(effectiveEntry.leftDurationSec || 0) * 1000));
+          setRightElapsedMs(Math.max(0, Number(effectiveEntry.rightDurationSec || 0) * 1000));
+          setLastSide(effectiveEntry.lastSide || null);
+          userEditedAmountRef.current = false;
+          setOunces('');
+          _syncDisplayInputForUnit(amountDisplayUnit, '');
+        } else {
+          const nextOz = effectiveEntry.ounces ? effectiveEntry.ounces.toString() : '';
+          setOunces(nextOz);
+          _syncDisplayInputForUnit(amountDisplayUnit, nextOz);
+          setDateTimeProgrammatic(effectiveEntry.timestamp ? new Date(effectiveEntry.timestamp).toISOString() : new Date().toISOString());
+          setLeftElapsedMs(0);
+          setRightElapsedMs(0);
+          setLastSide(null);
+        }
       } else if (!effectiveEntry && isOpen) {
         // Create mode - reset to defaults
+        setFeedType('bottle');
         userEditedAmountRef.current = false;
         setOunces('');
         _syncDisplayInputForUnit(amountDisplayUnit, '');
-        setDateTime(new Date().toISOString());
+        setDateTimeProgrammatic(new Date().toISOString());
         setNotes('');
         setExistingPhotoURLs([]);
-        originalPhotoURLsRef.current = []; // Reset
+        originalPhotoURLsRef.current = [];
         setPhotos([]);
         setNotesExpanded(false);
         setPhotosExpanded(false);
+        setLeftElapsedMs(0);
+        setRightElapsedMs(0);
+        setLastSide(null);
+        setActiveSide(null);
+        activeSideRef.current = null;
+        activeSideStartRef.current = null;
       }
-    }, [effectiveEntry, isOpen]);
+    }, [effectiveEntry, isOpen, amountDisplayUnit]);
 
     React.useEffect(() => {
       let cancelled = false;
@@ -476,6 +610,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         setNotesExpanded(false);
         setPhotosExpanded(false);
         userEditedUnitRef.current = false;
+        setActiveSide(null);
+        activeSideRef.current = null;
+        activeSideStartRef.current = null;
         return;
       }
       const preferred = _resolveVolumeUnit(preferredVolumeUnit) || _getStoredVolumeUnit();
@@ -497,48 +634,189 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       }
     }, [isOpen]);
 
+    React.useEffect(() => {
+      if (!notesExpanded) {
+        setNotesWrappedLines(1);
+        return;
+      }
+      const host = notesInputRef.current;
+      if (!host) return;
+      const textarea = host.querySelector('textarea');
+      if (!textarea) return;
+      const styles = window.getComputedStyle(textarea);
+      let lineHeight = parseFloat(styles.lineHeight);
+      if (!Number.isFinite(lineHeight)) {
+        const fontSize = parseFloat(styles.fontSize) || 16;
+        lineHeight = fontSize * 1.2;
+      }
+      const lines = Math.max(1, Math.ceil(textarea.scrollHeight / lineHeight));
+      setNotesWrappedLines(lines);
+    }, [notes, notesExpanded]);
+
+    React.useEffect(() => {
+      if (feedType !== 'nursing') {
+        stopActiveSide();
+      }
+    }, [feedType, stopActiveSide]);
+
+    React.useEffect(() => {
+      if (!isOpen || effectiveEntry) return;
+      if (feedType === 'nursing') {
+        if (!dateTimeTouchedRef.current) {
+          setDateTimeProgrammatic('');
+        }
+        return;
+      }
+      if (!dateTimeTouchedRef.current) {
+        setDateTimeProgrammatic(new Date().toISOString());
+      }
+    }, [feedType, isOpen, effectiveEntry]);
+
     const handleSave = async () => {
+      if (feedType === 'nursing') {
+        const runningSide = activeSideRef.current;
+        const startedAt = activeSideStartRef.current;
+        const liveDelta = runningSide && startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+        const leftMs = leftElapsedMs + (runningSide === 'left' ? liveDelta : 0);
+        const rightMs = rightElapsedMs + (runningSide === 'right' ? liveDelta : 0);
+        const totalMs = leftMs + rightMs;
+        if (!dateTime || totalMs <= 0) return;
+
+        setActiveSide(null);
+        activeSideRef.current = null;
+        activeSideStartRef.current = null;
+        setLeftElapsedMs(leftMs);
+        setRightElapsedMs(rightMs);
+
+        setSaving(true);
+        try {
+          const timestamp = new Date(dateTime).getTime();
+
+          const newPhotoURLs = [];
+          if (photos && photos.length > 0) {
+            for (let i = 0; i < photos.length; i++) {
+              const photoBase64 = photos[i];
+              try {
+                const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+                newPhotoURLs.push(downloadURL);
+              } catch (error) {
+                console.error(`[FeedSheet] Failed to upload photo ${i + 1}:`, error);
+                console.error('[FeedSheet] Photo upload error details:', {
+                  message: error.message,
+                  stack: error.stack,
+                  name: error.name
+                });
+              }
+            }
+          }
+
+          const allPhotoURLs = __ttNormalizePhotoUrls([...existingPhotoURLs, ...newPhotoURLs]);
+          const leftSec = Math.round(leftMs / 1000);
+          const rightSec = Math.round(rightMs / 1000);
+
+          if (effectiveEntry && effectiveEntry.id) {
+            await firestoreStorage.updateNursingSessionWithNotes(
+              effectiveEntry.id,
+              timestamp,
+              leftSec,
+              rightSec,
+              lastSide || null,
+              notes || null,
+              allPhotoURLs.length > 0 ? allPhotoURLs : []
+            );
+          } else {
+            await firestoreStorage.addNursingSessionWithNotes(
+              timestamp,
+              leftSec,
+              rightSec,
+              lastSide || null,
+              notes || null,
+              allPhotoURLs.length > 0 ? allPhotoURLs : []
+            );
+          }
+
+          try {
+            const hasNote = !!(notes && String(notes).trim().length > 0);
+            const hasPhotos = Array.isArray(allPhotoURLs) && allPhotoURLs.length > 0;
+            if ((hasNote || hasPhotos) && firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
+              const eventTime = new Date(timestamp);
+              const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              const contentParts = [];
+              if (hasNote) contentParts.push(String(notes).trim());
+              if (!hasNote && hasPhotos) contentParts.push('Photo update');
+              const chatMsg = {
+                role: 'assistant',
+                content: `@tinytracker: Nursing • ${timeLabel}${hasNote ? `\n${contentParts.join('\n')}` : ''}`,
+                timestamp: Date.now(),
+                source: 'log',
+                logType: 'nursing',
+                logTimestamp: timestamp,
+                photoURLs: hasPhotos ? allPhotoURLs : []
+              };
+              await firestoreStorage.saveMessage(chatMsg);
+            }
+          } catch (e) {}
+
+          handleClose();
+          if (effectiveOnSave) {
+            await effectiveOnSave();
+          }
+        } catch (error) {
+          console.error('[FeedSheet] Failed to save nursing session:', error);
+          console.error('[FeedSheet] Error details:', {
+            message: error.message,
+            stack: error.stack,
+            name: error.name,
+            code: error.code
+          });
+          alert(`Failed to save nursing session: ${error.message || 'Please try again.'}`);
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+
       const amount = parseFloat(ounces);
       if (!amount || amount <= 0) {
         return;
       }
-      
+
       setSaving(true);
       try {
         const timestamp = new Date(dateTime).getTime();
-        
+
         // Track removed photos for soft delete (optional cleanup later)
         const originalURLs = originalPhotoURLsRef.current || [];
         const removedPhotoURLs = originalURLs.filter(url => !existingPhotoURLs.includes(url));
-        
+
         if (removedPhotoURLs.length > 0) {
           // Photos are removed from photoURLs array - no Supabase deletion
           // Files remain in Supabase Storage for optional cleanup later
         }
-        
+
         // Upload new photos to Supabase Storage
         const newPhotoURLs = [];
         if (photos && photos.length > 0) {
           for (let i = 0; i < photos.length; i++) {
             const photoBase64 = photos[i];
-          try {
-            const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
-            newPhotoURLs.push(downloadURL);
-          } catch (error) {
+            try {
+              const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+              newPhotoURLs.push(downloadURL);
+            } catch (error) {
               console.error(`[FeedSheet] Failed to upload photo ${i + 1}:`, error);
               console.error('[FeedSheet] Photo upload error details:', {
                 message: error.message,
                 stack: error.stack,
                 name: error.name
               });
-            // Continue with other photos even if one fails
-          }
+              // Continue with other photos even if one fails
+            }
           }
         }
-        
+
         // Combine existing and new photo URLs
         const allPhotoURLs = __ttNormalizePhotoUrls([...existingPhotoURLs, ...newPhotoURLs]);
-        
+
         if (effectiveEntry && effectiveEntry.id) {
           // Update existing feeding
           await firestoreStorage.updateFeedingWithNotes(
@@ -580,7 +858,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             await firestoreStorage.saveMessage(chatMsg);
           }
         } catch (e) {}
-        
+
         // Close the sheet first
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
@@ -606,7 +884,12 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       
       setSaving(true);
       try {
-        await firestoreStorage.deleteFeeding(effectiveEntry.id);
+        const entryFeedType = resolveFeedType(effectiveEntry);
+        if (entryFeedType === 'nursing') {
+          await firestoreStorage.deleteNursingSession(effectiveEntry.id);
+        } else {
+          await firestoreStorage.deleteFeeding(effectiveEntry.id);
+        }
         // Close the sheet first
         handleClose();
         // Then refresh timeline after sheet closes (onDelete callback handles the delay)
@@ -662,64 +945,131 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       }
     };
 
-    const headerTitle = effectiveEntry && effectiveEntry.id ? 'Feed' : 'Feeding';
-    const saveButtonLabel = effectiveEntry && effectiveEntry.id ? 'Save' : 'Add';
+    const isEditingEntry = effectiveEntry && effectiveEntry.id;
+    const headerTitle = isEditingEntry
+      ? (feedType === 'nursing' ? 'Nursing' : 'Feed')
+      : (feedType === 'nursing' ? 'Nursing' : 'Feeding');
+    const saveButtonLabel = isEditingEntry ? 'Save' : 'Add';
 
-    // Body content (used in both static and overlay modes)
-    const contentBlock = React.createElement(
+    const isNursing = feedType === 'nursing';
+    const accentColor = isNursing ? 'var(--tt-nursing)' : 'var(--tt-feed)';
+    const accentSoft = isNursing ? 'var(--tt-nursing-soft)' : 'var(--tt-feed-soft)';
+    const accentStrong = isNursing ? 'var(--tt-nursing-strong)' : 'var(--tt-feed-strong)';
+    const runningSide = activeSideRef.current;
+    const startedAt = activeSideStartRef.current;
+    const liveDelta = runningSide && startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+    const leftDisplayMs = leftElapsedMs + (runningSide === 'left' ? liveDelta : 0);
+    const rightDisplayMs = rightElapsedMs + (runningSide === 'right' ? liveDelta : 0);
+    const totalDisplayMs = leftDisplayMs + rightDisplayMs;
+    const nursingCanSave = !!dateTime && totalDisplayMs > 0;
+    const shouldAllowScroll = notesExpanded && photosExpanded && notesWrappedLines >= 3;
+
+    const handleEditSideDuration = (side) => {
+      stopActiveSide();
+      const currentMs = side === 'left' ? leftElapsedMs : rightElapsedMs;
+      const currentSec = Math.round(currentMs / 1000);
+      const mm = Math.floor(currentSec / 60);
+      const ss = currentSec % 60;
+      const defaultValue = `${mm}:${String(ss).padStart(2, '0')}`;
+      const input = window.prompt('Enter minutes and seconds (mm:ss)', defaultValue);
+      if (input == null) return;
+      const raw = String(input).trim();
+      if (!raw) return;
+      const parts = raw.split(':');
+      let minutes = 0;
+      let seconds = 0;
+      if (parts.length === 1) {
+        minutes = parseInt(parts[0], 10);
+      } else {
+        minutes = parseInt(parts[0], 10);
+        seconds = parseInt(parts[1], 10);
+      }
+      if (!Number.isFinite(minutes)) minutes = 0;
+      if (!Number.isFinite(seconds)) seconds = 0;
+      minutes = Math.max(0, minutes);
+      seconds = Math.max(0, Math.min(59, seconds));
+      const nextMs = (minutes * 60 + seconds) * 1000;
+      if (side === 'left') {
+        setLeftElapsedMs(nextMs);
+      } else {
+        setRightElapsedMs(nextMs);
+      }
+    };
+
+    const handleNursingReset = () => {
+      stopActiveSide();
+      setLeftElapsedMs(0);
+      setRightElapsedMs(0);
+      setLastSide(null);
+    };
+
+    const nursingTotalParts = formatElapsedHmsTT(totalDisplayMs);
+
+    const TypeButton = ({ label, icon: Icon, selected, accent, onClick }) => {
+      const bg = selected ? `color-mix(in srgb, ${accent} 16%, var(--tt-input-bg))` : 'var(--tt-input-bg)';
+      const border = selected ? accent : 'var(--tt-card-border)';
+      const color = selected ? accent : 'var(--tt-text-tertiary)';
+      const isFilledIcon = Icon === NursingIcon;
+      return React.createElement('button', {
+        type: 'button',
+        onClick: (e) => {
+          e.preventDefault();
+          onClick();
+        },
+        'aria-pressed': !!selected,
+        className: "flex flex-col items-center justify-center gap-1 rounded-2xl transition",
+        style: {
+          width: '100%',
+          height: 60,
+          border: `1.5px solid ${border}`,
+          backgroundColor: bg,
+          opacity: selected ? 1 : 0.5
+        }
+      },
+        Icon ? React.createElement(Icon, { style: { width: 28, height: 28, color, strokeWidth: '1.5', fill: isFilledIcon ? 'currentColor' : 'none' } }) : null,
+        React.createElement('span', { style: { fontSize: 13, fontWeight: 600, color } }, label)
+      );
+    };
+
+    const feedTypePicker = isInputVariant ? React.createElement('div', { className: "grid grid-cols-2 gap-3 pb-3" },
+      React.createElement(TypeButton, {
+        label: 'Bottle',
+        icon: BottleV2,
+        selected: feedType === 'bottle',
+        accent: 'var(--tt-feed)',
+        onClick: () => setFeedType('bottle')
+      }),
+      React.createElement(TypeButton, {
+        label: 'Nursing',
+        icon: NursingIcon,
+        selected: feedType === 'nursing',
+        accent: 'var(--tt-nursing)',
+        onClick: () => setFeedType('nursing')
+      })
+    ) : null;
+
+    const notesPhotosBlock = React.createElement(
       React.Fragment,
       null,
-      React.createElement('div', { className: "space-y-2" },
-        React.createElement(InputRow, {
-          label: 'Start time',
-          value: formatDateTime(dateTime),
-          rawValue: dateTime,
-          onChange: setDateTime,
-          icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-          valueClassName: inputValueClassName,
-          type: 'datetime',
-          pickerMode: 'datetime_feeding',
-          onOpenPicker: openTrayPicker,
-        }),
-        (_ttUseAmountStepper() && TTAmountStepper)
-          ? React.createElement(TTAmountStepper, {
-              label: 'Amount',
-              valueOz: parseFloat(ounces) || 0,
-              unit: amountDisplayUnit,
-              onChangeUnit: (nextUnit) => _setDisplayUnit(nextUnit, { persist: true }),
-              onChangeOz: handleOuncesChangeFromStepper
-            })
-          : React.createElement(InputRow, {
-              label: 'Amount',
-              value: amountDisplayInput,
-              onChange: handleOuncesChange,
-              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-              valueClassName: inputValueClassName,
-              type: 'number',
-              placeholder: '0',
-              suffix: amountDisplayUnit,
-              inlineSuffix: true,
-              pickerMode: 'amount',
-              onOpenPicker: openTrayPicker
-            }),
-        (!notesExpanded && !photosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
-          React.createElement('div', {
-            onClick: () => setNotesExpanded(true),
-            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-            style: { color: 'var(--tt-text-tertiary)' }
-          }, '+ Add notes'),
-          TTPhotoRow && React.createElement('div', {
-            onClick: () => setPhotosExpanded(true),
-            className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-            style: { color: 'var(--tt-text-tertiary)' }
-          }, '+ Add photos')
-        ),
-        notesExpanded
-          ? React.createElement(__ttV4Motion.div, {
-              initial: { opacity: 0, y: 6, scale: 0.98 },
-              animate: { opacity: 1, y: 0, scale: 1 },
-              transition: { type: "spring", damping: 25, stiffness: 300 }
-            },
+      (!notesExpanded && !photosExpanded) && React.createElement('div', { className: "grid grid-cols-2 gap-3" },
+        React.createElement('div', {
+          onClick: () => setNotesExpanded(true),
+          className: "py-1 cursor-pointer active:opacity-70 transition-opacity",
+          style: { color: 'var(--tt-text-tertiary)' }
+        }, '+ Add notes'),
+        TTPhotoRow && React.createElement('div', {
+          onClick: () => setPhotosExpanded(true),
+          className: "py-1 cursor-pointer active:opacity-70 transition-opacity",
+          style: { color: 'var(--tt-text-tertiary)' }
+        }, '+ Add photos')
+      ),
+      notesExpanded
+        ? React.createElement(__ttV4Motion.div, {
+            initial: { opacity: 0, y: 6, scale: 0.98 },
+            animate: { opacity: 1, y: 0, scale: 1 },
+            transition: { type: "spring", damping: 25, stiffness: 300 }
+          },
+          React.createElement('div', { ref: notesInputRef },
             React.createElement(InputRow, {
               label: 'Notes',
               value: notes,
@@ -730,12 +1080,12 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
               placeholder: 'Add a note...'
             })
           )
-          : photosExpanded ? React.createElement('div', {
-              onClick: () => setNotesExpanded(true),
-              className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-              style: { color: 'var(--tt-text-tertiary)' }
-            }, '+ Add notes') : null
-      ),
+        )
+        : photosExpanded ? React.createElement('div', {
+            onClick: () => setNotesExpanded(true),
+            className: "py-1 cursor-pointer active:opacity-70 transition-opacity",
+            style: { color: 'var(--tt-text-tertiary)' }
+          }, '+ Add notes') : null,
       TTPhotoRow && photosExpanded && React.createElement(__ttV4Motion.div, {
         initial: { opacity: 0, y: 6, scale: 0.98 },
         animate: { opacity: 1, y: 0, scale: 1 },
@@ -753,36 +1103,179 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       ),
       TTPhotoRow && !photosExpanded && notesExpanded && React.createElement('div', {
         onClick: () => setPhotosExpanded(true),
-        className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
+        className: "py-1 cursor-pointer active:opacity-70 transition-opacity",
         style: { color: 'var(--tt-text-tertiary)' }
       }, '+ Add photos')
     );
 
+    const bottleContent = React.createElement('div', { className: "space-y-2" },
+      React.createElement(InputRow, {
+        label: 'Start time',
+        value: dateTime ? formatDateTime(dateTime) : 'Add...',
+        rawValue: dateTime,
+        onChange: handleDateTimeChange,
+        icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+        valueClassName: inputValueClassName,
+        type: 'datetime',
+        pickerMode: 'datetime_feeding',
+        onOpenPicker: openTrayPicker,
+        placeholder: 'Add...'
+      }),
+      (_ttUseAmountStepper() && TTAmountStepper)
+        ? React.createElement(TTAmountStepper, {
+            label: 'Amount',
+            valueOz: parseFloat(ounces) || 0,
+            unit: amountDisplayUnit,
+            onChangeUnit: (nextUnit) => _setDisplayUnit(nextUnit, { persist: true }),
+            onChangeOz: handleOuncesChangeFromStepper
+          })
+        : React.createElement(InputRow, {
+            label: 'Amount',
+            value: amountDisplayInput,
+            onChange: handleOuncesChange,
+            icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+            valueClassName: inputValueClassName,
+            type: 'number',
+            placeholder: '0',
+            suffix: amountDisplayUnit,
+            inlineSuffix: true,
+            pickerMode: 'amount',
+            onOpenPicker: openTrayPicker
+          }),
+      notesPhotosBlock
+    );
+
+    const SideTimerButton = ({ label, side, isActive, isLast, displayMs }) => {
+      const bg = isActive ? `color-mix(in srgb, ${accentColor} 16%, var(--tt-input-bg))` : 'var(--tt-input-bg)';
+      const border = isActive ? accentColor : 'var(--tt-card-border)';
+      const color = isActive
+        ? accentColor
+        : (runningSide ? 'var(--tt-text-tertiary)' : 'var(--tt-text-secondary)');
+      const timeLabel = formatElapsedHmsTT(displayMs).str;
+      return React.createElement(
+        'div',
+        { className: "relative flex flex-col items-center" },
+        isLast && React.createElement('div', {
+          className: "absolute -top-3 px-2.5 py-1 rounded-lg text-[13px] font-semibold shadow-sm text-center leading-[1.05]",
+          style: {
+            backgroundColor: isNursing ? 'var(--tt-nursing-soft)' : 'var(--tt-feed-soft)',
+            color: accentColor,
+            left: side === 'left' ? '-4px' : 'auto',
+            right: side === 'right' ? '-4px' : 'auto'
+          }
+        },
+          React.createElement('div', null, 'Last'),
+          React.createElement('div', null, 'side')
+        ),
+        React.createElement('button', {
+          type: 'button',
+          onClick: () => handleToggleSide(side),
+          className: "flex flex-col items-center justify-center gap-2 rounded-full transition",
+          style: {
+            width: 120,
+            height: 120,
+            border: `1.5px solid ${border}`,
+            backgroundColor: bg
+          }
+        },
+          isActive
+            ? React.createElement(PauseIcon, { className: "w-7 h-7", style: { color } })
+            : React.createElement(PlayIcon, { className: "w-7 h-7", style: { color } }),
+          React.createElement('span', {
+            className: "tabular-nums",
+            style: { fontSize: 18, fontWeight: 600, color },
+            onClick: (e) => {
+              e.stopPropagation();
+              handleEditSideDuration(side);
+            }
+          }, timeLabel)
+        )
+      );
+    };
+
+    const nursingContent = React.createElement('div', { className: "space-y-2" },
+      React.createElement(InputRow, {
+        label: 'Start time',
+        value: dateTime ? formatDateTime(dateTime) : 'Add...',
+        rawValue: dateTime,
+        onChange: handleDateTimeChange,
+        icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+        valueClassName: inputValueClassName,
+        type: 'datetime',
+        pickerMode: 'datetime_feeding',
+        onOpenPicker: openTrayPicker,
+        placeholder: 'Add...'
+      }),
+      React.createElement('div', { className: "text-center pt-2 pb-1" },
+        React.createElement('div', { className: "text-[38px] leading-none font-bold flex items-end justify-center tabular-nums", style: { color: 'var(--tt-text-primary)' } },
+          nursingTotalParts.showH && React.createElement(React.Fragment, null,
+            React.createElement('span', null, nursingTotalParts.hStr),
+            React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'h'),
+            React.createElement('span', { className: "ml-2" })
+          ),
+          nursingTotalParts.showM && React.createElement(React.Fragment, null,
+            React.createElement('span', null, nursingTotalParts.mStr),
+            React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 'm'),
+            React.createElement('span', { className: "ml-2" })
+          ),
+          React.createElement('span', null, nursingTotalParts.sStr),
+          React.createElement('span', { className: "text-base font-light ml-1", style: { color: 'var(--tt-text-secondary)' } }, 's')
+        )
+      ),
+      React.createElement('div', { className: "grid grid-cols-2 place-items-center gap-14 pt-2 pb-1" },
+        React.createElement(SideTimerButton, {
+          label: 'Left',
+          side: 'left',
+          isActive: runningSide === 'left',
+          isLast: lastSide === 'left',
+          displayMs: leftDisplayMs
+        }),
+        React.createElement(SideTimerButton, {
+          label: 'Right',
+          side: 'right',
+          isActive: runningSide === 'right',
+          isLast: lastSide === 'right',
+          displayMs: rightDisplayMs
+        })
+      ),
+      notesPhotosBlock
+    );
+
+    // Body content (used in both static and overlay modes)
+    const contentBlock = React.createElement(
+      React.Fragment,
+      null,
+      feedTypePicker,
+      isNursing ? nursingContent : bottleContent
+    );
+
+    const isCtaDisabled = saving || (isNursing && !nursingCanSave);
     const ctaButton = React.createElement('button', {
       type: 'button',
       onClick: handleSave,
-      disabled: saving,
+      disabled: isCtaDisabled,
       onTouchStart: (e) => {
         e.stopPropagation();
       },
       className: "w-full text-white py-3 rounded-2xl font-semibold transition",
       style: { 
-        backgroundColor: saving ? 'var(--tt-feed-strong)' : 'var(--tt-feed)',
+        backgroundColor: saving ? accentStrong : accentColor,
         touchAction: 'manipulation',
-        opacity: saving ? 0.7 : 1,
-        cursor: saving ? 'not-allowed' : 'pointer'
+        opacity: isCtaDisabled ? 0.5 : 1,
+        cursor: isCtaDisabled ? 'not-allowed' : 'pointer',
+        pointerEvents: isCtaDisabled ? 'none' : 'auto'
       },
       onMouseEnter: (e) => {
-        if (!saving) {
-          e.target.style.backgroundColor = 'var(--tt-feed-strong)';
+        if (!isCtaDisabled) {
+          e.target.style.backgroundColor = accentStrong;
         }
       },
       onMouseLeave: (e) => {
-        if (!saving) {
-          e.target.style.backgroundColor = 'var(--tt-feed)';
+        if (!isCtaDisabled) {
+          e.target.style.backgroundColor = accentColor;
         }
       }
-    }, saving ? 'Saving...' : 'Save');
+    }, saving ? 'Saving...' : saveButtonLabel);
 
     const overlayContent = React.createElement(
       React.Fragment,
@@ -840,10 +1333,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           React.createElement('button', {
             onClick: () => {
               const nextISO = _partsToISO({ dayISO: dtSelectedDate, hour: dtHour, minute: dtMinute, ampm: dtAmpm });
-              setDateTime(nextISO);
+              handleDateTimeChange(nextISO);
               setShowDateTimeTray(false);
             },
-            style: { justifySelf: 'end', background: 'none', border: 'none', padding: 0, color: 'var(--tt-feed)', fontSize: 17, fontWeight: 600 }
+            style: { justifySelf: 'end', background: 'none', border: 'none', padding: 0, color: accentColor, fontSize: 17, fontWeight: 600 }
           }, 'Done')
         )
       },
@@ -932,14 +1425,14 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       React.Fragment,
       null,
       React.createElement('div', {
-        className: "flex-1 px-6 pt-10 pb-2",
+        className: "flex-1 px-6 pt-3 pb-2",
         style: {
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          overflowY: 'visible',
+          overflowY: shouldAllowScroll ? 'auto' : 'hidden',
           overscrollBehavior: 'none',
-          WebkitOverflowScrolling: 'auto'
+          WebkitOverflowScrolling: shouldAllowScroll ? 'touch' : 'auto'
         }
       }, animatedContent),
       React.createElement('div', {
@@ -1009,7 +1502,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                   backgroundColor: "var(--tt-halfsheet-bg)",
                   willChange: 'transform',
                   paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                  maxHeight: '90vh',
+                  maxHeight: '100vh',
                   height: 'auto',
                   minHeight: '60vh',
                   display: 'flex',
@@ -1025,7 +1518,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
               React.createElement('div', {
                 className: "",
                 style: {
-                  backgroundColor: 'var(--tt-feed)',
+                  backgroundColor: accentColor,
                   borderTopLeftRadius: '20px',
                   borderTopRightRadius: '20px',
                   padding: '0 1.5rem',
@@ -1051,8 +1544,19 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                   window.XIcon,
                   { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
                 )),
-                React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, 'Feed'),
-                React.createElement('div', { className: "w-6" })
+                React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, headerTitle),
+                isNursing
+                  ? React.createElement('button', {
+                      type: 'button',
+                      onClick: handleNursingReset,
+                      className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity",
+                      title: 'Reset'
+                    }, React.createElement(
+                      'svg',
+                      { xmlns: "http://www.w3.org/2000/svg", width: "18", height: "18", viewBox: "0 0 256 256", fill: "currentColor" },
+                      React.createElement('path', { d: "M224,128a96,96,0,0,1-94.71,96H128A95.38,95.38,0,0,1,62.1,197.8a8,8,0,0,1,11-11.63A80,80,0,1,0,71.43,71.39a3.07,3.07,0,0,1-.26.25L60.63,81.29l17,17A8,8,0,0,1,72,112H24a8,8,0,0,1-8-8V56A8,8,0,0,1,29.66,50.3L49.31,70,60.25,60A96,96,0,0,1,224,128Z" })
+                    ))
+                  : React.createElement('div', { className: "w-6" })
               ),
               bodyContent
             )

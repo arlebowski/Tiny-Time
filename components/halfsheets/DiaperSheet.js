@@ -120,6 +120,8 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
     const [notesExpanded, setNotesExpanded] = React.useState(false);
     const [photosExpanded, setPhotosExpanded] = React.useState(false);
     const inputValueClassName = 'text-[18px]';
+    const notesInputRef = React.useRef(null);
+    const [notesWrappedLines, setNotesWrappedLines] = React.useState(1);
 
     const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
     const TTPickerTray = _pickers.TTPickerTray;
@@ -192,11 +194,32 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
       setPhotosExpanded(false);
     }, [entry, isOpen]);
 
+    React.useEffect(() => {
+      if (!notesExpanded) {
+        setNotesWrappedLines(1);
+        return;
+      }
+      const host = notesInputRef.current;
+      if (!host) return;
+      const textarea = host.querySelector('textarea');
+      if (!textarea) return;
+      const styles = window.getComputedStyle(textarea);
+      let lineHeight = parseFloat(styles.lineHeight);
+      if (!Number.isFinite(lineHeight)) {
+        const fontSize = parseFloat(styles.fontSize) || 16;
+        lineHeight = fontSize * 1.2;
+      }
+      const lines = Math.max(1, Math.ceil(textarea.scrollHeight / lineHeight));
+      setNotesWrappedLines(lines);
+    }, [notes, notesExpanded]);
+
     const handleClose = () => {
       if (onClose) onClose();
     };
 
     const hasSelection = isDry || isWet || isPoo;
+
+    const shouldAllowScroll = notesExpanded && photosExpanded && notesWrappedLines >= 3;
 
     const handleToggleDry = () => {
       const next = !isDry;
@@ -381,15 +404,17 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
               animate: { opacity: 1, y: 0, scale: 1 },
               transition: { type: "spring", damping: 25, stiffness: 300 }
             },
-            React.createElement(InputRow, {
-              label: 'Notes',
-              value: notes,
-              onChange: setNotes,
-              icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
-              valueClassName: inputValueClassName,
-              type: 'text',
-              placeholder: 'Add a note...'
-            })
+            React.createElement('div', { ref: notesInputRef },
+              React.createElement(InputRow, {
+                label: 'Notes',
+                value: notes,
+                onChange: setNotes,
+                icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+                valueClassName: inputValueClassName,
+                type: 'text',
+                placeholder: 'Add a note...'
+              })
+            )
           )
           : photosExpanded ? React.createElement('div', {
               onClick: () => setNotesExpanded(true),
@@ -557,9 +582,9 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
           minHeight: 0,
           display: 'flex',
           flexDirection: 'column',
-          overflowY: 'visible',
+          overflowY: shouldAllowScroll ? 'auto' : 'hidden',
           overscrollBehavior: 'none',
-          WebkitOverflowScrolling: 'auto'
+          WebkitOverflowScrolling: shouldAllowScroll ? 'touch' : 'auto'
         }
       }, animatedContent),
       React.createElement('div', {
@@ -626,7 +651,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
                   backgroundColor: "var(--tt-halfsheet-bg)",
                   willChange: 'transform',
                   paddingBottom: 'env(safe-area-inset-bottom, 0)',
-                  maxHeight: '90vh',
+                  maxHeight: '100vh',
                   height: 'auto',
                   minHeight: '60vh',
                   display: 'flex',
