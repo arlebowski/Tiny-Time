@@ -1002,6 +1002,16 @@ const firestoreStorage = {
   },
   _cacheMaxAgeMs: 60000,
   _settingsCacheMaxAgeMs: 300000,
+  _setLastFeedVariant(variant) {
+    if (variant !== 'bottle' && variant !== 'nursing') return;
+    try {
+      localStorage.setItem('tt_last_feed_variant', variant);
+    } catch (e) {}
+    try {
+      const event = new CustomEvent('tt-last-feed-variant', { detail: { variant } });
+      window.dispatchEvent(event);
+    } catch (e) {}
+  },
 
   initialize: async function (familyId, kidId) {
     this.currentFamilyId = familyId;
@@ -1532,6 +1542,7 @@ const firestoreStorage = {
       await this._saveCache();
     }
     logEvent("feeding_added", { ounces });
+    this._setLastFeedVariant('bottle');
   },
 
   async getFeedings() {
@@ -1615,6 +1626,7 @@ const firestoreStorage = {
       await this._saveCache();
     }
     logEvent("feeding_added", { ounces });
+    this._setLastFeedVariant('bottle');
   },
 
   async updateFeedingWithNotes(id, ounces, timestamp, notes = null, photoURLs = null) {
@@ -1661,6 +1673,7 @@ const firestoreStorage = {
       await this._saveCache();
     }
     logEvent("nursing_added", { leftDurationSec: data.leftDurationSec, rightDurationSec: data.rightDurationSec });
+    this._setLastFeedVariant('nursing');
   },
 
   async addNursingSessionWithNotes(startTime, leftDurationSec, rightDurationSec, lastSide = null, notes = null, photoURLs = null) {
@@ -1681,6 +1694,7 @@ const firestoreStorage = {
       await this._saveCache();
     }
     logEvent("nursing_added", { leftDurationSec: data.leftDurationSec, rightDurationSec: data.rightDurationSec });
+    this._setLastFeedVariant('nursing');
   },
 
   async getNursingSessions() {
@@ -3240,6 +3254,13 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
   const [activeKid, setActiveKid] = useState(() => (bootActiveKid || null));
   const [themeKey, setThemeKey] = useState(() => (bootThemeKey || 'indigo'));
   const [showKidMenu, setShowKidMenu] = useState(false);
+  const [activityVisibility, setActivityVisibility] = useState(() => ({
+    bottle: true,
+    nursing: true,
+    sleep: true,
+    diaper: true
+  }));
+  const [showActivitySheet, setShowActivitySheet] = useState(false);
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
   const [inputSheetOpen, setInputSheetOpen] = useState(false);
@@ -3247,15 +3268,70 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
 
   const shouldUseNewInputFlow = true;
   const FloatingTrackerMenu = window.TT?.shared?.FloatingTrackerMenu || null;
+  const ActivityVisibilitySheet = window.TT?.shared?.ActivityVisibilitySheet || null;
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
+  const normalizeActivityVisibility = (value) => {
+    const base = { bottle: true, nursing: true, sleep: true, diaper: true };
+    if (!value || typeof value !== 'object') return base;
+    return {
+      bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
+      nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing,
+      sleep: typeof value.sleep === 'boolean' ? value.sleep : base.sleep,
+      diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
+    };
+  };
+  const activityVisibilitySafe = normalizeActivityVisibility(activityVisibility);
+  const isFeedEnabled = activityVisibilitySafe.bottle || activityVisibilitySafe.nursing;
+  const canOpenInputSheet = (mode) => {
+    if (mode === 'sleep') return activityVisibilitySafe.sleep;
+    if (mode === 'diaper') return activityVisibilitySafe.diaper;
+    if (mode === 'feeding' || mode === 'nursing') return isFeedEnabled;
+    return true;
+  };
+  const useActiveSleep = window.TT?.shared?.useActiveSleep || (() => ({ activeSleep: null, activeSleepLoaded: true }));
+  const { activeSleep } = useActiveSleep(kidId) || { activeSleep: null };
   const openInputSheet = React.useCallback((mode = 'feeding') => {
+    if (!canOpenInputSheet(mode)) return;
     setInputSheetMode(mode || 'feeding');
     setInputSheetOpen(true);
-  }, []);
+  }, [canOpenInputSheet]);
   const closeInputSheet = React.useCallback(() => {
     setInputSheetOpen(false);
   }, []);
+  const handleUpdateActivityVisibility = React.useCallback((next) => {
+    const normalized = normalizeActivityVisibility(next);
+    if (Object.values(normalized).filter(Boolean).length < 1) return;
+    setActivityVisibility(normalized);
+    if (typeof firestoreStorage !== 'undefined' && firestoreStorage.saveSettings) {
+      firestoreStorage.saveSettings({ activityVisibility: normalized }).catch(() => {});
+    }
+  }, []);
+  const handleToggleActivitySheet = React.useCallback(() => {
+    setShowActivitySheet((prev) => !prev);
+  }, []);
+
+  useEffect(() => {
+    if (!inputSheetOpen) return;
+    if (inputSheetMode === 'sleep' && !activityVisibilitySafe.sleep) {
+      closeInputSheet();
+      return;
+    }
+    if (inputSheetMode === 'diaper' && !activityVisibilitySafe.diaper) {
+      closeInputSheet();
+      return;
+    }
+    if (inputSheetMode === 'feeding' && !isFeedEnabled) {
+      closeInputSheet();
+    }
+  }, [inputSheetOpen, inputSheetMode, activityVisibilitySafe, isFeedEnabled, closeInputSheet]);
+
+  useEffect(() => {
+    if (activityVisibilitySafe.sleep) return;
+    if (activeSleep && activeSleep.id && typeof firestoreStorage !== 'undefined' && firestoreStorage.endSleep) {
+      firestoreStorage.endSleep(activeSleep.id).catch(() => {});
+    }
+  }, [activityVisibilitySafe.sleep, activeSleep]);
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -3329,6 +3405,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
 
       const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
       setThemeKey(settingsData.themeKey || "indigo");
+      setActivityVisibility(normalizeActivityVisibility(settingsData.activityVisibility));
 
     } catch (err) {
       console.error("Error loading kids/theme:", err);
@@ -3731,6 +3808,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           kidId, 
           familyId,
           onRequestOpenInputSheet: openInputSheet,
+          onRequestToggleActivitySheet: handleToggleActivitySheet,
+          isActivitySheetOpen: showActivitySheet,
+          activityVisibility: activityVisibilitySafe,
           activeTab
         })),
         React.createElement('div', {
@@ -3815,6 +3895,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         isOpen: inputSheetOpen,
         onClose: closeInputSheet,
         kidId: kidId,
+        activityVisibility: activityVisibilitySafe,
         onAdd: async () => {
           try {
             const event = new CustomEvent('tt-input-sheet-added', { detail: { mode: inputSheetMode } });
@@ -3826,7 +3907,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       });
     })(),
 
-    shouldUseNewInputFlow && FloatingTrackerMenu && React.createElement(
+    shouldUseNewInputFlow && FloatingTrackerMenu && (isFeedEnabled || activityVisibilitySafe.sleep || activityVisibilitySafe.diaper) && React.createElement(
       'div',
       { className: "tt-floating-plus" },
       React.createElement(FloatingTrackerMenu, {
@@ -3834,6 +3915,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           openInputSheet(type);
           setShowShareMenu(false);
           setShowKidMenu(false);
+        },
+        visibleTypes: {
+          feeding: isFeedEnabled,
+          sleep: activityVisibilitySafe.sleep,
+          diaper: activityVisibilitySafe.diaper
         },
         position: {
           bottom: 'calc(env(safe-area-inset-bottom) + 40px)',
@@ -3855,6 +3941,13 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         }
       }
     ),
+
+    ActivityVisibilitySheet && React.createElement(ActivityVisibilitySheet, {
+      isOpen: showActivitySheet,
+      onClose: () => setShowActivitySheet(false),
+      visibility: activityVisibilitySafe,
+      onChange: handleUpdateActivityVisibility
+    }),
 
     // Bottom navigation (v4)
     React.createElement(
