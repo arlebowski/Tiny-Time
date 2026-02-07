@@ -3839,7 +3839,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         }, React.createElement(
           'div',
           { className: "max-w-2xl mx-auto h-full px-4 pb-5" },
-          React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab, activeTab })
+          React.createElement(window.TT.tabs.TrackerDetailTab, { user, kidId, familyId, setActiveTab, activeTab, activityVisibility: activityVisibilitySafe })
         )),
         activeTab === 'family' && React.createElement(window.TT.tabs.FamilyTab, {
           user,
