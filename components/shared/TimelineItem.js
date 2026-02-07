@@ -67,7 +67,7 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
+  const TTSharedTimelineItem = ({ card, bottleIcon, nursingIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -77,6 +77,7 @@ const __ttEnsureZzzStyles = () => {
   const isScheduledGray = isScheduled && !disableScheduledGrayscale;
   const isLogged = card.variant === 'logged';
   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
+  const isNursing = card.type === 'feed' && card.feedType === 'nursing';
   const unitText = (card.unit || '').toLowerCase();
   const formatSleepDuration = (ms) => {
     const totalSec = Math.round(Math.max(0, Number(ms) || 0) / 1000);
@@ -109,10 +110,25 @@ const __ttEnsureZzzStyles = () => {
     const minutes = totalMins % 60;
     return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
   };
-  const amountText = (typeof card.amount === 'number' || typeof card.amount === 'string')
-    ? (card.type === 'sleep' ? resolveSleepAmountText() : `${card.amount} ${unitText}`.trim())
-    : '';
-  const prefix = card.type === 'feed' ? 'Feed' : (card.type === 'sleep' ? 'Sleep' : 'Diaper');
+  const formatNursingDuration = (totalSec) => {
+    const total = Math.max(0, Number(totalSec) || 0);
+    const h = Math.floor(total / 3600);
+    const m = Math.floor((total % 3600) / 60);
+    const s = total % 60;
+    if (h > 0) return `${h}h ${m}m ${s}s`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+  const nursingTotalSec = isNursing
+    ? (Number(card.leftDurationSec || 0) + Number(card.rightDurationSec || 0))
+    : 0;
+  const nursingAmountText = isNursing && nursingTotalSec > 0 ? formatNursingDuration(nursingTotalSec) : '';
+  const amountText = isNursing
+    ? nursingAmountText
+    : ((typeof card.amount === 'number' || typeof card.amount === 'string')
+        ? (card.type === 'sleep' ? resolveSleepAmountText() : `${card.amount} ${unitText}`.trim())
+        : '');
+  const prefix = isNursing ? 'Nursing' : (card.type === 'feed' ? 'Feed' : (card.type === 'sleep' ? 'Sleep' : 'Diaper'));
   const sleepSettings =
     (window.TT && window.TT.shared && window.TT.shared.sleepSettings) ||
     (window.TT && window.TT.sleepSettings) ||
@@ -155,7 +171,7 @@ const __ttEnsureZzzStyles = () => {
   const photoUrls = __ttNormalizePhotoUrls(photoList);
   const hasPhotos = photoUrls.length > 0;
   const hasNote = Boolean(card.note || card.notes);
-  const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos);
+  const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos || isNursing);
   const showChevron = isLogged && hasDetails && !isActiveSleep;
   const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.ChevronDownIcon) || null;
   const noteText = card.note || card.notes || '';
@@ -223,6 +239,7 @@ const __ttEnsureZzzStyles = () => {
     return () => observer.disconnect();
   }, [card.id, hasDetails, isExpanded, onExpandedContentHeight, updateDetailsHeight]);
 
+  const feedAccent = isNursing ? 'var(--tt-nursing)' : 'var(--tt-feed)';
   return React.createElement(
     React.Fragment,
     null,
@@ -235,21 +252,21 @@ const __ttEnsureZzzStyles = () => {
         width: `${iconWrapSize}px`,
         height: `${iconWrapSize}px`,
         backgroundColor: card.type === 'feed'
-          ? 'color-mix(in srgb, var(--tt-feed) 20%, transparent)'
+          ? `color-mix(in srgb, ${feedAccent} 20%, transparent)`
           : (card.type === 'sleep'
               ? 'color-mix(in srgb, var(--tt-sleep) 20%, transparent)'
               : 'color-mix(in srgb, var(--tt-diaper) 20%, transparent)')
       }
     },
-      card.type === 'feed' && bottleIcon
-        ? React.createElement(bottleIcon, {
+      card.type === 'feed' && (isNursing ? nursingIcon : bottleIcon)
+        ? React.createElement(isNursing ? nursingIcon : bottleIcon, {
             style: {
-              color: 'var(--tt-feed)',
+              color: feedAccent,
               width: `${iconSize}px`,
               height: `${iconSize}px`,
               strokeWidth: '1.5',
-              fill: 'none',
-              transform: 'rotate(20deg)'
+              fill: isNursing ? 'currentColor' : 'none',
+              transform: isNursing ? 'none' : 'rotate(20deg)'
             }
           })
         : card.type === 'sleep' && moonIcon
@@ -417,6 +434,13 @@ const __ttEnsureZzzStyles = () => {
             style: { overflow: 'hidden' }
           },
           React.createElement('div', { ref: detailsContentRef, className: "pt-2 pb-2 flex flex-col gap-3 text-xs" },
+            isNursing && React.createElement('div', {
+              className: "flex flex-col gap-1",
+              style: { color: 'var(--tt-text-secondary)' }
+            },
+              React.createElement('div', null, `Left ${formatNursingDuration(Number(card.leftDurationSec || 0))} • Right ${formatNursingDuration(Number(card.rightDurationSec || 0))}`),
+              card.lastSide ? React.createElement('div', { style: { color: 'var(--tt-text-tertiary)' } }, `Last side: ${String(card.lastSide).toUpperCase().slice(0, 1)}${String(card.lastSide).slice(1)}`) : null
+            ),
             hasNote && React.createElement('div', {
               className: "italic",
               style: { color: 'var(--tt-text-secondary)' }

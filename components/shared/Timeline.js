@@ -65,6 +65,9 @@ const Timeline = ({
   const bottleIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.BottleV2 || window.TT.shared.icons["bottle-v2"])) ||
     null;
+  const nursingIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.NursingIcon) ||
+    null;
   const moonIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
     null;
@@ -245,7 +248,8 @@ const Timeline = ({
     const photoList = card.photoURLs || card.photoUrls || card.photos;
     const hasPhotos = __ttNormalizePhotoUrls(photoList).length > 0;
     const hasNote = Boolean(card.note || card.notes);
-    return hasPhotos || hasNote;
+    const isNursing = card.type === 'feed' && card.feedType === 'nursing';
+    return hasPhotos || hasNote || isNursing;
   };
 
   const positionToTime = (percentage) => {
@@ -1183,6 +1187,7 @@ const Timeline = ({
                         ? React.createElement(TimelineItem, {
                             card,
                             bottleIcon,
+                            nursingIcon,
                             moonIcon,
                             diaperIcon,
                             isExpanded: isExpandedCard,

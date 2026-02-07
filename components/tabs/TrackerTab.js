@@ -46,6 +46,8 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const [customTime, setCustomTime] = React.useState('');
   const [feedings, setFeedings] = React.useState([]);
   const [allFeedings, setAllFeedings] = React.useState([]);
+  const [nursingSessions, setNursingSessions] = React.useState([]);
+  const [allNursingSessions, setAllNursingSessions] = React.useState([]);
   const [sleepSessions, setSleepSessions] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
   const [diaperChanges, setDiaperChanges] = React.useState([]);
@@ -68,6 +70,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   const prevActiveTabRef = React.useRef(activeTab);
   // State for smooth date transitions - preserve previous values while loading
   const [prevFeedingCardData, setPrevFeedingCardData] = React.useState(null);
+  const [prevNursingCardData, setPrevNursingCardData] = React.useState(null);
   const [prevSleepCardData, setPrevSleepCardData] = React.useState(null);
   const [prevDiaperCardData, setPrevDiaperCardData] = React.useState(null);
   const [isDateTransitioning, setIsDateTransitioning] = React.useState(false);
@@ -94,7 +97,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   }, [onRequestOpenInputSheet]);
   const handleV4CardTap = React.useCallback((e, payload) => {
     if (typeof window === 'undefined') return;
-    const nextFilter = payload?.mode === 'feeding'
+    const nextFilter = payload?.mode === 'feeding' || payload?.mode === 'nursing'
       ? 'feed'
       : (payload?.mode === 'sleep'
           ? 'sleep'
@@ -624,9 +627,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   useEffect(() => {
     if (!loading && kidId) {
       loadFeedings();
+      loadNursingSessions();
       loadDiaperChanges();
       const interval = setInterval(() => {
         loadFeedings();
+        loadNursingSessions();
         loadDiaperChanges();
       }, 5000);
       return () => clearInterval(interval);
@@ -675,6 +680,41 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     } catch (error) {
       console.error('Error loading feedings:', error);
       // Only decrement if still current transition
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
+    }
+  };
+
+  const loadNursingSessions = async () => {
+    const myTransitionId = transitionIdRef.current;
+    try {
+      const allNursingData = await firestoreStorage.getAllNursingSessions();
+      setAllNursingSessions(allNursingData || []);
+
+      const startOfDay = new Date(currentDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(currentDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const daySessions = (allNursingData || []).filter(s => {
+        const ts = s.timestamp || s.startTime || 0;
+        return ts >= startOfDay.getTime() && ts <= endOfDay.getTime();
+      }).map(s => ({
+        ...s,
+        time: new Date(s.timestamp || s.startTime || Date.now()).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      })).sort((a, b) => (b.timestamp || b.startTime || 0) - (a.timestamp || a.startTime || 0));
+
+      setNursingSessions(daySessions);
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
+    } catch (error) {
+      console.error('Error loading nursing sessions:', error);
       if (myTransitionId === transitionIdRef.current) {
         setTransitionPending(p => Math.max(0, p - 1));
       }
@@ -735,6 +775,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       const mode = event?.detail?.mode;
       if (mode === 'feeding') {
         loadFeedings();
+        loadNursingSessions();
         return;
       }
       if (mode === 'sleep') {
@@ -747,7 +788,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     };
     window.addEventListener('tt-input-sheet-added', handleInputSheetAdded);
     return () => window.removeEventListener('tt-input-sheet-added', handleInputSheetAdded);
-  }, [loadFeedings, loadSleepSessions, loadDiaperChanges]);
+  }, [loadFeedings, loadNursingSessions, loadSleepSessions, loadDiaperChanges]);
 
   React.useEffect(() => {
     const handleUnitChanged = (event) => {
@@ -787,6 +828,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       setKidDisplayName(kidData?.name || null);
       setKidBirthDate(kidData?.birthDate || null);
       await loadFeedings();
+      await loadNursingSessions();
       await loadDiaperChanges();
     } catch (error) {
       console.error('Error loading data:', error);
@@ -828,14 +870,16 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     const targetOz = babyWeight ? babyWeight * multiplier : 0;
     const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
     const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
+    const currentNursingData = formatNursingSessionsForCard(nursingSessions, currentDate);
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
     const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
     setPrevFeedingCardData(currentFeedingData);
+    setPrevNursingCardData(currentNursingData);
     setPrevSleepCardData(currentSleepData);
     setPrevDiaperCardData(currentDiaperData);
-    // Start new transition and expect 3 completions
+    // Start new transition and expect 4 completions
     transitionIdRef.current += 1;
-    setTransitionPending(3);
+    setTransitionPending(4);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -849,14 +893,16 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     const targetOz = babyWeight ? babyWeight * multiplier : 0;
     const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
     const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
+    const currentNursingData = formatNursingSessionsForCard(nursingSessions, currentDate);
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
     const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
     setPrevFeedingCardData(currentFeedingData);
+    setPrevNursingCardData(currentNursingData);
     setPrevSleepCardData(currentSleepData);
     setPrevDiaperCardData(currentDiaperData);
-    // Start new transition and expect 3 completions
+    // Start new transition and expect 4 completions
     transitionIdRef.current += 1;
-    setTransitionPending(3);
+    setTransitionPending(4);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -979,6 +1025,44 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
     
     return { total, target, percent, timelineItems, lastEntryTime };
+  };
+
+  const formatNursingSessionsForCard = (sessions, currentDate) => {
+    if (!sessions || !Array.isArray(sessions)) return { total: 0, target: null, percent: 0, timelineItems: [], lastEntryTime: null };
+
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todaySessions = sessions.filter(s => {
+      const ts = s.timestamp || s.startTime || 0;
+      return ts >= startOfDay.getTime() && ts <= endOfDay.getTime();
+    });
+
+    const totalMs = todaySessions.reduce((sum, s) => {
+      const left = Number(s.leftDurationSec || 0);
+      const right = Number(s.rightDurationSec || 0);
+      return sum + Math.max(0, left + right) * 1000;
+    }, 0);
+
+    const timelineItems = todaySessions
+      .sort((a, b) => ((b.timestamp || b.startTime || 0) - (a.timestamp || a.startTime || 0)))
+      .map(s => ({
+        id: s.id,
+        timestamp: s.timestamp || s.startTime || 0,
+        startTime: s.startTime || s.timestamp || 0,
+        leftDurationSec: Number(s.leftDurationSec || 0),
+        rightDurationSec: Number(s.rightDurationSec || 0),
+        lastSide: s.lastSide || null,
+        notes: s.notes || null,
+        photoURLs: s.photoURLs || null,
+        feedType: 'nursing'
+      }));
+
+    const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
+
+    return { total: totalMs, target: null, percent: 0, timelineItems, lastEntryTime };
   };
 
   const formatSleepSessionsForCard = (sessions, targetHours, currentDate, activeSleepSession = null) => {
@@ -1197,7 +1281,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       }
       return true;
     };
-    return sectionEqual(a.feed, b.feed) && sectionEqual(a.sleep, b.sleep);
+    return sectionEqual(a.feed, b.feed) && sectionEqual(a.nursing, b.nursing) && sectionEqual(a.sleep, b.sleep);
   };
 
   const _pickLatestAvgCache = (local, remote) => {
@@ -1255,6 +1339,46 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         if (!Number.isFinite(ts) || !Number.isFinite(oz) || oz <= 0) return;
         const idx = _bucketIndexCeilFromMs(ts);
         increments[idx] += oz;
+      });
+      let running = 0;
+      for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
+        running += increments[i];
+        sumBuckets[i] += running;
+      }
+    });
+    return {
+      buckets: sumBuckets.map((v) => v / dayStarts.length),
+      daysUsed: dayStarts.length,
+      dayStarts
+    };
+  };
+
+  const _buildNursingAvgBuckets = (all) => {
+    if (!Array.isArray(all) || all.length === 0) return null;
+    const todayStartMs = _startOfDayMsLocal(Date.now());
+    const dayMap = new Map();
+    all.forEach((s) => {
+      const ts = Number(s?.timestamp || s?.startTime || 0);
+      if (!Number.isFinite(ts) || ts >= todayStartMs) return;
+      const dayStartMs = _startOfDayMsLocal(ts);
+      const list = dayMap.get(dayStartMs) || [];
+      list.push(s);
+      dayMap.set(dayStartMs, list);
+    });
+    const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
+    if (dayStarts.length === 0) return null;
+    const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
+    dayStarts.forEach((dayStartMs) => {
+      const increments = Array(TT_AVG_BUCKETS).fill(0);
+      const daySessions = dayMap.get(dayStartMs) || [];
+      daySessions.forEach((s) => {
+        const ts = Number(s?.timestamp || s?.startTime || 0);
+        const left = Number(s?.leftDurationSec || 0);
+        const right = Number(s?.rightDurationSec || 0);
+        const totalSec = Math.max(0, left + right);
+        if (!Number.isFinite(ts) || totalSec <= 0) return;
+        const idx = _bucketIndexCeilFromMs(ts);
+        increments[idx] += totalSec / 3600;
       });
       let running = 0;
       for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
@@ -1356,6 +1480,25 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     return running;
   };
 
+  const _calcNursingCumulativeAtBucket = (entries, bucketIdx) => {
+    if (!Array.isArray(entries) || entries.length === 0) return 0;
+    const increments = Array(TT_AVG_BUCKETS).fill(0);
+    entries.forEach((s) => {
+      const ts = Number(s?.timestamp || s?.startTime || 0);
+      const left = Number(s?.leftDurationSec || 0);
+      const right = Number(s?.rightDurationSec || 0);
+      const totalSec = Math.max(0, left + right);
+      if (!Number.isFinite(ts) || totalSec <= 0) return;
+      const idx = _bucketIndexCeilFromMs(ts);
+      increments[idx] += totalSec / 3600;
+    });
+    let running = 0;
+    for (let i = 0; i <= bucketIdx && i < TT_AVG_BUCKETS; i += 1) {
+      running += increments[i];
+    }
+    return running;
+  };
+
   const _calcSleepCumulativeAtBucket = (entries, bucketIdx, activeSleepSession = null) => {
     if ((!Array.isArray(entries) || entries.length === 0) && !(activeSleepSession && activeSleepSession.startTime)) return 0;
     const nowMs = Date.now();
@@ -1420,10 +1563,11 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   }, [avgCacheKey, kidDataState]);
 
   React.useEffect(() => {
-    if (!avgCacheKey) return;
+    if (!avgCacheKey || !hasLoadedOnce) return;
     const nextFeed = _buildFeedAvgBuckets(allFeedings);
+    const nextNursing = _buildNursingAvgBuckets(allNursingSessions);
     const nextSleep = _buildSleepAvgBuckets(allSleepSessions);
-    if (!nextFeed && !nextSleep) {
+    if (!nextFeed && !nextNursing && !nextSleep) {
       avgByTimeCacheRef.current = null;
       setAvgByTimeCache(null);
       _writeAvgCacheLocal(null);
@@ -1444,6 +1588,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       version: 1,
       computedAt: Date.now(),
       feed: nextFeed,
+      nursing: nextNursing,
       sleep: nextSleep
     };
     if (_avgCacheEqual(next, avgByTimeCacheRef.current)) return;
@@ -1456,17 +1601,23 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
       firestoreStorage.updateKidData({ avgByTime: next });
       setKidDataState((prev) => ({ ...(prev || {}), avgByTime: next }));
     }
-  }, [avgCacheKey, allFeedings, allSleepSessions]);
+  }, [avgCacheKey, allFeedings, allNursingSessions, allSleepSessions, hasLoadedOnce]);
 
   const nowBucketIndex = _bucketIndexCeilFromMs(Date.now());
   const feedAvgValue = avgByTimeCache?.feed?.buckets?.[nowBucketIndex];
+  const nursingAvgValue = avgByTimeCache?.nursing?.buckets?.[nowBucketIndex];
   const sleepAvgValue = avgByTimeCache?.sleep?.buckets?.[nowBucketIndex];
   const feedDaysUsed = avgByTimeCache?.feed?.daysUsed || 0;
+  const nursingDaysUsed = avgByTimeCache?.nursing?.daysUsed || 0;
   const sleepDaysUsed = avgByTimeCache?.sleep?.daysUsed || 0;
   const todayFeedValue = _calcFeedCumulativeAtBucket(feedings, nowBucketIndex);
+  const todayNursingValue = _calcNursingCumulativeAtBucket(nursingSessions, nowBucketIndex);
   const todaySleepValue = _calcSleepCumulativeAtBucket(sleepSessions, nowBucketIndex, activeSleep);
   const feedingComparison = isToday() && Number.isFinite(feedAvgValue) && feedDaysUsed > 0
     ? { delta: todayFeedValue - feedAvgValue, unit: 'oz', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const nursingComparison = isToday() && Number.isFinite(nursingAvgValue) && nursingDaysUsed > 0
+    ? { delta: todayNursingValue - nursingAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
   const sleepComparison = isToday() && Number.isFinite(sleepAvgValue) && sleepDaysUsed > 0
     ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
@@ -1489,12 +1640,16 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
         bucketMinutes,
         bucketLabel,
         feedDaysUsed,
+        nursingDaysUsed,
         sleepDaysUsed,
         feedAvgValue,
+        nursingAvgValue,
         sleepAvgValue,
         todayFeedValue,
+        todayNursingValue,
         todaySleepValue,
         feedingDelta: feedingComparison ? feedingComparison.delta : null,
+        nursingDelta: nursingComparison ? nursingComparison.delta : null,
         sleepDelta: sleepComparison ? sleepComparison.delta : null
       };
     };
@@ -1504,12 +1659,16 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   }, [
     nowBucketIndex,
     feedDaysUsed,
+    nursingDaysUsed,
     sleepDaysUsed,
     feedAvgValue,
+    nursingAvgValue,
     sleepAvgValue,
     todayFeedValue,
+    todayNursingValue,
     todaySleepValue,
     feedingComparison,
+    nursingComparison,
     sleepComparison,
     formatTime12Hour
   ]);
@@ -1517,6 +1676,7 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
   // Format data for new TrackerCard components
   // Use previous data during date transitions to prevent showing zeros
   const currentFeedingData = formatFeedingsForCard(feedings, targetOunces, currentDate);
+  const currentNursingData = formatNursingSessionsForCard(nursingSessions, currentDate);
   const currentSleepData = formatSleepSessionsForCard(sleepSessions, sleepTargetHours, currentDate, activeSleep);
   const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
   
@@ -1524,6 +1684,10 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
     ? prevFeedingCardData 
     : currentFeedingData;
     
+  const nursingCardData = isDateTransitioning && prevNursingCardData
+    ? prevNursingCardData
+    : currentNursingData;
+
   const sleepCardData = isDateTransitioning && prevSleepCardData 
     ? prevSleepCardData 
     : currentSleepData;
@@ -1541,12 +1705,13 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
 
   // Clear previous data when transition completes
   React.useEffect(() => {
-    if (!isDateTransitioning && (prevFeedingCardData || prevSleepCardData || prevDiaperCardData)) {
+    if (!isDateTransitioning && (prevFeedingCardData || prevNursingCardData || prevSleepCardData || prevDiaperCardData)) {
       setPrevFeedingCardData(null);
+      setPrevNursingCardData(null);
       setPrevSleepCardData(null);
       setPrevDiaperCardData(null);
     }
-  }, [isDateTransitioning, prevFeedingCardData, prevSleepCardData, prevDiaperCardData]);
+  }, [isDateTransitioning, prevFeedingCardData, prevNursingCardData, prevSleepCardData, prevDiaperCardData]);
 
   // Handlers for timeline item clicks
   const handleFeedItemClick = (entry) => {
@@ -1687,6 +1852,26 @@ const TrackerTab = ({ user, kidId, familyId, onRequestOpenInputSheet = null, act
           // Small delay for animation
           await new Promise(resolve => setTimeout(resolve, 200));
           await loadFeedings();
+        }
+      }),
+      React.createElement(window.TrackerCard, {
+        mode: 'nursing',
+        total: nursingCardData.total,
+        target: null,
+        volumeUnit: preferredVolumeUnit,
+        timelineItems: nursingCardData.timelineItems,
+        entriesTodayCount: Array.isArray(nursingCardData.timelineItems) ? nursingCardData.timelineItems.length : 0,
+        lastEntryTime: nursingCardData.lastEntryTime,
+        comparison: nursingComparison,
+        rawFeedings: [],
+        rawSleepSessions: [],
+        currentDate: currentDate,
+        disableAccordion: true,
+        onCardTap: handleV4CardTap,
+        onItemClick: handleFeedItemClick,
+        onDelete: async () => {
+          await new Promise(resolve => setTimeout(resolve, 200));
+          await loadNursingSessions();
         }
       }),
       React.createElement(window.TrackerCard, {
