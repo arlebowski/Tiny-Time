@@ -680,6 +680,7 @@ const Timeline = ({
     const handlePointerDown = (event) => {
       if (!isSwipeEnabled) return;
       if (dragState.current.pointerId != null) return;
+      if (event.target && event.target.closest && event.target.closest('button')) return;
       event.stopPropagation();
       if (event.currentTarget?.setPointerCapture) {
         event.currentTarget.setPointerCapture(event.pointerId);

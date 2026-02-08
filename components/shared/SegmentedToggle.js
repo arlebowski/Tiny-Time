@@ -115,9 +115,11 @@ const SegmentedToggle = ({
     });
   }, [__ttMotion, value]);
 
+  const optionsKey = (options || []).map((opt) => opt?.value).join('|');
+
   useIsomorphicLayoutEffect(() => {
     updatePillRect();
-  }, [updatePillRect, options, size, fullWidth, variant]);
+  }, [updatePillRect, optionsKey, size, fullWidth, variant]);
 
   React.useEffect(() => {
     if (!__ttMotion) return undefined;
