@@ -29,23 +29,189 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
       };
     };
 
+    const __ttResolveFramer = () => {
+      if (typeof global === 'undefined') return {};
+      const candidates = [
+        global.FramerMotion,
+        global.framerMotion,
+        global['framer-motion'],
+        global.Motion,
+        global.motion
+      ];
+      for (const candidate of candidates) {
+        if (!candidate) continue;
+        if (candidate.Reorder || candidate.useDragControls) return candidate;
+        if (candidate.default && (candidate.default.Reorder || candidate.default.useDragControls)) {
+          return candidate.default;
+        }
+      }
+      return {};
+    };
+
+    const framer = __ttResolveFramer();
+    const Reorder = framer.Reorder || null;
+    const useDragControls = framer.useDragControls || null;
+
+    // ToggleRow defined outside ActivityVisibilitySheet to maintain stable reference
+    const ToggleRow = ({ labelKey, value, onToggle, disabled, iconLabel, SegmentedToggle, onOffOptions, debug }) => {
+      const toggleValue = value ? 'on' : 'off';
+      const dragControls = useDragControls ? useDragControls() : null;
+      const sheetRef = React.useRef(null);
+      const findSheetContainer = (startEl) => {
+        let el = startEl;
+        while (el && el !== document.body) {
+          try {
+            const ta = window.getComputedStyle(el).touchAction;
+            if (ta === 'pan-y') return el;
+          } catch (e) {}
+          el = el.parentElement;
+        }
+        return null;
+      };
+      const setSheetTouchAction = (value) => {
+        const sheetEl = sheetRef.current;
+        if (!sheetEl) return;
+        if (value == null) {
+          if (sheetEl.__ttPrevTouchAction != null) {
+            sheetEl.style.touchAction = sheetEl.__ttPrevTouchAction;
+            delete sheetEl.__ttPrevTouchAction;
+          }
+          return;
+        }
+        if (sheetEl.__ttPrevTouchAction == null) {
+          sheetEl.__ttPrevTouchAction = sheetEl.style.touchAction;
+        }
+        sheetEl.style.touchAction = value;
+      };
+      const rowProps = {
+        className: "w-full flex items-center justify-between rounded-2xl px-4 py-3",
+        style: {
+          backgroundColor: 'var(--tt-card-bg)',
+          border: '1px solid var(--tt-card-border)',
+          opacity: disabled ? 0.5 : 1
+        },
+        'data-activity-row': labelKey
+      };
+      const reorderProps = (Reorder && Reorder.Item) ? {
+        value: labelKey,
+        drag: 'y',
+        dragListener: false,
+        dragControls: dragControls || undefined,
+        layout: true,
+        dragSnapToOrigin: false,
+        dragMomentum: false,
+        whileDrag: {
+          scale: 1.02,
+          boxShadow: 'var(--tt-shadow-floating)',
+          backgroundColor: 'var(--tt-card-bg)',
+          zIndex: 2
+        },
+        dragTransition: { bounceStiffness: 600, bounceDamping: 35 },
+        transition: { type: "spring", stiffness: 500, damping: 40 },
+        onDragStart: () => setSheetTouchAction('none'),
+        onDragEnd: () => setSheetTouchAction(null)
+      } : {};
+      return React.createElement(
+        (Reorder && Reorder.Item) ? Reorder.Item : 'div',
+        {
+          as: 'div',
+          ...rowProps,
+          ...reorderProps
+        },
+        React.createElement(
+          'div',
+          {
+            className: "flex items-center gap-3",
+            style: { cursor: 'grab', touchAction: 'none' },
+            onPointerDown: (e) => {
+              if (debug) {
+                console.log('[TT][ActivityReorder] drag start', { key: labelKey });
+              }
+              e.preventDefault();
+              if (!sheetRef.current) {
+                sheetRef.current = findSheetContainer(e.currentTarget);
+              }
+              setSheetTouchAction('none');
+              if (dragControls && dragControls.start) {
+                dragControls.start(e);
+              }
+            }
+          },
+          React.createElement('span', {
+            className: "w-6 h-6 flex items-center justify-center",
+            style: { color: 'var(--tt-text-tertiary)' },
+            'aria-hidden': 'true'
+          }, React.createElement(
+            'svg',
+            { xmlns: "http://www.w3.org/2000/svg", width: "20", height: "20", viewBox: "0 0 256 256", fill: "currentColor" },
+            React.createElement('path', { d: "M104,60A12,12,0,1,1,92,48,12,12,0,0,1,104,60Zm60,12a12,12,0,1,0-12-12A12,12,0,0,0,164,72ZM92,116a12,12,0,1,0,12,12A12,12,0,0,0,92,116Zm72,0a12,12,0,1,0,12,12A12,12,0,0,0,164,116ZM92,184a12,12,0,1,0,12,12A12,12,0,0,0,92,184Zm72,0a12,12,0,1,0,12,12A12,12,0,0,0,164,184Z" })
+          )),
+          iconLabel
+        ),
+        SegmentedToggle
+          ? React.createElement(SegmentedToggle, {
+              value: toggleValue,
+              options: onOffOptions,
+              size: 'medium',
+              variant: 'body',
+              fullWidth: false,
+              onChange: (nextValue) => {
+                if (disabled && nextValue === 'off') return;
+                if ((nextValue === 'on') !== value) {
+                  onToggle();
+                }
+              }
+            })
+          : React.createElement('button', {
+              type: 'button',
+              onClick: () => {
+                if (disabled) return;
+                onToggle();
+              },
+              className: "text-xs font-semibold px-3 py-1 rounded-lg",
+              style: {
+                backgroundColor: value ? 'var(--tt-primary-brand)' : 'var(--tt-subtle-surface)',
+                color: value ? 'var(--tt-text-on-accent)' : 'var(--tt-text-secondary)'
+              }
+            }, value ? 'On' : 'Off')
+      );
+    };
+
     const ActivityVisibilitySheet = ({
       isOpen,
       onClose,
       visibility,
+      order,
       onChange
     }) => {
+      const debug = typeof window !== 'undefined' && window.__ttActivityReorderDebug;
       const SegmentedToggle = global.TT?.shared?.SegmentedToggle || global.SegmentedToggle || null;
       const BottleIcon = global.TT?.shared?.icons?.BottleV2 || global.TT?.shared?.icons?.["bottle-v2"] || null;
       const NursingIcon = global.TT?.shared?.icons?.NursingIcon || null;
       const MoonIcon = global.TT?.shared?.icons?.MoonV2 || global.TT?.shared?.icons?.["moon-v2"] || null;
       const DiaperIcon = global.TT?.shared?.icons?.DiaperIcon || null;
+      const defaultOrder = ['bottle', 'nursing', 'sleep', 'diaper'];
+      const normalizeOrder = (value) => {
+        if (!Array.isArray(value)) return defaultOrder.slice();
+        const next = value.filter((item) => defaultOrder.includes(item));
+        defaultOrder.forEach((item) => {
+          if (!next.includes(item)) next.push(item);
+        });
+        return next;
+      };
       const [draft, setDraft] = React.useState(() => normalizeVisibility(visibility));
+      const [draftOrder, setDraftOrder] = React.useState(() => normalizeOrder(order));
+      const listRef = React.useRef(null);
+      const onOffOptions = React.useMemo(() => ([
+        { value: 'on', label: React.createElement('span', { style: { minWidth: 26, display: 'inline-flex', justifyContent: 'center' } }, 'On') },
+        { value: 'off', label: React.createElement('span', { style: { minWidth: 26, display: 'inline-flex', justifyContent: 'center' } }, 'Off') }
+      ]), []);
 
       React.useEffect(() => {
         if (!isOpen) return;
         setDraft(normalizeVisibility(visibility));
-      }, [isOpen, visibility]);
+        setDraftOrder(normalizeOrder(order));
+      }, [isOpen, visibility, order]);
 
       const enabledCount = Object.values(draft).filter(Boolean).length;
 
@@ -59,7 +225,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
       };
       const handleDone = () => {
         if (typeof onChange === 'function') {
-          onChange(draft);
+          onChange({ visibility: draft, order: draftOrder });
         }
         if (typeof onClose === 'function') {
           onClose();
@@ -91,57 +257,6 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
           React.createElement('span', null, label)
         );
       };
-      const ToggleRow = ({ labelKey, value, onToggle, disabled }) => {
-        const toggleValue = value ? 'on' : 'off';
-        return React.createElement(
-          'div',
-          {
-            className: "w-full flex items-center justify-between rounded-2xl px-4 py-3",
-            style: {
-              backgroundColor: 'var(--tt-card-bg)',
-              border: '1px solid var(--tt-card-border)',
-              opacity: disabled ? 0.5 : 1
-            }
-          },
-          createIconLabel(labelKey),
-          SegmentedToggle
-            ? React.createElement(SegmentedToggle, {
-                value: toggleValue,
-                options: [
-                  { value: 'on', label: React.createElement('span', { style: { minWidth: 26, display: 'inline-flex', justifyContent: 'center' } }, 'On') },
-                  { value: 'off', label: React.createElement('span', { style: { minWidth: 26, display: 'inline-flex', justifyContent: 'center' } }, 'Off') }
-                ],
-                size: 'medium',
-                variant: 'body',
-                fullWidth: false,
-                onChange: (nextValue) => {
-                  if (disabled && nextValue === 'off') return;
-                  if ((nextValue === 'on') !== value) {
-                    onToggle();
-                  }
-                }
-              })
-            : React.createElement('button', {
-                type: 'button',
-                onClick: () => {
-                  if (disabled) return;
-                  onToggle();
-                },
-                className: "text-xs font-semibold px-3 py-1 rounded-lg",
-                style: {
-                  backgroundColor: value ? 'var(--tt-primary-brand)' : 'var(--tt-subtle-surface)',
-                  color: value ? 'var(--tt-text-on-accent)' : 'var(--tt-text-secondary)'
-                }
-              }, value ? 'On' : 'Off')
-        );
-      };
-
-      const rows = [
-        { key: 'bottle' },
-        { key: 'nursing' },
-        { key: 'sleep' },
-        { key: 'diaper' }
-      ];
 
       const ctaButton = React.createElement('button', {
         type: 'button',
@@ -161,17 +276,55 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
           title: 'Show & Hide Activities',
           accentColor: 'var(--tt-text-tertiary)'
         },
-        React.createElement('div', { className: "space-y-3" },
-          rows.map((row) => {
-            const isLastEnabled = enabledCount === 1 && draft[row.key];
-            return React.createElement(ToggleRow, {
-              key: row.key,
-              labelKey: row.key,
-              value: draft[row.key],
-              disabled: isLastEnabled,
-              onToggle: () => handleToggle(row.key)
-            });
-          }),
+        React.createElement('div', { className: (Reorder && Reorder.Group) ? "" : "space-y-3" },
+          (Reorder && Reorder.Group)
+            ? React.createElement(
+                Reorder.Group,
+                {
+                  ref: listRef,
+                  axis: 'y',
+                  values: draftOrder,
+                  onReorder: (nextOrder) => {
+                    if (debug) {
+                      console.log('[TT][ActivityReorder] onReorder', { nextOrder });
+                    }
+                    setDraftOrder(nextOrder);
+                  },
+                  layout: true,
+                  layoutScroll: true,
+                  as: 'div',
+                  style: { display: 'flex', flexDirection: 'column', gap: 12 },
+                  'data-activity-reorder': 'group'
+                },
+                draftOrder.map((key) => {
+                  const isLastEnabled = enabledCount === 1 && draft[key];
+                  return React.createElement(ToggleRow, {
+                    key: key,
+                    labelKey: key,
+                    value: draft[key],
+                    disabled: isLastEnabled,
+                    onToggle: () => handleToggle(key),
+                    iconLabel: createIconLabel(key),
+                    SegmentedToggle,
+                    onOffOptions,
+                    debug
+                  });
+                })
+              )
+            : draftOrder.map((key) => {
+                const isLastEnabled = enabledCount === 1 && draft[key];
+                return React.createElement(ToggleRow, {
+                  key: key,
+                  labelKey: key,
+                  value: draft[key],
+                  disabled: isLastEnabled,
+                  onToggle: () => handleToggle(key),
+                  iconLabel: createIconLabel(key),
+                  SegmentedToggle,
+                  onOffOptions,
+                  debug
+                });
+              }),
           React.createElement('div', {
             className: "text-xs pt-1",
             style: { color: 'var(--tt-text-tertiary)' }

@@ -744,7 +744,7 @@ const TrackerCard = ({
       const hours = Math.floor(minutes / 60);
       const remainingMinutes = minutes % 60;
 
-      if (minutes < 1) return 'just now';
+      if (minutes < 1) return 'Just now';
       if (minutes < 60) return `${minutes}m ago`;
       if (remainingMinutes === 0) return `${hours}h ago`;
       return `${hours}h ${remainingMinutes}m ago`;

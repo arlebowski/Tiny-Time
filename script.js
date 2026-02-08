@@ -3260,6 +3260,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
     sleep: true,
     diaper: true
   }));
+  const [activityOrder, setActivityOrder] = useState(() => ([
+    'bottle',
+    'nursing',
+    'sleep',
+    'diaper'
+  ]));
   const [showActivitySheet, setShowActivitySheet] = useState(false);
 
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
@@ -3281,7 +3287,17 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
     };
   };
+  const normalizeActivityOrder = (value) => {
+    const base = ['bottle', 'nursing', 'sleep', 'diaper'];
+    if (!Array.isArray(value)) return base.slice();
+    const next = value.filter((item) => base.includes(item));
+    base.forEach((item) => {
+      if (!next.includes(item)) next.push(item);
+    });
+    return next;
+  };
   const activityVisibilitySafe = normalizeActivityVisibility(activityVisibility);
+  const activityOrderSafe = normalizeActivityOrder(activityOrder);
   const isFeedEnabled = activityVisibilitySafe.bottle || activityVisibilitySafe.nursing;
   const canOpenInputSheet = (mode) => {
     if (mode === 'sleep') return activityVisibilitySafe.sleep;
@@ -3299,12 +3315,19 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
   const closeInputSheet = React.useCallback(() => {
     setInputSheetOpen(false);
   }, []);
-  const handleUpdateActivityVisibility = React.useCallback((next) => {
-    const normalized = normalizeActivityVisibility(next);
-    if (Object.values(normalized).filter(Boolean).length < 1) return;
-    setActivityVisibility(normalized);
+  const handleUpdateActivityVisibility = React.useCallback((payload) => {
+    const visibilityNext = normalizeActivityVisibility(payload?.visibility || payload);
+    const orderNext = normalizeActivityOrder(payload?.order);
+    if (Object.values(visibilityNext).filter(Boolean).length < 1) return;
+    setActivityVisibility(visibilityNext);
+    if (Array.isArray(payload?.order)) {
+      setActivityOrder(orderNext);
+    }
     if (typeof firestoreStorage !== 'undefined' && firestoreStorage.saveSettings) {
-      firestoreStorage.saveSettings({ activityVisibility: normalized }).catch(() => {});
+      firestoreStorage.saveSettings({
+        activityVisibility: visibilityNext,
+        ...(Array.isArray(payload?.order) ? { activityOrder: orderNext } : {})
+      }).catch(() => {});
     }
   }, []);
   const handleToggleActivitySheet = React.useCallback(() => {
@@ -3406,6 +3429,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
       setThemeKey(settingsData.themeKey || "indigo");
       setActivityVisibility(normalizeActivityVisibility(settingsData.activityVisibility));
+      setActivityOrder(normalizeActivityOrder(settingsData.activityOrder));
 
     } catch (err) {
       console.error("Error loading kids/theme:", err);
@@ -3811,6 +3835,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           onRequestToggleActivitySheet: handleToggleActivitySheet,
           isActivitySheetOpen: showActivitySheet,
           activityVisibility: activityVisibilitySafe,
+          activityOrder: activityOrderSafe,
           activeTab
         })),
         React.createElement('div', {
@@ -3946,6 +3971,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       isOpen: showActivitySheet,
       onClose: () => setShowActivitySheet(false),
       visibility: activityVisibilitySafe,
+      order: activityOrderSafe,
       onChange: handleUpdateActivityVisibility
     }),
 

@@ -29,6 +29,7 @@ const TrackerTab = ({
   onRequestToggleActivitySheet = null,
   isActivitySheetOpen = false,
   activityVisibility = null,
+  activityOrder = null,
   activeTab = null
 }) => {
   // UI Version (v4-only)
@@ -109,7 +110,17 @@ const TrackerTab = ({
       diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
     };
   };
+  const _normalizeActivityOrder = (value) => {
+    const base = ['bottle', 'nursing', 'sleep', 'diaper'];
+    if (!Array.isArray(value)) return base.slice();
+    const next = value.filter((item) => base.includes(item));
+    base.forEach((item) => {
+      if (!next.includes(item)) next.push(item);
+    });
+    return next;
+  };
   const activityVisibilitySafe = _normalizeActivityVisibility(activityVisibility);
+  const activityOrderSafe = _normalizeActivityOrder(activityOrder);
   const canOpenInputSheet = React.useCallback((mode) => {
     if (mode === 'sleep') return activityVisibilitySafe.sleep;
     if (mode === 'diaper') return activityVisibilitySafe.diaper;
@@ -1900,86 +1911,105 @@ const TrackerTab = ({
         }) : null
       ),
 
-      allowFeedingCard && React.createElement(window.TrackerCard, {
-        mode: 'feeding',
-        total: feedingCardData.total,
-        target: feedingCardData.target,
-        volumeUnit: preferredVolumeUnit,
-        timelineItems: feedingCardData.timelineItems,
-        entriesTodayCount: Array.isArray(feedingCardData.timelineItems) ? feedingCardData.timelineItems.length : 0,
-        lastEntryTime: feedingCardData.lastEntryTime,
-        comparison: feedingComparison,
-        rawFeedings: allFeedings,
-        rawSleepSessions: [],
-        currentDate: currentDate,
-        disableAccordion: true,
-        onCardTap: handleV4CardTap,
-        onItemClick: handleFeedItemClick,
-        onDelete: async () => {
-          // Small delay for animation
-          await new Promise(resolve => setTimeout(resolve, 200));
-          await loadFeedings();
+      activityOrderSafe.map((key) => {
+        if (key === 'bottle') {
+          if (!allowFeedingCard) return null;
+          return React.createElement(window.TrackerCard, {
+            key: 'bottle',
+            mode: 'feeding',
+            total: feedingCardData.total,
+            target: feedingCardData.target,
+            volumeUnit: preferredVolumeUnit,
+            timelineItems: feedingCardData.timelineItems,
+            entriesTodayCount: Array.isArray(feedingCardData.timelineItems) ? feedingCardData.timelineItems.length : 0,
+            lastEntryTime: feedingCardData.lastEntryTime,
+            comparison: feedingComparison,
+            rawFeedings: allFeedings,
+            rawSleepSessions: [],
+            currentDate: currentDate,
+            disableAccordion: true,
+            onCardTap: handleV4CardTap,
+            onItemClick: handleFeedItemClick,
+            onDelete: async () => {
+              // Small delay for animation
+              await new Promise(resolve => setTimeout(resolve, 200));
+              await loadFeedings();
+            }
+          });
         }
-      }),
-      allowNursingCard && React.createElement(window.TrackerCard, {
-        mode: 'nursing',
-        total: nursingCardData.total,
-        target: null,
-        volumeUnit: preferredVolumeUnit,
-        timelineItems: nursingCardData.timelineItems,
-        entriesTodayCount: Array.isArray(nursingCardData.timelineItems) ? nursingCardData.timelineItems.length : 0,
-        lastEntryTime: nursingCardData.lastEntryTime,
-        comparison: nursingComparison,
-        rawFeedings: [],
-        rawSleepSessions: [],
-        currentDate: currentDate,
-        disableAccordion: true,
-        onCardTap: handleV4CardTap,
-        onItemClick: handleFeedItemClick,
-        onDelete: async () => {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          await loadNursingSessions();
+        if (key === 'nursing') {
+          if (!allowNursingCard) return null;
+          return React.createElement(window.TrackerCard, {
+            key: 'nursing',
+            mode: 'nursing',
+            total: nursingCardData.total,
+            target: null,
+            volumeUnit: preferredVolumeUnit,
+            timelineItems: nursingCardData.timelineItems,
+            entriesTodayCount: Array.isArray(nursingCardData.timelineItems) ? nursingCardData.timelineItems.length : 0,
+            lastEntryTime: nursingCardData.lastEntryTime,
+            comparison: nursingComparison,
+            rawFeedings: [],
+            rawSleepSessions: [],
+            currentDate: currentDate,
+            disableAccordion: true,
+            onCardTap: handleV4CardTap,
+            onItemClick: handleFeedItemClick,
+            onDelete: async () => {
+              await new Promise(resolve => setTimeout(resolve, 200));
+              await loadNursingSessions();
+            }
+          });
         }
-      }),
-      allowSleepCard && React.createElement(window.TrackerCard, {
-        mode: 'sleep',
-        total: sleepCardData.total,
-        target: sleepCardData.target,
-        volumeUnit: preferredVolumeUnit,
-        timelineItems: sleepCardData.timelineItems,
-        entriesTodayCount: sleepTodayCount,
-        lastEntryTime: sleepCardData.lastEntryTime,
-        comparison: sleepComparison,
-        rawFeedings: [],
-        rawSleepSessions: allSleepSessions,
-        currentDate: currentDate,
-        disableAccordion: true,
-        onCardTap: handleV4CardTap,
-        onItemClick: handleSleepItemClick,
-        onActiveSleepClick: () => requestInputSheetOpen('sleep'),
-        onDelete: async () => {
-          // Small delay for animation
-          await new Promise(resolve => setTimeout(resolve, 200));
-          await loadSleepSessions();
+        if (key === 'sleep') {
+          if (!allowSleepCard) return null;
+          return React.createElement(window.TrackerCard, {
+            key: 'sleep',
+            mode: 'sleep',
+            total: sleepCardData.total,
+            target: sleepCardData.target,
+            volumeUnit: preferredVolumeUnit,
+            timelineItems: sleepCardData.timelineItems,
+            entriesTodayCount: sleepTodayCount,
+            lastEntryTime: sleepCardData.lastEntryTime,
+            comparison: sleepComparison,
+            rawFeedings: [],
+            rawSleepSessions: allSleepSessions,
+            currentDate: currentDate,
+            disableAccordion: true,
+            onCardTap: handleV4CardTap,
+            onItemClick: handleSleepItemClick,
+            onActiveSleepClick: () => requestInputSheetOpen('sleep'),
+            onDelete: async () => {
+              // Small delay for animation
+              await new Promise(resolve => setTimeout(resolve, 200));
+              await loadSleepSessions();
+            }
+          });
         }
-      }),
-      allowDiaperCard && React.createElement(window.TrackerCard, {
-        mode: 'diaper',
-        total: diaperCardData.total,
-        target: null,
-        volumeUnit: preferredVolumeUnit,
-        timelineItems: diaperCardData.timelineItems,
-        lastEntryTime: diaperCardData.lastEntryTime,
-        rawFeedings: [],
-        rawSleepSessions: [],
-        currentDate: currentDate,
-        disableAccordion: true,
-        onCardTap: handleV4CardTap,
-        onItemClick: handleDiaperItemClick,
-        onDelete: async () => {
-          await new Promise(resolve => setTimeout(resolve, 200));
-          await loadDiaperChanges();
+        if (key === 'diaper') {
+          if (!allowDiaperCard) return null;
+          return React.createElement(window.TrackerCard, {
+            key: 'diaper',
+            mode: 'diaper',
+            total: diaperCardData.total,
+            target: null,
+            volumeUnit: preferredVolumeUnit,
+            timelineItems: diaperCardData.timelineItems,
+            lastEntryTime: diaperCardData.lastEntryTime,
+            rawFeedings: [],
+            rawSleepSessions: [],
+            currentDate: currentDate,
+            disableAccordion: true,
+            onCardTap: handleV4CardTap,
+            onItemClick: handleDiaperItemClick,
+            onDelete: async () => {
+              await new Promise(resolve => setTimeout(resolve, 200));
+              await loadDiaperChanges();
+            }
+          });
         }
+        return null;
       }),
     ),
 
