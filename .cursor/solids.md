@@ -429,3 +429,203 @@ In addition to the Solids half-sheet UI and interaction flows described above, t
 	    •	Solid feeding events must respect this toggle everywhere feeds are rendered.
 	5.	Feeding half-sheet mode
 	    •	Solids must be implemented as a third mode within the existing Feeding half-sheet, alongside Bottle and Nursing.
+
+        ------------
+
+        COMPREHENSIVE EXECUTION PLAN
+
+        We're good! Here's your complete implementation plan:
+
+---
+
+## 🎯 Complete Implementation Plan: Solids Feature
+
+### Phase 1: Data Layer & Constants
+
+#### 1.1 Create Food Catalog Constants
+**New file:** `constants/foodCatalog.js`
+- Hardcode all common foods from spec with icons (SVG strings)
+- Organize by category: Fruits, Vegetables, Grains, Proteins, Dairy, Nuts/Seeds
+- Each food: `{ id, name, category, icon }`
+- Export categories array and flat foods array
+
+#### 1.2 Firebase Schema Updates
+**File:** `script.js` (or wherever Firebase functions live)
+
+**Add these functions:**
+- `addSolidsSession(kidId, data)` → Creates document in `solidsSessions` collection
+  - Structure: `{ timestamp, kidId, foods: [{ name, amount, reaction, preparation, notes, isAllergy }], photoURLs?, note? }`
+- `getSolidsSessions(kidId, startDate, endDate)` → Fetch solids for date range
+- `updateSolidsSession(sessionId, data)` → Update existing entry
+- `deleteSolidsSession(sessionId)` → Delete entry
+- `getRecentFoodsForKid(kidId)` → Returns array of last 10-20 food names
+- `updateRecentFoodsForKid(kidId, newFood)` → Adds to recent list, maintains max 20
+- `addCustomFood(familyId, foodData)` → Adds to `families/{familyId}/customFoods`
+- `getCustomFoodsForFamily(familyId)` → Fetch family's custom foods
+
+### Phase 2: UI Components
+
+#### 2.1 Create Food Components
+**New file:** `components/shared/FoodCard.js`
+- Displays single food with expand/collapse
+- Collapsed: `🥑 Avocado  ▸`
+- Expanded: Shows Amount, Reaction, Preparation, Notes, Allergy toggle
+- Uses **exact expand animation from TimelineItem** (lines 427-435)
+- Amount icons: Circles (●●●, ●●○, ●○○, ○○○)
+- Swipe-to-delete using **exact swipe from Timeline** (lines 412-940)
+
+**New file:** `components/shared/FoodPicker.js`
+- Horizontal slide-in panel (Framer Motion `x` animation)
+- Search input at top
+- "Recent" section (horizontal chips, same style as Dry/Wet/Poop)
+- Category sections (Fruits, Vegetables, etc.) - alphabetical within each
+- Each food: Icon (20-24px) + Name + [+] button
+- "Add custom 'search term'" button when no match
+- Tap food or [+] → adds food, closes picker
+
+**New file:** `components/shared/RecentFoodChips.js`
+- Horizontal scrollable chips (like Dry/Wet/Poop selector)
+- Icon + food name
+- Tap to add immediately
+
+#### 2.2 Update FeedSheet
+**File:** `components/halfsheets/FeedSheet.js`
+
+**Major changes:**
+1. Add `'solids'` to feedType state/mode switcher
+2. When mode = 'solids':
+   - Render: Start time picker, Recent foods (if any), Food section, Photo upload, Notes, Add button
+   - Food section: List of FoodCard components, "+ Add food" button
+   - Clicking "+ Add food" → slide in FoodPicker (horizontal animation)
+3. State management:
+   - `addedFoods` array: `[{ id, name, amount, reaction, preparation, notes, isAllergy }]`
+   - Track which food picker is open
+4. Save logic:
+   - Call `addSolidsSession()` or `updateSolidsSession()`
+   - Update recent foods for kid
+   - If new custom food created, save to family customs
+5. Edit mode:
+   - Disable mode switcher when editing existing entry
+   - Pre-populate all foods with their attributes
+6. Mode switching:
+   - Reset all state when switching modes (no warning needed)
+
+#### 2.3 Update TrackerCard
+**File:** `components/TrackerCard.js`
+
+**Add solids mode:**
+1. New icon: Spoon SVG (from your spec)
+2. Main metric: "{count} foods today" or "No solids yet"
+3. Comparison: "↑ {diff} food" vs yesterday same time
+4. Accent color: New CSS variable `--tt-solids` (choose a color)
+5. On tap: Navigate to TrackerDetailTab with filter='feed'
+
+#### 2.4 Update TrackerTab
+**File:** `components/tabs/TrackerTab.js`
+
+**Changes:**
+1. Add state: `solidsSessions`, `solidsCount`
+2. Update `loadData()`:
+   - Call `getSolidsSessions()` for current date
+   - Calculate total foods logged today
+   - Calculate comparison vs yesterday
+3. Add `formatSolidsForCard()`: Transform solids data for TrackerCard
+4. Render new TrackerCard with mode='solids'
+5. Update `requestInputSheetOpen()` to handle 'solids' mode
+6. Update activity visibility/order logic to include 'solids'
+
+#### 2.5 Update TrackerDetailTab
+**File:** `components/tabs/TrackerDetailTab.js`
+
+**Changes:**
+1. Add state: `allSolidsSessions`, `selectedSummary.solidsCount`
+2. Update `loadTimelineData()`:
+   - Fetch solidsSessions for selected date
+   - Transform to cards: `solidsToCard(session)` → Returns card with:
+     - `type: 'feed'`, `feedType: 'solids'`
+     - `amount: "Avocado, Banana +1"` (first food + count)
+     - `foods: [...]` array for expansion
+3. Timeline filtering:
+   - When filter = 'feed', include bottle + nursing + solids
+4. Update summary card to show solids count
+5. Handle edit/delete for solids entries
+
+#### 2.6 Update TimelineItem
+**File:** `components/shared/TimelineItem.js`
+
+**Add solids rendering:**
+1. Detect `feedType === 'solids'`
+2. Icon: Spoon (with same styling as bottle/nursing)
+3. Label: Format food list ("Avocado, Banana +1")
+4. Expanded view:
+   - Loop through `card.foods` array
+   - Show each food with its attributes
+   - Format: "🥑 Avocado - Some, Liked, Mashed"
+   - Show note if present
+   - Show photos if present
+
+#### 2.7 Update ActivityVisibilitySheet
+**File:** `components/halfsheets/ActivityVisibilitySheet.js`
+
+**Add solids toggle:**
+1. Update `DEFAULT_VISIBILITY` to include `solids: true`
+2. Add new ToggleRow with spoon icon and "Solids" label
+3. Update normalization functions
+4. Update default order to include 'solids'
+
+### Phase 3: Styling & Polish
+
+#### 3.1 Add CSS Variables
+**File:** `theme/tokens.js` (or CSS file)
+```css
+--tt-solids: #FF9500; /* Orange accent for solids */
+```
+
+#### 3.2 Animation Specs
+From existing code:
+- **Expand/collapse:** `{ height: 0→auto, opacity: 0→1, spring: { stiffness: 300, damping: 30 } }`
+- **Swipe:** `{ SPRING: { stiffness: 900, damping: 80 }, rubberband, velocity detection }`
+- **Horizontal slide:** `{ x: 100%→0%, ease: "easeOut" }`
+
+### Phase 4: Testing Checklist
+
+- [ ] Add new solids entry with multiple foods
+- [ ] Edit existing solids entry
+- [ ] Delete solids entry (swipe on food, swipe on timeline item)
+- [ ] Recent foods populate correctly
+- [ ] Custom food creation and reuse
+- [ ] Photos upload and display
+- [ ] Notes save and display
+- [ ] TrackerCard shows correct count and comparison
+- [ ] Timeline filtering includes solids under "Feed"
+- [ ] Activity visibility toggle works
+- [ ] Mode switcher resets state
+- [ ] Edit mode disables mode switcher
+- [ ] Food card expansion animations smooth
+- [ ] Food picker search works
+- [ ] Empty states display correctly
+- [ ] Cross-day handling (if applicable)
+
+---
+
+## 📁 File Summary
+
+**New Files (3):**
+1. `constants/foodCatalog.js` - Food data
+2. `components/shared/FoodCard.js` - Individual food UI
+3. `components/shared/FoodPicker.js` - Food selection modal
+4. `components/shared/RecentFoodChips.js` - Recent foods display
+
+**Modified Files (7):**
+1. `script.js` - Firebase functions
+2. `components/halfsheets/FeedSheet.js` - Add solids mode
+3. `components/TrackerCard.js` - Add solids card
+4. `components/tabs/TrackerTab.js` - Load/display solids
+5. `components/tabs/TrackerDetailTab.js` - Timeline integration
+6. `components/shared/TimelineItem.js` - Render solids
+7. `components/halfsheets/ActivityVisibilitySheet.js` - Add toggle
+8. `theme/tokens.js` - Add color variable
+
+---
+
+**Does this cover everything? Any gaps or questions before you start building?**
