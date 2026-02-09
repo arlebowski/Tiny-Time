@@ -95,6 +95,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
   }
 
 
+
   const __ttV4ResolveFramer = () => {
     if (typeof window === 'undefined') return {};
     const candidates = [
@@ -139,11 +140,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
   const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
   const BottleV2 = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null;
   const NursingIcon = window.TT?.shared?.icons?.NursingIcon || null;
-  const SolidsIcon = (props) => React.createElement(
-    'svg',
-    { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
-    React.createElement('path', { d: "M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" })
-  );
+  const SearchIcon = window.TT?.shared?.icons?.SearchIcon || null;
+  const SolidsIcon = window.TT?.shared?.icons?.SolidsIcon || null;
   const PlayIcon = (props) => React.createElement(
     'svg',
     { ...props, xmlns: "http://www.w3.org/2000/svg", width: "32", height: "32", viewBox: "0 0 256 256", fill: "currentColor" },
@@ -1583,9 +1581,39 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     };
 
     const solidsAllFoods = React.useMemo(() => {
-      const merged = [...COMMON_FOODS, ...customFoods];
+      const commonNames = new Set(
+        COMMON_FOODS.map((food) => String(food?.name || '').toLowerCase()).filter(Boolean)
+      );
+      const customMap = new Map();
+      const addCustom = (food) => {
+        if (!food || !food.name) return;
+        const name = String(food.name).trim();
+        if (!name) return;
+        const key = name.toLowerCase();
+        if (commonNames.has(key)) return;
+        if (!customMap.has(key)) {
+          customMap.set(key, {
+            id: food.id || slugifyFoodId(name),
+            name,
+            category: food.category || 'Custom',
+            icon: food.icon || 'SolidsIcon',
+            emoji: food.emoji || null,
+            isCustom: true
+          });
+        }
+      };
+      customFoods.forEach(addCustom);
+      (addedFoods || []).forEach(addCustom);
+      (recentFoods || []).forEach((item) => {
+        if (typeof item === 'string') {
+          addCustom({ name: item });
+          return;
+        }
+        if (item && typeof item === 'object') addCustom(item);
+      });
+      const merged = [...COMMON_FOODS, ...Array.from(customMap.values())];
       return merged.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-    }, [COMMON_FOODS, customFoods]);
+    }, [COMMON_FOODS, customFoods, addedFoods, recentFoods]);
 
     const solidsFoodByName = React.useMemo(() => {
       const map = new Map();
@@ -1626,6 +1654,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         id,
         name: name,
         category: food.category || 'Custom',
+        icon: food.icon || null,
+        emoji: food.emoji || null,
         amount: null,
         reaction: null,
         preparation: null,
@@ -1655,7 +1685,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
     const FoodTile = ({ food, selected, onClick, dashed = false, labelOverride }) => {
       if (!food) return null;
-      const iconHtml = food.icon || null;
+      const iconKey = typeof food.icon === 'string' ? food.icon : null;
+      const IconComp = iconKey ? (window.TT?.shared?.icons?.[iconKey] || null) : null;
+      const emoji = food.emoji || (!IconComp ? '🍽️' : null);
       const bg = selected
         ? 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))'
         : 'var(--tt-input-bg)';
@@ -1665,30 +1697,31 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         key: food.id || food.name,
         type: 'button',
         onClick,
-        className: "flex flex-col items-center justify-center gap-1 rounded-full transition",
+        className: "flex flex-col items-center justify-center gap-2 rounded-full transition",
         style: {
           width: '100%',
           aspectRatio: '1',
           border: dashed ? '1.5px dashed var(--tt-border-subtle)' : `1.5px solid ${border}`,
           backgroundColor: bg,
           color: 'var(--tt-text-primary)',
-          opacity: selected ? 1 : 0.5
+          opacity: selected ? 1 : 0.6
         }
       },
         React.createElement('div', {
           className: "flex items-center justify-center rounded-full",
           style: {
-            width: 24,
-            height: 24,
-            backgroundColor: 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))',
-            color: labelColor,
-            fontWeight: 700,
-            fontSize: 11
+            width: 28,
+            height: 28,
+            fontSize: 28,
+            lineHeight: '28px',
+            color: selected ? 'var(--tt-solids)' : 'var(--tt-text-secondary)'
           }
-        }, (food.name || '?').slice(0, 1).toUpperCase()),
+        }, IconComp
+          ? React.createElement(IconComp, { width: 28, height: 28, color: 'currentColor' })
+          : emoji),
         React.createElement('span', {
-          className: "text-[11px] font-semibold text-center leading-tight",
-          style: { color: labelColor, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+          className: "text-center leading-tight",
+          style: { fontSize: 13, fontWeight: 600, color: labelColor, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
         }, labelOverride || food.name)
       );
     };
@@ -1739,7 +1772,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       }),
       React.createElement('div', { className: "space-y-2" },
         React.createElement('div', {
-          className: "text-xs font-medium",
+          className: "text-xs mb-1",
           style: { color: 'var(--tt-text-secondary)' }
         }, solidsTileLabel),
         React.createElement('div', { className: "grid grid-cols-4 gap-3" },
@@ -1790,13 +1823,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         className: "flex items-center gap-3 px-4 py-3 rounded-2xl",
         style: { backgroundColor: 'var(--tt-input-bg)' }
       },
-        React.createElement('svg', {
+        SearchIcon && React.createElement(SearchIcon, {
           className: "w-5 h-5",
-          viewBox: "0 0 256 256",
-          fill: "currentColor",
-          xmlns: "http://www.w3.org/2000/svg",
           style: { color: 'var(--tt-text-tertiary)' }
-        }, React.createElement('path', { d: "M232,216l-40-40a88,88,0,1,0-16,16l40,40a8,8,0,0,0,11.31-11.31ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" })),
+        }),
         React.createElement('input', {
           value: solidsSearch,
           onChange: (e) => setSolidsSearch(e.target.value),
@@ -1818,7 +1848,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         }),
         solidsSearch.trim() && solidsFilteredFoods.length === 0 && React.createElement(FoodTile, {
           key: 'add-custom',
-          food: { id: 'add-custom', name: solidsSearch.trim() },
+          food: { id: 'add-custom', name: solidsSearch.trim(), icon: 'SolidsIcon', emoji: null, isCustom: true },
           size: 72,
           dashed: true,
           labelOverride: `Add "${solidsSearch.slice(0, 12)}${solidsSearch.length > 12 ? '…' : ''}"`,
@@ -1827,14 +1857,16 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
               id: `custom-${Date.now()}`,
               name: solidsSearch.trim(),
               category: 'Custom',
-              icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" /></svg>',
+              icon: 'SolidsIcon',
+              emoji: null,
               isCustom: true
             };
             if (window.firestoreStorage && window.firestoreStorage.addCustomFood) {
               const saved = await window.firestoreStorage.addCustomFood(customFood);
-              setCustomFoods([...customFoods, saved]);
+              setCustomFoods((prev) => [...prev, saved]);
               addFoodToList(saved);
             } else {
+              setCustomFoods((prev) => [...prev, customFood]);
               addFoodToList(customFood);
             }
             setSolidsSearch('');
@@ -1898,10 +1930,23 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         React.Fragment,
         null,
         React.createElement('div', { className: "flex items-center gap-2", style: { justifySelf: 'start' } },
-          React.createElement('div', {
-            className: "flex items-center justify-center rounded-full",
-            style: { width: 28, height: 28, backgroundColor: 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))', color: 'var(--tt-solids)', fontWeight: 700, fontSize: 12 }
-          }, (displayFood.name || '?').slice(0, 1).toUpperCase()),
+          (() => {
+            const headerIconKey = displayFood?.icon || null;
+            const HeaderIconComp = headerIconKey ? (window.TT?.shared?.icons?.[headerIconKey] || null) : null;
+            return React.createElement('div', {
+              className: "flex items-center justify-center rounded-full",
+              style: {
+                width: 28,
+                height: 28,
+                backgroundColor: 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))',
+                fontSize: 16,
+                lineHeight: '16px',
+                color: 'var(--tt-solids)'
+              }
+            }, HeaderIconComp
+              ? React.createElement(HeaderIconComp, { width: 16, height: 16, color: 'currentColor' })
+              : (displayFood.emoji || '🍽️'));
+          })(),
           React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-primary)', fontSize: 17 } }, displayFood.name)
         ),
         React.createElement('div'),
@@ -1944,6 +1989,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       React.createElement('div', { className: "flex flex-col gap-2" },
         addedFoods.map((food) => {
           const hasSummary = food.preparation || food.amount || food.reaction;
+          const foodDef = FOOD_MAP[food.id] || food;
+          const iconKey = foodDef?.icon || food?.icon || null;
+          const IconComp = iconKey ? (window.TT?.shared?.icons?.[iconKey] || null) : null;
+          const emoji = foodDef?.emoji || food?.emoji || (!IconComp ? '🍽️' : null);
           return React.createElement('button', {
             key: food.id,
             type: 'button',
@@ -1957,16 +2006,16 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             React.createElement('div', { className: "flex items-center justify-between" },
               React.createElement('div', { className: "flex items-center gap-3" },
                 React.createElement('div', {
-                  className: "flex items-center justify-center rounded-full",
+                  className: "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative flex-shrink-0",
                   style: {
-                    width: 28,
-                    height: 28,
-                    backgroundColor: 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))',
-                    color: 'var(--tt-solids)',
-                    fontWeight: 700,
-                    fontSize: 12
+                    backgroundColor: 'color-mix(in srgb, var(--tt-solids) 20%, transparent)',
+                    fontSize: 20,
+                    lineHeight: '20px',
+                    color: 'var(--tt-solids)'
                   }
-                }, (food.name || '?').slice(0, 1).toUpperCase()),
+                }, IconComp
+                  ? React.createElement(IconComp, { width: 20, height: 20, color: 'currentColor' })
+                  : emoji),
                 React.createElement('div', null,
                   React.createElement('div', {
                     className: "font-medium",

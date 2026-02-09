@@ -67,41 +67,6 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-const __ttEnsureSolidsOutlineStyles = () => {
-  if (typeof document === 'undefined') return;
-  if (document.getElementById('tt-solids-outline-icons')) return;
-  const style = document.createElement('style');
-  style.id = 'tt-solids-outline-icons';
-  style.textContent = `
-    .tt-solids-outline-icon svg,
-    .tt-solids-outline-icon svg * {
-      fill: none !important;
-      stroke: currentColor;
-      stroke-width: 1.5;
-    }
-  `;
-  document.head.appendChild(style);
-};
-
-const __ttValidateSvgMarkup = (markup, contextLabel = 'unknown') => {
-  if (typeof window === 'undefined') return false;
-  if (!markup || typeof markup !== 'string') return false;
-  try {
-    const parser = new DOMParser();
-    let doc = parser.parseFromString(markup, 'image/svg+xml');
-    let parseError = doc.querySelector('parsererror');
-    if (parseError) {
-      doc = parser.parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${markup}</svg>`, 'image/svg+xml');
-      parseError = doc.querySelector('parsererror');
-    }
-    if (parseError) {
-      return false;
-    }
-    return true;
-  } catch (e) {
-    return false;
-  }
-};
 
   const TTSharedTimelineItem = ({ card, bottleIcon, nursingIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null, onFoodUpdate = null }) => {
   if (!card) return null;
@@ -267,12 +232,6 @@ const __ttValidateSvgMarkup = (markup, contextLabel = 'unknown') => {
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
   }, [card.startTime, isActiveSleep]);
-
-  React.useEffect(() => {
-    if (!isSolids) return undefined;
-    __ttEnsureSolidsOutlineStyles();
-    return undefined;
-  }, [isSolids]);
 
   React.useEffect(() => {
     if (!onExpandedContentHeight) return undefined;
@@ -499,13 +458,7 @@ const __ttValidateSvgMarkup = (markup, contextLabel = 'unknown') => {
               card.foods.map((food, idx) => {
                 const FOOD_MAP = window.TT?.constants?.FOOD_MAP || {};
                 const foodDef = FOOD_MAP[food.id] || Object.values(FOOD_MAP).find((item) => String(item?.name || '').toLowerCase() === String(food?.name || '').toLowerCase()) || null;
-                const foodIcon = foodDef?.icon || food.icon || null;
-                const safeFoodIcon = __ttValidateSvgMarkup(
-                  foodIcon,
-                  `timeline food:${food.id || food.name || 'unknown'}`
-                )
-                  ? foodIcon
-                  : null;
+                const foodEmoji = foodDef?.emoji || food.emoji || '🍽️';
                 const amountCircles = food.amount === 'all' ? '●●●' : (food.amount === 'most' || food.amount === 'some') ? '●●○' : food.amount === 'a-little' ? '●○○' : food.amount === 'none' ? '○○○' : '';
                 const reactionText = food.reaction ? ` • ${food.reaction}` : '';
                 const prepText = food.preparation ? ` • ${food.preparation}` : '';
@@ -519,11 +472,10 @@ const __ttValidateSvgMarkup = (markup, contextLabel = 'unknown') => {
                     key: `${card.id}-food-${idx}`,
                     className: "flex items-start gap-2"
                   },
-                    safeFoodIcon && React.createElement('div', {
-                      dangerouslySetInnerHTML: { __html: safeFoodIcon },
-                      className: "tt-solids-outline-icon w-5 h-5 flex-shrink-0",
-                      style: { color: 'var(--tt-solids)' }
-                    }),
+                    React.createElement('div', {
+                      className: "w-5 h-5 flex-shrink-0 flex items-center justify-center",
+                      style: { fontSize: 14, lineHeight: '14px' }
+                    }, foodEmoji),
                     React.createElement('div', { className: "flex flex-col gap-0.5 min-w-0" },
                       React.createElement('div', { className: "font-medium", style: { color: 'var(--tt-text-primary)' } }, food.name),
                       (amountCircles || reactionText || prepText) && React.createElement('div', { style: { color: 'var(--tt-text-tertiary)', fontSize: '11px' } },
@@ -584,11 +536,10 @@ const __ttValidateSvgMarkup = (markup, contextLabel = 'unknown') => {
                   className: "flex flex-col gap-3"
                 },
                   React.createElement('div', { className: "flex items-start gap-2" },
-                    safeFoodIcon && React.createElement('div', {
-                      dangerouslySetInnerHTML: { __html: safeFoodIcon },
-                      className: "tt-solids-outline-icon w-5 h-5 flex-shrink-0",
-                      style: { color: 'var(--tt-solids)' }
-                    }),
+                    React.createElement('div', {
+                      className: "w-5 h-5 flex-shrink-0 flex items-center justify-center",
+                      style: { fontSize: 14, lineHeight: '14px' }
+                    }, foodEmoji),
                     React.createElement('div', { className: "flex flex-col gap-0.5 min-w-0" },
                       React.createElement('div', { className: "font-medium", style: { color: 'var(--tt-text-primary)' } }, food.name),
                       food.category && React.createElement('div', { className: "text-[11px]", style: { color: 'var(--tt-text-tertiary)' } }, food.category)

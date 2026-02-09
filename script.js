@@ -2424,13 +2424,14 @@ const firestoreStorage = {
   // -----------------------
   // CUSTOM FOODS (Family Level)
   // -----------------------
-  async addCustomFood({ name, category, icon }) {
+  async addCustomFood({ name, category, icon, emoji }) {
     if (!this.currentFamilyId) throw new Error('No family ID');
     const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
     const data = {
       name,
       category: category || 'Custom',
       icon: icon || null,
+      emoji: emoji || null,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     const ref = await familyRef.collection('customFoods').add(data);
