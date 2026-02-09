@@ -58,6 +58,8 @@ const TrackerTab = ({
   const [allFeedings, setAllFeedings] = React.useState([]);
   const [nursingSessions, setNursingSessions] = React.useState([]);
   const [allNursingSessions, setAllNursingSessions] = React.useState([]);
+  const [solidsSessions, setSolidsSessions] = React.useState([]);
+  const [allSolidsSessions, setAllSolidsSessions] = React.useState([]);
   const [sleepSessions, setSleepSessions] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
   const [diaperChanges, setDiaperChanges] = React.useState([]);
@@ -81,6 +83,7 @@ const TrackerTab = ({
   // State for smooth date transitions - preserve previous values while loading
   const [prevFeedingCardData, setPrevFeedingCardData] = React.useState(null);
   const [prevNursingCardData, setPrevNursingCardData] = React.useState(null);
+  const [prevSolidsCardData, setPrevSolidsCardData] = React.useState(null);
   const [prevSleepCardData, setPrevSleepCardData] = React.useState(null);
   const [prevDiaperCardData, setPrevDiaperCardData] = React.useState(null);
   const [isDateTransitioning, setIsDateTransitioning] = React.useState(false);
@@ -101,19 +104,29 @@ const TrackerTab = ({
     return `tt_avg_by_time:${familyId}:${kidId}`;
   }, [familyId, kidId]);
   const _normalizeActivityVisibility = (value) => {
-    const base = { bottle: true, nursing: true, sleep: true, diaper: true };
+    const base = { bottle: true, nursing: true, solids: true, sleep: true, diaper: true };
     if (!value || typeof value !== 'object') return base;
     return {
       bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
       nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing,
+      solids: typeof value.solids === 'boolean' ? value.solids : base.solids,
       sleep: typeof value.sleep === 'boolean' ? value.sleep : base.sleep,
       diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
     };
   };
   const _normalizeActivityOrder = (value) => {
-    const base = ['bottle', 'nursing', 'sleep', 'diaper'];
+    const base = ['bottle', 'nursing', 'solids', 'sleep', 'diaper'];
     if (!Array.isArray(value)) return base.slice();
-    const next = value.filter((item) => base.includes(item));
+    const next = [];
+    value.forEach((item) => {
+      if (base.includes(item) && !next.includes(item)) next.push(item);
+    });
+    if (!next.includes('solids')) {
+      const nursingIdx = next.indexOf('nursing');
+      if (nursingIdx >= 0) {
+        next.splice(nursingIdx + 1, 0, 'solids');
+      }
+    }
     base.forEach((item) => {
       if (!next.includes(item)) next.push(item);
     });
@@ -138,7 +151,7 @@ const TrackerTab = ({
   }, [canOpenInputSheet, onRequestOpenInputSheet]);
   const handleV4CardTap = React.useCallback((e, payload) => {
     if (typeof window === 'undefined') return;
-    const nextFilter = payload?.mode === 'feeding' || payload?.mode === 'nursing'
+    const nextFilter = payload?.mode === 'feeding' || payload?.mode === 'nursing' || payload?.mode === 'solids'
       ? 'feed'
       : (payload?.mode === 'sleep'
           ? 'sleep'
@@ -669,10 +682,12 @@ const TrackerTab = ({
     if (!loading && kidId) {
       loadFeedings();
       loadNursingSessions();
+      loadSolidsSessions();
       loadDiaperChanges();
       const interval = setInterval(() => {
         loadFeedings();
         loadNursingSessions();
+        loadSolidsSessions();
         loadDiaperChanges();
       }, 5000);
       return () => clearInterval(interval);
@@ -756,6 +771,41 @@ const TrackerTab = ({
       }
     } catch (error) {
       console.error('Error loading nursing sessions:', error);
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
+    }
+  };
+
+  const loadSolidsSessions = async () => {
+    const myTransitionId = transitionIdRef.current;
+    try {
+      const allSolidsData = await firestoreStorage.getAllSolidsSessions();
+      setAllSolidsSessions(allSolidsData || []);
+
+      const startOfDay = new Date(currentDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(currentDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const daySessions = (allSolidsData || []).filter(s => {
+        const ts = s.timestamp || 0;
+        return ts >= startOfDay.getTime() && ts <= endOfDay.getTime();
+      }).map(s => ({
+        ...s,
+        time: new Date(s.timestamp || Date.now()).toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        })
+      })).sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+
+      setSolidsSessions(daySessions);
+      if (myTransitionId === transitionIdRef.current) {
+        setTransitionPending(p => Math.max(0, p - 1));
+      }
+    } catch (error) {
+      console.error('Error loading solids sessions:', error);
       if (myTransitionId === transitionIdRef.current) {
         setTransitionPending(p => Math.max(0, p - 1));
       }
@@ -912,15 +962,17 @@ const TrackerTab = ({
     const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
     const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
     const currentNursingData = formatNursingSessionsForCard(nursingSessions, currentDate);
+    const currentSolidsData = formatSolidsSessionsForCard(solidsSessions, currentDate);
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
     const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
     setPrevFeedingCardData(currentFeedingData);
     setPrevNursingCardData(currentNursingData);
+    setPrevSolidsCardData(currentSolidsData);
     setPrevSleepCardData(currentSleepData);
     setPrevDiaperCardData(currentDiaperData);
-    // Start new transition and expect 4 completions
+    // Start new transition and expect 5 completions
     transitionIdRef.current += 1;
-    setTransitionPending(4);
+    setTransitionPending(5);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -935,15 +987,17 @@ const TrackerTab = ({
     const targetHrs = (sleepSettings && typeof sleepSettings.sleepTargetHours === "number") ? sleepSettings.sleepTargetHours : 14;
     const currentFeedingData = formatFeedingsForCard(feedings, targetOz, currentDate);
     const currentNursingData = formatNursingSessionsForCard(nursingSessions, currentDate);
+    const currentSolidsData = formatSolidsSessionsForCard(solidsSessions, currentDate);
     const currentSleepData = formatSleepSessionsForCard(sleepSessions, targetHrs, currentDate, activeSleep);
     const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
     setPrevFeedingCardData(currentFeedingData);
     setPrevNursingCardData(currentNursingData);
+    setPrevSolidsCardData(currentSolidsData);
     setPrevSleepCardData(currentSleepData);
     setPrevDiaperCardData(currentDiaperData);
-    // Start new transition and expect 4 completions
+    // Start new transition and expect 5 completions
     transitionIdRef.current += 1;
-    setTransitionPending(4);
+    setTransitionPending(5);
     setIsDateTransitioning(true);
     setCurrentDate(newDate);
     prevDateRef.current = newDate;
@@ -1104,6 +1158,61 @@ const TrackerTab = ({
     const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
 
     return { total: totalMs, target: null, percent: 0, timelineItems, lastEntryTime };
+  };
+
+  const formatSolidsSessionsForCard = (sessions, currentDate) => {
+    if (!sessions || !Array.isArray(sessions)) return { total: 0, target: null, percent: 0, timelineItems: [], lastEntryTime: null, comparison: null };
+
+    const startOfDay = new Date(currentDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(currentDate);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const todaySessions = sessions.filter(s => {
+      const ts = s.timestamp || 0;
+      return ts >= startOfDay.getTime() && ts <= endOfDay.getTime();
+    });
+
+    // Count total foods (not sessions)
+    const totalFoods = todaySessions.reduce((sum, s) => {
+      return sum + (Array.isArray(s.foods) ? s.foods.length : 0);
+    }, 0);
+
+    // Calculate yesterday's food count for comparison
+    const yDate = new Date(currentDate);
+    yDate.setDate(yDate.getDate() - 1);
+    const yStart = new Date(yDate);
+    yStart.setHours(0, 0, 0, 0);
+    const yEnd = new Date(yDate);
+    yEnd.setHours(23, 59, 59, 999);
+
+    const allSessions = allSolidsSessions || sessions;
+    const yesterdaySessions = allSessions.filter(s => {
+      const ts = s.timestamp || 0;
+      return ts >= yStart.getTime() && ts <= yEnd.getTime();
+    });
+
+    const yesterdayFoods = yesterdaySessions.reduce((sum, s) => {
+      return sum + (Array.isArray(s.foods) ? s.foods.length : 0);
+    }, 0);
+
+    const delta = totalFoods - yesterdayFoods;
+    const comparison = { delta, unit: 'food' };
+
+    const timelineItems = todaySessions
+      .sort((a, b) => ((b.timestamp || 0) - (a.timestamp || 0)))
+      .map(s => ({
+        id: s.id,
+        timestamp: s.timestamp || 0,
+        foods: s.foods || [],
+        notes: s.notes || null,
+        photoURLs: s.photoURLs || null,
+        feedType: 'solids'
+      }));
+
+    const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
+
+    return { total: totalFoods, target: null, percent: 0, timelineItems, lastEntryTime, comparison };
   };
 
   const formatSleepSessionsForCard = (sessions, targetHours, currentDate, activeSleepSession = null) => {
@@ -1718,6 +1827,7 @@ const TrackerTab = ({
   // Use previous data during date transitions to prevent showing zeros
   const currentFeedingData = formatFeedingsForCard(feedings, targetOunces, currentDate);
   const currentNursingData = formatNursingSessionsForCard(nursingSessions, currentDate);
+  const currentSolidsData = formatSolidsSessionsForCard(solidsSessions, currentDate);
   const currentSleepData = formatSleepSessionsForCard(sleepSessions, sleepTargetHours, currentDate, activeSleep);
   const currentDiaperData = formatDiaperChangesForCard(diaperChanges, currentDate);
   
@@ -1728,6 +1838,10 @@ const TrackerTab = ({
   const nursingCardData = isDateTransitioning && prevNursingCardData
     ? prevNursingCardData
     : currentNursingData;
+
+  const solidsCardData = isDateTransitioning && prevSolidsCardData
+    ? prevSolidsCardData
+    : currentSolidsData;
 
   const sleepCardData = isDateTransitioning && prevSleepCardData 
     ? prevSleepCardData 
@@ -1746,13 +1860,14 @@ const TrackerTab = ({
 
   // Clear previous data when transition completes
   React.useEffect(() => {
-    if (!isDateTransitioning && (prevFeedingCardData || prevNursingCardData || prevSleepCardData || prevDiaperCardData)) {
+    if (!isDateTransitioning && (prevFeedingCardData || prevNursingCardData || prevSolidsCardData || prevSleepCardData || prevDiaperCardData)) {
       setPrevFeedingCardData(null);
       setPrevNursingCardData(null);
+      setPrevSolidsCardData(null);
       setPrevSleepCardData(null);
       setPrevDiaperCardData(null);
     }
-  }, [isDateTransitioning, prevFeedingCardData, prevNursingCardData, prevSleepCardData, prevDiaperCardData]);
+  }, [isDateTransitioning, prevFeedingCardData, prevNursingCardData, prevSolidsCardData, prevSleepCardData, prevDiaperCardData]);
 
   // Handlers for timeline item clicks
   const handleFeedItemClick = (entry) => {
@@ -1809,6 +1924,7 @@ const TrackerTab = ({
   const allowSleepCard = !!activityVisibilitySafe.sleep;
   const allowFeedingCard = !!activityVisibilitySafe.bottle;
   const allowNursingCard = !!activityVisibilitySafe.nursing;
+  const allowSolidsCard = !!activityVisibilitySafe.solids;
   const allowDiaperCard = !!activityVisibilitySafe.diaper;
   const activeSleepForUi = allowSleepCard ? activeSleep : null;
   const nextUpBabyState = activeSleepForUi && activeSleepForUi.startTime ? 'sleeping' : 'awake';
@@ -1958,6 +2074,30 @@ const TrackerTab = ({
             onDelete: async () => {
               await new Promise(resolve => setTimeout(resolve, 200));
               await loadNursingSessions();
+            }
+          });
+        }
+        if (key === 'solids') {
+          if (!allowSolidsCard) return null;
+          return React.createElement(window.TrackerCard, {
+            key: 'solids',
+            mode: 'solids',
+            total: solidsCardData.total,
+            target: null,
+            volumeUnit: null,
+            timelineItems: solidsCardData.timelineItems,
+            entriesTodayCount: Array.isArray(solidsCardData.timelineItems) ? solidsCardData.timelineItems.length : 0,
+            lastEntryTime: solidsCardData.lastEntryTime,
+            comparison: solidsCardData.comparison,
+            rawFeedings: [],
+            rawSleepSessions: [],
+            currentDate: currentDate,
+            disableAccordion: true,
+            onCardTap: handleV4CardTap,
+            onItemClick: handleFeedItemClick,
+            onDelete: async () => {
+              await new Promise(resolve => setTimeout(resolve, 200));
+              await loadSolidsSessions();
             }
           });
         }

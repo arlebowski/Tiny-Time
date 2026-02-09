@@ -14,6 +14,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
     const DEFAULT_VISIBILITY = {
       bottle: true,
       nursing: true,
+      solids: true,
       sleep: true,
       diaper: true
     };
@@ -24,6 +25,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
       return {
         bottle: typeof input.bottle === 'boolean' ? input.bottle : base.bottle,
         nursing: typeof input.nursing === 'boolean' ? input.nursing : base.nursing,
+        solids: typeof input.solids === 'boolean' ? input.solids : base.solids,
         sleep: typeof input.sleep === 'boolean' ? input.sleep : base.sleep,
         diaper: typeof input.diaper === 'boolean' ? input.diaper : base.diaper
       };
@@ -188,12 +190,20 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
       const SegmentedToggle = global.TT?.shared?.SegmentedToggle || global.SegmentedToggle || null;
       const BottleIcon = global.TT?.shared?.icons?.BottleV2 || global.TT?.shared?.icons?.["bottle-v2"] || null;
       const NursingIcon = global.TT?.shared?.icons?.NursingIcon || null;
+      const SolidsIcon = (props) => React.createElement(
+        'svg',
+        { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
+        React.createElement('path', { d: "M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" })
+      );
       const MoonIcon = global.TT?.shared?.icons?.MoonV2 || global.TT?.shared?.icons?.["moon-v2"] || null;
       const DiaperIcon = global.TT?.shared?.icons?.DiaperIcon || null;
-      const defaultOrder = ['bottle', 'nursing', 'sleep', 'diaper'];
+      const defaultOrder = ['bottle', 'nursing', 'solids', 'sleep', 'diaper'];
       const normalizeOrder = (value) => {
         if (!Array.isArray(value)) return defaultOrder.slice();
-        const next = value.filter((item) => defaultOrder.includes(item));
+        const next = [];
+        value.forEach((item) => {
+          if (defaultOrder.includes(item) && !next.includes(item)) next.push(item);
+        });
         defaultOrder.forEach((item) => {
           if (!next.includes(item)) next.push(item);
         });
@@ -235,10 +245,11 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
       const createIconLabel = (key) => {
         const isFeed = key === 'bottle';
         const isNursing = key === 'nursing';
+        const isSolids = key === 'solids';
         const isSleep = key === 'sleep';
-        const Icon = isFeed ? BottleIcon : (isNursing ? NursingIcon : (isSleep ? MoonIcon : DiaperIcon));
-        const color = isNursing ? 'var(--tt-nursing)' : (isFeed ? 'var(--tt-feed)' : (isSleep ? 'var(--tt-sleep)' : 'var(--tt-diaper)'));
-        const label = isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSleep ? 'Sleep' : 'Diaper'));
+        const Icon = isFeed ? BottleIcon : (isNursing ? NursingIcon : (isSolids ? SolidsIcon : (isSleep ? MoonIcon : DiaperIcon)));
+        const color = isNursing ? 'var(--tt-nursing)' : (isFeed ? 'var(--tt-feed)' : (isSolids ? 'var(--tt-solids)' : (isSleep ? 'var(--tt-sleep)' : 'var(--tt-diaper)')));
+        const label = isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSolids ? 'Solids' : (isSleep ? 'Sleep' : 'Diaper')));
         return React.createElement(
           'div',
           {

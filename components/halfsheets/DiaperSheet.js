@@ -346,7 +346,7 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
       );
     };
 
-    const typePicker = React.createElement('div', { className: "grid grid-cols-3 gap-3" },
+    const typePicker = React.createElement('div', { className: "grid grid-cols-3 gap-3 justify-items-center" },
       React.createElement(TypeButton, {
         label: 'Dry',
         icon: DiaperDryIcon,

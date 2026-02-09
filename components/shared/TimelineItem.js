@@ -67,7 +67,43 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, nursingIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
+const __ttEnsureSolidsOutlineStyles = () => {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById('tt-solids-outline-icons')) return;
+  const style = document.createElement('style');
+  style.id = 'tt-solids-outline-icons';
+  style.textContent = `
+    .tt-solids-outline-icon svg,
+    .tt-solids-outline-icon svg * {
+      fill: none !important;
+      stroke: currentColor;
+      stroke-width: 1.5;
+    }
+  `;
+  document.head.appendChild(style);
+};
+
+const __ttValidateSvgMarkup = (markup, contextLabel = 'unknown') => {
+  if (typeof window === 'undefined') return false;
+  if (!markup || typeof markup !== 'string') return false;
+  try {
+    const parser = new DOMParser();
+    let doc = parser.parseFromString(markup, 'image/svg+xml');
+    let parseError = doc.querySelector('parsererror');
+    if (parseError) {
+      doc = parser.parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${markup}</svg>`, 'image/svg+xml');
+      parseError = doc.querySelector('parsererror');
+    }
+    if (parseError) {
+      return false;
+    }
+    return true;
+  } catch (e) {
+    return false;
+  }
+};
+
+  const TTSharedTimelineItem = ({ card, bottleIcon, nursingIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null, onFoodUpdate = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -78,7 +114,14 @@ const __ttEnsureZzzStyles = () => {
   const isLogged = card.variant === 'logged';
   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
   const isNursing = card.type === 'feed' && card.feedType === 'nursing';
+  const isSolids = card.type === 'feed' && card.feedType === 'solids';
+  const isInlineEditor = Boolean(card.inlineEditor);
   const unitText = (card.unit || '').toLowerCase();
+  const SolidsIcon = (props) => React.createElement(
+    'svg',
+    { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
+    React.createElement('path', { d: "M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" })
+  );
   const formatSleepDuration = (ms) => {
     const totalSec = Math.round(Math.max(0, Number(ms) || 0) / 1000);
     const h = Math.floor(totalSec / 3600);
@@ -163,15 +206,17 @@ const __ttEnsureZzzStyles = () => {
     ? scheduledLabel
     : (isActiveSleep
         ? formatSleepDuration(activeElapsedMs)
-        : (amountText
-            ? (isLogged ? amountText : `${prefix} ~${amountText}`)
-            : (isLogged ? '' : prefix)));
+        : (isSolids && card.label
+            ? card.label
+            : (amountText
+                ? (isLogged ? amountText : `${prefix} ~${amountText}`)
+                : (isLogged ? '' : prefix))));
 
   const photoList = card.photoURLs || card.photoUrls || card.photos;
   const photoUrls = __ttNormalizePhotoUrls(photoList);
   const hasPhotos = photoUrls.length > 0;
   const hasNote = Boolean(card.note || card.notes);
-  const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos || isNursing);
+  const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos || isNursing || isSolids);
   const showChevron = isLogged && hasDetails && !isActiveSleep;
   const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.ChevronDownIcon) || null;
   const noteText = card.note || card.notes || '';
@@ -224,6 +269,12 @@ const __ttEnsureZzzStyles = () => {
   }, [card.startTime, isActiveSleep]);
 
   React.useEffect(() => {
+    if (!isSolids) return undefined;
+    __ttEnsureSolidsOutlineStyles();
+    return undefined;
+  }, [isSolids]);
+
+  React.useEffect(() => {
     if (!onExpandedContentHeight) return undefined;
     if (!isExpanded || !hasDetails) {
       onExpandedContentHeight(card.id, 0);
@@ -239,7 +290,7 @@ const __ttEnsureZzzStyles = () => {
     return () => observer.disconnect();
   }, [card.id, hasDetails, isExpanded, onExpandedContentHeight, updateDetailsHeight]);
 
-  const feedAccent = isNursing ? 'var(--tt-nursing)' : 'var(--tt-feed)';
+  const feedAccent = isNursing ? 'var(--tt-nursing)' : (isSolids ? 'var(--tt-solids)' : 'var(--tt-feed)');
   return React.createElement(
     React.Fragment,
     null,
@@ -258,8 +309,8 @@ const __ttEnsureZzzStyles = () => {
               : 'color-mix(in srgb, var(--tt-diaper) 20%, transparent)')
       }
     },
-      card.type === 'feed' && (isNursing ? nursingIcon : bottleIcon)
-        ? React.createElement(isNursing ? nursingIcon : bottleIcon, {
+      card.type === 'feed' && (isNursing ? nursingIcon : isSolids ? SolidsIcon : bottleIcon)
+        ? React.createElement(isNursing ? nursingIcon : isSolids ? SolidsIcon : bottleIcon, {
             style: {
               color: feedAccent,
               width: `${iconSize}px`,
@@ -440,6 +491,131 @@ const __ttEnsureZzzStyles = () => {
             },
               React.createElement('div', null, `Left ${formatNursingDuration(Number(card.leftDurationSec || 0))} • Right ${formatNursingDuration(Number(card.rightDurationSec || 0))}`),
               card.lastSide ? React.createElement('div', { style: { color: 'var(--tt-text-tertiary)' } }, `Last side: ${String(card.lastSide).toUpperCase().slice(0, 1)}${String(card.lastSide).slice(1)}`) : null
+            ),
+            isSolids && Array.isArray(card.foods) && card.foods.length > 0 && React.createElement('div', {
+              className: "flex flex-col gap-3",
+              style: { color: 'var(--tt-text-secondary)' }
+            },
+              card.foods.map((food, idx) => {
+                const FOOD_MAP = window.TT?.constants?.FOOD_MAP || {};
+                const foodDef = FOOD_MAP[food.id] || Object.values(FOOD_MAP).find((item) => String(item?.name || '').toLowerCase() === String(food?.name || '').toLowerCase()) || null;
+                const foodIcon = foodDef?.icon || food.icon || null;
+                const safeFoodIcon = __ttValidateSvgMarkup(
+                  foodIcon,
+                  `timeline food:${food.id || food.name || 'unknown'}`
+                )
+                  ? foodIcon
+                  : null;
+                const amountCircles = food.amount === 'all' ? '●●●' : (food.amount === 'most' || food.amount === 'some') ? '●●○' : food.amount === 'a-little' ? '●○○' : food.amount === 'none' ? '○○○' : '';
+                const reactionText = food.reaction ? ` • ${food.reaction}` : '';
+                const prepText = food.preparation ? ` • ${food.preparation}` : '';
+                const updateFood = (patch) => {
+                  if (typeof onFoodUpdate === 'function') {
+                    onFoodUpdate({ ...food, ...patch });
+                  }
+                };
+                if (!isInlineEditor) {
+                  return React.createElement('div', {
+                    key: `${card.id}-food-${idx}`,
+                    className: "flex items-start gap-2"
+                  },
+                    safeFoodIcon && React.createElement('div', {
+                      dangerouslySetInnerHTML: { __html: safeFoodIcon },
+                      className: "tt-solids-outline-icon w-5 h-5 flex-shrink-0",
+                      style: { color: 'var(--tt-solids)' }
+                    }),
+                    React.createElement('div', { className: "flex flex-col gap-0.5 min-w-0" },
+                      React.createElement('div', { className: "font-medium", style: { color: 'var(--tt-text-primary)' } }, food.name),
+                      (amountCircles || reactionText || prepText) && React.createElement('div', { style: { color: 'var(--tt-text-tertiary)', fontSize: '11px' } },
+                        `${amountCircles}${reactionText}${prepText}`
+                      ),
+                      food.notes && React.createElement('div', { className: "italic text-[11px]", style: { color: 'var(--tt-text-tertiary)' } }, food.notes)
+                    )
+                  );
+                }
+
+                const renderOptions = (label, options, value, onChange) => (
+                  React.createElement('div', { className: "flex flex-col gap-2" },
+                    React.createElement('div', { className: "text-[11px] font-semibold", style: { color: 'var(--tt-text-tertiary)' } }, label),
+                    React.createElement('div', { className: "flex flex-wrap gap-2" },
+                      options.map((option) => {
+                        const selected = value === option.value;
+                        return React.createElement('button', {
+                          key: option.value,
+                          type: 'button',
+                          onClick: (e) => {
+                            e.stopPropagation();
+                            onChange(option.value);
+                          },
+                          className: "px-3 py-1 rounded-full text-[11px] font-semibold transition",
+                          style: {
+                            border: `1px solid ${selected ? 'var(--tt-solids)' : 'var(--tt-card-border)'}`,
+                            backgroundColor: selected
+                              ? 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))'
+                              : 'var(--tt-input-bg)',
+                            color: selected ? 'var(--tt-solids)' : 'var(--tt-text-secondary)'
+                          }
+                        }, option.label)
+                      })
+                    )
+                  )
+                );
+
+                const amountOptions = [
+                  { value: 'all', label: 'All ●●●' },
+                  { value: 'some', label: 'Some ●●○' },
+                  { value: 'a-little', label: 'A little ●○○' },
+                  { value: 'none', label: 'None ○○○' }
+                ];
+                const reactionOptions = [
+                  { value: 'loved', label: 'Loved' },
+                  { value: 'liked', label: 'Liked' },
+                  { value: 'disliked', label: 'Disliked' }
+                ];
+                const prepOptions = [
+                  { value: 'raw', label: 'Raw' },
+                  { value: 'puree', label: 'Puree' },
+                  { value: 'steamed', label: 'Steamed' },
+                  { value: 'boiled', label: 'Boiled' }
+                ];
+
+                return React.createElement('div', {
+                  key: `${card.id}-food-${idx}`,
+                  className: "flex flex-col gap-3"
+                },
+                  React.createElement('div', { className: "flex items-start gap-2" },
+                    safeFoodIcon && React.createElement('div', {
+                      dangerouslySetInnerHTML: { __html: safeFoodIcon },
+                      className: "tt-solids-outline-icon w-5 h-5 flex-shrink-0",
+                      style: { color: 'var(--tt-solids)' }
+                    }),
+                    React.createElement('div', { className: "flex flex-col gap-0.5 min-w-0" },
+                      React.createElement('div', { className: "font-medium", style: { color: 'var(--tt-text-primary)' } }, food.name),
+                      food.category && React.createElement('div', { className: "text-[11px]", style: { color: 'var(--tt-text-tertiary)' } }, food.category)
+                    )
+                  ),
+                  renderOptions('Amount', amountOptions, food.amount || null, (value) => updateFood({ amount: value })),
+                  renderOptions('Reaction', reactionOptions, food.reaction || null, (value) => updateFood({ reaction: value })),
+                  renderOptions('Preparation', prepOptions, food.preparation || null, (value) => updateFood({ preparation: value })),
+                  React.createElement('div', { className: "flex flex-col gap-2" },
+                    React.createElement('div', { className: "text-[11px] font-semibold", style: { color: 'var(--tt-text-tertiary)' } }, `Notes for ${food.name}`),
+                    React.createElement('textarea', {
+                      value: food.notes || '',
+                      onChange: (e) => updateFood({ notes: e.target.value }),
+                      rows: 2,
+                      className: "w-full rounded-xl px-3 py-2 text-xs outline-none",
+                      style: {
+                        backgroundColor: 'var(--tt-input-bg)',
+                        border: '1px solid var(--tt-card-border)',
+                        color: 'var(--tt-text-primary)',
+                        resize: 'vertical'
+                      },
+                      onClick: (e) => e.stopPropagation(),
+                      placeholder: 'Add notes...'
+                    })
+                  )
+                );
+              })
             ),
             hasNote && React.createElement('div', {
               className: "italic",

@@ -139,6 +139,11 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
   const TTAmountStepper = window.TT?.shared?.TTAmountStepper || window.TTAmountStepper;
   const BottleV2 = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null;
   const NursingIcon = window.TT?.shared?.icons?.NursingIcon || null;
+  const SolidsIcon = (props) => React.createElement(
+    'svg',
+    { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
+    React.createElement('path', { d: "M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" })
+  );
   const PlayIcon = (props) => React.createElement(
     'svg',
     { ...props, xmlns: "http://www.w3.org/2000/svg", width: "32", height: "32", viewBox: "0 0 256 256", fill: "currentColor" },
@@ -166,11 +171,12 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const effectiveOnSave = isInputVariant ? onAdd : onSave;
     const dragControls = __ttV4UseDragControls ? __ttV4UseDragControls() : null;
     const _normalizeActivityVisibility = (value) => {
-      const base = { bottle: true, nursing: true };
+      const base = { bottle: true, nursing: true, solids: true };
       if (!value || typeof value !== 'object') return base;
       return {
         bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
-        nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing
+        nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing,
+        solids: typeof value.solids === 'boolean' ? value.solids : base.solids
       };
     };
     const feedVisibility = _normalizeActivityVisibility(activityVisibility);
@@ -186,7 +192,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const [saving, setSaving] = React.useState(false);
     const dateTimeTouchedRef = React.useRef(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
-    const [feedType, setFeedType] = React.useState(initialFeedType); // 'bottle' | 'nursing'
+    const [feedType, setFeedType] = React.useState(initialFeedType); // 'bottle' | 'nursing' | 'solids'
+    const isNursing = feedType === 'nursing';
+    const isSolids = feedType === 'solids';
 
     const [leftElapsedMs, setLeftElapsedMs] = React.useState(0);
     const [rightElapsedMs, setRightElapsedMs] = React.useState(0);
@@ -209,6 +217,18 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const notesInputRef = React.useRef(null);
     const [notesWrappedLines, setNotesWrappedLines] = React.useState(1);
 
+    // Solids-specific state
+    const [addedFoods, setAddedFoods] = React.useState([]);
+    const [detailFoodId, setDetailFoodId] = React.useState(null);
+    const detailFoodCache = React.useRef(null);
+    const [solidsStep, setSolidsStep] = React.useState(1); // 1: entry, 2: browse, 3: review
+    const [solidsSearch, setSolidsSearch] = React.useState('');
+    const [recentFoods, setRecentFoods] = React.useState([]);
+    const [customFoods, setCustomFoods] = React.useState([]);
+    const solidsSheetRef = React.useRef(null);
+    const [solidsSheetBaseHeight, setSolidsSheetBaseHeight] = React.useState(null);
+    const [solidsStep2Pad, setSolidsStep2Pad] = React.useState(0);
+
     // Wheel picker trays (feature flagged)
     const _pickers = (typeof window !== 'undefined' && window.TT?.shared?.pickers) ? window.TT.shared.pickers : {};
     const TTPickerTray = _pickers.TTPickerTray;
@@ -220,7 +240,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const resolveFeedType = (entryItem) => {
       if (!entryItem) return 'bottle';
       if (entryItem.feedType === 'nursing' || entryItem.type === 'nursing') return 'nursing';
+      if (entryItem.feedType === 'solids' || entryItem.type === 'solids') return 'solids';
       if (entryItem.leftDurationSec != null || entryItem.rightDurationSec != null) return 'nursing';
+      if (entryItem.foods && Array.isArray(entryItem.foods)) return 'solids';
       return 'bottle';
     };
 
@@ -230,14 +252,15 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
     React.useEffect(() => {
       if (!isInputVariant) return;
-      if (feedVisibility.bottle && feedVisibility.nursing) return;
-      const next = feedVisibility.bottle
-        ? 'bottle'
-        : (feedVisibility.nursing ? 'nursing' : 'bottle');
-      if (feedType !== next) {
-        setFeedType(next);
-      }
-    }, [feedVisibility.bottle, feedVisibility.nursing, isInputVariant, feedType]);
+      const visibleTypes = [
+        feedVisibility.bottle ? 'bottle' : null,
+        feedVisibility.nursing ? 'nursing' : null,
+        feedVisibility.solids ? 'solids' : null
+      ].filter(Boolean);
+      if (visibleTypes.length === 0) return;
+      if (visibleTypes.includes(feedType)) return;
+      setFeedType(visibleTypes[0]);
+    }, [feedVisibility.bottle, feedVisibility.nursing, feedVisibility.solids, isInputVariant, feedType]);
 
     React.useEffect(() => {
       if (!isOpen || !activeSideRef.current) return undefined;
@@ -637,6 +660,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         setActiveSide(null);
         activeSideRef.current = null;
         activeSideStartRef.current = null;
+        setDetailFoodId(null);
+        setSolidsStep(1);
         return;
       }
       const preferred = _resolveVolumeUnit(preferredVolumeUnit) || _getStoredVolumeUnit();
@@ -695,6 +720,102 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         setDateTimeProgrammatic(new Date().toISOString());
       }
     }, [feedType, isOpen, effectiveEntry]);
+
+    // Load recent foods and custom foods for solids mode
+    React.useEffect(() => {
+      if (!isOpen || feedType !== 'solids') return;
+      const loadSolidsData = async () => {
+        try {
+          if (window.firestoreStorage) {
+            const [recent, custom] = await Promise.all([
+              window.firestoreStorage.getRecentFoods?.() || Promise.resolve([]),
+              window.firestoreStorage.getCustomFoods?.() || Promise.resolve([])
+            ]);
+            setRecentFoods(Array.isArray(recent) ? recent : []);
+            setCustomFoods(Array.isArray(custom) ? custom : []);
+          }
+          if (!effectiveEntry) {
+            setSolidsStep(1);
+          }
+        } catch (err) {
+          console.error('[FeedSheet] Failed to load solids data:', err);
+        }
+      };
+      loadSolidsData();
+    }, [isOpen, feedType]);
+
+    // Load existing solids entry data when editing
+    React.useEffect(() => {
+      if (!isOpen || !effectiveEntry || feedType !== 'solids') return;
+      if (effectiveEntry.foods && Array.isArray(effectiveEntry.foods)) {
+        const slugify = (value) => String(value || '')
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/(^-|-$)+/g, '');
+        const loadedFoods = effectiveEntry.foods.map((f, idx) => {
+          const name = f.name || '';
+          const id = f.id || slugify(name || `food-${idx}`);
+          return {
+            id,
+            name,
+            icon: f.icon || null,
+            category: f.category || 'Custom',
+            amount: f.amount || null,
+            reaction: f.reaction || null,
+            preparation: f.preparation || null,
+            notes: f.notes || ''
+          };
+        });
+        setAddedFoods(loadedFoods);
+        setSolidsStep(1);
+      }
+    }, [isOpen, effectiveEntry, feedType]);
+
+    // Reset solids state when switching modes
+    React.useEffect(() => {
+      setAddedFoods([]);
+      setDetailFoodId(null);
+      setSolidsStep(1);
+      setSolidsSearch('');
+    }, [feedType]);
+
+    React.useEffect(() => {
+      if (!isSolids || solidsStep !== 1) return;
+      const node = solidsSheetRef.current;
+      if (!node) return;
+      const update = () => {
+        const rect = node.getBoundingClientRect();
+        if (rect && rect.height) {
+          setSolidsSheetBaseHeight(rect.height);
+        }
+      };
+      update();
+      if (typeof ResizeObserver === 'undefined') return;
+      const ro = new ResizeObserver(() => update());
+      ro.observe(node);
+      return () => ro.disconnect();
+    }, [isSolids, solidsStep, addedFoods.length, notesExpanded, photosExpanded, notesWrappedLines]);
+
+    React.useEffect(() => {
+      if (!isSolids) return;
+      const footerEl = ctaFooterRef.current;
+      if (!footerEl || isKeyboardOpen) {
+        setSolidsStep2Pad(0);
+        return;
+      }
+      const update = () => {
+        const rect = footerEl.getBoundingClientRect();
+        const nextPad = rect && rect.height ? Math.round(rect.height) + 24 : 0;
+        setSolidsStep2Pad(nextPad);
+      };
+      update();
+      if (typeof ResizeObserver === 'undefined') return;
+      const ro = new ResizeObserver(() => update());
+      ro.observe(footerEl);
+      return () => ro.disconnect();
+    }, [isSolids, isKeyboardOpen, solidsStep]);
+
 
     const handleSave = async () => {
       if (feedType === 'nursing') {
@@ -794,6 +915,108 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             code: error.code
           });
           alert(`Failed to save nursing session: ${error.message || 'Please try again.'}`);
+        } finally {
+          setSaving(false);
+        }
+        return;
+      }
+
+      // Solids handling
+      if (feedType === 'solids') {
+        if (!dateTime || addedFoods.length === 0) return;
+
+        setSaving(true);
+        try {
+          const timestamp = new Date(dateTime).getTime();
+
+          // Upload photos
+          const newPhotoURLs = [];
+          if (photos && photos.length > 0) {
+            for (let i = 0; i < photos.length; i++) {
+              const photoBase64 = photos[i];
+              try {
+                const downloadURL = await firestoreStorage.uploadFeedingPhoto(photoBase64);
+                newPhotoURLs.push(downloadURL);
+              } catch (error) {
+                console.error(`[FeedSheet] Failed to upload photo ${i + 1}:`, error);
+              }
+            }
+          }
+
+          const allPhotoURLs = __ttNormalizePhotoUrls([...existingPhotoURLs, ...newPhotoURLs]);
+
+          if (effectiveEntry && effectiveEntry.id) {
+            // Update existing solids session
+            await firestoreStorage.updateSolidsSession(effectiveEntry.id, {
+              timestamp,
+              foods: addedFoods.map(f => ({
+                name: f.name,
+                category: f.category || 'Custom',
+                amount: f.amount || null,
+                reaction: f.reaction || null,
+                preparation: f.preparation || null,
+                notes: f.notes || null
+              })),
+              notes: notes || null,
+              photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
+            });
+          } else {
+            // Create new solids session
+            await firestoreStorage.addSolidsSession({
+              timestamp,
+              foods: addedFoods.map(f => ({
+                name: f.name,
+                category: f.category || 'Custom',
+                amount: f.amount || null,
+                reaction: f.reaction || null,
+                preparation: f.preparation || null,
+                notes: f.notes || null
+              })),
+              notes: notes || null,
+              photoURLs: allPhotoURLs.length > 0 ? allPhotoURLs : null
+            });
+          }
+
+          // Update recent foods
+          try {
+            for (const food of addedFoods) {
+              await firestoreStorage.updateRecentFoods(food.name);
+            }
+          } catch (e) {
+            console.error('[FeedSheet] Failed to update recent foods:', e);
+          }
+
+          // Save to chat if has notes or photos
+          try {
+            const hasNote = !!(notes && String(notes).trim().length > 0);
+            const hasPhotos = Array.isArray(allPhotoURLs) && allPhotoURLs.length > 0;
+            if ((hasNote || hasPhotos) && firestoreStorage && typeof firestoreStorage.saveMessage === 'function') {
+              const eventTime = new Date(timestamp);
+              const timeLabel = eventTime.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+              const foodNames = addedFoods.map(f => f.name).join(', ');
+              const contentParts = [];
+              if (hasNote) contentParts.push(String(notes).trim());
+              if (!hasNote && hasPhotos) contentParts.push('Photo update');
+              const chatMsg = {
+                role: 'assistant',
+                content: `@tinytracker: Solids • ${timeLabel}\n${foodNames}${hasNote ? `\n${contentParts.join('\n')}` : ''}`,
+                timestamp: Date.now(),
+                source: 'log',
+                logType: 'solids',
+                logTimestamp: timestamp,
+                photoURLs: hasPhotos ? allPhotoURLs : []
+              };
+              await firestoreStorage.saveMessage(chatMsg);
+            }
+          } catch (e) {}
+
+          handleClose();
+          if (effectiveOnSave) {
+            await effectiveOnSave();
+          }
+        } catch (error) {
+          console.error('[FeedSheet] Failed to save solids session:', error);
+          alert(`Failed to save solids session: ${error.message || 'Please try again.'}`);
         } finally {
           setSaving(false);
         }
@@ -970,15 +1193,15 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     };
 
     const isEditingEntry = effectiveEntry && effectiveEntry.id;
+    const solidsHeaderTitle = solidsStep === 2 ? 'Browse foods' : (solidsStep === 3 ? 'Review' : 'Solids');
     const headerTitle = isEditingEntry
-      ? (feedType === 'nursing' ? 'Nursing' : 'Feed')
-      : (feedType === 'nursing' ? 'Nursing' : 'Feeding');
+      ? (feedType === 'nursing' ? 'Nursing' : feedType === 'solids' ? solidsHeaderTitle : 'Feed')
+      : (feedType === 'nursing' ? 'Nursing' : feedType === 'solids' ? solidsHeaderTitle : 'Feeding');
     const saveButtonLabel = isEditingEntry ? 'Save' : 'Add';
 
-    const isNursing = feedType === 'nursing';
-    const accentColor = isNursing ? 'var(--tt-nursing)' : 'var(--tt-feed)';
-    const accentSoft = isNursing ? 'var(--tt-nursing-soft)' : 'var(--tt-feed-soft)';
-    const accentStrong = isNursing ? 'var(--tt-nursing-strong)' : 'var(--tt-feed-strong)';
+    const accentColor = isSolids ? 'var(--tt-solids)' : (isNursing ? 'var(--tt-nursing)' : 'var(--tt-feed)');
+    const accentSoft = isSolids ? 'var(--tt-solids-soft)' : (isNursing ? 'var(--tt-nursing-soft)' : 'var(--tt-feed-soft)');
+    const accentStrong = isSolids ? 'var(--tt-solids-strong)' : (isNursing ? 'var(--tt-nursing-strong)' : 'var(--tt-feed-strong)');
     const runningSide = activeSideRef.current;
     const startedAt = activeSideStartRef.current;
     const liveDelta = runningSide && startedAt ? Math.max(0, Date.now() - startedAt) : 0;
@@ -986,7 +1209,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const rightDisplayMs = rightElapsedMs + (runningSide === 'right' ? liveDelta : 0);
     const totalDisplayMs = leftDisplayMs + rightDisplayMs;
     const nursingCanSave = !!dateTime && (totalDisplayMs > 0 || dateTimeTouchedRef.current);
-    const shouldAllowScroll = notesExpanded && photosExpanded && notesWrappedLines >= 3;
+    const shouldAllowScroll = isSolids ? true : (notesExpanded && photosExpanded && notesWrappedLines >= 3);
 
     const handleEditSideDuration = (side) => {
       stopActiveSide();
@@ -1055,21 +1278,32 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       );
     };
 
-    const showFeedTypePicker = isInputVariant && feedVisibility.bottle && feedVisibility.nursing;
-    const feedTypePicker = showFeedTypePicker ? React.createElement('div', { className: "grid grid-cols-2 gap-3 pb-3" },
-      React.createElement(TypeButton, {
+    const showFeedTypePicker = isInputVariant && (feedVisibility.bottle || feedVisibility.nursing || feedVisibility.solids);
+    const visibleFeedTypeCount = [feedVisibility.bottle, feedVisibility.nursing, feedVisibility.solids].filter(Boolean).length;
+    const shouldShowFeedTypePicker = !(isSolids && solidsStep >= 2);
+    const feedTypePicker = shouldShowFeedTypePicker && showFeedTypePicker && visibleFeedTypeCount > 1 ? React.createElement('div', { 
+      className: visibleFeedTypeCount === 3 ? "grid grid-cols-3 gap-3 pb-3" : "grid grid-cols-2 gap-3 pb-3"
+    },
+      feedVisibility.bottle && React.createElement(TypeButton, {
         label: 'Bottle',
         icon: BottleV2,
         selected: feedType === 'bottle',
         accent: 'var(--tt-feed)',
         onClick: () => setFeedType('bottle')
       }),
-      React.createElement(TypeButton, {
+      feedVisibility.nursing && React.createElement(TypeButton, {
         label: 'Nursing',
         icon: NursingIcon,
         selected: feedType === 'nursing',
         accent: 'var(--tt-nursing)',
         onClick: () => setFeedType('nursing')
+      }),
+      feedVisibility.solids && React.createElement(TypeButton, {
+        label: 'Solids',
+        icon: SolidsIcon,
+        selected: feedType === 'solids',
+        accent: 'var(--tt-solids)',
+        onClick: () => setFeedType('solids')
       })
     ) : null;
 
@@ -1266,24 +1500,506 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       notesPhotosBlock
     );
 
+    // Solids content
+    const COMMON_FOODS = window.TT?.constants?.COMMON_FOODS || [];
+    const FOOD_MAP = window.TT?.constants?.FOOD_MAP || {};
+    const slugifyFoodId = (value) => {
+      return String(value || '')
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)+/g, '');
+    };
+
+    const solidsAllFoods = React.useMemo(() => {
+      const merged = [...COMMON_FOODS, ...customFoods];
+      return merged.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }, [COMMON_FOODS, customFoods]);
+
+    const solidsFoodByName = React.useMemo(() => {
+      const map = new Map();
+      solidsAllFoods.forEach((food) => {
+        if (food?.name) map.set(String(food.name).toLowerCase(), food);
+      });
+      return map;
+    }, [solidsAllFoods]);
+
+    const solidsFilteredFoods = React.useMemo(() => {
+      const query = solidsSearch.trim().toLowerCase();
+      if (!query) return solidsAllFoods;
+      return solidsAllFoods.filter((food) => food.name.toLowerCase().includes(query));
+    }, [solidsAllFoods, solidsSearch]);
+
+    const solidsRecentFoods = React.useMemo(() => {
+      const fallbackNames = ['Avocado', 'Banana', 'Apple', 'Carrot'];
+      const fallback = fallbackNames.map((name) => (
+        solidsFoodByName.get(name.toLowerCase()) || { id: slugifyFoodId(name), name }
+      ));
+      if (!Array.isArray(recentFoods) || recentFoods.length === 0) return fallback;
+      const normalized = recentFoods
+        .map((item) => (typeof item === 'string' ? item : item?.name))
+        .filter(Boolean);
+      const resolved = normalized.map((name) => (
+        solidsFoodByName.get(String(name).toLowerCase()) || { id: slugifyFoodId(name), name }
+      ));
+      return resolved.slice(0, 6);
+    }, [recentFoods, solidsFoodByName]);
+
+    const addFoodToList = (food) => {
+      if (!food) return;
+      const name = food.name || food.label || '';
+      if (!name) return;
+      const id = food.id || slugifyFoodId(name);
+      if (!id || isFoodSelected(id)) return;
+      const newFood = {
+        id,
+        name: name,
+        category: food.category || 'Custom',
+        amount: null,
+        reaction: null,
+        preparation: null,
+        notes: ''
+      };
+      setAddedFoods((prev) => [...prev, newFood]);
+    };
+
+    const removeFoodById = (foodId) => {
+      if (!foodId) return;
+      setAddedFoods((prev) => prev.filter((f) => f.id !== foodId));
+    };
+
+    const isFoodSelected = (foodId) => {
+      return addedFoods.some((f) => f.id === foodId);
+    };
+
+    // Solids detail constants
+    const SOLIDS_PREP_METHODS = ['Raw', 'Mashed', 'Steamed', 'Pur\u00e9ed', 'Boiled'];
+    const SOLIDS_AMOUNTS = ['All', 'Most', 'Some', 'A little'];
+    const SOLIDS_REACTIONS = [
+      { label: 'Loved', emoji: '\u{1F60D}' },
+      { label: 'Liked', emoji: '\u{1F642}' },
+      { label: 'Neutral', emoji: '\u{1F610}' },
+      { label: 'Disliked', emoji: '\u{1F616}' }
+    ];
+
+    const FoodTile = ({ food, selected, onClick, dashed = false, labelOverride }) => {
+      if (!food) return null;
+      const iconHtml = food.icon || null;
+      const bg = selected
+        ? 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))'
+        : 'var(--tt-input-bg)';
+      const border = selected ? 'var(--tt-solids)' : 'var(--tt-card-border)';
+      const labelColor = selected ? 'var(--tt-solids)' : 'var(--tt-text-secondary)';
+      return React.createElement('button', {
+        key: food.id || food.name,
+        type: 'button',
+        onClick,
+        className: "flex flex-col items-center justify-center gap-1 rounded-full transition",
+        style: {
+          width: '100%',
+          aspectRatio: '1',
+          border: dashed ? '1.5px dashed var(--tt-border-subtle)' : `1.5px solid ${border}`,
+          backgroundColor: bg,
+          color: 'var(--tt-text-primary)',
+          opacity: selected ? 1 : 0.5
+        }
+      },
+        React.createElement('div', {
+          className: "flex items-center justify-center rounded-full",
+          style: {
+            width: 24,
+            height: 24,
+            backgroundColor: 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))',
+            color: labelColor,
+            fontWeight: 700,
+            fontSize: 11
+          }
+        }, (food.name || '?').slice(0, 1).toUpperCase()),
+        React.createElement('span', {
+          className: "text-[11px] font-semibold text-center leading-tight",
+          style: { color: labelColor, maxWidth: '90%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+        }, labelOverride || food.name)
+      );
+    };
+
+    // Solids uses a sliding track (all 3 steps rendered, motion.div slides between them)
+
+    // Merge selected foods + recent foods into 4 visible tiles.
+    // Selected foods take priority; remaining slots filled with unselected recents.
+    const solidsTileFoods = React.useMemo(() => {
+      const selectedIds = new Set(addedFoods.map((f) => f.id));
+      // Resolve added foods to full definitions (with icons)
+      const selected = addedFoods.map((f) => {
+        const def = FOOD_MAP[f.id] || f;
+        return { ...def, ...f };
+      });
+      // Fill remaining slots with recents not already selected
+      const remaining = 4 - selected.length;
+      const fillers = [];
+      if (remaining > 0) {
+        for (const food of solidsRecentFoods) {
+          if (fillers.length >= remaining) break;
+          const foodDef = FOOD_MAP[food.id] || food;
+          const resolvedId = foodDef.id || slugifyFoodId(foodDef.name);
+          if (!selectedIds.has(resolvedId)) {
+            fillers.push({ ...foodDef, id: resolvedId });
+          }
+        }
+      }
+      return [...selected, ...fillers].slice(0, 4);
+    }, [addedFoods, solidsRecentFoods, FOOD_MAP]);
+
+    const solidsTileLabel = addedFoods.length === 0
+      ? 'Add foods'
+      : `${addedFoods.length} food${addedFoods.length !== 1 ? 's' : ''} added`;
+
+    const solidsStepOne = React.createElement('div', { className: "space-y-4" },
+      React.createElement(InputRow, {
+        label: 'Start time',
+        value: dateTime ? formatDateTime(dateTime) : 'Add...',
+        rawValue: dateTime,
+        onChange: handleDateTimeChange,
+        icon: React.createElement(PenIcon, { className: "", style: { color: 'var(--tt-text-secondary)' } }),
+        valueClassName: inputValueClassName,
+        type: 'datetime',
+        pickerMode: 'datetime_feeding',
+        onOpenPicker: openTrayPicker,
+        placeholder: 'Add...'
+      }),
+      React.createElement('div', { className: "space-y-2" },
+        React.createElement('div', {
+          className: "text-xs font-medium",
+          style: { color: 'var(--tt-text-secondary)' }
+        }, solidsTileLabel),
+        React.createElement('div', { className: "grid grid-cols-4 gap-3" },
+          solidsTileFoods.map((food) => {
+            const resolvedId = food.id || slugifyFoodId(food.name);
+            const selected = isFoodSelected(resolvedId);
+            return React.createElement(FoodTile, {
+              key: resolvedId || food.name,
+              food: { ...food, id: resolvedId },
+              selected,
+              onClick: () => (selected ? removeFoodById(resolvedId) : addFoodToList({ ...food, id: resolvedId }))
+            });
+          })
+        )
+      ),
+      React.createElement('button', {
+        type: 'button',
+        onClick: () => setSolidsStep(2),
+        className: "w-full rounded-2xl px-5 py-4 text-left flex items-center justify-between",
+        style: {
+          backgroundColor: 'var(--tt-input-bg)',
+          border: '1px solid var(--tt-card-border)'
+        }
+      },
+        React.createElement('span', { style: { color: 'var(--tt-text-primary)' } }, 'Browse all foods'),
+        React.createElement('svg', {
+          className: "w-5 h-5",
+          fill: "none",
+          stroke: "currentColor",
+          viewBox: "0 0 24 24",
+          style: { color: 'var(--tt-text-tertiary)' }
+        }, React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" }))
+      )
+    );
+
+    const solidsStepTwo = React.createElement('div', { className: "space-y-4" },
+      React.createElement('div', {
+        className: "flex items-center gap-3 px-4 py-3 rounded-2xl",
+        style: { backgroundColor: 'var(--tt-input-bg)' }
+      },
+        React.createElement('svg', {
+          className: "w-5 h-5",
+          viewBox: "0 0 256 256",
+          fill: "currentColor",
+          xmlns: "http://www.w3.org/2000/svg",
+          style: { color: 'var(--tt-text-tertiary)' }
+        }, React.createElement('path', { d: "M232,216l-40-40a88,88,0,1,0-16,16l40,40a8,8,0,0,0,11.31-11.31ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" })),
+        React.createElement('input', {
+          value: solidsSearch,
+          onChange: (e) => setSolidsSearch(e.target.value),
+          placeholder: 'Search...',
+          className: "flex-1 bg-transparent outline-none text-sm",
+          style: { color: 'var(--tt-text-primary)' }
+        })
+      ),
+      React.createElement('div', { className: "grid grid-cols-4 gap-3" },
+        solidsFilteredFoods.map((food) => {
+          const selected = isFoodSelected(food.id);
+          return React.createElement(FoodTile, {
+            key: food.id,
+            food,
+            selected,
+
+            onClick: () => (selected ? removeFoodById(food.id) : addFoodToList(food))
+          });
+        }),
+        solidsSearch.trim() && solidsFilteredFoods.length === 0 && React.createElement(FoodTile, {
+          key: 'add-custom',
+          food: { id: 'add-custom', name: solidsSearch.trim() },
+          size: 72,
+          dashed: true,
+          labelOverride: `Add "${solidsSearch.slice(0, 12)}${solidsSearch.length > 12 ? '…' : ''}"`,
+          onClick: async () => {
+            const customFood = {
+              id: `custom-${Date.now()}`,
+              name: solidsSearch.trim(),
+              category: 'Custom',
+              icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" /></svg>',
+              isCustom: true
+            };
+            if (window.firestoreStorage && window.firestoreStorage.addCustomFood) {
+              const saved = await window.firestoreStorage.addCustomFood(customFood);
+              setCustomFoods([...customFoods, saved]);
+              addFoodToList(saved);
+            } else {
+              addFoodToList(customFood);
+            }
+            setSolidsSearch('');
+          }
+        })
+      )
+    );
+
+    const detailFood = detailFoodId
+      ? addedFoods.find((f) => String(f.id) === String(detailFoodId)) || null
+      : null;
+    
+    const updateFoodDetail = (foodId, field, value) => {
+      setAddedFoods((prev) => prev.map((f) => {
+        if (f.id !== foodId) return f;
+        const current = f[field];
+        return { ...f, [field]: current === value ? null : value };
+      }));
+    };
+
+    const SolidsDetailChip = ({ label, selected, onClick }) => {
+      return React.createElement('button', {
+        type: 'button',
+        onClick,
+        className: "px-4 py-2 rounded-full text-sm font-medium transition-all",
+        style: {
+          backgroundColor: selected ? 'var(--tt-solids)' : 'var(--tt-input-bg)',
+          color: selected ? '#fff' : 'var(--tt-text-secondary)',
+          border: selected ? '1px solid var(--tt-solids)' : '1px solid var(--tt-card-border)'
+        }
+      }, label);
+    };
+
+    const SolidsReactionButton = ({ reaction, selected, onClick }) => {
+      return React.createElement('button', {
+        type: 'button',
+        onClick,
+        className: "flex-1 py-3 rounded-xl flex flex-col items-center gap-1 transition-all",
+        style: {
+          backgroundColor: selected ? 'var(--tt-solids)' : 'var(--tt-input-bg)',
+          border: selected ? '1px solid var(--tt-solids)' : '1px solid var(--tt-card-border)'
+        }
+      },
+        React.createElement('div', { className: "text-2xl" }, reaction.emoji),
+        React.createElement('div', {
+          className: "text-xs",
+          style: { color: selected ? '#fff' : 'var(--tt-text-tertiary)', fontWeight: selected ? 600 : 400 }
+        }, reaction.label)
+      );
+    };
+
+    // Cache detailFood for TTPickerTray close animation (content stays visible while sliding out)
+    if (detailFood) detailFoodCache.current = detailFood;
+    const displayFood = detailFood || detailFoodCache.current;
+
+    const solidsDetailSheet = TTPickerTray && React.createElement(TTPickerTray, {
+      isOpen: !!detailFoodId,
+      onClose: () => setDetailFoodId(null),
+      height: '52vh',
+      header: displayFood && React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('div', { className: "flex items-center gap-2", style: { justifySelf: 'start' } },
+          React.createElement('div', {
+            className: "flex items-center justify-center rounded-full",
+            style: { width: 28, height: 28, backgroundColor: 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))', color: 'var(--tt-solids)', fontWeight: 700, fontSize: 12 }
+          }, (displayFood.name || '?').slice(0, 1).toUpperCase()),
+          React.createElement('div', { className: "font-semibold", style: { color: 'var(--tt-text-primary)', fontSize: 17 } }, displayFood.name)
+        ),
+        React.createElement('div'),
+        React.createElement('button', {
+          type: 'button',
+          onClick: () => setDetailFoodId(null),
+          style: { justifySelf: 'end', fontWeight: 600, color: 'var(--tt-solids)', background: 'transparent', border: 'none', fontSize: 17 }
+        }, 'Done')
+      )
+    },
+      displayFood && React.createElement('div', { style: { padding: '0 16px' } },
+        React.createElement('div', null,
+          React.createElement('div', { className: "text-sm mb-3", style: { color: 'var(--tt-text-tertiary)' } }, 'Preparation'),
+          React.createElement('div', { className: "flex flex-wrap gap-2" },
+            SOLIDS_PREP_METHODS.map((method) =>
+              React.createElement(SolidsDetailChip, { key: method, label: method, selected: displayFood.preparation === method, onClick: () => updateFoodDetail(displayFood.id, 'preparation', method) })
+            )
+          )
+        ),
+        React.createElement('div', { className: "mt-6" },
+          React.createElement('div', { className: "text-sm mb-3", style: { color: 'var(--tt-text-tertiary)' } }, 'Amount'),
+          React.createElement('div', { className: "flex flex-wrap gap-2" },
+            SOLIDS_AMOUNTS.map((amount) =>
+              React.createElement(SolidsDetailChip, { key: amount, label: amount, selected: displayFood.amount === amount, onClick: () => updateFoodDetail(displayFood.id, 'amount', amount) })
+            )
+          )
+        ),
+        React.createElement('div', { className: "mt-6" },
+          React.createElement('div', { className: "text-sm mb-3", style: { color: 'var(--tt-text-tertiary)' } }, 'Reaction'),
+          React.createElement('div', { className: "flex gap-3" },
+            SOLIDS_REACTIONS.map((reaction) =>
+              React.createElement(SolidsReactionButton, { key: reaction.label, reaction, selected: displayFood.reaction === reaction.label, onClick: () => updateFoodDetail(displayFood.id, 'reaction', reaction.label) })
+            )
+          )
+        )
+      )
+    );
+
+    const solidsStepThree = React.createElement('div', { className: "space-y-4" },
+      React.createElement('div', { className: "flex flex-col gap-2" },
+        addedFoods.map((food) => {
+          const hasSummary = food.preparation || food.amount || food.reaction;
+          return React.createElement('button', {
+            key: food.id,
+            type: 'button',
+            onClick: () => setDetailFoodId(String(food.id)),
+            className: "w-full rounded-2xl px-5 py-4 text-left",
+            style: {
+              backgroundColor: 'var(--tt-input-bg)',
+              border: '1px solid var(--tt-card-border)'
+            }
+          },
+            React.createElement('div', { className: "flex items-center justify-between" },
+              React.createElement('div', { className: "flex items-center gap-3" },
+                React.createElement('div', {
+                  className: "flex items-center justify-center rounded-full",
+                  style: {
+                    width: 28,
+                    height: 28,
+                    backgroundColor: 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))',
+                    color: 'var(--tt-solids)',
+                    fontWeight: 700,
+                    fontSize: 12
+                  }
+                }, (food.name || '?').slice(0, 1).toUpperCase()),
+                React.createElement('div', null,
+                  React.createElement('div', {
+                    className: "font-medium",
+                    style: { color: 'var(--tt-text-primary)' }
+                  }, food.name),
+                  hasSummary && React.createElement('div', {
+                    className: "text-sm mt-1",
+                    style: { color: 'var(--tt-text-tertiary)' }
+                  },
+                    [food.preparation, food.amount, food.reaction].filter(Boolean).join(' \u00B7 ')
+                  )
+                )
+              ),
+              React.createElement('svg', {
+                className: "w-5 h-5",
+                fill: "none",
+                stroke: "currentColor",
+                viewBox: "0 0 24 24",
+                style: { color: 'var(--tt-text-tertiary)' }
+              }, React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" }))
+            )
+          );
+        })
+      ),
+      notesPhotosBlock
+    );
+
+    const solidsSlideProps = (stepNum) => {
+      const offset = `${(stepNum - solidsStep) * 100}%`;
+      const transition = { type: "spring", stiffness: 300, damping: 30 };
+
+      // Step 1: always in grid flow — sets baseline height
+      if (stepNum === 1) {
+        return { initial: false, animate: { x: offset }, transition, style: { gridRow: 1, gridColumn: 1, width: '100%' } };
+      }
+      // Step 2: always absolute, scrolls within container
+      if (stepNum === 2) {
+        return {
+          initial: false,
+          animate: { x: offset },
+          transition,
+          style: {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            overflowY: 'auto',
+            boxSizing: 'border-box',
+            paddingBottom: `calc(env(safe-area-inset-bottom, 0) + ${solidsStep2Pad}px)`
+          }
+        };
+      }
+      // Step 3: in grid when active (can expand), absolute when not
+      return {
+        initial: false,
+        animate: { x: offset }, transition,
+        style: solidsStep === 3
+          ? { gridRow: 1, gridColumn: 1, width: '100%' }
+          : { position: 'absolute', top: 0, left: 0, width: '100%' }
+      };
+    };
+
+    const solidsContainerStyle = {
+      display: 'grid',
+      overflow: 'hidden',
+      position: 'relative',
+      flex: 1,
+      minHeight: 0
+    };
+
+    const solidsContent = React.createElement(
+      'div',
+      { style: solidsContainerStyle },
+      React.createElement(__ttV4Motion.div, solidsSlideProps(1), solidsStepOne),
+      React.createElement(__ttV4Motion.div, solidsSlideProps(2), solidsStepTwo),
+      React.createElement(__ttV4Motion.div, solidsSlideProps(3), solidsStepThree)
+    );
+
     // Body content (used in both static and overlay modes)
     const contentBlock = React.createElement(
       React.Fragment,
       null,
       feedTypePicker,
-      isNursing ? nursingContent : bottleContent
+      isSolids ? solidsContent : (isNursing ? nursingContent : bottleContent),
+      isSolids && solidsDetailSheet
     );
 
-    const isCtaDisabled = saving || (isNursing && !nursingCanSave);
-    const ctaButton = React.createElement('button', {
+    const solidsCanSave = !!dateTime && addedFoods.length > 0;
+    const solidsCanNext = addedFoods.length > 0;
+
+    // Determine CTA behavior based on feed type and solids step
+    const getSolidsCta = () => {
+      if (solidsStep === 2) return null; // No CTA in browse step
+      if (solidsStep === 3) return { label: saving ? 'Saving...' : saveButtonLabel, onClick: handleSave, disabled: saving || !solidsCanSave };
+      // Step 1: "Next" button
+      return { label: 'Next', onClick: () => setSolidsStep(3), disabled: !solidsCanNext };
+    };
+
+    const solidsCta = isSolids ? getSolidsCta() : null;
+
+    const isCtaDisabled = isSolids
+      ? (solidsCta ? solidsCta.disabled : true)
+      : (saving || (isNursing && !nursingCanSave));
+
+    const ctaButton = (isSolids && !solidsCta) ? null : React.createElement('button', {
       type: 'button',
-      onClick: handleSave,
+      onClick: isSolids ? (solidsCta ? solidsCta.onClick : undefined) : handleSave,
       disabled: isCtaDisabled,
       onTouchStart: (e) => {
         e.stopPropagation();
       },
       className: "w-full text-white py-3 rounded-2xl font-semibold transition",
-      style: { 
+      style: {
         backgroundColor: saving ? accentStrong : accentColor,
         touchAction: 'manipulation',
         opacity: isCtaDisabled ? 0.5 : 1,
@@ -1300,7 +2016,21 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           e.target.style.backgroundColor = accentColor;
         }
       }
-    }, saving ? 'Saving...' : saveButtonLabel);
+    }, saving ? 'Saving...' : (isSolids && solidsCta ? solidsCta.label : saveButtonLabel));
+
+    const shouldShowCtaFooter = !!ctaButton || (isSolids && solidsStep === 2);
+    const ctaFooterContent = ctaButton || React.createElement('button', {
+      type: 'button',
+      disabled: true,
+      className: "w-full text-white py-3 rounded-2xl font-semibold",
+      style: { visibility: 'hidden' }
+    }, 'Spacer');
+
+    const solidsSheetHeightStyle = (isSolids && solidsSheetBaseHeight)
+      ? (solidsStep === 2
+          ? { height: `${Math.round(solidsSheetBaseHeight)}px`, maxHeight: `${Math.round(solidsSheetBaseHeight)}px` }
+          : (solidsStep === 3 ? { minHeight: `${Math.round(solidsSheetBaseHeight)}px` } : {}))
+      : {};
 
     const overlayContent = React.createElement(
       React.Fragment,
@@ -1443,7 +2173,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
     const animatedContent = React.createElement(__ttV4Motion.div, {
       layout: true,
-      transition: { type: "spring", damping: 25, stiffness: 300 }
+      transition: { type: "spring", damping: 25, stiffness: 300 },
+      style: { flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }
     }, contentBlock);
 
     const bodyContent = React.createElement(
@@ -1460,7 +2191,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           WebkitOverflowScrolling: shouldAllowScroll ? 'touch' : 'auto'
         }
       }, animatedContent),
-      React.createElement('div', {
+      shouldShowCtaFooter && React.createElement('div', {
         ref: ctaFooterRef,
         className: "px-6 pt-3 pb-1",
         style: {
@@ -1469,7 +2200,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 80px)',
           flexShrink: 0
         }
-      }, ctaButton),
+      }, ctaFooterContent),
       overlayContent
     );
 
@@ -1506,6 +2237,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           ? React.createElement(
               __ttV4Motion.div,
               {
+                ref: solidsSheetRef,
                 initial: { y: "100%" },
                 animate: { y: 0 },
                 exit: { y: "100%" },
@@ -1537,7 +2269,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                   overscrollBehavior: 'contain',
                   borderTopLeftRadius: '20px',
                   borderTopRightRadius: '20px',
-                  zIndex: 10001
+                  zIndex: 10001,
+                  ...solidsSheetHeightStyle
                 }
               },
               React.createElement('div', {
@@ -1561,16 +2294,25 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 }
               },
                 React.createElement('button', {
-                  onClick: handleClose,
+                  onClick: (isSolids && solidsStep >= 2)
+                    ? () => setSolidsStep(1)
+                    : handleClose,
                   className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
                 }, React.createElement(
-                  window.TT?.shared?.icons?.ChevronDownIcon ||
-                  window.ChevronDown ||
-                  window.XIcon,
+                  (isSolids && solidsStep >= 2)
+                    ? (window.TT?.shared?.icons?.ChevronLeftIcon || window.ChevronLeft || window.ChevronDown || window.XIcon)
+                    : (window.TT?.shared?.icons?.ChevronDownIcon || window.ChevronDown || window.XIcon),
                   { className: "w-5 h-5", style: { transform: 'translateY(1px)' } }
                 )),
                 React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, headerTitle),
-                isNursing
+                (isSolids && solidsStep === 2)
+                  ? React.createElement('button', {
+                      type: 'button',
+                      onClick: () => setSolidsStep(3),
+                      className: "text-sm font-semibold",
+                      style: { color: addedFoods.length > 0 ? '#fff' : 'rgba(255,255,255,0.5)' }
+                    }, 'Done')
+                  : isNursing
                   ? React.createElement('button', {
                       type: 'button',
                       onClick: handleNursingReset,

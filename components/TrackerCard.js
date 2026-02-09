@@ -307,6 +307,7 @@ const TrackerCard = ({
 
   const isFeed = mode === 'feeding';
   const isNursing = mode === 'nursing';
+  const isSolids = mode === 'solids';
   const isSleep = mode === 'sleep';
   const isDiaper = mode === 'diaper';
 
@@ -356,16 +357,25 @@ const TrackerCard = ({
 
   const displayPercent = (calculatedPercent <= 0 && (!total || total <= 0)) ? 2 : calculatedPercent;
 
+  const SolidsIcon = (props) => React.createElement(
+    'svg',
+    { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
+    React.createElement('path', { d: "M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" })
+  );
   const HeaderIcon = mode === 'feeding'
     ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"]) || null
     : (mode === 'nursing'
         ? (window.TT?.shared?.icons?.NursingIcon || null)
-        : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null);
+        : (mode === 'solids'
+            ? SolidsIcon
+            : (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"]) || null));
   const modeColor = (mode === 'nursing')
     ? 'var(--tt-nursing)'
-    : (mode === 'feeding'
-        ? 'var(--tt-feed)'
-        : (mode === 'sleep' ? 'var(--tt-sleep)' : 'var(--tt-diaper)'));
+    : (mode === 'solids'
+        ? 'var(--tt-solids)'
+        : (mode === 'feeding'
+            ? 'var(--tt-feed)'
+            : (mode === 'sleep' ? 'var(--tt-sleep)' : 'var(--tt-diaper)')));
 
   const renderDiaperIconRow = () => {
     if (!Array.isArray(timelineItems) || timelineItems.length === 0) return null;
@@ -576,8 +586,8 @@ const TrackerCard = ({
                 style: {
                   color: modeColor,
                   transform: isFeed ? effectiveFeedingTransform : (isSleep ? sleepIconTransform : 'none'),
-                  strokeWidth: isFeed ? '1.5' : undefined,
-                  fill: isFeed ? 'none' : modeColor
+                  strokeWidth: (isFeed || isSolids) ? '1.5' : undefined,
+                  fill: (isFeed || isSolids) ? 'none' : modeColor
                 }
               }) : React.createElement('div', { className: "h-6 w-6 rounded-2xl", style: { backgroundColor: 'var(--tt-input-bg)' } }))
             : null,
@@ -587,7 +597,7 @@ const TrackerCard = ({
               : React.createElement('div', {
                   className: headerLabelClassName,
                   style: { color: modeColor }
-                }, isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSleep ? 'Sleep' : 'Diaper')))
+                }, isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSolids ? 'Solids' : (isSleep ? 'Sleep' : 'Diaper'))))
           ) : null
         ) : null,
         headerRight
@@ -603,6 +613,9 @@ const TrackerCard = ({
         const valueText = (() => {
           if (mode === 'nursing') {
             return formatElapsedHmsTT(total || 0).str;
+          }
+          if (mode === 'solids') {
+            return total !== null ? formatV2Number(total) : '0';
           }
           return total !== null ? (isFeed ? formatVolumeValue(total) : formatV2Number(total)) : '0';
         })();
@@ -633,12 +646,12 @@ const TrackerCard = ({
           }
         }, nursingValue || valueText);
 
-        const targetEl = mode === 'nursing' ? null : React.createElement('div', {
+        const targetEl = (mode === 'nursing') ? null : React.createElement('div', {
           className: bigNumberTargetClassName,
           style: { color: bigNumberTargetColor }
         },
           bigNumberTargetVariant === 'unit'
-            ? (mode === 'sleep' ? 'hrs' : (mode === 'diaper' ? 'changes' : (mode === 'nursing' ? '' : resolvedVolumeUnit)))
+            ? (mode === 'sleep' ? 'hrs' : (mode === 'diaper' ? 'changes' : (mode === 'solids' ? 'foods' : (mode === 'nursing' ? '' : resolvedVolumeUnit))))
             : (target !== null
                 ? (mode === 'sleep' ? `/ ${formatV2Number(target)} hrs` : (mode === 'diaper' ? `/ ${formatV2Number(target)} changes` : (mode === 'nursing' ? '' : `/ ${formatVolumeValue(target)} ${resolvedVolumeUnit}`)))
                 : (mode === 'sleep' ? '/ 0 hrs' : (mode === 'diaper' ? '/ 0 changes' : (mode === 'nursing' ? '' : `/ 0 ${resolvedVolumeUnit}`))))
@@ -768,15 +781,17 @@ const TrackerCard = ({
       ? (window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || HeaderIcon)
       : mode === 'nursing'
         ? (window.TT?.shared?.icons?.NursingIcon || HeaderIcon)
-        : mode === 'sleep'
-          ? (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || HeaderIcon)
-          : (window.TT?.shared?.icons?.DiaperIcon || HeaderIcon);
+        : mode === 'solids'
+          ? SolidsIcon
+          : mode === 'sleep'
+            ? (window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || HeaderIcon)
+            : (window.TT?.shared?.icons?.DiaperIcon || HeaderIcon);
     const v4StatusTextClassName = "text-[15px] font-normal leading-none";
     const v4GoalTextClassName = "text-[15px] font-normal leading-none";
     const v4TargetClassName = "relative -top-[1px] text-[28px] leading-none font-normal";
 
-    const v4StatusText = (mode === 'feeding' || mode === 'nursing')
-      ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : (mode === 'nursing' ? 'No nursing yet' : 'No feedings yet'))
+    const v4StatusText = (mode === 'feeding' || mode === 'nursing' || mode === 'solids')
+      ? (lastEntryTime ? formatRelativeTime(lastEntryTime) : (mode === 'nursing' ? 'No nursing yet' : mode === 'solids' ? 'No solids yet' : 'No feedings yet'))
       : (mode === 'sleep' ? (() => {
           const activeEntry = timelineItems.find(item => item.isActive && item.startTime);
           if (activeEntry) {
@@ -838,6 +853,7 @@ const TrackerCard = ({
     const createIconLabel = (m) => {
       const isFeed = m === 'feeding';
       const isNursing = m === 'nursing';
+      const isSolids = m === 'solids';
       const isSleep = m === 'sleep';
       const v4Svg = isFeed
         ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.BottleV2) ||
@@ -845,14 +861,16 @@ const TrackerCard = ({
            null)
         : (isNursing
             ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.NursingIcon) || null)
-            : (isSleep
-                ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
-                   (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
-                   null)
-                : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
-                   null)));
-      const color = isNursing ? 'var(--tt-nursing)' : (isFeed ? 'var(--tt-feed)' : (isSleep ? 'var(--tt-sleep)' : 'var(--tt-diaper)'));
-      const label = isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSleep ? 'Sleep' : 'Diaper'));
+            : (isSolids
+                ? SolidsIcon
+                : (isSleep
+                    ? ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.MoonV2) ||
+                       (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons["moon-v2"]) ||
+                       null)
+                    : ((window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperIcon) ||
+                       null))));
+      const color = isNursing ? 'var(--tt-nursing)' : (isSolids ? 'var(--tt-solids)' : (isFeed ? 'var(--tt-feed)' : (isSleep ? 'var(--tt-sleep)' : 'var(--tt-diaper)')));
+      const label = isFeed ? 'Bottle' : (isNursing ? 'Nursing' : (isSolids ? 'Solids' : (isSleep ? 'Sleep' : 'Diaper')));
 
       return React.createElement(
         'div',
@@ -862,10 +880,10 @@ const TrackerCard = ({
         },
         v4Svg ? React.createElement(v4Svg, {
           className: "w-[22px] h-[22px]",
-          style: {
+            style: {
             color,
-            strokeWidth: isFeed ? '1.5' : undefined,
-            fill: isFeed ? 'none' : color,
+            strokeWidth: (isFeed || isSolids) ? '1.5' : undefined,
+            fill: (isFeed || isSolids) ? 'none' : color,
             transform: isFeed ? 'rotate(20deg)' : undefined
           }
         }) : null,

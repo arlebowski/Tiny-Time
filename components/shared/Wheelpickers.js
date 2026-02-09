@@ -927,7 +927,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
     );
   
   // TTPickerTray Component - Native keyboard-style tray (unchanged - already sets isTrayOpen flag)
-  const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null }) => {
+  const TTPickerTray = ({ children, isOpen = false, onClose = null, header = null, height = '44vh' }) => {
     const backdropRef = React.useRef(null);
     const trayRef = React.useRef(null);
     const [present, setPresent] = React.useState(false);
@@ -1011,8 +1011,8 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.pickers?.WheelPicker) {
               transition: 'transform 250ms cubic-bezier(0.2, 0, 0, 1)',
               willChange: 'transform',
               paddingBottom: 'env(safe-area-inset-bottom, 0)',
-              height: '44vh',
-              minHeight: '44vh',
+              height: height,
+              minHeight: height,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
