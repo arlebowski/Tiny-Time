@@ -459,9 +459,62 @@ const __ttEnsureZzzStyles = () => {
                 const FOOD_MAP = window.TT?.constants?.FOOD_MAP || {};
                 const foodDef = FOOD_MAP[food.id] || Object.values(FOOD_MAP).find((item) => String(item?.name || '').toLowerCase() === String(food?.name || '').toLowerCase()) || null;
                 const foodEmoji = foodDef?.emoji || food.emoji || '🍽️';
-                const amountCircles = food.amount === 'all' ? '●●●' : (food.amount === 'most' || food.amount === 'some') ? '●●○' : food.amount === 'a-little' ? '●○○' : food.amount === 'none' ? '○○○' : '';
-                const reactionText = food.reaction ? ` • ${food.reaction}` : '';
-                const prepText = food.preparation ? ` • ${food.preparation}` : '';
+                const normalizeSolidsToken = (value) => String(value || '')
+                  .trim()
+                  .toLowerCase()
+                  .replace(/\s+/g, '-');
+                const formatPrep = (value) => {
+                  const token = normalizeSolidsToken(value);
+                  const byToken = {
+                    raw: { label: 'Raw', icon: window.TT?.shared?.icons?.PrepRawIcon || null },
+                    mashed: { label: 'Mashed', icon: window.TT?.shared?.icons?.PrepMashedIcon || null },
+                    steamed: { label: 'Steamed', icon: window.TT?.shared?.icons?.PrepSteamedIcon || null },
+                    'puréed': { label: 'Puréed', icon: window.TT?.shared?.icons?.PrepPureedIcon || null },
+                    pureed: { label: 'Puréed', icon: window.TT?.shared?.icons?.PrepPureedIcon || null },
+                    boiled: { label: 'Boiled', icon: window.TT?.shared?.icons?.PrepBoiledIcon || null }
+                  };
+                  const resolved = byToken[token];
+                  if (resolved) return { type: 'prep', ...resolved };
+                  const fallback = String(value || '').trim();
+                  return fallback ? { type: 'prep', label: fallback, icon: null } : null;
+                };
+                const formatAmount = (value) => {
+                  const token = normalizeSolidsToken(value);
+                  const byToken = {
+                    all: '● All',
+                    most: '◕ Most',
+                    some: '◑ Some',
+                    'a-little': '◔ A little',
+                    little: '◔ A little',
+                    none: '○ None'
+                  };
+                  const label = byToken[token] || (value ? `◌ ${value}` : '');
+                  return label ? { type: 'amount', label } : null;
+                };
+                const formatReaction = (value) => {
+                  const token = normalizeSolidsToken(value);
+                  const byToken = {
+                    loved: '😍 Loved',
+                    liked: '😊 Liked',
+                    neutral: '😐 Neutral',
+                    disliked: '😖 Disliked'
+                  };
+                  const label = byToken[token] || (value ? `🙂 ${value}` : '');
+                  return label ? { type: 'reaction', label } : null;
+                };
+                const detailParts = [];
+                if (food.preparation) {
+                  const prep = formatPrep(food.preparation);
+                  if (prep) detailParts.push(prep);
+                }
+                if (food.amount) {
+                  const amount = formatAmount(food.amount);
+                  if (amount) detailParts.push(amount);
+                }
+                if (food.reaction) {
+                  const reaction = formatReaction(food.reaction);
+                  if (reaction) detailParts.push(reaction);
+                }
                 const updateFood = (patch) => {
                   if (typeof onFoodUpdate === 'function') {
                     onFoodUpdate({ ...food, ...patch });
@@ -477,9 +530,15 @@ const __ttEnsureZzzStyles = () => {
                       style: { fontSize: 14, lineHeight: '14px' }
                     }, foodEmoji),
                     React.createElement('div', { className: "flex flex-col gap-0.5 min-w-0" },
-                      React.createElement('div', { className: "font-medium", style: { color: 'var(--tt-text-primary)' } }, food.name),
-                      (amountCircles || reactionText || prepText) && React.createElement('div', { style: { color: 'var(--tt-text-tertiary)', fontSize: '11px' } },
-                        `${amountCircles}${reactionText}${prepText}`
+                      React.createElement('div', { className: "font-medium text-sm", style: { color: 'var(--tt-text-primary)' } }, food.name),
+                      detailParts.length > 0 && React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-tertiary)' } },
+                        detailParts.map((part, partIdx) => React.createElement(React.Fragment, { key: `${card.id}-food-${idx}-meta-${partIdx}` },
+                          partIdx > 0 ? React.createElement('span', { style: { padding: '0 4px' } }, '•') : null,
+                          React.createElement('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' } },
+                            part.icon ? React.createElement(part.icon, { width: 12, height: 12, color: 'currentColor', style: { flexShrink: 0 } }) : null,
+                            React.createElement('span', null, part.label)
+                          )
+                        ))
                       ),
                       food.notes && React.createElement('div', { className: "italic text-[11px]", style: { color: 'var(--tt-text-tertiary)' } }, food.notes)
                     )
