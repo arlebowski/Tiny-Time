@@ -120,6 +120,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
   });
   const __ttV4AnimatePresence = __ttV4Framer.AnimatePresence || (({ children }) => children);
   const __ttV4UseDragControls = __ttV4Framer.useDragControls;
+  const __ttV4UseMotionValue = __ttV4Framer.useMotionValue || null;
+  const __ttV4UseSpring = __ttV4Framer.useSpring || null;
+  const __ttV4UseTransform = __ttV4Framer.useTransform || null;
+  const __ttV4Animate = __ttV4Framer.animate || null;
   
   const InputRow = (props) => {
     const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
@@ -219,6 +223,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const [addedFoods, setAddedFoods] = React.useState([]);
     const [detailFoodId, setDetailFoodId] = React.useState(null);
     const detailFoodCache = React.useRef(null);
+    const [openSwipeFoodId, setOpenSwipeFoodId] = React.useState(null);
     const [solidsStep, setSolidsStep] = React.useState(1); // 1: entry, 2: browse, 3: review
     const [solidsSearch, setSolidsSearch] = React.useState('');
     const [recentFoods, setRecentFoods] = React.useState([]);
@@ -1669,6 +1674,11 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       setAddedFoods((prev) => prev.filter((f) => f.id !== foodId));
     };
 
+    React.useEffect(() => {
+      // Close any open swipe row when leaving review only.
+      if (solidsStep !== 3) setOpenSwipeFoodId(null);
+    }, [solidsStep]);
+
     const isFoodSelected = (foodId) => {
       return addedFoods.some((f) => f.id === foodId);
     };
@@ -1924,7 +1934,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
     const solidsDetailSheet = TTPickerTray && React.createElement(TTPickerTray, {
       isOpen: !!detailFoodId,
-      onClose: () => setDetailFoodId(null),
+      onClose: () => {
+        setDetailFoodId(null);
+        setOpenSwipeFoodId(null);
+      },
       height: '52vh',
       header: displayFood && React.createElement(
         React.Fragment,
@@ -1952,7 +1965,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         React.createElement('div'),
         React.createElement('button', {
           type: 'button',
-          onClick: () => setDetailFoodId(null),
+          onClick: () => {
+            setDetailFoodId(null);
+            setOpenSwipeFoodId(null);
+          },
           style: { justifySelf: 'end', fontWeight: 600, color: 'var(--tt-solids)', background: 'transparent', border: 'none', fontSize: 17 }
         }, 'Done')
       )
@@ -1985,57 +2001,475 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       )
     );
 
+    const solidsSwipeRowRef = React.useRef(null);
+    if (!solidsSwipeRowRef.current) {
+      solidsSwipeRowRef.current = ({ rowId, onRowClick, onEdit, onDelete, children, openSwipeFoodId, setOpenSwipeFoodId }) => {
+      const SPRING = { stiffness: 900, damping: 80 };
+      const containerRef = React.useRef(null);
+      const contentRef = React.useRef(null);
+      const dragState = React.useRef({ pointerId: null, startX: 0, startY: 0, startOffset: 0, lock: null });
+      const draggingRef = React.useRef(false);
+      const lockedSide = React.useRef(null);
+      const widthRef = React.useRef(0);
+      const hasSwipedRef = React.useRef(false);
+      const lastMoveRef = React.useRef({ x: 0, t: 0, vx: 0 });
+      const listenersActiveRef = React.useRef(false);
+      const onMoveRef = React.useRef(null);
+      const onUpRef = React.useRef(null);
+
+      const x = __ttV4UseMotionValue(0);
+      const smoothX = __ttV4UseSpring(x, SPRING);
+      const progress = __ttV4UseTransform(x, (value) => {
+        const width = widthRef.current || 1;
+        return value / width;
+      });
+
+      const measure = React.useCallback(() => {
+        const width = contentRef.current?.getBoundingClientRect().width;
+        if (width) widthRef.current = width;
+      }, []);
+
+      React.useEffect(() => {
+        measure();
+        window.addEventListener('resize', measure);
+        return () => window.removeEventListener('resize', measure);
+      }, [measure]);
+
+      React.useEffect(() => {
+        if (openSwipeFoodId && openSwipeFoodId !== rowId) {
+          __ttV4Animate(x, 0, SPRING);
+        } else if (openSwipeFoodId === rowId) {
+          const width = widthRef.current;
+          if (width) __ttV4Animate(x, -width * 0.5, SPRING);
+        }
+      }, [openSwipeFoodId, rowId, x]);
+
+      React.useEffect(() => {
+        if (!openSwipeFoodId || openSwipeFoodId !== rowId) return;
+        const onOutside = (event) => {
+          const node = containerRef.current;
+          if (node && node.contains(event.target)) return;
+          __ttV4Animate(x, 0, SPRING);
+          setOpenSwipeFoodId(null);
+        };
+        document.addEventListener('pointerdown', onOutside, true);
+        return () => document.removeEventListener('pointerdown', onOutside, true);
+      }, [openSwipeFoodId, rowId, x]);
+
+      const addDocListeners = React.useCallback(() => {
+        if (listenersActiveRef.current) return;
+        const onMove = onMoveRef.current;
+        const onUp = onUpRef.current;
+        if (!onMove || !onUp) return;
+        listenersActiveRef.current = true;
+        document.addEventListener('pointermove', onMove);
+        document.addEventListener('pointerup', onUp);
+        document.addEventListener('pointercancel', onUp);
+      }, []);
+
+      const removeDocListeners = React.useCallback(() => {
+        if (!listenersActiveRef.current) return;
+        const onMove = onMoveRef.current;
+        const onUp = onUpRef.current;
+        if (onMove) document.removeEventListener('pointermove', onMove);
+        if (onUp) {
+          document.removeEventListener('pointerup', onUp);
+          document.removeEventListener('pointercancel', onUp);
+        }
+        listenersActiveRef.current = false;
+      }, []);
+
+      React.useEffect(() => {
+        const rubberband = (value, min, max, constant = 0.55) => {
+          if (value < min) {
+            const diff = min - value;
+            return min - (diff * constant / (diff + 200)) * 200;
+          }
+          if (value > max) {
+            const diff = value - max;
+            return max + (diff * constant / (diff + 200)) * 200;
+          }
+          return value;
+        };
+
+        const onMove = (event) => {
+          if (!draggingRef.current) return;
+          const state = dragState.current;
+          if (!state.pointerId) return;
+          const dx = event.clientX - state.startX;
+          const dy = event.clientY - state.startY;
+          const width = widthRef.current;
+          if (!width) return;
+
+          if (!state.lock) {
+            const absDx = Math.abs(dx);
+            const absDy = Math.abs(dy);
+            if (absDx > 6 || absDy > 6) {
+              if (absDx > absDy * 1.2) state.lock = 'horizontal';
+              else if (absDy > absDx * 1.2) state.lock = 'vertical';
+            }
+          }
+
+          if (state.lock === 'vertical') {
+            draggingRef.current = false;
+            dragState.current = { pointerId: null, startX: 0, startY: 0, startOffset: 0, lock: null };
+            removeDocListeners();
+            return;
+          }
+
+          if (event.cancelable) event.preventDefault();
+          hasSwipedRef.current = hasSwipedRef.current || Math.abs(dx) > 6;
+
+          const now = event.timeStamp || performance.now();
+          const last = lastMoveRef.current;
+          const dt = Math.max(1, now - last.t);
+          const vx = (event.clientX - last.x) / dt;
+          lastMoveRef.current = { x: event.clientX, t: now, vx };
+
+          const raw = state.startOffset + dx;
+          const threshold = 0.8 * width;
+          const abs = Math.abs(raw);
+
+          if (lockedSide.current) {
+            if (abs < threshold) {
+              lockedSide.current = null;
+              x.set(rubberband(raw, -width, 0));
+            } else {
+              x.set(-width);
+            }
+            return;
+          }
+
+          if (abs > threshold) {
+            lockedSide.current = 'left';
+            x.set(-width);
+            return;
+          }
+
+          const clamped = Math.max(-width, Math.min(0, raw));
+          x.set(rubberband(clamped, -width, 0));
+        };
+
+        const onUp = () => {
+          if (!draggingRef.current) return;
+          draggingRef.current = false;
+          const width = widthRef.current;
+          if (!width) {
+            lockedSide.current = null;
+            x.set(0);
+            removeDocListeners();
+            return;
+          }
+
+          if (lockedSide.current) {
+            onDelete();
+            __ttV4Animate(x, 0, { duration: 0.5, delay: 0.3 });
+            lockedSide.current = null;
+            setOpenSwipeFoodId(null);
+          } else {
+            const current = x.get();
+            const vx = lastMoveRef.current.vx || 0;
+            let target = 0;
+
+            if (vx < -0.5) target = -width * 0.6;
+            else if (vx > 0.5) target = 0;
+            else if (Math.abs(current) > width * 0.3) target = current < 0 ? -width * 0.5 : 0;
+
+            if (target < 0) setOpenSwipeFoodId(rowId);
+            else setOpenSwipeFoodId(null);
+            x.set(target);
+          }
+
+          dragState.current = { pointerId: null, startX: 0, startY: 0, startOffset: 0, lock: null };
+          removeDocListeners();
+        };
+
+        onMoveRef.current = onMove;
+        onUpRef.current = onUp;
+        return () => {
+          removeDocListeners();
+        };
+      }, [rowId, x, removeDocListeners]);
+
+      const handlePointerDown = (event) => {
+        if (dragState.current.pointerId != null) return;
+        if (event.target && event.target.closest && event.target.closest('button')) return;
+        event.stopPropagation();
+        if (event.currentTarget?.setPointerCapture) {
+          event.currentTarget.setPointerCapture(event.pointerId);
+        }
+        dragState.current = {
+          pointerId: event.pointerId,
+          startX: event.clientX,
+          startY: event.clientY,
+          startOffset: x.get(),
+          lock: null
+        };
+        lastMoveRef.current = { x: event.clientX, t: event.timeStamp || performance.now(), vx: 0 };
+        hasSwipedRef.current = false;
+        draggingRef.current = true;
+        addDocListeners();
+      };
+
+      const handleClick = (event) => {
+        if (Math.abs(x.get()) > 4 || hasSwipedRef.current) {
+          event.stopPropagation();
+          return;
+        }
+        if (typeof onRowClick === 'function') onRowClick(event);
+      };
+
+      const actionColRef = React.useRef(null);
+      if (!actionColRef.current) {
+        actionColRef.current = ({ progressValue, side, bgColor, icon, label, onClick, primary }) => {
+          const actionRef = React.useRef(null);
+          const actionWidthRef = React.useRef(0);
+          const offset = __ttV4UseMotionValue(0);
+          const offsetSpring = __ttV4UseSpring(offset, SPRING);
+
+          const computeOffset = React.useCallback((value) => {
+            const width = actionWidthRef.current;
+            if (!primary) return 0;
+            if (Math.abs(value) >= 0.8) return 0;
+            return -(value * width * 0.5);
+          }, [primary]);
+
+          React.useEffect(() => {
+            const update = () => {
+              const node = actionRef.current;
+              if (!node) return;
+              const nextWidth = node.getBoundingClientRect().width;
+              if (nextWidth) {
+                actionWidthRef.current = nextWidth;
+                offset.set(computeOffset(progressValue.get()));
+              }
+            };
+            update();
+            window.addEventListener('resize', update);
+            return () => window.removeEventListener('resize', update);
+          }, [computeOffset, progressValue, offset]);
+
+          React.useEffect(() => {
+            const unsubscribe = progressValue.on('change', (value) => {
+              offset.set(computeOffset(value));
+            });
+            return () => unsubscribe();
+          }, [computeOffset, progressValue, offset]);
+
+          const primaryOpacity = primary ? 1 : 0;
+          const opacity = __ttV4UseTransform(
+            progressValue,
+            [-1, -0.8, -0.5, -0.25, 0.25, 0.5, 0.8, 1],
+            [primaryOpacity, 1, 1, 0, 0, 1, 1, primaryOpacity]
+          );
+          const opacitySpring = __ttV4UseSpring(opacity, SPRING);
+
+          const xShift = __ttV4UseTransform(progressValue, [-1, -0.8, -0.5, 0.5, 0.8, 1], [0, 16, 0, 0, -16, 0]);
+          const xSpring = __ttV4UseSpring(xShift, SPRING);
+
+          const scale = __ttV4UseTransform(progressValue, [-1, -0.8, 0, 0.8, 1], [1, 0.8, 1, 0.8, 1]);
+          const scaleSpring = __ttV4UseSpring(scale, SPRING);
+
+          return React.createElement(
+            __ttV4Motion.div,
+            {
+              ref: actionRef,
+              style: {
+                position: 'absolute',
+                inset: 0,
+                display: 'flex',
+                justifyContent: side === 'right' ? 'flex-start' : 'flex-end',
+                backgroundColor: bgColor,
+                x: offsetSpring
+              }
+            },
+            React.createElement(
+              __ttV4Motion.div,
+              {
+                style: {
+                  height: '100%',
+                  width: '25%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }
+              },
+              React.createElement(
+                __ttV4Motion.button,
+                {
+                  'data-swipe-action': 'true',
+                  type: 'button',
+                  onClick,
+                  whileTap: { scale: 0.92 },
+                  style: {
+                    background: 'transparent',
+                    border: 'none',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexDirection: 'column',
+                    gap: 4,
+                    color: 'var(--tt-text-primary)',
+                    pointerEvents: 'auto'
+                  }
+                },
+                React.createElement(
+                  __ttV4Motion.span,
+                  {
+                    style: {
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: 4,
+                      opacity: opacitySpring,
+                      scale: scaleSpring,
+                      x: xSpring,
+                      transformOrigin: side === 'right' ? 'right' : 'left',
+                      fontSize: 12
+                    }
+                  },
+                  icon,
+                  label
+                )
+              )
+            )
+          );
+        };
+      }
+      const ActionColumn = actionColRef.current;
+
+      const EditIcon = React.createElement('svg', {
+        width: 24,
+        height: 24,
+        viewBox: '0 0 256 256',
+        fill: 'currentColor',
+        xmlns: 'http://www.w3.org/2000/svg'
+      },
+        React.createElement('path', {
+          d: 'M227.32,73.37,182.63,28.69a16,16,0,0,0-22.63,0L36.69,152A15.86,15.86,0,0,0,32,163.31V208a16,16,0,0,0,16,16H216a8,8,0,0,0,0-16H115.32l112-112A16,16,0,0,0,227.32,73.37ZM92.69,208H48V163.31l88-88L180.69,120ZM192,108.69,147.32,64l24-24L216,84.69Z'
+        })
+      );
+      const DeleteIcon = React.createElement('svg', {
+        width: 24,
+        height: 24,
+        viewBox: '0 0 256 256',
+        fill: 'currentColor',
+        xmlns: 'http://www.w3.org/2000/svg'
+      },
+        React.createElement('path', {
+          d: 'M216,48H176V40a24,24,0,0,0-24-24H104A24,24,0,0,0,80,40v8H40a8,8,0,0,0,0,16h8V208a16,16,0,0,0,16,16H192a16,16,0,0,0,16-16V64h8a8,8,0,0,0,0-16ZM96,40a8,8,0,0,1,8-8h48a8,8,0,0,1,8,8v8H96Zm96,168H64V64H192ZM112,104v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Zm48,0v64a8,8,0,0,1-16,0V104a8,8,0,0,1,16,0Z'
+        })
+      );
+
+      return React.createElement('div', {
+        ref: containerRef,
+        className: "relative w-full min-h-[72px] rounded-2xl overflow-hidden",
+        style: { backgroundColor: 'var(--tt-input-bg)', border: '1px solid var(--tt-card-border)', touchAction: 'pan-y' },
+        onPointerDown: handlePointerDown
+      },
+        React.createElement(__ttV4Motion.div, {
+          style: {
+            position: 'absolute',
+            inset: 0,
+            left: '100%',
+            display: 'flex',
+            width: '100%',
+            x: smoothX
+          }
+        },
+          React.createElement(ActionColumn, {
+            progressValue: progress,
+            side: 'right',
+            primary: false,
+            bgColor: 'var(--tt-positive-alt)',
+            icon: EditIcon,
+            label: 'Edit',
+            onClick: (e) => {
+              e.stopPropagation();
+              onEdit();
+            }
+          }),
+          React.createElement(ActionColumn, {
+            progressValue: progress,
+            side: 'right',
+            primary: true,
+            bgColor: 'var(--tt-negative-warm)',
+            icon: DeleteIcon,
+            label: 'Delete',
+            onClick: (e) => {
+              e.stopPropagation();
+              onDelete();
+              setOpenSwipeFoodId(null);
+              __ttV4Animate(x, 0, SPRING);
+            }
+          })
+        ),
+        React.createElement(__ttV4Motion.div, {
+          ref: contentRef,
+          style: { x: smoothX, position: 'relative', zIndex: 10, touchAction: 'pan-y' },
+          onClick: handleClick
+        }, children)
+      );
+      };
+    }
+    const SolidsSwipeRow = solidsSwipeRowRef.current;
+
     const solidsStepThree = React.createElement('div', { className: "space-y-4" },
       React.createElement('div', { className: "flex flex-col gap-2" },
         addedFoods.map((food) => {
+          const rowId = String(food.id);
           const hasSummary = food.preparation || food.amount || food.reaction;
           const foodDef = FOOD_MAP[food.id] || food;
           const iconKey = foodDef?.icon || food?.icon || null;
           const IconComp = iconKey ? (window.TT?.shared?.icons?.[iconKey] || null) : null;
           const emoji = foodDef?.emoji || food?.emoji || (!IconComp ? '🍽️' : null);
-          return React.createElement('button', {
-            key: food.id,
-            type: 'button',
-            onClick: () => setDetailFoodId(String(food.id)),
-            className: "w-full rounded-2xl px-5 py-4 text-left",
-            style: {
-              backgroundColor: 'var(--tt-input-bg)',
-              border: '1px solid var(--tt-card-border)'
-            }
+          return React.createElement(SolidsSwipeRow, {
+            key: rowId,
+            rowId,
+            onRowClick: () => setDetailFoodId(rowId),
+            onEdit: () => setDetailFoodId(rowId),
+            onDelete: () => removeFoodById(food.id),
+            openSwipeFoodId,
+            setOpenSwipeFoodId
           },
-            React.createElement('div', { className: "flex items-center justify-between" },
-              React.createElement('div', { className: "flex items-center gap-3" },
-                React.createElement('div', {
-                  className: "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative flex-shrink-0",
-                  style: {
-                    backgroundColor: 'color-mix(in srgb, var(--tt-solids) 20%, transparent)',
-                    fontSize: 20,
-                    lineHeight: '20px',
-                    color: 'var(--tt-solids)'
-                  }
-                }, IconComp
-                  ? React.createElement(IconComp, { width: 20, height: 20, color: 'currentColor' })
-                  : emoji),
-                React.createElement('div', null,
+            React.createElement('div', {
+              className: "w-full px-5 py-4 text-left",
+              style: { backgroundColor: 'var(--tt-input-bg)' }
+            },
+              React.createElement('div', { className: "flex items-center justify-between" },
+                React.createElement('div', { className: "flex items-center gap-3" },
                   React.createElement('div', {
-                    className: "font-medium",
-                    style: { color: 'var(--tt-text-primary)' }
-                  }, food.name),
-                  hasSummary && React.createElement('div', {
-                    className: "text-sm mt-1",
-                    style: { color: 'var(--tt-text-tertiary)' }
-                  },
-                    [food.preparation, food.amount, food.reaction].filter(Boolean).join(' \u00B7 ')
+                    className: "w-10 h-10 rounded-full flex items-center justify-center shadow-inner relative flex-shrink-0",
+                    style: {
+                      backgroundColor: 'color-mix(in srgb, var(--tt-solids) 20%, transparent)',
+                      fontSize: 20,
+                      lineHeight: '20px',
+                      color: 'var(--tt-solids)'
+                    }
+                  }, IconComp
+                    ? React.createElement(IconComp, { width: 20, height: 20, color: 'currentColor' })
+                    : emoji),
+                  React.createElement('div', null,
+                    React.createElement('div', {
+                      className: "font-medium",
+                      style: { color: 'var(--tt-text-primary)' }
+                    }, food.name),
+                    hasSummary && React.createElement('div', {
+                      className: "text-sm mt-1",
+                      style: { color: 'var(--tt-text-tertiary)' }
+                    },
+                      [food.preparation, food.amount, food.reaction].filter(Boolean).join(' \u00B7 ')
+                    )
                   )
-                )
-              ),
-              React.createElement('svg', {
-                className: "w-5 h-5",
-                fill: "none",
-                stroke: "currentColor",
-                viewBox: "0 0 24 24",
-                style: { color: 'var(--tt-text-tertiary)' }
-              }, React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" }))
+                ),
+                React.createElement('svg', {
+                  className: "w-5 h-5",
+                  fill: "none",
+                  stroke: "currentColor",
+                  viewBox: "0 0 24 24",
+                  style: { color: 'var(--tt-text-tertiary)' }
+                }, React.createElement('path', { strokeLinecap: "round", strokeLinejoin: "round", strokeWidth: 2, d: "M9 5l7 7-7 7" }))
+              )
             )
           );
         })
