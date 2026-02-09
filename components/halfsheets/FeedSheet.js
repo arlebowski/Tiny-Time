@@ -2096,7 +2096,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     },
       displayFood && React.createElement('div', { style: { padding: '0 16px' } },
         React.createElement('div', null,
-          React.createElement('div', { style: { fontSize: 13, color: 'var(--tt-text-tertiary)', marginBottom: 12, fontWeight: 500 } }, 'Preparation'),
+          React.createElement('div', { style: { fontSize: 12, color: 'var(--tt-text-secondary)', marginBottom: 12 } }, 'Preparation'),
           React.createElement('div', { className: "flex overflow-x-auto pb-1", style: { gap: 5 } },
             SOLIDS_PREP_METHODS.map((method) =>
               React.createElement(SolidsDetailChip, {
@@ -2111,7 +2111,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           )
         ),
         React.createElement('div', { className: "mt-6" },
-          React.createElement('div', { style: { fontSize: 13, color: 'var(--tt-text-tertiary)', marginBottom: 12, fontWeight: 500 } }, 'Amount'),
+          React.createElement('div', { style: { fontSize: 12, color: 'var(--tt-text-secondary)', marginBottom: 12 } }, 'Amount'),
           React.createElement('div', { className: "flex overflow-x-auto pb-1", style: { gap: 5 } },
             SOLIDS_AMOUNTS.map((amount) =>
               React.createElement(SolidsDetailChip, {
@@ -2127,7 +2127,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           )
         ),
         React.createElement('div', { className: "mt-6" },
-          React.createElement('div', { style: { fontSize: 13, color: 'var(--tt-text-tertiary)', marginBottom: 12, fontWeight: 500 } }, 'Reaction'),
+          React.createElement('div', { style: { fontSize: 12, color: 'var(--tt-text-secondary)', marginBottom: 12 } }, 'Reaction'),
           React.createElement('div', { className: "flex overflow-x-auto pb-1", style: { gap: 5 } },
             SOLIDS_REACTIONS.map((reaction) =>
               React.createElement(SolidsReactionButton, {

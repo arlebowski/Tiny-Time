@@ -4078,7 +4078,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           themeKey,
           onThemeChange: setThemeKey,
           requestAddChild: headerRequestedAddChild,
-          onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
+          onRequestAddChildHandled: () => setHeaderRequestedAddChild(false),
+          onRequestToggleActivitySheet: handleToggleActivitySheet
         }),
         
       )

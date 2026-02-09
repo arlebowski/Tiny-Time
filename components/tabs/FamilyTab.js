@@ -7,7 +7,8 @@ const FamilyTab = ({
   themeKey,
   onThemeChange,
   requestAddChild,
-  onRequestAddChildHandled
+  onRequestAddChildHandled,
+  onRequestToggleActivitySheet
 }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
@@ -51,6 +52,7 @@ const FamilyTab = ({
   const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
   const TTEditIcon = window.TT?.shared?.icons?.Edit2 || window.Edit2;
   const BabyIcon = window.TT?.shared?.icons?.BabyIcon || null;
+  const ChevronRightIcon = window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon || null;
 
   // Consistent icon-button styling for edit actions (✓ / ✕)
   const TT_ICON_BTN_BASE =
@@ -85,6 +87,11 @@ const FamilyTab = ({
 
   const autoSleepTargetHrs = Number(sleepSettings?.sleepTargetAutoHours || 14);
   const sleepTargetOverride = !!sleepSettings?.sleepTargetIsOverride;
+  const handleOpenActivityVisibility = () => {
+    if (typeof onRequestToggleActivitySheet === 'function') {
+      onRequestToggleActivitySheet();
+    }
+  };
 
   const formatSleepTargetDisplay = (value) => {
     const num = Number(value);
@@ -1583,6 +1590,30 @@ const FamilyTab = ({
           variant: 'body',
           size: 'medium'
         })
+      ),
+      React.createElement(
+        'div',
+        { className: 'mt-4 pt-4 border-t', style: { borderColor: 'var(--tt-card-border)' } },
+        React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Activity visibility'),
+        React.createElement(
+          'button',
+          {
+            type: 'button',
+            onClick: handleOpenActivityVisibility,
+            className: "w-full flex items-center justify-between rounded-2xl p-4 transition tt-tapable",
+            style: { backgroundColor: 'var(--tt-input-bg)' },
+            'aria-label': 'Show & hide activities'
+          },
+          React.createElement(
+            'div',
+            { className: "flex flex-col items-start" },
+            React.createElement('div', { className: "text-sm font-medium", style: { color: 'var(--tt-text-primary)' } }, 'Show & hide activities'),
+            React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, 'Choose which Tracker cards appear')
+          ),
+          ChevronRightIcon
+            ? React.createElement(ChevronRightIcon, { className: "w-4 h-4", style: { color: 'var(--tt-text-secondary)' } })
+            : React.createElement('span', { style: { color: 'var(--tt-text-secondary)' } }, '›')
+        )
       ),
 
         sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t", style: { borderColor: 'var(--tt-card-border)' } },
