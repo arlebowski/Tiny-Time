@@ -226,7 +226,12 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const [recentFoods, setRecentFoods] = React.useState([]);
     const [customFoods, setCustomFoods] = React.useState([]);
     const solidsSheetRef = React.useRef(null);
+    const solidsHeaderRef = React.useRef(null);
+    const solidsContentRef = React.useRef(null);
+    const solidsStepTwoMotionRef = React.useRef(null);
     const [solidsSheetBaseHeight, setSolidsSheetBaseHeight] = React.useState(null);
+    const [solidsHeaderHeight, setSolidsHeaderHeight] = React.useState(0);
+    const [solidsFooterHeight, setSolidsFooterHeight] = React.useState(0);
     const [solidsStep2Pad, setSolidsStep2Pad] = React.useState(0);
 
     // Wheel picker trays (feature flagged)
@@ -796,6 +801,72 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       ro.observe(node);
       return () => ro.disconnect();
     }, [isSolids, solidsStep, addedFoods.length, notesExpanded, photosExpanded, notesWrappedLines]);
+
+    React.useEffect(() => {
+      if (!isSolids) return;
+      const headerEl = solidsHeaderRef.current;
+      if (!headerEl) return;
+      const update = () => {
+        const rect = headerEl.getBoundingClientRect();
+        setSolidsHeaderHeight(rect && rect.height ? Math.round(rect.height) : 0);
+      };
+      update();
+      if (typeof ResizeObserver === 'undefined') return;
+      const ro = new ResizeObserver(() => update());
+      ro.observe(headerEl);
+      return () => ro.disconnect();
+    }, [isSolids]);
+
+    React.useEffect(() => {
+      if (!isSolids) return;
+      if (solidsStep === 2) {
+        setSolidsFooterHeight(0);
+        return;
+      }
+      const footerEl = ctaFooterRef.current;
+      if (!footerEl || isKeyboardOpen) {
+        setSolidsFooterHeight(0);
+        return;
+      }
+      const update = () => {
+        const rect = footerEl.getBoundingClientRect();
+        setSolidsFooterHeight(rect && rect.height ? Math.round(rect.height) : 0);
+      };
+      update();
+      if (typeof ResizeObserver === 'undefined') return;
+      const ro = new ResizeObserver(() => update());
+      ro.observe(footerEl);
+      return () => ro.disconnect();
+    }, [isSolids, isKeyboardOpen, solidsStep]);
+
+    React.useEffect(() => {
+      if (!isSolids) return;
+      const sheetEl = solidsSheetRef.current;
+      const wrapperEl = solidsContentRef.current;
+      const step2MotionEl = solidsStepTwoMotionRef.current;
+      const footerEl = ctaFooterRef.current;
+      const log = (label) => {
+        if (!sheetEl) return;
+        const sheetRect = sheetEl.getBoundingClientRect();
+        const wrapperRect = wrapperEl ? wrapperEl.getBoundingClientRect() : null;
+        const step2Rect = step2MotionEl ? step2MotionEl.getBoundingClientRect() : null;
+        const footerRect = footerEl ? footerEl.getBoundingClientRect() : null;
+        console.log('[SolidsHeightDebug]', {
+          label,
+          solidsStep,
+          sheetHeight: Math.round(sheetRect.height),
+          wrapperHeight: wrapperRect ? Math.round(wrapperRect.height) : null,
+          step2MotionHeight: step2Rect ? Math.round(step2Rect.height) : null,
+          step2MotionScrollHeight: step2MotionEl ? step2MotionEl.scrollHeight : null,
+          step2MotionClientHeight: step2MotionEl ? step2MotionEl.clientHeight : null,
+          footerHeight: footerRect ? Math.round(footerRect.height) : null,
+          viewportHeight: window.innerHeight
+        });
+      };
+      log('effect');
+      window.requestAnimationFrame(() => log('raf'));
+    }, [isSolids, solidsStep, solidsSheetBaseHeight]);
+
 
     React.useEffect(() => {
       if (!isSolids) return;
@@ -1706,6 +1777,16 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
     const solidsStepTwo = React.createElement('div', { className: "space-y-4" },
       React.createElement('div', {
+        style: {
+          position: 'sticky',
+          top: 0,
+          zIndex: 5,
+          backgroundColor: 'var(--tt-halfsheet-bg)',
+          paddingTop: 4,
+          paddingBottom: 8
+        }
+      },
+      React.createElement('div', {
         className: "flex items-center gap-3 px-4 py-3 rounded-2xl",
         style: { backgroundColor: 'var(--tt-input-bg)' }
       },
@@ -1723,8 +1804,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           className: "flex-1 bg-transparent outline-none text-sm",
           style: { color: 'var(--tt-text-primary)' }
         })
-      ),
-      React.createElement('div', { className: "grid grid-cols-4 gap-3" },
+      )),
+      React.createElement('div', { className: "grid grid-cols-3 gap-3" },
         solidsFilteredFoods.map((food) => {
           const selected = isFoodSelected(food.id);
           return React.createElement(FoodTile, {
@@ -1935,7 +2016,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             height: '100%',
             overflowY: 'auto',
             boxSizing: 'border-box',
-            paddingBottom: `calc(env(safe-area-inset-bottom, 0) + ${solidsStep2Pad}px)`
+            paddingBottom: `calc(env(safe-area-inset-bottom, 0) + ${solidsFooterHeight || 0}px)`
           }
         };
       }
@@ -1951,26 +2032,41 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
     const solidsContainerStyle = {
       display: 'grid',
+      gridTemplateRows: '1fr',
       overflow: 'hidden',
       position: 'relative',
       flex: 1,
-      minHeight: 0
+      minHeight: 0,
+      height: '100%'
     };
 
     const solidsContent = React.createElement(
       'div',
       { style: solidsContainerStyle },
       React.createElement(__ttV4Motion.div, solidsSlideProps(1), solidsStepOne),
-      React.createElement(__ttV4Motion.div, solidsSlideProps(2), solidsStepTwo),
+      React.createElement(__ttV4Motion.div, { ...solidsSlideProps(2), ref: solidsStepTwoMotionRef }, solidsStepTwo),
       React.createElement(__ttV4Motion.div, solidsSlideProps(3), solidsStepThree)
     );
+
+    const solidsContentWrapperHeight = (solidsSheetBaseHeight && solidsHeaderHeight >= 0)
+      ? Math.max(0, solidsSheetBaseHeight - solidsHeaderHeight - (solidsFooterHeight || 0))
+      : null;
+    const solidsContentWrapper = React.createElement('div', {
+      ref: solidsContentRef,
+      style: {
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        height: solidsContentWrapperHeight ? `${solidsContentWrapperHeight}px` : undefined
+      }
+    }, solidsContent);
 
     // Body content (used in both static and overlay modes)
     const contentBlock = React.createElement(
       React.Fragment,
       null,
       feedTypePicker,
-      isSolids ? solidsContent : (isNursing ? nursingContent : bottleContent),
+      isSolids ? solidsContentWrapper : (isNursing ? nursingContent : bottleContent),
       isSolids && solidsDetailSheet
     );
 
@@ -2018,13 +2114,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       }
     }, saving ? 'Saving...' : (isSolids && solidsCta ? solidsCta.label : saveButtonLabel));
 
-    const shouldShowCtaFooter = !!ctaButton || (isSolids && solidsStep === 2);
-    const ctaFooterContent = ctaButton || React.createElement('button', {
-      type: 'button',
-      disabled: true,
-      className: "w-full text-white py-3 rounded-2xl font-semibold",
-      style: { visibility: 'hidden' }
-    }, 'Spacer');
+    const shouldShowCtaFooter = !!ctaButton;
+    const ctaFooterContent = ctaButton;
 
     const solidsSheetHeightStyle = (isSolids && solidsSheetBaseHeight)
       ? (solidsStep === 2
@@ -2274,6 +2365,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 }
               },
               React.createElement('div', {
+                ref: solidsHeaderRef,
                 className: "",
                 style: {
                   backgroundColor: accentColor,
