@@ -12,18 +12,7 @@ const FamilyTab = ({
 }) => {
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
-  const [settings, setSettings] = useState({ babyWeight: null, multiplier: 2.5, preferredVolumeUnit: 'oz' });
-  const [sleepTargetInput, setSleepTargetInput] = useState(null);
-  const [daySleepStartMin, setDaySleepStartMin] = useState(390);
-  const [daySleepEndMin, setDaySleepEndMin] = useState(1170);
-  const [sleepSettings, setSleepSettings] = useState(null);
-  const [isEditingSleepTarget, setIsEditingSleepTarget] = useState(false);
-  const [sleepTargetLastSaved, setSleepTargetLastSaved] = useState('');
-  const [sleepTargetDraftOverride, setSleepTargetDraftOverride] = useState(false);
-  const [editingDayStart, setEditingDayStart] = useState(false);
-  const [editingDayEnd, setEditingDayEnd] = useState(false);
-  const [tempDayStartInput, setTempDayStartInput] = useState('');
-  const [tempDayEndInput, setTempDayEndInput] = useState('');
+  const [settings, setSettings] = useState({ babyWeight: null, preferredVolumeUnit: 'oz' });
   const [loading, setLoading] = useState(true);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
   const [showUILab, setShowUILab] = useState(false);
@@ -49,7 +38,6 @@ const FamilyTab = ({
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
   const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
   const DatePickerTray = window.TT?.shared?.pickers?.DatePickerTray || null;
-  const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
   const TTEditIcon = window.TT?.shared?.icons?.Edit2 || window.Edit2;
   const BabyIcon = window.TT?.shared?.icons?.BabyIcon || null;
   const ChevronRightIcon = window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon || null;
@@ -66,13 +54,11 @@ const FamilyTab = ({
   const [editingName, setEditingName] = useState(false);
   const [editingBirthDate, setEditingBirthDate] = useState(false);
   const [editingWeight, setEditingWeight] = useState(false);
-  const [editingMultiplier, setEditingMultiplier] = useState(false);
 
   // Temp fields
   const [tempBabyName, setTempBabyName] = useState(null);
   const [tempBirthDate, setTempBirthDate] = useState('');
   const [tempWeight, setTempWeight] = useState(null);
-  const [tempMultiplier, setTempMultiplier] = useState(null);
 
   const fileInputRef = React.useRef(null);
   // Add Child modal state
@@ -82,21 +68,10 @@ const FamilyTab = ({
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
   const [savingChild, setSavingChild] = useState(false);
   const [showBirthDatePicker, setShowBirthDatePicker] = useState(false);
-  const [showDayStartPicker, setShowDayStartPicker] = useState(false);
-  const [showDayEndPicker, setShowDayEndPicker] = useState(false);
-
-  const autoSleepTargetHrs = Number(sleepSettings?.sleepTargetAutoHours || 14);
-  const sleepTargetOverride = !!sleepSettings?.sleepTargetIsOverride;
   const handleOpenActivityVisibility = () => {
     if (typeof onRequestToggleActivitySheet === 'function') {
       onRequestToggleActivitySheet();
     }
-  };
-
-  const formatSleepTargetDisplay = (value) => {
-    const num = Number(value);
-    if (!Number.isFinite(num)) return '';
-    return Number.isInteger(num) ? String(num) : num.toFixed(1);
   };
 
   const COLOR_DEFINITIONS = (window.TT && window.TT.themeTokens && window.TT.themeTokens.ACCENT_COLOR_DEFINITIONS)
@@ -193,55 +168,6 @@ const FamilyTab = ({
     }
   }, [requestAddChild, onRequestAddChildHandled]);
 
-  useEffect(() => {
-    if (!sleepSettings) return;
-    const auto = Number(sleepSettings.sleepTargetAutoHours || 14);
-    const current = sleepSettings.sleepTargetHours ?? auto;
-    const formatted = formatSleepTargetDisplay(current);
-    setSleepTargetInput(formatted);
-    setSleepTargetLastSaved(formatted);
-    setIsEditingSleepTarget(false);
-    setSleepTargetDraftOverride(false);
-    setDaySleepStartMin(Number(sleepSettings.sleepDayStart ?? 390));
-    setDaySleepEndMin(Number(sleepSettings.sleepDayEnd ?? 1170));
-  }, [sleepSettings]);
-
-  useEffect(() => {
-    if (!editingDayStart) {
-      setTempDayStartInput(minutesToTimeValue(daySleepStartMin));
-    }
-    if (!editingDayEnd) {
-      setTempDayEndInput(minutesToTimeValue(daySleepEndMin));
-    }
-  }, [daySleepStartMin, daySleepEndMin, editingDayStart, editingDayEnd]);
-
-  const minutesToLabel = (m) => {
-    const mm = ((Number(m) % 1440) + 1440) % 1440;
-    const h24 = Math.floor(mm / 60);
-    const min = mm % 60;
-    const ampm = h24 >= 12 ? "PM" : "AM";
-    const h12 = ((h24 + 11) % 12) + 1;
-    return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
-  };
-
-  const minutesToTimeValue = (m) => {
-    const mm = ((Number(m) % 1440) + 1440) % 1440;
-    const h24 = Math.floor(mm / 60);
-    const min = mm % 60;
-    return `${String(h24).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
-  };
-
-  const parseTimeInput = (value) => {
-    if (!value || typeof value !== "string") return null;
-    const [hStr, mStr] = value.split(":");
-    const h = Number(hStr);
-    const m = Number(mStr);
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-    return clamp(h * 60 + m, 0, 1439);
-  };
-
-  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-
   const dateStringToIso = (value) => {
     if (!value) return null;
     try {
@@ -260,24 +186,6 @@ const FamilyTab = ({
     }
   };
 
-  const timeValueToIso = (value) => {
-    const mins = parseTimeInput(value);
-    if (mins == null) return null;
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setMinutes(mins);
-    return d.toISOString();
-  };
-
-  const isoToMinutes = (value) => {
-    if (!value) return null;
-    try {
-      const d = new Date(value);
-      return d.getHours() * 60 + d.getMinutes();
-    } catch {
-      return null;
-    }
-  };
 
   const formatAgeFromDate = (birthDate) => {
     if (!birthDate) return '';
@@ -291,28 +199,6 @@ const FamilyTab = ({
     if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks old`;
     const months = Math.floor(diffDays / 30);
     return `${months} month${months === 1 ? '' : 's'} old`;
-  };
-
-  const saveDaySleepWindow = async (startMin, endMin) => {
-    const startVal = clamp(Number(startMin), 0, 1439);
-    const endVal = clamp(Number(endMin), 0, 1439);
-    setDaySleepStartMin(startVal);
-    setDaySleepEndMin(endVal);
-    try {
-      await firestoreStorage.updateSleepSettings({
-        sleepDayStart: startVal,
-        sleepDayEnd: endVal,
-      });
-      setSleepSettings((prev) => ({
-        ...(prev || {}),
-        sleepDayStart: startVal,
-        sleepDayEnd: endVal,
-        daySleepStartMinutes: startVal,
-        daySleepEndMinutes: endVal
-      }));
-    } catch (e) {
-      console.error("Error saving day sleep window:", e);
-    }
   };
 
   const loadData = async () => {
@@ -335,10 +221,6 @@ const FamilyTab = ({
             typeof settingsData.babyWeight === 'number'
               ? settingsData.babyWeight
               : null,
-          multiplier:
-            typeof settingsData.multiplier === 'number'
-              ? settingsData.multiplier
-              : 2.5,
           themeKey: settingsData.themeKey || themeKey || 'indigo',
           preferredVolumeUnit: (settingsData.preferredVolumeUnit === 'ml') ? 'ml' : 'oz'
         };
@@ -351,7 +233,6 @@ const FamilyTab = ({
       } else {
         const merged = {
           babyWeight: null,
-          multiplier: 2.5,
           themeKey: themeKey || 'indigo',
           preferredVolumeUnit: 'oz'
         };
@@ -361,8 +242,6 @@ const FamilyTab = ({
         } catch (e) {}
       }
 
-      const ss = await firestoreStorage.getSleepSettings();
-      if (ss) setSleepSettings(ss);
     } catch (error) {
       console.error('Error loading family tab:', error);
     } finally {
@@ -389,11 +268,6 @@ const FamilyTab = ({
   const handleWeightChange = (nextValue) => {
     if (!editingWeight) setEditingWeight(true);
     setTempWeight(nextValue);
-  };
-
-  const handleMultiplierChange = (nextValue) => {
-    if (!editingMultiplier) setEditingMultiplier(true);
-    setTempMultiplier(nextValue);
   };
 
   // --------------------------------------
@@ -450,7 +324,6 @@ const FamilyTab = ({
         .doc('default')
         .set({
           babyWeight: weight,
-          multiplier: 2.5,
           preferredVolumeUnit: 'oz',
           themeKey: defaultTheme,
           createdAt: firebase.firestore.FieldValue.serverTimestamp()
@@ -550,36 +423,6 @@ const FamilyTab = ({
     }
   };
 
-  const handleUpdateMultiplier = async () => {
-    if (tempMultiplier === null) {
-      setEditingMultiplier(false);
-      return;
-    }
-    const raw = String(tempMultiplier).trim();
-    if (!raw) {
-      setTempMultiplier(null);
-      setEditingMultiplier(false);
-      return;
-    }
-    const mult = parseFloat(raw);
-    if (!mult || mult <= 0) {
-      setTempMultiplier(settings.multiplier?.toString() || null);
-      setEditingMultiplier(false);
-      return;
-    }
-    try {
-      await firestoreStorage.saveSettings({
-        ...settings,
-        multiplier: mult
-      });
-      setSettings((prev) => ({ ...prev, multiplier: mult }));
-      setTempMultiplier(null);
-      setEditingMultiplier(false);
-    } catch (error) {
-      console.error('Error updating multiplier:', error);
-    }
-  };
-
   const handleVolumeUnitChange = async (nextUnit) => {
     const unit = nextUnit === 'ml' ? 'ml' : 'oz';
     try {
@@ -600,71 +443,6 @@ const FamilyTab = ({
     }
   };
 
-
-  const saveSleepTargetOverride = async (value) => {
-    const hrs = parseFloat(value);
-    const fallback = formatSleepTargetDisplay(autoSleepTargetHrs);
-
-    if (!hrs || hrs <= 0) {
-      alert('Please enter a valid daily sleep target.');
-      setSleepTargetInput(fallback);
-      return;
-    }
-
-    const isSameAsAuto = Math.abs(hrs - autoSleepTargetHrs) < 0.05;
-
-    try {
-      if (isSameAsAuto) {
-        await firestoreStorage.setSleepTargetOverride(kidId, null);
-      } else {
-        await firestoreStorage.setSleepTargetOverride(kidId, hrs);
-      }
-      await loadData();
-    } catch (error) {
-      console.error('Error saving sleep target override:', error);
-    }
-  };
-
-  const handleRevertSleepTarget = async () => {
-    try {
-      await firestoreStorage.setSleepTargetOverride(kidId, null);
-      await loadData();
-      setIsEditingSleepTarget(false);
-      setSleepTargetDraftOverride(false);
-    } catch (error) {
-      console.error('Error reverting to recommended sleep target:', error);
-    }
-  };
-
-  const handleSleepTargetChange = (nextValue) => {
-    if (!isEditingSleepTarget) setIsEditingSleepTarget(true);
-    setSleepTargetInput(nextValue);
-  };
-
-  const handleUpdateSleepTarget = async () => {
-    if (sleepTargetInput === null) {
-      setIsEditingSleepTarget(false);
-      return;
-    }
-    const raw = String(sleepTargetInput).trim();
-    if (!raw) {
-      const fallback = sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs);
-      setSleepTargetInput(fallback);
-      setIsEditingSleepTarget(false);
-      return;
-    }
-    const n = parseFloat(raw);
-    if (!n || n <= 0) {
-      const fallback = sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs);
-      setSleepTargetInput(fallback);
-      setIsEditingSleepTarget(false);
-      return;
-    }
-    setSleepTargetDraftOverride(Math.abs(n - autoSleepTargetHrs) >= 0.05);
-    await saveSleepTargetOverride(raw);
-    setSleepTargetLastSaved(raw);
-    setIsEditingSleepTarget(false);
-  };
 
   // --------------------------------------
   // Photo upload + compression (max ~2MB)
@@ -1086,176 +864,6 @@ const FamilyTab = ({
 
   const activeThemeKey = settings.themeKey || themeKey || 'indigo';
 
-  // Day sleep window (slider UI)
-  // Anything that STARTS inside this window is counted as Day Sleep (naps). Everything else = Night Sleep.
-  // Saved to Firebase on drag end (touchEnd/mouseUp) to avoid spamming writes.
-  const dayStart = clamp(daySleepStartMin, 0, 1439);
-  const dayEnd = clamp(daySleepEndMin, 0, 1439);
-  const startPct = (dayStart / 1440) * 100;
-  const endPct = (dayEnd / 1440) * 100;
-  const leftPct = Math.min(startPct, endPct);
-  const widthPct = Math.abs(endPct - startPct);
-
-  const DaySleepWindowCard = React.createElement(
-    "div",
-    { className: "mt-5" },
-    React.createElement(
-      "div",
-      { className: "flex items-start justify-between gap-3" },
-      React.createElement(
-        "div",
-        null,
-        React.createElement("div", { 
-          className: "text-base font-semibold",
-          style: { color: 'var(--tt-text-primary)' }
-        }, "Day sleep window"),
-        React.createElement(
-          "div",
-          { 
-            className: "text-xs mt-1",
-            style: { color: 'var(--tt-text-secondary)' }
-          },
-          "Sleep that starts between these times counts as ",
-          React.createElement("span", { 
-            className: "font-medium",
-            style: { color: 'var(--tt-text-primary)' }
-          }, "Day Sleep"),
-          " (naps). Everything else counts as ",
-          React.createElement("span", { 
-            className: "font-medium",
-            style: { color: 'var(--tt-text-primary)' }
-          }, "Night Sleep"),
-          "."
-        )
-      )
-    ),
-    // Start/End time rows (TTInputRow + time picker)
-    React.createElement(
-      "div",
-      { className: "grid grid-cols-2 gap-3 mt-4 items-start min-w-0" },
-      React.createElement(
-        "div",
-        { className: "min-w-0" },
-        TTInputRow && React.createElement(TTInputRow, {
-          label: "Start",
-          type: "datetime",
-          icon: TTEditIcon,
-          rawValue: timeValueToIso(tempDayStartInput || minutesToTimeValue(dayStart)),
-          placeholder: minutesToLabel(dayStart),
-          formatDateTime: (iso) => {
-            if (!iso) return minutesToLabel(dayStart);
-            return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-          },
-          useWheelPickers: () => true,
-          pickerMode: "time",
-          onOpenPicker: () => {
-            setEditingDayStart(true);
-            if (!tempDayStartInput) {
-              setTempDayStartInput(minutesToTimeValue(dayStart));
-            }
-            setShowDayStartPicker(true);
-          },
-          onChange: () => {}
-        })
-      ),
-      React.createElement(
-        "div",
-        { className: "min-w-0" },
-        TTInputRow && React.createElement(TTInputRow, {
-          label: "End",
-          type: "datetime",
-          icon: TTEditIcon,
-          rawValue: timeValueToIso(tempDayEndInput || minutesToTimeValue(dayEnd)),
-          placeholder: minutesToLabel(dayEnd),
-          formatDateTime: (iso) => {
-            if (!iso) return minutesToLabel(dayEnd);
-            return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-          },
-          useWheelPickers: () => true,
-          pickerMode: "time",
-          onOpenPicker: () => {
-            setEditingDayEnd(true);
-            if (!tempDayEndInput) {
-              setTempDayEndInput(minutesToTimeValue(dayEnd));
-            }
-            setShowDayEndPicker(true);
-          },
-          onChange: () => {}
-        })
-      )
-    ),
-    // Slider track + selection + handles
-    React.createElement(
-      "div",
-      { className: "mt-4" },
-      React.createElement(
-        "div",
-        { 
-          className: "relative h-12 rounded-2xl overflow-hidden border day-sleep-slider",
-          style: {
-            backgroundColor: 'var(--tt-input-bg)',
-            borderColor: 'var(--tt-card-border)'
-          }
-        },
-        React.createElement("div", { className: "absolute inset-y-0", style: { left: `${leftPct}%`, width: `${widthPct}%`, background: "var(--tt-highlight-indigo-soft)" } }),
-        // left handle visual
-        React.createElement("div", { 
-          className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full shadow-sm border",
-          style: { 
-            left: `calc(${startPct}% - 6px)`,
-            pointerEvents: "none",
-            backgroundColor: 'var(--tt-card-bg)',
-            borderColor: 'var(--tt-card-border)'
-          }
-        }),
-        // right handle visual
-        React.createElement("div", { 
-          className: "absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full shadow-sm border",
-          style: { 
-            left: `calc(${endPct}% - 6px)`,
-            pointerEvents: "none",
-            backgroundColor: 'var(--tt-card-bg)',
-            borderColor: 'var(--tt-card-border)'
-          }
-        }),
-        // two range inputs layered (one controls start, one controls end)
-        React.createElement("input", {
-          type: "range",
-          min: 0,
-          max: 1439,
-          value: daySleepStartMin,
-          onChange: (e) => setDaySleepStartMin(Number(e.target.value)),
-          onMouseUp: (e) => saveDaySleepWindow(Number(e.target.value), daySleepEndMin),
-          onTouchEnd: (e) => saveDaySleepWindow(Number(e.target.value), daySleepEndMin),
-          className: "absolute inset-0 w-full h-full opacity-0"
-        }),
-        React.createElement("input", {
-          type: "range",
-          min: 0,
-          max: 1439,
-          value: daySleepEndMin,
-          onChange: (e) => setDaySleepEndMin(Number(e.target.value)),
-          onMouseUp: (e) => saveDaySleepWindow(daySleepStartMin, Number(e.target.value)),
-          onTouchEnd: (e) => saveDaySleepWindow(daySleepStartMin, Number(e.target.value)),
-          className: "absolute inset-0 w-full h-full opacity-0"
-        })
-      ),
-      React.createElement(
-        "div",
-        { 
-          className: "flex justify-between text-xs mt-2 px-3 select-none",
-          style: { color: 'var(--tt-text-tertiary)' }
-        },
-        React.createElement("span", null, "6AM"),
-        React.createElement("span", null, "9AM"),
-        React.createElement("span", null, "12PM"),
-        React.createElement("span", null, "3PM"),
-        React.createElement("span", null, "6PM"),
-        React.createElement("span", null, "9PM")
-      )
-    )
-  );
-
   return React.createElement(
     'div',
     { className: 'space-y-4 relative' },
@@ -1543,41 +1151,6 @@ const FamilyTab = ({
       ),
       React.createElement(
         'div',
-        { className: 'mt-2' },
-        TTInputRow && React.createElement(TTInputRow, {
-          label: React.createElement(
-            'span',
-            { className: 'inline-flex items-center gap-2' },
-            'Target multiplier (oz/lb)',
-            React.createElement(InfoDot, {
-              onClick: (e) => {
-                if (e && e.stopPropagation) e.stopPropagation();
-                alert(
-                  'Target multiplier (oz/lb)\n\n' +
-                    'This is used to estimate a daily feeding target:\n' +
-                    'weight (lb) × multiplier (oz/lb).\n\n' +
-                    'Common rule-of-thumb for formula is ~2.5 oz per lb per day, but needs vary. If your pediatrician gave you a different plan, use that.'
-                );
-              }
-            })
-          ),
-          type: 'number',
-          icon: TTEditIcon,
-          value: tempMultiplier !== null ? tempMultiplier : (settings.multiplier?.toString() || ''),
-          placeholder: '2.5',
-          onChange: handleMultiplierChange,
-          onFocus: () => setEditingMultiplier(true),
-          onBlur: handleUpdateMultiplier,
-          onKeyDown: (e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              e.currentTarget.blur();
-            }
-          }
-        })
-      ),
-      React.createElement(
-        'div',
         { className: 'mt-4 pt-4 border-t', style: { borderColor: 'var(--tt-card-border)' } },
         React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Feeding unit'),
         window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
@@ -1615,37 +1188,6 @@ const FamilyTab = ({
             : React.createElement('span', { style: { color: 'var(--tt-text-secondary)' } }, '›')
         )
       ),
-
-        sleepSettings && React.createElement('div', { className: "mt-4 pt-4 border-t", style: { borderColor: 'var(--tt-card-border)' } },
-          React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Sleep settings'),
-          TTInputRow && React.createElement(TTInputRow, {
-            label: React.createElement(
-              'span',
-              { className: 'inline-flex items-center gap-2' },
-              'Daily sleep target (hrs)',
-              React.createElement(InfoDot, { onClick: (e) => { if (e && e.stopPropagation) e.stopPropagation(); alert( "Daily sleep target\n\n" + "We auto-suggest a target based on age using widely cited pediatric sleep recommendations for total sleep per 24 hours (including naps).\n\n" + "If your baby’s clinician suggested a different target, you can override it here." ); } })
-            ),
-            type: 'number',
-            value: sleepTargetInput !== null
-              ? sleepTargetInput
-              : (sleepTargetLastSaved || formatSleepTargetDisplay(autoSleepTargetHrs)),
-            placeholder: formatSleepTargetDisplay(autoSleepTargetHrs),
-            onChange: handleSleepTargetChange,
-            onFocus: () => setIsEditingSleepTarget(true),
-            onBlur: handleUpdateSleepTarget,
-            onKeyDown: (e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                e.currentTarget.blur();
-              }
-            }
-          }),
-          sleepSettings?.sleepTargetIsOverride && Math.abs(Number(sleepSettings.sleepTargetHours ?? 0) - Number(sleepSettings.sleepTargetAutoHours ?? 0)) >= 0.05 && React.createElement('div', { className: "flex items-center justify-between mt-2 text-xs", style: { color: 'var(--tt-text-secondary)' } },
-            React.createElement('div', null, `Recommended: ${formatSleepTargetDisplay(sleepSettings.sleepTargetAutoHours)} hrs`),
-            React.createElement('button', { type: 'button', onClick: handleRevertSleepTarget, className: "font-medium hover:opacity-80", style: { color: 'var(--tt-feed)' } }, 'Revert to recommended')
-          ),
-          DaySleepWindowCard
-        )
     ),
 
     // Family Members Card
@@ -1746,42 +1288,6 @@ const FamilyTab = ({
         setTempBirthDate(dateStr);
         setEditingBirthDate(true);
         saveBirthDateFromIso(iso);
-      }
-    }),
-
-    TimePickerTray && React.createElement(TimePickerTray, {
-      isOpen: showDayStartPicker,
-      onClose: () => {
-        setShowDayStartPicker(false);
-        setEditingDayStart(false);
-      },
-      title: 'Start time',
-      value: timeValueToIso(tempDayStartInput || minutesToTimeValue(dayStart)),
-      onChange: (iso) => {
-        const mins = isoToMinutes(iso);
-        if (mins == null) return;
-        setTempDayStartInput(minutesToTimeValue(mins));
-        setEditingDayStart(true);
-        setDaySleepStartMin(mins);
-        saveDaySleepWindow(mins, daySleepEndMin);
-      }
-    }),
-
-    TimePickerTray && React.createElement(TimePickerTray, {
-      isOpen: showDayEndPicker,
-      onClose: () => {
-        setShowDayEndPicker(false);
-        setEditingDayEnd(false);
-      },
-      title: 'End time',
-      value: timeValueToIso(tempDayEndInput || minutesToTimeValue(dayEnd)),
-      onChange: (iso) => {
-        const mins = isoToMinutes(iso);
-        if (mins == null) return;
-        setTempDayEndInput(minutesToTimeValue(mins));
-        setEditingDayEnd(true);
-        setDaySleepEndMin(mins);
-        saveDaySleepWindow(daySleepStartMin, mins);
       }
     }),
 
