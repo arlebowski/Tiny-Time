@@ -437,7 +437,7 @@ window.TT.applyAppearance = function(appearance) {
     return;
   }
 
-  const { darkMode, background, feedAccent, nursingAccent, sleepAccent, diaperAccent } = appearance;
+  const { darkMode, background, feedAccent, nursingAccent, solidsAccent, sleepAccent, diaperAccent } = appearance;
 
   // Toggle dark mode class
   if (darkMode) {
@@ -449,6 +449,7 @@ window.TT.applyAppearance = function(appearance) {
   // Sanitize accent colors (FIX 1: validate hex format before deriving variants)
   const sanitizedFeedAccent = isValidHex(feedAccent) ? feedAccent : DEFAULT_APPEARANCE.feedAccent;
   const sanitizedNursingAccent = isValidHex(nursingAccent) ? nursingAccent : DEFAULT_APPEARANCE.nursingAccent;
+  const sanitizedSolidsAccent = isValidHex(solidsAccent) ? solidsAccent : DEFAULT_APPEARANCE.solidsAccent;
   const sanitizedSleepAccent = isValidHex(sleepAccent) ? sleepAccent : DEFAULT_APPEARANCE.sleepAccent;
   const sanitizedDiaperAccent = isValidHex(diaperAccent) ? diaperAccent : DEFAULT_APPEARANCE.diaperAccent;
 
@@ -464,6 +465,7 @@ window.TT.applyAppearance = function(appearance) {
   // Derive accent variants
   const feedVariants = deriveAccentVariants(sanitizedFeedAccent, darkMode);
   const nursingVariants = deriveAccentVariants(sanitizedNursingAccent, darkMode);
+  const solidsVariants = deriveAccentVariants(sanitizedSolidsAccent, darkMode);
   const sleepVariants = deriveAccentVariants(sanitizedSleepAccent, darkMode);
   const diaperVariants = deriveAccentVariants(sanitizedDiaperAccent, darkMode);
 
@@ -718,6 +720,11 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-nursing', sanitizedNursingAccent);
     root.style.setProperty('--tt-nursing-soft', nursingVariants.soft);
     root.style.setProperty('--tt-nursing-strong', nursingVariants.strong);
+
+    // Solids accents
+    root.style.setProperty('--tt-solids', sanitizedSolidsAccent);
+    root.style.setProperty('--tt-solids-soft', solidsVariants.soft);
+    root.style.setProperty('--tt-solids-strong', solidsVariants.strong);
 
     // Sleep accents
     root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
@@ -988,6 +995,7 @@ const firestoreStorage = {
     nursingSessions: null,
     sleepSessions: null,
     diaperChanges: null,
+    solidsSessions: null,
     lastSyncMs: 0,
     settings: null,
     sleepSettings: null,
@@ -1003,7 +1011,7 @@ const firestoreStorage = {
   _cacheMaxAgeMs: 60000,
   _settingsCacheMaxAgeMs: 300000,
   _setLastFeedVariant(variant) {
-    if (variant !== 'bottle' && variant !== 'nursing') return;
+    if (variant !== 'bottle' && variant !== 'nursing' && variant !== 'solids') return;
     try {
       localStorage.setItem('tt_last_feed_variant', variant);
     } catch (e) {}
@@ -1021,6 +1029,7 @@ const firestoreStorage = {
       nursingSessions: null,
       sleepSessions: null,
       diaperChanges: null,
+      solidsSessions: null,
       lastSyncMs: 0,
       settings: null,
       sleepSettings: null,
@@ -1089,6 +1098,10 @@ const firestoreStorage = {
     return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   },
 
+  _sortSolidsAsc(list) {
+    return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+  },
+
   async _initCache() {
     if (this._cacheState.initPromise) return this._cacheState.initPromise;
     const keyFeed = this._cacheKey('feedings');
@@ -1120,13 +1133,15 @@ const firestoreStorage = {
     const keyNursing = this._cacheKey('nursingSessions');
     const keySleep = this._cacheKey('sleepSessions');
     const keyDiaper = this._cacheKey('diaperChanges');
+    const keySolids = this._cacheKey('solidsSessions');
     const keyMeta = this._cacheKey('meta');
-    if (!keyFeed || !keyNursing || !keySleep || !keyDiaper || !keyMeta) return;
+    if (!keyFeed || !keyNursing || !keySleep || !keyDiaper || !keySolids || !keyMeta) return;
     await Promise.all([
       __ttDataCache.set(keyFeed, this._cacheState.feedings || []),
       __ttDataCache.set(keyNursing, this._cacheState.nursingSessions || []),
       __ttDataCache.set(keySleep, this._cacheState.sleepSessions || []),
       __ttDataCache.set(keyDiaper, this._cacheState.diaperChanges || []),
+      __ttDataCache.set(keySolids, this._cacheState.solidsSessions || []),
       __ttDataCache.set(keyMeta, { lastSyncMs: this._cacheState.lastSyncMs || 0 })
     ]);
   },
@@ -1225,16 +1240,18 @@ const firestoreStorage = {
     }
     if (this._cacheState.refreshPromise) return this._cacheState.refreshPromise;
     this._cacheState.refreshPromise = (async () => {
-      const [feedings, nursingSessions, sleeps, diapers] = await Promise.all([
+      const [feedings, nursingSessions, sleeps, diapers, solids] = await Promise.all([
         this._getAllFeedingsRemote(),
         this._getAllNursingSessionsRemote(),
         this._getAllSleepSessionsRemote(),
-        this._getAllDiaperChangesRemote()
+        this._getAllDiaperChangesRemote(),
+        this._getAllSolidsSessionsRemote()
       ]);
       this._cacheState.feedings = this._sortFeedingsAsc(feedings);
       this._cacheState.nursingSessions = this._sortNursingAsc(nursingSessions);
       this._cacheState.sleepSessions = this._sortSleepAsc(sleeps);
       this._cacheState.diaperChanges = this._sortDiaperAsc(diapers);
+      this._cacheState.solidsSessions = this._sortSolidsAsc(solids);
       this._cacheState.lastSyncMs = Date.now();
       await this._saveCache();
       return true;
@@ -1264,6 +1281,11 @@ const firestoreStorage = {
   async _getCachedDiaperChanges() {
     await this._initCache();
     return Array.isArray(this._cacheState.diaperChanges) ? this._cacheState.diaperChanges : null;
+  },
+
+  async _getCachedSolidsSessions() {
+    await this._initCache();
+    return Array.isArray(this._cacheState.solidsSessions) ? this._cacheState.solidsSessions : null;
   },
 
   // -----------------------
@@ -1796,6 +1818,114 @@ const firestoreStorage = {
   },
 
   // -----------------------
+  // SOLIDS SESSIONS
+  // -----------------------
+  async addSolidsSession({ timestamp, foods, notes = null, photoURLs = null }) {
+    const data = {
+      timestamp: typeof timestamp === 'number' ? timestamp : Date.now(),
+      foods: Array.isArray(foods) ? foods : []
+    };
+    if (notes !== null && notes !== undefined && String(notes).trim() !== '') {
+      data.notes = notes;
+    }
+    if (photoURLs !== null && photoURLs !== undefined && Array.isArray(photoURLs) && photoURLs.length > 0) {
+      data.photoURLs = photoURLs;
+    }
+    const ref = await this._kidRef().collection("solidsSessions").add(data);
+    const item = { id: ref.id, ...data };
+    const cached = await this._getCachedSolidsSessions();
+    if (cached) {
+      this._cacheState.solidsSessions = this._sortSolidsAsc([...cached, item]);
+      await this._saveCache();
+    }
+    logEvent("solids_added", { foodCount: foods.length });
+    this._setLastFeedVariant('solids');
+    return item;
+  },
+
+  async getSolidsSessions() {
+    const cached = await this._getCachedSolidsSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return [...cached].sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+    }
+    const snap = await this._kidRef()
+      .collection("solidsSessions")
+      .orderBy("timestamp", "desc")
+      .get();
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    this._cacheState.solidsSessions = this._sortSolidsAsc(data);
+    this._cacheState.lastSyncMs = Date.now();
+    await this._saveCache();
+    return data;
+  },
+
+  async getSolidsSessionsLastNDays(days) {
+    const cutoff = Date.now() - days * 86400000;
+    const cached = await this._getCachedSolidsSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached.filter((s) => (s.timestamp || 0) > cutoff);
+    }
+    const snap = await this._kidRef()
+      .collection("solidsSessions")
+      .where("timestamp", ">", cutoff)
+      .orderBy("timestamp", "asc")
+      .get();
+    return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  },
+
+  async updateSolidsSession(id, { timestamp, foods, notes = null, photoURLs = null }) {
+    const data = {
+      timestamp: typeof timestamp === 'number' ? timestamp : Date.now(),
+      foods: Array.isArray(foods) ? foods : []
+    };
+    if (notes !== null && notes !== undefined) {
+      if (notes === '') {
+        data.notes = firebase.firestore.FieldValue.delete();
+      } else {
+        data.notes = notes;
+      }
+    }
+    if (photoURLs !== null && photoURLs !== undefined) {
+      if (Array.isArray(photoURLs) && photoURLs.length === 0) {
+        data.photoURLs = firebase.firestore.FieldValue.delete();
+      } else if (Array.isArray(photoURLs)) {
+        data.photoURLs = photoURLs;
+      }
+    }
+    await this._kidRef()
+      .collection("solidsSessions")
+      .doc(id)
+      .update(data);
+    const cached = await this._getCachedSolidsSessions();
+    if (cached) {
+      this._cacheState.solidsSessions = this._sortSolidsAsc(
+        cached.map((s) => (s.id === id ? { ...s, ...data } : s))
+      );
+      await this._saveCache();
+    }
+  },
+
+  async deleteSolidsSession(id) {
+    await this._kidRef().collection("solidsSessions").doc(id).delete();
+    const cached = await this._getCachedSolidsSessions();
+    if (cached) {
+      this._cacheState.solidsSessions = cached.filter((s) => s.id !== id);
+      await this._saveCache();
+    }
+  },
+
+  async getAllSolidsSessions() {
+    const cached = await this._getCachedSolidsSessions();
+    if (cached) {
+      this._refreshCache({ force: false });
+      return cached;
+    }
+    return await this._getAllSolidsSessionsRemote();
+  },
+
+  // -----------------------
   // DIAPER CHANGES
   // -----------------------
   async addDiaperChange({ timestamp, isWet = false, isDry = false, isPoo = false, notes = null, photoURLs = null }) {
@@ -2289,8 +2419,99 @@ const firestoreStorage = {
     this._cacheState.familyMembersSyncMs = Date.now();
     await this._saveSettingsCache();
     return members;
+  },
+
+  // -----------------------
+  // CUSTOM FOODS (Family Level)
+  // -----------------------
+  async addCustomFood({ name, category, icon, emoji }) {
+    if (!this.currentFamilyId) throw new Error('No family ID');
+    const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
+    const data = {
+      name,
+      category: category || 'Custom',
+      icon: icon || null,
+      emoji: emoji || null,
+      isDeleted: false,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    const ref = await familyRef.collection('customFoods').add(data);
+    return { id: ref.id, ...data };
+  },
+
+  async getCustomFoods() {
+    if (!this.currentFamilyId) return [];
+    const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
+    const snap = await familyRef.collection('customFoods').get();
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((item) => !item?.isDeleted);
+  },
+
+  async updateCustomFood(foodId, patch = {}) {
+    if (!this.currentFamilyId) throw new Error('No family ID');
+    if (!foodId) throw new Error('No custom food ID');
+    const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
+    const update = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(update, 'name') && typeof update.name === 'string') {
+      update.name = update.name.trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(update, 'emoji')) {
+      update.emoji = update.emoji || null;
+    }
+    if (Object.prototype.hasOwnProperty.call(update, 'icon')) {
+      update.icon = update.icon || null;
+    }
+    update.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await familyRef.collection('customFoods').doc(foodId).set(update, { merge: true });
+  },
+
+  async deleteCustomFood(foodId) {
+    if (!this.currentFamilyId) throw new Error('No family ID');
+    if (!foodId) throw new Error('No custom food ID');
+    const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
+    await familyRef.collection('customFoods').doc(foodId).set({
+      isDeleted: true,
+      deletedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
+  },
+
+  // -----------------------
+  // RECENT FOODS (Kid Level)
+  // -----------------------
+  async getRecentFoods(options = {}) {
+    const forceServer = !!options.forceServer;
+    if (forceServer) {
+      const remote = await this._getKidDataRemote();
+      this._cacheState.kidData = remote || null;
+      this._cacheState.kidDataSyncMs = Date.now();
+      await this._saveSettingsCache();
+      return Array.isArray(remote?.recentSolidFoods) ? remote.recentSolidFoods : [];
+    }
+    const kidData = await this.getKidData();
+    return Array.isArray(kidData?.recentSolidFoods) ? kidData.recentSolidFoods : [];
+  },
+
+  async updateRecentFoods(foodName) {
+    if (!foodName || typeof foodName !== 'string') return;
+    const currentRaw = await this.getRecentFoods();
+    const current = Array.isArray(currentRaw)
+      ? currentRaw.map((item) => (typeof item === 'string' ? item : item?.name)).filter(Boolean)
+      : [];
+    // Remove if exists, then add to front
+    const filtered = current.filter(f => String(f).toLowerCase() !== String(foodName).toLowerCase());
+    const updated = [foodName, ...filtered].slice(0, 20); // Keep max 20
+    await this._kidRef().set({ recentSolidFoods: updated }, { merge: true });
+    // Update cache
+    if (this._cacheState.kidData) {
+      this._cacheState.kidData.recentSolidFoods = updated;
+      await this._saveSettingsCache();
+    }
   }
 };
+
+// Expose storage on window for cross-file access and debugging
+try { window.firestoreStorage = firestoreStorage; } catch (e) {}
 
 firestoreStorage._getAllFeedingsRemote = async function () {
   const snap = await this._kidRef()
@@ -2323,6 +2544,18 @@ firestoreStorage._getAllDiaperChangesRemote = async function () {
     .get();
   const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
   this._cacheState.diaperChanges = this._sortDiaperAsc(data);
+  this._cacheState.lastSyncMs = Date.now();
+  await this._saveCache();
+  return data;
+};
+
+firestoreStorage._getAllSolidsSessionsRemote = async function () {
+  const snap = await this._kidRef()
+    .collection("solidsSessions")
+    .orderBy("timestamp", "asc")
+    .get();
+  const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  this._cacheState.solidsSessions = this._sortSolidsAsc(data);
   this._cacheState.lastSyncMs = Date.now();
   await this._saveCache();
   return data;
@@ -3257,12 +3490,14 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
   const [activityVisibility, setActivityVisibility] = useState(() => ({
     bottle: true,
     nursing: true,
+    solids: true,
     sleep: true,
     diaper: true
   }));
   const [activityOrder, setActivityOrder] = useState(() => ([
     'bottle',
     'nursing',
+    'solids',
     'sleep',
     'diaper'
   ]));
@@ -3278,19 +3513,26 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
 
   const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
   const normalizeActivityVisibility = (value) => {
-    const base = { bottle: true, nursing: true, sleep: true, diaper: true };
+    const base = { bottle: true, nursing: true, solids: true, sleep: true, diaper: true };
     if (!value || typeof value !== 'object') return base;
     return {
       bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
       nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing,
+      solids: typeof value.solids === 'boolean' ? value.solids : base.solids,
       sleep: typeof value.sleep === 'boolean' ? value.sleep : base.sleep,
       diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
     };
   };
   const normalizeActivityOrder = (value) => {
-    const base = ['bottle', 'nursing', 'sleep', 'diaper'];
+    const base = ['bottle', 'nursing', 'solids', 'sleep', 'diaper'];
     if (!Array.isArray(value)) return base.slice();
     const next = value.filter((item) => base.includes(item));
+    if (!next.includes('solids')) {
+      const nursingIdx = next.indexOf('nursing');
+      if (nursingIdx >= 0) {
+        next.splice(nursingIdx + 1, 0, 'solids');
+      }
+    }
     base.forEach((item) => {
       if (!next.includes(item)) next.push(item);
     });
@@ -3535,8 +3777,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
   // --------------------------------------
 
   const isAnalyticsSubtab = [
-    'analytics-feeding',
-    'analytics-sleep'
+    'analytics-bottle',
+    'analytics-sleep',
+    'analytics-nursing',
+    'analytics-solids',
+    'analytics-diaper'
   ].includes(activeTab);
 
   return React.createElement(
@@ -3840,13 +4085,29 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         })),
         React.createElement('div', {
           style: { display: activeTab === 'analytics' ? 'block' : 'none' }
-        }, React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        }, React.createElement(window.TT.tabs.AnalyticsTab, { 
+          user, 
+          kidId, 
+          familyId, 
+          setActiveTab,
+          activityVisibility: activityVisibilitySafe,
+          activityOrder: activityOrderSafe
+        })),
         React.createElement('div', {
-          style: { display: activeTab === 'analytics-feeding' ? 'block' : 'none' }
-        }, React.createElement(window.TT.tabs.FeedingAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+          style: { display: activeTab === 'analytics-bottle' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.BottleAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-nursing' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.NursingAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-solids' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.SolidsAnalyticsTab, { user, kidId, familyId, setActiveTab })),
         React.createElement('div', {
           style: { display: activeTab === 'analytics-sleep' ? 'block' : 'none' }
         }, React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-diaper' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.DiaperAnalyticsTab, { user, kidId, familyId, setActiveTab })),
         window.TT?.tabs?.TrackerDetailTab && React.createElement('div', {
           style: activeTab === 'tracker-detail'
             ? {
@@ -3875,7 +4136,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           themeKey,
           onThemeChange: setThemeKey,
           requestAddChild: headerRequestedAddChild,
-          onRequestAddChildHandled: () => setHeaderRequestedAddChild(false)
+          onRequestAddChildHandled: () => setHeaderRequestedAddChild(false),
+          onRequestToggleActivitySheet: handleToggleActivitySheet
         }),
         
       )

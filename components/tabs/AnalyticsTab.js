@@ -1,6 +1,9 @@
-const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
+const AnalyticsTab = ({ user, kidId, familyId, setActiveTab, activityVisibility = null, activityOrder = null }) => {
   const uiVersion = 'v4';
   const [allFeedings, setAllFeedings] = useState([]);
+  const [allNursingSessions, setAllNursingSessions] = useState([]);
+  const [allSolidsSessions, setAllSolidsSessions] = useState([]);
+  const [allDiaperChanges, setAllDiaperChanges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeframe, setTimeframe] = useState('day');
   const [sleepSessions, setSleepSessions] = useState([]);
@@ -15,6 +18,38 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   });
 
   const chartScrollRef = React.useRef(null);
+
+  const _normalizeActivityVisibility = (value) => {
+    const base = { bottle: true, nursing: true, solids: true, sleep: true, diaper: true };
+    if (!value || typeof value !== 'object') return base;
+    return {
+      bottle: typeof value.bottle === 'boolean' ? value.bottle : base.bottle,
+      nursing: typeof value.nursing === 'boolean' ? value.nursing : base.nursing,
+      solids: typeof value.solids === 'boolean' ? value.solids : base.solids,
+      sleep: typeof value.sleep === 'boolean' ? value.sleep : base.sleep,
+      diaper: typeof value.diaper === 'boolean' ? value.diaper : base.diaper
+    };
+  };
+  const _normalizeActivityOrder = (value) => {
+    const base = ['bottle', 'nursing', 'solids', 'sleep', 'diaper'];
+    if (!Array.isArray(value)) return base.slice();
+    const next = [];
+    value.forEach((item) => {
+      if (base.includes(item) && !next.includes(item)) next.push(item);
+    });
+    if (!next.includes('solids')) {
+      const nursingIdx = next.indexOf('nursing');
+      if (nursingIdx >= 0) {
+        next.splice(nursingIdx + 1, 0, 'solids');
+      }
+    }
+    base.forEach((item) => {
+      if (!next.includes(item)) next.push(item);
+    });
+    return next;
+  };
+  const activityVisibilitySafe = _normalizeActivityVisibility(activityVisibility);
+  const activityOrderSafe = _normalizeActivityOrder(activityOrder);
 
   useEffect(() => {
     loadAnalytics();
@@ -43,6 +78,9 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const loadAnalytics = async () => {
     if (!kidId) {
       setAllFeedings([]);
+      setAllNursingSessions([]);
+      setAllSolidsSessions([]);
+      setAllDiaperChanges([]);
       setSleepSessions([]);
       setSleepSettings(null);
       setLoading(false);
@@ -53,6 +91,30 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       const feedings = await firestoreStorage.getAllFeedings();
       setAllFeedings(feedings);
       calculateStats(feedings);
+
+      try {
+        const nursing = await firestoreStorage.getAllNursingSessions();
+        setAllNursingSessions(Array.isArray(nursing) ? nursing : []);
+      } catch (e) {
+        console.error('Failed to load nursing sessions for analytics', e);
+        setAllNursingSessions([]);
+      }
+
+      try {
+        const solids = await firestoreStorage.getAllSolidsSessions();
+        setAllSolidsSessions(Array.isArray(solids) ? solids : []);
+      } catch (e) {
+        console.error('Failed to load solids sessions for analytics', e);
+        setAllSolidsSessions([]);
+      }
+
+      try {
+        const diapers = await firestoreStorage.getAllDiaperChanges();
+        setAllDiaperChanges(Array.isArray(diapers) ? diapers : []);
+      } catch (e) {
+        console.error('Failed to load diaper changes for analytics', e);
+        setAllDiaperChanges([]);
+      }
 
       try {
         const sleeps = await firestoreStorage.getAllSleepSessions(kidId);
@@ -561,6 +623,128 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     return daysToAverage.length > 0 ? totalVolume / daysToAverage.length : 0;
   }, [feedingChartData]);
 
+  const parseDateKeyToDate = (key) => {
+    const parts = String(key || '').split('-');
+    const y = Number(parts[0]);
+    const m = Number(parts[1]);
+    const d = Number(parts[2]);
+    if (!y || !m || !d) return new Date();
+    return new Date(y, m - 1, d);
+  };
+
+  // Aggregate nursing by day
+  const nursingByDay = useMemo(() => {
+    const map = {}; // dateKey -> { hours, count }
+    (allNursingSessions || []).forEach((s) => {
+      const timestamp = Number(s?.timestamp || s?.startTime || 0);
+      if (!Number.isFinite(timestamp)) return;
+      const key = _dateKeyLocal(timestamp);
+      const left = Number(s?.leftDurationSec || 0);
+      const right = Number(s?.rightDurationSec || 0);
+      const hours = Math.max(0, left + right) / 3600;
+      if (!map[key]) map[key] = { hours: 0, count: 0 };
+      map[key].hours += hours;
+      map[key].count += 1;
+    });
+    return map;
+  }, [allNursingSessions]);
+
+  const nursingChartData = useMemo(() => {
+    const now = new Date();
+    const makeDayKey = (d) => _dateKeyLocal(d.getTime());
+    const dataByDay = nursingByDay || {};
+    const keys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      keys.push(makeDayKey(d));
+    }
+    return keys.map(k => ({
+      key: k,
+      date: parseDateKeyToDate(k),
+      value: (dataByDay[k]?.hours || 0),
+      count: (dataByDay[k]?.count || 0)
+    }));
+  }, [nursingByDay]);
+
+  const nursingChartAverage = useMemo(() => {
+    const total = nursingChartData.reduce((sum, d) => sum + (d.value || 0), 0);
+    return nursingChartData.length > 0 ? total / nursingChartData.length : 0;
+  }, [nursingChartData]);
+
+  // Aggregate solids by day
+  const solidsByDay = useMemo(() => {
+    const map = {}; // dateKey -> { foods, count }
+    (allSolidsSessions || []).forEach((s) => {
+      const timestamp = Number(s?.timestamp || 0);
+      if (!Number.isFinite(timestamp)) return;
+      const key = _dateKeyLocal(timestamp);
+      const foods = Array.isArray(s?.foods) ? s.foods.length : 0;
+      if (!map[key]) map[key] = { foods: 0, count: 0 };
+      map[key].foods += foods;
+      map[key].count += 1;
+    });
+    return map;
+  }, [allSolidsSessions]);
+
+  const solidsChartData = useMemo(() => {
+    const now = new Date();
+    const makeDayKey = (d) => _dateKeyLocal(d.getTime());
+    const dataByDay = solidsByDay || {};
+    const keys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      keys.push(makeDayKey(d));
+    }
+    return keys.map(k => ({
+      key: k,
+      date: parseDateKeyToDate(k),
+      value: (dataByDay[k]?.foods || 0),
+      count: (dataByDay[k]?.count || 0)
+    }));
+  }, [solidsByDay]);
+
+  const solidsChartAverage = useMemo(() => {
+    const total = solidsChartData.reduce((sum, d) => sum + (d.value || 0), 0);
+    return solidsChartData.length > 0 ? total / solidsChartData.length : 0;
+  }, [solidsChartData]);
+
+  // Aggregate diaper changes by day
+  const diaperByDay = useMemo(() => {
+    const map = {}; // dateKey -> { count }
+    (allDiaperChanges || []).forEach((c) => {
+      const timestamp = Number(c?.timestamp || 0);
+      if (!Number.isFinite(timestamp)) return;
+      const key = _dateKeyLocal(timestamp);
+      if (!map[key]) map[key] = { count: 0 };
+      map[key].count += 1;
+    });
+    return map;
+  }, [allDiaperChanges]);
+
+  const diaperChartData = useMemo(() => {
+    const now = new Date();
+    const makeDayKey = (d) => _dateKeyLocal(d.getTime());
+    const dataByDay = diaperByDay || {};
+    const keys = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(now.getDate() - i);
+      keys.push(makeDayKey(d));
+    }
+    return keys.map(k => ({
+      key: k,
+      date: parseDateKeyToDate(k),
+      value: (dataByDay[k]?.count || 0)
+    }));
+  }, [diaperByDay]);
+
+  const diaperChartAverage = useMemo(() => {
+    const total = diaperChartData.reduce((sum, d) => sum + (d.value || 0), 0);
+    return diaperChartData.length > 0 ? total / diaperChartData.length : 0;
+  }, [diaperChartData]);
+
   if (loading) {
     return React.createElement(
       'div',
@@ -573,7 +757,14 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     );
   }
 
-  if (allFeedings.length === 0) {
+  const hasAnyAnalyticsData =
+    (allFeedings || []).length > 0 ||
+    (sleepSessions || []).length > 0 ||
+    (allNursingSessions || []).length > 0 ||
+    (allSolidsSessions || []).length > 0 ||
+    (allDiaperChanges || []).length > 0;
+
+  if (!hasAnyAnalyticsData) {
     return React.createElement(
       'div',
       { 
@@ -586,7 +777,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           className: 'text-center py-8',
           style: { color: 'var(--tt-text-tertiary)' }
         },
-        'No feeding data yet. Start logging feedings to see analytics!'
+        'No analytics data yet. Start logging activities to see analytics!'
       )
     );
   }
@@ -596,7 +787,132 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   );
 
   const feedLabelIcon = window.TT?.shared?.icons?.BottleV2 || window.TT?.shared?.icons?.["bottle-v2"] || null;
+  const nursingLabelIcon = window.TT?.shared?.icons?.NursingIcon || null;
+  const solidsLabelIcon = window.TT?.shared?.icons?.SolidsIcon || null;
   const sleepLabelIcon = window.TT?.shared?.icons?.MoonV2 || window.TT?.shared?.icons?.["moon-v2"] || null;
+  const diaperLabelIcon = window.TT?.shared?.icons?.DiaperIcon || null;
+
+  const highlightMap = {
+    bottle: () => React.createElement(
+      HighlightCard,
+      {
+        icon: feedLabelIcon,
+        label: 'Bottle',
+        showInsightText: false,
+        insightText: [
+          'Levi has been eating a bit less in the last three days.',
+          'But that\'s totally fine!'
+        ],
+        categoryColor: 'var(--tt-feed)',
+        isFeeding: true,
+        onClick: () => {
+          window.scrollTo(0, 0);
+          setActiveTab('analytics-bottle');
+        }
+      },
+      React.createElement(FeedingChart, {
+        data: feedingChartData,
+        average: feedingChartAverage
+      })
+    ),
+    nursing: () => React.createElement(
+      HighlightCard,
+      {
+        icon: nursingLabelIcon,
+        label: 'Nursing',
+        showInsightText: false,
+        insightText: [
+          'Nursing trends over the last week.',
+          ''
+        ],
+        categoryColor: 'var(--tt-nursing)',
+        onClick: () => {
+          window.scrollTo(0, 0);
+          setActiveTab('analytics-nursing');
+        }
+      },
+      React.createElement(SimpleBarChart, {
+        data: nursingChartData,
+        average: nursingChartAverage,
+        colorVar: '--tt-nursing',
+        unit: 'hrs',
+        title: 'Average nursing'
+      })
+    ),
+    solids: () => React.createElement(
+      HighlightCard,
+      {
+        icon: solidsLabelIcon,
+        label: 'Solids',
+        showInsightText: false,
+        insightText: [
+          'Solids count over the last week.',
+          ''
+        ],
+        categoryColor: 'var(--tt-solids)',
+        onClick: () => {
+          window.scrollTo(0, 0);
+          setActiveTab('analytics-solids');
+        }
+      },
+      React.createElement(SimpleBarChart, {
+        data: solidsChartData,
+        average: solidsChartAverage,
+        colorVar: '--tt-solids',
+        unit: 'foods',
+        title: 'Average solids'
+      })
+    ),
+    sleep: () => React.createElement(
+      HighlightCard,
+      {
+        icon: sleepLabelIcon,
+        label: 'Sleep',
+        showInsightText: false,
+        insightText: [
+          'Levi has been sleeping great this week!',
+          ''
+        ],
+        categoryColor: 'var(--tt-sleep)',
+        onClick: () => {
+          window.scrollTo(0, 0);
+          setActiveTab('analytics-sleep');
+        }
+      },
+      React.createElement(SleepChart, {
+        data: sleepChartData,
+        average: sleepChartAverage
+      })
+    ),
+    diaper: () => React.createElement(
+      HighlightCard,
+      {
+        icon: diaperLabelIcon,
+        label: 'Diaper',
+        showInsightText: false,
+        insightText: [
+          'Diaper changes over the last week.',
+          ''
+        ],
+        categoryColor: 'var(--tt-diaper)',
+        onClick: () => {
+          window.scrollTo(0, 0);
+          setActiveTab('analytics-diaper');
+        }
+      },
+      React.createElement(SimpleBarChart, {
+        data: diaperChartData,
+        average: diaperChartAverage,
+        colorVar: '--tt-diaper',
+        title: 'Average diapers'
+      })
+    )
+  };
+
+  const orderedHighlights = activityOrderSafe
+    .filter((key) => activityVisibilitySafe[key])
+    .map((key) => (highlightMap[key] ? highlightMap[key]() : null))
+    .filter(Boolean);
 
   return React.createElement(
     'div',
@@ -608,48 +924,7 @@ const AnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     React.createElement(
       'div',
       { className: 'space-y-3' },
-
-      // Feeding highlight
-      React.createElement(
-        HighlightCard,
-        {
-          icon: feedLabelIcon,
-          label: 'Feeding',
-          showInsightText: false,
-          insightText: [
-            'Levi has been eating a bit less in the last three days.',
-            'But that\'s totally fine!'
-          ],
-          categoryColor: 'var(--tt-feed)',
-          isFeeding: true,
-          onClick: () => setActiveTab('analytics-feeding')
-        },
-        React.createElement(FeedingChart, {
-          data: feedingChartData,
-          average: feedingChartAverage
-        })
-      ),
-
-      // Sleep highlight
-      React.createElement(
-        HighlightCard,
-        {
-          icon: sleepLabelIcon,
-          label: 'Sleep',
-          showInsightText: false,
-          insightText: [
-            'Levi has been sleeping great this week!',
-            ''
-          ],
-          categoryColor: 'var(--tt-sleep)',
-          onClick: () => setActiveTab('analytics-sleep')
-        },
-        React.createElement(SleepChart, {
-          data: sleepChartData,
-          average: sleepChartAverage
-        })
-      ),
-
+      orderedHighlights,
       // Daily Activity highlight (hidden in v4)
     )
   );

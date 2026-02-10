@@ -67,7 +67,8 @@ const __ttEnsureZzzStyles = () => {
   document.head.appendChild(style);
 };
 
-  const TTSharedTimelineItem = ({ card, bottleIcon, nursingIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null }) => {
+
+  const TTSharedTimelineItem = ({ card, bottleIcon, nursingIcon, moonIcon, diaperIcon, isExpanded = false, detailsHeight = 96, hasDetails: hasDetailsProp, onPhotoClick = null, onScheduledAdd = null, onActiveSleepClick = null, onExpandedContentHeight = null, disableScheduledGrayscale = false, iconSize = 24, iconWrapSize = 40, disableScheduledAction = false, scheduledLabelColor = null, onFoodUpdate = null }) => {
   if (!card) return null;
 
   const __ttTimelineItemMotion = (typeof window !== 'undefined' && window.Motion && window.Motion.motion) ? window.Motion.motion : null;
@@ -78,7 +79,14 @@ const __ttEnsureZzzStyles = () => {
   const isLogged = card.variant === 'logged';
   const isActiveSleep = Boolean(card.isActive && card.type === 'sleep');
   const isNursing = card.type === 'feed' && card.feedType === 'nursing';
+  const isSolids = card.type === 'feed' && card.feedType === 'solids';
+  const isInlineEditor = Boolean(card.inlineEditor);
   const unitText = (card.unit || '').toLowerCase();
+  const SolidsIcon = (props) => React.createElement(
+    'svg',
+    { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
+    React.createElement('path', { d: "M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" })
+  );
   const formatSleepDuration = (ms) => {
     const totalSec = Math.round(Math.max(0, Number(ms) || 0) / 1000);
     const h = Math.floor(totalSec / 3600);
@@ -163,15 +171,17 @@ const __ttEnsureZzzStyles = () => {
     ? scheduledLabel
     : (isActiveSleep
         ? formatSleepDuration(activeElapsedMs)
-        : (amountText
-            ? (isLogged ? amountText : `${prefix} ~${amountText}`)
-            : (isLogged ? '' : prefix)));
+        : (isSolids && card.label
+            ? card.label
+            : (amountText
+                ? (isLogged ? amountText : `${prefix} ~${amountText}`)
+                : (isLogged ? '' : prefix))));
 
   const photoList = card.photoURLs || card.photoUrls || card.photos;
   const photoUrls = __ttNormalizePhotoUrls(photoList);
   const hasPhotos = photoUrls.length > 0;
   const hasNote = Boolean(card.note || card.notes);
-  const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos || isNursing);
+  const hasDetails = typeof hasDetailsProp === 'boolean' ? hasDetailsProp : (hasNote || hasPhotos || isNursing || isSolids);
   const showChevron = isLogged && hasDetails && !isActiveSleep;
   const ChevronIcon = (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.ChevronDownIcon) || null;
   const noteText = card.note || card.notes || '';
@@ -239,7 +249,7 @@ const __ttEnsureZzzStyles = () => {
     return () => observer.disconnect();
   }, [card.id, hasDetails, isExpanded, onExpandedContentHeight, updateDetailsHeight]);
 
-  const feedAccent = isNursing ? 'var(--tt-nursing)' : 'var(--tt-feed)';
+  const feedAccent = isNursing ? 'var(--tt-nursing)' : (isSolids ? 'var(--tt-solids)' : 'var(--tt-feed)');
   return React.createElement(
     React.Fragment,
     null,
@@ -258,8 +268,8 @@ const __ttEnsureZzzStyles = () => {
               : 'color-mix(in srgb, var(--tt-diaper) 20%, transparent)')
       }
     },
-      card.type === 'feed' && (isNursing ? nursingIcon : bottleIcon)
-        ? React.createElement(isNursing ? nursingIcon : bottleIcon, {
+      card.type === 'feed' && (isNursing ? nursingIcon : isSolids ? SolidsIcon : bottleIcon)
+        ? React.createElement(isNursing ? nursingIcon : isSolids ? SolidsIcon : bottleIcon, {
             style: {
               color: feedAccent,
               width: `${iconSize}px`,
@@ -440,6 +450,182 @@ const __ttEnsureZzzStyles = () => {
             },
               React.createElement('div', null, `Left ${formatNursingDuration(Number(card.leftDurationSec || 0))} • Right ${formatNursingDuration(Number(card.rightDurationSec || 0))}`),
               card.lastSide ? React.createElement('div', { style: { color: 'var(--tt-text-tertiary)' } }, `Last side: ${String(card.lastSide).toUpperCase().slice(0, 1)}${String(card.lastSide).slice(1)}`) : null
+            ),
+            isSolids && Array.isArray(card.foods) && card.foods.length > 0 && React.createElement('div', {
+              className: "flex flex-col gap-3",
+              style: { color: 'var(--tt-text-secondary)' }
+            },
+              card.foods.map((food, idx) => {
+                const FOOD_MAP = window.TT?.constants?.FOOD_MAP || {};
+                const foodDef = FOOD_MAP[food.id] || Object.values(FOOD_MAP).find((item) => String(item?.name || '').toLowerCase() === String(food?.name || '').toLowerCase()) || null;
+                const foodEmoji = foodDef?.emoji || food.emoji || '🍽️';
+                const normalizeSolidsToken = (value) => String(value || '')
+                  .trim()
+                  .toLowerCase()
+                  .replace(/\s+/g, '-');
+                const formatPrep = (value) => {
+                  const token = normalizeSolidsToken(value);
+                  const byToken = {
+                    raw: { label: 'Raw', icon: window.TT?.shared?.icons?.PrepRawIcon || null },
+                    mashed: { label: 'Mashed', icon: window.TT?.shared?.icons?.PrepMashedIcon || null },
+                    steamed: { label: 'Steamed', icon: window.TT?.shared?.icons?.PrepSteamedIcon || null },
+                    'puréed': { label: 'Puréed', icon: window.TT?.shared?.icons?.PrepPureedIcon || null },
+                    pureed: { label: 'Puréed', icon: window.TT?.shared?.icons?.PrepPureedIcon || null },
+                    boiled: { label: 'Boiled', icon: window.TT?.shared?.icons?.PrepBoiledIcon || null }
+                  };
+                  const resolved = byToken[token];
+                  if (resolved) return { type: 'prep', ...resolved };
+                  const fallback = String(value || '').trim();
+                  return fallback ? { type: 'prep', label: fallback, icon: null } : null;
+                };
+                const formatAmount = (value) => {
+                  const token = normalizeSolidsToken(value);
+                  const byToken = {
+                    all: '● All',
+                    most: '◕ Most',
+                    some: '◑ Some',
+                    'a-little': '◔ A little',
+                    little: '◔ A little',
+                    none: '○ None'
+                  };
+                  const label = byToken[token] || (value ? `◌ ${value}` : '');
+                  return label ? { type: 'amount', label } : null;
+                };
+                const formatReaction = (value) => {
+                  const token = normalizeSolidsToken(value);
+                  const byToken = {
+                    loved: '😍 Loved',
+                    liked: '😊 Liked',
+                    neutral: '😐 Neutral',
+                    disliked: '😖 Disliked'
+                  };
+                  const label = byToken[token] || (value ? `🙂 ${value}` : '');
+                  return label ? { type: 'reaction', label } : null;
+                };
+                const detailParts = [];
+                if (food.preparation) {
+                  const prep = formatPrep(food.preparation);
+                  if (prep) detailParts.push(prep);
+                }
+                if (food.amount) {
+                  const amount = formatAmount(food.amount);
+                  if (amount) detailParts.push(amount);
+                }
+                if (food.reaction) {
+                  const reaction = formatReaction(food.reaction);
+                  if (reaction) detailParts.push(reaction);
+                }
+                const updateFood = (patch) => {
+                  if (typeof onFoodUpdate === 'function') {
+                    onFoodUpdate({ ...food, ...patch });
+                  }
+                };
+                if (!isInlineEditor) {
+                  return React.createElement('div', {
+                    key: `${card.id}-food-${idx}`,
+                    className: "flex items-start gap-2"
+                  },
+                    React.createElement('div', {
+                      className: "w-5 h-5 flex-shrink-0 flex items-center justify-center",
+                      style: { fontSize: 14, lineHeight: '14px' }
+                    }, foodEmoji),
+                    React.createElement('div', { className: "flex flex-col gap-0.5 min-w-0" },
+                      React.createElement('div', { className: "font-medium text-sm", style: { color: 'var(--tt-text-primary)' } }, food.name),
+                      detailParts.length > 0 && React.createElement('div', { className: "text-sm", style: { color: 'var(--tt-text-tertiary)' } },
+                        detailParts.map((part, partIdx) => React.createElement(React.Fragment, { key: `${card.id}-food-${idx}-meta-${partIdx}` },
+                          partIdx > 0 ? React.createElement('span', { style: { padding: '0 4px' } }, '•') : null,
+                          React.createElement('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 4, verticalAlign: 'middle' } },
+                            part.icon ? React.createElement(part.icon, { width: 12, height: 12, color: 'currentColor', style: { flexShrink: 0 } }) : null,
+                            React.createElement('span', null, part.label)
+                          )
+                        ))
+                      ),
+                      food.notes && React.createElement('div', { className: "italic text-[11px]", style: { color: 'var(--tt-text-tertiary)' } }, food.notes)
+                    )
+                  );
+                }
+
+                const renderOptions = (label, options, value, onChange) => (
+                  React.createElement('div', { className: "flex flex-col gap-2" },
+                    React.createElement('div', { className: "text-[11px] font-semibold", style: { color: 'var(--tt-text-tertiary)' } }, label),
+                    React.createElement('div', { className: "flex flex-wrap gap-2" },
+                      options.map((option) => {
+                        const selected = value === option.value;
+                        return React.createElement('button', {
+                          key: option.value,
+                          type: 'button',
+                          onClick: (e) => {
+                            e.stopPropagation();
+                            onChange(option.value);
+                          },
+                          className: "px-3 py-1 rounded-full text-[11px] font-semibold transition",
+                          style: {
+                            border: `1px solid ${selected ? 'var(--tt-solids)' : 'var(--tt-card-border)'}`,
+                            backgroundColor: selected
+                              ? 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))'
+                              : 'var(--tt-input-bg)',
+                            color: selected ? 'var(--tt-solids)' : 'var(--tt-text-secondary)'
+                          }
+                        }, option.label)
+                      })
+                    )
+                  )
+                );
+
+                const amountOptions = [
+                  { value: 'all', label: 'All ●●●' },
+                  { value: 'some', label: 'Some ●●○' },
+                  { value: 'a-little', label: 'A little ●○○' },
+                  { value: 'none', label: 'None ○○○' }
+                ];
+                const reactionOptions = [
+                  { value: 'loved', label: 'Loved' },
+                  { value: 'liked', label: 'Liked' },
+                  { value: 'disliked', label: 'Disliked' }
+                ];
+                const prepOptions = [
+                  { value: 'raw', label: 'Raw' },
+                  { value: 'puree', label: 'Puree' },
+                  { value: 'steamed', label: 'Steamed' },
+                  { value: 'boiled', label: 'Boiled' }
+                ];
+
+                return React.createElement('div', {
+                  key: `${card.id}-food-${idx}`,
+                  className: "flex flex-col gap-3"
+                },
+                  React.createElement('div', { className: "flex items-start gap-2" },
+                    React.createElement('div', {
+                      className: "w-5 h-5 flex-shrink-0 flex items-center justify-center",
+                      style: { fontSize: 14, lineHeight: '14px' }
+                    }, foodEmoji),
+                    React.createElement('div', { className: "flex flex-col gap-0.5 min-w-0" },
+                      React.createElement('div', { className: "font-medium", style: { color: 'var(--tt-text-primary)' } }, food.name),
+                      food.category && React.createElement('div', { className: "text-[11px]", style: { color: 'var(--tt-text-tertiary)' } }, food.category)
+                    )
+                  ),
+                  renderOptions('Amount', amountOptions, food.amount || null, (value) => updateFood({ amount: value })),
+                  renderOptions('Reaction', reactionOptions, food.reaction || null, (value) => updateFood({ reaction: value })),
+                  renderOptions('Preparation', prepOptions, food.preparation || null, (value) => updateFood({ preparation: value })),
+                  React.createElement('div', { className: "flex flex-col gap-2" },
+                    React.createElement('div', { className: "text-[11px] font-semibold", style: { color: 'var(--tt-text-tertiary)' } }, `Notes for ${food.name}`),
+                    React.createElement('textarea', {
+                      value: food.notes || '',
+                      onChange: (e) => updateFood({ notes: e.target.value }),
+                      rows: 2,
+                      className: "w-full rounded-xl px-3 py-2 text-xs outline-none",
+                      style: {
+                        backgroundColor: 'var(--tt-input-bg)',
+                        border: '1px solid var(--tt-card-border)',
+                        color: 'var(--tt-text-primary)',
+                        resize: 'vertical'
+                      },
+                      onClick: (e) => e.stopPropagation(),
+                      placeholder: 'Add notes...'
+                    })
+                  )
+                );
+              })
             ),
             hasNote && React.createElement('div', {
               className: "italic",

@@ -7,6 +7,7 @@
       background: "health-gray",
       feedAccent: "#d45d5c",
       nursingAccent: "#7B6EE6",
+      solidsAccent: "#35CC8D",
       sleepAccent: "#4a8ac2",
       diaperAccent: "#C28F5C"
     },

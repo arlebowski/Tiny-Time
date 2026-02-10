@@ -13,6 +13,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const [allNursingSessions, setAllNursingSessions] = React.useState([]);
   const [allSleepSessions, setAllSleepSessions] = React.useState([]);
   const [allDiaperChanges, setAllDiaperChanges] = React.useState([]);
+  const [allSolidsSessions, setAllSolidsSessions] = React.useState([]);
   const [babyWeight, setBabyWeight] = React.useState(null);
   const [multiplier, setMultiplier] = React.useState(2.5);
   const [preferredVolumeUnit, setPreferredVolumeUnit] = React.useState(() => {
@@ -55,10 +56,6 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const __ttAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence)
     ? window.Motion.AnimatePresence
     : null;
-  const shouldAnimateSummary = !summaryAnimationMountRef.current
-    || summaryAnimationPrevRef.current === 'all'
-    || summaryLayoutMode === 'all';
-  const canAnimateSummary = Boolean(__ttMotion && __ttAnimatePresence && shouldAnimateSummary);
 
   // Helper: format timestamp to 12-hour time string (e.g., "4:23 AM")
   const formatTime12Hour = (timestamp) => {
@@ -211,6 +208,33 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     };
   };
 
+  const solidsToCard = (s) => {
+    const d = new Date(s.timestamp);
+    const foodsArray = Array.isArray(s.foods) ? s.foods : [];
+    const foodNames = foodsArray.map(f => f.name).filter(Boolean);
+    const displayLabel = foodNames.length <= 2 
+      ? foodNames.join(', ')
+      : `${foodNames[0]}, ${foodNames[1]} +${foodNames.length - 2}`;
+    
+    return {
+      id: s.id,
+      timestamp: s.timestamp,
+      foods: foodsArray,
+      notes: s.notes || null,
+      photoURLs: s.photoURLs || null,
+      time: formatTime12Hour(s.timestamp),
+      hour: d.getHours(),
+      minute: d.getMinutes(),
+      variant: 'logged',
+      type: 'feed',
+      feedType: 'solids',
+      label: displayLabel || 'Solids',
+      amount: foodsArray.length,
+      unit: 'foods',
+      note: s.notes || null
+    };
+  };
+
   // Transform Firebase sleep session to Timeline card format
   // Accepts optional day boundaries for cross-day handling
   const sleepToCard = (s, dayStartMs = null, dayEndMs = null) => {
@@ -311,16 +335,18 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       const dayEndMs = endOfDay.getTime() + 1; // +1 to make end inclusive (same as TrackerTab)
 
       // Fetch all feedings and sleep sessions
-      const [allFeedings, allNursingSessions, allSleepSessions, allDiaperChanges] = await Promise.all([
+      const [allFeedings, allNursingSessions, allSleepSessions, allDiaperChanges, allSolidsSessions] = await Promise.all([
         firestoreStorage.getAllFeedings(),
         firestoreStorage.getAllNursingSessions(),
         firestoreStorage.getAllSleepSessions(),
-        firestoreStorage.getAllDiaperChanges()
+        firestoreStorage.getAllDiaperChanges(),
+        firestoreStorage.getAllSolidsSessions()
       ]);
       setAllFeedings(allFeedings || []);
       setAllNursingSessions(allNursingSessions || []);
       setAllSleepSessions(allSleepSessions || []);
       setAllDiaperChanges(allDiaperChanges || []);
+      setAllSolidsSessions(allSolidsSessions || []);
 
       // Filter feedings for the selected day
       const dayFeedings = (allFeedings || []).filter(f => {
@@ -349,9 +375,15 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         return ts >= dayStartMs && ts <= dayEndMs;
       });
 
+      const daySolidsSessions = (allSolidsSessions || []).filter(s => {
+        const ts = s.timestamp || 0;
+        return ts >= dayStartMs && ts <= dayEndMs;
+      });
+
       // Transform to Timeline card format
       const feedingCards = dayFeedings.map(feedingToCard);
       const nursingCards = dayNursingSessions.map(nursingToCard);
+      const solidsCards = daySolidsSessions.map(solidsToCard);
       // Pass day boundaries to sleepToCard for cross-day handling
       const sleepCards = daySleepSessions
         .map(s => sleepToCard(s, dayStartMs, dayEndMs))
@@ -362,7 +394,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
 
       // Combine and sort by time (hour * 60 + minute)
       // Cross-day sleeps will naturally sort first (hour=0, minute=0)
-      const allCards = [...feedingCards, ...nursingCards, ...visibleSleepCards, ...diaperCards].sort((a, b) => {
+      const allCards = [...feedingCards, ...nursingCards, ...solidsCards, ...visibleSleepCards, ...diaperCards].sort((a, b) => {
         const aMinutes = a.hour * 60 + a.minute;
         const bMinutes = b.hour * 60 + b.minute;
         return aMinutes - bMinutes;
@@ -383,6 +415,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         const right = Number(s.rightDurationSec || 0);
         return sum + Math.max(0, left + right) * 1000;
       }, 0);
+      const solidsTotalFoods = daySolidsSessions.reduce((sum, s) => {
+        return sum + (Array.isArray(s.foods) ? s.foods.length : 0);
+      }, 0);
       const sleepTotalMs = daySleepSessions.reduce((sum, s) => {
         const endCandidate = s.endTime || (s.isActive ? Date.now() : null);
         if (!endCandidate) return sum;
@@ -395,6 +430,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       setSelectedSummary({
         feedOz: Math.round(feedTotal * 10) / 10,
         nursingMs: nursingTotalMs,
+        solidsCount: solidsTotalFoods,
         sleepMs: sleepTotalMs,
         diaperCount: dayDiaperChanges.length,
         diaperWetCount,
@@ -955,6 +991,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
       if (card.type === 'feed') {
         if (card.feedType === 'nursing') {
           await firestoreStorage.deleteNursingSession(card.id);
+        } else if (card.feedType === 'solids') {
+          await firestoreStorage.deleteSolidsSession(card.id);
         } else {
           await firestoreStorage.deleteFeeding(card.id);
         }
@@ -1108,162 +1146,117 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         }
       ),
       (() => {
-        const prevMode = summaryAnimationPrevRef.current;
         const isFirst = !summaryAnimationMountRef.current;
-        const shouldAnimateCards = Boolean(__ttMotion && __ttAnimatePresence)
-          && (isFirst || prevMode === 'all' || summaryLayoutMode === 'all');
-        const container = shouldAnimateCards ? __ttMotion.div : 'div';
         const feedInitialX = -8;
         const sleepInitialX = isFirst ? -8 : 8;
         const nursingInitialX = isFirst ? 8 : 8;
         const summaryGridCols = summaryLayoutMode === 'all'
-          ? (hasNursingSummary ? 'grid-cols-4' : 'grid-cols-3')
+          ? ''
           : (summaryLayoutMode === 'feed' && hasNursingSummary ? 'grid-cols-2' : 'grid-cols-1');
+        const isAllMode = summaryLayoutMode === 'all';
+        const allModeCardStyle = { flex: '0 0 auto', width: 'calc((100vw - 48px) / 3)' };
 
         return React.createElement(
-          container,
+          __ttMotion.div,
           {
-            className: `grid gap-3 -mt-2 items-stretch ${summaryGridCols}`,
-            layout: shouldAnimateCards ? true : undefined,
-            transition: shouldAnimateCards
-              ? { type: "spring", stiffness: 180, damping: 24 }
-              : undefined
+            className: isAllMode
+              ? 'flex gap-3 -mt-2 items-stretch overflow-x-auto pb-1'
+              : `grid gap-3 -mt-2 items-stretch ${summaryGridCols}`,
+            style: isAllMode ? { WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } : undefined,
+            layout: true,
+            transition: { type: "spring", stiffness: 180, damping: 24 }
           },
-          shouldAnimateCards
-            ? React.createElement(__ttAnimatePresence, { mode: "popLayout", initial: true },
-                summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && React.createElement(
-                  __ttMotion.div,
-                  {
-                    key: `summary-feed-${summaryCardsEpoch}`,
-                    layout: true,
-                    initial: { opacity: 0, x: feedInitialX },
-                    animate: { opacity: 1, x: 0 },
-                    exit: { opacity: 0, x: feedInitialX },
-                    transition: { type: "spring", stiffness: 220, damping: 26 }
-                  },
-                  renderSummaryCard({
-                    icon: bottleIcon,
-                    color: 'var(--tt-feed)',
-                    value: feedDisplay,
-                    unit: 'oz',
-                    rotateIcon: true,
-                    progressPercent: feedPercent,
-                    progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                    comparison: feedComparison
-                  })
-                ),
-                summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && hasNursingSummary && React.createElement(
-                  __ttMotion.div,
-                  {
-                    key: `summary-nursing-${summaryCardsEpoch}`,
-                    layout: true,
-                    initial: { opacity: 0, x: nursingInitialX },
-                    animate: { opacity: 1, x: 0 },
-                    exit: { opacity: 0, x: nursingInitialX },
-                    transition: { type: "spring", stiffness: 220, damping: 26 }
-                  },
-                  renderSummaryCard({
-                    icon: nursingIcon,
-                    color: 'var(--tt-nursing)',
-                    value: nursingDisplay,
-                    unit: 'hrs',
-                    rotateIcon: false,
-                    progressPercent: 0,
-                    progressKey: `nursing-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                    comparison: nursingComparison
-                  })
-                ),
-                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && React.createElement(
-                  __ttMotion.div,
-                  {
-                    key: `summary-sleep-${summaryCardsEpoch}`,
-                    layout: true,
-                    initial: { opacity: 0, x: sleepInitialX },
-                    animate: { opacity: 1, x: 0 },
-                    exit: { opacity: 0, x: sleepInitialX },
-                    transition: { type: "spring", stiffness: 220, damping: 26 }
-                  },
-                  renderSummaryCard({
-                    icon: moonIcon,
-                    color: 'var(--tt-sleep)',
-                    value: sleepDisplay,
-                    unit: 'hrs',
-                    rotateIcon: false,
-                    progressPercent: sleepPercent,
-                    progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                    comparison: sleepComparison
-                  })
-                )
-                ,
-                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && React.createElement(
-                  __ttMotion.div,
-                  {
-                    key: `summary-diaper-${summaryCardsEpoch}`,
-                    layout: true,
-                    initial: { opacity: 0, x: sleepInitialX },
-                    animate: { opacity: 1, x: 0 },
-                    exit: { opacity: 0, x: sleepInitialX },
-                    transition: { type: "spring", stiffness: 220, damping: 26 }
-                  },
-                  renderSummaryCard({
-                    icon: diaperIcon,
-                    color: 'var(--tt-diaper)',
-                    value: diaperDisplay,
-                    unit: diaperUnit,
-                    rotateIcon: false,
-                    progressPercent: diaperPercent,
-                    progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                    comparison: diaperComparison,
-                    subline: diaperSubline
-                  })
-                )
-              )
-            : React.createElement(
-                React.Fragment,
-                null,
-                summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && renderSummaryCard({
-                  icon: bottleIcon,
-                  color: 'var(--tt-feed)',
-                  value: feedDisplay,
-                  unit: 'oz',
-                  rotateIcon: true,
-                  progressPercent: feedPercent,
-                  progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                  comparison: feedComparison
-                }),
-                summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && hasNursingSummary && renderSummaryCard({
-                  icon: nursingIcon,
-                  color: 'var(--tt-nursing)',
-                  value: nursingDisplay,
-                  unit: 'hrs',
-                  rotateIcon: false,
-                  progressPercent: 0,
-                  progressKey: `nursing-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                  comparison: nursingComparison
-                }),
-                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && renderSummaryCard({
-                  icon: moonIcon,
-                  color: 'var(--tt-sleep)',
-                  value: sleepDisplay,
-                  unit: 'hrs',
-                  rotateIcon: false,
-                  progressPercent: sleepPercent,
-                  progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                  comparison: sleepComparison
-                })
-                ,
-                summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && renderSummaryCard({
-                  icon: diaperIcon,
-                  color: 'var(--tt-diaper)',
-                  value: diaperDisplay,
-                  unit: diaperUnit,
-                  rotateIcon: false,
-                  progressPercent: diaperPercent,
-                  progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                  comparison: diaperComparison,
-                  subline: diaperSubline
-                })
-              )
+          React.createElement(__ttAnimatePresence, { mode: "popLayout", initial: true },
+            summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && React.createElement(
+              __ttMotion.div,
+              {
+                key: `summary-feed-${summaryCardsEpoch}`,
+                layout: true,
+                initial: { opacity: 0, x: feedInitialX },
+                animate: { opacity: 1, x: 0 },
+                exit: { opacity: 0, x: feedInitialX },
+                transition: { type: "spring", stiffness: 220, damping: 26 },
+                style: isAllMode ? allModeCardStyle : undefined
+              },
+              renderSummaryCard({
+                icon: bottleIcon,
+                color: 'var(--tt-feed)',
+                value: feedDisplay,
+                unit: 'oz',
+                rotateIcon: true,
+                progressPercent: feedPercent,
+                progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                comparison: feedComparison
+              })
+            ),
+            summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && hasNursingSummary && React.createElement(
+              __ttMotion.div,
+              {
+                key: `summary-nursing-${summaryCardsEpoch}`,
+                layout: true,
+                initial: { opacity: 0, x: nursingInitialX },
+                animate: { opacity: 1, x: 0 },
+                exit: { opacity: 0, x: nursingInitialX },
+                transition: { type: "spring", stiffness: 220, damping: 26 },
+                style: isAllMode ? allModeCardStyle : undefined
+              },
+              renderSummaryCard({
+                icon: nursingIcon,
+                color: 'var(--tt-nursing)',
+                value: nursingDisplay,
+                unit: 'hrs',
+                rotateIcon: false,
+                progressPercent: 0,
+                progressKey: `nursing-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                comparison: nursingComparison
+              })
+            ),
+            summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && React.createElement(
+              __ttMotion.div,
+              {
+                key: `summary-sleep-${summaryCardsEpoch}`,
+                layout: true,
+                initial: { opacity: 0, x: sleepInitialX },
+                animate: { opacity: 1, x: 0 },
+                exit: { opacity: 0, x: sleepInitialX },
+                transition: { type: "spring", stiffness: 220, damping: 26 },
+                style: isAllMode ? allModeCardStyle : undefined
+              },
+              renderSummaryCard({
+                icon: moonIcon,
+                color: 'var(--tt-sleep)',
+                value: sleepDisplay,
+                unit: 'hrs',
+                rotateIcon: false,
+                progressPercent: sleepPercent,
+                progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                comparison: sleepComparison
+              })
+            ),
+            summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && React.createElement(
+              __ttMotion.div,
+              {
+                key: `summary-diaper-${summaryCardsEpoch}`,
+                layout: true,
+                initial: { opacity: 0, x: sleepInitialX },
+                animate: { opacity: 1, x: 0 },
+                exit: { opacity: 0, x: sleepInitialX },
+                transition: { type: "spring", stiffness: 220, damping: 26 },
+                style: isAllMode ? allModeCardStyle : undefined
+              },
+              renderSummaryCard({
+                icon: diaperIcon,
+                color: 'var(--tt-diaper)',
+                value: diaperDisplay,
+                unit: diaperUnit,
+                rotateIcon: false,
+                progressPercent: diaperPercent,
+                progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+                comparison: diaperComparison,
+                subline: diaperSubline
+              })
+            )
+          )
         );
       })()
     ),

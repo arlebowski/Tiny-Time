@@ -334,8 +334,8 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
         'aria-disabled': false,
         className: "flex flex-col items-center justify-center gap-2 rounded-full transition",
         style: {
-          width: 92,
-          height: 92,
+          width: '100%',
+          aspectRatio: '1',
           border: `1.5px solid ${border}`,
           backgroundColor: bg,
           opacity: dim ? 0.35 : 1

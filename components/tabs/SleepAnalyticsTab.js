@@ -37,8 +37,6 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
 
   // Build date buckets depending on timeframe.
   const sleepBuckets = useMemo(() => {
-    const now = new Date();
-
     const parseDayKeyToDate = (key) => {
       // key: YYYY-MM-DD (local)
       const parts = String(key || '').split('-');
@@ -49,108 +47,51 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       return new Date(y, m - 1, d);
     };
 
-    const parseMonthKeyToDate = (key) => {
-      // key: YYYY-MM
-      const parts = String(key || '').split('-');
-      const y = Number(parts[0]);
-      const m = Number(parts[1]);
-      if (!y || !m) return new Date();
-      return new Date(y, m - 1, 1);
-    };
-
     const fmtDayLabel = (key) =>
       parseDayKeyToDate(key).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-    const fmtWeekLabel = (weekStartKey) =>
-      parseDayKeyToDate(weekStartKey).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-
-    const fmtMonthLabel = (monthKey) =>
-      parseMonthKeyToDate(monthKey).toLocaleDateString('en-US', { month: 'short' });
 
     const makeDayKey = (d) => _dateKeyLocal(d.getTime());
     const dataByDay = sleepByDay || {};
 
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    const todayStartDate = new Date();
+    todayStartDate.setHours(0, 0, 0, 0);
+    const todayStart = todayStartDate.getTime();
+
+    const allUniqueDays = Object.keys(dataByDay).filter(k => {
+      const day = dataByDay[k];
+      return (day.totalHrs || 0) > 0 || (day.count || 0) > 0;
+    }).length;
+
+    let numDays;
     if (timeframe === 'day') {
-      const keys = [];
-      for (let i = 6; i >= 0; i--) {
-        const d = new Date(now);
-        d.setDate(now.getDate() - i);
-        keys.push(makeDayKey(d));
-      }
-      return keys.map(k => ({
-        key: k,
-        label: fmtDayLabel(k),
-        ...(dataByDay[k] || {})
-      }));
+      numDays = 3;
+    } else if (timeframe === 'week') {
+      numDays = 7;
+    } else {
+      numDays = 30;
     }
 
-    if (timeframe === 'week') {
-      // Match Volume History behavior: week start = Sunday
-      const res = [];
-      const d = new Date(now);
-      const diffToSun = d.getDay(); // 0 Sun..6 Sat
-      d.setDate(d.getDate() - diffToSun);
-
-      // 8 weeks including current week (oldest -> newest)
-      for (let w = 7; w >= 0; w--) {
-        const ws = new Date(d);
-        ws.setDate(d.getDate() - w * 7);
-        const wkKey = makeDayKey(ws);
-
-        // sum 7 days
-        let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
-        for (let i = 0; i < 7; i++) {
-          const dd = new Date(ws);
-          dd.setDate(ws.getDate() + i);
-          const kk = makeDayKey(dd);
-          const v = dataByDay[kk];
-          if (!v) continue;
-          totalHrs += v.totalHrs || 0;
-          dayHrs += v.dayHrs || 0;
-          nightHrs += v.nightHrs || 0;
-          count += v.count || 0;
-        }
-
-        res.push({
-          key: wkKey,
-          label: fmtWeekLabel(wkKey),
-          totalHrs,
-          dayHrs,
-          nightHrs,
-          count
-        });
-      }
-      return res;
+    const excludeToday = allUniqueDays > numDays;
+    let periodStart, periodEnd;
+    if (excludeToday) {
+      periodEnd = todayStart;
+      periodStart = todayStart - numDays * MS_PER_DAY;
+    } else {
+      periodEnd = todayStart + MS_PER_DAY;
+      periodStart = periodEnd - numDays * MS_PER_DAY;
     }
 
-    // month: last 6 months including current month
-    const res = [];
-    for (let m = 5; m >= 0; m--) {
-      const ms = new Date(now.getFullYear(), now.getMonth() - m, 1);
-      const monthKey = `${ms.getFullYear()}-${String(ms.getMonth() + 1).padStart(2, '0')}`;
-
-      let totalHrs = 0, dayHrs = 0, nightHrs = 0, count = 0;
-      const me = new Date(ms.getFullYear(), ms.getMonth() + 1, 1);
-      for (let dd = new Date(ms); dd < me; dd.setDate(dd.getDate() + 1)) {
-        const kk = makeDayKey(dd);
-        const v = dataByDay[kk];
-        if (!v) continue;
-        totalHrs += v.totalHrs || 0;
-        dayHrs += v.dayHrs || 0;
-        nightHrs += v.nightHrs || 0;
-        count += v.count || 0;
-      }
-
-      res.push({
-        key: monthKey,
-        label: fmtMonthLabel(monthKey),
-        totalHrs,
-        dayHrs,
-        nightHrs,
-        count
-      });
+    const keys = [];
+    for (let d = new Date(periodStart); d.getTime() < periodEnd; d.setDate(d.getDate() + 1)) {
+      keys.push(makeDayKey(d));
     }
-    return res;
+
+    return keys.map(k => ({
+      key: k,
+      label: fmtDayLabel(k),
+      ...(dataByDay[k] || {})
+    }));
   }, [timeframe, sleepByDay]);
 
   const sleepCards = useMemo(() => {
@@ -301,7 +242,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           'span',
           {
-            className: 'text-[15px] font-semibold leading-6',
+            className: 'text-[18px] font-semibold leading-6',
             style: { color: 'var(--tt-sleep)' }
           },
           'Sleep'
@@ -321,9 +262,9 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           value: timeframe,
           onChange: (v) => setTimeframe(v),
           options: [
-            { value: 'day', label: 'D' },
-            { value: 'week', label: 'W' },
-            { value: 'month', label: 'M' }
+            { value: 'day', label: '3D' },
+            { value: 'week', label: '7D' },
+            { value: 'month', label: '30D' }
           ],
           variant: 'body',
           size: 'medium',

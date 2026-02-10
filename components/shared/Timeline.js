@@ -249,7 +249,8 @@ const Timeline = ({
     const hasPhotos = __ttNormalizePhotoUrls(photoList).length > 0;
     const hasNote = Boolean(card.note || card.notes);
     const isNursing = card.type === 'feed' && card.feedType === 'nursing';
-    return hasPhotos || hasNote || isNursing;
+    const isSolids = card.type === 'feed' && card.feedType === 'solids';
+    return hasPhotos || hasNote || isNursing || isSolids;
   };
 
   const positionToTime = (percentage) => {
