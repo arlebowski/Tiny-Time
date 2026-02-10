@@ -2630,7 +2630,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           React.createElement('div', {
             style: {
               display: 'grid',
-              gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+              gridTemplateColumns: 'repeat(5, minmax(0, 1fr))',
               gap: 8,
               padding: 4
             }
