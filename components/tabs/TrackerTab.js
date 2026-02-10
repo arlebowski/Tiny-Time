@@ -1889,14 +1889,6 @@ const TrackerTab = ({
     setShowDiaperDetailSheet(true);
   };
 
-  if (loading && !hasLoadedOnce) {
-    return React.createElement('div', { className: "flex items-center justify-center py-12" },
-      React.createElement('div', { 
-        style: { color: 'var(--tt-text-secondary)' }
-      }, 'Loading...')
-    );
-  }
-
   // Calculate data for new card
   const lastFeeding = getLastFeeding();
   const lastFeedingTime = lastFeeding ? new Date(lastFeeding.timestamp) : new Date();
@@ -1913,6 +1905,7 @@ const TrackerTab = ({
   const chevronDisabledColor = 'var(--tt-nav-disabled)';
   const dateNavTrackBg = 'var(--tt-subtle-surface)';
   const dateNavDividerColor = 'var(--tt-nav-divider)';
+  const isCardSyncing = loading || (isDateTransitioning && transitionPending > 0);
 
   // Add a little bottom padding so the last card isn't obscured by mobile safe-area / nav.
   const HorizontalCalendar = (window.TT && window.TT.shared && window.TT.shared.HorizontalCalendar) || null;
@@ -1959,18 +1952,6 @@ const TrackerTab = ({
   }, React.createElement(GearIcon, { width: 26, height: 26, style: { display: 'block' } }));
   
   return React.createElement('div', { className: "space-y-4" },
-    (loading && hasLoadedOnce) && React.createElement('div', {
-      className: "flex items-center justify-center",
-      style: { marginTop: '-6px' }
-    },
-      React.createElement('div', {
-        className: "text-[12px] font-medium px-3 py-1 rounded-full",
-        style: {
-          backgroundColor: 'var(--tt-subtle-surface)',
-          color: 'var(--tt-text-secondary)'
-        }
-      }, 'Updating…')
-    ),
 
     // New TrackerCard Components (v4)
     window.TrackerCard && React.createElement(React.Fragment, null,
@@ -2040,6 +2021,7 @@ const TrackerTab = ({
             rawFeedings: allFeedings,
             rawSleepSessions: [],
             currentDate: currentDate,
+            syncing: isCardSyncing,
             disableAccordion: true,
             onCardTap: handleV4CardTap,
             onItemClick: handleFeedItemClick,
@@ -2065,6 +2047,7 @@ const TrackerTab = ({
             rawFeedings: [],
             rawSleepSessions: [],
             currentDate: currentDate,
+            syncing: isCardSyncing,
             disableAccordion: true,
             onCardTap: handleV4CardTap,
             onItemClick: handleFeedItemClick,
@@ -2089,6 +2072,7 @@ const TrackerTab = ({
             rawFeedings: [],
             rawSleepSessions: [],
             currentDate: currentDate,
+            syncing: isCardSyncing,
             disableAccordion: true,
             onCardTap: handleV4CardTap,
             onItemClick: handleFeedItemClick,
@@ -2113,6 +2097,7 @@ const TrackerTab = ({
             rawFeedings: [],
             rawSleepSessions: allSleepSessions,
             currentDate: currentDate,
+            syncing: isCardSyncing,
             disableAccordion: true,
             onCardTap: handleV4CardTap,
             onItemClick: handleSleepItemClick,
@@ -2137,6 +2122,7 @@ const TrackerTab = ({
             rawFeedings: [],
             rawSleepSessions: [],
             currentDate: currentDate,
+            syncing: isCardSyncing,
             disableAccordion: true,
             onCardTap: handleV4CardTap,
             onItemClick: handleDiaperItemClick,

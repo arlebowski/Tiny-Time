@@ -287,7 +287,8 @@ const TrackerCard = ({
   lastEntryTime = null,
   comparison = null,
   volumeUnit = null,
-  onCardTap = null
+  onCardTap = null,
+  syncing = false
 }) => {
   ensureZzzStyles();
   ensureTapAnimationStyles();
@@ -810,6 +811,17 @@ const TrackerCard = ({
         : (lastEntryTime ? formatRelativeTime(lastEntryTime) : 'No changes yet'));
 
     const v4HeaderRight = (() => {
+      const syncPill = syncing ? React.createElement(
+        'span',
+        {
+          className: "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium",
+          style: {
+            backgroundColor: 'var(--tt-subtle-surface)',
+            color: 'var(--tt-text-tertiary)'
+          }
+        },
+        'Syncing'
+      ) : null;
       const isActiveSleepPill = (mode === 'sleep' && isSleepActive);
 
       const chevronEl = React.createElement(
@@ -832,6 +844,7 @@ const TrackerCard = ({
         return React.createElement(
           'span',
           { className: "inline-flex items-center gap-2", style: statusStyle },
+          syncPill,
           React.createElement('span', { className: v4StatusTextClassName }, "Sleeping now"),
           chevronEl
         );
@@ -840,6 +853,7 @@ const TrackerCard = ({
       return React.createElement(
         'span',
         { className: "inline-flex items-center gap-2", style: statusStyle },
+        syncPill,
         React.createElement('span', { className: v4StatusTextClassName }, v4StatusText),
         chevronEl
       );

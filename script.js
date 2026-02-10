@@ -1108,20 +1108,23 @@ const firestoreStorage = {
     const keyNursing = this._cacheKey('nursingSessions');
     const keySleep = this._cacheKey('sleepSessions');
     const keyDiaper = this._cacheKey('diaperChanges');
+    const keySolids = this._cacheKey('solidsSessions');
     const keyMeta = this._cacheKey('meta');
-    if (!keyFeed || !keyNursing || !keySleep || !keyDiaper || !keyMeta) return null;
+    if (!keyFeed || !keyNursing || !keySleep || !keyDiaper || !keySolids || !keyMeta) return null;
     this._cacheState.initPromise = (async () => {
-      const [feedings, nursingSessions, sleeps, diapers, meta] = await Promise.all([
+      const [feedings, nursingSessions, sleeps, diapers, solids, meta] = await Promise.all([
         __ttDataCache.get(keyFeed),
         __ttDataCache.get(keyNursing),
         __ttDataCache.get(keySleep),
         __ttDataCache.get(keyDiaper),
+        __ttDataCache.get(keySolids),
         __ttDataCache.get(keyMeta)
       ]);
       if (Array.isArray(feedings)) this._cacheState.feedings = feedings;
       if (Array.isArray(nursingSessions)) this._cacheState.nursingSessions = nursingSessions;
       if (Array.isArray(sleeps)) this._cacheState.sleepSessions = sleeps;
       if (Array.isArray(diapers)) this._cacheState.diaperChanges = diapers;
+      if (Array.isArray(solids)) this._cacheState.solidsSessions = solids;
       if (meta && Number.isFinite(meta.lastSyncMs)) this._cacheState.lastSyncMs = meta.lastSyncMs;
       return true;
     })();
@@ -2654,6 +2657,8 @@ if (typeof firestoreStorage.setSleepTargetOverride !== 'function') {
 
 const { useState, useEffect, useMemo } = React;
 
+const __ttBootCacheKey = (uid) => `tt_boot_v1:${uid}`;
+
 const App = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -2712,6 +2717,25 @@ const App = () => {
       setBootKids(null);
       setBootActiveKid(null);
       setBootThemeKey('indigo');
+
+      // Fast-boot from cache if available (renders UI immediately, syncs in background)
+      try {
+        const cachedBoot = await __ttDataCache.get(__ttBootCacheKey(u.uid));
+        if (cachedBoot && cachedBoot.familyId && cachedBoot.kidId && Array.isArray(cachedBoot.kids) && cachedBoot.kids.length > 0) {
+          setFamilyId(cachedBoot.familyId);
+          setKidId(cachedBoot.kidId);
+          setBootKids(cachedBoot.kids);
+          const current = cachedBoot.kids.find(k => k.id === cachedBoot.kidId) || cachedBoot.kids[0] || null;
+          setBootActiveKid(current);
+          setBootThemeKey(cachedBoot.themeKey || 'indigo');
+          setNeedsSetup(false);
+          setLoadIssue(null);
+          setBootReady(true);
+          setLoading(false);
+          // Kick off storage init but don't block UI
+          firestoreStorage.initialize(cachedBoot.familyId, cachedBoot.kidId).catch(() => {});
+        }
+      } catch (e) {}
 
       const urlParams = new URLSearchParams(window.location.search);
       const inviteCode = urlParams.get("invite");
@@ -2863,6 +2887,15 @@ const App = () => {
         setBootActiveKid(current);
         setBootThemeKey(settingsData.themeKey || "indigo");
         setBootReady(true);
+        try {
+          await __ttDataCache.set(__ttBootCacheKey(u.uid), {
+            familyId: resolvedFamilyId,
+            kidId: resolvedKidId,
+            kids: list,
+            themeKey: settingsData.themeKey || "indigo",
+            savedAt: Date.now()
+          });
+        } catch (e) {}
 
       } catch (err) {
         console.error("Setup error:", err);
