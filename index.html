@@ -32,6 +32,13 @@
           const lightModeTokens = themeTokens.LIGHT_MODE_TOKENS || {};
           const darkModeTokens = themeTokens.DARK_MODE_TOKENS || {};
           const analyticsColors = themeTokens.ANALYTICS_CATEGORY_COLORS || {};
+          const colorThemes = themeTokens.COLOR_THEMES || {};
+          const resolvedThemeKey = (appearance && typeof appearance.themeKey === 'string' && appearance.themeKey.trim())
+            || themeTokens.DEFAULT_THEME_KEY
+            || Object.keys(colorThemes || {})[0];
+          const activeColorTheme = (resolvedThemeKey && colorThemes[resolvedThemeKey])
+            || (themeTokens.DEFAULT_THEME_KEY && colorThemes[themeTokens.DEFAULT_THEME_KEY])
+            || (Object.values(colorThemes || {})[0]);
 
           const modeThemes = darkMode ? backgroundThemes.dark : backgroundThemes.light;
           const themeEntry = (modeThemes && (modeThemes[background] || modeThemes["health-gray"])) || {};
@@ -175,6 +182,21 @@
             root.style.setProperty('--tt-tray-shadow', lightTokens.trayShadow);
             root.style.setProperty('--tt-tray-divider', lightTokens.trayDivider);
           }
+
+          // Pre-seed card accent colors to avoid icon flash before applyAppearance runs.
+          try {
+            const cards = activeColorTheme && activeColorTheme.cards ? activeColorTheme.cards : {};
+            const feedAccent = cards.bottle && cards.bottle.accent ? cards.bottle.accent : '#f5425d';
+            const nursingAccent = cards.nursing && cards.nursing.accent ? cards.nursing.accent : '#8259cf';
+            const solidsAccent = cards.solids && cards.solids.accent ? cards.solids.accent : '#62df69';
+            const sleepAccent = cards.sleep && cards.sleep.accent ? cards.sleep.accent : '#0f6fbd';
+            const diaperAccent = cards.diaper && cards.diaper.accent ? cards.diaper.accent : '#c99c4f';
+            root.style.setProperty('--tt-feed', feedAccent);
+            root.style.setProperty('--tt-nursing', nursingAccent);
+            root.style.setProperty('--tt-solids', solidsAccent);
+            root.style.setProperty('--tt-sleep', sleepAccent);
+            root.style.setProperty('--tt-diaper', diaperAccent);
+          } catch (e) {}
 
           if (analyticsColors.daily) {
             root.style.setProperty('--color-daily', analyticsColors.daily);

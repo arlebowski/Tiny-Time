@@ -2,12 +2,18 @@ const TTPhotoRow = ({
   expanded = false,
   onExpand,
   title = 'Photos',
+  showTitle = true,
   existingPhotos = [],
   newPhotos = [],
   onAddPhoto,
   onRemovePhoto,
   onPreviewPhoto,
-  addLabel = '+ Add photos'
+  addLabel = '+ Add photos',
+  addHint = 'Add',
+  showAddHint = false,
+  addTileBorder = false,
+  containerClassName = '',
+  containerStyle = null
 }) => {
   const XIcon = (typeof window !== 'undefined' && window.XIcon) || null;
   const PlusIcon = (typeof window !== 'undefined' && window.PlusIconLocal) || null;
@@ -15,13 +21,13 @@ const TTPhotoRow = ({
   if (!expanded) {
     return React.createElement('div', {
       onClick: () => { if (typeof onExpand === 'function') onExpand(); },
-      className: "py-3 cursor-pointer active:opacity-70 transition-opacity",
-      style: { color: 'var(--tt-text-tertiary)' }
+      className: `py-3 cursor-pointer active:opacity-70 transition-opacity ${containerClassName}`.trim(),
+      style: { color: 'var(--tt-text-tertiary)', ...(containerStyle || {}) }
     }, addLabel);
   }
 
-  return React.createElement('div', { className: "py-3" },
-    React.createElement('div', { className: "mb-3" },
+  return React.createElement('div', { className: `py-3 ${containerClassName}`.trim(), style: containerStyle || undefined },
+    showTitle && React.createElement('div', { className: "mb-3" },
       React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, title)
     ),
     React.createElement('div', { className: "flex gap-2" },
@@ -73,10 +79,11 @@ const TTPhotoRow = ({
       ),
       React.createElement('div', {
         onClick: () => { if (typeof onAddPhoto === 'function') onAddPhoto(); },
-        className: "aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100",
-        style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px' }
+        className: `aspect-square rounded-2xl flex items-center justify-center active:opacity-80 transition-opacity duration-100 ${showAddHint ? 'flex-col gap-1' : ''}`.trim(),
+        style: { backgroundColor: 'var(--tt-input-bg)', cursor: 'pointer', minWidth: '80px', flexShrink: 0, width: '80px', height: '80px', border: addTileBorder ? '1px solid var(--tt-card-border)' : undefined }
       },
-        PlusIcon && React.createElement(PlusIcon, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } })
+        PlusIcon && React.createElement(PlusIcon, { className: "w-6 h-6", style: { color: 'var(--tt-text-tertiary)' } }),
+        showAddHint && React.createElement('div', { className: "text-[11px]", style: { color: 'var(--tt-text-tertiary)' } }, addHint)
       )
     )
   );

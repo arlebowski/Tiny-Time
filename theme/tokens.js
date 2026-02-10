@@ -3,13 +3,68 @@
 
   const THEME_TOKENS = {
     DEFAULT_APPEARANCE: {
-      darkMode: false,
-      background: "health-gray",
-      feedAccent: "#d45d5c",
-      nursingAccent: "#7B6EE6",
-      solidsAccent: "#35CC8D",
-      sleepAccent: "#4a8ac2",
-      diaperAccent: "#C28F5C"
+      darkMode: false
+    },
+
+    DEFAULT_THEME_KEY: "theme1",
+    COLOR_THEME_ORDER: ["theme1", "theme2", "theme3", "theme4"],
+    COLOR_THEMES: {
+      theme1: {
+        name: "Theme 1",
+        cards: {
+          bottle: { name: "Bottle", primary: "#f5425d", soft: "#fbb3be", dark: "#f5667d" },
+          nursing: { name: "Nursing", primary: "#8259cf", soft: "#cdbdec", dark: "#a685de" },
+          sleep: { name: "Sleep", primary: "#277dc4", soft: "#a9cbe8", dark: "#5397d6" },
+          diaper: { name: "Diaper", primary: "#c99c4f", soft: "#e9d7b9", dark: "#dbb878" },
+          solids: { name: "Solids", primary: "#4bab51", soft: "#b7ddb9", dark: "#7db881" }
+        },
+        theme: {
+          light: { bg: "#F5F5F7", card: "#FFFFFF", field: "#F5F5F7" },
+          dark: { bg: "#000000", card: "#1C1C1E", field: "#2C2C2E" }
+        }
+      },
+      theme2: {
+        name: "Theme 2",
+        cards: {
+          bottle: { name: "Bottle", primary: "#e6749c", soft: "#f5c7d7", dark: "#a85874" },
+          nursing: { name: "Nursing", primary: "#5db899", soft: "#bee3d6", dark: "#4b8772" },
+          sleep: { name: "Sleep", primary: "#6ba9dd", soft: "#c4ddf1", dark: "#547da0" },
+          diaper: { name: "Diaper", primary: "#9b7ba8", soft: "#d7cadc", dark: "#745e7d" },
+          solids: { name: "Solids", primary: "#deaf51", soft: "#f2dfba", dark: "#a18143" }
+        },
+        theme: {
+          light: { bg: "#F5F5F7", card: "#FFFFFF", field: "#F5F5F7" },
+          dark: { bg: "#000000", card: "#1C1C1E", field: "#2C2C2E" }
+        }
+      },
+      theme3: {
+        name: "Theme 3",
+        cards: {
+          bottle: { name: "Bottle", primary: "#f56666", soft: "#fbc2c2", dark: "#b05050" },
+          nursing: { name: "Nursing", primary: "#b88fd9", soft: "#e3d2f0", dark: "#8e74a2" },
+          sleep: { name: "Sleep", primary: "#bba652", soft: "#e4dbba", dark: "#ac984a" },
+          diaper: { name: "Diaper", primary: "#7b8ff4", soft: "#cad2fb", dark: "#5e6caf" },
+          solids: { name: "Solids", primary: "#5db899", soft: "#bee3d6", dark: "#4b8772" }
+        },
+        theme: {
+          light: { bg: "#F5F5F7", card: "#FFFFFF", field: "#F5F5F7" },
+          dark: { bg: "#000000", card: "#1C1C1E", field: "#2C2C2E" }
+        }
+      },
+      theme4: {
+        name: "Theme 4",
+        cards: {
+          bottle: { name: "Bottle", primary: "#98ae76", soft: "#d6dfc8", dark: "#76865e" },
+          nursing: { name: "Nursing", primary: "#1d8fc3", soft: "#a9d9e4", dark: "#2e7a93" },
+          sleep: { name: "Sleep", primary: "#e98378", soft: "#f6cdc9", dark: "#a35c54" },
+          diaper: { name: "Diaper", primary: "#e1b04d", soft: "#f3dfb8", dark: "#9e7b36" },
+          solids: { name: "Solids", primary: "#9a7daf", soft: "#d7cbdf", dark: "#816d8f" }
+        },
+        theme: {
+          light: { bg: "#F5F5F7", card: "#FFFFFF", field: "#F5F5F7" },
+          dark: { bg: "#000000", card: "#1C1C1E", field: "#2C2C2E" }
+        }
+      }
     },
 
     BACKGROUND_THEMES: {
@@ -18,22 +73,12 @@
           appBg: "rgba(255, 255, 255, 1)",
           cardBg: "rgba(251, 248, 239, 1)",
           cardBorder: "transparent"
-        },
-        "eggshell": {
-          appBg: "rgba(251, 248, 239, 1)",
-          cardBg: "rgba(242, 235, 217, 1)",
-          cardBorder: "transparent"
         }
       },
       dark: {
         "health-gray": {
           appBg: "rgba(31, 32, 34, 1)",
           cardBg: "rgba(42, 43, 48, 1)",
-          cardBorder: "transparent"
-        },
-        "eggshell": {
-          appBg: "#1C1C1C",
-          cardBg: "#202020",
           cardBorder: "transparent"
         }
       }
@@ -85,14 +130,14 @@
         segmentedOnBg: "#ffffff",
         segmentedOnText: "rgba(0,0,0,0.87)",
         segmentedOffText: "rgba(255,255,255,0.8)",
-        primaryActionBg: "#2563eb",
-        primaryActionBgActive: "#111827",
+        primaryActionBg: "#4b9c7e",
+        primaryActionBgActive: "#4b9c7e",
         primaryActionShadow: "0 10px 25px rgba(37,99,235,0.25)",
         primaryActionShadowActive: "0 10px 25px rgba(0,0,0,0.25)",
         primaryActionText: "#ffffff",
-        primaryBrand: "#4F46E5",
-        primaryBrandSoft: "#E0E7FF",
-        primaryBrandStrong: "#4338CA",
+        primaryBrand: "#4b9c7e",
+        primaryBrandSoft: "rgba(75, 156, 126, 0.18)",
+        primaryBrandStrong: "#4b9c7e",
         recoveryBg: "#F2F2F7",
         error: "#ef4444",
         errorSoft: "rgba(239, 68, 68, 0.1)",
@@ -105,77 +150,7 @@
         negativeWarm: "#FF6037",
         negativeWarmSoft: "rgba(255, 96, 55, 0.15)",
         pulseHighlight: "rgba(255, 255, 255, 0.5)",
-        highlightIndigoSoft: "rgba(99,102,241,0.25)",
-        trayBg: "#ffffff",
-        trayShadow: "0 -10px 28px rgba(0,0,0,0.18)",
-        trayDivider: "rgba(0,0,0,0.06)"
-      },
-      "eggshell": {
-        inputBg: "#ffffff",
-        subtleSurface: "#ffffff",
-        surfaceSubtle: "#ffffff",
-        surfaceSelected: "rgba(242, 235, 217, 1)",
-        surfaceHover: "rgba(0,0,0,0.03)",
-        progressTrack: "#ffffff",
-        timelineItemBg: "#ffffff",
-        timelineTrackBg: "#ffffff",
-        halfsheetBg: "#ffffff",
-        wheelpickerBar: "#ffffff",
-        iconBg: "#ffffff",
-        inputBorder: "rgba(0,0,0,0.08)",
-        divider: "rgba(0,0,0,0.08)",
-        trackerCardBg: "#ffffff",
-        segTrack: "rgba(242, 235, 217, 1)",
-        segPill: "#ffffff",
-        swipeRowBg: "#F7F7F7",
-        selectedSurface: "rgba(242, 235, 217, 1)",
-        plusBg: "rgba(0, 0, 0, 1)",
-        plusFg: "rgba(255, 255, 255, 1)",
-        textPrimary: "rgba(38, 38, 38, 1)",
-        textSecondary: "rgba(60, 62, 67, 1)",
-        textTertiary: "rgba(119, 119, 119, 1)",
-        textDisabled: "rgba(0,0,0,0.28)",
-        textOnAccent: "#ffffff",
-        tapableBg: "rgba(0,0,0,0.05)",
-        overlayScrim: "rgba(0, 0, 0, 0.3)",
-        overlayScrimStrong: "rgba(0,0,0,0.6)",
-        shadowSoft: "0 -4px 20px rgba(0, 0, 0, 0.1)",
-        shadowFloating: "0 4px 12px rgba(0,0,0,0.15)",
-        textShadow: "0 2px 8px rgba(0,0,0,0.15)",
-        bgHover: "rgba(0,0,0,0.03)",
-        borderSubtle: "rgba(0,0,0,0.08)",
-        borderStrong: "rgba(0,0,0,0.16)",
-        outlineStrong: "#333333",
-        navDisabled: "rgba(0,0,0,0.24)",
-        navDivider: "rgb(243, 244, 246)",
-        navPillBorder: "rgba(0,0,0,0.12)",
-        navShadow: "0 -1px 3px rgba(0,0,0,0.1)",
-        segmentedTrackBg: "rgba(255,255,255,0.2)",
-        segmentedShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.05)",
-        segmentedOnBg: "#ffffff",
-        segmentedOnText: "rgba(0,0,0,0.87)",
-        segmentedOffText: "rgba(255,255,255,0.8)",
-        primaryActionBg: "#2563eb",
-        primaryActionBgActive: "#111827",
-        primaryActionShadow: "0 10px 25px rgba(37,99,235,0.25)",
-        primaryActionShadowActive: "0 10px 25px rgba(0,0,0,0.25)",
-        primaryActionText: "#ffffff",
-        primaryBrand: "#4F46E5",
-        primaryBrandSoft: "#E0E7FF",
-        primaryBrandStrong: "#4338CA",
-        recoveryBg: "#F2F2F7",
-        error: "#ef4444",
-        errorSoft: "rgba(239, 68, 68, 0.1)",
-        positive: "#34C759",
-        positiveSoft: "rgba(52, 199, 89, 0.15)",
-        positiveAlt: "#00BE68",
-        positiveAltSoft: "rgba(0, 190, 104, 0.15)",
-        negative: "#FF2D55",
-        negativeSoft: "rgba(255, 45, 85, 0.15)",
-        negativeWarm: "#FF6037",
-        negativeWarmSoft: "rgba(255, 96, 55, 0.15)",
-        pulseHighlight: "rgba(255, 255, 255, 0.5)",
-        highlightIndigoSoft: "rgba(99,102,241,0.25)",
+        highlightIndigoSoft: "rgba(75, 156, 126, 0.22)",
         trayBg: "#ffffff",
         trayShadow: "0 -10px 28px rgba(0,0,0,0.18)",
         trayDivider: "rgba(0,0,0,0.06)"
@@ -224,14 +199,14 @@
       segmentedOnBg: "#ffffff",
       segmentedOnText: "rgba(0,0,0,0.87)",
       segmentedOffText: "rgba(255,255,255,0.8)",
-      primaryActionBg: "#2563eb",
-      primaryActionBgActive: "#111827",
+      primaryActionBg: "#52b57a",
+      primaryActionBgActive: "#52b57a",
       primaryActionShadow: "0 10px 25px rgba(37,99,235,0.25)",
       primaryActionShadowActive: "0 10px 25px rgba(0,0,0,0.35)",
       primaryActionText: "#ffffff",
-      primaryBrand: "#4F46E5",
-      primaryBrandSoft: "#E0E7FF",
-      primaryBrandStrong: "#4338CA",
+      primaryBrand: "#52b57a",
+      primaryBrandSoft: "rgba(82, 181, 122, 0.18)",
+      primaryBrandStrong: "#52b57a",
       recoveryBg: "#0F0F10",
       error: "#ef4444",
       errorSoft: "rgba(239, 68, 68, 0.15)",
@@ -244,117 +219,13 @@
       negativeWarm: "#FF6037",
       negativeWarmSoft: "rgba(255, 96, 55, 0.2)",
       pulseHighlight: "rgba(255, 255, 255, 0.5)",
-      highlightIndigoSoft: "rgba(99,102,241,0.25)",
+      highlightIndigoSoft: "rgba(82, 181, 122, 0.22)",
       trayBg: "#222224",
       trayShadow: "0 -10px 28px rgba(0,0,0,0.35)",
       trayDivider: "rgba(255,255,255,0.08)"
     },
 
-    DARK_MODE_TOKENS_CLAUDE: {
-      inputBg: "#262626",
-      subtleSurface: "#262626",
-      surfaceSubtle: "#262626",
-      surfaceSelected: "rgba(255,255,255,0.12)",
-      surfaceHover: "#2A2A2A",
-      progressTrack: "#262626",
-      timelineTrackBg: "#262626",
-      wheelpickerBar: "#262626",
-      iconBg: "#262626",
-      inputBorder: "#2E2E2E",
-      divider: "#2E2E2E",
-      segTrack: "#262626",
-      segPill: "rgba(255,255,255,0.12)",
-      swipeRowBg: "#272727",
-      selectedSurface: "rgba(255,255,255,0.12)",
-      plusBg: "#ffffff",
-      plusFg: "#000000",
-      textPrimary: "#EDEDED",
-      textSecondary: "#B3B3B3",
-      textTertiary: "#8A8A8A",
-      textDisabled: "#6F6F6F",
-      textOnAccent: "#ffffff",
-      tapableBg: "rgba(255, 255, 255, 0.1)",
-      overlayScrim: "rgba(0, 0, 0, 0.45)",
-      overlayScrimStrong: "rgba(0,0,0,0.6)",
-      shadowSoft: "0 -4px 20px rgba(0, 0, 0, 0.35)",
-      shadowFloating: "0 4px 12px rgba(0,0,0,0.35)",
-      textShadow: "0 2px 8px rgba(0,0,0,0.35)",
-      bgHover: "#2A2A2A",
-      borderSubtle: "#2E2E2E",
-      borderStrong: "#3A3A3A",
-      outlineStrong: "#ffffff",
-      navDisabled: "rgba(255,255,255,0.28)",
-      navDivider: "rgba(255,255,255,0.06)",
-      navPillBorder: "rgba(255,255,255,0.18)",
-      navShadow: "none",
-      segmentedTrackBg: "rgba(255,255,255,0.2)",
-      segmentedShadow: "0 1px 2px 0 rgba(0, 0, 0, 0.35)",
-      segmentedOnBg: "#ffffff",
-      segmentedOnText: "rgba(0,0,0,0.87)",
-      segmentedOffText: "rgba(255,255,255,0.8)",
-      primaryActionBg: "#2563eb",
-      primaryActionBgActive: "#111827",
-      primaryActionShadow: "0 10px 25px rgba(37,99,235,0.25)",
-      primaryActionShadowActive: "0 10px 25px rgba(0,0,0,0.35)",
-      primaryActionText: "#ffffff",
-      primaryBrand: "#4F46E5",
-      primaryBrandSoft: "#E0E7FF",
-      primaryBrandStrong: "#4338CA",
-      recoveryBg: "#0F0F10",
-      error: "#ef4444",
-      errorSoft: "rgba(239, 68, 68, 0.15)",
-      positive: "#34C759",
-      positiveSoft: "rgba(52, 199, 89, 0.2)",
-      positiveAlt: "#00BE68",
-      positiveAltSoft: "rgba(0, 190, 104, 0.2)",
-      negative: "#FF2D55",
-      negativeSoft: "rgba(255, 45, 85, 0.2)",
-      negativeWarm: "#FF6037",
-      negativeWarmSoft: "rgba(255, 96, 55, 0.2)",
-      pulseHighlight: "rgba(255, 255, 255, 0.5)",
-      highlightIndigoSoft: "rgba(99,102,241,0.25)",
-      trayBg: "#262626",
-      trayShadow: "0 -10px 28px rgba(0,0,0,0.35)",
-      trayDivider: "rgba(255,255,255,0.08)"
-    },
-
-    ACCENT_COLOR_DEFINITIONS: [
-      { name: 'Ocean Blue', normal: { light: '#4a8ac2', dark: '#6ba8dc' }, soft: { light: '#6b9dcc', dark: '#88b8e6' } },
-      { name: 'Slate Blue', normal: { light: '#6b7c9d', dark: '#8d9dbd' }, soft: { light: '#8595ad', dark: '#a5b3cd' } },
-      { name: 'Mint Green', normal: { light: '#3a9679', dark: '#5cb899' }, soft: { light: '#5ca98a', dark: '#7dc9aa' } },
-      { name: 'Eucalyptus', normal: { light: '#92ADA4', dark: '#a8c4bb' }, soft: { light: '#a8beb7', dark: '#bdd4cc' } },
-      { name: 'Jalapeno', normal: { light: '#758C4F', dark: '#92a96f' }, soft: { light: '#8f9f6a', dark: '#a9bb88' } },
-      { name: 'Purple', normal: { light: '#8b6ba8', dark: '#a98cc5' }, soft: { light: '#a085b8', dark: '#bba3d5' } },
-      { name: 'Coral', normal: { light: '#d45d5c', dark: '#e88378' }, soft: { light: '#dd7978', dark: '#ed9d93' } },
-      { name: 'Rose Pink', normal: { light: '#d1547c', dark: '#e5749b' }, soft: { light: '#db7090', dark: '#ec8fac' } },
-      { name: 'Cinnabar', normal: { light: '#AE6455', dark: '#c98275' }, soft: { light: '#be8073', dark: '#d69a8e' } },
-      { name: 'Warm Orange', normal: { light: '#d4704b', dark: '#e89368' }, soft: { light: '#dd8a6a', dark: '#edaa87' } },
-      { name: 'Apricot', normal: { light: '#EF9E70', dark: '#f5b690' }, soft: { light: '#f3b28c', dark: '#f8c7a8' } },
-      { name: 'Roasted Peach', normal: { light: '#DAA58F', dark: '#e8bda8' }, soft: { light: '#e4b8a5', dark: '#eeddc2' } },
-      { name: 'Golden Yellow', normal: { light: '#c9952e', dark: '#e0b04d' }, soft: { light: '#d5a84f', dark: '#e8c26e' } },
-      { name: 'Cream', normal: { light: '#FED8A6', dark: '#ffe4be' }, soft: { light: '#fee2ba', dark: '#ffedce' } },
-      { name: 'Milky Coffee', normal: { light: '#9B7D61', dark: '#b59881' }, soft: { light: '#af9479', dark: '#c7ad99' } }
-    ],
-
-    BACKGROUND_PREVIEW_COLORS: {
-      light: {
-        "health-gray": "#f2f2f7",
-        "eggshell": "#FAF7F2"
-      },
-      dark: {
-        "health-gray": "#0F0F10",
-        "eggshell": "#1C1C1C"
-      }
-    },
-
-    KID_THEMES: {
-      indigo: { bg: "#E0E7FF", accent: "#4F46E5", soft: "#EEF2FF" },
-      health: { bg: "#F2F2F7", accent: "#4F46E5", soft: "#FFFFFF" },
-      teal: { bg: "#CCFBF1", accent: "#0F766E", soft: "#E0F2F1" },
-      pink: { bg: "#FCE7F3", accent: "#DB2777", soft: "#FDF2F8" },
-      amber: { bg: "#FEF3C7", accent: "#D97706", soft: "#FFFBEB" },
-      purple: { bg: "#EDE9FE", accent: "#7C3AED", soft: "#F5F3FF" }
-    },
+    
 
     ANALYTICS_CATEGORY_COLORS: {
       daily: "#3B82F6",

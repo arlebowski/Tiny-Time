@@ -85,9 +85,9 @@
         const nextKidId = detail.kidId || kidId || null;
         if (!nextKidId) return;
         if (detail.kidId && kidId && detail.kidId !== kidId) return;
-        if (nextKidId !== store.kidId) {
-          resetSubscription(nextKidId);
-        }
+        // Storage-ready can fire after an initial no-op subscribe (fast-boot).
+        // Always re-subscribe so active sleep updates once storage is initialized.
+        resetSubscription(nextKidId);
       };
       if (typeof window !== 'undefined') {
         window.addEventListener('tt:storage-ready', handler);
