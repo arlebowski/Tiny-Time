@@ -1095,12 +1095,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                       setActiveTab('tracker');
                     }
                   },
-                  className: "inline-flex items-center gap-1 text-sm font-semibold",
+                  className: "inline-flex items-center gap-1 text-[15px] font-medium",
                   style: { color: 'var(--tt-text-secondary)' }
                 },
                 ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
                   className: "w-5 h-5",
-                  style: { color: 'var(--tt-text-secondary)' }
+                  style: { color: 'var(--tt-text-secondary)', transform: 'translateY(1px)' }
                 }),
                 "Back"
               ),

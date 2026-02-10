@@ -389,7 +389,7 @@ const HorizontalCalendar = ({
       style: { color: 'var(--tt-text-primary)', perspective: '1000px' }
     },
       React.createElement('header', {
-        className: "mb-1 pl-3 pr-4",
+        className: "mb-2 pl-3 pr-4",
         style: headerLeft
           ? { display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }
           : { display: 'flex', alignItems: 'center', justifyContent: 'space-between' }
@@ -443,7 +443,7 @@ const HorizontalCalendar = ({
               key: monthKey,
               initial: { opacity: 0, x: -20 },
               animate: { opacity: 1, x: 0 },
-              className: "text-base font-semibold",
+              className: "text-[18px] font-semibold",
               style: {
                 color: 'var(--tt-text-primary)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',

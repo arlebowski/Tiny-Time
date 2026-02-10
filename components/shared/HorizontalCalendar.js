@@ -476,7 +476,7 @@ const HorizontalCalendar = ({
               key: monthKey,
               initial: { opacity: 0, x: -20 },
               animate: { opacity: 1, x: 0 },
-              className: "text-base font-semibold",
+              className: "text-[18px] font-semibold",
               style: {
                 color: 'var(--tt-text-primary)',
                 fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
