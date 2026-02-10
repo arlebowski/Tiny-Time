@@ -1095,12 +1095,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
                       setActiveTab('tracker');
                     }
                   },
-                  className: "inline-flex items-center gap-1 text-sm font-semibold",
+                  className: "inline-flex items-center gap-1 text-[15px] font-medium",
                   style: { color: 'var(--tt-text-secondary)' }
                 },
                 ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
                   className: "w-5 h-5",
-                  style: { color: 'var(--tt-text-secondary)' }
+                  style: { color: 'var(--tt-text-secondary)', transform: 'translateY(1px)' }
                 }),
                 "Back"
               ),
@@ -1157,105 +1157,81 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         const allModeCardStyle = { flex: '0 0 auto', width: 'calc((100vw - 48px) / 3)' };
 
         return React.createElement(
-          __ttMotion.div,
+          'div',
           {
             className: isAllMode
               ? 'flex gap-3 -mt-2 items-stretch overflow-x-auto pb-1'
               : `grid gap-3 -mt-2 items-stretch ${summaryGridCols}`,
-            style: isAllMode ? { WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } : undefined,
-            layout: true,
-            transition: { type: "spring", stiffness: 180, damping: 24 }
+            style: isAllMode ? { WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', msOverflowStyle: 'none' } : undefined
           },
-          React.createElement(__ttAnimatePresence, { mode: "popLayout", initial: true },
-            summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && React.createElement(
-              __ttMotion.div,
-              {
-                key: `summary-feed-${summaryCardsEpoch}`,
-                layout: true,
-                initial: { opacity: 0, x: feedInitialX },
-                animate: { opacity: 1, x: 0 },
-                exit: { opacity: 0, x: feedInitialX },
-                transition: { type: "spring", stiffness: 220, damping: 26 },
-                style: isAllMode ? allModeCardStyle : undefined
-              },
-              renderSummaryCard({
-                icon: bottleIcon,
-                color: 'var(--tt-feed)',
-                value: feedDisplay,
-                unit: 'oz',
-                rotateIcon: true,
-                progressPercent: feedPercent,
-                progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                comparison: feedComparison
-              })
-            ),
-            summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && hasNursingSummary && React.createElement(
-              __ttMotion.div,
-              {
-                key: `summary-nursing-${summaryCardsEpoch}`,
-                layout: true,
-                initial: { opacity: 0, x: nursingInitialX },
-                animate: { opacity: 1, x: 0 },
-                exit: { opacity: 0, x: nursingInitialX },
-                transition: { type: "spring", stiffness: 220, damping: 26 },
-                style: isAllMode ? allModeCardStyle : undefined
-              },
-              renderSummaryCard({
-                icon: nursingIcon,
-                color: 'var(--tt-nursing)',
-                value: nursingDisplay,
-                unit: 'hrs',
-                rotateIcon: false,
-                progressPercent: 0,
-                progressKey: `nursing-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                comparison: nursingComparison
-              })
-            ),
-            summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && React.createElement(
-              __ttMotion.div,
-              {
-                key: `summary-sleep-${summaryCardsEpoch}`,
-                layout: true,
-                initial: { opacity: 0, x: sleepInitialX },
-                animate: { opacity: 1, x: 0 },
-                exit: { opacity: 0, x: sleepInitialX },
-                transition: { type: "spring", stiffness: 220, damping: 26 },
-                style: isAllMode ? allModeCardStyle : undefined
-              },
-              renderSummaryCard({
-                icon: moonIcon,
-                color: 'var(--tt-sleep)',
-                value: sleepDisplay,
-                unit: 'hrs',
-                rotateIcon: false,
-                progressPercent: sleepPercent,
-                progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                comparison: sleepComparison
-              })
-            ),
-            summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && React.createElement(
-              __ttMotion.div,
-              {
-                key: `summary-diaper-${summaryCardsEpoch}`,
-                layout: true,
-                initial: { opacity: 0, x: sleepInitialX },
-                animate: { opacity: 1, x: 0 },
-                exit: { opacity: 0, x: sleepInitialX },
-                transition: { type: "spring", stiffness: 220, damping: 26 },
-                style: isAllMode ? allModeCardStyle : undefined
-              },
-              renderSummaryCard({
-                icon: diaperIcon,
-                color: 'var(--tt-diaper)',
-                value: diaperDisplay,
-                unit: diaperUnit,
-                rotateIcon: false,
-                progressPercent: diaperPercent,
-                progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-                comparison: diaperComparison,
-                subline: diaperSubline
-              })
-            )
+          summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && React.createElement(
+            'div',
+            {
+              key: `summary-feed-${summaryCardsEpoch}`,
+              style: isAllMode ? allModeCardStyle : undefined
+            },
+            renderSummaryCard({
+              icon: bottleIcon,
+              color: 'var(--tt-feed)',
+              value: feedDisplay,
+              unit: 'oz',
+              rotateIcon: true,
+              progressPercent: feedPercent,
+              progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+              comparison: feedComparison
+            })
+          ),
+          summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && hasNursingSummary && React.createElement(
+            'div',
+            {
+              key: `summary-nursing-${summaryCardsEpoch}`,
+              style: isAllMode ? allModeCardStyle : undefined
+            },
+            renderSummaryCard({
+              icon: nursingIcon,
+              color: 'var(--tt-nursing)',
+              value: nursingDisplay,
+              unit: 'hrs',
+              rotateIcon: false,
+              progressPercent: 0,
+              progressKey: `nursing-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+              comparison: nursingComparison
+            })
+          ),
+          summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && React.createElement(
+            'div',
+            {
+              key: `summary-sleep-${summaryCardsEpoch}`,
+              style: isAllMode ? allModeCardStyle : undefined
+            },
+            renderSummaryCard({
+              icon: moonIcon,
+              color: 'var(--tt-sleep)',
+              value: sleepDisplay,
+              unit: 'hrs',
+              rotateIcon: false,
+              progressPercent: sleepPercent,
+              progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+              comparison: sleepComparison
+            })
+          ),
+          summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && React.createElement(
+            'div',
+            {
+              key: `summary-diaper-${summaryCardsEpoch}`,
+              style: isAllMode ? allModeCardStyle : undefined
+            },
+            renderSummaryCard({
+              icon: diaperIcon,
+              color: 'var(--tt-diaper)',
+              value: diaperDisplay,
+              unit: diaperUnit,
+              rotateIcon: false,
+              progressPercent: diaperPercent,
+              progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+              comparison: diaperComparison,
+              subline: diaperSubline
+            })
           )
         );
       })()

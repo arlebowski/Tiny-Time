@@ -275,7 +275,7 @@ const DiaperAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         {
           type: 'button',
           onClick: () => setActiveTab('analytics'),
-          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-start',
+          className: 'rounded-lg transition font-medium active:scale-95 flex items-center justify-start gap-1',
           style: {
             color: 'var(--tt-text-secondary)',
             padding: '8px 12px',
@@ -285,8 +285,12 @@ const DiaperAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         },
         ChevronLeftIcon && React.createElement(ChevronLeftIcon, {
           className: 'w-5 h-5',
+          style: { color: 'var(--tt-text-secondary)', transform: 'translateY(1px)' }
+        }),
+        React.createElement('span', {
+          className: 'text-[15px] font-medium',
           style: { color: 'var(--tt-text-secondary)' }
-        })
+        }, 'Back')
       ),
       React.createElement(
         'div',

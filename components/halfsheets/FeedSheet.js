@@ -2654,7 +2654,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 style: {
                   background: selected ? 'var(--tt-solids)' : 'var(--tt-input-bg)',
                   border: 'none',
-                  borderRadius: 8,
+                  borderRadius: '50%',
                   padding: 8,
                   fontSize: 28,
                   aspectRatio: '1 / 1',
@@ -3286,10 +3286,14 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const shouldShowCtaFooter = !!ctaButton;
     const ctaFooterContent = ctaButton;
 
-    const solidsSheetHeightStyle = (isSolids && solidsSheetBaseHeight)
-      ? (solidsStep === 2
-          ? { height: `${Math.round(solidsSheetBaseHeight)}px`, maxHeight: `${Math.round(solidsSheetBaseHeight)}px` }
-          : (solidsStep === 3 ? { minHeight: `${Math.round(solidsSheetBaseHeight)}px` } : {}))
+    const solidsSheetHeightStyle = isSolids
+      ? (solidsStep === 1
+          ? { height: '606px', maxHeight: '606px' }
+          : (solidsSheetBaseHeight
+              ? (solidsStep === 2
+                  ? { height: `${Math.round(solidsSheetBaseHeight)}px`, maxHeight: `${Math.round(solidsSheetBaseHeight)}px` }
+                  : (solidsStep === 3 ? { minHeight: `${Math.round(solidsSheetBaseHeight)}px` } : {}))
+              : {}))
       : {};
 
     const overlayContent = React.createElement(
