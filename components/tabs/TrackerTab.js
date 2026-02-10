@@ -864,17 +864,14 @@ const TrackerTab = ({
   React.useEffect(() => {
     const handleInputSheetAdded = (event) => {
       const mode = event?.detail?.mode;
-      if (mode === 'feeding') {
-        loadFeedings();
-        loadNursingSessions();
+      // Always refresh all tracker datasets on add to keep UI snappy.
+      loadFeedings();
+      loadNursingSessions();
+      loadSolidsSessions();
+      loadSleepSessions();
+      loadDiaperChanges();
+      if (mode === 'feeding' || mode === 'nursing' || mode === 'solids' || mode === 'sleep' || mode === 'diaper') {
         return;
-      }
-      if (mode === 'sleep') {
-        loadSleepSessions();
-        return;
-      }
-      if (mode === 'diaper') {
-        loadDiaperChanges();
       }
     };
     window.addEventListener('tt-input-sheet-added', handleInputSheetAdded);
