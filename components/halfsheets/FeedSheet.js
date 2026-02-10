@@ -228,6 +228,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const [solidsSearch, setSolidsSearch] = React.useState('');
     const [recentFoods, setRecentFoods] = React.useState([]);
     const [customFoods, setCustomFoods] = React.useState([]);
+    const [customFoodDraft, setCustomFoodDraft] = React.useState(null);
+    const solidsTrayOpen = !!detailFoodId || !!customFoodDraft;
+    const [customFoodTrayMode, setCustomFoodTrayMode] = React.useState('create'); // 'create' | 'edit'
+    const [customFoodSaving, setCustomFoodSaving] = React.useState(false);
     const solidsSheetRef = React.useRef(null);
     const solidsHeaderRef = React.useRef(null);
     const solidsContentRef = React.useRef(null);
@@ -244,6 +248,11 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const WheelPicker = _pickers.WheelPicker;
     const wheelStyles = _pickers.wheelStyles || {};
     const TTPhotoRow = _pickers.TTPhotoRow || window.TT?.shared?.TTPhotoRow || window.TTPhotoRow;
+    const getStorage = () => {
+      if (typeof firestoreStorage !== 'undefined' && firestoreStorage) return firestoreStorage;
+      if (typeof window !== 'undefined' && window.firestoreStorage) return window.firestoreStorage;
+      return null;
+    };
 
     const resolveFeedType = (entryItem) => {
       if (!entryItem) return 'bottle';
@@ -734,13 +743,43 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       if (!isOpen || feedType !== 'solids') return;
       const loadSolidsData = async () => {
         try {
-          if (window.firestoreStorage) {
+          const storage = getStorage();
+          if (storage) {
             const [recent, custom] = await Promise.all([
-              window.firestoreStorage.getRecentFoods?.() || Promise.resolve([]),
-              window.firestoreStorage.getCustomFoods?.() || Promise.resolve([])
+              storage.getRecentFoods?.({ forceServer: true }) || Promise.resolve([]),
+              storage.getCustomFoods?.() || Promise.resolve([])
             ]);
-            setRecentFoods(Array.isArray(recent) ? recent : []);
-            setCustomFoods(Array.isArray(custom) ? custom : []);
+            let resolvedRecent = Array.isArray(recent) ? recent : [];
+            // Fallback: derive recents from saved solids sessions when recentSolidFoods is empty/stale.
+            if (resolvedRecent.length === 0 && typeof storage.getAllSolidsSessions === 'function') {
+              try {
+                const sessions = await storage.getAllSolidsSessions();
+                const sorted = Array.isArray(sessions)
+                  ? sessions.slice().sort((a, b) => Number(b?.timestamp || 0) - Number(a?.timestamp || 0))
+                  : [];
+                const names = [];
+                for (const session of sorted) {
+                  const foods = Array.isArray(session?.foods) ? session.foods : [];
+                  for (const food of foods) {
+                    const name = String(food?.name || '').trim();
+                    if (!name) continue;
+                    if (names.some((existing) => existing.toLowerCase() === name.toLowerCase())) continue;
+                    names.push(name);
+                    if (names.length >= 20) break;
+                  }
+                  if (names.length >= 20) break;
+                }
+                resolvedRecent = names;
+              } catch (fallbackErr) {
+                console.error('[FeedSheet] Failed to derive solids recents fallback:', fallbackErr);
+              }
+            }
+            setRecentFoods(resolvedRecent);
+            setCustomFoods(
+              (Array.isArray(custom) ? custom : [])
+                .slice()
+                .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || '')))
+            );
           }
           if (!effectiveEntry) {
             setSolidsStep(1);
@@ -768,6 +807,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             id,
             name,
             icon: f.icon || null,
+            emoji: f.emoji || null,
             category: f.category || 'Custom',
             amount: f.amount || null,
             reaction: f.reaction || null,
@@ -786,6 +826,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       setDetailFoodId(null);
       setSolidsStep(1);
       setSolidsSearch('');
+      setCustomFoodDraft(null);
+      setCustomFoodTrayMode('create');
+      setCustomFoodSaving(false);
     }, [feedType]);
 
     React.useEffect(() => {
@@ -841,35 +884,6 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       ro.observe(footerEl);
       return () => ro.disconnect();
     }, [isSolids, isKeyboardOpen, solidsStep]);
-
-    React.useEffect(() => {
-      if (!isSolids) return;
-      const sheetEl = solidsSheetRef.current;
-      const wrapperEl = solidsContentRef.current;
-      const step2MotionEl = solidsStepTwoMotionRef.current;
-      const footerEl = ctaFooterRef.current;
-      const log = (label) => {
-        if (!sheetEl) return;
-        const sheetRect = sheetEl.getBoundingClientRect();
-        const wrapperRect = wrapperEl ? wrapperEl.getBoundingClientRect() : null;
-        const step2Rect = step2MotionEl ? step2MotionEl.getBoundingClientRect() : null;
-        const footerRect = footerEl ? footerEl.getBoundingClientRect() : null;
-        console.log('[SolidsHeightDebug]', {
-          label,
-          solidsStep,
-          sheetHeight: Math.round(sheetRect.height),
-          wrapperHeight: wrapperRect ? Math.round(wrapperRect.height) : null,
-          step2MotionHeight: step2Rect ? Math.round(step2Rect.height) : null,
-          step2MotionScrollHeight: step2MotionEl ? step2MotionEl.scrollHeight : null,
-          step2MotionClientHeight: step2MotionEl ? step2MotionEl.clientHeight : null,
-          footerHeight: footerRect ? Math.round(footerRect.height) : null,
-          viewportHeight: window.innerHeight
-        });
-      };
-      log('effect');
-      window.requestAnimationFrame(() => log('raf'));
-    }, [isSolids, solidsStep, solidsSheetBaseHeight]);
-
 
     React.useEffect(() => {
       if (!isSolids) return;
@@ -1024,7 +1038,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             await firestoreStorage.updateSolidsSession(effectiveEntry.id, {
               timestamp,
               foods: addedFoods.map(f => ({
+                id: f.id || slugifyFoodId(f.name || ''),
                 name: f.name,
+                icon: f.icon || null,
+                emoji: f.emoji || null,
                 category: f.category || 'Custom',
                 amount: f.amount || null,
                 reaction: f.reaction || null,
@@ -1039,7 +1056,10 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             await firestoreStorage.addSolidsSession({
               timestamp,
               foods: addedFoods.map(f => ({
+                id: f.id || slugifyFoodId(f.name || ''),
                 name: f.name,
+                icon: f.icon || null,
+                emoji: f.emoji || null,
                 category: f.category || 'Custom',
                 amount: f.amount || null,
                 reaction: f.reaction || null,
@@ -1051,11 +1071,36 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             });
           }
 
-          // Update recent foods
+          // Update recent foods in one write to avoid cache/race issues.
           try {
-            for (const food of addedFoods) {
-              await firestoreStorage.updateRecentFoods(food.name);
+            const storage = getStorage();
+            const currentRecentRaw = await storage?.getRecentFoods?.({ forceServer: true });
+            const currentRecent = Array.isArray(currentRecentRaw)
+              ? currentRecentRaw
+                .map((item) => (typeof item === 'string' ? { name: item } : item))
+                .filter((item) => item && item.name)
+              : [];
+            let updatedRecent = [...currentRecent];
+            addedFoods.forEach((food) => {
+              const name = String(food?.name || '').trim();
+              if (!name) return;
+              const nextItem = {
+                name,
+                icon: food?.icon || null,
+                emoji: food?.emoji || null,
+                category: food?.category || 'Custom'
+              };
+              updatedRecent = [nextItem, ...updatedRecent.filter((existing) => String(existing?.name || '').toLowerCase() !== name.toLowerCase())];
+            });
+            updatedRecent = updatedRecent.slice(0, 20);
+            if (typeof storage?.updateKidData === 'function') {
+              await storage.updateKidData({ recentSolidFoods: updatedRecent });
+            } else {
+              for (const item of updatedRecent.slice().reverse()) {
+                await storage?.updateRecentFoods?.(item?.name);
+              }
             }
+            setRecentFoods(updatedRecent);
           } catch (e) {
             console.error('[FeedSheet] Failed to update recent foods:', e);
           }
@@ -1590,31 +1635,36 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         COMMON_FOODS.map((food) => String(food?.name || '').toLowerCase()).filter(Boolean)
       );
       const customMap = new Map();
-      const addCustom = (food) => {
+      const addCustom = (food, source = 'unknown') => {
         if (!food || !food.name) return;
         const name = String(food.name).trim();
         if (!name) return;
         const key = name.toLowerCase();
         if (commonNames.has(key)) return;
+        const customFoodId = food.customFoodId || food.custom_food_id || food.customFoodID || null;
+        const isEditableCustom = true;
         if (!customMap.has(key)) {
+          const icon = food.icon || (food.emoji ? null : 'SolidsIcon');
           customMap.set(key, {
-            id: food.id || slugifyFoodId(name),
+            id: food.id || customFoodId || slugifyFoodId(name),
             name,
             category: food.category || 'Custom',
-            icon: food.icon || 'SolidsIcon',
+            icon,
             emoji: food.emoji || null,
-            isCustom: true
+            isCustom: true,
+            isEditableCustom,
+            customFoodId: customFoodId || food.id || null
           });
         }
       };
-      customFoods.forEach(addCustom);
-      (addedFoods || []).forEach(addCustom);
+      customFoods.forEach((food) => addCustom(food, 'customFoods'));
+      (addedFoods || []).forEach((food) => addCustom(food, 'added'));
       (recentFoods || []).forEach((item) => {
         if (typeof item === 'string') {
-          addCustom({ name: item });
+          addCustom({ name: item }, 'recent');
           return;
         }
-        if (item && typeof item === 'object') addCustom(item);
+        if (item && typeof item === 'object') addCustom(item, 'recent');
       });
       const merged = [...COMMON_FOODS, ...Array.from(customMap.values())];
       return merged.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
@@ -1641,11 +1691,34 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       ));
       if (!Array.isArray(recentFoods) || recentFoods.length === 0) return fallback;
       const normalized = recentFoods
-        .map((item) => (typeof item === 'string' ? item : item?.name))
-        .filter(Boolean);
-      const resolved = normalized.map((name) => (
-        solidsFoodByName.get(String(name).toLowerCase()) || { id: slugifyFoodId(name), name }
-      ));
+        .map((item) => (typeof item === 'string' ? { name: item } : item))
+        .filter((item) => item && item.name);
+      const resolved = normalized.map((item) => {
+        const name = String(item.name);
+        const mapped = solidsFoodByName.get(name.toLowerCase());
+        if (!mapped) {
+          const customFoodId = item.customFoodId || item.custom_food_id || item.customFoodID || null;
+          return {
+            id: item.id || customFoodId || slugifyFoodId(name),
+            name,
+            icon: item.icon || null,
+            emoji: item.emoji || null,
+            category: item.category || 'Custom',
+            isCustom: true,
+            isEditableCustom: !!customFoodId,
+            customFoodId: customFoodId || item.id || null
+          };
+        }
+        const customFoodId = mapped.customFoodId || item.customFoodId || item.custom_food_id || item.customFoodID || null;
+        const isEditableCustom = !!(mapped.isEditableCustom || customFoodId);
+        return {
+          ...mapped,
+          emoji: mapped.emoji || item.emoji || null,
+          icon: mapped.icon || item.icon || null,
+          isEditableCustom,
+          customFoodId: customFoodId || mapped.id || null
+        };
+      });
       return resolved.slice(0, 6);
     }, [recentFoods, solidsFoodByName]);
 
@@ -1661,6 +1734,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         category: food.category || 'Custom',
         icon: food.icon || null,
         emoji: food.emoji || null,
+        customFoodId: food.customFoodId || food.custom_food_id || food.customFoodID || null,
+        isEditableCustom: !!(food.isEditableCustom || food.customFoodId || food.custom_food_id || food.customFoodID),
         amount: null,
         reaction: null,
         preparation: null,
@@ -1742,6 +1817,110 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       Most: AmountMostIcon,
       All: AmountAllIcon
     };
+    const CUSTOM_FOOD_EMOJI_SOURCE = [
+      { icon: 'HummusIcon', label: 'Hummus' },
+      { emoji: '🥑', label: 'Avocado' },
+      { emoji: '🧈', label: 'Butter' },
+      { emoji: '🍌', label: 'Banana' },
+      { emoji: '🫘', label: 'Beans' },
+      { emoji: '🥯', label: 'Bagel' },
+      { emoji: '🥓', label: 'Bacon' },
+      { emoji: '🍞', label: 'Bread' },
+      { emoji: '🥐', label: 'Croissant' },
+      { emoji: '🥦', label: 'Broccoli' },
+      { emoji: '🥬', label: 'Leafy greens' },
+      { emoji: '🥒', label: 'Cucumber' },
+      { emoji: '🥕', label: 'Carrot' },
+      { emoji: '🌽', label: 'Corn' },
+      { emoji: '🧄', label: 'Garlic' },
+      { emoji: '🧅', label: 'Onion' },
+      { emoji: '🍄', label: 'Mushroom' },
+      { emoji: '🍅', label: 'Tomato' },
+      { emoji: '🫒', label: 'Olives' },
+      { emoji: '🥥', label: 'Coconut' },
+      { emoji: '🍆', label: 'Eggplant' },
+      { emoji: '🥔', label: 'Potato' },
+      { emoji: '🌶️', label: 'Hot pepper' },
+      { emoji: '🫑', label: 'Bell pepper' },
+      { emoji: '🍇', label: 'Grapes' },
+      { emoji: '🍈', label: 'Melon' },
+      { emoji: '🍉', label: 'Watermelon' },
+      { emoji: '🍊', label: 'Orange' },
+      { emoji: '🍋', label: 'Lemon' },
+      { emoji: '🍍', label: 'Pineapple' },
+      { emoji: '🥭', label: 'Mango' },
+      { emoji: '🍎', label: 'Red apple' },
+      { emoji: '🍏', label: 'Green apple' },
+      { emoji: '🍐', label: 'Pear' },
+      { emoji: '🍑', label: 'Peach' },
+      { emoji: '🍒', label: 'Cherries' },
+      { emoji: '🍓', label: 'Strawberry' },
+      { emoji: '🫐', label: 'Blueberries' },
+      { emoji: '🥝', label: 'Kiwi' },
+      { emoji: '🥜', label: 'Peanuts' },
+      { emoji: '🌰', label: 'Chestnut' },
+      { emoji: '🥖', label: 'Baguette' },
+      { emoji: '🫓', label: 'Flatbread' },
+      { emoji: '🥨', label: 'Pretzel' },
+      { emoji: '🥞', label: 'Pancakes' },
+      { emoji: '🧇', label: 'Waffle' },
+      { emoji: '🍚', label: 'Rice' },
+      { emoji: '🍙', label: 'Rice ball' },
+      { emoji: '🍘', label: 'Rice cracker' },
+      { emoji: '🍝', label: 'Spaghetti' },
+      { emoji: '🍜', label: 'Noodles' },
+      { emoji: '🍲', label: 'Pot of food' },
+      { emoji: '🫕', label: 'Fondue' },
+      { emoji: '🍗', label: 'Poultry leg' },
+      { emoji: '🍖', label: 'Meat on bone' },
+      { emoji: '🍔', label: 'Burger' },
+      { emoji: '🌭', label: 'Hot dog' },
+      { emoji: '🥩', label: 'Steak' },
+      { emoji: '🍤', label: 'Fried shrimp' },
+      { emoji: '🦐', label: 'Shrimp' },
+      { emoji: '🦑', label: 'Squid' },
+      { emoji: '🦞', label: 'Lobster' },
+      { emoji: '🦀', label: 'Crab' },
+      { emoji: '🐟', label: 'Fish' },
+      { emoji: '🐠', label: 'Tropical fish' },
+      { emoji: '🍣', label: 'Sushi' },
+      { emoji: '🍱', label: 'Bento' },
+      { emoji: '🥚', label: 'Egg' },
+      { emoji: '🧀', label: 'Cheese' },
+      { emoji: '🥛', label: 'Milk' },
+      { emoji: '🍼', label: 'Baby bottle' },
+      { emoji: '🍕', label: 'Pizza' },
+      { emoji: '🌮', label: 'Taco' },
+      { emoji: '🌯', label: 'Burrito' },
+      { emoji: '🫔', label: 'Tamale' },
+      { emoji: '🥙', label: 'Stuffed flatbread' },
+      { emoji: '🧆', label: 'Falafel' },
+      { emoji: '🥗', label: 'Green salad' },
+      { emoji: '🥘', label: 'Paella' },
+      { emoji: '🍿', label: 'Popcorn' },
+      { emoji: '🍦', label: 'Soft ice cream' },
+      { emoji: '🍧', label: 'Shaved ice' },
+      { emoji: '🍨', label: 'Ice cream' },
+      { emoji: '🍩', label: 'Donut' },
+      { emoji: '🍪', label: 'Cookie' },
+      { emoji: '🎂', label: 'Cake' },
+      { emoji: '🧁', label: 'Cupcake' },
+      { emoji: '🥧', label: 'Pie' },
+      { emoji: '🍫', label: 'Chocolate' },
+      { emoji: '🍬', label: 'Candy' },
+      { emoji: '🍭', label: 'Lollipop' },
+      { emoji: '🍮', label: 'Custard' },
+      { emoji: '🍯', label: 'Honey' },
+      { emoji: '🥣', label: 'Bowl with spoon' },
+      { emoji: '🥄', label: 'Spoon' },
+      { emoji: '☕', label: 'Coffee' },
+      { emoji: '🧃', label: 'Juice box' },
+      { emoji: '🧋', label: 'Bubble tea' },
+      { emoji: '🥤', label: 'Cup with straw' }
+    ];
+    const CUSTOM_FOOD_EMOJI_OPTIONS = Array.from(
+      new Map(CUSTOM_FOOD_EMOJI_SOURCE.map((item) => [item.emoji || item.icon || item.label, item])).values()
+    ).sort((a, b) => a.label.localeCompare(b.label));
     const __normalizeSolidsToken = (value) => String(value || '')
       .trim()
       .toLowerCase()
@@ -1794,10 +1973,55 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       return parts.filter(Boolean);
     };
 
-    const FoodTile = ({ food, selected, onClick, dashed = false, labelOverride }) => {
+    const FoodTile = ({ food, selected, onClick, onLongPress, dashed = false, labelOverride, showEditBadge = false }) => {
       if (!food) return null;
+      const longPressTimerRef = React.useRef(null);
+      const longPressActiveRef = React.useRef(false);
+      const didLongPressRef = React.useRef(false);
+      const logLongPress = (phase, details = null) => {
+        if (typeof window === 'undefined' || !window.__ttLongPressDebug) return;
+        console.log('[FeedSheet][LongPress]', {
+          phase,
+          id: food?.id || null,
+          name: food?.name || null,
+          hasLongPress: typeof onLongPress === 'function',
+          details
+        });
+      };
+      const clearLongPressTimer = () => {
+        if (longPressTimerRef.current) {
+          clearTimeout(longPressTimerRef.current);
+          longPressTimerRef.current = null;
+        }
+      };
+      const handlePressStart = (event) => {
+        const hasHandler = typeof onLongPress === 'function';
+        logLongPress('start', { eventType: event?.type || null, button: event?.button, pointerType: event?.pointerType || null });
+        if (!hasHandler) return;
+        if (longPressActiveRef.current) return;
+        if (event && event.type === 'mousedown' && event.button !== 0) return;
+        if (event && event.type === 'pointerdown' && event.button !== 0) return;
+        if (event && event.type === 'touchstart' && event.cancelable) {
+          event.preventDefault();
+        }
+        longPressActiveRef.current = true;
+        didLongPressRef.current = false;
+        clearLongPressTimer();
+        longPressTimerRef.current = setTimeout(() => {
+          didLongPressRef.current = true;
+          logLongPress('trigger');
+          onLongPress();
+        }, 450);
+      };
+      const handlePressEnd = (event) => {
+        logLongPress('end', { eventType: event?.type || null, pointerType: event?.pointerType || null });
+        longPressActiveRef.current = false;
+        clearLongPressTimer();
+      };
+      React.useEffect(() => () => clearLongPressTimer(), []);
       const iconKey = typeof food.icon === 'string' ? food.icon : null;
       const IconComp = iconKey ? (window.TT?.shared?.icons?.[iconKey] || null) : null;
+      const EditBadgeIcon = window.TT?.shared?.icons?.Edit2 || PenIcon || null;
       const emoji = food.emoji || (!IconComp ? '🍽️' : null);
       const bg = selected
         ? 'color-mix(in srgb, var(--tt-solids) 16%, var(--tt-input-bg))'
@@ -1807,7 +2031,34 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       return React.createElement('button', {
         key: food.id || food.name,
         type: 'button',
-        onClick,
+        onClick: () => {
+          if (didLongPressRef.current) {
+            logLongPress('click-suppressed-after-long-press');
+            didLongPressRef.current = false;
+            return;
+          }
+          logLongPress('click');
+          if (typeof onClick === 'function') onClick();
+        },
+        onContextMenu: (e) => {
+          if (typeof onLongPress !== 'function') return;
+          e.preventDefault();
+          e.stopPropagation();
+        },
+        onContextMenuCapture: (e) => {
+          if (typeof onLongPress !== 'function') return;
+          e.preventDefault();
+          e.stopPropagation();
+        },
+        onMouseDown: handlePressStart,
+        onMouseUp: handlePressEnd,
+        onMouseLeave: handlePressEnd,
+        onPointerDown: handlePressStart,
+        onPointerUp: handlePressEnd,
+        onPointerCancel: handlePressEnd,
+        onTouchStart: handlePressStart,
+        onTouchEnd: handlePressEnd,
+        onTouchCancel: handlePressEnd,
         className: "flex flex-col items-center justify-center gap-2 rounded-full transition",
         style: {
           width: '100%',
@@ -1815,9 +2066,32 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           border: dashed ? '1.5px dashed var(--tt-border-subtle)' : `1.5px solid ${border}`,
           backgroundColor: bg,
           color: 'var(--tt-text-primary)',
-          opacity: selected ? 1 : 0.6
+          opacity: selected ? 1 : 0.6,
+          position: 'relative',
+          WebkitTouchCallout: 'none',
+          WebkitUserSelect: 'none',
+          userSelect: 'none',
+          touchAction: 'manipulation',
+          WebkitTapHighlightColor: 'transparent'
         }
       },
+        showEditBadge && EditBadgeIcon ? React.createElement('div', {
+          style: {
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            width: 24,
+            height: 24,
+            borderRadius: 999,
+            backgroundColor: 'var(--tt-solids-soft)',
+            color: 'var(--tt-solids)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2,
+            boxShadow: 'var(--tt-shadow-soft)'
+          }
+        }, React.createElement(EditBadgeIcon, { width: 12, height: 12, color: 'currentColor' })) : null,
         React.createElement('div', {
           className: "flex items-center justify-center rounded-full",
           style: {
@@ -1894,7 +2168,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
               key: resolvedId || food.name,
               food: { ...food, id: resolvedId },
               selected,
-              onClick: () => (selected ? removeFoodById(resolvedId) : addFoodToList({ ...food, id: resolvedId }))
+              onClick: () => (selected ? removeFoodById(resolvedId) : addFoodToList({ ...food, id: resolvedId })),
+              onLongPress: food?.isEditableCustom ? () => openCustomFoodEditTray({ ...food, id: resolvedId }) : null,
+              showEditBadge: !!food?.isEditableCustom
             });
           })
         )
@@ -1954,8 +2230,9 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
             key: food.id,
             food,
             selected,
-
-            onClick: () => (selected ? removeFoodById(food.id) : addFoodToList(food))
+            onClick: () => (selected ? removeFoodById(food.id) : addFoodToList(food)),
+            onLongPress: food?.isEditableCustom ? () => openCustomFoodEditTray(food) : null,
+            showEditBadge: !!food?.isEditableCustom
           });
         }),
         solidsSearch.trim() && solidsFilteredFoods.length === 0 && React.createElement(FoodTile, {
@@ -1964,24 +2241,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
           size: 72,
           dashed: true,
           labelOverride: `Add "${solidsSearch.slice(0, 12)}${solidsSearch.length > 12 ? '…' : ''}"`,
-          onClick: async () => {
-            const customFood = {
-              id: `custom-${Date.now()}`,
-              name: solidsSearch.trim(),
-              category: 'Custom',
-              icon: 'SolidsIcon',
-              emoji: null,
-              isCustom: true
-            };
-            if (window.firestoreStorage && window.firestoreStorage.addCustomFood) {
-              const saved = await window.firestoreStorage.addCustomFood(customFood);
-              setCustomFoods((prev) => [...prev, saved]);
-              addFoodToList(saved);
-            } else {
-              setCustomFoods((prev) => [...prev, customFood]);
-              addFoodToList(customFood);
-            }
-            setSolidsSearch('');
+          onClick: () => {
+            openCustomFoodCreateTray(solidsSearch.trim());
           }
         })
       )
@@ -1997,6 +2258,158 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         const current = f[field];
         return { ...f, [field]: current === value ? null : value };
       }));
+    };
+    const openCustomFoodCreateTray = (name) => {
+      setCustomFoodTrayMode('create');
+      setCustomFoodDraft({ id: null, name: String(name || '').trim(), emoji: null, icon: null, originalName: null });
+    };
+    const openCustomFoodEditTray = (food) => {
+      if (!food) return;
+      const resolveId = food.customFoodId || food.custom_food_id || food.customFoodID || food.id;
+      const byId = resolveId
+        ? customFoods.find((item) => String(item.id) === String(resolveId))
+        : null;
+      const byName = !byId
+        ? customFoods.find((item) => String(item?.name || '').trim().toLowerCase() === String(food?.name || '').trim().toLowerCase())
+        : null;
+      const target = byId || byName;
+      if (!target || !target.id) {
+        if (typeof window !== 'undefined' && window.__ttLongPressDebug) {
+          console.warn('[FeedSheet][LongPress] custom food target not found', {
+            inputFood: food,
+            resolveId,
+            customFoodsCount: customFoods.length
+          });
+        }
+        setCustomFoodTrayMode('create');
+        setCustomFoodDraft({
+          id: null,
+          name: String(food?.name || '').trim(),
+          emoji: food?.emoji || null,
+          icon: (food?.icon && food.icon !== 'SolidsIcon') ? food.icon : null,
+          originalName: null
+        });
+        return;
+      }
+      setCustomFoodTrayMode('edit');
+      setCustomFoodDraft({
+        id: target.id,
+        name: target.name || food.name || '',
+        emoji: target.emoji || null,
+        icon: (target?.icon && target.icon !== 'SolidsIcon') ? target.icon : null,
+        originalName: target.name || food.name || ''
+      });
+    };
+    const saveCustomFoodFromDraft = async () => {
+      const draftName = String(customFoodDraft?.name || '').trim();
+      if (!draftName || customFoodSaving) return;
+      setCustomFoodSaving(true);
+      try {
+        const storage = getStorage();
+        const isEdit = customFoodTrayMode === 'edit' && customFoodDraft?.id;
+        const selectedEmoji = customFoodDraft?.emoji || null;
+        const selectedIcon = customFoodDraft?.icon || null;
+        const baseFood = {
+          id: customFoodDraft?.id || `custom-${Date.now()}`,
+          name: draftName,
+          category: 'Custom',
+          icon: selectedIcon || (selectedEmoji ? null : 'SolidsIcon'),
+          emoji: selectedEmoji,
+          isCustom: true
+        };
+        let savedFood = baseFood;
+        if (isEdit) {
+          if (storage && storage.updateCustomFood) {
+            await storage.updateCustomFood(customFoodDraft.id, {
+              name: draftName,
+              icon: selectedIcon || (selectedEmoji ? null : 'SolidsIcon'),
+              emoji: selectedEmoji,
+              category: 'Custom'
+            });
+          }
+        } else if (storage && storage.addCustomFood) {
+          const saved = await storage.addCustomFood(baseFood);
+          if (saved && typeof saved === 'object') savedFood = { ...baseFood, ...saved };
+        }
+        if (isEdit) {
+          const oldNameLower = String(customFoodDraft?.originalName || '').toLowerCase();
+          setCustomFoods((prev) => prev
+            .map((item) => (String(item.id) === String(savedFood.id) ? { ...item, ...savedFood } : item))
+            .sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''))));
+          setAddedFoods((prev) => prev.map((item) => (
+            String(item.id) === String(savedFood.id)
+              ? { ...item, name: savedFood.name, emoji: savedFood.emoji || null, icon: savedFood.icon || null, category: savedFood.category || item.category }
+              : item
+          )));
+          setRecentFoods((prev) => {
+            if (!Array.isArray(prev)) return prev;
+            return prev.map((item) => {
+              if (typeof item === 'string') {
+                if (item.toLowerCase() !== oldNameLower && item.toLowerCase() !== String(savedFood.name || '').toLowerCase()) return item;
+                return { name: savedFood.name, emoji: savedFood.emoji || null, icon: savedFood.icon || null, category: savedFood.category || 'Custom' };
+              }
+              if (String(item?.name || '').toLowerCase() !== oldNameLower && String(item?.id || '') !== String(savedFood.id)) return item;
+              return { ...item, name: savedFood.name, emoji: savedFood.emoji || null, icon: savedFood.icon || null, category: savedFood.category || 'Custom' };
+            });
+          });
+        } else {
+          setCustomFoods((prev) => [...prev, savedFood].sort((a, b) => String(a?.name || '').localeCompare(String(b?.name || ''))));
+          addFoodToList(savedFood);
+        }
+        setCustomFoodDraft(null);
+        setCustomFoodTrayMode('create');
+        setSolidsSearch('');
+      } catch (error) {
+        console.error('[FeedSheet] Failed to save custom food:', error);
+        alert('Failed to save custom food. Please try again.');
+      } finally {
+        setCustomFoodSaving(false);
+      }
+    };
+    const deleteCustomFoodFromDraft = async () => {
+      const id = customFoodDraft?.id;
+      if (!id || customFoodSaving) return;
+      if (typeof window !== 'undefined' && window.confirm && !window.confirm('Delete this custom food?')) return;
+      setCustomFoodSaving(true);
+      try {
+        const storage = getStorage();
+        if (storage && storage.deleteCustomFood) {
+          await storage.deleteCustomFood(id);
+        }
+        const deletedName = String(customFoodDraft?.name || '').trim();
+        if (storage && typeof storage.getRecentFoods === 'function' && typeof storage.updateKidData === 'function' && deletedName) {
+          try {
+            const remoteRecent = await storage.getRecentFoods({ forceServer: true });
+            if (Array.isArray(remoteRecent)) {
+              const filteredRecent = remoteRecent.filter((item) => {
+                const name = typeof item === 'string' ? item : item?.name;
+                return String(name || '').toLowerCase() !== deletedName.toLowerCase();
+              });
+              await storage.updateKidData({ recentSolidFoods: filteredRecent });
+            }
+          } catch (recentErr) {
+            console.error('[FeedSheet] Failed to sync recents after custom delete:', recentErr);
+          }
+        }
+        setCustomFoods((prev) => prev.filter((item) => String(item.id) !== String(id)));
+        setAddedFoods((prev) => prev.filter((item) => String(item.id) !== String(id)));
+        setRecentFoods((prev) => {
+          if (!Array.isArray(prev)) return prev;
+          const deletedLower = deletedName.toLowerCase();
+          return prev.filter((item) => {
+            if (typeof item === 'string') return item.toLowerCase() !== deletedLower;
+            if (String(item?.id || '') === String(id)) return false;
+            return String(item?.name || '').toLowerCase() !== deletedLower;
+          });
+        });
+        setCustomFoodDraft(null);
+        setCustomFoodTrayMode('create');
+      } catch (error) {
+        console.error('[FeedSheet] Failed to delete custom food:', error);
+        alert('Failed to delete custom food. Please try again.');
+      } finally {
+        setCustomFoodSaving(false);
+      }
     };
 
     const SolidsDetailChip = ({ label, selected, dim, onClick, icon: Icon, iconOnly = false }) => {
@@ -2138,6 +2551,122 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 onClick: () => updateFoodDetail(displayFood.id, 'reaction', reaction.label)
               })
             )
+          )
+        )
+      )
+    );
+    const customFoodCreateSheet = TTPickerTray && React.createElement(TTPickerTray, {
+      isOpen: !!customFoodDraft,
+      onClose: () => {
+        if (customFoodSaving) return;
+        setCustomFoodDraft(null);
+        setCustomFoodTrayMode('create');
+      },
+      height: '62vh',
+      header: React.createElement(
+        React.Fragment,
+        null,
+        React.createElement('button', {
+          type: 'button',
+          disabled: customFoodSaving,
+          onClick: customFoodTrayMode === 'edit'
+            ? deleteCustomFoodFromDraft
+            : () => {
+              setCustomFoodDraft(null);
+              setCustomFoodTrayMode('create');
+            },
+          style: {
+            justifySelf: 'start',
+            fontWeight: 600,
+            color: customFoodTrayMode === 'edit' ? 'var(--tt-negative-warm)' : 'var(--tt-text-secondary)',
+            background: 'transparent',
+            border: 'none',
+            fontSize: 17,
+            opacity: customFoodSaving ? 0.5 : 1
+          }
+        }, customFoodTrayMode === 'edit' ? 'Delete' : 'Cancel'),
+        React.createElement('div', {
+          className: "font-semibold",
+          style: { color: 'var(--tt-text-primary)', fontSize: 17 }
+        }, customFoodTrayMode === 'edit' ? 'Edit Food' : 'New Food'),
+        React.createElement('button', {
+          type: 'button',
+          disabled: customFoodSaving || !String(customFoodDraft?.name || '').trim(),
+          onClick: saveCustomFoodFromDraft,
+          style: {
+            justifySelf: 'end',
+            fontWeight: 600,
+            color: 'var(--tt-solids)',
+            background: 'transparent',
+            border: 'none',
+            fontSize: 17,
+            opacity: (customFoodSaving || !String(customFoodDraft?.name || '').trim()) ? 0.5 : 1
+          }
+        }, customFoodSaving ? 'Saving...' : 'Save')
+      )
+    },
+      React.createElement('div', { style: { padding: '0 16px' } },
+        React.createElement('div', null,
+          React.createElement('div', { style: { fontSize: 13, color: 'var(--tt-text-tertiary)', marginBottom: 12, fontWeight: 500 } }, 'Name'),
+          React.createElement('input', {
+            type: 'text',
+            value: customFoodDraft?.name || '',
+            onChange: (e) => setCustomFoodDraft((prev) => ({ ...(prev || { emoji: null, icon: null }), name: e.target.value })),
+            placeholder: 'Enter food name',
+            style: {
+              width: '100%',
+              background: 'var(--tt-input-bg)',
+              border: 'none',
+              borderRadius: 12,
+              padding: '14px 16px',
+              color: 'var(--tt-text-primary)',
+              fontSize: 17,
+              boxSizing: 'border-box'
+            }
+          })
+        ),
+        React.createElement('div', { className: "mt-6" },
+          React.createElement('div', { style: { fontSize: 13, color: 'var(--tt-text-tertiary)', marginBottom: 12, fontWeight: 500 } }, 'Icon'),
+          React.createElement('div', {
+            style: {
+              display: 'grid',
+              gridTemplateColumns: 'repeat(6, minmax(0, 1fr))',
+              gap: 8,
+              padding: 4
+            }
+          },
+            CUSTOM_FOOD_EMOJI_OPTIONS.map((item) => {
+              const optionKey = item.emoji || item.icon;
+              const selected = (item.emoji && customFoodDraft?.emoji === item.emoji) || (item.icon && customFoodDraft?.icon === item.icon);
+              const IconOptionComp = item.icon ? (window.TT?.shared?.icons?.[item.icon] || null) : null;
+              return React.createElement('button', {
+                key: optionKey,
+                type: 'button',
+                title: item.label,
+                onClick: () => setCustomFoodDraft((prev) => {
+                  const nextSelected = !selected;
+                  if (item.emoji) {
+                    return { ...(prev || { name: '' }), emoji: nextSelected ? item.emoji : null, icon: null };
+                  }
+                  return { ...(prev || { name: '' }), icon: nextSelected ? item.icon : null, emoji: null };
+                }),
+                className: "transition-all",
+                style: {
+                  background: selected ? 'var(--tt-solids)' : 'var(--tt-input-bg)',
+                  border: 'none',
+                  borderRadius: 8,
+                  padding: 8,
+                  fontSize: 28,
+                  aspectRatio: '1 / 1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transform: selected ? 'scale(1.06)' : 'scale(1)'
+                }
+              }, IconOptionComp
+                ? React.createElement(IconOptionComp, { width: 28, height: 28 })
+                : item.emoji);
+            })
           )
         )
       )
@@ -2706,7 +3235,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
       null,
       feedTypePicker,
       isSolids ? solidsContentWrapper : (isNursing ? nursingContent : bottleContent),
-      isSolids && solidsDetailSheet
+      isSolids && solidsDetailSheet,
+      isSolids && customFoodCreateSheet
     );
 
     const solidsCanSave = !!dateTime && addedFoods.length > 0;
@@ -2723,7 +3253,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const solidsCta = isSolids ? getSolidsCta() : null;
 
     const isCtaDisabled = isSolids
-      ? (solidsCta ? (solidsCta.disabled || !!detailFoodId) : true)
+      ? (solidsCta ? (solidsCta.disabled || solidsTrayOpen) : true)
       : (saving || (isNursing && !nursingCanSave));
 
     const ctaButton = (isSolids && !solidsCta) ? null : React.createElement('button', {
@@ -2959,7 +3489,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                   backdropFilter: 'blur(6px)',
                   WebkitBackdropFilter: 'blur(6px)'
                 },
-                onClick: () => { if (!detailFoodId) handleClose(); }
+                onClick: () => { if (!solidsTrayOpen) handleClose(); }
               }
             )
           : null,
@@ -2972,14 +3502,14 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 animate: { y: 0 },
                 exit: { y: "100%" },
                 transition: { type: "spring", damping: 35, stiffness: 400 },
-                drag: detailFoodId ? false : "y",
+                drag: solidsTrayOpen ? false : "y",
                 dragControls: dragControls || undefined,
                 dragListener: !dragControls,
                 dragConstraints: { top: 0, bottom: 0 },
                 dragElastic: { top: 0, bottom: 0.7 },
                 dragMomentum: true,
                 onDragEnd: (e, info) => {
-                  if (!detailFoodId && (info.offset.y > 60 || info.velocity.y > 500)) {
+                  if (!solidsTrayOpen && (info.offset.y > 60 || info.velocity.y > 500)) {
                     handleClose();
                   }
                 },
@@ -3025,9 +3555,11 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 }
               },
                 React.createElement('button', {
-                  onClick: detailFoodId ? () => setDetailFoodId(null) : ((isSolids && solidsStep >= 2)
-                    ? () => setSolidsStep(1)
-                    : handleClose),
+                  onClick: solidsTrayOpen
+                    ? () => { setDetailFoodId(null); setCustomFoodDraft(null); }
+                    : ((isSolids && solidsStep >= 2)
+                      ? () => setSolidsStep(1)
+                      : handleClose),
                   className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
                 }, React.createElement(
                   (isSolids && solidsStep >= 2)
@@ -3039,7 +3571,7 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
                 (isSolids && solidsStep === 2)
                   ? React.createElement('button', {
                       type: 'button',
-                      onClick: () => { if (!detailFoodId) setSolidsStep(3); },
+                      onClick: () => { if (!solidsTrayOpen) setSolidsStep(3); },
                       className: "text-sm font-semibold",
                       style: { color: addedFoods.length > 0 ? '#fff' : 'rgba(255,255,255,0.5)' }
                     }, 'Done')

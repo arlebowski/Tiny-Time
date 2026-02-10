@@ -2432,6 +2432,7 @@ const firestoreStorage = {
       category: category || 'Custom',
       icon: icon || null,
       emoji: emoji || null,
+      isDeleted: false,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     };
     const ref = await familyRef.collection('customFoods').add(data);
@@ -2442,28 +2443,63 @@ const firestoreStorage = {
     if (!this.currentFamilyId) return [];
     const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
     const snap = await familyRef.collection('customFoods').get();
-    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((item) => !item?.isDeleted);
+  },
+
+  async updateCustomFood(foodId, patch = {}) {
+    if (!this.currentFamilyId) throw new Error('No family ID');
+    if (!foodId) throw new Error('No custom food ID');
+    const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
+    const update = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(update, 'name') && typeof update.name === 'string') {
+      update.name = update.name.trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(update, 'emoji')) {
+      update.emoji = update.emoji || null;
+    }
+    if (Object.prototype.hasOwnProperty.call(update, 'icon')) {
+      update.icon = update.icon || null;
+    }
+    update.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+    await familyRef.collection('customFoods').doc(foodId).set(update, { merge: true });
   },
 
   async deleteCustomFood(foodId) {
     if (!this.currentFamilyId) throw new Error('No family ID');
+    if (!foodId) throw new Error('No custom food ID');
     const familyRef = firebase.firestore().collection('families').doc(this.currentFamilyId);
-    await familyRef.collection('customFoods').doc(foodId).delete();
+    await familyRef.collection('customFoods').doc(foodId).set({
+      isDeleted: true,
+      deletedAt: firebase.firestore.FieldValue.serverTimestamp()
+    }, { merge: true });
   },
 
   // -----------------------
   // RECENT FOODS (Kid Level)
   // -----------------------
-  async getRecentFoods() {
+  async getRecentFoods(options = {}) {
+    const forceServer = !!options.forceServer;
+    if (forceServer) {
+      const remote = await this._getKidDataRemote();
+      this._cacheState.kidData = remote || null;
+      this._cacheState.kidDataSyncMs = Date.now();
+      await this._saveSettingsCache();
+      return Array.isArray(remote?.recentSolidFoods) ? remote.recentSolidFoods : [];
+    }
     const kidData = await this.getKidData();
     return Array.isArray(kidData?.recentSolidFoods) ? kidData.recentSolidFoods : [];
   },
 
   async updateRecentFoods(foodName) {
     if (!foodName || typeof foodName !== 'string') return;
-    const current = await this.getRecentFoods();
+    const currentRaw = await this.getRecentFoods();
+    const current = Array.isArray(currentRaw)
+      ? currentRaw.map((item) => (typeof item === 'string' ? item : item?.name)).filter(Boolean)
+      : [];
     // Remove if exists, then add to front
-    const filtered = current.filter(f => f !== foodName);
+    const filtered = current.filter(f => String(f).toLowerCase() !== String(foodName).toLowerCase());
     const updated = [foodName, ...filtered].slice(0, 20); // Keep max 20
     await this._kidRef().set({ recentSolidFoods: updated }, { merge: true });
     // Update cache
@@ -2473,6 +2509,9 @@ const firestoreStorage = {
     }
   }
 };
+
+// Expose storage on window for cross-file access and debugging
+try { window.firestoreStorage = firestoreStorage; } catch (e) {}
 
 firestoreStorage._getAllFeedingsRemote = async function () {
   const snap = await this._kidRef()
@@ -3738,8 +3777,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
   // --------------------------------------
 
   const isAnalyticsSubtab = [
-    'analytics-feeding',
-    'analytics-sleep'
+    'analytics-bottle',
+    'analytics-sleep',
+    'analytics-nursing',
+    'analytics-solids',
+    'analytics-diaper'
   ].includes(activeTab);
 
   return React.createElement(
@@ -4043,13 +4085,29 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         })),
         React.createElement('div', {
           style: { display: activeTab === 'analytics' ? 'block' : 'none' }
-        }, React.createElement(window.TT.tabs.AnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        }, React.createElement(window.TT.tabs.AnalyticsTab, { 
+          user, 
+          kidId, 
+          familyId, 
+          setActiveTab,
+          activityVisibility: activityVisibilitySafe,
+          activityOrder: activityOrderSafe
+        })),
         React.createElement('div', {
-          style: { display: activeTab === 'analytics-feeding' ? 'block' : 'none' }
-        }, React.createElement(window.TT.tabs.FeedingAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+          style: { display: activeTab === 'analytics-bottle' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.BottleAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-nursing' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.NursingAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-solids' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.SolidsAnalyticsTab, { user, kidId, familyId, setActiveTab })),
         React.createElement('div', {
           style: { display: activeTab === 'analytics-sleep' ? 'block' : 'none' }
         }, React.createElement(window.TT.tabs.SleepAnalyticsTab, { user, kidId, familyId, setActiveTab })),
+        React.createElement('div', {
+          style: { display: activeTab === 'analytics-diaper' ? 'block' : 'none' }
+        }, React.createElement(window.TT.tabs.DiaperAnalyticsTab, { user, kidId, familyId, setActiveTab })),
         window.TT?.tabs?.TrackerDetailTab && React.createElement('div', {
           style: activeTab === 'tracker-detail'
             ? {

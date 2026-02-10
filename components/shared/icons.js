@@ -2,7 +2,7 @@
 const React = window.React;
 
 // Edit icon
-const Edit2 = (props) => React.createElement('svg', { ...props, xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round" },
+const Edit2 = (props) => React.createElement('svg', { xmlns: "http://www.w3.org/2000/svg", width: "24", height: "24", viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", ...props },
   React.createElement('path', { d: "M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" })
 );
 
@@ -99,6 +99,67 @@ const SearchIcon = (props) => React.createElement(
   'svg',
   { ...props, xmlns: "http://www.w3.org/2000/svg", width: "32", height: "32", viewBox: "0 0 256 256", fill: "currentColor" },
   React.createElement('path', { d: "M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" })
+);
+
+// Hummus icon (image-based custom food icon)
+const HummusIcon = ({ width = 28, height = 28, style, className, ...props }) => React.createElement(
+  'img',
+  {
+    ...props,
+    src: 'assets/icons/hummus.png',
+    alt: 'Hummus',
+    draggable: false,
+    className,
+    style: {
+      width,
+      height,
+      objectFit: 'contain',
+      display: 'block',
+      transform: 'scale(1.65)',
+      transformOrigin: 'center',
+      ...style
+    }
+  }
+);
+
+const BambaIcon = ({ width = 28, height = 28, style, className, ...props }) => React.createElement(
+  'img',
+  {
+    ...props,
+    src: 'assets/icons/bamba.png',
+    alt: 'Bamba',
+    draggable: false,
+    className,
+    style: {
+      width,
+      height,
+      objectFit: 'contain',
+      display: 'block',
+      transform: 'scale(1.65)',
+      transformOrigin: 'center',
+      ...style
+    }
+  }
+);
+
+const PeasIcon = ({ width = 28, height = 28, style, className, ...props }) => React.createElement(
+  'img',
+  {
+    ...props,
+    src: 'assets/icons/peas.png',
+    alt: 'Peas',
+    draggable: false,
+    className,
+    style: {
+      width,
+      height,
+      objectFit: 'contain',
+      display: 'block',
+      transform: 'scale(1.65)',
+      transformOrigin: 'center',
+      ...style
+    }
+  }
 );
 
 // Diaper icons
@@ -427,7 +488,7 @@ try {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
-  window.TT.shared.icons = { Edit2, Check, X, DaySleep, NightSleep, BottleV2, NursingIcon, MoonV2, SolidsIcon, PrepRawIcon, PrepMashedIcon, PrepSteamedIcon, PrepPureedIcon, PrepBoiledIcon, SearchIcon, DiaperIcon, DiaperWetIcon, DiaperDryIcon, DiaperPooIcon, TodayIcon, TrendsIcon, ChatIcon, ScheduleIcon, HomeIcon, PlusIcon, MenuIcon, ShareIconPhosphor, BabyIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon };
+  window.TT.shared.icons = { Edit2, Check, X, DaySleep, NightSleep, BottleV2, NursingIcon, MoonV2, SolidsIcon, PrepRawIcon, PrepMashedIcon, PrepSteamedIcon, PrepPureedIcon, PrepBoiledIcon, SearchIcon, HummusIcon, BambaIcon, PeasIcon, DiaperIcon, DiaperWetIcon, DiaperDryIcon, DiaperPooIcon, TodayIcon, TrendsIcon, ChatIcon, ScheduleIcon, HomeIcon, PlusIcon, MenuIcon, ShareIconPhosphor, BabyIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon };
  
   // Aliases with hyphenated names (must be accessed via bracket notation)
   window.TT.shared.icons["bottle-v2"] = window.TT.shared.icons.BottleV2;
