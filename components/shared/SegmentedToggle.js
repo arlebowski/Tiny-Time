@@ -21,10 +21,6 @@ const SegmentedToggle = ({
   const containerRef = React.useRef(null);
   const buttonRefs = React.useRef({});
   const [pillRect, setPillRect] = React.useState(null);
-  const debugRef = React.useRef({
-    noMotionLogged: false,
-    noActiveLogged: false
-  });
   // Size-based tokens (maintains HeaderSegmentedToggle proportions)
   const sizeTokens = {
     small: {
@@ -105,27 +101,10 @@ const SegmentedToggle = ({
   };
 
   const updatePillRect = React.useCallback(() => {
-    if (!__ttMotion) {
-      if (!debugRef.current.noMotionLogged) {
-        console.log('[SegmentedToggle] motion not available; pill disabled');
-        debugRef.current.noMotionLogged = true;
-      }
-      return;
-    }
+    if (!__ttMotion) return;
     const containerEl = containerRef.current;
     const activeEl = buttonRefs.current[value];
-    if (!containerEl || !activeEl) {
-      if (!debugRef.current.noActiveLogged) {
-        console.log('[SegmentedToggle] missing active element', {
-          hasContainer: !!containerEl,
-          hasActive: !!activeEl,
-          value,
-          options: (options || []).map((opt) => opt?.value)
-        });
-        debugRef.current.noActiveLogged = true;
-      }
-      return;
-    }
+    if (!containerEl || !activeEl) return;
     const containerBox = containerEl.getBoundingClientRect();
     const activeBox = activeEl.getBoundingClientRect();
     setPillRect({
@@ -142,16 +121,6 @@ const SegmentedToggle = ({
     updatePillRect();
   }, [updatePillRect, optionsKey, size, fullWidth, variant]);
 
-  React.useEffect(() => {
-    console.log('[SegmentedToggle] render', {
-      value,
-      options: (options || []).map((opt) => opt?.value),
-      hasMotion: !!__ttMotion,
-      variant,
-      size,
-      fullWidth
-    });
-  }, [value, optionsKey, __ttMotion, variant, size, fullWidth]);
 
   React.useEffect(() => {
     if (!__ttMotion) return undefined;

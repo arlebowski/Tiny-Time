@@ -86,7 +86,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
         sheetEl.style.touchAction = value;
       };
       const rowProps = {
-        className: "w-full flex items-center justify-between rounded-2xl px-4 py-3",
+        className: "w-full flex items-center justify-between rounded-2xl py-3",
         style: {
           backgroundColor: 'var(--tt-card-bg)',
           border: '1px solid var(--tt-card-border)',
@@ -151,19 +151,29 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
           iconLabel
         ),
         SegmentedToggle
-          ? React.createElement(SegmentedToggle, {
-              value: toggleValue,
-              options: onOffOptions,
-              size: 'medium',
-              variant: 'body',
-              fullWidth: false,
-              onChange: (nextValue) => {
-                if (disabled && nextValue === 'off') return;
-                if ((nextValue === 'on') !== value) {
-                  onToggle();
+          ? React.createElement(
+              'div',
+              {
+                style: (typeof document !== 'undefined'
+                  && document.documentElement
+                  && document.documentElement.classList.contains('dark'))
+                  ? undefined
+                  : { '--tt-seg-track': 'var(--tt-input-bg)' }
+              },
+              React.createElement(SegmentedToggle, {
+                value: toggleValue,
+                options: onOffOptions,
+                size: 'medium',
+                variant: 'body',
+                fullWidth: false,
+                onChange: (nextValue) => {
+                  if (disabled && nextValue === 'off') return;
+                  if ((nextValue === 'on') !== value) {
+                    onToggle();
+                  }
                 }
-              }
-            })
+              })
+            )
           : React.createElement('button', {
               type: 'button',
               onClick: () => {
@@ -288,7 +298,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
           title: 'Show & Hide Activities',
           accentColor: 'var(--tt-primary-action-bg)'
         },
-        React.createElement('div', { className: (Reorder && Reorder.Group) ? "" : "space-y-3" },
+        React.createElement('div', { className: (Reorder && Reorder.Group) ? "" : "space-y-2" },
           (Reorder && Reorder.Group)
             ? React.createElement(
                 Reorder.Group,
@@ -305,7 +315,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
                   layout: true,
                   layoutScroll: true,
                   as: 'div',
-                  style: { display: 'flex', flexDirection: 'column', gap: 12 },
+                  style: { display: 'flex', flexDirection: 'column', gap: 8 },
                   'data-activity-reorder': 'group'
                 },
                 draftOrder.map((key) => {
@@ -342,7 +352,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
             style: { color: 'var(--tt-text-tertiary)' }
           }, 'At least one activity must stay on.'),
           React.createElement('div', {
-            className: "px-6 pt-3 pb-1",
+            className: "pt-3 pb-1",
             style: {
               backgroundColor: 'var(--tt-halfsheet-bg)',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 24px)'

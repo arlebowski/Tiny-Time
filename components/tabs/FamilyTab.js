@@ -558,7 +558,7 @@ const FamilyTab = ({
         React.createElement('div', { className: "space-y-4" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Dark Mode'),
-            React.createElement('div', { style: { '--tt-seg-track': 'var(--tt-app-bg)' } },
+            React.createElement('div', { style: { '--tt-seg-track': 'var(--tt-input-bg)' } },
               window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
                 value: appearance.darkMode ? 'dark' : 'light',
                 options: [
@@ -1002,16 +1002,20 @@ const FamilyTab = ({
         'div',
         { className: 'mt-4 pt-4 border-t', style: { borderColor: 'var(--tt-card-border)' } },
         React.createElement('div', { className: "text-base font-semibold mb-2", style: { color: 'var(--tt-text-primary)' } }, 'Feeding unit'),
-        window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-          value: settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
-          options: [
-            { value: 'oz', label: 'oz' },
-            { value: 'ml', label: 'ml' }
-          ],
-          onChange: handleVolumeUnitChange,
-          variant: 'body',
-          size: 'medium'
-        })
+        window.SegmentedToggle && React.createElement(
+          'div',
+          { style: { '--tt-seg-track': 'var(--tt-input-bg)' } },
+          React.createElement(window.SegmentedToggle, {
+            value: settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
+            options: [
+              { value: 'oz', label: 'oz' },
+              { value: 'ml', label: 'ml' }
+            ],
+            onChange: handleVolumeUnitChange,
+            variant: 'body',
+            size: 'medium'
+          })
+        )
       ),
       React.createElement(
         'div',
