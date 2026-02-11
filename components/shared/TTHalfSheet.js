@@ -349,7 +349,8 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
             // ChevronDown button (close)
             React.createElement('button', {
               onClick: onClose,
-              className: "w-6 h-6 flex items-center justify-center text-white hover:opacity-70 active:opacity-50 transition-opacity"
+              className: "w-6 h-6 flex items-center justify-center hover:opacity-70 active:opacity-50 transition-opacity",
+              style: { color: 'var(--tt-text-tertiary)' }
             }, React.createElement(
               window.TT?.shared?.icons?.ChevronDownIcon || 
               window.ChevronDown || 
@@ -361,7 +362,10 @@ if (typeof window !== 'undefined' && !window.TTHalfSheet) {
             titleElement ? (
               React.createElement('div', { className: "flex-1 flex justify-center" }, titleElement)
             ) : (
-              React.createElement('h2', { className: "text-base font-semibold text-white flex-1 text-center" }, title || '')
+              React.createElement('h2', {
+                className: "text-base font-semibold flex-1 text-center",
+                style: { color: 'var(--tt-primary-action-text)' }
+              }, title || '')
             ),
             
             // Right action (Save button)

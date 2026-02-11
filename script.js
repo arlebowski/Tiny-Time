@@ -3933,7 +3933,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       className: "min-h-screen",
       style: {
         backgroundColor: "var(--tt-app-bg)",
-        paddingBottom: '80px'
+        paddingBottom: '135px'
       }
     },
 
@@ -4255,7 +4255,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+                bottom: 'calc(env(safe-area-inset-bottom) + 135px)',
                 zIndex: 45,
                 overflow: 'hidden',
                 backgroundColor: 'var(--tt-app-bg)'

@@ -154,11 +154,12 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
           ? React.createElement(
               'div',
               {
-                style: (typeof document !== 'undefined'
-                  && document.documentElement
-                  && document.documentElement.classList.contains('dark'))
-                  ? undefined
-                  : { '--tt-seg-track': 'var(--tt-input-bg)' }
+                style: (() => {
+                  const isDarkMode = typeof document !== 'undefined'
+                    && document.documentElement
+                    && document.documentElement.classList.contains('dark');
+                  return { '--tt-seg-track': isDarkMode ? 'var(--tt-app-bg)' : 'var(--tt-input-bg)' };
+                })()
               },
               React.createElement(SegmentedToggle, {
                 value: toggleValue,
