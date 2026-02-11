@@ -4250,7 +4250,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: 'calc(env(safe-area-inset-bottom) + 135px)',
+                bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
                 zIndex: 45,
                 overflow: 'hidden',
                 backgroundColor: 'var(--tt-app-bg)'
@@ -4355,8 +4355,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       {
         className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
         style: {
+          left: 0,
+          right: 0,
+          width: '100%',
           bottom: 'calc(env(safe-area-inset-bottom) + 65px)', // Position at footer top edge
-          height: '100px', // Reduced fade height
+          height: '100px',
           background: 'var(--tt-nav-fade-gradient)',
           zIndex: 40
         }
