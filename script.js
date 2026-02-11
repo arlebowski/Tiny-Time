@@ -3097,7 +3097,11 @@ const LoginScreen = () => {
     React.createElement(
       "div",
       {
-        className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full",
+        className: "rounded-2xl p-5 max-w-md w-full shadow-sm",
+        style: {
+          backgroundColor: 'var(--tt-card-bg)',
+          borderColor: 'var(--tt-card-border)'
+        }
       },
       // Header
       React.createElement(
@@ -3110,7 +3114,7 @@ const LoginScreen = () => {
             "div",
             {
               className: "rounded-full p-4",
-              style: { backgroundColor: 'var(--tt-primary-brand-soft)' }
+              style: { backgroundColor: 'var(--tt-input-bg)' }
             },
               React.createElement(
                 'svg',
@@ -3153,7 +3157,8 @@ const LoginScreen = () => {
           onClick: handleSignIn,
           disabled: signingIn,
           className:
-            "w-full bg-white border-2 border-gray-300 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-3 disabled:opacity-50",
+            "w-full bg-white border-2 text-gray-700 py-3 px-4 rounded-xl font-semibold hover:bg-gray-50 transition flex items-center justify-center gap-3 disabled:opacity-50",
+          style: { borderColor: 'var(--tt-input-bg)' }
         },
         React.createElement(
           "svg",
@@ -3253,7 +3258,8 @@ const LoginScreen = () => {
             placeholder: "Email",
             autoComplete: "email",
             className:
-              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none",
+              "w-full px-4 py-2 text-sm border-2 rounded-xl focus:outline-none",
+            style: { borderColor: 'var(--tt-input-bg)' }
           }),
 
           // Password input
@@ -3265,7 +3271,8 @@ const LoginScreen = () => {
             autoComplete:
               mode === "signup" ? "new-password" : "current-password",
             className:
-              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none",
+              "w-full px-4 py-2 text-sm border-2 rounded-xl focus:outline-none",
+            style: { borderColor: 'var(--tt-input-bg)' }
           }),
 
           // Email submit button
@@ -3314,6 +3321,7 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
   const [newPhotos, setNewPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+  const canSubmit = !!babyName.trim() && !!birthDate && !!(newPhotos && newPhotos[0]);
 
   const handleAddPhoto = () => {
     const input = document.createElement('input');
@@ -3426,7 +3434,11 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
     React.createElement(
       "div",
       {
-        className: "bg-white rounded-3xl shadow-2xl p-8 max-w-md w-full",
+        className: "rounded-2xl p-5 max-w-md w-full shadow-sm",
+        style: {
+          backgroundColor: 'var(--tt-card-bg)',
+          borderColor: 'var(--tt-card-border)'
+        }
       },
       React.createElement(
         "div",
@@ -3436,7 +3448,7 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
           { className: "flex items-center justify-center mb-4" },
           React.createElement(
             "div",
-            { className: "rounded-full p-3", style: { backgroundColor: 'var(--tt-primary-brand-soft)' } },
+            { className: "rounded-full p-3", style: { backgroundColor: 'var(--tt-input-bg)' } },
             React.createElement(
               'svg',
               {
@@ -3444,7 +3456,7 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
                 width: "40",
                 height: "40",
                 viewBox: "0 0 256 256",
-                style: { color: 'var(--tt-primary-brand)' }
+                style: { color: 'var(--tt-brand-icon)' }
               },
               React.createElement('path', {
                 d: "M205.41,159.07a60.9,60.9,0,0,1-31.83,8.86,71.71,71.71,0,0,1-27.36-5.66A55.55,55.55,0,0,0,136,194.51V224a8,8,0,0,1-8.53,8,8.18,8.18,0,0,1-7.47-8.25V211.31L81.38,172.69A52.5,52.5,0,0,1,63.44,176a45.82,45.82,0,0,1-23.92-6.67C17.73,156.09,6,125.62,8.27,87.79a8,8,0,0,1,7.52-7.52c37.83-2.23,68.3,9.46,81.5,31.25A46,46,0,0,1,103.74,140a4,4,0,0,1-6.89,2.43l-19.2-20.1a8,8,0,0,0-11.31,11.31l53.88,55.25c.06-.78.13-1.56.21-2.33a68.56,68.56,0,0,1,18.64-39.46l50.59-53.46a8,8,0,0,0-11.31-11.32l-49,51.82a4,4,0,0,1-6.78-1.74c-4.74-17.48-2.65-34.88,6.4-49.82,17.86-29.48,59.42-45.26,111.18-42.22a8,8,0,0,1,7.52,7.52C250.67,99.65,234.89,141.21,205.41,159.07Z",
@@ -3479,46 +3491,26 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
               showChevron: false,
               enableTapAnimation: true,
               showLabel: true,
-              type: 'text'
+              type: 'text',
+              valueClassName: 'text-[18px]'
             })
           : null,
 
         TTPhotoRow
-          ? React.createElement(
-              "div",
-              {
-                className: "rounded-2xl mb-2",
-                style: { backgroundColor: 'var(--tt-input-bg)', overflow: 'hidden' }
+          ? React.createElement(TTPhotoRow, {
+              expanded: photoExpanded,
+              onExpand: () => setPhotoExpanded(true),
+              title: "Add a photo",
+              existingPhotos: [],
+              newPhotos,
+              onAddPhoto: handleAddPhoto,
+              onRemovePhoto: (index, isExisting) => {
+                if (!isExisting) {
+                  setNewPhotos((prev) => prev.filter((_, i) => i !== index));
+                }
               },
-              React.createElement(
-                "div",
-                { className: "p-4" },
-                React.createElement(
-                  "div",
-                  { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } },
-                  "Add a photo"
-                ),
-                React.createElement(TTPhotoRow, {
-                  expanded: photoExpanded,
-                  onExpand: () => setPhotoExpanded(true),
-                  showTitle: false,
-                  existingPhotos: [],
-                  newPhotos,
-                  onAddPhoto: handleAddPhoto,
-                  onRemovePhoto: (index, isExisting) => {
-                    if (!isExisting) {
-                      setNewPhotos((prev) => prev.filter((_, i) => i !== index));
-                    }
-                  },
-                  onPreviewPhoto: () => {},
-                  showAddHint: true,
-                  addHint: "Add photo",
-                  addTileBorder: true,
-                  containerClassName: "pt-1 pb-0",
-                  containerStyle: { paddingTop: 0 }
-                })
-              )
-            )
+              onPreviewPhoto: () => {}
+            })
           : null,
 
         TTInputRow
@@ -3532,6 +3524,7 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
               enableTapAnimation: true,
               showLabel: true,
               type: 'date',
+              valueClassName: 'text-[18px]',
               onFocus: (e) => {
                 try { e?.target?.showPicker?.(); } catch {}
               }
@@ -3552,10 +3545,12 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
           "button",
           {
             onClick: handleSubmit,
-            disabled: saving || previewOnly,
+            disabled: saving || !canSubmit,
             className:
               "w-full text-white py-3 rounded-xl font-semibold transition disabled:opacity-50",
-            style: { backgroundColor: 'var(--tt-primary-action-bg)' }
+            style: {
+              backgroundColor: '#1A1A1A'
+            }
           },
           previewOnly ? "Preview Mode" : (saving ? "Saving..." : "Get Started")
         )
@@ -4255,7 +4250,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: 'calc(env(safe-area-inset-bottom) + 135px)',
+                bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
                 zIndex: 45,
                 overflow: 'hidden',
                 backgroundColor: 'var(--tt-app-bg)'
@@ -4360,8 +4355,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       {
         className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
         style: {
+          left: 0,
+          right: 0,
+          width: '100%',
           bottom: 'calc(env(safe-area-inset-bottom) + 65px)', // Position at footer top edge
-          height: '100px', // Reduced fade height
+          height: '100px',
           background: 'var(--tt-nav-fade-gradient)',
           zIndex: 40
         }
