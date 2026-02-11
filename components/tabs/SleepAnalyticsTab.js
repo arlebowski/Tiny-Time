@@ -2,7 +2,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [sleepSessions, setSleepSessions] = useState([]);
   const [sleepSettings, setSleepSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState('day');
+  const [timeframe, setTimeframe] = useState('week');
   const sleepHistoryScrollRef = React.useRef(null);
 
   // Get icons (matching AnalyticsTab highlight cards)
@@ -438,7 +438,16 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
               style: { color: 'var(--tt-text-tertiary)' }
             }, "No data to display")
       )
-    )
+    ),
+    React.createElement('div', {
+      className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
+      style: {
+        bottom: 'calc(env(safe-area-inset-bottom) + 65px)',
+        height: '100px',
+        background: 'var(--tt-nav-fade-gradient)',
+        zIndex: 40
+      }
+    })
   );
 };
 

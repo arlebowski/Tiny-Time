@@ -471,8 +471,7 @@ window.TT.applyAppearance = function(appearance) {
 
   // Get background theme
   const mode = darkMode ? 'dark' : 'light';
-  const theme = (BACKGROUND_THEMES[mode] && BACKGROUND_THEMES[mode]["health-gray"])
-    || (BACKGROUND_THEMES[mode] && Object.values(BACKGROUND_THEMES[mode])[0])
+  const theme = BACKGROUND_THEMES[mode]
     || { appBg: "#000000", cardBg: "#1C1C1E", cardBorder: "transparent" };
 
   const darkTokens = THEME_TOKENS.DARK_MODE_TOKENS || {};
@@ -499,17 +498,17 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-header-bg', theme.appBg);
     root.style.setProperty('--tt-nav-bg', theme.appBg);
     // Reduce/disable nav shadow in dark mode (rely on surface step instead)
-    const lightNavShadow = (THEME_TOKENS.LIGHT_MODE_TOKENS && THEME_TOKENS.LIGHT_MODE_TOKENS["health-gray"])
-      ? THEME_TOKENS.LIGHT_MODE_TOKENS["health-gray"].navShadow
+    const lightNavShadow = (THEME_TOKENS.LIGHT_MODE_TOKENS && THEME_TOKENS.LIGHT_MODE_TOKENS.navShadow)
+      ? THEME_TOKENS.LIGHT_MODE_TOKENS.navShadow
       : 'none';
     const darkNavShadow = darkTokens.navShadow;
     root.style.setProperty('--tt-nav-shadow', darkMode ? (darkNavShadow || 'none') : (lightNavShadow || 'none'));
     // Footer fade gradient with actual color value
-    root.style.setProperty('--tt-nav-fade-gradient', `linear-gradient(to top, ${theme.appBg} 0%, transparent 100%)`);
+    root.style.setProperty('--tt-nav-fade-gradient', `linear-gradient(to top, ${theme.appBg} 0%, ${theme.appBg} 30%, transparent 100%)`);
 
     // Input/surfaces/text
     if (!darkMode) {
-      const lightTokens = LIGHT_MODE_TOKENS["health-gray"] || Object.values(LIGHT_MODE_TOKENS || {})[0] || {};
+      const lightTokens = LIGHT_MODE_TOKENS || {};
       root.style.setProperty('--tt-input-bg', lightTokens.inputBg);
       root.style.setProperty('--tt-subtle-surface', lightTokens.subtleSurface);
       root.style.setProperty('--tt-surface-subtle', lightTokens.surfaceSubtle);
@@ -526,6 +525,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-tracker-card-bg', lightTokens.trackerCardBg);
       root.style.setProperty('--tt-seg-track', lightTokens.segTrack);
       root.style.setProperty('--tt-seg-pill', lightTokens.segPill);
+      root.style.setProperty('--tt-calendar-pill', lightTokens.segTrack);
       root.style.setProperty('--tt-swipe-row-bg', lightTokens.swipeRowBg);
       root.style.setProperty('--tt-selected-surface', lightTokens.selectedSurface);
       root.style.setProperty('--tt-plus-bg', lightTokens.plusBg);
@@ -561,6 +561,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-primary-brand', lightTokens.primaryBrand);
       root.style.setProperty('--tt-primary-brand-soft', lightTokens.primaryBrandSoft);
       root.style.setProperty('--tt-primary-brand-strong', lightTokens.primaryBrandStrong);
+      root.style.setProperty('--tt-brand-icon', lightTokens.brandIcon);
       root.style.setProperty('--tt-recovery-bg', lightTokens.recoveryBg);
       root.style.setProperty('--tt-error', lightTokens.error);
       root.style.setProperty('--tt-error-soft', lightTokens.errorSoft);
@@ -595,6 +596,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-tracker-card-bg', theme.cardBg);
       root.style.setProperty('--tt-seg-track', darkTokens.segTrack);
       root.style.setProperty('--tt-seg-pill', darkTokens.segPill);
+      root.style.setProperty('--tt-calendar-pill', darkTokens.segPill);
       root.style.setProperty('--tt-swipe-row-bg', darkTokens.swipeRowBg);
       root.style.setProperty('--tt-selected-surface', darkTokens.selectedSurface);
       root.style.setProperty('--tt-plus-bg', darkTokens.plusBg);
@@ -630,6 +632,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-primary-brand', darkTokens.primaryBrand);
       root.style.setProperty('--tt-primary-brand-soft', darkTokens.primaryBrandSoft);
       root.style.setProperty('--tt-primary-brand-strong', darkTokens.primaryBrandStrong);
+      root.style.setProperty('--tt-brand-icon', darkTokens.brandIcon);
       root.style.setProperty('--tt-recovery-bg', darkTokens.recoveryBg);
       root.style.setProperty('--tt-error', darkTokens.error);
       root.style.setProperty('--tt-error-soft', darkTokens.errorSoft);
@@ -3109,15 +3112,15 @@ const LoginScreen = () => {
               className: "rounded-full p-4",
               style: { backgroundColor: 'var(--tt-primary-brand-soft)' }
             },
-            React.createElement(
-              'svg',
-              {
-                xmlns: "http://www.w3.org/2000/svg",
-                width: "48",
-                height: "48",
-                viewBox: "0 0 256 256",
-                style: { color: 'var(--tt-primary-brand)' }
-              },
+              React.createElement(
+                'svg',
+                {
+                  xmlns: "http://www.w3.org/2000/svg",
+                  width: "48",
+                  height: "48",
+                  viewBox: "0 0 256 256",
+                  style: { color: 'var(--tt-brand-icon)' }
+                },
               React.createElement('path', {
                 d: "M205.41,159.07a60.9,60.9,0,0,1-31.83,8.86,71.71,71.71,0,0,1-27.36-5.66A55.55,55.55,0,0,0,136,194.51V224a8,8,0,0,1-8.53,8,8.18,8.18,0,0,1-7.47-8.25V211.31L81.38,172.69A52.5,52.5,0,0,1,63.44,176a45.82,45.82,0,0,1-23.92-6.67C17.73,156.09,6,125.62,8.27,87.79a8,8,0,0,1,7.52-7.52c37.83-2.23,68.3,9.46,81.5,31.25A46,46,0,0,1,103.74,140a4,4,0,0,1-6.89,2.43l-19.2-20.1a8,8,0,0,0-11.31,11.31l53.88,55.25c.06-.78.13-1.56.21-2.33a68.56,68.56,0,0,1,18.64-39.46l50.59-53.46a8,8,0,0,0-11.31-11.32l-49,51.82a4,4,0,0,1-6.78-1.74c-4.74-17.48-2.65-34.88,6.4-49.82,17.86-29.48,59.42-45.26,111.18-42.22a8,8,0,0,1,7.52,7.52C250.67,99.65,234.89,141.21,205.41,159.07Z",
                 fill: "currentColor"
@@ -3949,7 +3952,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         },
         React.createElement(
           'div',
-          { className: "pt-4 pb-6 relative" },
+          { className: "pt-4 pb-6 px-4 relative" },
           React.createElement(
             'div',
             { className: "grid grid-cols-3 items-center" },
@@ -3957,7 +3960,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
             // LEFT COLUMN: kid name + dropdown
             React.createElement(
               'div',
-              { className: "relative flex items-center justify-start pl-4" },
+              { className: "relative flex items-center justify-start" },
               React.createElement(
                 'button',
                 {
@@ -3968,12 +3971,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                     setShowKidMenu((v) => !v);
                     setShowShareMenu(false);
                   },
-                  className: "flex items-center gap-[10px] px-3 focus:outline-none"
+                  className: "flex items-center gap-[10px] px-0 focus:outline-none"
                 },
                 React.createElement(
                   'span',
                   {
-                    className: "w-[30px] h-[30px] rounded-full overflow-hidden flex-shrink-0",
+                    className: "w-[36px] h-[36px] rounded-full overflow-hidden flex-shrink-0",
                     style: { backgroundColor: 'var(--tt-input-bg)' }
                   },
                   activeKid?.photoURL
@@ -4018,7 +4021,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   width: "26.4",
                   height: "26.4",
                   viewBox: "0 0 256 256",
-                  style: { color: 'var(--tt-primary-brand)' }
+                  style: { color: 'var(--tt-brand-icon)' }
                 },
                 React.createElement('path', {
                   d: "M205.41,159.07a60.9,60.9,0,0,1-31.83,8.86,71.71,71.71,0,0,1-27.36-5.66A55.55,55.55,0,0,0,136,194.51V224a8,8,0,0,1-8.53,8,8.18,8.18,0,0,1-7.47-8.25V211.31L81.38,172.69A52.5,52.5,0,0,1,63.44,176a45.82,45.82,0,0,1-23.92-6.67C17.73,156.09,6,125.62,8.27,87.79a8,8,0,0,1,7.52-7.52c37.83-2.23,68.3,9.46,81.5,31.25A46,46,0,0,1,103.74,140a4,4,0,0,1-6.89,2.43l-19.2-20.1a8,8,0,0,0-11.31,11.31l53.88,55.25c.06-.78.13-1.56.21-2.33a68.56,68.56,0,0,1,18.64-39.46l50.59-53.46a8,8,0,0,0-11.31-11.32l-49,51.82a4,4,0,0,1-6.78-1.74c-4.74-17.48-2.65-34.88,6.4-49.82,17.86-29.48,59.42-45.26,111.18-42.22a8,8,0,0,1,7.52,7.52C250.67,99.65,234.89,141.21,205.41,159.07Z",
@@ -4104,7 +4107,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
             // RIGHT COLUMN: Share + Settings buttons
             React.createElement(
               'div',
-              { className: "flex items-center justify-end gap-0.5 pr-4" },
+              { className: "flex items-center justify-end gap-0.5" },
               React.createElement(
                 'button',
                 {
@@ -4115,7 +4118,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                     setShowShareMenu((v) => !v);
                     setShowKidMenu(false);
                   },
-                  className: "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
+                  className: "w-11 h-11 flex items-center justify-center rounded-xl hover:bg-[var(--tt-seg-track)] transition"
                 },
                 React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || (() => null), {
                   className: "w-6 h-6",
@@ -4136,7 +4139,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                     setActiveTab('family');
                   },
                   className:
-                    "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
+                    "w-11 h-11 flex items-center justify-center rounded-xl hover:bg-[var(--tt-seg-track)] transition",
                   'aria-label': 'Family'
                 },
                 React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
@@ -4345,7 +4348,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           diaper: activityVisibilitySafe.diaper
         },
         position: {
-          bottom: 'calc(env(safe-area-inset-bottom) + 40px)',
+          bottom: 'calc(env(safe-area-inset-bottom) + 36px)',
           left: '50%'
         }
       })
@@ -4357,8 +4360,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       {
         className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
         style: {
-          bottom: 'calc(env(safe-area-inset-bottom) + 70px)', // Position at footer top edge
-          height: '32px', // Taller for better visibility
+          bottom: 'calc(env(safe-area-inset-bottom) + 65px)', // Position at footer top edge
+          height: '100px', // Reduced fade height
           background: 'var(--tt-nav-fade-gradient)',
           zIndex: 40
         }
@@ -4379,10 +4382,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       {
         className: "tt-bottom-nav fixed bottom-0 left-0 right-0 z-50",
         style: {
-          backgroundColor: "var(--tt-nav-bg)",
-          boxShadow: 'var(--tt-nav-shadow)',
+          background: "var(--tt-nav-bg)",
+          boxShadow: 'none',
           // Make the bar a bit taller without moving its contents (including the +):
           // increasing height pushes the top up, and matching paddingTop pushes contents back down.
+          minHeight: '80px',
           paddingTop: '10px',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
@@ -4407,7 +4411,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-15px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
@@ -4429,7 +4433,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 key: 'plus-spacer',
                 className: "flex-1 py-2 flex items-center justify-center",
                 style: {
-                  transform: 'translateY(-10px)'
+                  transform: 'translateY(-15px)'
                 },
                 'aria-hidden': 'true'
               }),
@@ -4446,7 +4450,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-15px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
@@ -4481,7 +4485,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-15px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
@@ -4504,6 +4508,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 ? React.createElement('div', {
                     key: 'plus',
                     className: "mx-2 w-14 h-14 -mt-7",
+                    style: { transform: 'translateY(24px)' },
                     'aria-hidden': 'true'
                   })
                 : React.createElement(
@@ -4520,7 +4525,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                         "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
                       style: {
                         backgroundColor: 'var(--tt-plus-bg)',
-                        color: 'var(--tt-plus-fg)'
+                        color: 'var(--tt-plus-fg)',
+                        transform: 'translateY(24px)'
                       },
                       'aria-label': 'Add'
                     },
@@ -4544,7 +4550,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-5px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
@@ -5344,8 +5350,8 @@ const ensureMetaThemeTag = () => {
 const updateMetaThemeColor = () => {
   const meta = ensureMetaThemeTag();
   const appBg = getComputedStyle(document.documentElement).getPropertyValue('--tt-app-bg').trim();
-  const fallbackBg = (THEME_TOKENS.BACKGROUND_THEMES && THEME_TOKENS.BACKGROUND_THEMES.light && THEME_TOKENS.BACKGROUND_THEMES.light["health-gray"])
-    ? THEME_TOKENS.BACKGROUND_THEMES.light["health-gray"].appBg
+  const fallbackBg = (THEME_TOKENS.BACKGROUND_THEMES && THEME_TOKENS.BACKGROUND_THEMES.light)
+    ? THEME_TOKENS.BACKGROUND_THEMES.light.appBg
     : "#FFFFFF";
   const color = appBg || fallbackBg;
   meta.setAttribute('content', color);

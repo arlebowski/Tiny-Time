@@ -1007,7 +1007,7 @@ const Timeline = ({
               onClick: handleToggleSort,
               className: "w-10 h-10 flex items-center justify-center rounded-xl border transition-all active:scale-95",
               style: {
-                backgroundColor: 'var(--tt-subtle-surface)',
+                backgroundColor: 'var(--tt-seg-track)',
                 borderColor: 'var(--tt-card-border)',
                 color: 'var(--tt-text-primary)'
               },

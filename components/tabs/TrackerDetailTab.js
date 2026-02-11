@@ -536,7 +536,11 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null, subline = null }) => {
     const Card = TTCard || 'div';
     const cardProps = TTCard
-      ? { variant: "tracker", className: `min-h-[56px] h-full ${summaryLayoutMode === 'all' ? 'p-[10px]' : 'p-[14px]'}` }
+      ? {
+          variant: "tracker",
+          className: `min-h-[56px] h-full ${summaryLayoutMode === 'all' ? 'p-[10px]' : 'p-[14px]'}`,
+          style: { backgroundColor: "var(--tt-card-bg)", borderColor: "var(--tt-card-border)" }
+        }
       : {
           className: "rounded-2xl shadow-sm min-h-[60px] p-5",
           style: { backgroundColor: "var(--tt-tracker-card-bg)", borderColor: "var(--tt-card-border)" }
@@ -1254,6 +1258,15 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         onActiveSleepClick: handleActiveSleepClick
       }) : null
     ),
+    React.createElement('div', {
+      className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
+      style: {
+        bottom: 'calc(env(safe-area-inset-bottom) + 65px)',
+        height: '100px',
+        background: 'var(--tt-nav-fade-gradient)',
+        zIndex: 40
+      }
+    }),
     (window.FeedSheet || window.SleepSheet || window.DiaperSheet) && React.createElement(
       (inputSheetMode === 'diaper'
         ? window.DiaperSheet

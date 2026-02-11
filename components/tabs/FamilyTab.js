@@ -538,23 +538,40 @@ const FamilyTab = ({
       ? colorThemeOrder
       : Object.keys(colorThemes || {});
     return React.createElement(React.Fragment, null,
-      React.createElement(TTCard, { variant: "default" },
-        React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Appearance'),
+      React.createElement(TTCard, { variant: "tracker" },
+        TTCardHeader
+          ? React.createElement(TTCardHeader, {
+              title: React.createElement(
+                'div',
+                { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
+                'Appearance'
+              ),
+              showIcon: false,
+              showTitle: true,
+              className: 'mb-4'
+            })
+          : React.createElement(
+              'h2',
+              { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
+              'Appearance'
+            ),
         React.createElement('div', { className: "space-y-4" },
           React.createElement('div', null,
             React.createElement('div', { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } }, 'Dark Mode'),
-            window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
-              value: appearance.darkMode ? 'dark' : 'light',
-              options: [
-                { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' }
-              ],
-              onChange: async (value) => {
-                await handleAppearanceChange({ darkMode: value === 'dark' });
-              },
-              variant: 'body',
-              size: 'medium'
-            })
+            React.createElement('div', { style: { '--tt-seg-track': 'var(--tt-app-bg)' } },
+              window.SegmentedToggle && React.createElement(window.SegmentedToggle, {
+                value: appearance.darkMode ? 'dark' : 'light',
+                options: [
+                  { value: 'light', label: 'Light' },
+                  { value: 'dark', label: 'Dark' }
+                ],
+                onChange: async (value) => {
+                  await handleAppearanceChange({ darkMode: value === 'dark' });
+                },
+                variant: 'body',
+                size: 'medium'
+              })
+            )
           ),
 
           React.createElement('div', null,
@@ -596,10 +613,25 @@ const FamilyTab = ({
   };
 
   const AccountSection = () =>
-    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
-      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Account'),
+    React.createElement(TTCard, { variant: 'tracker' },
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            title: React.createElement(
+              'div',
+              { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
+              'Account'
+            ),
+            showIcon: false,
+            showTitle: true,
+            className: 'mb-4'
+          })
+        : React.createElement(
+            'h2',
+            { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
+            'Account'
+          ),
       React.createElement('div', { className: "space-y-3" },
-        React.createElement('div', { className: "flex items-center justify-between p-3 rounded-lg", style: { backgroundColor: 'var(--tt-card-bg)' } },
+        React.createElement('div', { className: "flex items-center justify-between p-3 rounded-lg", style: { backgroundColor: 'var(--tt-input-bg)' } },
           React.createElement('div', null,
             React.createElement('div', { className: "text-sm font-medium", style: { color: 'var(--tt-text-primary)' } }, user.displayName || 'User'),
             React.createElement('div', { className: "text-xs", style: { color: 'var(--tt-text-secondary)' } }, user.email)
@@ -613,7 +645,7 @@ const FamilyTab = ({
         ),
         React.createElement('button', {
           onClick: handleSignOut,
-          className: "w-full py-3 rounded-xl font-semibold transition",
+          className: "w-full py-3 rounded-xl font-semibold transition tt-tapable",
           style: {
             backgroundColor: 'var(--tt-error-soft)',
             color: 'var(--tt-error)'
@@ -621,7 +653,7 @@ const FamilyTab = ({
         }, 'Sign Out'),
         React.createElement('button', {
           onClick: handleDeleteAccount,
-          className: "w-full py-3 rounded-xl font-semibold transition",
+          className: "w-full py-3 rounded-xl font-semibold transition tt-tapable",
           style: {
             backgroundColor: 'var(--tt-error)',
             color: 'white'
@@ -631,11 +663,26 @@ const FamilyTab = ({
     );
 
   const InternalSection = () =>
-    React.createElement('div', { className: "rounded-2xl shadow-lg p-6", style: { backgroundColor: 'var(--tt-card-bg)' } },
-      React.createElement('h2', { className: "text-lg font-semibold mb-4", style: { color: 'var(--tt-text-primary)' } }, 'Internal'),
+    React.createElement(TTCard, { variant: 'tracker' },
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            title: React.createElement(
+              'div',
+              { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
+              'Internal'
+            ),
+            showIcon: false,
+            showTitle: true,
+            className: 'mb-4'
+          })
+        : React.createElement(
+            'h2',
+            { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
+            'Internal'
+          ),
       React.createElement('button', {
         onClick: () => setShowUILab(true),
-        className: "w-full py-3 rounded-xl font-semibold transition",
+        className: "w-full py-3 rounded-xl font-semibold transition tt-tapable",
         style: {
           backgroundColor: 'var(--tt-feed-soft)',
           color: 'var(--tt-feed)'
@@ -662,6 +709,9 @@ const FamilyTab = ({
   }
 
   const activeThemeKey = settings.themeKey || themeKey || defaultThemeKey;
+  const activeTheme = resolveTheme(activeThemeKey);
+  const kidAccent = activeTheme?.cards?.bottle?.primary || 'var(--tt-primary-brand)';
+  const kidSoft = activeTheme?.cards?.bottle?.soft || 'var(--tt-subtle-surface)';
 
   return React.createElement(
     'div',
@@ -747,8 +797,8 @@ const FamilyTab = ({
                 className: 'w-full px-4 py-3 rounded-xl border flex items-center justify-between text-sm',
                 style: isCurrent
                   ? {
-                      borderColor: 'var(--tt-feed)',
-                      backgroundColor: 'var(--tt-feed-soft)',
+                      borderColor: kidAccent,
+                      backgroundColor: kidSoft,
                       color: 'var(--tt-text-primary)'
                     }
                   : {
@@ -767,7 +817,7 @@ const FamilyTab = ({
                   'span',
                   { 
                     className: 'text-xs font-semibold',
-                    style: { color: 'var(--tt-feed)' }
+                    style: { color: kidAccent }
                   },
                   'Active'
                 )

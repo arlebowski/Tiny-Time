@@ -545,7 +545,7 @@ const HorizontalCalendar = ({
                   isSelected && React.createElement(__ttHorizontalMotion.div, {
                     layoutId: layoutIdRef.current,
                     className: "absolute inset-0 rounded-xl shadow-sm z-0",
-                    style: { backgroundColor: 'var(--tt-selected-surface)' },
+                    style: { backgroundColor: 'var(--tt-calendar-pill)' },
                     initial: false,
                     transition: { type: "spring", bounce: 0.1, duration: 0.2 }
                   }),

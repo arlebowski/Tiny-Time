@@ -305,15 +305,26 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.FloatingTrackerMenu) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            fontSize: '32px',
-            fontWeight: '300',
             color: 'var(--tt-plus-fg)',
             cursor: 'pointer',
             boxShadow: 'var(--tt-shadow-floating)',
             outline: 'none'
           }
         },
-        '+'
+        React.createElement(
+          'svg',
+          {
+            xmlns: "http://www.w3.org/2000/svg",
+            width: "21.6",
+            height: "21.6",
+            viewBox: "0 0 256 256",
+            fill: "currentColor",
+            style: { display: 'block' }
+          },
+          React.createElement('path', {
+            d: "M228,128a12,12,0,0,1-12,12H140v76a12,12,0,0,1-24,0V140H40a12,12,0,0,1,0-24h76V40a12,12,0,0,1,24,0v76h76A12,12,0,0,1,228,128Z"
+          })
+        )
       );
     };
 

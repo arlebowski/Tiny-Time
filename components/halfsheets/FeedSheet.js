@@ -1372,7 +1372,12 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const nursingTotalParts = formatElapsedHmsTT(totalDisplayMs);
 
     const TypeButton = ({ label, icon: Icon, selected, accent, onClick }) => {
-      const bg = selected ? `color-mix(in srgb, ${accent} 16%, var(--tt-input-bg))` : 'var(--tt-input-bg)';
+      const isDarkMode = typeof document !== 'undefined'
+        && document.documentElement
+        && document.documentElement.classList.contains('dark');
+      const bg = isDarkMode
+        ? 'var(--tt-input-bg)'
+        : (selected ? `color-mix(in srgb, ${accent} 16%, var(--tt-input-bg))` : 'var(--tt-input-bg)');
       const border = selected ? accent : 'var(--tt-card-border)';
       const color = selected ? accent : 'var(--tt-text-tertiary)';
       const isFilledIcon = Icon === NursingIcon;
