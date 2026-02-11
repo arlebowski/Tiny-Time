@@ -3114,7 +3114,7 @@ const LoginScreen = () => {
             "div",
             {
               className: "rounded-full p-4",
-              style: { backgroundColor: 'var(--tt-input-bg)' }
+              style: { backgroundColor: '#F5F5F7' }
             },
               React.createElement(
                 'svg',
@@ -3448,7 +3448,7 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
           { className: "flex items-center justify-center mb-4" },
           React.createElement(
             "div",
-            { className: "rounded-full p-3", style: { backgroundColor: 'var(--tt-input-bg)' } },
+            { className: "rounded-full p-3", style: { backgroundColor: '#F5F5F7' } },
             React.createElement(
               'svg',
               {
