@@ -18,7 +18,8 @@ const UILabTab = ({ onClose }) => {
     React.createElement('div', { className: 'flex items-center gap-3 mb-4' },
       React.createElement('button', {
         onClick: () => onClose && onClose(),
-        className: 'p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition'
+        className: 'p-2 rounded-lg transition',
+        style: { color: 'var(--tt-primary-brand)' }
       }, React.createElement(ChevronLeft, { className: 'w-5 h-5' })),
       React.createElement('h1', { className: 'text-xl font-semibold text-gray-800' }, 'UI Lab')
     ),

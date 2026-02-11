@@ -33,9 +33,10 @@ const TimeframeToggle = ({ value, onChange, className = '' }) => {
             // Segments: fill equally, center label, radius matches track
             className: `w-full px-4 py-1.5 text-[13px] font-medium rounded-xl transition flex items-center justify-center ${
               value === it.key
-                ? 'bg-white text-indigo-600 shadow'
+                ? 'bg-white shadow'
                 : 'text-gray-500 hover:bg-black/5 active:bg-black/10'
-            }`
+            }`,
+            style: value === it.key ? { color: 'var(--tt-primary-brand)' } : undefined
           },
           it.label
         )
@@ -174,15 +175,13 @@ const ensureUserProfile = async (user, inviteCode = null) => {
 // ========================================
 
 const THEME_TOKENS = (window.TT && window.TT.themeTokens) ? window.TT.themeTokens : {};
+const COLOR_THEMES = THEME_TOKENS.COLOR_THEMES || {};
+const DEFAULT_THEME_KEY = THEME_TOKENS.DEFAULT_THEME_KEY || 'theme1';
+const COLOR_THEME_ORDER = THEME_TOKENS.COLOR_THEME_ORDER || Object.keys(COLOR_THEMES || {});
 
 // Default appearance schema
 const DEFAULT_APPEARANCE = THEME_TOKENS.DEFAULT_APPEARANCE || {
-  darkMode: false,
-  background: "health-gray", // allowed: "health-gray" | "eggshell"
-  feedAccent: '',
-  nursingAccent: '',
-  sleepAccent: '',
-  diaperAccent: ''
+  darkMode: false
 };
 
 // Initialize TT.appearance namespace
@@ -216,14 +215,7 @@ window.TT.appearance = (() => {
         if (stored && typeof stored === 'object') {
           // Merge stored appearance with defaults (handle partial updates)
           currentAppearance = {
-            darkMode: typeof stored.darkMode === 'boolean' ? stored.darkMode : DEFAULT_APPEARANCE.darkMode,
-            background: (stored.background === "health-gray" || stored.background === "eggshell") 
-              ? stored.background 
-              : DEFAULT_APPEARANCE.background,
-            feedAccent: typeof stored.feedAccent === 'string' ? stored.feedAccent : DEFAULT_APPEARANCE.feedAccent,
-            nursingAccent: typeof stored.nursingAccent === 'string' ? stored.nursingAccent : DEFAULT_APPEARANCE.nursingAccent,
-            sleepAccent: typeof stored.sleepAccent === 'string' ? stored.sleepAccent : DEFAULT_APPEARANCE.sleepAccent,
-            diaperAccent: typeof stored.diaperAccent === 'string' ? stored.diaperAccent : DEFAULT_APPEARANCE.diaperAccent
+            darkMode: typeof stored.darkMode === 'boolean' ? stored.darkMode : DEFAULT_APPEARANCE.darkMode
           };
         } else {
           // No appearance stored yet - use defaults but don't write yet
@@ -248,6 +240,12 @@ window.TT.appearance = (() => {
     }
     
     initialized = true;
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('tt:appearance-ready', { detail: { appearance: currentAppearance } }));
+        window.dispatchEvent(new CustomEvent('tt:appearance-changed', { detail: { appearance: currentAppearance } }));
+      }
+    } catch (e) {}
   };
 
   // Save appearance to Firestore
@@ -294,6 +292,15 @@ window.TT.appearance = (() => {
     // Get current appearance object
     get: () => {
       if (!initialized) {
+        try {
+          const cached = localStorage.getItem('tt_appearance_cache');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && typeof parsed.darkMode === 'boolean') {
+              return { ...DEFAULT_APPEARANCE, ...parsed };
+            }
+          }
+        } catch (e) {}
         console.warn("Appearance not initialized yet, returning defaults");
         return { ...DEFAULT_APPEARANCE };
       }
@@ -323,21 +330,6 @@ window.TT.appearance = (() => {
       if (typeof updated.darkMode !== 'boolean') {
         updated.darkMode = DEFAULT_APPEARANCE.darkMode;
       }
-      if (updated.background !== "health-gray" && updated.background !== "eggshell") {
-        updated.background = DEFAULT_APPEARANCE.background;
-      }
-      if (typeof updated.feedAccent !== 'string' || !updated.feedAccent.startsWith('#')) {
-        updated.feedAccent = DEFAULT_APPEARANCE.feedAccent;
-      }
-      if (typeof updated.nursingAccent !== 'string' || !updated.nursingAccent.startsWith('#')) {
-        updated.nursingAccent = DEFAULT_APPEARANCE.nursingAccent;
-      }
-      if (typeof updated.sleepAccent !== 'string' || !updated.sleepAccent.startsWith('#')) {
-        updated.sleepAccent = DEFAULT_APPEARANCE.sleepAccent;
-      }
-      if (typeof updated.diaperAccent !== 'string' || !updated.diaperAccent.startsWith('#')) {
-        updated.diaperAccent = DEFAULT_APPEARANCE.diaperAccent;
-      }
 
       // Update in-memory state
       currentAppearance = updated;
@@ -353,6 +345,11 @@ window.TT.appearance = (() => {
       } catch (e) {
         // localStorage may be unavailable, non-fatal
       }
+      try {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('tt:appearance-changed', { detail: { appearance: currentAppearance } }));
+        }
+      } catch (e) {}
 
       // Persist to Firestore
       try {
@@ -437,7 +434,21 @@ window.TT.applyAppearance = function(appearance) {
     return;
   }
 
-  const { darkMode, background, feedAccent, nursingAccent, solidsAccent, sleepAccent, diaperAccent } = appearance;
+  const { darkMode } = appearance;
+  const resolvedThemeKey = (appearance && typeof appearance.themeKey === 'string' && appearance.themeKey.trim())
+    || (typeof window !== 'undefined' && window.TT && typeof window.TT.currentThemeKey === 'string' && window.TT.currentThemeKey.trim())
+    || DEFAULT_THEME_KEY;
+
+  const fallbackTheme = (COLOR_THEMES && COLOR_THEMES[DEFAULT_THEME_KEY]) || (COLOR_THEMES && Object.values(COLOR_THEMES)[0]) || null;
+  const activeTheme = (COLOR_THEMES && COLOR_THEMES[resolvedThemeKey]) || fallbackTheme;
+  const resolveAccentSet = (cardKey) => {
+    const raw = activeTheme?.cards?.[cardKey];
+    const fallback = fallbackTheme?.cards?.[cardKey];
+    const primary = isValidHex(raw?.primary) ? raw.primary : (isValidHex(fallback?.primary) ? fallback.primary : "#4F46E5");
+    const soft = isValidHex(raw?.soft) ? raw.soft : (isValidHex(fallback?.soft) ? fallback.soft : primary);
+    const dark = isValidHex(raw?.dark) ? raw.dark : (isValidHex(fallback?.dark) ? fallback.dark : primary);
+    return { primary, soft, dark };
+  };
 
   // Toggle dark mode class
   if (darkMode) {
@@ -447,19 +458,23 @@ window.TT.applyAppearance = function(appearance) {
   }
 
   // Sanitize accent colors (FIX 1: validate hex format before deriving variants)
-  const sanitizedFeedAccent = isValidHex(feedAccent) ? feedAccent : DEFAULT_APPEARANCE.feedAccent;
-  const sanitizedNursingAccent = isValidHex(nursingAccent) ? nursingAccent : DEFAULT_APPEARANCE.nursingAccent;
-  const sanitizedSolidsAccent = isValidHex(solidsAccent) ? solidsAccent : DEFAULT_APPEARANCE.solidsAccent;
-  const sanitizedSleepAccent = isValidHex(sleepAccent) ? sleepAccent : DEFAULT_APPEARANCE.sleepAccent;
-  const sanitizedDiaperAccent = isValidHex(diaperAccent) ? diaperAccent : DEFAULT_APPEARANCE.diaperAccent;
+  const feedSet = resolveAccentSet('bottle');
+  const nursingSet = resolveAccentSet('nursing');
+  const solidsSet = resolveAccentSet('solids');
+  const sleepSet = resolveAccentSet('sleep');
+  const diaperSet = resolveAccentSet('diaper');
+  const sanitizedFeedAccent = darkMode ? feedSet.dark : feedSet.primary;
+  const sanitizedNursingAccent = darkMode ? nursingSet.dark : nursingSet.primary;
+  const sanitizedSolidsAccent = darkMode ? solidsSet.dark : solidsSet.primary;
+  const sanitizedSleepAccent = darkMode ? sleepSet.dark : sleepSet.primary;
+  const sanitizedDiaperAccent = darkMode ? diaperSet.dark : diaperSet.primary;
 
   // Get background theme
   const mode = darkMode ? 'dark' : 'light';
-  const theme = BACKGROUND_THEMES[mode][background] || BACKGROUND_THEMES[mode]["health-gray"]; // FIX 2: mode-aware fallback
-  const isClaudeDark = !!darkMode && background === 'eggshell';
+  const theme = BACKGROUND_THEMES[mode]
+    || { appBg: "#000000", cardBg: "#1C1C1E", cardBorder: "transparent" };
 
   const darkTokens = THEME_TOKENS.DARK_MODE_TOKENS || {};
-  const claudeTokens = THEME_TOKENS.DARK_MODE_TOKENS_CLAUDE || {};
   const analyticsColors = THEME_TOKENS.ANALYTICS_CATEGORY_COLORS || {};
 
   // Derive accent variants
@@ -483,17 +498,17 @@ window.TT.applyAppearance = function(appearance) {
     root.style.setProperty('--tt-header-bg', theme.appBg);
     root.style.setProperty('--tt-nav-bg', theme.appBg);
     // Reduce/disable nav shadow in dark mode (rely on surface step instead)
-    const lightNavShadow = (THEME_TOKENS.LIGHT_MODE_TOKENS && THEME_TOKENS.LIGHT_MODE_TOKENS[background])
-      ? THEME_TOKENS.LIGHT_MODE_TOKENS[background].navShadow
+    const lightNavShadow = (THEME_TOKENS.LIGHT_MODE_TOKENS && THEME_TOKENS.LIGHT_MODE_TOKENS.navShadow)
+      ? THEME_TOKENS.LIGHT_MODE_TOKENS.navShadow
       : 'none';
-    const darkNavShadow = isClaudeDark ? claudeTokens.navShadow : darkTokens.navShadow;
+    const darkNavShadow = darkTokens.navShadow;
     root.style.setProperty('--tt-nav-shadow', darkMode ? (darkNavShadow || 'none') : (lightNavShadow || 'none'));
     // Footer fade gradient with actual color value
-    root.style.setProperty('--tt-nav-fade-gradient', `linear-gradient(to top, ${theme.appBg} 0%, transparent 100%)`);
+    root.style.setProperty('--tt-nav-fade-gradient', `linear-gradient(to top, ${theme.appBg} 0%, ${theme.appBg} 30%, transparent 100%)`);
 
-    // Input/surfaces/text (light unchanged; dark depends on selected background)
+    // Input/surfaces/text
     if (!darkMode) {
-      const lightTokens = LIGHT_MODE_TOKENS[background] || LIGHT_MODE_TOKENS["health-gray"];
+      const lightTokens = LIGHT_MODE_TOKENS || {};
       root.style.setProperty('--tt-input-bg', lightTokens.inputBg);
       root.style.setProperty('--tt-subtle-surface', lightTokens.subtleSurface);
       root.style.setProperty('--tt-surface-subtle', lightTokens.surfaceSubtle);
@@ -510,6 +525,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-tracker-card-bg', lightTokens.trackerCardBg);
       root.style.setProperty('--tt-seg-track', lightTokens.segTrack);
       root.style.setProperty('--tt-seg-pill', lightTokens.segPill);
+      root.style.setProperty('--tt-calendar-pill', lightTokens.segTrack);
       root.style.setProperty('--tt-swipe-row-bg', lightTokens.swipeRowBg);
       root.style.setProperty('--tt-selected-surface', lightTokens.selectedSurface);
       root.style.setProperty('--tt-plus-bg', lightTokens.plusBg);
@@ -545,6 +561,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-primary-brand', lightTokens.primaryBrand);
       root.style.setProperty('--tt-primary-brand-soft', lightTokens.primaryBrandSoft);
       root.style.setProperty('--tt-primary-brand-strong', lightTokens.primaryBrandStrong);
+      root.style.setProperty('--tt-brand-icon', lightTokens.brandIcon);
       root.style.setProperty('--tt-recovery-bg', lightTokens.recoveryBg);
       root.style.setProperty('--tt-error', lightTokens.error);
       root.style.setProperty('--tt-error-soft', lightTokens.errorSoft);
@@ -561,75 +578,6 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-tray-bg', lightTokens.trayBg);
       root.style.setProperty('--tt-tray-shadow', lightTokens.trayShadow);
       root.style.setProperty('--tt-tray-divider', lightTokens.trayDivider);
-    } else if (isClaudeDark) {
-      // Dark mode: Claude-inspired palette (mapped to existing TT vars)
-      root.style.setProperty('--tt-input-bg', claudeTokens.inputBg);
-      root.style.setProperty('--tt-subtle-surface', claudeTokens.subtleSurface);
-      root.style.setProperty('--tt-surface-subtle', claudeTokens.surfaceSubtle);
-      root.style.setProperty('--tt-surface-selected', claudeTokens.surfaceSelected);
-      root.style.setProperty('--tt-surface-hover', claudeTokens.surfaceHover);
-      root.style.setProperty('--tt-progress-track', claudeTokens.progressTrack);
-      root.style.setProperty('--tt-timeline-item-bg', theme.cardBg);
-      root.style.setProperty('--tt-timeline-track-bg', claudeTokens.timelineTrackBg);
-      root.style.setProperty('--tt-halfsheet-bg', theme.cardBg);
-      root.style.setProperty('--tt-wheelpicker-bar', claudeTokens.wheelpickerBar);
-      root.style.setProperty('--tt-icon-bg', claudeTokens.iconBg);
-      root.style.setProperty('--tt-input-border', claudeTokens.inputBorder);
-      root.style.setProperty('--tt-divider', claudeTokens.divider);
-      root.style.setProperty('--tt-tracker-card-bg', theme.cardBg);
-      root.style.setProperty('--tt-seg-track', claudeTokens.segTrack);
-      root.style.setProperty('--tt-seg-pill', claudeTokens.segPill);
-      root.style.setProperty('--tt-swipe-row-bg', claudeTokens.swipeRowBg);
-      root.style.setProperty('--tt-selected-surface', claudeTokens.selectedSurface);
-      root.style.setProperty('--tt-plus-bg', claudeTokens.plusBg);
-      root.style.setProperty('--tt-plus-fg', claudeTokens.plusFg);
-      root.style.setProperty('--tt-text-primary', claudeTokens.textPrimary);
-      root.style.setProperty('--tt-text-secondary', claudeTokens.textSecondary);
-      root.style.setProperty('--tt-text-tertiary', claudeTokens.textTertiary);
-      root.style.setProperty('--tt-text-disabled', claudeTokens.textDisabled);
-      root.style.setProperty('--tt-text-on-accent', claudeTokens.textOnAccent);
-      root.style.setProperty('--tt-tapable-bg', claudeTokens.tapableBg);
-      root.style.setProperty('--tt-overlay-scrim', claudeTokens.overlayScrim);
-      root.style.setProperty('--tt-overlay-scrim-strong', claudeTokens.overlayScrimStrong);
-      root.style.setProperty('--tt-shadow-soft', claudeTokens.shadowSoft);
-      root.style.setProperty('--tt-shadow-floating', claudeTokens.shadowFloating);
-      root.style.setProperty('--tt-text-shadow', claudeTokens.textShadow);
-      root.style.setProperty('--tt-bg-hover', claudeTokens.bgHover);
-      root.style.setProperty('--tt-border-subtle', claudeTokens.borderSubtle);
-      root.style.setProperty('--tt-border-strong', claudeTokens.borderStrong);
-      root.style.setProperty('--tt-outline-strong', claudeTokens.outlineStrong);
-      root.style.setProperty('--tt-nav-disabled', claudeTokens.navDisabled);
-      root.style.setProperty('--tt-nav-divider', claudeTokens.navDivider);
-      root.style.setProperty('--tt-nav-pill-border', claudeTokens.navPillBorder);
-      root.style.setProperty('--tt-segmented-track-bg', claudeTokens.segmentedTrackBg);
-      root.style.setProperty('--tt-segmented-shadow', claudeTokens.segmentedShadow);
-      root.style.setProperty('--tt-segmented-on-bg', claudeTokens.segmentedOnBg);
-      root.style.setProperty('--tt-segmented-on-text', claudeTokens.segmentedOnText);
-      root.style.setProperty('--tt-segmented-off-text', claudeTokens.segmentedOffText);
-      root.style.setProperty('--tt-primary-action-bg', claudeTokens.primaryActionBg);
-      root.style.setProperty('--tt-primary-action-bg-active', claudeTokens.primaryActionBgActive);
-      root.style.setProperty('--tt-primary-action-shadow', claudeTokens.primaryActionShadow);
-      root.style.setProperty('--tt-primary-action-shadow-active', claudeTokens.primaryActionShadowActive);
-      root.style.setProperty('--tt-primary-action-text', claudeTokens.primaryActionText);
-      root.style.setProperty('--tt-primary-brand', claudeTokens.primaryBrand);
-      root.style.setProperty('--tt-primary-brand-soft', claudeTokens.primaryBrandSoft);
-      root.style.setProperty('--tt-primary-brand-strong', claudeTokens.primaryBrandStrong);
-      root.style.setProperty('--tt-recovery-bg', claudeTokens.recoveryBg);
-      root.style.setProperty('--tt-error', claudeTokens.error);
-      root.style.setProperty('--tt-error-soft', claudeTokens.errorSoft);
-      root.style.setProperty('--tt-positive', claudeTokens.positive);
-      root.style.setProperty('--tt-positive-soft', claudeTokens.positiveSoft);
-      root.style.setProperty('--tt-positive-alt', claudeTokens.positiveAlt);
-      root.style.setProperty('--tt-positive-alt-soft', claudeTokens.positiveAltSoft);
-      root.style.setProperty('--tt-negative', claudeTokens.negative);
-      root.style.setProperty('--tt-negative-soft', claudeTokens.negativeSoft);
-      root.style.setProperty('--tt-negative-warm', claudeTokens.negativeWarm);
-      root.style.setProperty('--tt-negative-warm-soft', claudeTokens.negativeWarmSoft);
-      root.style.setProperty('--tt-pulse-highlight', claudeTokens.pulseHighlight);
-      root.style.setProperty('--tt-highlight-indigo-soft', claudeTokens.highlightIndigoSoft);
-      root.style.setProperty('--tt-tray-bg', claudeTokens.trayBg);
-      root.style.setProperty('--tt-tray-shadow', claudeTokens.trayShadow);
-      root.style.setProperty('--tt-tray-divider', claudeTokens.trayDivider);
     } else {
       // Dark mode: existing palette (current behavior)
       root.style.setProperty('--tt-input-bg', darkTokens.inputBg);
@@ -648,6 +596,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-tracker-card-bg', theme.cardBg);
       root.style.setProperty('--tt-seg-track', darkTokens.segTrack);
       root.style.setProperty('--tt-seg-pill', darkTokens.segPill);
+      root.style.setProperty('--tt-calendar-pill', darkTokens.segPill);
       root.style.setProperty('--tt-swipe-row-bg', darkTokens.swipeRowBg);
       root.style.setProperty('--tt-selected-surface', darkTokens.selectedSurface);
       root.style.setProperty('--tt-plus-bg', darkTokens.plusBg);
@@ -683,6 +632,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-primary-brand', darkTokens.primaryBrand);
       root.style.setProperty('--tt-primary-brand-soft', darkTokens.primaryBrandSoft);
       root.style.setProperty('--tt-primary-brand-strong', darkTokens.primaryBrandStrong);
+      root.style.setProperty('--tt-brand-icon', darkTokens.brandIcon);
       root.style.setProperty('--tt-recovery-bg', darkTokens.recoveryBg);
       root.style.setProperty('--tt-error', darkTokens.error);
       root.style.setProperty('--tt-error-soft', darkTokens.errorSoft);
@@ -713,29 +663,29 @@ window.TT.applyAppearance = function(appearance) {
 
     // Feed accents
     root.style.setProperty('--tt-feed', sanitizedFeedAccent);
-    root.style.setProperty('--tt-feed-soft', feedVariants.soft);
+    root.style.setProperty('--tt-feed-soft', feedSet.soft);
     root.style.setProperty('--tt-feed-strong', feedVariants.strong);
 
     // Nursing accents
     root.style.setProperty('--tt-nursing', sanitizedNursingAccent);
-    root.style.setProperty('--tt-nursing-soft', nursingVariants.soft);
+    root.style.setProperty('--tt-nursing-soft', nursingSet.soft);
     root.style.setProperty('--tt-nursing-strong', nursingVariants.strong);
 
     // Solids accents
     root.style.setProperty('--tt-solids', sanitizedSolidsAccent);
-    root.style.setProperty('--tt-solids-soft', solidsVariants.soft);
+    root.style.setProperty('--tt-solids-soft', solidsSet.soft);
     root.style.setProperty('--tt-solids-strong', solidsVariants.strong);
 
     // Sleep accents
     root.style.setProperty('--tt-sleep', sanitizedSleepAccent);
     root.style.setProperty('--tt-sleep-softer', sleepVariants.softer);
     root.style.setProperty('--tt-sleep-soft-medium', sleepVariants.softMedium);
-    root.style.setProperty('--tt-sleep-soft', sleepVariants.soft);
+    root.style.setProperty('--tt-sleep-soft', sleepSet.soft);
     root.style.setProperty('--tt-sleep-strong', sleepVariants.strong);
 
     // Diaper accents
     root.style.setProperty('--tt-diaper', sanitizedDiaperAccent);
-    root.style.setProperty('--tt-diaper-soft', diaperVariants.soft);
+    root.style.setProperty('--tt-diaper-soft', diaperSet.soft);
     root.style.setProperty('--tt-diaper-strong', diaperVariants.strong);
 
     // Update meta theme-color after CSS vars are applied.
@@ -744,6 +694,17 @@ window.TT.applyAppearance = function(appearance) {
     }
   });
 };
+
+// Apply cached appearance immediately to avoid light-mode flash on load.
+try {
+  const cachedAppearance = localStorage.getItem('tt_appearance_cache');
+  if (cachedAppearance) {
+    const parsed = JSON.parse(cachedAppearance);
+    if (parsed && typeof parsed.darkMode === 'boolean') {
+      window.TT.applyAppearance({ ...DEFAULT_APPEARANCE, ...parsed });
+    }
+  }
+} catch (e) {}
 
 const signInWithGoogle = async () => {
   const provider = new firebase.auth.GoogleAuthProvider();
@@ -2658,6 +2619,8 @@ if (typeof firestoreStorage.setSleepTargetOverride !== 'function') {
 const { useState, useEffect, useMemo } = React;
 
 const __ttBootCacheKey = (uid) => `tt_boot_v1:${uid}`;
+const __ttForceOnboardingKey = 'tt_force_onboarding_v1';
+const __ttForceLoginKey = 'tt_force_login_v1';
 
 const App = () => {
   const [user, setUser] = useState(null);
@@ -2670,10 +2633,62 @@ const App = () => {
 
   const [needsSetup, setNeedsSetup] = useState(false);
   const [loadIssue, setLoadIssue] = useState(null);
+  const [forceOnboarding, setForceOnboarding] = useState(() => {
+    try {
+      return localStorage.getItem(__ttForceOnboardingKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [forceLogin, setForceLogin] = useState(() => {
+    try {
+      return localStorage.getItem(__ttForceLoginKey) === '1';
+    } catch {
+      return false;
+    }
+  });
 
   const [bootKids, setBootKids] = useState(null);
   const [bootActiveKid, setBootActiveKid] = useState(null);
-  const [bootThemeKey, setBootThemeKey] = useState('indigo');
+  const [bootThemeKey, setBootThemeKey] = useState(DEFAULT_THEME_KEY);
+
+  // ----------------------------------------------------
+  // ONBOARDING PREVIEW TOGGLE (dev)
+  // ----------------------------------------------------
+  useEffect(() => {
+    try {
+      window.TT = window.TT || {};
+      window.TT.actions = window.TT.actions || {};
+      window.TT.actions.setOnboardingPreview = (enabled) => {
+        const next = !!enabled;
+        setForceOnboarding(next);
+        try {
+          if (next) {
+            localStorage.setItem(__ttForceOnboardingKey, '1');
+          } else {
+            localStorage.removeItem(__ttForceOnboardingKey);
+          }
+        } catch {}
+      };
+      window.TT.actions.toggleOnboardingPreview = () => {
+        window.TT.actions.setOnboardingPreview(!forceOnboarding);
+      };
+      window.TT.actions.setLoginPreview = (enabled) => {
+        const next = !!enabled;
+        setForceLogin(next);
+        try {
+          if (next) {
+            localStorage.setItem(__ttForceLoginKey, '1');
+          } else {
+            localStorage.removeItem(__ttForceLoginKey);
+          }
+        } catch {}
+      };
+      window.TT.actions.toggleLoginPreview = () => {
+        window.TT.actions.setLoginPreview(!forceLogin);
+      };
+    } catch {}
+  }, [forceOnboarding, forceLogin]);
 
   // ----------------------------------------------------
   // KID SWITCH (multi-kid)
@@ -2702,7 +2717,7 @@ const App = () => {
         setBootReady(false);
         setBootKids(null);
         setBootActiveKid(null);
-        setBootThemeKey('indigo');
+        setBootThemeKey(DEFAULT_THEME_KEY);
         setLoading(false);
         // Reset appearance to defaults on sign out
         await window.TT.appearance.init(null);
@@ -2716,7 +2731,7 @@ const App = () => {
       setBootReady(false);
       setBootKids(null);
       setBootActiveKid(null);
-      setBootThemeKey('indigo');
+      setBootThemeKey(DEFAULT_THEME_KEY);
 
       // Fast-boot from cache if available (renders UI immediately, syncs in background)
       try {
@@ -2727,7 +2742,7 @@ const App = () => {
           setBootKids(cachedBoot.kids);
           const current = cachedBoot.kids.find(k => k.id === cachedBoot.kidId) || cachedBoot.kids[0] || null;
           setBootActiveKid(current);
-          setBootThemeKey(cachedBoot.themeKey || 'indigo');
+          setBootThemeKey(cachedBoot.themeKey || DEFAULT_THEME_KEY);
           setNeedsSetup(false);
           setLoadIssue(null);
           setBootReady(true);
@@ -2885,14 +2900,14 @@ const App = () => {
 
         setBootKids(list);
         setBootActiveKid(current);
-        setBootThemeKey(settingsData.themeKey || "indigo");
+        setBootThemeKey(settingsData.themeKey || DEFAULT_THEME_KEY);
         setBootReady(true);
         try {
           await __ttDataCache.set(__ttBootCacheKey(u.uid), {
             familyId: resolvedFamilyId,
             kidId: resolvedKidId,
             kids: list,
-            themeKey: settingsData.themeKey || "indigo",
+            themeKey: settingsData.themeKey || DEFAULT_THEME_KEY,
             savedAt: Date.now()
           });
         } catch (e) {}
@@ -2906,7 +2921,7 @@ const App = () => {
         setBootReady(false);
         setBootKids(null);
         setBootActiveKid(null);
-        setBootThemeKey('indigo');
+        setBootThemeKey(DEFAULT_THEME_KEY);
         setLoadIssue({
           title: "Couldn’t load Tiny Tracker",
           message:
@@ -2945,6 +2960,9 @@ const App = () => {
   // ----------------------------------------------------
   // LOGIN SCREEN
   // ----------------------------------------------------
+  if (forceLogin) {
+    return React.createElement(LoginScreen);
+  }
   if (!user) {
     return React.createElement(LoginScreen);
   }
@@ -2968,6 +2986,13 @@ const App = () => {
   // ----------------------------------------------------
   // ONBOARDING (now family-aware)
   // ----------------------------------------------------
+  if (forceOnboarding && user) {
+    return React.createElement(BabySetupScreen, {
+      user,
+      previewOnly: true,
+      onComplete: () => {},
+    });
+  }
   if (needsSetup) {
     return React.createElement(BabySetupScreen, {
       user,
@@ -3066,7 +3091,8 @@ const LoginScreen = () => {
     "div",
     {
       className:
-        "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4",
+        "min-h-screen flex items-center justify-center p-4",
+      style: { backgroundColor: 'var(--tt-app-bg)' }
     },
     React.createElement(
       "div",
@@ -3082,21 +3108,41 @@ const LoginScreen = () => {
           { className: "flex items-center justify-center mb-4" },
           React.createElement(
             "div",
-            { className: "bg-indigo-100 rounded-full p-4" },
-            React.createElement(window.TT?.shared?.icons?.BabyIcon || (() => null), {
-              className: "w-12 h-12 text-indigo-600",
-            })
+            {
+              className: "rounded-full p-4",
+              style: { backgroundColor: 'var(--tt-primary-brand-soft)' }
+            },
+              React.createElement(
+                'svg',
+                {
+                  xmlns: "http://www.w3.org/2000/svg",
+                  width: "48",
+                  height: "48",
+                  viewBox: "0 0 256 256",
+                  style: { color: 'var(--tt-brand-icon)' }
+                },
+              React.createElement('path', {
+                d: "M205.41,159.07a60.9,60.9,0,0,1-31.83,8.86,71.71,71.71,0,0,1-27.36-5.66A55.55,55.55,0,0,0,136,194.51V224a8,8,0,0,1-8.53,8,8.18,8.18,0,0,1-7.47-8.25V211.31L81.38,172.69A52.5,52.5,0,0,1,63.44,176a45.82,45.82,0,0,1-23.92-6.67C17.73,156.09,6,125.62,8.27,87.79a8,8,0,0,1,7.52-7.52c37.83-2.23,68.3,9.46,81.5,31.25A46,46,0,0,1,103.74,140a4,4,0,0,1-6.89,2.43l-19.2-20.1a8,8,0,0,0-11.31,11.31l53.88,55.25c.06-.78.13-1.56.21-2.33a68.56,68.56,0,0,1,18.64-39.46l50.59-53.46a8,8,0,0,0-11.31-11.32l-49,51.82a4,4,0,0,1-6.78-1.74c-4.74-17.48-2.65-34.88,6.4-49.82,17.86-29.48,59.42-45.26,111.18-42.22a8,8,0,0,1,7.52,7.52C250.67,99.65,234.89,141.21,205.41,159.07Z",
+                fill: "currentColor"
+              })
+            )
           )
         ),
         React.createElement(
           "h1",
-          { className: "text-3xl font-bold text-gray-800 handwriting mb-2" },
+          {
+            className: "text-3xl font-bold text-gray-800 mb-2",
+            style: {
+              fontFamily:
+                '-apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", system-ui, sans-serif',
+            },
+          },
           "Tiny Tracker"
         ),
         React.createElement(
           "p",
           { className: "text-gray-600" },
-          "Track your baby's feeding journey"
+          "Track your baby's feeding, sleep, and more"
         )
       ),
 
@@ -3169,8 +3215,11 @@ const LoginScreen = () => {
               className:
                 "px-3 py-1 text-xs rounded-full border " +
                 (mode === "login"
-                  ? "bg-indigo-600 text-white border-indigo-600"
+                  ? "text-white"
                   : "bg-white text-gray-500 border-gray-200"),
+              style: mode === "login"
+                ? { backgroundColor: 'var(--tt-primary-brand)', borderColor: 'var(--tt-primary-brand)' }
+                : undefined
             },
             "Log in"
           ),
@@ -3182,8 +3231,11 @@ const LoginScreen = () => {
               className:
                 "px-3 py-1 text-xs rounded-full border " +
                 (mode === "signup"
-                  ? "bg-indigo-600 text-white border-indigo-600"
+                  ? "text-white"
                   : "bg-white text-gray-500 border-gray-200"),
+              style: mode === "signup"
+                ? { backgroundColor: 'var(--tt-primary-brand)', borderColor: 'var(--tt-primary-brand)' }
+                : undefined
             },
             "Create account"
           )
@@ -3201,7 +3253,7 @@ const LoginScreen = () => {
             placeholder: "Email",
             autoComplete: "email",
             className:
-              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
+              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none",
           }),
 
           // Password input
@@ -3213,7 +3265,7 @@ const LoginScreen = () => {
             autoComplete:
               mode === "signup" ? "new-password" : "current-password",
             className:
-              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
+              "w-full px-4 py-2 text-sm border-2 border-gray-200 rounded-xl focus:outline-none",
           }),
 
           // Email submit button
@@ -3223,7 +3275,8 @@ const LoginScreen = () => {
               onClick: handleEmailSubmit,
               disabled: signingIn,
               className:
-                "w-full bg-indigo-600 text-white py-2.5 rounded-xl font-semibold hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm",
+                "w-full text-white py-2.5 rounded-xl font-semibold transition flex items-center justify-center gap-2 disabled:opacity-50 text-sm",
+              style: { backgroundColor: 'var(--tt-primary-action-bg)' }
             },
             mode === "signup"
               ? "Create account with email"
@@ -3232,13 +3285,7 @@ const LoginScreen = () => {
         )
       ),
 
-      React.createElement(
-        "p",
-        {
-          className: "text-center text-xs text-gray-500 mt-6",
-        },
-        "Track feedings, invite your partner, and analyze patterns"
-      )
+      null
     )
   );
 };
@@ -3247,28 +3294,61 @@ const LoginScreen = () => {
 // BABY SETUP — now creates a FAMILY + KID
 // =====================================================
 
-const BabySetupScreen = ({ user, onComplete }) => {
+const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
   const getTodayLocalDateString = () => {
     const now = new Date();
     const offsetMs = now.getTimezoneOffset() * 60000;
     return new Date(now.getTime() - offsetMs).toISOString().split("T")[0];
   };
 
+  const TTInputRow =
+    (typeof window !== 'undefined' && (window.TT?.shared?.TTInputRow || window.TTInputRow)) ||
+    null;
+  const TTPhotoRow =
+    (typeof window !== 'undefined' && (window.TT?.shared?.TTPhotoRow || window.TTPhotoRow)) ||
+    null;
+
   const [babyName, setBabyName] = useState("");
-  const [babyWeight, setBabyWeight] = useState("");
   const [birthDate, setBirthDate] = useState(getTodayLocalDateString);
+  const [photoExpanded, setPhotoExpanded] = useState(true);
+  const [newPhotos, setNewPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
+  const handleAddPhoto = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          let dataUrl = reader.result;
+          if (firestoreStorage?._compressImage) {
+            try {
+              dataUrl = await firestoreStorage._compressImage(dataUrl, 1200);
+            } catch {}
+          }
+          setNewPhotos([dataUrl]);
+          setPhotoExpanded(true);
+        } catch {
+          setError("Couldn't load photo. Please try again.");
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
+
   const handleSubmit = async () => {
-    if (!babyName.trim()) {
-      setError("Please enter your baby's name");
+    if (previewOnly) {
+      setError("Preview mode is on. Turn it off to create a family.");
       return;
     }
-
-    const weight = parseFloat(babyWeight);
-    if (!weight || weight <= 0) {
-      setError("Please enter a valid weight");
+    if (!babyName.trim()) {
+      setError("Please enter your baby's name");
       return;
     }
 
@@ -3304,7 +3384,7 @@ const BabySetupScreen = ({ user, onComplete }) => {
           ownerId: user.uid,
           birthDate: birthTimestamp,
           members: [user.uid],
-          photoURL: null,
+          photoURL: (newPhotos && newPhotos[0]) ? newPhotos[0] : null,
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
 
@@ -3322,8 +3402,6 @@ const BabySetupScreen = ({ user, onComplete }) => {
         .collection("settings")
         .doc("default")
         .set({
-          babyWeight: weight,
-          multiplier: 2.5,
           preferredVolumeUnit: 'oz',
           createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         });
@@ -3342,8 +3420,8 @@ const BabySetupScreen = ({ user, onComplete }) => {
   return React.createElement(
     "div",
     {
-      className:
-        "min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4",
+      className: "min-h-screen flex items-center justify-center p-4",
+      style: { backgroundColor: 'var(--tt-app-bg)' }
     },
     React.createElement(
       "div",
@@ -3358,8 +3436,21 @@ const BabySetupScreen = ({ user, onComplete }) => {
           { className: "flex items-center justify-center mb-4" },
           React.createElement(
             "div",
-            { className: "bg-indigo-100 rounded-full p-3" },
-            React.createElement(window.TT?.shared?.icons?.BabyIcon || (() => null), { className: "w-10 h-10 text-indigo-600" })
+            { className: "rounded-full p-3", style: { backgroundColor: 'var(--tt-primary-brand-soft)' } },
+            React.createElement(
+              'svg',
+              {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: "40",
+                height: "40",
+                viewBox: "0 0 256 256",
+                style: { color: 'var(--tt-primary-brand)' }
+              },
+              React.createElement('path', {
+                d: "M205.41,159.07a60.9,60.9,0,0,1-31.83,8.86,71.71,71.71,0,0,1-27.36-5.66A55.55,55.55,0,0,0,136,194.51V224a8,8,0,0,1-8.53,8,8.18,8.18,0,0,1-7.47-8.25V211.31L81.38,172.69A52.5,52.5,0,0,1,63.44,176a45.82,45.82,0,0,1-23.92-6.67C17.73,156.09,6,125.62,8.27,87.79a8,8,0,0,1,7.52-7.52c37.83-2.23,68.3,9.46,81.5,31.25A46,46,0,0,1,103.74,140a4,4,0,0,1-6.89,2.43l-19.2-20.1a8,8,0,0,0-11.31,11.31l53.88,55.25c.06-.78.13-1.56.21-2.33a68.56,68.56,0,0,1,18.64-39.46l50.59-53.46a8,8,0,0,0-11.31-11.32l-49,51.82a4,4,0,0,1-6.78-1.74c-4.74-17.48-2.65-34.88,6.4-49.82,17.86-29.48,59.42-45.26,111.18-42.22a8,8,0,0,1,7.52,7.52C250.67,99.65,234.89,141.21,205.41,159.07Z",
+                fill: "currentColor"
+              })
+            )
           )
         ),
         React.createElement(
@@ -3378,59 +3469,74 @@ const BabySetupScreen = ({ user, onComplete }) => {
         "div",
         { className: "space-y-4" },
 
-        React.createElement(
-          "div",
-          null,
-          React.createElement(
-            "label",
-            { className: "block text-sm font-medium text-gray-700 mb-2" },
-            "Baby's Name"
-          ),
-          React.createElement("input", {
-            type: "text",
-            value: babyName,
-            onChange: (e) => setBabyName(e.target.value),
-            placeholder: "Emma",
-            className:
-              "w-full px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
-          })
-        ),
+        TTInputRow
+          ? React.createElement(TTInputRow, {
+              label: "Baby's Name",
+              value: babyName,
+              onChange: setBabyName,
+              placeholder: "Emma",
+              showIcon: false,
+              showChevron: false,
+              enableTapAnimation: true,
+              showLabel: true,
+              type: 'text'
+            })
+          : null,
 
-        React.createElement(
-          "div",
-          null,
-          React.createElement(
-            "label",
-            { className: "block text-sm font-medium text-gray-700 mb-2" },
-            "Current Weight (lbs)"
-          ),
-          React.createElement("input", {
-            type: "number",
-            step: "0.1",
-            value: babyWeight,
-            onChange: (e) => setBabyWeight(e.target.value),
-            placeholder: "8.5",
-            className:
-              "w-full px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
-          })
-        ),
+        TTPhotoRow
+          ? React.createElement(
+              "div",
+              {
+                className: "rounded-2xl mb-2",
+                style: { backgroundColor: 'var(--tt-input-bg)', overflow: 'hidden' }
+              },
+              React.createElement(
+                "div",
+                { className: "p-4" },
+                React.createElement(
+                  "div",
+                  { className: "text-xs mb-1", style: { color: 'var(--tt-text-secondary)' } },
+                  "Add a photo"
+                ),
+                React.createElement(TTPhotoRow, {
+                  expanded: photoExpanded,
+                  onExpand: () => setPhotoExpanded(true),
+                  showTitle: false,
+                  existingPhotos: [],
+                  newPhotos,
+                  onAddPhoto: handleAddPhoto,
+                  onRemovePhoto: (index, isExisting) => {
+                    if (!isExisting) {
+                      setNewPhotos((prev) => prev.filter((_, i) => i !== index));
+                    }
+                  },
+                  onPreviewPhoto: () => {},
+                  showAddHint: true,
+                  addHint: "Add photo",
+                  addTileBorder: true,
+                  containerClassName: "pt-1 pb-0",
+                  containerStyle: { paddingTop: 0 }
+                })
+              )
+            )
+          : null,
 
-        React.createElement(
-          "div",
-          { className: "min-w-0" }, // FIX: Prevent date input overflow on mobile - allow container to shrink
-          React.createElement(
-            "label",
-            { className: "block text-sm font-medium text-gray-700 mb-2" },
-            "Birth Date"
-          ),
-          React.createElement("input", {
-            type: "date",
-            value: birthDate,
-            onChange: (e) => setBirthDate(e.target.value),
-            className:
-              "w-full min-w-0 max-w-full appearance-none box-border px-4 py-3 text-lg border-2 border-gray-200 rounded-xl focus:outline-none focus:border-indigo-400",
-          })
-        ),
+        TTInputRow
+          ? React.createElement(TTInputRow, {
+              label: "Birth Date",
+              value: birthDate,
+              onChange: setBirthDate,
+              placeholder: "YYYY-MM-DD",
+              showIcon: false,
+              showChevron: false,
+              enableTapAnimation: true,
+              showLabel: true,
+              type: 'date',
+              onFocus: (e) => {
+                try { e?.target?.showPicker?.(); } catch {}
+              }
+            })
+          : null,
 
         error &&
           React.createElement(
@@ -3446,11 +3552,12 @@ const BabySetupScreen = ({ user, onComplete }) => {
           "button",
           {
             onClick: handleSubmit,
-            disabled: saving,
+            disabled: saving || previewOnly,
             className:
-              "w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition disabled:opacity-50",
+              "w-full text-white py-3 rounded-xl font-semibold transition disabled:opacity-50",
+            style: { backgroundColor: 'var(--tt-primary-action-bg)' }
           },
-          saving ? "Saving..." : "Get Started"
+          previewOnly ? "Preview Mode" : (saving ? "Saving..." : "Get Started")
         )
       )
     )
@@ -3462,51 +3569,35 @@ const BabySetupScreen = ({ user, onComplete }) => {
 // Main App with Bottom Navigation (family-aware)
 // ========================================
 
-// Lucide-style link icon
-const LinkIcon = (props) => React.createElement(
+// Share app link icon (from shared icons when available)
+const LocalLinkIcon = window.TT?.shared?.icons?.LinkIcon || ((props) => React.createElement(
   'svg',
   {
     ...props,
     xmlns: "http://www.w3.org/2000/svg",
     width: "24",
     height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
+    viewBox: "0 0 256 256",
+    fill: "currentColor"
   },
-  React.createElement('path', { d: "M10 13a5 5 0 0 0 7.54.54l1.92-1.92a3 3 0 0 0-4.24-4.24l-1.1 1.1" }),
-  React.createElement('path', { d: "M14 11a5 5 0 0 0-7.54-.54l-1.92 1.92a3 3 0 0 0 4.24 4.24l1.1-1.1" })
-);
+  React.createElement('path', { d: "M237.66,106.35l-80-80A8,8,0,0,0,144,32V72.35c-25.94,2.22-54.59,14.92-78.16,34.91-28.38,24.08-46.05,55.11-49.76,87.37a12,12,0,0,0,20.68,9.58h0c11-11.71,50.14-48.74,107.24-52V192a8,8,0,0,0,13.66,5.65l80-80A8,8,0,0,0,237.66,106.35ZM160,172.69V144a8,8,0,0,0-8-8c-28.08,0-55.43,7.33-81.29,21.8a196.17,196.17,0,0,0-36.57,26.52c5.8-23.84,20.42-46.51,42.05-64.86C99.41,99.77,127.75,88,152,88a8,8,0,0,0,8-8V51.32L220.69,112Z" })
+));
 
-// Lucide-style "person add"
-const PersonAddIcon = (props) => React.createElement(
+// Invite partner icon (from shared icons when available)
+const LocalPersonAddIcon = window.TT?.shared?.icons?.PersonAddIcon || ((props) => React.createElement(
   'svg',
   {
     ...props,
     xmlns: "http://www.w3.org/2000/svg",
     width: "24",
     height: "24",
-    viewBox: "0 0 24 24",
-    fill: "none",
-    stroke: "currentColor",
-    strokeWidth: "2",
-    strokeLinecap: "round",
-    strokeLinejoin: "round"
+    viewBox: "0 0 256 256",
+    fill: "currentColor"
   },
-  React.createElement('circle', { cx: "9", cy: "7", r: "3" }),
-  React.createElement('path', { d: "M4 20v-1a4 4 0 0 1 4-4h2a4 4 0 0 1 4 4v1" }),
-  React.createElement('line', { x1: "17", y1: "8", x2: "23", y2: "8" }),
-  React.createElement('line', { x1: "20", y1: "5", x2: "20", y2: "11" })
-);
+  React.createElement('path', { d: "M256,136a8,8,0,0,1-8,8H232v16a8,8,0,0,1-16,0V144H200a8,8,0,0,1,0-16h16V112a8,8,0,0,1,16,0v16h16A8,8,0,0,1,256,136Zm-57.87,58.85a8,8,0,0,1-12.26,10.3C165.75,181.19,138.09,168,108,168s-57.75,13.19-77.87,37.15a8,8,0,0,1-12.25-10.3c14.94-17.78,33.52-30.41,54.17-37.17a68,68,0,1,1,71.9,0C164.6,164.44,183.18,177.07,198.13,194.85ZM108,152a52,52,0,1,0-52-52A52.06,52.06,0,0,0,108,152Z" })
+));
 
 // ChevronDown and ChevronUp are provided by components/TrackerCard.js
-
-// Per-kid theme palette
-const KID_THEMES = THEME_TOKENS.KID_THEMES || {};
-
 
 // =====================================================
 // MAIN APP
@@ -3518,7 +3609,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
 
   const [kids, setKids] = useState(() => (Array.isArray(bootKids) ? bootKids : []));
   const [activeKid, setActiveKid] = useState(() => (bootActiveKid || null));
-  const [themeKey, setThemeKey] = useState(() => (bootThemeKey || 'indigo'));
+  const [themeKey, setThemeKey] = useState(() => (bootThemeKey || DEFAULT_THEME_KEY));
   const [showKidMenu, setShowKidMenu] = useState(false);
   const [activityVisibility, setActivityVisibility] = useState(() => ({
     bottle: true,
@@ -3544,7 +3635,6 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
   const FloatingTrackerMenu = window.TT?.shared?.FloatingTrackerMenu || null;
   const ActivityVisibilitySheet = window.TT?.shared?.ActivityVisibilitySheet || null;
 
-  const theme = KID_THEMES[themeKey] || KID_THEMES.indigo;
   const normalizeActivityVisibility = (value) => {
     const base = { bottle: true, nursing: true, solids: true, sleep: true, diaper: true };
     if (!value || typeof value !== 'object') return base;
@@ -3673,6 +3763,26 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
   }, [themeKey]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    window.TT = window.TT || {};
+    window.TT.currentThemeKey = themeKey || DEFAULT_THEME_KEY;
+    if (window.TT?.appearance?.get && typeof window.TT.applyAppearance === 'function') {
+      window.TT.applyAppearance(window.TT.appearance.get());
+    }
+    try {
+      if (user?.uid && familyId && kidId && Array.isArray(kids) && kids.length > 0) {
+        __ttDataCache.set(__ttBootCacheKey(user.uid), {
+          familyId,
+          kidId,
+          kids,
+          themeKey: themeKey || DEFAULT_THEME_KEY,
+          savedAt: Date.now()
+        });
+      }
+    } catch (e) {}
+  }, [themeKey, familyId, kidId, kids, user]);
+
+  useEffect(() => {
     loadKidsAndTheme();
   }, [familyId, kidId]);
 
@@ -3702,7 +3812,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         .get();
 
       const settingsData = settingsDoc.exists ? settingsDoc.data() : {};
-      setThemeKey(settingsData.themeKey || "indigo");
+      setThemeKey(settingsData.themeKey || DEFAULT_THEME_KEY);
       setActivityVisibility(normalizeActivityVisibility(settingsData.activityVisibility));
       setActivityOrder(normalizeActivityOrder(settingsData.activityOrder));
 
@@ -3823,7 +3933,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       className: "min-h-screen",
       style: {
         backgroundColor: "var(--tt-app-bg)",
-        paddingBottom: '80px'
+        paddingBottom: '135px'
       }
     },
 
@@ -3842,7 +3952,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         },
         React.createElement(
           'div',
-          { className: "pt-4 pb-6 relative" },
+          { className: "pt-4 pb-6 px-4 relative" },
           React.createElement(
             'div',
             { className: "grid grid-cols-3 items-center" },
@@ -3850,7 +3960,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
             // LEFT COLUMN: kid name + dropdown
             React.createElement(
               'div',
-              { className: "relative flex items-center justify-start pl-4" },
+              { className: "relative flex items-center justify-start" },
               React.createElement(
                 'button',
                 {
@@ -3861,12 +3971,12 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                     setShowKidMenu((v) => !v);
                     setShowShareMenu(false);
                   },
-                  className: "flex items-center gap-[10px] px-3 focus:outline-none"
+                  className: "flex items-center gap-[10px] px-0 focus:outline-none"
                 },
                 React.createElement(
                   'span',
                   {
-                    className: "w-[30px] h-[30px] rounded-full overflow-hidden flex-shrink-0",
+                    className: "w-[36px] h-[36px] rounded-full overflow-hidden flex-shrink-0",
                     style: { backgroundColor: 'var(--tt-input-bg)' }
                   },
                   activeKid?.photoURL
@@ -3911,7 +4021,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   width: "26.4",
                   height: "26.4",
                   viewBox: "0 0 256 256",
-                  style: { color: 'var(--tt-feed)' }
+                  style: { color: 'var(--tt-brand-icon)' }
                 },
                 React.createElement('path', {
                   d: "M205.41,159.07a60.9,60.9,0,0,1-31.83,8.86,71.71,71.71,0,0,1-27.36-5.66A55.55,55.55,0,0,0,136,194.51V224a8,8,0,0,1-8.53,8,8.18,8.18,0,0,1-7.47-8.25V211.31L81.38,172.69A52.5,52.5,0,0,1,63.44,176a45.82,45.82,0,0,1-23.92-6.67C17.73,156.09,6,125.62,8.27,87.79a8,8,0,0,1,7.52-7.52c37.83-2.23,68.3,9.46,81.5,31.25A46,46,0,0,1,103.74,140a4,4,0,0,1-6.89,2.43l-19.2-20.1a8,8,0,0,0-11.31,11.31l53.88,55.25c.06-.78.13-1.56.21-2.33a68.56,68.56,0,0,1,18.64-39.46l50.59-53.46a8,8,0,0,0-11.31-11.32l-49,51.82a4,4,0,0,1-6.78-1.74c-4.74-17.48-2.65-34.88,6.4-49.82,17.86-29.48,59.42-45.26,111.18-42.22a8,8,0,0,1,7.52,7.52C250.67,99.65,234.89,141.21,205.41,159.07Z",
@@ -3960,17 +4070,13 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                       k.name || 'Baby'
                     ),
                     React.createElement(
-                      'span',
-                      {
-                        className: "w-4 h-4 rounded-full border flex items-center justify-center",
-                        style: { borderColor: 'var(--tt-card-border)' }
-                      },
                       isCurrent
-                        ? React.createElement('span', {
-                            className: "w-2 h-2 rounded-full",
-                            style: { backgroundColor: 'var(--tt-text-primary)' }
-                          })
-                        : null
+                        ? (window.TT?.shared?.icons?.KidSelectorOnIcon || (() => null))
+                        : (window.TT?.shared?.icons?.KidSelectorOffIcon || (() => null)),
+                      {
+                        className: "w-4 h-4",
+                        style: { color: isCurrent ? 'var(--tt-text-primary)' : 'var(--tt-card-border)' }
+                      }
                     )
                   );
                 }),
@@ -4001,7 +4107,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
             // RIGHT COLUMN: Share + Settings buttons
             React.createElement(
               'div',
-              { className: "flex items-center justify-end gap-0.5 pr-4" },
+              { className: "flex items-center justify-end gap-0.5" },
               React.createElement(
                 'button',
                 {
@@ -4012,7 +4118,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                     setShowShareMenu((v) => !v);
                     setShowKidMenu(false);
                   },
-                  className: "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition"
+                  className: "w-11 h-11 flex items-center justify-center rounded-xl hover:bg-[var(--tt-seg-track)] transition"
                 },
                 React.createElement(window.TT?.shared?.icons?.ShareIconPhosphor || (() => null), {
                   className: "w-6 h-6",
@@ -4033,7 +4139,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                     setActiveTab('family');
                   },
                   className:
-                    "w-11 h-11 flex items-center justify-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 transition",
+                    "w-11 h-11 flex items-center justify-center rounded-xl hover:bg-[var(--tt-seg-track)] transition",
                   'aria-label': 'Family'
                 },
                 React.createElement(window.TT?.shared?.icons?.HomeIcon || (() => null), {
@@ -4074,7 +4180,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                       "w-full h-11 px-3 text-sm flex items-center gap-2 transition hover:bg-black/5 dark:hover:bg-white/10",
                     style: { color: 'var(--tt-text-primary)' }
                   },
-                  React.createElement(LinkIcon, { className: "w-4 h-4", style: { color: 'var(--tt-text-primary)' } }),
+                  React.createElement(LocalLinkIcon, { className: "w-4 h-4", style: { color: 'var(--tt-text-primary)' } }),
                   "Share app link"
                 ),
                 React.createElement(
@@ -4091,7 +4197,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                       "w-full h-11 px-3 text-sm flex items-center gap-2 transition hover:bg-black/5 dark:hover:bg-white/10",
                     style: { color: 'var(--tt-text-primary)' }
                   },
-                  React.createElement(PersonAddIcon, { className: "w-4 h-4", style: { color: 'var(--tt-text-primary)' } }),
+                  React.createElement(LocalPersonAddIcon, { className: "w-4 h-4", style: { color: 'var(--tt-text-primary)' } }),
                   "Invite partner"
                 )
               )
@@ -4149,7 +4255,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 top: 0,
                 left: 0,
                 right: 0,
-                bottom: 'calc(env(safe-area-inset-bottom) + 80px)',
+                bottom: 'calc(env(safe-area-inset-bottom) + 135px)',
                 zIndex: 45,
                 overflow: 'hidden',
                 backgroundColor: 'var(--tt-app-bg)'
@@ -4242,7 +4348,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           diaper: activityVisibilitySafe.diaper
         },
         position: {
-          bottom: 'calc(env(safe-area-inset-bottom) + 40px)',
+          bottom: 'calc(env(safe-area-inset-bottom) + 36px)',
           left: '50%'
         }
       })
@@ -4254,8 +4360,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       {
         className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
         style: {
-          bottom: 'calc(env(safe-area-inset-bottom) + 70px)', // Position at footer top edge
-          height: '32px', // Taller for better visibility
+          bottom: 'calc(env(safe-area-inset-bottom) + 65px)', // Position at footer top edge
+          height: '100px', // Reduced fade height
           background: 'var(--tt-nav-fade-gradient)',
           zIndex: 40
         }
@@ -4276,10 +4382,11 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
       {
         className: "tt-bottom-nav fixed bottom-0 left-0 right-0 z-50",
         style: {
-          backgroundColor: "var(--tt-nav-bg)",
-          boxShadow: 'var(--tt-nav-shadow)',
+          background: "var(--tt-nav-bg)",
+          boxShadow: 'none',
           // Make the bar a bit taller without moving its contents (including the +):
           // increasing height pushes the top up, and matching paddingTop pushes contents back down.
+          minHeight: '80px',
           paddingTop: '10px',
           paddingBottom: 'env(safe-area-inset-bottom)'
         }
@@ -4304,7 +4411,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-15px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
@@ -4326,7 +4433,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 key: 'plus-spacer',
                 className: "flex-1 py-2 flex items-center justify-center",
                 style: {
-                  transform: 'translateY(-10px)'
+                  transform: 'translateY(-15px)'
                 },
                 'aria-hidden': 'true'
               }),
@@ -4343,7 +4450,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-15px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
@@ -4378,7 +4485,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-15px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TodayIcon || (() => null), {
@@ -4401,6 +4508,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                 ? React.createElement('div', {
                     key: 'plus',
                     className: "mx-2 w-14 h-14 -mt-7",
+                    style: { transform: 'translateY(24px)' },
                     'aria-hidden': 'true'
                   })
                 : React.createElement(
@@ -4417,7 +4525,8 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                         "mx-2 w-14 h-14 -mt-7 rounded-full flex items-center justify-center shadow-lg active:scale-[0.98] transition-transform",
                       style: {
                         backgroundColor: 'var(--tt-plus-bg)',
-                        color: 'var(--tt-plus-fg)'
+                        color: 'var(--tt-plus-fg)',
+                        transform: 'translateY(24px)'
                       },
                       'aria-label': 'Add'
                     },
@@ -4441,7 +4550,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
                   className: "flex-1 py-2 flex flex-col items-center gap-1 transition",
                   style: {
                     color: 'var(--tt-text-primary)',
-                    transform: 'translateY(-10px)'
+                    transform: 'translateY(-5px)'
                   }
                 },
                 React.createElement(window.TT?.shared?.icons?.TrendsIcon || (() => null), {
@@ -5241,15 +5350,36 @@ const ensureMetaThemeTag = () => {
 const updateMetaThemeColor = () => {
   const meta = ensureMetaThemeTag();
   const appBg = getComputedStyle(document.documentElement).getPropertyValue('--tt-app-bg').trim();
-  const fallbackBg = (THEME_TOKENS.BACKGROUND_PREVIEW_COLORS && THEME_TOKENS.BACKGROUND_PREVIEW_COLORS.light)
-    ? THEME_TOKENS.BACKGROUND_PREVIEW_COLORS.light["health-gray"]
-    : undefined;
+  const fallbackBg = (THEME_TOKENS.BACKGROUND_THEMES && THEME_TOKENS.BACKGROUND_THEMES.light)
+    ? THEME_TOKENS.BACKGROUND_THEMES.light.appBg
+    : "#FFFFFF";
   const color = appBg || fallbackBg;
   meta.setAttribute('content', color);
 };
 
 updateMetaThemeColor();
 window.updateMetaThemeColor = updateMetaThemeColor;
+
+// ========================================
+// ORIENTATION LOCK (portrait-only)
+// ========================================
+
+const setupOrientationLock = () => {
+  const tryLockPortrait = () => {
+    try {
+      if (screen?.orientation?.lock) {
+        screen.orientation.lock('portrait').catch(() => {});
+      }
+    } catch (e) {}
+  };
+
+  // Attempt to lock portrait where supported (often requires user gesture)
+  tryLockPortrait();
+  window.addEventListener('click', tryLockPortrait, { once: true, capture: true });
+  window.addEventListener('touchstart', tryLockPortrait, { once: true, capture: true });
+};
+
+setupOrientationLock();
 
 // ========================================
 // RENDER APP (must stay last)

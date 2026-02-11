@@ -1372,7 +1372,12 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     const nursingTotalParts = formatElapsedHmsTT(totalDisplayMs);
 
     const TypeButton = ({ label, icon: Icon, selected, accent, onClick }) => {
-      const bg = selected ? `color-mix(in srgb, ${accent} 16%, var(--tt-input-bg))` : 'var(--tt-input-bg)';
+      const isDarkMode = typeof document !== 'undefined'
+        && document.documentElement
+        && document.documentElement.classList.contains('dark');
+      const bg = isDarkMode
+        ? 'var(--tt-input-bg)'
+        : (selected ? `color-mix(in srgb, ${accent} 16%, var(--tt-input-bg))` : 'var(--tt-input-bg)');
       const border = selected ? accent : 'var(--tt-card-border)';
       const color = selected ? accent : 'var(--tt-text-tertiary)';
       const isFilledIcon = Icon === NursingIcon;
@@ -2607,22 +2612,14 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
     },
       React.createElement('div', { style: { padding: '0 16px' } },
         React.createElement('div', null,
-          React.createElement('div', { style: { fontSize: 13, color: 'var(--tt-text-tertiary)', marginBottom: 12, fontWeight: 500 } }, 'Name'),
-          React.createElement('input', {
+          React.createElement(InputRow, {
+            label: 'Name',
             type: 'text',
+            size: 'compact',
+            icon: PenIcon,
             value: customFoodDraft?.name || '',
-            onChange: (e) => setCustomFoodDraft((prev) => ({ ...(prev || { emoji: null, icon: null }), name: e.target.value })),
-            placeholder: 'Enter food name',
-            style: {
-              width: '100%',
-              background: 'var(--tt-input-bg)',
-              border: 'none',
-              borderRadius: 12,
-              padding: '14px 16px',
-              color: 'var(--tt-text-primary)',
-              fontSize: 17,
-              boxSizing: 'border-box'
-            }
+            onChange: (nextValue) => setCustomFoodDraft((prev) => ({ ...(prev || { emoji: null, icon: null }), name: nextValue })),
+            placeholder: 'Enter food name'
           })
         ),
         React.createElement('div', { className: "mt-6" },

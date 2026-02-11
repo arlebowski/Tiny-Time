@@ -121,12 +121,21 @@ const SegmentedToggle = ({
     updatePillRect();
   }, [updatePillRect, optionsKey, size, fullWidth, variant]);
 
+
   React.useEffect(() => {
     if (!__ttMotion) return undefined;
     const handleResize = () => updatePillRect();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, [__ttMotion, updatePillRect]);
+
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => updatePillRect());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [updatePillRect]);
 
   return React.createElement(
     'div',

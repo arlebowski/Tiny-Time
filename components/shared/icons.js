@@ -103,6 +103,119 @@ const SearchIcon = (props) => React.createElement(
   React.createElement('path', { d: "M229.66,218.34l-50.07-50.06a88.11,88.11,0,1,0-11.31,11.31l50.06,50.07a8,8,0,0,0,11.32-11.32ZM40,112a72,72,0,1,1,72,72A72.08,72.08,0,0,1,40,112Z" })
 );
 
+// Helper to create Phosphor-style SVG icon component
+const createPhosphorSVG = (paths, viewBox = "0 0 256 256") => {
+  return (props) => {
+    const { 
+      weight = 'regular', 
+      className, 
+      style, 
+      ...rest 
+    } = props;
+    
+    // Extract size from className if present (e.g., "w-6 h-6" -> 24)
+    let size = 24; // default
+    if (className) {
+      const sizeMatch = className.match(/(?:w|h)-(\d+)/);
+      if (sizeMatch) {
+        size = parseInt(sizeMatch[1]) * 4; // Tailwind: w-6 = 24px
+      }
+    }
+    
+    // Phosphor weight system
+    // Regular weight uses fill (outline style is in the path design itself)
+    // Fill weight uses fill (solid)
+    // Bold weight uses fill (thicker/bolder paths)
+    const fill = weight === 'fill' || weight === 'regular' || weight === 'bold' ? 'currentColor' : 'none';
+    const stroke = 'none';
+    const strokeWidth = 0;
+    
+    return React.createElement('svg', {
+      ...rest,
+      xmlns: "http://www.w3.org/2000/svg",
+      width: size,
+      height: size,
+      viewBox: viewBox,
+      fill: fill,
+      stroke: stroke,
+      strokeWidth: strokeWidth,
+      strokeLinecap: "round",
+      strokeLinejoin: "round",
+      className: className,
+      style: { 
+        ...style, 
+        color: style?.color || 'currentColor',
+        display: 'block',
+        verticalAlign: 'middle'
+      }
+    }, paths);
+  };
+};
+
+// Factory helper to create icon components properly
+// This ensures icons are React components, not pre-invoked elements
+const makeIcon = (paths, viewBox = "0 0 256 256", fillPaths = null, boldPaths = null) => {
+  const RegularComponent = createPhosphorSVG(paths, viewBox);
+  const FillComponent = fillPaths ? createPhosphorSVG(fillPaths, viewBox) : RegularComponent;
+  const BoldComponent = boldPaths ? createPhosphorSVG(boldPaths, viewBox) : RegularComponent;
+  
+  return (props) => {
+    // Handle weight logic based on selection/tap state
+    const { isSelected, isTapped, selectedWeight, weight: propWeight, ...rest } = props;
+    let finalWeight = propWeight || 'regular';
+    
+    // Only use selectedWeight when actually selected/tapped
+    if ((isSelected || isTapped) && selectedWeight) {
+      finalWeight = selectedWeight;
+    }
+    
+    // Choose component based on final weight
+    let Component = RegularComponent;
+    if (finalWeight === 'fill' && fillPaths) {
+      Component = FillComponent;
+    } else if (finalWeight === 'bold' && boldPaths) {
+      Component = BoldComponent;
+    }
+    
+    return Component({ ...rest, weight: finalWeight });
+  };
+};
+
+// Share app link (Link)
+const LinkIcon = makeIcon([
+  React.createElement('path', {
+    key: 'path',
+    d: "M237.66,106.35l-80-80A8,8,0,0,0,144,32V72.35c-25.94,2.22-54.59,14.92-78.16,34.91-28.38,24.08-46.05,55.11-49.76,87.37a12,12,0,0,0,20.68,9.58h0c11-11.71,50.14-48.74,107.24-52V192a8,8,0,0,0,13.66,5.65l80-80A8,8,0,0,0,237.66,106.35ZM160,172.69V144a8,8,0,0,0-8-8c-28.08,0-55.43,7.33-81.29,21.8a196.17,196.17,0,0,0-36.57,26.52c5.8-23.84,20.42-46.51,42.05-64.86C99.41,99.77,127.75,88,152,88a8,8,0,0,0,8-8V51.32L220.69,112Z"
+  })
+], "0 0 256 256");
+
+// Invite partner (User plus)
+const PersonAddIcon = makeIcon([
+  React.createElement('path', {
+    key: 'path',
+    d: "M256,136a8,8,0,0,1-8,8H232v16a8,8,0,0,1-16,0V144H200a8,8,0,0,1,0-16h16V112a8,8,0,0,1,16,0v16h16A8,8,0,0,1,256,136Zm-57.87,58.85a8,8,0,0,1-12.26,10.3C165.75,181.19,138.09,168,108,168s-57.75,13.19-77.87,37.15a8,8,0,0,1-12.25-10.3c14.94-17.78,33.52-30.41,54.17-37.17a68,68,0,1,1,71.9,0C164.6,164.44,183.18,177.07,198.13,194.85ZM108,152a52,52,0,1,0-52-52A52.06,52.06,0,0,0,108,152Z"
+  })
+], "0 0 256 256");
+
+// Kid selector radio
+const KidSelectorOffIcon = makeIcon([
+  React.createElement('path', {
+    key: 'path',
+    d: "M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"
+  })
+], "0 0 256 256");
+
+const KidSelectorOnIcon = makeIcon([
+  React.createElement('path', {
+    key: 'path',
+    d: "M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,176H48V48H208V208Z"
+  }),
+  React.createElement('path', {
+    key: 'inner',
+    d: "M180,92.69a8,8,0,0,0-11.31,0L112,149.37,87.31,124.69a8,8,0,1,0-11.31,11.31l30.34,30.34a8,8,0,0,0,11.31,0l62.34-62.34A8,8,0,0,0,180,92.69Z"
+  })
+], "0 0 256 256");
+
 // Hummus icon (image-based custom food icon)
 const HummusIcon = ({ width = 28, height = 28, style, className, ...props }) => React.createElement(
   'img',
@@ -205,84 +318,6 @@ const DiaperPooIcon = (props) => React.createElement(
 // PHOSPHOR ICONS
 // Official Phosphor Icons implementation using actual SVG paths
 // ========================================
-
-// Helper to create Phosphor-style SVG icon component
-const createPhosphorSVG = (paths, viewBox = "0 0 256 256") => {
-  return (props) => {
-    const { 
-      weight = 'regular', 
-      className, 
-      style, 
-      ...rest 
-    } = props;
-    
-    // Extract size from className if present (e.g., "w-6 h-6" -> 24)
-    let size = 24; // default
-    if (className) {
-      const sizeMatch = className.match(/(?:w|h)-(\d+)/);
-      if (sizeMatch) {
-        size = parseInt(sizeMatch[1]) * 4; // Tailwind: w-6 = 24px
-      }
-    }
-    
-    // Phosphor weight system
-    // Regular weight uses fill (outline style is in the path design itself)
-    // Fill weight uses fill (solid)
-    // Bold weight uses fill (thicker/bolder paths)
-    const fill = weight === 'fill' || weight === 'regular' || weight === 'bold' ? 'currentColor' : 'none';
-    const stroke = 'none';
-    const strokeWidth = 0;
-    
-    return React.createElement('svg', {
-      ...rest,
-      xmlns: "http://www.w3.org/2000/svg",
-      width: size,
-      height: size,
-      viewBox: viewBox,
-      fill: fill,
-      stroke: stroke,
-      strokeWidth: strokeWidth,
-      strokeLinecap: "round",
-      strokeLinejoin: "round",
-      className: className,
-      style: { 
-        ...style, 
-        color: style?.color || 'currentColor',
-        display: 'block',
-        verticalAlign: 'middle'
-      }
-    }, paths);
-  };
-};
-
-// Factory helper to create icon components properly
-// This ensures icons are React components, not pre-invoked elements
-const makeIcon = (paths, viewBox = "0 0 256 256", fillPaths = null, boldPaths = null) => {
-  const RegularComponent = createPhosphorSVG(paths, viewBox);
-  const FillComponent = fillPaths ? createPhosphorSVG(fillPaths, viewBox) : RegularComponent;
-  const BoldComponent = boldPaths ? createPhosphorSVG(boldPaths, viewBox) : RegularComponent;
-  
-  return (props) => {
-    // Handle weight logic based on selection/tap state
-    const { isSelected, isTapped, selectedWeight, weight: propWeight, ...rest } = props;
-    let finalWeight = propWeight || 'regular';
-    
-    // Only use selectedWeight when actually selected/tapped
-    if ((isSelected || isTapped) && selectedWeight) {
-      finalWeight = selectedWeight;
-    }
-    
-    // Choose component based on final weight
-    let Component = RegularComponent;
-    if (finalWeight === 'fill' && fillPaths) {
-      Component = FillComponent;
-    } else if (finalWeight === 'bold' && boldPaths) {
-      Component = BoldComponent;
-    }
-    
-    return Component({ ...rest, weight: finalWeight });
-  };
-};
 
 // Sun (Today) - Phosphor Sun icon
 const TodayIcon = makeIcon(
@@ -490,7 +525,7 @@ try {
   window.TT = window.TT || {};
   window.TT.shared = window.TT.shared || {};
   
-  window.TT.shared.icons = { Edit2, Check, X, DaySleep, NightSleep, BottleV2, NursingIcon, MoonV2, SolidsIcon, PrepRawIcon, PrepMashedIcon, PrepSteamedIcon, PrepPureedIcon, PrepBoiledIcon, SearchIcon, HummusIcon, BambaIcon, PeasIcon, DiaperIcon, DiaperWetIcon, DiaperDryIcon, DiaperPooIcon, TodayIcon, TrendsIcon, ChatIcon, ScheduleIcon, HomeIcon, PlusIcon, MenuIcon, ShareIconPhosphor, BabyIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon };
+  window.TT.shared.icons = { Edit2, Check, X, DaySleep, NightSleep, BottleV2, NursingIcon, MoonV2, SolidsIcon, PrepRawIcon, PrepMashedIcon, PrepSteamedIcon, PrepPureedIcon, PrepBoiledIcon, SearchIcon, LinkIcon, PersonAddIcon, KidSelectorOffIcon, KidSelectorOnIcon, HummusIcon, BambaIcon, PeasIcon, DiaperIcon, DiaperWetIcon, DiaperDryIcon, DiaperPooIcon, TodayIcon, TrendsIcon, ChatIcon, ScheduleIcon, HomeIcon, PlusIcon, MenuIcon, ShareIconPhosphor, BabyIcon, ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon, ChevronUpIcon };
  
   // Aliases with hyphenated names (must be accessed via bracket notation)
   window.TT.shared.icons["bottle-v2"] = window.TT.shared.icons.BottleV2;

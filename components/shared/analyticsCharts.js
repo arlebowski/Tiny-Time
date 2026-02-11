@@ -114,9 +114,11 @@ const SleepChart = ({ data = [], average = 0 }) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
       return '';
     }
-    const defaultSleep = (window.TT && window.TT.themeTokens && window.TT.themeTokens.DEFAULT_APPEARANCE)
-      ? window.TT.themeTokens.DEFAULT_APPEARANCE.sleepAccent
-      : '';
+    const tokens = window.TT?.themeTokens || {};
+    const themes = tokens.COLOR_THEMES || {};
+    const defaultKey = tokens.DEFAULT_THEME_KEY || 'theme1';
+    const fallbackTheme = themes[defaultKey] || Object.values(themes)[0] || null;
+    const defaultSleep = fallbackTheme?.cards?.sleep?.primary || '';
     return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || defaultSleep;
   };
 
@@ -332,9 +334,11 @@ const FeedingChart = ({ data = [], average = 0 }) => {
     if (typeof window === 'undefined' || typeof document === 'undefined') {
       return '';
     }
-    const defaultFeed = (window.TT && window.TT.themeTokens && window.TT.themeTokens.DEFAULT_APPEARANCE)
-      ? window.TT.themeTokens.DEFAULT_APPEARANCE.feedAccent
-      : '';
+    const tokens = window.TT?.themeTokens || {};
+    const themes = tokens.COLOR_THEMES || {};
+    const defaultKey = tokens.DEFAULT_THEME_KEY || 'theme1';
+    const fallbackTheme = themes[defaultKey] || Object.values(themes)[0] || null;
+    const defaultFeed = fallbackTheme?.cards?.bottle?.primary || '';
     return getComputedStyle(document.documentElement).getPropertyValue(cssVar).trim() || defaultFeed;
   };
 

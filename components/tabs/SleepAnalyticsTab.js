@@ -2,7 +2,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [sleepSessions, setSleepSessions] = useState([]);
   const [sleepSettings, setSleepSettings] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState('day');
+  const [timeframe, setTimeframe] = useState('week');
   const sleepHistoryScrollRef = React.useRef(null);
 
   // Get icons (matching AnalyticsTab highlight cards)
@@ -192,6 +192,16 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
     }, 0);
   }, [loading, timeframe, sleepBuckets]);
 
+  useEffect(() => {
+    const el = sleepHistoryScrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      try { el.scrollLeft = el.scrollWidth; } catch {}
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, timeframe, sleepBuckets.length]);
+
   if (loading) {
     return React.createElement(
       'div',
@@ -371,7 +381,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
         React.createElement(
           "div",
           { 
-            className: "text-[15px] font-semibold mb-1.5",
+            className: "text-[15px] font-semibold mb-1.5 text-center",
             style: { color: 'var(--tt-text-secondary)' }
           },
           "Sleep history"
@@ -390,9 +400,11 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
                 React.createElement(
                   "div",
                   {
-                    className: "flex gap-6 pb-2",
+                    className: "flex gap-4 pb-2",
                     style: {
-                      minWidth: sleepBuckets.length > 4 ? `${sleepBuckets.length * 80}px` : "100%"
+                      minWidth: sleepBuckets.length > 4
+                        ? `${(sleepBuckets.length * 60) + ((sleepBuckets.length - 1) * 16)}px`
+                        : "100%"
                     }
                   },
                   sleepBuckets.map((b) =>
@@ -405,7 +417,7 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
                         React.createElement(
                           "div",
                           {
-                            className: "w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
+                            className: "w-full rounded-lg flex flex-col items-center justify-start pt-2 transition-all duration-500",
                             style: {
                               backgroundColor: 'var(--tt-sleep)',
                               height: `${(Number(b.totalHrs || 0) / Math.max(...sleepBuckets.map(x => x.totalHrs || 0), 1)) * 160}px`,
@@ -438,7 +450,16 @@ const SleepAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
               style: { color: 'var(--tt-text-tertiary)' }
             }, "No data to display")
       )
-    )
+    ),
+    React.createElement('div', {
+      className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
+      style: {
+        bottom: 'calc(env(safe-area-inset-bottom) + 65px)',
+        height: '100px',
+        background: 'var(--tt-nav-fade-gradient)',
+        zIndex: 40
+      }
+    })
   );
 };
 

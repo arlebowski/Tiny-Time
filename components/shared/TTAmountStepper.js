@@ -39,6 +39,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
     onChangeUnit = null,
     onChangeOz = null
   }) => {
+    const isDarkMode = typeof document !== 'undefined'
+      && document.documentElement
+      && document.documentElement.classList.contains('dark');
     const SegmentedToggle =
       (window.TT && window.TT.shared && window.TT.shared.SegmentedToggle) ||
       window.SegmentedToggle ||
@@ -84,21 +87,30 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
           className: "text-xs",
           style: { color: 'var(--tt-text-secondary)' }
         }, label),
-        SegmentedToggle && React.createElement(SegmentedToggle, {
-          value: unit,
-          options: [
-            { value: 'oz', label: 'oz' },
-            { value: 'ml', label: 'ml' }
-          ],
-          onChange: (val) => {
-            if (typeof onChangeUnit === 'function') {
-              onChangeUnit(val);
+        SegmentedToggle && React.createElement(
+          'div',
+          {
+            style: isDarkMode ? undefined : {
+              '--tt-seg-track': '#ffffff',
+              '--tt-seg-pill': 'var(--tt-input-bg)'
             }
           },
-          variant: 'body',
-          size: 'medium',
-          fullWidth: false
-        })
+          React.createElement(SegmentedToggle, {
+            value: unit,
+            options: [
+              { value: 'oz', label: 'oz' },
+              { value: 'ml', label: 'ml' }
+            ],
+            onChange: (val) => {
+              if (typeof onChangeUnit === 'function') {
+                onChangeUnit(val);
+              }
+            },
+            variant: 'body',
+            size: 'medium',
+            fullWidth: false
+          })
+        )
       ),
       React.createElement(
         'div',
@@ -114,7 +126,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
           onClick: () => handleStep(-1),
           className: "w-[52px] h-[52px] flex items-center justify-center rounded-xl border transition-all",
           style: {
-            backgroundColor: 'var(--tt-subtle-surface)',
+            backgroundColor: isDarkMode ? 'var(--tt-card-bg)' : '#ffffff',
             borderColor: 'var(--tt-card-border)',
             color: 'var(--tt-text-primary)',
             touchAction: 'manipulation'
@@ -153,7 +165,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.TTAmountStepper) {
           onClick: () => handleStep(1),
           className: "w-[52px] h-[52px] flex items-center justify-center rounded-xl border transition-all",
           style: {
-            backgroundColor: 'var(--tt-subtle-surface)',
+            backgroundColor: isDarkMode ? 'var(--tt-card-bg)' : '#ffffff',
             borderColor: 'var(--tt-card-border)',
             color: 'var(--tt-text-primary)',
             touchAction: 'manipulation'

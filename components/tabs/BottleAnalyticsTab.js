@@ -1,7 +1,7 @@
 const BottleAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
   const [allFeedings, setAllFeedings] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [timeframe, setTimeframe] = useState('day');
+  const [timeframe, setTimeframe] = useState('week');
   const [stats, setStats] = useState({
     avgVolumePerFeed: 0,
     avgVolumePerDay: 0,
@@ -39,6 +39,16 @@ const BottleAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
       container.scrollLeft = container.scrollWidth;
     }, 0);
   }, [loading, stats.chartData, timeframe]);
+
+  useEffect(() => {
+    const el = chartScrollRef.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => {
+      try { el.scrollLeft = el.scrollWidth; } catch {}
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading, timeframe, stats.chartData.length]);
 
   const loadAnalytics = async () => {
     if (!kidId) {
@@ -431,7 +441,7 @@ const BottleAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
           style: { backgroundColor: 'var(--tt-card-bg)' }
         },
         React.createElement('div', { 
-          className: 'text-[15px] font-semibold mb-1.5',
+          className: 'text-[15px] font-semibold mb-1.5 text-center',
           style: { color: 'var(--tt-text-secondary)' }
         }, 'Volume History'),
         stats.chartData.length > 0
@@ -448,9 +458,11 @@ const BottleAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
                 React.createElement(
                   'div',
                   {
-                    className: 'flex gap-6 pb-2',
+                    className: 'flex gap-4 pb-2',
                     style: {
-                      minWidth: stats.chartData.length > 4 ? `${stats.chartData.length * 80}px` : '100%'
+                      minWidth: stats.chartData.length > 4
+                        ? `${(stats.chartData.length * 60) + ((stats.chartData.length - 1) * 16)}px`
+                        : '100%'
                     }
                   },
                   stats.chartData.map(item =>
@@ -463,7 +475,7 @@ const BottleAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
                         React.createElement(
                           'div',
                           {
-                            className: 'w-full rounded-t-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
+                            className: 'w-full rounded-lg flex flex-col items-center justify-start pt-2 transition-all duration-500',
                             style: {
                               backgroundColor: 'var(--tt-feed)',
                               height: `${(item.volume / maxVolume) * 160}px`,
@@ -496,7 +508,16 @@ const BottleAnalyticsTab = ({ user, kidId, familyId, setActiveTab }) => {
               style: { color: 'var(--tt-text-tertiary)' }
             }, 'No data to display')
       )
-    )
+    ),
+    React.createElement('div', {
+      className: "tt-nav-fade fixed left-0 right-0 pointer-events-none",
+      style: {
+        bottom: 'calc(env(safe-area-inset-bottom) + 65px)',
+        height: '100px',
+        background: 'var(--tt-nav-fade-gradient)',
+        zIndex: 40
+      }
+    })
   );
 };
 

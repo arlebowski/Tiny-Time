@@ -86,7 +86,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
         sheetEl.style.touchAction = value;
       };
       const rowProps = {
-        className: "w-full flex items-center justify-between rounded-2xl px-4 py-3",
+        className: "w-full flex items-center justify-between rounded-2xl py-3",
         style: {
           backgroundColor: 'var(--tt-card-bg)',
           border: '1px solid var(--tt-card-border)',
@@ -151,19 +151,30 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
           iconLabel
         ),
         SegmentedToggle
-          ? React.createElement(SegmentedToggle, {
-              value: toggleValue,
-              options: onOffOptions,
-              size: 'medium',
-              variant: 'body',
-              fullWidth: false,
-              onChange: (nextValue) => {
-                if (disabled && nextValue === 'off') return;
-                if ((nextValue === 'on') !== value) {
-                  onToggle();
+          ? React.createElement(
+              'div',
+              {
+                style: (() => {
+                  const isDarkMode = typeof document !== 'undefined'
+                    && document.documentElement
+                    && document.documentElement.classList.contains('dark');
+                  return { '--tt-seg-track': isDarkMode ? 'var(--tt-app-bg)' : 'var(--tt-input-bg)' };
+                })()
+              },
+              React.createElement(SegmentedToggle, {
+                value: toggleValue,
+                options: onOffOptions,
+                size: 'medium',
+                variant: 'body',
+                fullWidth: false,
+                onChange: (nextValue) => {
+                  if (disabled && nextValue === 'off') return;
+                  if ((nextValue === 'on') !== value) {
+                    onToggle();
+                  }
                 }
-              }
-            })
+              })
+            )
           : React.createElement('button', {
               type: 'button',
               onClick: () => {
@@ -190,11 +201,11 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
       const SegmentedToggle = global.TT?.shared?.SegmentedToggle || global.SegmentedToggle || null;
       const BottleIcon = global.TT?.shared?.icons?.BottleV2 || global.TT?.shared?.icons?.["bottle-v2"] || null;
       const NursingIcon = global.TT?.shared?.icons?.NursingIcon || null;
-      const SolidsIcon = (props) => React.createElement(
+      const SolidsIcon = global.TT?.shared?.icons?.SolidsIcon || ((props) => React.createElement(
         'svg',
         { ...props, xmlns: "http://www.w3.org/2000/svg", viewBox: "0 0 24 24", width: "24", height: "24", fill: "none", stroke: "currentColor", strokeWidth: "1.5" },
         React.createElement('path', { d: "M3.76,22.751 C3.131,22.751 2.544,22.506 2.103,22.06 C1.655,21.614 1.41,21.015 1.418,20.376 C1.426,19.735 1.686,19.138 2.15,18.697 L11.633,9.792 C12.224,9.235 12.17,8.2 12.02,7.43 C11.83,6.456 11.908,4.988 13.366,3.53 C14.751,2.145 16.878,1.25 18.784,1.25 L18.789,1.25 C20.031,1.251 21.07,1.637 21.797,2.365 C22.527,3.094 22.914,4.138 22.915,5.382 C22.916,7.289 22.022,9.417 20.637,10.802 C19.487,11.952 18.138,12.416 16.734,12.144 C15.967,11.995 14.935,11.942 14.371,12.537 L5.473,22.011 C5.029,22.481 4.43,22.743 3.786,22.75 C3.777,22.75 3.768,22.75 3.759,22.75 L3.76,22.751 Z" })
-      );
+      ));
       const MoonIcon = global.TT?.shared?.icons?.MoonV2 || global.TT?.shared?.icons?.["moon-v2"] || null;
       const DiaperIcon = global.TT?.shared?.icons?.DiaperIcon || null;
       const defaultOrder = ['bottle', 'nursing', 'solids', 'sleep', 'diaper'];
@@ -272,9 +283,10 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
       const ctaButton = React.createElement('button', {
         type: 'button',
         onClick: handleDone,
-        className: "w-full text-white py-3 rounded-2xl font-semibold transition",
+        className: "w-full py-3 rounded-2xl font-semibold transition",
         style: {
-          backgroundColor: 'var(--tt-text-tertiary)',
+          backgroundColor: 'var(--tt-primary-action-bg)',
+          color: 'var(--tt-primary-action-text)',
           touchAction: 'manipulation'
         }
       }, 'Done');
@@ -285,9 +297,9 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
           isOpen,
           onClose,
           title: 'Show & Hide Activities',
-          accentColor: 'var(--tt-text-tertiary)'
+          accentColor: 'var(--tt-primary-action-bg)'
         },
-        React.createElement('div', { className: (Reorder && Reorder.Group) ? "" : "space-y-3" },
+        React.createElement('div', { className: (Reorder && Reorder.Group) ? "" : "space-y-2" },
           (Reorder && Reorder.Group)
             ? React.createElement(
                 Reorder.Group,
@@ -304,7 +316,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
                   layout: true,
                   layoutScroll: true,
                   as: 'div',
-                  style: { display: 'flex', flexDirection: 'column', gap: 12 },
+                  style: { display: 'flex', flexDirection: 'column', gap: 8 },
                   'data-activity-reorder': 'group'
                 },
                 draftOrder.map((key) => {
@@ -341,7 +353,7 @@ if (typeof window !== 'undefined' && !window.TT?.shared?.ActivityVisibilitySheet
             style: { color: 'var(--tt-text-tertiary)' }
           }, 'At least one activity must stay on.'),
           React.createElement('div', {
-            className: "px-6 pt-3 pb-1",
+            className: "pt-3 pb-1",
             style: {
               backgroundColor: 'var(--tt-halfsheet-bg)',
               paddingBottom: 'calc(env(safe-area-inset-bottom, 0) + 24px)'
