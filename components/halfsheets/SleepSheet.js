@@ -712,6 +712,21 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
         setEndTime(null);
         setEndTimeManuallyEdited(false);
         endTimeManuallyEditedRef.current = false;
+        const sessionId = activeSleepSessionId || activeSleepId;
+        if (sessionId && clamped) {
+          const startMs = new Date(clamped).getTime();
+          (async () => {
+            try {
+              await firestoreStorage.updateSleepSession(sessionId, {
+                startTime: startMs,
+                endTime: null,
+                isActive: true
+              });
+            } catch (error) {
+              console.error('Failed to update active sleep start time:', error);
+            }
+          })();
+        }
       }
     };
 
