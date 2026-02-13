@@ -865,9 +865,34 @@ const TrackerTab = ({
   React.useEffect(() => {
     const handleInputSheetAdded = (event) => {
       const mode = event?.detail?.mode;
+      const entry = event?.detail?.entry;
+
+      // Optimistic update: inject entry into state immediately so cards reflect the change
+      if (entry && !entry.id) {
+        const tempId = '__optimistic_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7);
+        const fmtTime = (ts) => new Date(ts).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+        if (entry.feedType === 'bottle' && entry.timestamp && entry.ounces) {
+          setFeedings(prev => [{ ...entry, id: tempId, time: fmtTime(entry.timestamp) }, ...prev]);
+        } else if (entry.feedType === 'nursing' && entry.timestamp) {
+          setNursingSessions(prev => [{ ...entry, id: tempId, startTime: entry.timestamp, time: fmtTime(entry.timestamp) }, ...prev]);
+        } else if (entry.feedType === 'solids' && entry.timestamp) {
+          setSolidsSessions(prev => [{ ...entry, id: tempId, time: fmtTime(entry.timestamp) }, ...prev]);
+        } else if (entry.type === 'sleep' && entry.startTime && entry.endTime) {
+          const durationMs = Math.max(0, entry.endTime - entry.startTime);
+          setSleepSessions(prev => [{ ...entry, id: tempId, isActive: false, _normStartTime: entry.startTime, _normEndTime: entry.endTime }, ...prev]);
+          setSleepTodayMs(prev => prev + durationMs);
+          setSleepTodayCount(prev => prev + 1);
+        } else if (entry.type === 'diaper' && entry.timestamp) {
+          setDiaperChanges(prev => [{ ...entry, id: tempId, time: fmtTime(entry.timestamp) }, ...prev]);
+        }
+      }
+
+      // Background re-fetch (replaces optimistic data with real Firestore data)
       if (mode === 'feeding') {
         loadFeedings();
         loadNursingSessions();
+        loadSolidsSessions();
         return;
       }
       if (mode === 'sleep') {
@@ -880,7 +905,7 @@ const TrackerTab = ({
     };
     window.addEventListener('tt-input-sheet-added', handleInputSheetAdded);
     return () => window.removeEventListener('tt-input-sheet-added', handleInputSheetAdded);
-  }, [loadFeedings, loadNursingSessions, loadSleepSessions, loadDiaperChanges]);
+  }, [loadFeedings, loadNursingSessions, loadSolidsSessions, loadSleepSessions, loadDiaperChanges]);
 
   React.useEffect(() => {
     const handleUnitChanged = (event) => {

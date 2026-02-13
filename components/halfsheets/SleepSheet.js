@@ -828,7 +828,8 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
 
         if (onClose) onClose();
         if (onAdd) {
-          await onAdd('sleep');
+          const startMs = startTime ? new Date(startTime).getTime() : null;
+          await onAdd(startMs && endMs ? { type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: [] } : undefined);
         }
         await clearDraft();
       } catch (error) {
@@ -895,7 +896,7 @@ if (typeof window !== 'undefined' && !window.SleepSheet) {
 
         if (onClose) onClose();
         if (onAdd) {
-          await onAdd('sleep');
+          await onAdd(startMs && endMs ? { type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: photoURLs || [] } : undefined);
         }
         await clearDraft();
       } catch (error) {
