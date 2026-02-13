@@ -992,7 +992,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
           handleClose();
           if (effectiveOnSave) {
-            await effectiveOnSave();
+            const isNewEntry = !(effectiveEntry && effectiveEntry.id);
+            await effectiveOnSave(isNewEntry ? { feedType: 'nursing', timestamp, leftDurationSec: leftSec, rightDurationSec: rightSec, lastSide: lastSide || null, notes: notes || null, photoURLs: allPhotoURLs } : undefined);
           }
         } catch (error) {
           console.error('[FeedSheet] Failed to save nursing session:', error);
@@ -1131,7 +1132,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
 
           handleClose();
           if (effectiveOnSave) {
-            await effectiveOnSave();
+            const isNewEntry = !(effectiveEntry && effectiveEntry.id);
+            await effectiveOnSave(isNewEntry ? { feedType: 'solids', timestamp, foods: addedFoods.map(f => ({ id: f.id || slugifyFoodId(f.name || ''), name: f.name, icon: f.icon || null, emoji: f.emoji || null, category: f.category || 'Custom', amount: f.amount || null, reaction: f.reaction || null, preparation: f.preparation || null, notes: f.notes || null })), notes: notes || null, photoURLs: allPhotoURLs } : undefined);
           }
         } catch (error) {
           console.error('[FeedSheet] Failed to save solids session:', error);
@@ -1229,7 +1231,8 @@ if (typeof window !== 'undefined' && !window.FeedSheet) {
         handleClose();
         // Then refresh timeline after sheet closes (onSave callback handles the delay)
         if (effectiveOnSave) {
-          await effectiveOnSave();
+          const isNewEntry = !(effectiveEntry && effectiveEntry.id);
+          await effectiveOnSave(isNewEntry ? { feedType: 'bottle', timestamp, ounces: amount, notes: notes || null, photoURLs: allPhotoURLs } : undefined);
         }
       } catch (error) {
         console.error('[FeedSheet] Failed to save feeding:', error);

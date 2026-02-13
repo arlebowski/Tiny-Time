@@ -308,7 +308,8 @@ if (typeof window !== 'undefined' && !window.DiaperSheet) {
         }
 
         if (typeof onSave === 'function') {
-          await onSave();
+          const isNewEntry = !(entry && entry.id);
+          await onSave(isNewEntry ? { type: 'diaper', timestamp, isWet: !!isWet, isDry: !!isDry, isPoo: !!isPoo, notes: (notes && String(notes).trim().length > 0) ? notes : null, photoURLs: mergedPhotos } : undefined);
         }
         handleClose();
       } catch (error) {

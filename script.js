@@ -4303,9 +4303,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           isOpen: inputSheetOpen,
           onClose: closeInputSheet,
           entry: null,
-          onSave: async () => {
+          onSave: async (entryData) => {
             try {
-              const event = new CustomEvent('tt-input-sheet-added', { detail: { mode: 'diaper' } });
+              const event = new CustomEvent('tt-input-sheet-added', { detail: { mode: 'diaper', entry: entryData || null } });
               window.dispatchEvent(event);
             } catch (e) {}
           }
@@ -4317,9 +4317,9 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         onClose: closeInputSheet,
         kidId: kidId,
         activityVisibility: activityVisibilitySafe,
-        onAdd: async () => {
+        onAdd: async (entryData) => {
           try {
-            const event = new CustomEvent('tt-input-sheet-added', { detail: { mode: inputSheetMode } });
+            const event = new CustomEvent('tt-input-sheet-added', { detail: { mode: inputSheetMode, entry: entryData || null } });
             window.dispatchEvent(event);
           } catch (e) {
             // Non-fatal if CustomEvent is unavailable
