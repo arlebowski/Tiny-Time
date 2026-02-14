@@ -23,7 +23,7 @@ function getGreeting(now) {
   return 'Good evening';
 }
 
-export default function TrackerScreen() {
+export default function TrackerScreen({ onOpenSheet }) {
   const { colors } = useTheme();
   const [now, setNow] = useState(new Date());
 
@@ -70,11 +70,11 @@ export default function TrackerScreen() {
       </View>
 
       {/* ── Tracker cards ── */}
-      <BottleCard onPress={() => console.log('Bottle card tapped')} />
-      <NursingCard onPress={() => console.log('Nursing card tapped')} />
-      <SolidsCard onPress={() => console.log('Solids card tapped')} />
-      <SleepCard onPress={() => console.log('Sleep card tapped')} />
-      <DiaperCard onPress={() => console.log('Diaper card tapped')} />
+      <BottleCard onPress={() => onOpenSheet?.('bottle')} />
+      <NursingCard onPress={() => onOpenSheet?.('nursing')} />
+      <SolidsCard onPress={() => onOpenSheet?.('solids')} />
+      <SleepCard onPress={() => onOpenSheet?.('sleep')} />
+      <DiaperCard onPress={() => onOpenSheet?.('diaper')} />
     </ScrollView>
   );
 }

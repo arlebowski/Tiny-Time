@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 
 // Screens
 import TrackerScreen from './src/screens/TrackerScreen';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
+
+// Sheets
+import DiaperSheet from './src/components/sheets/DiaperSheet';
+import SleepSheet from './src/components/sheets/SleepSheet';
+import FeedSheet from './src/components/sheets/FeedSheet';
+import FloatingTrackerMenu from './src/components/sheets/FloatingTrackerMenu';
 
 // Icons (1:1 from web/components/shared/icons.js)
 // Web uses HomeIcon (not HouseIcon) for header
@@ -119,20 +127,17 @@ const headerStyles = StyleSheet.create({
   },
 });
 
-// ── Bottom Nav (web: script.js lines 4377-4469, FloatingTrackerMenu.js:296-311) ──
-// Web: both tabs use textPrimary; plus at bottom 70px (FTM position)
+// ── Bottom Nav (web: script.js 4392-4466 when using FloatingTrackerMenu) ──
+// Web: Track | spacer | Trends. Plus floats separately at bottom: 36px (FloatingTrackerMenu)
 function BottomNav({ activeTab, onTabChange, onPlusPress }) {
   const { colors, shadows } = useTheme();
-  const tabColor = colors.textPrimary; // Web uses textPrimary for both selected and unselected
+  const tabColor = colors.textPrimary;
 
   return (
     <View style={[navStyles.container, { backgroundColor: colors.appBg }]}>
       <View style={navStyles.inner}>
-        {/* Track tab (web lines 4399-4428) */}
-        <Pressable
-          style={navStyles.tab}
-          onPress={() => onTabChange('tracker')}
-        >
+        {/* Track tab */}
+        <Pressable style={navStyles.tab} onPress={() => onTabChange('tracker')}>
           {activeTab === 'tracker'
             ? <TodayIconFill size={24} color={tabColor} />
             : <TodayIcon size={24} color={tabColor} />
@@ -140,14 +145,11 @@ function BottomNav({ activeTab, onTabChange, onPlusPress }) {
           <Text style={[navStyles.tabLabel, { color: tabColor }]}>Track</Text>
         </Pressable>
 
-        {/* Plus spacer (web lines 4430-4437) */}
+        {/* Plus spacer — web: flex-1, plus floats above via FloatingTrackerMenu */}
         <View style={navStyles.tabSpacer} />
 
-        {/* Trends tab (web lines 4438-4468) */}
-        <Pressable
-          style={navStyles.tab}
-          onPress={() => onTabChange('trends')}
-        >
+        {/* Trends tab */}
+        <Pressable style={navStyles.tab} onPress={() => onTabChange('trends')}>
           {activeTab === 'trends'
             ? <TrendsIconFill size={24} color={tabColor} />
             : <TrendsIcon size={24} color={tabColor} />
@@ -156,8 +158,7 @@ function BottomNav({ activeTab, onTabChange, onPlusPress }) {
         </Pressable>
       </View>
 
-      {/* Floating + button (web FloatingTrackerMenu.js:296-311) */}
-      {/* Web: 64x64 circle, bottom 70px from viewport, bg plusBg, fg plusFg, shadow-floating */}
+      {/* Floating + (web FTM: bottom 36px, 64x64, centered) */}
       <Pressable
         style={({ pressed }) => [
           navStyles.plusButton,
@@ -174,13 +175,13 @@ function BottomNav({ activeTab, onTabChange, onPlusPress }) {
 }
 
 const navStyles = StyleSheet.create({
-  // Web: minHeight 80px, paddingTop 10px, overflow visible for gradient + plus
+  // Web: minHeight 80px, paddingTop 10px, paddingBottom env(safe-area)
   container: {
     minHeight: 80,
     paddingTop: 10,
     overflow: 'visible',
   },
-  // Web: flex items-center justify-between px-4 py-3
+  // Web: flex items-center justify-between px-4 py-3 — Track | Plus | Trends in one row
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -188,15 +189,13 @@ const navStyles = StyleSheet.create({
     paddingHorizontal: 16, // px-4
     paddingVertical: 12,   // py-3
   },
-  // Web: flex-1 py-2 flex flex-col items-center gap-1, transform translateY(-15px)
   tab: {
     flex: 1,
-    paddingVertical: 8,    // py-2
+    paddingVertical: 8,
     alignItems: 'center',
-    gap: 4,                // gap-1
-    transform: [{ translateY: -15 }],  // web: translateY(-15px)
+    gap: 4,
+    transform: [{ translateY: -15 }],
   },
-  // Web: plus spacer — flex-1 py-2, translateY(-15px)
   tabSpacer: {
     flex: 1,
     paddingVertical: 8,
@@ -204,16 +203,10 @@ const navStyles = StyleSheet.create({
     justifyContent: 'center',
     transform: [{ translateY: -15 }],
   },
-  // Web: text-xs font-light (color from theme)
-  tabLabel: {
-    fontSize: 12,          // text-xs
-    fontWeight: '300',     // font-light
-  },
-  // Floating plus (web FloatingTrackerMenu.js:296-311)
-  // Web: 64x64 circle, bottom: calc(env(safe-area-inset-bottom) + 70px) → 70px from nav bottom
+  // Web FTM: 64x64, bottom: calc(env(safe-area-inset-bottom) + 36px), left: 50%
   plusButton: {
     position: 'absolute',
-    bottom: 70,
+    bottom: 36,
     left: '50%',
     marginLeft: -32,
     width: 64,
@@ -221,10 +214,14 @@ const navStyles = StyleSheet.create({
     borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 1000,
+    zIndex: 10,
   },
   plusButtonPressed: {
-    transform: [{ scale: 0.95 }],  // web: whileTap scale 0.95
+    transform: [{ scale: 0.95 }],
+  },
+  tabLabel: {
+    fontSize: 12,
+    fontWeight: '300',
   },
 });
 
@@ -232,17 +229,32 @@ const navStyles = StyleSheet.create({
 function AppShell({ activeTab, onTabChange, onPlusPress }) {
   const { colors } = useTheme();
   const appBg = colors.appBg;
+  const [showTrackerMenu, setShowTrackerMenu] = useState(false);
+
+  const diaperRef = useRef(null);
+  const sleepRef = useRef(null);
+  const feedRef = useRef(null);
+
+  const feedTypeRef = useRef('bottle');
+
+  const handleTrackerSelect = useCallback((type) => {
+    if (type === 'diaper') diaperRef.current?.present?.();
+    else if (type === 'sleep') sleepRef.current?.present?.();
+    else if (['bottle', 'nursing', 'solids'].includes(type)) {
+      feedTypeRef.current = type;
+      feedRef.current?.present?.();
+    }
+  }, []);
 
   return (
     <>
       <SafeAreaView style={[appStyles.safe, { backgroundColor: appBg }]} edges={['top', 'left', 'right']}>
         <AppHeader />
         <View style={appStyles.content}>
-          {activeTab === 'tracker' && <TrackerScreen />}
+          {activeTab === 'tracker' && <TrackerScreen onOpenSheet={handleTrackerSelect} />}
           {activeTab === 'trends' && <AnalyticsScreen />}
 
           {/* Gradient fade above nav (web script.js:4352-4366) */}
-          {/* linear-gradient(to top, appBg 0%, appBg 30%, transparent 100%) */}
           <LinearGradient
             colors={[`${appBg}FF`, `${appBg}FF`, `${appBg}00`]}
             locations={[0, 0.3, 1]}
@@ -258,9 +270,19 @@ function AppShell({ activeTab, onTabChange, onPlusPress }) {
         <BottomNav
           activeTab={activeTab}
           onTabChange={onTabChange}
-          onPlusPress={onPlusPress}
+          onPlusPress={() => setShowTrackerMenu(true)}
         />
       </SafeAreaView>
+
+      <FloatingTrackerMenu
+        isOpen={showTrackerMenu}
+        onClose={() => setShowTrackerMenu(false)}
+        onSelect={handleTrackerSelect}
+      />
+
+      <DiaperSheet sheetRef={diaperRef} onClose={() => diaperRef.current?.dismiss?.()} />
+      <SleepSheet sheetRef={sleepRef} onClose={() => sleepRef.current?.dismiss?.()} />
+      <FeedSheet sheetRef={feedRef} feedTypeRef={feedTypeRef} onClose={() => feedRef.current?.dismiss?.()} />
     </>
   );
 }
@@ -270,15 +292,19 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('tracker');
 
   return (
-    <ThemeProvider themeKey="theme1" isDark={false}>
-      <SafeAreaProvider>
-        <AppShell
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onPlusPress={() => console.log('Quick add pressed')}
-        />
-      </SafeAreaProvider>
-    </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemeProvider themeKey="theme1" isDark={false}>
+        <SafeAreaProvider>
+          <BottomSheetModalProvider>
+            <AppShell
+              activeTab={activeTab}
+              onTabChange={setActiveTab}
+              onPlusPress={() => {}}
+            />
+          </BottomSheetModalProvider>
+        </SafeAreaProvider>
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
