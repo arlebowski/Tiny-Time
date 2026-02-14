@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import TrackerCard from './TrackerCard';
 import { useTheme } from '../../context/ThemeContext';
+import { NursingIcon } from '../icons';
 import { formatRelativeTime, formatElapsedHmsTT, formatV2Number, ComparisonChicklet } from './cardUtils';
 
 // ── Mock data — will be replaced with real Firebase data ──
@@ -90,7 +91,7 @@ const NursingCard = ({ onPress }) => {
   return (
     <TrackerCard
       title="Nursing"
-      icon="🤱"
+      icon={<NursingIcon size={22} color={nursing.primary} />}
       accentColor={nursing.primary}
       statusText={statusText}
       valueElement={

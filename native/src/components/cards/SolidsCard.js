@@ -1,6 +1,7 @@
 import React from 'react';
 import TrackerCard from './TrackerCard';
 import { useTheme } from '../../context/ThemeContext';
+import { SolidsIcon } from '../icons';
 import { formatRelativeTime, formatV2Number, ComparisonChicklet } from './cardUtils';
 
 // ── Mock data — will be replaced with real Firebase data ──
@@ -34,7 +35,7 @@ const SolidsCard = ({ onPress }) => {
   return (
     <TrackerCard
       title="Solids"
-      icon="🥑"
+      icon={<SolidsIcon size={22} color={solids.primary} />}
       value={formatV2Number(totalFoods)}
       unit="foods"
       accentColor={solids.primary}

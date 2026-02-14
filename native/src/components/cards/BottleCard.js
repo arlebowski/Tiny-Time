@@ -1,6 +1,7 @@
 import React from 'react';
 import TrackerCard from './TrackerCard';
 import { useTheme } from '../../context/ThemeContext';
+import { BottleIcon } from '../icons';
 import { formatRelativeTime, formatVolume, ComparisonChicklet } from './cardUtils';
 
 // ── Mock data — will be replaced with real Firebase data ──
@@ -33,7 +34,7 @@ const BottleCard = ({ onPress }) => {
   return (
     <TrackerCard
       title="Bottle"
-      icon="🍼"
+      icon={<BottleIcon size={22} color={bottle.primary} />}
       value={formatVolume(totalOz, volumeUnit)}
       unit={volumeUnit}
       accentColor={bottle.primary}

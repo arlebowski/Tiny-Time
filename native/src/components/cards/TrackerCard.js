@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { ChevronRightIcon } from '../icons';
 
 /**
  * TrackerCard — base card matching web TrackerCard v4 layout.
@@ -45,14 +46,18 @@ const TrackerCard = ({
       <View style={styles.headerRow}>
         <View style={styles.headerLeft}>
           {icon ? (
-            <Text style={[styles.headerIcon, { color: accentColor }]}>{icon}</Text>
+            typeof icon === 'string' ? (
+              <Text style={[styles.headerIcon, { color: accentColor }]}>{icon}</Text>
+            ) : (
+              <View style={styles.headerIconWrap}>{icon}</View>
+            )
           ) : null}
           <Text style={[styles.headerLabel, { color: accentColor }]}>{title}</Text>
         </View>
         {statusText ? (
           <View style={styles.headerRight}>
             <Text style={[styles.statusText, { color: colors.textTertiary }]}>{statusText}</Text>
-            <Text style={[styles.chevron, { color: colors.textTertiary }]}>›</Text>
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
         ) : null}
       </View>
@@ -116,6 +121,12 @@ const styles = StyleSheet.create({
   headerIcon: {
     fontSize: 22,                     // w-[22px] h-[22px] — emoji stand-in
   },
+  headerIconWrap: {
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   headerLabel: {
     fontSize: 18,                     // text-[18px]
     fontWeight: '600',                // font-semibold
@@ -133,12 +144,6 @@ const styles = StyleSheet.create({
     fontSize: 15,                     // text-[15px]
     fontWeight: '400',                // font-normal
   },
-  // Stand-in for the SVG chevron-right (w-5 h-5)
-  chevron: {
-    fontSize: 20,                     // w-5 h-5
-    marginTop: -2,
-  },
-
   // Big-number row base: flex
   valueRow: {
     flexDirection: 'row',

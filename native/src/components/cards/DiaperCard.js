@@ -1,6 +1,7 @@
 import React from 'react';
 import TrackerCard from './TrackerCard';
 import { useTheme } from '../../context/ThemeContext';
+import { DiaperIcon } from '../icons';
 import { formatRelativeTime, formatV2Number } from './cardUtils';
 
 // ── Mock data — will be replaced with real Firebase data ──
@@ -35,7 +36,7 @@ const DiaperCard = ({ onPress }) => {
   return (
     <TrackerCard
       title="Diaper"
-      icon="👶"
+      icon={<DiaperIcon size={22} color={diaper.primary} />}
       value={formatV2Number(totalChanges)}
       unit="changes"
       accentColor={diaper.primary}
