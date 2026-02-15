@@ -1,5 +1,6 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -27,7 +28,6 @@ import {
   ChevronDownIcon,
   ShareIcon,
   HomeIcon,
-  PlusIcon,
 } from './src/components/icons';
 
 // ── Header (web: script.js lines 3941-4201) ──
@@ -128,9 +128,9 @@ const headerStyles = StyleSheet.create({
 });
 
 // ── Bottom Nav (web: script.js 4392-4466 when using FloatingTrackerMenu) ──
-// Web: Track | spacer | Trends. Plus floats separately at bottom: 36px (FloatingTrackerMenu)
-function BottomNav({ activeTab, onTabChange, onPlusPress }) {
-  const { colors, shadows } = useTheme();
+// Web: Track | spacer | Trends. Plus floats separately via FloatingTrackerMenu (not in nav row)
+function BottomNav({ activeTab, onTabChange }) {
+  const { colors } = useTheme();
   const tabColor = colors.textPrimary;
 
   return (
@@ -157,19 +157,6 @@ function BottomNav({ activeTab, onTabChange, onPlusPress }) {
           <Text style={[navStyles.tabLabel, { color: tabColor }]}>Trends</Text>
         </Pressable>
       </View>
-
-      {/* Floating + (web FTM: bottom 36px, 64x64, centered) */}
-      <Pressable
-        style={({ pressed }) => [
-          navStyles.plusButton,
-          { backgroundColor: colors.plusBg },
-          shadows.floating,
-          pressed && navStyles.plusButtonPressed,
-        ]}
-        onPress={onPlusPress}
-      >
-        <PlusIcon size={21.6} color={colors.plusFg} />
-      </Pressable>
     </View>
   );
 }
@@ -203,22 +190,6 @@ const navStyles = StyleSheet.create({
     justifyContent: 'center',
     transform: [{ translateY: -15 }],
   },
-  // Web FTM: 64x64, bottom: calc(env(safe-area-inset-bottom) + 36px), left: 50%
-  plusButton: {
-    position: 'absolute',
-    bottom: 36,
-    left: '50%',
-    marginLeft: -32,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 10,
-  },
-  plusButtonPressed: {
-    transform: [{ scale: 0.95 }],
-  },
   tabLabel: {
     fontSize: 12,
     fontWeight: '300',
@@ -226,16 +197,22 @@ const navStyles = StyleSheet.create({
 });
 
 // ── App shell (uses theme for all colors) ──
-function AppShell({ activeTab, onTabChange, onPlusPress }) {
+function AppShell({ activeTab, onTabChange }) {
   const { colors } = useTheme();
   const appBg = colors.appBg;
-  const [showTrackerMenu, setShowTrackerMenu] = useState(false);
 
   const diaperRef = useRef(null);
   const sleepRef = useRef(null);
   const feedRef = useRef(null);
 
   const feedTypeRef = useRef('bottle');
+  const [lastFeedVariant, setLastFeedVariant] = useState('bottle');
+
+  useEffect(() => {
+    AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
+      if (stored === 'nursing' || stored === 'bottle') setLastFeedVariant(stored);
+    }).catch(() => {});
+  }, []);
 
   const handleTrackerSelect = useCallback((type) => {
     if (type === 'diaper') diaperRef.current?.present?.();
@@ -243,6 +220,13 @@ function AppShell({ activeTab, onTabChange, onPlusPress }) {
     else if (['bottle', 'nursing', 'solids'].includes(type)) {
       feedTypeRef.current = type;
       feedRef.current?.present?.();
+    }
+  }, []);
+
+  const handleFeedAdded = useCallback((entry) => {
+    if (entry?.type === 'bottle' || entry?.type === 'nursing') {
+      setLastFeedVariant(entry.type);
+      AsyncStorage.setItem('tt_last_feed_variant', entry.type).catch(() => {});
     }
   }, []);
 
@@ -267,22 +251,14 @@ function AppShell({ activeTab, onTabChange, onPlusPress }) {
       </SafeAreaView>
 
       <SafeAreaView edges={['bottom']} style={[appStyles.bottomSafe, { backgroundColor: appBg }]}>
-        <BottomNav
-          activeTab={activeTab}
-          onTabChange={onTabChange}
-          onPlusPress={() => setShowTrackerMenu(true)}
-        />
+        <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
       </SafeAreaView>
 
-      <FloatingTrackerMenu
-        isOpen={showTrackerMenu}
-        onClose={() => setShowTrackerMenu(false)}
-        onSelect={handleTrackerSelect}
-      />
+      <FloatingTrackerMenu onSelect={handleTrackerSelect} lastFeedVariant={lastFeedVariant} />
 
       <DiaperSheet sheetRef={diaperRef} onClose={() => diaperRef.current?.dismiss?.()} />
       <SleepSheet sheetRef={sleepRef} onClose={() => sleepRef.current?.dismiss?.()} />
-      <FeedSheet sheetRef={feedRef} feedTypeRef={feedTypeRef} onClose={() => feedRef.current?.dismiss?.()} />
+      <FeedSheet sheetRef={feedRef} feedTypeRef={feedTypeRef} onAdd={handleFeedAdded} onClose={() => feedRef.current?.dismiss?.()} />
     </>
   );
 }

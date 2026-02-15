@@ -4,19 +4,17 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { formatDateTime } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
-import InputRow from './InputRow';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
 
 function TypeButton({ label, icon: Icon, selected, dim, onPress }) {
   const { colors, diaper } = useTheme();
-  const bg = selected
-    ? `${diaper.primary}29` // ~16% opacity
-    : colors.inputBg;
-  const border = selected ? diaper.primary : colors.cardBorder;
+  const bg = selected ? `${diaper.primary}29` : colors.inputBg;
+  const border = selected ? diaper.primary : (colors.cardBorder || colors.borderSubtle);
   const color = selected ? diaper.primary : colors.textSecondary;
 
   return (
@@ -47,8 +45,9 @@ export default function DiaperSheet({
   const [photos, setPhotos] = useState([]);
   const [existingPhotoURLs, setExistingPhotoURLs] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showDateTimeTray, setShowDateTimeTray] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
+  const [photosExpanded, setPhotosExpanded] = useState(false);
 
   const [isWet, setIsWet] = useState(false);
   const [isDry, setIsDry] = useState(true);
@@ -74,6 +73,7 @@ export default function DiaperSheet({
     }
     setPhotos([]);
     setNotesExpanded(false);
+    setPhotosExpanded(false);
   }, [entry]);
 
   const handleClose = useCallback(() => {
@@ -101,9 +101,29 @@ export default function DiaperSheet({
     setIsPoo(next);
   };
 
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) setDateTime(selectedDate.toISOString());
+  const handleDateTimeChange = (isoString) => {
+    if (isoString) setDateTime(isoString);
+  };
+
+  const handleAddPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Allow photo access to add photos.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: false,
+      base64: true,
+    });
+    if (!result.canceled && result.assets?.[0]?.base64) {
+      setPhotos((prev) => [...prev, `data:image/jpeg;base64,${result.assets[0].base64}`]);
+    }
+  };
+
+  const handleRemovePhoto = (index, isExisting = false) => {
+    if (isExisting) setExistingPhotoURLs((prev) => prev.filter((_, i) => i !== index));
+    else setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = async () => {
@@ -177,71 +197,77 @@ export default function DiaperSheet({
     <>
       <HalfSheet
         sheetRef={sheetRef}
-        snapPoints={['60%']}
+        snapPoints={[606]}
         title="Diaper"
         accentColor={diaper.primary}
         onClose={handleClose}
         footer={footer}
+        contentPaddingTop={40}
       >
-        <InputRow
+        <TTInputRow
           label="Time"
-          value={dateTime}
+          rawValue={dateTime}
           type="datetime"
           formatDateTime={formatDateTime}
-          onOpenPicker={() => setShowDatePicker(true)}
+          onOpenPicker={() => setShowDateTimeTray(true)}
         />
 
         <View style={styles.typePicker}>
-          <TypeButton
-            label="Dry"
-            icon={DiaperDryIcon}
-            selected={isDry}
-            dim={isWet || isPoo}
-            onPress={handleToggleDry}
-          />
-          <TypeButton
-            label="Wet"
-            icon={DiaperWetIcon}
-            selected={isWet}
-            dim={isDry}
-            onPress={handleToggleWet}
-          />
-          <TypeButton
-            label="Poop"
-            icon={DiaperPooIcon}
-            selected={isPoo}
-            dim={isDry}
-            onPress={handleTogglePoo}
-          />
+          <TypeButton label="Dry" icon={DiaperDryIcon} selected={isDry} dim={isWet || isPoo} onPress={handleToggleDry} />
+          <TypeButton label="Wet" icon={DiaperWetIcon} selected={isWet} dim={isDry} onPress={handleToggleWet} />
+          <TypeButton label="Poop" icon={DiaperPooIcon} selected={isPoo} dim={isDry} onPress={handleTogglePoo} />
         </View>
 
-        {!notesExpanded ? (
-          <Pressable
-            style={({ pressed }) => [styles.addRow, pressed && { opacity: 0.7 }]}
-            onPress={() => setNotesExpanded(true)}
-          >
+        {!notesExpanded && !photosExpanded && (
+          <View style={styles.addRow}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+              <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
+            </Pressable>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+              <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {notesExpanded && (
+          <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+        )}
+
+        {photosExpanded && (
+          <TTPhotoRow
+            expanded={photosExpanded}
+            onExpand={() => setPhotosExpanded(true)}
+            title="Photos"
+            showTitle={true}
+            existingPhotos={existingPhotoURLs}
+            newPhotos={photos}
+            onAddPhoto={handleAddPhoto}
+            onRemovePhoto={handleRemovePhoto}
+            onPreviewPhoto={() => {}}
+            addLabel="+ Add photos"
+          />
+        )}
+
+        {photosExpanded && !notesExpanded && (
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
             <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
           </Pressable>
-        ) : (
-          <InputRow
-            label="Notes"
-            value={notes}
-            onChange={setNotes}
-            type="text"
-            placeholder="Add a note..."
-          />
+        )}
+
+        {notesExpanded && !photosExpanded && (
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
+          </Pressable>
         )}
       </HalfSheet>
 
-      {showDatePicker && (
-        <DateTimePicker
-          value={new Date(dateTime)}
-          mode="datetime"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleDateChange}
-          onTouchCancel={() => Platform.OS === 'android' && setShowDatePicker(false)}
-        />
-      )}
+      <DateTimePickerTray
+        isOpen={showDateTimeTray}
+        onClose={() => setShowDateTimeTray(false)}
+        value={dateTime}
+        onChange={handleDateTimeChange}
+        title="Time"
+      />
     </>
   );
 }
@@ -267,10 +293,43 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   addRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  addItem: {
+    flex: 1,
     paddingVertical: 12,
   },
   addText: {
     fontSize: 16,
+  },
+  photoRow: {
+    marginTop: 8,
+  },
+  photoLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+  },
+  photoList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  photoTile: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  photoAdd: {
+    width: 80,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cta: {
     paddingVertical: 14,

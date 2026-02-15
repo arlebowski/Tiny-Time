@@ -4,12 +4,11 @@
  */
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
-import InputRow from './InputRow';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
 
 function calculateDuration(startTime, endTime) {
   if (!startTime || !endTime) return null;
@@ -40,8 +39,8 @@ export default function SleepSheet({
   const [photos, setPhotos] = useState([]);
   const [existingPhotoURLs, setExistingPhotoURLs] = useState([]);
   const [saving, setSaving] = useState(false);
-  const [showStartPicker, setShowStartPicker] = useState(false);
-  const [showEndPicker, setShowEndPicker] = useState(false);
+  const [showStartTray, setShowStartTray] = useState(false);
+  const [showEndTray, setShowEndTray] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [activeSleepSessionId, setActiveSleepSessionId] = useState(null);
@@ -93,14 +92,12 @@ export default function SleepSheet({
     if (onClose) onClose();
   }, [onClose]);
 
-  const handleStartTimeChange = (event, selectedDate) => {
-    setShowStartPicker(Platform.OS === 'ios');
-    if (selectedDate) setStartTime(selectedDate.toISOString());
+  const handleStartTimeChange = (isoString) => {
+    if (isoString) setStartTime(isoString);
   };
 
-  const handleEndTimeChange = (event, selectedDate) => {
-    setShowEndPicker(Platform.OS === 'ios');
-    if (selectedDate) setEndTime(selectedDate.toISOString());
+  const handleEndTimeChange = (isoString) => {
+    if (isoString) setEndTime(isoString);
   };
 
   const handleStartSleep = async () => {
@@ -285,11 +282,12 @@ export default function SleepSheet({
     <>
       <HalfSheet
         sheetRef={sheetRef}
-        snapPoints={['75%']}
+        snapPoints={[606]}
         title="Sleep"
         accentColor={sleep.primary}
         onClose={handleClose}
         footer={footer}
+        contentPaddingTop={40}
       >
         <View style={styles.durationBlock}>
           <Text style={[styles.durationText, { color: colors.textPrimary }]}>
@@ -302,88 +300,84 @@ export default function SleepSheet({
 
         <View style={styles.inputRow}>
           <View style={styles.inputCol}>
-            <InputRow
+            <TTInputRow
               label="Start time"
-              value={startTime}
+              rawValue={startTime}
               type="datetime"
               formatDateTime={formatDateTime}
-              onOpenPicker={() => setShowStartPicker(true)}
+              onOpenPicker={() => setShowStartTray(true)}
               placeholder="Add..."
             />
           </View>
           <View style={styles.inputCol}>
-            <InputRow
+            <TTInputRow
               label="End time"
-              value={endTime}
+              rawValue={endTime}
               type="datetime"
               formatDateTime={formatDateTime}
-              onOpenPicker={() => setShowEndPicker(true)}
+              onOpenPicker={() => setShowEndTray(true)}
               placeholder="Add..."
             />
           </View>
         </View>
 
-        {!notesExpanded && !photosExpanded ? (
+        {!notesExpanded && !photosExpanded && (
           <View style={styles.addRow}>
-            <Pressable onPress={() => setNotesExpanded(true)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
             </Pressable>
-            <Pressable onPress={() => setPhotosExpanded(true)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
           </View>
-        ) : null}
+        )}
+
+        {photosExpanded && !notesExpanded && (
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
+          </Pressable>
+        )}
+
+        {notesExpanded && !photosExpanded && (
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
+          </Pressable>
+        )}
 
         {notesExpanded && (
-          <InputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+          <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
         )}
 
         {photosExpanded && (
-          <View style={styles.photoRow}>
-            <Text style={[styles.photoLabel, { color: colors.textSecondary }]}>Photos</Text>
-            <View style={styles.photoList}>
-              {existingPhotoURLs.map((url, i) => (
-                <View key={`e-${i}`} style={[styles.photoTile, { backgroundColor: colors.inputBg }]}>
-                  <Text style={{ color: colors.textTertiary }}>Photo</Text>
-                  <Pressable onPress={() => handleRemovePhoto(i, true)}>
-                    <Text style={{ color: colors.error }}>Remove</Text>
-                  </Pressable>
-                </View>
-              ))}
-              {photos.map((_, i) => (
-                <View key={`n-${i}`} style={[styles.photoTile, { backgroundColor: colors.inputBg }]}>
-                  <Text style={{ color: colors.textTertiary }}>New</Text>
-                  <Pressable onPress={() => handleRemovePhoto(i, false)}>
-                    <Text style={{ color: colors.error }}>Remove</Text>
-                  </Pressable>
-                </View>
-              ))}
-              <Pressable style={[styles.photoAdd, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder }]} onPress={handleAddPhoto}>
-                <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add</Text>
-              </Pressable>
-            </View>
-          </View>
+          <TTPhotoRow
+            expanded={photosExpanded}
+            onExpand={() => setPhotosExpanded(true)}
+            title="Photos"
+            showTitle={true}
+            existingPhotos={existingPhotoURLs}
+            newPhotos={photos}
+            onAddPhoto={handleAddPhoto}
+            onRemovePhoto={handleRemovePhoto}
+            onPreviewPhoto={() => {}}
+            addLabel="+ Add photos"
+          />
         )}
       </HalfSheet>
 
-      {showStartPicker && (
-        <DateTimePicker
-          value={new Date(startTime)}
-          mode="datetime"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleStartTimeChange}
-          onTouchCancel={() => Platform.OS === 'android' && setShowStartPicker(false)}
-        />
-      )}
-      {showEndPicker && (
-        <DateTimePicker
-          value={endTime ? new Date(endTime) : new Date()}
-          mode="datetime"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-          onChange={handleEndTimeChange}
-          onTouchCancel={() => Platform.OS === 'android' && setShowEndPicker(false)}
-        />
-      )}
+      <DateTimePickerTray
+        isOpen={showStartTray}
+        onClose={() => setShowStartTray(false)}
+        value={startTime}
+        onChange={handleStartTimeChange}
+        title="Start time"
+      />
+      <DateTimePickerTray
+        isOpen={showEndTray}
+        onClose={() => setShowEndTray(false)}
+        value={endTime || new Date().toISOString()}
+        onChange={handleEndTimeChange}
+        title="End time"
+      />
     </>
   );
 }
@@ -411,6 +405,10 @@ const styles = StyleSheet.create({
   addRow: {
     flexDirection: 'row',
     gap: 12,
+    paddingVertical: 12,
+  },
+  addItem: {
+    flex: 1,
     paddingVertical: 12,
   },
   addText: {
