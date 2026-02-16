@@ -5,13 +5,6 @@ import { useTheme } from '../../context/ThemeContext';
 import { NursingIcon } from '../icons';
 import { formatRelativeTime, formatElapsedHmsTT, formatV2Number, ComparisonChicklet } from './cardUtils';
 
-// ── Mock data — will be replaced with real Firebase data ──
-// total is in milliseconds (sum of leftDurationSec + rightDurationSec for today's sessions)
-const MOCK = {
-  totalMs: 1 * 3600 * 1000 + 23 * 60 * 1000 + 45 * 1000,  // 1h 23m 45s
-  lastEntryTime: Date.now() - 1.5 * 60 * 60 * 1000,         // 1.5h ago
-  comparison: { delta: 0.3, unit: 'hrs' },                    // +0.3 hrs vs avg
-};
 
 /**
  * NursingValueDisplay — renders the Xh Ym Zs big number with inline unit spans.
@@ -80,9 +73,8 @@ const valueStyles = StyleSheet.create({
  *   total: milliseconds of nursing time today
  *   comparison.unit: 'hrs'
  */
-const NursingCard = ({ onPress }) => {
+const NursingCard = ({ onPress, totalMs = 0, lastEntryTime = null, comparison = null }) => {
   const { nursing, colors } = useTheme();
-  const { totalMs, lastEntryTime, comparison } = MOCK;
 
   const statusText = lastEntryTime
     ? formatRelativeTime(lastEntryTime)

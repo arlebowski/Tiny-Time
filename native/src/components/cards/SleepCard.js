@@ -4,39 +4,8 @@ import { useTheme } from '../../context/ThemeContext';
 import { SleepIcon } from '../icons';
 import { formatRelativeTimeNoAgo, formatV2Number, ComparisonChicklet } from './cardUtils';
 
-// ── Mock data — will be replaced with real Firebase data ──
-// total is hours (converted from ms in formatSleepSessionsForCard line 1314)
-// Sleep status text has special handling (TrackerCard.js:788-809):
-//   - active sleep → shows timer + zzz
-//   - last completed sleep → "Awake Xh Ym"
-//   - no sleep → "No sleep logged"
-const MOCK = {
-  totalHours: 6.5,
-  target: 14,
-  lastSleepEndTime: Date.now() - 45 * 60 * 1000,  // woke up 45m ago
-  isActive: false,
-  comparison: { delta: -1.2, unit: 'hrs' },         // -1.2 hrs vs avg
-};
-
-/**
- * SleepCard — web TrackerCard mode='sleep' with v4 design.
- *
- * Web renderV4Design (TrackerCard.js:900-935):
- *   bigNumberTargetVariant: 'unit' → shows bare "hrs"
- *   hasComparison: true when comparison.delta != null
- *   modeColor: var(--tt-sleep) = theme.sleep.primary
- *   total: hours (float)
- *   target: target hours from settings
- *   unit text: 'hrs' (TrackerCard.js:649)
- *
- * Status text (TrackerCard.js:788-809):
- *   Active sleep → ActiveSleepTimer + zzz (not implemented in mock)
- *   Last completed sleep → "Awake Xh Ym" via formatRelativeTimeNoAgo
- *   No sleep → "No sleep logged"
- */
-const SleepCard = ({ onPress }) => {
+const SleepCard = ({ onPress, totalHours = 0, lastSleepEndTime = null, isActive = false, comparison = null }) => {
   const { sleep, colors } = useTheme();
-  const { totalHours, lastSleepEndTime, isActive, comparison } = MOCK;
 
   // Web TrackerCard.js:788-809 — sleep status text logic
   const statusText = (() => {

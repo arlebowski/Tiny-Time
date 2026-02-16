@@ -11,6 +11,8 @@ import {
   StyleSheet,
   Dimensions,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
@@ -19,7 +21,7 @@ import SegmentedToggle from '../components/shared/SegmentedToggle';
 import Timeline from '../components/Timeline/Timeline';
 import { ChevronLeftIcon, BottleIcon, NursingIcon, SolidsIcon, SleepIcon, DiaperIcon, DiaperWetIcon, DiaperPooIcon } from '../components/icons';
 import { formatV2Number } from '../components/cards/cardUtils';
-import { getMockTimelineItems, getMockDaySummary } from '../utils/mockDetailData';
+import { useData } from '../context/DataContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DETAIL_SECTION_GAP = 12;
@@ -54,6 +56,8 @@ function SummaryCard({
   rotateIcon = false,
   colors,
 }) {
+  const valueAnim = React.useRef(new Animated.Value(1)).current;
+  const comparisonAnim = React.useRef(new Animated.Value(1)).current;
   const padding = isCompact ? 10 : 14;
   const valueSize = isCompact ? 22 : 24;
   const unitSize = isCompact ? 15 : 17.6;
@@ -69,8 +73,65 @@ function SummaryCard({
   const paceText = comparisonIsZero
     ? 'on pace'
     : (comparisonDelta >= 0 ? 'ahead of pace' : 'behind pace');
+
+  useEffect(() => {
+    valueAnim.setValue(0);
+    Animated.timing(valueAnim, {
+      toValue: 1,
+      duration: 240,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [valueAnim, value, unit, color, isCompact, rotateIcon, IconComponent]);
+
+  useEffect(() => {
+    comparisonAnim.setValue(0);
+    Animated.timing(comparisonAnim, {
+      toValue: 1,
+      duration: 220,
+      delay: 30,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [comparisonAnim, comparisonText, paceText, comparisonColor, comparisonIsZero, comparison]);
+
+  const valueRowAnimatedStyle = {
+    opacity: valueAnim,
+    transform: [
+      {
+        translateY: valueAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-6, 0],
+        }),
+      },
+      {
+        scale: valueAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.98, 1],
+        }),
+      },
+    ],
+  };
+  const comparisonAnimatedStyle = {
+    opacity: comparisonAnim,
+    transform: [
+      {
+        translateY: comparisonAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-5, 0],
+        }),
+      },
+      {
+        scale: comparisonAnim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0.985, 1],
+        }),
+      },
+    ],
+  };
+
   const footerContent = comparison ? (
-    <View style={[styles.summaryComparison, isCompact ? styles.summaryComparisonCompact : null]}>
+    <Animated.View style={[styles.summaryComparison, isCompact ? styles.summaryComparisonCompact : null, comparisonAnimatedStyle]}>
       <View style={styles.summaryComparisonValueRow}>
         {!comparisonIsZero && (
           <Text style={[styles.summaryComparisonArrow, { color: comparisonColor }]}>
@@ -86,14 +147,14 @@ function SummaryCard({
           {paceText}
         </Text>
       )}
-    </View>
+    </Animated.View>
   ) : subline;
 
   return (
     <View style={[styles.summaryCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, padding }]}>
       <View style={styles.summaryCardInner}>
         {/* Icon + value + unit row */}
-        <View style={[styles.summaryValueRow, isCompact ? styles.summaryValueRowCompact : null]}>
+        <Animated.View style={[styles.summaryValueRow, isCompact ? styles.summaryValueRowCompact : null, valueRowAnimatedStyle]}>
           {IconComponent ? (
             <IconComponent
               size={iconSize}
@@ -111,7 +172,7 @@ function SummaryCard({
               {unit}
             </Text>
           ) : null}
-        </View>
+        </Animated.View>
 
         {/* Comparison or subline */}
         {footerContent}
@@ -146,13 +207,15 @@ export default function DetailSheet({
     diaperPooCount: 0,
   });
 
+  const { getTimelineItems, getDaySummary } = useData();
+
   // Load data for selected date
   const loadData = useCallback((date) => {
-    const items = getMockTimelineItems(date);
-    const sum = getMockDaySummary(date);
+    const items = getTimelineItems(date);
+    const sum = getDaySummary(date);
     setTimelineItems(items);
     setSummary(sum);
-  }, []);
+  }, [getTimelineItems, getDaySummary]);
 
   useEffect(() => {
     loadData(selectedDate);

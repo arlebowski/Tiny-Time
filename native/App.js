@@ -1,23 +1,35 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
+import Popover from 'react-native-popover-view';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
+import { AuthProvider, useAuth } from './src/context/AuthContext';
+import { DataProvider, useData } from './src/context/DataContext';
+import { createStorageAdapter } from './src/services/storageAdapter';
 
 // Screens
 import TrackerScreen from './src/screens/TrackerScreen';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import FamilyScreen from './src/screens/FamilyScreen';
+import LoginScreen from './src/screens/LoginScreen';
+import SetupScreen from './src/screens/SetupScreen';
 
 // Sheets
 import DiaperSheet from './src/components/sheets/DiaperSheet';
 import SleepSheet from './src/components/sheets/SleepSheet';
 import FeedSheet from './src/components/sheets/FeedSheet';
+import ActivityVisibilitySheet from './src/components/sheets/ActivityVisibilitySheet';
 import DetailScreen from './src/screens/DetailScreen';
 import BottomNavigationShell from './src/components/navigation/BottomNavigationShell';
+import {
+  normalizeActivityVisibility,
+  normalizeActivityOrder,
+  hasAtLeastOneActivityEnabled,
+} from './src/constants/activityVisibility';
 
 // Icons (1:1 from web/components/shared/icons.js)
 // Web uses HomeIcon (not HouseIcon) for header
@@ -26,6 +38,10 @@ import {
   ChevronDownIcon,
   ShareIcon,
   HomeIcon,
+  LinkIcon,
+  PersonAddIcon,
+  KidSelectorOnIcon,
+  KidSelectorOffIcon,
 } from './src/components/icons';
 
 // Bottom nav tuning:
@@ -33,6 +49,13 @@ import {
 const NAV_MIN_HEIGHT = 50;
 // NAV_TOP_PADDING adds/removes empty space at the top inside the nav bar.
 const NAV_TOP_PADDING = 4;
+// NAV_ROW_VERTICAL_PADDING controls vertical padding around the whole tab row.
+const NAV_ROW_VERTICAL_PADDING = 12;
+// NAV_ITEM_VERTICAL_PADDING controls vertical padding inside each tab/spacer cell.
+const NAV_ITEM_VERTICAL_PADDING = 8;
+// NAV_BOTTOM_INSET_PADDING controls extra space below nav for device safe area.
+// Use `null` for automatic device inset, or a number like 0 to force a specific value.
+const NAV_BOTTOM_INSET_PADDING = null;
 // NAV_CLUSTER_OFFSET_Y moves Track, Plus, and Trends together:
 // positive = lower on screen, negative = higher on screen.
 const NAV_CLUSTER_OFFSET_Y = 10;
@@ -45,23 +68,56 @@ const NAV_PLUS_BOTTOM_OFFSET = BASE_PLUS_BOTTOM_OFFSET - NAV_CLUSTER_OFFSET_Y;
 // NAV_FADE_HEIGHT controls only the gradient thickness above the nav.
 // It does not change nav height.
 const NAV_FADE_HEIGHT = 20;
+const APP_SHARE_BASE_URL = 'https://tinytracker.app';
+
+const createLocalInviteCode = (familyId, kidId) => {
+  if (!familyId || !kidId) throw new Error('Missing ids');
+  const random = Math.random().toString(36).slice(2, 10).toUpperCase();
+  return `${kidId.slice(0, 2).toUpperCase()}${random}`;
+};
 
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
-function AppHeader({ onFamilyPress }) {
+function AppHeader({
+  onFamilyPress,
+  activeTab,
+  showKidMenu,
+  onToggleKidMenu,
+  kidButtonRef,
+  showShareMenu,
+  onToggleShareMenu,
+  onCloseShareMenu,
+  onCloseKidMenu,
+  shareButtonRef,
+}) {
   const { colors, bottle } = useTheme();
+  const { kidData } = useData();
+  const kidName = kidData?.name || 'Baby';
+  const kidPhotoURL = kidData?.photoURL || null;
+
   return (
     <View style={[headerStyles.container, { backgroundColor: colors.appBg }]}>
       <View style={headerStyles.inner}>
-        {/* LEFT: Kid picker (web lines 3955-4006) */}
-        {/* Web: outer span bg var(--tt-input-bg), inner (no photo) bg var(--tt-feed-soft) = bottle.soft */}
-        <Pressable style={headerStyles.kidPicker}>
+        {/* LEFT: Kid picker */}
+        <Pressable
+          ref={kidButtonRef}
+          onPress={onToggleKidMenu}
+          style={headerStyles.kidPicker}
+        >
           <View style={[headerStyles.avatar, { backgroundColor: colors.inputBg }]}>
-            <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
+            {kidPhotoURL ? (
+              <Image source={{ uri: kidPhotoURL }} style={headerStyles.avatarInner} />
+            ) : (
+              <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
+            )}
           </View>
-          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]}>Levi</Text>
-          <ChevronDownIcon size={20} color={colors.textTertiary} />
+          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]}>{kidName}</Text>
+          <ChevronDownIcon
+            size={20}
+            color={colors.textTertiary}
+            style={showKidMenu ? headerStyles.kidChevronOpen : undefined}
+          />
         </Pressable>
 
         {/* MIDDLE: Brand logo (web lines 4008-4026) */}
@@ -73,14 +129,35 @@ function AppHeader({ onFamilyPress }) {
         {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
         {/* Web: hover:bg-[var(--tt-seg-track)] — native uses segTrack on press */}
         <View style={headerStyles.rightButtons}>
-          <Pressable style={({ pressed }) => [headerStyles.iconButton, pressed && { backgroundColor: colors.segTrack }]}>
-            <ShareIcon size={24} color={colors.textPrimary} />
+          <Pressable
+            ref={shareButtonRef}
+            onPress={onToggleShareMenu}
+            style={({ pressed }) => [
+              headerStyles.iconButton,
+              pressed && { backgroundColor: colors.segTrack },
+            ]}
+          >
+            <ShareIcon
+              size={24}
+              color={colors.textPrimary}
+              isTapped={showShareMenu}
+              selectedWeight="fill"
+            />
           </Pressable>
           <Pressable
-            onPress={onFamilyPress}
+            onPress={() => {
+              onCloseShareMenu?.();
+              onCloseKidMenu?.();
+              onFamilyPress?.();
+            }}
             style={({ pressed }) => [headerStyles.iconButton, pressed && { backgroundColor: colors.segTrack }]}
           >
-            <HomeIcon size={24} color={colors.textPrimary} />
+            <HomeIcon
+              size={24}
+              color={colors.textPrimary}
+              isSelected={activeTab === 'family'}
+              selectedWeight="fill"
+            />
           </Pressable>
         </View>
       </View>
@@ -89,7 +166,9 @@ function AppHeader({ onFamilyPress }) {
 }
 
 const headerStyles = StyleSheet.create({
-  container: {},
+  container: {
+    zIndex: 1200,
+  },
   // Web: pt-4 pb-6 px-4, grid grid-cols-3 items-center
   inner: {
     flexDirection: 'row',
@@ -104,6 +183,9 @@ const headerStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,               // gap-[10px]
+  },
+  kidChevronOpen: {
+    transform: [{ rotate: '180deg' }],
   },
   // Web: w-[36px] h-[36px] rounded-full overflow-hidden, outer bg var(--tt-input-bg)
   avatar: {
@@ -144,16 +226,74 @@ const headerStyles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 12,      // rounded-xl
   },
+  shareMenu: {
+    width: 224,            // w-56
+    borderRadius: 16,      // rounded-2xl
+    borderWidth: 1,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  shareMenuItem: {
+    height: 44,            // h-11
+    paddingHorizontal: 12, // px-3
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,                // gap-2
+  },
+  shareMenuText: {
+    fontSize: 14,          // text-sm
+    ...Platform.select({
+      ios: { fontFamily: 'System' },
+    }),
+  },
+  kidMenuItem: {
+    height: 44,            // h-11
+    paddingHorizontal: 12, // px-3
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  kidMenuLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    ...Platform.select({
+      ios: { fontFamily: 'System' },
+    }),
+  },
+  kidMenuAddItem: {
+    height: 44,            // h-11
+    paddingHorizontal: 12, // px-3
+    justifyContent: 'center',
+    borderTopWidth: 1,
+  },
+  kidMenuAddText: {
+    fontSize: 14,
+    fontWeight: '500',
+    ...Platform.select({
+      ios: { fontFamily: 'System' },
+    }),
+  },
 });
 
 // ── App shell (uses theme for all colors) ──
 function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onDarkModeChange }) {
   const { colors } = useTheme();
   const appBg = colors.appBg;
+  const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
+  const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep } = useData();
+
+  const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
   const diaperRef = useRef(null);
   const sleepRef = useRef(null);
   const feedRef = useRef(null);
+  const activityVisibilityRef = useRef(null);
 
   const feedTypeRef = useRef('bottle');
   const [lastFeedVariant, setLastFeedVariant] = useState('bottle');
@@ -162,12 +302,37 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
   const [detailFilter, setDetailFilter] = useState(null);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
   const [analyticsResetSignal, setAnalyticsResetSignal] = useState(0);
+  const [showShareMenu, setShowShareMenu] = useState(false);
+  const [shareAnchor, setShareAnchor] = useState(null);
+  const shareButtonRef = useRef(null);
+  const [showKidMenu, setShowKidMenu] = useState(false);
+  const [kidAnchor, setKidAnchor] = useState(null);
+  const kidButtonRef = useRef(null);
+  const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
+  const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
+  const [activityOrder, setActivityOrder] = useState(() => normalizeActivityOrder(null));
+  const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
+
+  // Create storage adapter for sheets
+  const storage = useMemo(
+    () => (familyId && kidId ? createStorageAdapter(familyId, kidId) : null),
+    [familyId, kidId]
+  );
+
+  // Derive user info from real data
+  const familyUser = user ? { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL } : null;
 
   const handleCardTap = useCallback((filterType) => {
+    setShowShareMenu(false);
+    setShowKidMenu(false);
+    setKidAnchor(null);
     setDetailFilter(filterType);
   }, []);
 
   const handleDetailBack = useCallback(() => {
+    setShowShareMenu(false);
+    setShowKidMenu(false);
+    setKidAnchor(null);
     setDetailFilter(null);
   }, []);
 
@@ -177,14 +342,29 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setActivityVisibility(normalizeActivityVisibility(kidSettings?.activityVisibility));
+    setActivityOrder(normalizeActivityOrder(kidSettings?.activityOrder));
+  }, [kidSettings?.activityVisibility, kidSettings?.activityOrder, kidId]);
+
   const handleTrackerSelect = useCallback((type) => {
-    if (type === 'diaper') diaperRef.current?.present?.();
-    else if (type === 'sleep') sleepRef.current?.present?.();
-    else if (['bottle', 'nursing', 'solids'].includes(type)) {
+    const visibilitySafe = normalizeActivityVisibility(activityVisibility);
+    const isFeedEnabled = visibilitySafe.bottle || visibilitySafe.nursing || visibilitySafe.solids;
+    setShowShareMenu(false);
+    setShowKidMenu(false);
+    setKidAnchor(null);
+    if (type === 'diaper') {
+      if (!visibilitySafe.diaper) return;
+      diaperRef.current?.present?.();
+    } else if (type === 'sleep') {
+      if (!visibilitySafe.sleep) return;
+      sleepRef.current?.present?.();
+    } else if (['bottle', 'nursing', 'solids'].includes(type)) {
+      if (!isFeedEnabled || visibilitySafe[type] === false) return;
       feedTypeRef.current = type;
       feedRef.current?.present?.();
     }
-  }, []);
+  }, [activityVisibility]);
 
   const handleFeedAdded = useCallback((entry) => {
     if (entry?.type === 'bottle' || entry?.type === 'nursing') {
@@ -192,6 +372,38 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
       AsyncStorage.setItem('tt_last_feed_variant', entry.type).catch(() => {});
     }
   }, []);
+
+  const handleToggleActivitySheet = useCallback(() => {
+    setShowShareMenu(false);
+    setShowKidMenu(false);
+    setKidAnchor(null);
+    setIsActivitySheetOpen(true);
+    activityVisibilityRef.current?.present?.();
+  }, []);
+
+  const handleUpdateActivityVisibility = useCallback(async (payload) => {
+    const visibilityNext = normalizeActivityVisibility(payload?.visibility || payload);
+    const orderNext = normalizeActivityOrder(payload?.order);
+    if (!hasAtLeastOneActivityEnabled(visibilityNext)) return;
+
+    setActivityVisibility(visibilityNext);
+    setActivityOrder(orderNext);
+    try {
+      await firestoreService.updateKidSettings({
+        activityVisibility: visibilityNext,
+        activityOrder: orderNext,
+      });
+    } catch (error) {
+      console.warn('Failed to save activity visibility settings:', error);
+    }
+  }, [firestoreService]);
+
+  useEffect(() => {
+    const visibilitySafe = normalizeActivityVisibility(activityVisibility);
+    if (visibilitySafe.sleep) return;
+    if (!activeSleep?.id) return;
+    firestoreService.endSleep(activeSleep.id).catch(() => {});
+  }, [activityVisibility, activeSleep, firestoreService]);
 
   const handleEditCard = useCallback((card) => {
     if (!card) return;
@@ -227,22 +439,25 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
   const handleCloseFeed = useCallback(() => {
     setEditEntry(null);
     feedRef.current?.dismiss?.();
-    setTimeout(() => timelineRefreshRef.current?.(), 0);
-  }, []);
+    refresh().then(() => timelineRefreshRef.current?.());
+  }, [refresh]);
 
   const handleCloseSleep = useCallback(() => {
     setEditEntry(null);
     sleepRef.current?.dismiss?.();
-    setTimeout(() => timelineRefreshRef.current?.(), 0);
-  }, []);
+    refresh().then(() => timelineRefreshRef.current?.());
+  }, [refresh]);
 
   const handleCloseDiaper = useCallback(() => {
     setEditEntry(null);
     diaperRef.current?.dismiss?.();
-    setTimeout(() => timelineRefreshRef.current?.(), 0);
-  }, []);
+    refresh().then(() => timelineRefreshRef.current?.());
+  }, [refresh]);
 
   const handleTabChange = useCallback((nextTab) => {
+    setShowShareMenu(false);
+    setShowKidMenu(false);
+    setKidAnchor(null);
     if (nextTab === activeTab && nextTab === 'trends') {
       setAnalyticsResetSignal((s) => s + 1);
       setAnalyticsDetailOpen(false);
@@ -256,10 +471,155 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
     }
   }, [activeTab, onTabChange]);
 
+  const handleGlobalShareApp = useCallback(async () => {
+    const url = APP_SHARE_BASE_URL;
+    const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
+
+    if (Share?.share) {
+      try {
+        await Share.share({
+          title: 'Tiny Tracker',
+          message: text,
+          url,
+        });
+        return;
+      } catch {
+        return;
+      }
+    }
+
+    Alert.alert('Copy this link:', url);
+  }, []);
+
+  const handleGlobalInvitePartner = useCallback(async () => {
+    const resolvedKidId = kidId || (kids?.length ? kids[0]?.id : null);
+
+    if (!familyId || !resolvedKidId) {
+      Alert.alert('Something went wrong. Try refreshing.');
+      return;
+    }
+
+    let link;
+    try {
+      const code = createLocalInviteCode(familyId, resolvedKidId);
+      link = `${APP_SHARE_BASE_URL}/?invite=${encodeURIComponent(code)}`;
+    } catch {
+      Alert.alert('Failed to create invite.');
+      return;
+    }
+
+    if (Share?.share) {
+      try {
+        await Share.share({
+          title: 'Join me on Tiny Tracker',
+          message: `Come join me so we can track together. ${link}`,
+          url: link,
+        });
+        return;
+      } catch {
+        return;
+      }
+    }
+
+    Alert.alert('Copy this invite link:', link);
+  }, [familyId, kidId, kids]);
+
+  const handleShareAppFromMenu = useCallback(async () => {
+    await handleGlobalShareApp();
+    setShowShareMenu(false);
+    setShareAnchor(null);
+  }, [handleGlobalShareApp]);
+
+  const handleInvitePartnerFromMenu = useCallback(async () => {
+    await handleGlobalInvitePartner();
+    setShowShareMenu(false);
+    setShareAnchor(null);
+  }, [handleGlobalInvitePartner]);
+
+  const handleToggleShareMenu = useCallback(() => {
+    if (showShareMenu) {
+      setShowShareMenu(false);
+      setShareAnchor(null);
+      return;
+    }
+    setShowKidMenu(false);
+    setKidAnchor(null);
+
+    const node = shareButtonRef.current;
+    if (node && typeof node.measureInWindow === 'function') {
+      node.measureInWindow((x, y, width, height) => {
+        setShareAnchor({ x, y, width, height });
+        setShowShareMenu(true);
+      });
+      return;
+    }
+
+    setShareAnchor(null);
+    setShowShareMenu(true);
+  }, [showShareMenu]);
+
+  const handleToggleKidMenu = useCallback(() => {
+    if (showKidMenu) {
+      setShowKidMenu(false);
+      setKidAnchor(null);
+      return;
+    }
+    setShowShareMenu(false);
+    setShareAnchor(null);
+
+    const node = kidButtonRef.current;
+    if (node && typeof node.measureInWindow === 'function') {
+      node.measureInWindow((x, y, width, height) => {
+        setKidAnchor({ x, y, width, height });
+        setShowKidMenu(true);
+      });
+      return;
+    }
+
+    setKidAnchor(null);
+    setShowKidMenu(true);
+  }, [showKidMenu]);
+
+  const handleSelectKidFromMenu = useCallback((nextKidId) => {
+    if (nextKidId && nextKidId !== kidId) {
+      setKidId(nextKidId);
+    }
+    setShowKidMenu(false);
+    setKidAnchor(null);
+  }, [kidId, setKidId]);
+
+  const handleAddChildFromMenu = useCallback(() => {
+    setShowKidMenu(false);
+    setKidAnchor(null);
+    handleTabChange('family');
+    setHeaderRequestedAddChild(true);
+  }, [handleTabChange]);
+
   return (
     <>
       <SafeAreaView style={[appStyles.safe, { backgroundColor: appBg }]} edges={['top', 'left', 'right']}>
-        {detailFilter == null && !(activeTab === 'trends' && analyticsDetailOpen) ? <AppHeader onFamilyPress={() => handleTabChange('family')} /> : null}
+        {detailFilter == null && !(activeTab === 'trends' && analyticsDetailOpen)
+          ? (
+            <AppHeader
+              onFamilyPress={() => handleTabChange('family')}
+              activeTab={activeTab}
+              showKidMenu={showKidMenu}
+              onToggleKidMenu={handleToggleKidMenu}
+              kidButtonRef={kidButtonRef}
+              showShareMenu={showShareMenu}
+              onToggleShareMenu={handleToggleShareMenu}
+              onCloseShareMenu={() => {
+                setShowShareMenu(false);
+                setShareAnchor(null);
+              }}
+              onCloseKidMenu={() => {
+                setShowKidMenu(false);
+                setKidAnchor(null);
+              }}
+              shareButtonRef={shareButtonRef}
+            />
+          )
+          : null}
         <View style={appStyles.content}>
           {detailFilter != null ? (
             <DetailScreen
@@ -269,6 +629,7 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
               onEditCard={handleEditCard}
               onDeleteCard={null}
               timelineRefreshRef={timelineRefreshRef}
+              activityVisibility={activityVisibility}
             />
           ) : (
             <>
@@ -276,6 +637,9 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
                 <TrackerScreen
                   onOpenSheet={handleTrackerSelect}
                   onCardTap={handleCardTap}
+                  onRequestToggleActivitySheet={handleToggleActivitySheet}
+                  activityVisibility={activityVisibility}
+                  activityOrder={activityOrder}
                   onEditCard={handleEditCard}
                   onDeleteCard={null}
                   timelineRefreshRef={timelineRefreshRef}
@@ -289,10 +653,18 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
               )}
               {activeTab === 'family' && (
                 <FamilyScreen
+                  user={familyUser}
+                  kidId={kidId}
+                  familyId={familyId}
+                  kids={kids}
+                  onKidChange={setKidId}
+                  requestAddChild={headerRequestedAddChild}
+                  onRequestAddChildHandled={() => setHeaderRequestedAddChild(false)}
                   themeKey={themeKey}
                   onThemeChange={onThemeChange}
                   isDark={isDark}
                   onDarkModeChange={onDarkModeChange}
+                  onRequestToggleActivitySheet={handleToggleActivitySheet}
                 />
               )}
             </>
@@ -309,15 +681,124 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
           />
         </View>
       </SafeAreaView>
+      <Popover
+        isVisible={showKidMenu}
+        from={kidAnchor || kidButtonRef}
+        onRequestClose={() => {
+          setShowKidMenu(false);
+          setKidAnchor(null);
+        }}
+        placement="bottom"
+        verticalOffset={6}
+        arrowSize={{ width: 0, height: 0 }}
+        popoverStyle={[
+          headerStyles.shareMenu,
+          {
+            backgroundColor: colors.cardBg,
+            borderColor: colors.cardBorder,
+          },
+        ]}
+        backgroundStyle={{ backgroundColor: 'transparent' }}
+      >
+        {(kids || []).map((kid) => {
+          const isCurrent = kid?.id === kidId;
+          return (
+            <Pressable
+              key={kid?.id || 'unknown-kid'}
+              onPress={() => handleSelectKidFromMenu(kid?.id)}
+              style={({ pressed }) => [
+                headerStyles.kidMenuItem,
+                {
+                  backgroundColor: isCurrent
+                    ? (colors.subtleSurface || colors.segTrack)
+                    : (pressed ? colors.segTrack : 'transparent'),
+                },
+              ]}
+            >
+              <Text
+                numberOfLines={1}
+                style={[headerStyles.kidMenuLabel, { color: colors.textPrimary }]}
+              >
+                {kid?.name || 'Baby'}
+              </Text>
+              {isCurrent ? (
+                <KidSelectorOnIcon size={16} color={colors.textPrimary} />
+              ) : (
+                <KidSelectorOffIcon size={16} color={colors.cardBorder} />
+              )}
+            </Pressable>
+          );
+        })}
+        <Pressable
+          onPress={handleAddChildFromMenu}
+          style={({ pressed }) => [
+            headerStyles.kidMenuAddItem,
+            {
+              borderTopColor: colors.cardBorder,
+              backgroundColor: pressed ? colors.segTrack : 'transparent',
+            },
+          ]}
+        >
+          <Text style={[headerStyles.kidMenuAddText, { color: colors.textPrimary }]}>+ Add child</Text>
+        </Pressable>
+      </Popover>
+      <Popover
+        isVisible={showShareMenu}
+        from={shareAnchor || shareButtonRef}
+        onRequestClose={() => {
+          setShowShareMenu(false);
+          setShareAnchor(null);
+        }}
+        placement="bottom"
+        verticalOffset={6}
+        arrowSize={{ width: 0, height: 0 }}
+        popoverStyle={[
+          headerStyles.shareMenu,
+          {
+            backgroundColor: colors.cardBg,
+            borderColor: colors.cardBorder,
+          },
+        ]}
+        backgroundStyle={{ backgroundColor: 'transparent' }}
+      >
+        <Pressable
+          onPress={handleShareAppFromMenu}
+          style={({ pressed }) => [
+            headerStyles.shareMenuItem,
+            pressed && { backgroundColor: colors.segTrack },
+          ]}
+        >
+          <LinkIcon size={16} color={colors.textPrimary} />
+          <Text style={[headerStyles.shareMenuText, { color: colors.textPrimary }]}>Share app link</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleInvitePartnerFromMenu}
+          style={({ pressed }) => [
+            headerStyles.shareMenuItem,
+            pressed && { backgroundColor: colors.segTrack },
+          ]}
+        >
+          <PersonAddIcon size={16} color={colors.textPrimary} />
+          <Text style={[headerStyles.shareMenuText, { color: colors.textPrimary }]}>Invite partner</Text>
+        </Pressable>
+      </Popover>
 
       <BottomNavigationShell
         appBg={appBg}
         activeTab={activeTab}
         onTabChange={handleTabChange}
         onTrackerSelect={handleTrackerSelect}
+        visibleTypes={{
+          feeding: activityVisibility.bottle || activityVisibility.nursing || activityVisibility.solids,
+          sleep: activityVisibility.sleep,
+          diaper: activityVisibility.diaper,
+        }}
         lastFeedVariant={lastFeedVariant}
         navMinHeight={NAV_MIN_HEIGHT}
         navTopPadding={NAV_TOP_PADDING}
+        navRowVerticalPadding={NAV_ROW_VERTICAL_PADDING}
+        navItemVerticalPadding={NAV_ITEM_VERTICAL_PADDING}
+        bottomInsetPadding={NAV_BOTTOM_INSET_PADDING}
         tabShiftY={NAV_TAB_SHIFT_Y}
         plusBottomOffset={NAV_PLUS_BOTTOM_OFFSET}
       />
@@ -326,11 +807,13 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
         sheetRef={diaperRef}
         entry={editEntry?.type === 'diaper' ? editEntry : null}
         onClose={handleCloseDiaper}
+        storage={storage}
       />
       <SleepSheet
         sheetRef={sleepRef}
         entry={editEntry?.type === 'sleep' ? editEntry : null}
         onClose={handleCloseSleep}
+        storage={storage}
       />
       <FeedSheet
         sheetRef={feedRef}
@@ -338,14 +821,61 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
         entry={editEntry?.type === 'feed' ? editEntry : null}
         onAdd={handleFeedAdded}
         onClose={handleCloseFeed}
+        activityVisibility={activityVisibility}
+        storage={storage}
+      />
+      <ActivityVisibilitySheet
+        sheetRef={activityVisibilityRef}
+        onOpen={() => setIsActivitySheetOpen(true)}
+        onClose={() => setIsActivitySheetOpen(false)}
+        visibility={activityVisibility}
+        order={activityOrder}
+        onChange={handleUpdateActivityVisibility}
       />
     </>
   );
 }
 
+// ── Auth-gated content ──
+function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
+  const { user, loading, needsSetup, familyId, kidId } = useAuth();
+  const { colors } = useTheme();
+  const [activeTab, setActiveTab] = useState('tracker');
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
+        <ActivityIndicator size="large" color={colors.brandIcon} />
+      </View>
+    );
+  }
+
+  if (!user) {
+    return <LoginScreen />;
+  }
+
+  if (needsSetup || !familyId || !kidId) {
+    return <SetupScreen />;
+  }
+
+  return (
+    <DataProvider>
+      <BottomSheetModalProvider>
+        <AppShell
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          themeKey={themeKey}
+          isDark={isDark}
+          onThemeChange={onThemeChange}
+          onDarkModeChange={onDarkModeChange}
+        />
+      </BottomSheetModalProvider>
+    </DataProvider>
+  );
+}
+
 // ── App Root ──
 export default function App() {
-  const [activeTab, setActiveTab] = useState('tracker');
   const [themeKey, setThemeKey] = useState('theme1');
   const [isDark, setIsDark] = useState(false);
 
@@ -373,16 +903,14 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ThemeProvider themeKey={themeKey} isDark={isDark}>
         <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          <BottomSheetModalProvider>
-            <AppShell
-              activeTab={activeTab}
-              onTabChange={setActiveTab}
+          <AuthProvider>
+            <AuthGatedApp
               themeKey={themeKey}
               isDark={isDark}
               onThemeChange={handleThemeChange}
               onDarkModeChange={handleDarkModeChange}
             />
-          </BottomSheetModalProvider>
+          </AuthProvider>
         </SafeAreaProvider>
       </ThemeProvider>
     </GestureHandlerRootView>

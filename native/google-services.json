@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "775043948126",
+    "firebase_url": "https://baby-feeding-tracker-978e6-default-rtdb.firebaseio.com",
+    "project_id": "baby-feeding-tracker-978e6",
+    "storage_bucket": "baby-feeding-tracker-978e6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:775043948126:android:fbc88d4c5f6a22dd25decf",
+        "android_client_info": {
+          "package_name": "com.tinytracker.mobile"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "775043948126-045tnb5lf159e1ik8ildjj6sfdv4reac.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD5QZO2DlyR7n6KPaNXT0EYnPqrX0PVVyQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "775043948126-045tnb5lf159e1ik8ildjj6sfdv4reac.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "775043948126-mtqoou8hvu13kacnr5pmd5o8quugmlj2.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.tinytracker.mobile"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

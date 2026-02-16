@@ -1,12 +1,17 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useData } from '../context/DataContext';
 import { SettingsIcon } from '../components/icons';
 import BottleCard from '../components/cards/BottleCard';
 import NursingCard from '../components/cards/NursingCard';
 import SolidsCard from '../components/cards/SolidsCard';
 import SleepCard from '../components/cards/SleepCard';
 import DiaperCard from '../components/cards/DiaperCard';
+import {
+  normalizeActivityVisibility,
+  normalizeActivityOrder,
+} from '../constants/activityVisibility';
 
 // ── Date formatting (web: __ttHorizontalFormat(selectedDate, "EEEE, MMM d")) ──
 function formatDateLabel(date) {
@@ -23,8 +28,15 @@ function getGreeting(now) {
   return 'Good evening';
 }
 
-export default function TrackerScreen({ onOpenSheet, onCardTap }) {
+export default function TrackerScreen({
+  onOpenSheet,
+  onCardTap,
+  onRequestToggleActivitySheet,
+  activityVisibility,
+  activityOrder,
+}) {
   const { colors } = useTheme();
+  const { getDaySummary, activeSleep } = useData();
   const [now, setNow] = useState(new Date());
 
   // Web HorizontalCalendar.js:199-201 — refresh greeting every 60s
@@ -35,6 +47,77 @@ export default function TrackerScreen({ onOpenSheet, onCardTap }) {
 
   const dateLabel = useMemo(() => formatDateLabel(now), [now]);
   const greeting = useMemo(() => getGreeting(now), [now]);
+  const summary = useMemo(() => getDaySummary(now), [getDaySummary, now]);
+  const visibilitySafe = useMemo(
+    () => normalizeActivityVisibility(activityVisibility),
+    [activityVisibility]
+  );
+  const orderSafe = useMemo(
+    () => normalizeActivityOrder(activityOrder),
+    [activityOrder]
+  );
+
+  const renderCardByKey = useMemo(() => ({
+    bottle: (
+      <BottleCard
+        key="bottle"
+        onPress={() => onCardTap?.('feed')}
+        totalOz={summary.feedOz}
+        lastEntryTime={summary.lastBottleTime}
+      />
+    ),
+    nursing: (
+      <NursingCard
+        key="nursing"
+        onPress={() => onCardTap?.('feed')}
+        totalMs={summary.nursingMs}
+        lastEntryTime={summary.lastNursingTime}
+      />
+    ),
+    solids: (
+      <SolidsCard
+        key="solids"
+        onPress={() => onCardTap?.('feed')}
+        totalFoods={summary.solidsCount}
+        lastEntryTime={summary.lastSolidsTime}
+      />
+    ),
+    sleep: (
+      <SleepCard
+        key="sleep"
+        onPress={() => onCardTap?.('sleep')}
+        totalHours={Math.round((summary.sleepMs / 3600000) * 10) / 10}
+        lastSleepEndTime={summary.lastSleepTime}
+        isActive={!!activeSleep}
+      />
+    ),
+    diaper: (
+      <DiaperCard
+        key="diaper"
+        onPress={() => onCardTap?.('diaper')}
+        totalChanges={summary.diaperCount}
+        lastEntryTime={summary.lastDiaperTime}
+      />
+    ),
+  }), [
+    onCardTap,
+    summary.feedOz,
+    summary.lastBottleTime,
+    summary.nursingMs,
+    summary.lastNursingTime,
+    summary.solidsCount,
+    summary.lastSolidsTime,
+    summary.sleepMs,
+    summary.lastSleepTime,
+    activeSleep,
+    summary.diaperCount,
+    summary.lastDiaperTime,
+  ]);
+
+  const orderedVisibleCards = useMemo(
+    () => orderSafe.filter((key) => visibilitySafe[key]).map((key) => renderCardByKey[key]).filter(Boolean),
+    [orderSafe, visibilitySafe, renderCardByKey]
+  );
 
   return (
     <ScrollView
@@ -63,18 +146,14 @@ export default function TrackerScreen({ onOpenSheet, onCardTap }) {
             { backgroundColor: colors.segTrack || colors.track, borderColor: colors.cardBorder },
             pressed && styles.gearButtonPressed,
           ]}
-          onPress={() => console.log('Gear pressed')}
+          onPress={() => onRequestToggleActivitySheet?.()}
         >
           <SettingsIcon size={26} color={colors.textPrimary} />
         </Pressable>
       </View>
 
       {/* ── Tracker cards ── */}
-      <BottleCard onPress={() => onCardTap?.('feed')} />
-      <NursingCard onPress={() => onCardTap?.('feed')} />
-      <SolidsCard onPress={() => onCardTap?.('feed')} />
-      <SleepCard onPress={() => onCardTap?.('sleep')} />
-      <DiaperCard onPress={() => onCardTap?.('diaper')} />
+      {orderedVisibleCards}
     </ScrollView>
   );
 }

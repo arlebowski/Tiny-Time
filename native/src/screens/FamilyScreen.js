@@ -12,18 +12,17 @@
  * Web cards: TTCard variant="tracker" → rounded-2xl p-5 shadow-sm bg cardBg
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useData } from '../context/DataContext';
 import {
   View,
   Text,
   Pressable,
-  TextInput,
   ScrollView,
   Image,
   Alert,
   StyleSheet,
   Platform,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -31,12 +30,17 @@ import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import TTInputRow from '../components/shared/TTInputRow';
+import HalfSheet from '../components/sheets/HalfSheet';
+import SheetInputRow from '../components/sheets/InputRow';
+import TTPhotoRow from '../components/shared/TTPhotoRow';
+import UILabScreen from './UILabScreen';
 import {
   EditIcon,
   BabyIcon,
   ChevronRightIcon,
   CameraIcon,
 } from '../components/icons';
+import { uploadKidPhoto } from '../services/storageService';
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -134,6 +138,8 @@ export default function FamilyScreen({
   familyId,
   onKidChange,
   kids = [],
+  requestAddChild = false,
+  onRequestAddChildHandled,
   themeKey: propThemeKey,
   onThemeChange,
   isDark: propIsDark,
@@ -142,7 +148,7 @@ export default function FamilyScreen({
   onSignOut,
   onDeleteAccount,
 }) {
-  const { colors, radius } = useTheme();
+  const { colors } = useTheme();
 
   // ── State ──
   const [kidData, setKidData] = useState(null);
@@ -160,11 +166,12 @@ export default function FamilyScreen({
   const [tempWeight, setTempWeight] = useState(null);
 
   // Add Child modal
-  const [showAddChild, setShowAddChild] = useState(false);
+  const addChildSheetRef = useRef(null);
   const [newBabyName, setNewBabyName] = useState('');
-  const [newBabyWeight, setNewBabyWeight] = useState('');
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
+  const [newChildPhotoUris, setNewChildPhotoUris] = useState([]);
   const [savingChild, setSavingChild] = useState(false);
+  const [showUILab, setShowUILab] = useState(false);
 
   // Theme
   const defaultThemeKey = THEME_TOKENS.DEFAULT_THEME_KEY || 'theme1';
@@ -178,16 +185,53 @@ export default function FamilyScreen({
 
   const activeTheme = resolveTheme(activeThemeKey);
   const kidAccent = activeTheme?.bottle?.primary || colors.primaryBrand;
+  const segmentedTrackColor = isDark ? colors.appBg : colors.inputBg;
 
-  // Mock data for development (same pattern as TrackerScreen)
-  useEffect(() => {
-    setKidData({ name: 'Levi', birthDate: Date.now() - 120 * 24 * 60 * 60 * 1000, photoURL: null });
-    setMembers([
-      { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null },
-      { uid: '2', displayName: 'Partner', email: 'partner@example.com', photoURL: null },
-    ]);
-    setSettings({ babyWeight: 12.5, preferredVolumeUnit: 'oz', themeKey: activeThemeKey });
+  // Load real data from Firestore via DataContext
+  const {
+    kidData: ctxKidData,
+    familyMembers: ctxMembers,
+    kidSettings: ctxSettings,
+    refresh,
+    firestoreService,
+  } = useData();
+
+  const resetAddChildForm = useCallback(() => {
+    setNewBabyName('');
+    setNewBabyBirthDate('');
+    setNewChildPhotoUris([]);
   }, []);
+
+  const openAddChildSheet = useCallback(() => {
+    addChildSheetRef.current?.present?.();
+  }, []);
+
+  const closeAddChildSheet = useCallback(() => {
+    addChildSheetRef.current?.dismiss?.();
+  }, []);
+
+  useEffect(() => {
+    if (ctxKidData) {
+      setKidData(ctxKidData);
+      setBabyPhotoUrl(ctxKidData.photoURL || null);
+    }
+    if (ctxMembers?.length) {
+      setMembers(ctxMembers);
+    }
+    if (ctxSettings) {
+      setSettings((prev) => ({ ...prev, ...ctxSettings }));
+      if (ctxSettings.sleepDayStart != null) setDaySleepStartMin(ctxSettings.sleepDayStart);
+      if (ctxSettings.sleepDayEnd != null) setDaySleepEndMin(ctxSettings.sleepDayEnd);
+    }
+  }, [ctxKidData, ctxMembers, ctxSettings]);
+
+  useEffect(() => {
+    if (!requestAddChild) return;
+    openAddChildSheet();
+    if (typeof onRequestAddChildHandled === 'function') {
+      onRequestAddChildHandled();
+    }
+  }, [requestAddChild, onRequestAddChildHandled, openAddChildSheet]);
 
   // ── Handlers ──
 
@@ -312,25 +356,69 @@ export default function FamilyScreen({
     );
   };
 
-  const handleCreateChild = () => {
+  const handleAddChildPhoto = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setNewChildPhotoUris((prev) => [...prev, result.assets[0].uri]);
+    }
+  }, []);
+
+  const handleRemoveChildPhoto = useCallback((index, isExisting) => {
+    if (isExisting) return;
+    setNewChildPhotoUris((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleCreateChild = async () => {
     if (!newBabyName.trim()) {
       Alert.alert('Error', "Please enter your child's name");
-      return;
-    }
-    const weight = parseFloat(newBabyWeight);
-    if (!weight || weight <= 0) {
-      Alert.alert('Error', 'Please enter a valid weight');
       return;
     }
     if (!newBabyBirthDate.trim()) {
       Alert.alert('Error', 'Please enter birth date');
       return;
     }
-    // Mock: just close
-    setShowAddChild(false);
-    setNewBabyName('');
-    setNewBabyWeight('');
-    setNewBabyBirthDate('');
+    if (!familyId) {
+      Alert.alert('Error', 'Missing family context. Please try again.');
+      return;
+    }
+
+    const parsedDate = new Date(`${newBabyBirthDate.trim()}T12:00:00`);
+    if (Number.isNaN(parsedDate.getTime())) {
+      Alert.alert('Error', 'Please use YYYY-MM-DD for birth date');
+      return;
+    }
+
+    setSavingChild(true);
+    try {
+      const newKidId = await firestoreService.createChild({
+        name: newBabyName.trim(),
+        birthDate: parsedDate.getTime(),
+        ownerId: user?.uid || null,
+        photoURL: null,
+        preferredVolumeUnit: 'oz',
+        themeKey: activeThemeKey || defaultThemeKey,
+      });
+
+      if (newChildPhotoUris.length > 0 && newChildPhotoUris[0]) {
+        const uploadedPhotoUrl = await uploadKidPhoto(newChildPhotoUris[0], familyId, newKidId);
+        await firestoreService.updateKidDataById(newKidId, { photoURL: uploadedPhotoUrl });
+      }
+
+      closeAddChildSheet();
+      resetAddChildForm();
+      if (typeof onKidChange === 'function') onKidChange(newKidId);
+      await refresh?.();
+    } catch (error) {
+      console.error('Error creating child:', error);
+      Alert.alert('Error', 'Failed to create child. Please try again.');
+    } finally {
+      setSavingChild(false);
+    }
   };
 
   const handleOpenActivityVisibility = () => {
@@ -346,6 +434,10 @@ export default function FamilyScreen({
   // ── Mock user ──
   const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
 
+  if (showUILab) {
+    return <UILabScreen onClose={() => setShowUILab(false)} />;
+  }
+
   // ── Loading ──
   if (loading) {
     return (
@@ -360,6 +452,7 @@ export default function FamilyScreen({
   // ════════════════════════════════
 
   return (
+    <>
     <ScrollView
       style={[s.scroll, { backgroundColor: colors.appBg }]}
       contentContainerStyle={s.scrollContent}
@@ -384,6 +477,7 @@ export default function FamilyScreen({
               onChange={handleDarkModeChange}
               variant="body"
               size="medium"
+              trackColor={segmentedTrackColor}
             />
           </View>
 
@@ -448,7 +542,7 @@ export default function FamilyScreen({
           <CardHeader
             title="Kids"
             right={
-              <Pressable onPress={() => setShowAddChild(true)}>
+              <Pressable onPress={openAddChildSheet}>
                 <Text style={[s.addChildBtn, { color: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
                   + Add Child
                 </Text>
@@ -597,6 +691,7 @@ export default function FamilyScreen({
             onChange={handleVolumeUnitChange}
             variant="body"
             size="medium"
+            trackColor={segmentedTrackColor}
           />
         </View>
 
@@ -833,109 +928,99 @@ export default function FamilyScreen({
         </View>
       </Card>
 
+      {/* ── 6. Internal Card ── */}
+      <Card style={s.cardGap}>
+        <CardHeader title="Internal" />
+        <Pressable
+          onPress={() => setShowUILab(true)}
+          style={({ pressed }) => [
+            s.internalBtn,
+            { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Text style={[s.internalBtnText, { color: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
+            UI Lab
+          </Text>
+        </Pressable>
+      </Card>
+
       {/* Bottom spacing */}
       <View style={{ height: 40 }} />
 
-      {/* ── Add Child Modal ── */}
-      {/* Web: fixed inset-0 z-50, bg-black bg-opacity-40, centered card max-w-sm */}
-      <Modal
-        visible={showAddChild}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAddChild(false)}
-      >
-        <View style={s.modalOverlay}>
-          <View style={[s.modalCard, { backgroundColor: colors.cardBg, borderRadius: radius?.['2xl'] ?? 16 }]}>
-            {/* Web: text-lg font-semibold mb-2 */}
-            <Text style={[s.modalTitle, { color: colors.textPrimary }]}>Add Child</Text>
-            {/* Web: text-xs mb-4 */}
-            <Text style={[s.modalSubtitle, { color: colors.textSecondary }]}>
-              This child will share the same family and members.
-            </Text>
-
-            {/* Web: space-y-3 */}
-            <View style={s.modalFields}>
-              {/* Name */}
-              <View>
-                <Text style={[s.modalLabel, { color: colors.textSecondary }]}>Child's Name</Text>
-                <TextInput
-                  value={newBabyName}
-                  onChangeText={setNewBabyName}
-                  style={[
-                    s.modalInput,
-                    {
-                      backgroundColor: colors.inputBg,
-                      color: colors.textPrimary,
-                      borderColor: colors.cardBorder || colors.borderSubtle,
-                    },
-                  ]}
-                  placeholderTextColor={colors.textTertiary}
-                />
-              </View>
-
-              {/* Weight + Birth date row */}
-              {/* Web: grid grid-cols-2 gap-3 */}
-              <View style={s.modalRow}>
-                <View style={s.modalHalf}>
-                  <Text style={[s.modalLabel, { color: colors.textSecondary }]}>Weight (lbs)</Text>
-                  <TextInput
-                    value={newBabyWeight}
-                    onChangeText={setNewBabyWeight}
-                    keyboardType="decimal-pad"
-                    style={[
-                      s.modalInput,
-                      {
-                        backgroundColor: colors.inputBg,
-                        color: colors.textPrimary,
-                        borderColor: colors.cardBorder || colors.borderSubtle,
-                      },
-                    ]}
-                    placeholderTextColor={colors.textTertiary}
-                  />
-                </View>
-                <View style={s.modalHalf}>
-                  <Text style={[s.modalLabel, { color: colors.textSecondary }]}>Birth date</Text>
-                  <TextInput
-                    value={newBabyBirthDate}
-                    onChangeText={setNewBabyBirthDate}
-                    placeholder="YYYY-MM-DD"
-                    style={[
-                      s.modalInput,
-                      {
-                        backgroundColor: colors.inputBg,
-                        color: colors.textPrimary,
-                        borderColor: colors.cardBorder || colors.borderSubtle,
-                      },
-                    ]}
-                    placeholderTextColor={colors.textTertiary}
-                  />
-                </View>
-              </View>
-            </View>
-
-            {/* Actions */}
-            {/* Web: mt-5 flex justify-end gap-3 */}
-            <View style={s.modalActions}>
-              <Pressable onPress={() => setShowAddChild(false)}>
-                <Text style={[s.modalCancel, { color: colors.textSecondary }]}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleCreateChild}
-                disabled={savingChild}
-                style={[
-                  s.modalSubmit,
-                  { backgroundColor: colors.primaryActionBg, opacity: savingChild ? 0.5 : 1 },
-                ]}
-              >
-                <Text style={[s.modalSubmitText, { color: colors.primaryActionText }]}>
-                  {savingChild ? 'Saving...' : 'Add Child'}
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </ScrollView>
+    <HalfSheet
+      sheetRef={addChildSheetRef}
+      title="Add Child"
+      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
+      onClose={() => {
+        if (!savingChild) resetAddChildForm();
+      }}
+      snapPoints={['76%']}
+      initialSnapIndex={0}
+      enableDynamicSizing={false}
+      scrollable
+      footer={(
+        <View style={s.addChildFooter}>
+          <Pressable
+            onPress={closeAddChildSheet}
+            disabled={savingChild}
+            style={({ pressed }) => [pressed && { opacity: 0.7 }, s.addChildCancelWrap]}
+          >
+            <Text style={[s.addChildCancel, { color: colors.textSecondary }]}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={handleCreateChild}
+            disabled={savingChild}
+            style={({ pressed }) => [
+              s.addChildSubmit,
+              {
+                backgroundColor: colors.primaryActionBg,
+                opacity: savingChild ? 0.5 : (pressed ? 0.85 : 1),
+              },
+            ]}
+          >
+            <Text style={[s.addChildSubmitText, { color: colors.primaryActionText }]}>
+              {savingChild ? 'Saving...' : 'Add Child'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    >
+      <Text style={[s.addChildSubtitle, { color: colors.textSecondary }]}>
+        This child will share the same family and members.
+      </Text>
+      <SheetInputRow
+        label="Child's Name"
+        type="text"
+        icon={EditIcon}
+        value={newBabyName}
+        onChange={setNewBabyName}
+        placeholder="Enter name"
+      />
+      <SheetInputRow
+        label="Birth date"
+        type="text"
+        icon={EditIcon}
+        value={newBabyBirthDate}
+        onChange={setNewBabyBirthDate}
+        placeholder="YYYY-MM-DD"
+      />
+      <TTPhotoRow
+        expanded
+        showTitle
+        title="Photo"
+        existingPhotos={[]}
+        newPhotos={newChildPhotoUris}
+        onAddPhoto={handleAddChildPhoto}
+        onRemovePhoto={handleRemoveChildPhoto}
+        onPreviewPhoto={() => {}}
+        showAddHint
+        addHint="Add"
+        addTileBorder
+      />
+    </HalfSheet>
+    </>
   );
 }
 
@@ -1287,86 +1372,49 @@ const s = StyleSheet.create({
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
 
-  // ── Add Child Modal ──
-  // Web: fixed inset-0 z-50, bg-black bg-opacity-40
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-    justifyContent: 'center',
+  // ── Internal ──
+  internalBtn: {
+    paddingVertical: 12,
+    borderRadius: 12,
     alignItems: 'center',
-    paddingHorizontal: 16,         // px-4
+    justifyContent: 'center',
   },
-  // Web: shadow-2xl p-6 w-full max-w-sm
-  modalCard: {
-    width: '100%',
-    maxWidth: 384,                 // max-w-sm
-    padding: 24,                   // p-6
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 25 },
-    shadowOpacity: 0.25,
-    shadowRadius: 50,
-    elevation: 24,
-  },
-  // Web: text-lg font-semibold mb-2
-  modalTitle: {
-    fontSize: 18,                  // text-lg
+  internalBtnText: {
+    fontSize: 16,
     fontWeight: '600',
-    marginBottom: 8,               // mb-2
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
-  // Web: text-xs mb-4
-  modalSubtitle: {
+
+  // ── Add Child HalfSheet ──
+  addChildSubtitle: {
     fontSize: 12,
-    marginBottom: 16,              // mb-4
+    marginBottom: 16,
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
-  modalFields: { gap: 12 },       // space-y-3
-  // Web: tt-card-label
-  modalLabel: {
-    fontSize: 12,
-    marginBottom: 4,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
-  },
-  // Web: w-full px-3 py-2 border rounded-xl text-sm
-  modalInput: {
-    paddingHorizontal: 12,         // px-3
-    paddingVertical: 8,            // py-2
-    borderRadius: 12,              // rounded-xl
-    borderWidth: 1,
-    fontSize: 14,                  // text-sm
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
-  },
-  // Web: grid grid-cols-2 gap-3
-  modalRow: {
+  addChildFooter: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
   },
-  modalHalf: {
-    flex: 1,
-    minWidth: 0,
+  addChildCancelWrap: {
+    paddingHorizontal: 4,
+    paddingVertical: 10,
   },
-  // Web: mt-5 flex justify-end gap-3
-  modalActions: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    gap: 12,                       // gap-3
-    marginTop: 20,                 // mt-5
-  },
-  // Web: text-sm hover:opacity-80
-  modalCancel: {
+  addChildCancel: {
     fontSize: 14,
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
-  // Web: px-4 py-2 rounded-xl text-sm font-medium
-  modalSubmit: {
-    paddingHorizontal: 16,         // px-4
-    paddingVertical: 8,            // py-2
-    borderRadius: 12,              // rounded-xl
+  addChildSubmit: {
+    minHeight: 40,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  modalSubmitText: {
-    fontSize: 14,                  // text-sm
-    fontWeight: '500',             // font-medium
+  addChildSubmitText: {
+    fontSize: 14,
+    fontWeight: '600',
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
 });

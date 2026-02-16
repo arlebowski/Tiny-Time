@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import {
   TodayIcon,
@@ -10,14 +10,28 @@ import {
 } from '../icons';
 import FloatingTrackerMenu from '../sheets/FloatingTrackerMenu';
 
-function BottomNav({ activeTab, onTabChange, navMinHeight, navTopPadding, tabShiftY }) {
+function BottomNav({
+  activeTab,
+  onTabChange,
+  navMinHeight,
+  navTopPadding,
+  tabShiftY,
+  navRowVerticalPadding,
+  navItemVerticalPadding,
+}) {
   const { colors } = useTheme();
   const tabColor = colors.textPrimary;
 
   return (
     <View style={[styles.navContainer, { backgroundColor: colors.appBg, minHeight: navMinHeight, paddingTop: navTopPadding }]}>
-      <View style={styles.navInner}>
-        <Pressable style={[styles.tab, { transform: [{ translateY: tabShiftY }] }]} onPress={() => onTabChange('tracker')}>
+      <View style={[styles.navInner, { paddingVertical: navRowVerticalPadding }]}>
+        <Pressable
+          style={[
+            styles.tab,
+            { transform: [{ translateY: tabShiftY }], paddingVertical: navItemVerticalPadding },
+          ]}
+          onPress={() => onTabChange('tracker')}
+        >
           {activeTab === 'tracker'
             ? <TodayIconFill size={24} color={tabColor} />
             : <TodayIcon size={24} color={tabColor} />
@@ -25,9 +39,20 @@ function BottomNav({ activeTab, onTabChange, navMinHeight, navTopPadding, tabShi
           <Text style={[styles.tabLabel, { color: tabColor }]}>Track</Text>
         </Pressable>
 
-        <View style={[styles.tabSpacer, { transform: [{ translateY: tabShiftY }] }]} />
+        <View
+          style={[
+            styles.tabSpacer,
+            { transform: [{ translateY: tabShiftY }], paddingVertical: navItemVerticalPadding },
+          ]}
+        />
 
-        <Pressable style={[styles.tab, { transform: [{ translateY: tabShiftY }] }]} onPress={() => onTabChange('trends')}>
+        <Pressable
+          style={[
+            styles.tab,
+            { transform: [{ translateY: tabShiftY }], paddingVertical: navItemVerticalPadding },
+          ]}
+          onPress={() => onTabChange('trends')}
+        >
           {activeTab === 'trends'
             ? <TrendsIconFill size={24} color={tabColor} />
             : <TrendsIcon size={24} color={tabColor} />
@@ -45,26 +70,36 @@ export default function BottomNavigationShell({
   activeTab,
   onTabChange,
   onTrackerSelect,
+  visibleTypes,
   lastFeedVariant,
   navMinHeight = 80,
   navTopPadding = 10,
   tabShiftY = -15,
   plusBottomOffset = 36,
+  navRowVerticalPadding = 12,
+  navItemVerticalPadding = 8,
+  bottomInsetPadding,
 }) {
+  const insets = useSafeAreaInsets();
+  const resolvedBottomInset = bottomInsetPadding == null ? insets.bottom : bottomInsetPadding;
+
   return (
     <>
-      <SafeAreaView edges={['bottom']} style={[styles.bottomSafe, { backgroundColor: appBg }]}>
+      <SafeAreaView edges={[]} style={[styles.bottomSafe, { backgroundColor: appBg, paddingBottom: resolvedBottomInset }]}>
         <BottomNav
           activeTab={activeTab}
           onTabChange={onTabChange}
           navMinHeight={navMinHeight}
           navTopPadding={navTopPadding}
           tabShiftY={tabShiftY}
+          navRowVerticalPadding={navRowVerticalPadding}
+          navItemVerticalPadding={navItemVerticalPadding}
         />
       </SafeAreaView>
 
       <FloatingTrackerMenu
         onSelect={onTrackerSelect}
+        visibleTypes={visibleTypes}
         lastFeedVariant={lastFeedVariant}
         bottomOffset={plusBottomOffset}
       />
@@ -85,17 +120,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
   },
   tab: {
     flex: 1,
-    paddingVertical: 8,
     alignItems: 'center',
     gap: 4,
   },
   tabSpacer: {
     flex: 1,
-    paddingVertical: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },

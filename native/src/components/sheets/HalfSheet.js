@@ -19,7 +19,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronDownIcon, ChevronLeftIcon } from '../icons';
 
-function HeaderHandle({ style, onClose, onHeaderBackPress, title, headerRight, headerBg, topRadius }) {
+function HeaderHandle({
+  style,
+  onClosePress,
+  onHeaderBackPress,
+  title,
+  headerRight,
+  headerBg,
+  topRadius,
+  headerTitleColor,
+  headerIconColor,
+}) {
+  const { colors } = useTheme();
+  const resolvedTitleColor = headerTitleColor || colors.textOnAccent || '#fff';
+  const resolvedIconColor = headerIconColor || resolvedTitleColor;
   return (
     <View
       style={[
@@ -35,16 +48,19 @@ function HeaderHandle({ style, onClose, onHeaderBackPress, title, headerRight, h
       <View style={styles.headerRow}>
         <Pressable
           style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
-          onPress={onHeaderBackPress || onClose}
+          onPress={onHeaderBackPress || onClosePress}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          accessibilityRole="button"
+          accessibilityLabel={onHeaderBackPress ? 'Go back' : 'Close sheet'}
         >
           {onHeaderBackPress ? (
-            <ChevronLeftIcon size={20} color="#fff" />
+            <ChevronLeftIcon size={20} color={resolvedIconColor} />
           ) : (
-            <ChevronDownIcon size={20} color="#fff" />
+            <ChevronDownIcon size={20} color={resolvedIconColor} />
           )}
         </Pressable>
 
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={[styles.title, { color: resolvedTitleColor }]} numberOfLines={1}>
           {title}
         </Text>
 
@@ -68,8 +84,12 @@ export default function HalfSheet({
   children,
   footer,
   enablePanDownToClose = true,
+  enableContentPanningGesture = true,
+  enableHandlePanningGesture = true,
   onHeaderBackPress,
   headerRight,
+  headerTitleColor,
+  headerIconColor,
   contentPaddingTop = 16,
   scrollable = false,
   enableDynamicSizing = true,
@@ -85,15 +105,33 @@ export default function HalfSheet({
     (props) => (
       <HeaderHandle
         {...props}
-        onClose={onClose}
+        onClosePress={() => {
+          if (sheetRef?.current?.dismiss) {
+            sheetRef.current.dismiss();
+            return;
+          }
+          onClose?.();
+        }}
         onHeaderBackPress={onHeaderBackPress}
         title={title}
         headerRight={headerRight}
         headerBg={headerBg}
         topRadius={topRadius}
+        headerTitleColor={headerTitleColor}
+        headerIconColor={headerIconColor}
       />
     ),
-    [onClose, onHeaderBackPress, title, headerRight, headerBg, topRadius]
+    [
+      sheetRef,
+      onClose,
+      onHeaderBackPress,
+      title,
+      headerRight,
+      headerBg,
+      topRadius,
+      headerTitleColor,
+      headerIconColor,
+    ]
   );
 
   const footerComponent = useCallback(
@@ -123,6 +161,8 @@ export default function HalfSheet({
       snapPoints={snapPoints}
       enableDynamicSizing={enableDynamicSizing}
       enablePanDownToClose={enablePanDownToClose}
+      enableContentPanningGesture={enableContentPanningGesture}
+      enableHandlePanningGesture={enableHandlePanningGesture}
       enableOverDrag
       onClose={onClose}
       onChange={(index) => {

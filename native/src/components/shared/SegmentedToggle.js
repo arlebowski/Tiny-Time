@@ -136,6 +136,7 @@ export default function SegmentedToggle({
           borderRadius: containerRadius,
           paddingHorizontal: tokens.containerPaddingH,
           paddingVertical: tokens.containerPaddingV,
+          alignSelf: fullWidth ? 'stretch' : 'flex-start',
         },
         fullWidth && styles.containerFull,
       ]}
@@ -173,7 +174,7 @@ export default function SegmentedToggle({
                 { color: isActive ? activeTextColor : inactiveTextColor },
               ]}
             >
-              {opt.label}
+              {React.isValidElement(opt.label) ? opt.label : String(opt.label ?? '')}
             </Text>
           </Pressable>
         );

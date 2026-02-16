@@ -8,7 +8,7 @@ import {
   SleepIcon,
   DiaperIcon,
 } from '../components/icons';
-import { getMockTimelineItems } from '../utils/mockDetailData';
+import { useData } from '../context/DataContext';
 import { aggregateSleepByDay, avg, dateKeyLocal } from '../components/shared/analyticsHelpers';
 import {
   HighlightCard,
@@ -52,39 +52,30 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
     diaper: false,
   });
 
-  const sourceData = useMemo(() => {
-    const days = 45;
-    const now = new Date();
-    const timeline = [];
-    for (let i = days - 1; i >= 0; i -= 1) {
-      const d = new Date(now);
-      d.setDate(now.getDate() - i);
-      timeline.push(...getMockTimelineItems(d));
-    }
+  const { feedings: rawFeedings, nursingSessions: rawNursing, solidsSessions: rawSolids, diaperChanges: rawDiapers, sleepSessions: rawSleep } = useData();
 
-    const allFeedings = timeline
-      .filter((item) => item?.type === 'feed' && item?.feedType === 'bottle')
-      .map((item) => ({ timestamp: item.timestamp, ounces: Number(item.amount || item.ounces || 0) }));
-    const allNursingSessions = timeline
-      .filter((item) => item?.type === 'feed' && item?.feedType === 'nursing')
-      .map((item) => ({
-        timestamp: item.timestamp || item.startTime,
-        leftDurationSec: Number(item.leftDurationSec || 0),
-        rightDurationSec: Number(item.rightDurationSec || 0),
-      }));
-    const allSolidsSessions = timeline
-      .filter((item) => item?.type === 'feed' && item?.feedType === 'solids')
-      .map((item) => ({ timestamp: item.timestamp, foods: item.foods || [] }));
-    const allDiaperChanges = timeline
-      .filter((item) => item?.type === 'diaper')
-      .map((item) => ({
-        timestamp: item.timestamp,
-        isWet: !!item.isWet,
-        isPoo: !!item.isPoo,
-      }));
-    const sleepSessions = timeline
-      .filter((item) => item?.type === 'sleep' && item?.startTime && item?.endTime)
-      .map((item) => ({ startTime: item.startTime, endTime: item.endTime }));
+  const sourceData = useMemo(() => {
+    const allFeedings = (rawFeedings || []).map((f) => ({
+      timestamp: f.timestamp,
+      ounces: Number(f.ounces || 0),
+    }));
+    const allNursingSessions = (rawNursing || []).map((s) => ({
+      timestamp: s.timestamp || s.startTime,
+      leftDurationSec: Number(s.leftDurationSec || 0),
+      rightDurationSec: Number(s.rightDurationSec || 0),
+    }));
+    const allSolidsSessions = (rawSolids || []).map((s) => ({
+      timestamp: s.timestamp,
+      foods: s.foods || [],
+    }));
+    const allDiaperChanges = (rawDiapers || []).map((c) => ({
+      timestamp: c.timestamp,
+      isWet: !!c.isWet,
+      isPoo: !!c.isPoo,
+    }));
+    const sleepSessions = (rawSleep || [])
+      .filter((s) => s.startTime && s.endTime)
+      .map((s) => ({ startTime: s.startTime, endTime: s.endTime }));
 
     return {
       allFeedings,
@@ -94,7 +85,7 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
       sleepSessions,
       sleepSettings: { sleepDayStart: 7 * 60, sleepDayEnd: 19 * 60 },
     };
-  }, []);
+  }, [rawFeedings, rawNursing, rawSolids, rawDiapers, rawSleep]);
 
   const hasAnyAnalyticsData = useMemo(
     () =>
