@@ -19,9 +19,19 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronDownIcon, ChevronLeftIcon } from '../icons';
 
-function HeaderHandle({ style, onClose, onHeaderBackPress, title, headerRight, headerBg }) {
+function HeaderHandle({ style, onClose, onHeaderBackPress, title, headerRight, headerBg, topRadius }) {
   return (
-    <View style={[styles.handleWithHeader, style, { backgroundColor: headerBg }]}>
+    <View
+      style={[
+        styles.handleWithHeader,
+        style,
+        {
+          backgroundColor: headerBg,
+          borderTopLeftRadius: topRadius,
+          borderTopRightRadius: topRadius,
+        },
+      ]}
+    >
       <View style={styles.headerRow}>
         <Pressable
           style={({ pressed }) => [styles.closeBtn, pressed && { opacity: 0.7 }]}
@@ -66,9 +76,10 @@ export default function HalfSheet({
   initialSnapIndex = 0,
 }) {
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors, radius } = useTheme();
   const prevIndexRef = useRef(-1);
   const headerBg = accentColor || colors.primaryBrand;
+  const topRadius = radius?.['3xl'] ?? 20;
 
   const handleComponent = useCallback(
     (props) => (
@@ -79,9 +90,10 @@ export default function HalfSheet({
         title={title}
         headerRight={headerRight}
         headerBg={headerBg}
+        topRadius={topRadius}
       />
     ),
-    [onClose, onHeaderBackPress, title, headerRight, headerBg]
+    [onClose, onHeaderBackPress, title, headerRight, headerBg, topRadius]
   );
 
   const footerComponent = useCallback(
@@ -120,6 +132,8 @@ export default function HalfSheet({
       }}
       backgroundStyle={{
         backgroundColor: colors.halfsheetBg || colors.cardBg,
+        borderTopLeftRadius: topRadius,
+        borderTopRightRadius: topRadius,
       }}
       handleComponent={handleComponent}
       footerComponent={footerComponent}
@@ -156,14 +170,10 @@ export default function HalfSheet({
 
 const styles = StyleSheet.create({
   modal: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     overflow: 'hidden',
   },
 
   handleWithHeader: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
     overflow: 'hidden',
   },
 

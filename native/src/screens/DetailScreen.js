@@ -22,6 +22,7 @@ import { formatV2Number } from '../components/cards/cardUtils';
 import { getMockTimelineItems, getMockDaySummary } from '../utils/mockDetailData';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const DETAIL_SECTION_GAP = 12;
 
 const FILTER_OPTIONS = [
   { label: 'All', value: 'all' },
@@ -464,11 +465,12 @@ const styles = StyleSheet.create({
   // List header (above Timeline items)
   listHeader: {
     paddingTop: 4,
-    marginBottom: 8,
+    gap: DETAIL_SECTION_GAP,
+    marginBottom: DETAIL_SECTION_GAP,
   },
   toggleWrap: {
-    marginTop: 12,
-    marginBottom: 4,
+    marginTop: 0,
+    marginBottom: 0,
   },
   // Back button
   backButton: {
@@ -483,7 +485,7 @@ const styles = StyleSheet.create({
   },
   // Summary cards — horizontal scroll for 'all' mode
   summaryScrollWrap: {
-    marginTop: 4,
+    marginTop: 0,
     position: 'relative',
   },
   summaryScroll: {
@@ -503,7 +505,7 @@ const styles = StyleSheet.create({
   },
   // Summary cards — grid for filtered modes
   summaryGrid: {
-    marginTop: 4,
+    marginTop: 0,
     gap: 12,
   },
   summaryGridTwoCols: {

@@ -30,14 +30,14 @@ const TrackerCard = ({
   children,
   onPress,
 }) => {
-  const { colors } = useTheme();
+  const { colors, radius } = useTheme();
   const hasComparison = !!comparisonElement;
 
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
-        { backgroundColor: colors.cardBg },
+        { backgroundColor: colors.cardBg, borderRadius: radius?.['2xl'] ?? 16 },
         pressed && styles.cardPressed,
       ]}
       onPress={onPress}
@@ -90,7 +90,6 @@ const TrackerCard = ({
 const styles = StyleSheet.create({
   // Web: rounded-2xl p-5 shadow-sm
   card: {
-    borderRadius: 16,                 // rounded-2xl
     padding: 20,                      // p-5
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },

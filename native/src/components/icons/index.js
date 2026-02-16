@@ -48,3 +48,6 @@ export { default as ChatIcon } from './ChatIcon';
 export { default as ScheduleIcon } from './ScheduleIcon';
 export { default as BabyIcon } from './BabyIcon';
 export { default as BrandLogo } from './BrandLogo';
+export { default as CameraIcon } from './CameraIcon';
+export { default as SunIcon } from './SunIcon';
+export { default as MoonIcon } from './MoonIcon';

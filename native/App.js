@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
@@ -10,31 +10,46 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 // Screens
 import TrackerScreen from './src/screens/TrackerScreen';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
+import FamilyScreen from './src/screens/FamilyScreen';
 
 // Sheets
 import DiaperSheet from './src/components/sheets/DiaperSheet';
 import SleepSheet from './src/components/sheets/SleepSheet';
 import FeedSheet from './src/components/sheets/FeedSheet';
 import DetailScreen from './src/screens/DetailScreen';
-import FloatingTrackerMenu from './src/components/sheets/FloatingTrackerMenu';
+import BottomNavigationShell from './src/components/navigation/BottomNavigationShell';
 
 // Icons (1:1 from web/components/shared/icons.js)
 // Web uses HomeIcon (not HouseIcon) for header
 import {
-  TodayIcon,
-  TodayIconFill,
-  TrendsIcon,
-  TrendsIconFill,
   BrandLogo,
   ChevronDownIcon,
   ShareIcon,
   HomeIcon,
 } from './src/components/icons';
 
+// Bottom nav tuning:
+// NAV_MIN_HEIGHT makes the entire bottom nav bar taller or shorter.
+const NAV_MIN_HEIGHT = 50;
+// NAV_TOP_PADDING adds/removes empty space at the top inside the nav bar.
+const NAV_TOP_PADDING = 4;
+// NAV_CLUSTER_OFFSET_Y moves Track, Plus, and Trends together:
+// positive = lower on screen, negative = higher on screen.
+const NAV_CLUSTER_OFFSET_Y = 10;
+// Base vertical positions for tabs and plus. Usually keep these fixed.
+const BASE_TAB_SHIFT_Y = -4;
+const BASE_PLUS_BOTTOM_OFFSET = 24;
+// Final values passed into BottomNavigationShell.
+const NAV_TAB_SHIFT_Y = BASE_TAB_SHIFT_Y + NAV_CLUSTER_OFFSET_Y;
+const NAV_PLUS_BOTTOM_OFFSET = BASE_PLUS_BOTTOM_OFFSET - NAV_CLUSTER_OFFSET_Y;
+// NAV_FADE_HEIGHT controls only the gradient thickness above the nav.
+// It does not change nav height.
+const NAV_FADE_HEIGHT = 20;
+
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
-function AppHeader() {
+function AppHeader({ onFamilyPress }) {
   const { colors, bottle } = useTheme();
   return (
     <View style={[headerStyles.container, { backgroundColor: colors.appBg }]}>
@@ -55,13 +70,16 @@ function AppHeader() {
           <BrandLogo size={26.4} color={colors.brandIcon} />
         </View>
 
-        {/* RIGHT: Share + Home (web lines 4102-4147) */}
+        {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
         {/* Web: hover:bg-[var(--tt-seg-track)] — native uses segTrack on press */}
         <View style={headerStyles.rightButtons}>
           <Pressable style={({ pressed }) => [headerStyles.iconButton, pressed && { backgroundColor: colors.segTrack }]}>
             <ShareIcon size={24} color={colors.textPrimary} />
           </Pressable>
-          <Pressable style={({ pressed }) => [headerStyles.iconButton, pressed && { backgroundColor: colors.segTrack }]}>
+          <Pressable
+            onPress={onFamilyPress}
+            style={({ pressed }) => [headerStyles.iconButton, pressed && { backgroundColor: colors.segTrack }]}
+          >
             <HomeIcon size={24} color={colors.textPrimary} />
           </Pressable>
         </View>
@@ -128,77 +146,8 @@ const headerStyles = StyleSheet.create({
   },
 });
 
-// ── Bottom Nav (web: script.js 4392-4466 when using FloatingTrackerMenu) ──
-// Web: Track | spacer | Trends. Plus floats separately via FloatingTrackerMenu (not in nav row)
-function BottomNav({ activeTab, onTabChange }) {
-  const { colors } = useTheme();
-  const tabColor = colors.textPrimary;
-
-  return (
-    <View style={[navStyles.container, { backgroundColor: colors.appBg }]}>
-      <View style={navStyles.inner}>
-        {/* Track tab */}
-        <Pressable style={navStyles.tab} onPress={() => onTabChange('tracker')}>
-          {activeTab === 'tracker'
-            ? <TodayIconFill size={24} color={tabColor} />
-            : <TodayIcon size={24} color={tabColor} />
-          }
-          <Text style={[navStyles.tabLabel, { color: tabColor }]}>Track</Text>
-        </Pressable>
-
-        {/* Plus spacer — web: flex-1, plus floats above via FloatingTrackerMenu */}
-        <View style={navStyles.tabSpacer} />
-
-        {/* Trends tab */}
-        <Pressable style={navStyles.tab} onPress={() => onTabChange('trends')}>
-          {activeTab === 'trends'
-            ? <TrendsIconFill size={24} color={tabColor} />
-            : <TrendsIcon size={24} color={tabColor} />
-          }
-          <Text style={[navStyles.tabLabel, { color: tabColor }]}>Trends</Text>
-        </Pressable>
-      </View>
-    </View>
-  );
-}
-
-const navStyles = StyleSheet.create({
-  // Web: minHeight 80px, paddingTop 10px, paddingBottom env(safe-area)
-  container: {
-    minHeight: 80,
-    paddingTop: 10,
-    overflow: 'visible',
-  },
-  // Web: flex items-center justify-between px-4 py-3 — Track | Plus | Trends in one row
-  inner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16, // px-4
-    paddingVertical: 12,   // py-3
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    gap: 4,
-    transform: [{ translateY: -15 }],
-  },
-  tabSpacer: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    transform: [{ translateY: -15 }],
-  },
-  tabLabel: {
-    fontSize: 12,
-    fontWeight: '300',
-  },
-});
-
 // ── App shell (uses theme for all colors) ──
-function AppShell({ activeTab, onTabChange }) {
+function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onDarkModeChange }) {
   const { colors } = useTheme();
   const appBg = colors.appBg;
 
@@ -211,6 +160,8 @@ function AppShell({ activeTab, onTabChange }) {
   const [editEntry, setEditEntry] = useState(null);
   const timelineRefreshRef = useRef(null);
   const [detailFilter, setDetailFilter] = useState(null);
+  const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
+  const [analyticsResetSignal, setAnalyticsResetSignal] = useState(0);
 
   const handleCardTap = useCallback((filterType) => {
     setDetailFilter(filterType);
@@ -291,10 +242,24 @@ function AppShell({ activeTab, onTabChange }) {
     setTimeout(() => timelineRefreshRef.current?.(), 0);
   }, []);
 
+  const handleTabChange = useCallback((nextTab) => {
+    if (nextTab === activeTab && nextTab === 'trends') {
+      setAnalyticsResetSignal((s) => s + 1);
+      setAnalyticsDetailOpen(false);
+      return;
+    }
+    if (nextTab !== activeTab) {
+      onTabChange(nextTab);
+      if (nextTab !== 'trends') {
+        setAnalyticsDetailOpen(false);
+      }
+    }
+  }, [activeTab, onTabChange]);
+
   return (
     <>
       <SafeAreaView style={[appStyles.safe, { backgroundColor: appBg }]} edges={['top', 'left', 'right']}>
-        {detailFilter == null ? <AppHeader /> : null}
+        {detailFilter == null && !(activeTab === 'trends' && analyticsDetailOpen) ? <AppHeader onFamilyPress={() => handleTabChange('family')} /> : null}
         <View style={appStyles.content}>
           {detailFilter != null ? (
             <DetailScreen
@@ -316,7 +281,20 @@ function AppShell({ activeTab, onTabChange }) {
                   timelineRefreshRef={timelineRefreshRef}
                 />
               )}
-              {activeTab === 'trends' && <AnalyticsScreen />}
+              {activeTab === 'trends' && (
+                <AnalyticsScreen
+                  onDetailOpenChange={setAnalyticsDetailOpen}
+                  resetSignal={analyticsResetSignal}
+                />
+              )}
+              {activeTab === 'family' && (
+                <FamilyScreen
+                  themeKey={themeKey}
+                  onThemeChange={onThemeChange}
+                  isDark={isDark}
+                  onDarkModeChange={onDarkModeChange}
+                />
+              )}
             </>
           )}
 
@@ -332,11 +310,17 @@ function AppShell({ activeTab, onTabChange }) {
         </View>
       </SafeAreaView>
 
-      <SafeAreaView edges={['bottom']} style={[appStyles.bottomSafe, { backgroundColor: appBg }]}>
-        <BottomNav activeTab={activeTab} onTabChange={onTabChange} />
-      </SafeAreaView>
-
-      <FloatingTrackerMenu onSelect={handleTrackerSelect} lastFeedVariant={lastFeedVariant} />
+      <BottomNavigationShell
+        appBg={appBg}
+        activeTab={activeTab}
+        onTabChange={handleTabChange}
+        onTrackerSelect={handleTrackerSelect}
+        lastFeedVariant={lastFeedVariant}
+        navMinHeight={NAV_MIN_HEIGHT}
+        navTopPadding={NAV_TOP_PADDING}
+        tabShiftY={NAV_TAB_SHIFT_Y}
+        plusBottomOffset={NAV_PLUS_BOTTOM_OFFSET}
+      />
 
       <DiaperSheet
         sheetRef={diaperRef}
@@ -362,16 +346,41 @@ function AppShell({ activeTab, onTabChange }) {
 // ── App Root ──
 export default function App() {
   const [activeTab, setActiveTab] = useState('tracker');
+  const [themeKey, setThemeKey] = useState('theme1');
+  const [isDark, setIsDark] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      AsyncStorage.getItem('tt_theme_key'),
+      AsyncStorage.getItem('tt_dark_mode'),
+    ]).then(([storedTheme, storedDark]) => {
+      if (storedTheme) setThemeKey(storedTheme);
+      if (storedDark !== null) setIsDark(storedDark === 'true');
+    }).catch(() => {});
+  }, []);
+
+  const handleThemeChange = useCallback((nextKey) => {
+    setThemeKey(nextKey);
+    AsyncStorage.setItem('tt_theme_key', nextKey).catch(() => {});
+  }, []);
+
+  const handleDarkModeChange = useCallback((nextIsDark) => {
+    setIsDark(nextIsDark);
+    AsyncStorage.setItem('tt_dark_mode', String(nextIsDark)).catch(() => {});
+  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider themeKey="theme1" isDark={false}>
-        <SafeAreaProvider>
+      <ThemeProvider themeKey={themeKey} isDark={isDark}>
+        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
           <BottomSheetModalProvider>
             <AppShell
               activeTab={activeTab}
               onTabChange={setActiveTab}
-              onPlusPress={() => {}}
+              themeKey={themeKey}
+              isDark={isDark}
+              onThemeChange={handleThemeChange}
+              onDarkModeChange={handleDarkModeChange}
             />
           </BottomSheetModalProvider>
         </SafeAreaProvider>
@@ -387,16 +396,12 @@ const appStyles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  // Web: 100px total but overlaps nav; effective visible fade ~70px over content
+  // Visual fade above the nav; thickness is controlled by NAV_FADE_HEIGHT.
   fadeGradient: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 70,
-  },
-  bottomSafe: {
-    overflow: 'visible',
-    zIndex: 50,
+    height: NAV_FADE_HEIGHT,
   },
 });

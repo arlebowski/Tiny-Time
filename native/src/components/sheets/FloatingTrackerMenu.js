@@ -103,12 +103,13 @@ export default function FloatingTrackerMenu({
   onSelect,
   visibleTypes = { feeding: true, sleep: true, diaper: true },
   lastFeedVariant = 'bottle',
+  bottomOffset = 36,
 }) {
   const insets = useSafeAreaInsets();
   const { colors, shadows, bottle, nursing, sleep, diaper } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
-  const positionBottom = insets.bottom + 36;
+  const positionBottom = insets.bottom + bottomOffset;
 
   const handleToggle = useCallback(() => setIsOpen((p) => !p), []);
   const handleClose = useCallback(() => setIsOpen(false), []);
