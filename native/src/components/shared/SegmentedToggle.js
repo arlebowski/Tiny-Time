@@ -55,6 +55,7 @@ export default function SegmentedToggle({
   const containerRef = useRef(null);
   const optionLayouts = useRef({});
   const [pillRect, setPillRect] = useState(null);
+  const pillInitialized = useRef(false);
 
   const pillX = useSharedValue(0);
   const pillWidth = useSharedValue(0);
@@ -71,27 +72,38 @@ export default function SegmentedToggle({
   const activeTextColor = variant === 'header' ? colors.segmentedOnText : colors.textPrimary;
   const inactiveTextColor = variant === 'header' ? colors.segmentedOffText : colors.textSecondary;
 
+  // Set pill position — immediate on first layout, spring on subsequent
+  const setPillPosition = useCallback((layout, animate) => {
+    setPillRect(layout);
+    if (animate) {
+      pillX.value = withSpring(layout.x, SPRING_CONFIG);
+      pillY.value = withSpring(layout.y, SPRING_CONFIG);
+      pillWidth.value = withSpring(layout.width, SPRING_CONFIG);
+      pillHeight.value = withSpring(layout.height, SPRING_CONFIG);
+    } else {
+      pillX.value = layout.x;
+      pillY.value = layout.y;
+      pillWidth.value = layout.width;
+      pillHeight.value = layout.height;
+    }
+  }, [pillX, pillY, pillWidth, pillHeight]);
+
   const updatePillRect = useCallback(() => {
     const layout = optionLayouts.current[value];
     if (!layout) return;
-    setPillRect(layout);
-    pillX.value = withSpring(layout.x, SPRING_CONFIG);
-    pillY.value = withSpring(layout.y, SPRING_CONFIG);
-    pillWidth.value = withSpring(layout.width, SPRING_CONFIG);
-    pillHeight.value = withSpring(layout.height, SPRING_CONFIG);
-  }, [value, pillX, pillY, pillWidth, pillHeight]);
+    setPillPosition(layout, pillInitialized.current);
+    pillInitialized.current = true;
+  }, [value, setPillPosition]);
 
   const handleOptionLayout = useCallback((optValue, event) => {
     const { x, y, width, height } = event.nativeEvent.layout;
     optionLayouts.current[optValue] = { x, y, width, height };
     if (optValue === value) {
-      setPillRect({ x, y, width, height });
-      pillX.value = withSpring(x, SPRING_CONFIG);
-      pillY.value = withSpring(y, SPRING_CONFIG);
-      pillWidth.value = withSpring(width, SPRING_CONFIG);
-      pillHeight.value = withSpring(height, SPRING_CONFIG);
+      const shouldAnimate = pillInitialized.current;
+      setPillPosition({ x, y, width, height }, shouldAnimate);
+      pillInitialized.current = true;
     }
-  }, [value, pillX, pillY, pillWidth, pillHeight]);
+  }, [value, setPillPosition]);
 
   useLayoutEffect(() => {
     updatePillRect();

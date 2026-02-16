@@ -5,7 +5,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const TTCard = window.TT?.shared?.TTCard || window.TTCard;
   const HorizontalCalendar = window.TT?.shared?.HorizontalCalendarCompact || window.TT?.shared?.HorizontalCalendar;
   const ChevronLeftIcon = window.TT?.shared?.icons?.ChevronLeftIcon || null;
-  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, nursingMs: 0, sleepMs: 0, diaperCount: 0, diaperWetCount: 0, diaperPooCount: 0, feedPct: 0, sleepPct: 0 });
+  const [selectedSummary, setSelectedSummary] = React.useState({ feedOz: 0, nursingMs: 0, solidsCount: 0, sleepMs: 0, diaperCount: 0, diaperWetCount: 0, diaperPooCount: 0, feedPct: 0, sleepPct: 0 });
   const [selectedSummaryKey, setSelectedSummaryKey] = React.useState('initial');
   const [selectedDate, setSelectedDate] = React.useState(new Date());
   const [loggedTimelineItems, setLoggedTimelineItems] = React.useState([]);
@@ -520,6 +520,9 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const nursingIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.NursingIcon) ||
     null;
+  const solidsIcon =
+    (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.SolidsIcon) ||
+    null;
   const moonIcon =
     (window.TT && window.TT.shared && window.TT.shared.icons && (window.TT.shared.icons.MoonV2 || window.TT.shared.icons["moon-v2"])) ||
     null;
@@ -533,12 +536,12 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     (window.TT && window.TT.shared && window.TT.shared.icons && window.TT.shared.icons.DiaperPooIcon) ||
     null;
 
-  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null, subline = null }) => {
+  const renderSummaryCard = ({ icon, color, value, unit, rotateIcon, progressPercent = 0, progressKey = 'default', comparison = null, subline = null, compactMode = false }) => {
     const Card = TTCard || 'div';
     const cardProps = TTCard
       ? {
           variant: "tracker",
-          className: `min-h-[56px] h-full ${summaryLayoutMode === 'all' ? 'p-[10px]' : 'p-[14px]'}`,
+          className: `min-h-[56px] h-full ${compactMode ? 'p-[10px]' : 'p-[14px]'}`,
           style: { backgroundColor: "var(--tt-card-bg)", borderColor: "var(--tt-card-border)" }
         }
       : {
@@ -546,7 +549,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
           style: { backgroundColor: "var(--tt-tracker-card-bg)", borderColor: "var(--tt-card-border)" }
         };
 
-    const isAllSummary = summaryLayoutMode === 'all';
+    const isAllSummary = compactMode;
     const iconSize = isAllSummary ? '22px' : '1.5rem';
     const valueClassAnimated = isAllSummary ? "text-[22px]" : "text-[25px]";
     const unitClassAnimated = isAllSummary ? "text-[15px]" : "text-[17.5px]";
@@ -674,8 +677,10 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
 
   const feedDisplay = formatV2NumberSafe(selectedSummary.feedOz);
   const nursingHours = Number(selectedSummary.nursingMs || 0) / 3600000;
+  const solidsCount = Number(selectedSummary.solidsCount || 0);
   const sleepHours = Number(selectedSummary.sleepMs || 0) / 3600000;
   const nursingDisplay = formatV2NumberSafe(nursingHours);
+  const solidsDisplay = formatV2NumberSafe(solidsCount);
   const sleepDisplay = formatV2NumberSafe(sleepHours);
   const diaperDisplay = formatV2NumberSafe(Number(selectedSummary.diaperCount || 0));
   const diaperUnit = summaryLayoutMode === 'all' ? '' : 'changes';
@@ -739,6 +744,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   };
   const activityVisibilitySafe = _normalizeActivityVisibility(activityVisibility);
   const hasNursingSummary = activityVisibilitySafe.nursing;
+  const hasSolidsSummary = solidsCount > 0;
 
   const isViewingToday = React.useMemo(() => {
     const today = new Date();
@@ -1154,10 +1160,14 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
         const feedInitialX = -8;
         const sleepInitialX = isFirst ? -8 : 8;
         const nursingInitialX = isFirst ? 8 : 8;
-        const summaryGridCols = summaryLayoutMode === 'all'
+        const feedSummaryCount = 1 + (hasNursingSummary ? 1 : 0) + (hasSolidsSummary ? 1 : 0);
+        const useCompactSummaryCards = summaryLayoutMode === 'all' || (summaryLayoutMode === 'feed' && feedSummaryCount >= 3);
+        const summaryGridCols = useCompactSummaryCards
           ? ''
-          : (summaryLayoutMode === 'feed' && hasNursingSummary ? 'grid-cols-2' : 'grid-cols-1');
-        const isAllMode = summaryLayoutMode === 'all';
+          : (summaryLayoutMode === 'feed'
+            ? (feedSummaryCount >= 3 ? 'grid-cols-3' : (feedSummaryCount === 2 ? 'grid-cols-2' : 'grid-cols-1'))
+            : 'grid-cols-1');
+        const isAllMode = useCompactSummaryCards;
         const allModeCardStyle = { flex: '0 0 auto', width: 'calc((100vw - 48px) / 3)' };
 
         return React.createElement(
@@ -1182,7 +1192,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
               rotateIcon: true,
               progressPercent: feedPercent,
               progressKey: `feed-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-              comparison: feedComparison
+              comparison: feedComparison,
+              compactMode: useCompactSummaryCards
             })
           ),
           summaryLayoutMode !== 'sleep' && summaryLayoutMode !== 'diaper' && hasNursingSummary && React.createElement(
@@ -1199,7 +1210,26 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
               rotateIcon: false,
               progressPercent: 0,
               progressKey: `nursing-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-              comparison: nursingComparison
+              comparison: nursingComparison,
+              compactMode: useCompactSummaryCards
+            })
+          ),
+          summaryLayoutMode === 'feed' && hasSolidsSummary && React.createElement(
+            'div',
+            {
+              key: `summary-solids-${summaryCardsEpoch}`,
+              style: isAllMode ? allModeCardStyle : undefined
+            },
+            renderSummaryCard({
+              icon: solidsIcon,
+              color: 'var(--tt-solids)',
+              value: solidsDisplay,
+              unit: 'foods',
+              rotateIcon: false,
+              progressPercent: 0,
+              progressKey: `solids-${summaryAnimationEpoch}-${selectedSummaryKey}`,
+              comparison: null,
+              compactMode: useCompactSummaryCards
             })
           ),
           summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'diaper' && React.createElement(
@@ -1216,7 +1246,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
               rotateIcon: false,
               progressPercent: sleepPercent,
               progressKey: `sleep-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-              comparison: sleepComparison
+              comparison: sleepComparison,
+              compactMode: useCompactSummaryCards
             })
           ),
           summaryLayoutMode !== 'feed' && summaryLayoutMode !== 'sleep' && React.createElement(
@@ -1234,7 +1265,8 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
               progressPercent: diaperPercent,
               progressKey: `diaper-${summaryAnimationEpoch}-${selectedSummaryKey}`,
               comparison: diaperComparison,
-              subline: diaperSubline
+              subline: diaperSubline,
+              compactMode: useCompactSummaryCards
             })
           )
         );

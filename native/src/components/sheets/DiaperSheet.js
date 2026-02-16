@@ -197,12 +197,13 @@ export default function DiaperSheet({
     <>
       <HalfSheet
         sheetRef={sheetRef}
-        snapPoints={[606]}
+        snapPoints={['85%', '90%']}
+        enableDynamicSizing={true}
         title="Diaper"
         accentColor={diaper.primary}
         onClose={handleClose}
         footer={footer}
-        contentPaddingTop={40}
+        contentPaddingTop={16}
       >
         <TTInputRow
           label="Time"
@@ -276,8 +277,7 @@ const styles = StyleSheet.create({
   typePicker: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 8,
-    marginBottom: 16,
+marginBottom: 16,
   },
   typeButton: {
     flex: 1,
@@ -305,8 +305,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   photoRow: {
-    marginTop: 8,
-  },
+},
   photoLabel: {
     fontSize: 12,
     marginBottom: 4,

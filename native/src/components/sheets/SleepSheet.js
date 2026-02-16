@@ -282,12 +282,13 @@ export default function SleepSheet({
     <>
       <HalfSheet
         sheetRef={sheetRef}
-        snapPoints={[606]}
+        snapPoints={['85%', '90%']}
+        enableDynamicSizing={true}
         title="Sleep"
         accentColor={sleep.primary}
         onClose={handleClose}
         footer={footer}
-        contentPaddingTop={40}
+        contentPaddingTop={16}
       >
         <View style={styles.durationBlock}>
           <Text style={[styles.durationText, { color: colors.textPrimary }]}>
@@ -385,7 +386,7 @@ export default function SleepSheet({
 const styles = StyleSheet.create({
   durationBlock: {
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
   },
   durationText: {
     fontSize: 40,

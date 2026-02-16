@@ -15,6 +15,7 @@ import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import DiaperSheet from './src/components/sheets/DiaperSheet';
 import SleepSheet from './src/components/sheets/SleepSheet';
 import FeedSheet from './src/components/sheets/FeedSheet';
+import DetailScreen from './src/screens/DetailScreen';
 import FloatingTrackerMenu from './src/components/sheets/FloatingTrackerMenu';
 
 // Icons (1:1 from web/components/shared/icons.js)
@@ -207,6 +208,17 @@ function AppShell({ activeTab, onTabChange }) {
 
   const feedTypeRef = useRef('bottle');
   const [lastFeedVariant, setLastFeedVariant] = useState('bottle');
+  const [editEntry, setEditEntry] = useState(null);
+  const timelineRefreshRef = useRef(null);
+  const [detailFilter, setDetailFilter] = useState(null);
+
+  const handleCardTap = useCallback((filterType) => {
+    setDetailFilter(filterType);
+  }, []);
+
+  const handleDetailBack = useCallback(() => {
+    setDetailFilter(null);
+  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
@@ -230,13 +242,83 @@ function AppShell({ activeTab, onTabChange }) {
     }
   }, []);
 
+  const handleEditCard = useCallback((card) => {
+    if (!card) return;
+    const entry = { ...card };
+    entry.notes = card.note ?? card.notes ?? '';
+    entry.photoURLs = card.photoURLs ?? [];
+    if (card.type === 'feed') {
+      if (card.feedType === 'bottle') {
+        entry.ounces = card.amount ?? card.ounces;
+      } else if (card.feedType === 'nursing') {
+        entry.timestamp = card.timestamp ?? card.startTime;
+      }
+      feedTypeRef.current = card.feedType || 'bottle';
+    } else if (card.type === 'sleep') {
+      entry.startTime = card.startTime;
+      entry.endTime = card.endTime;
+    } else if (card.type === 'diaper') {
+      entry.timestamp = card.timestamp;
+      entry.isWet = !!card.isWet;
+      entry.isPoo = !!card.isPoo;
+      entry.isDry = !card.isWet && !card.isPoo;
+    }
+    setEditEntry(entry);
+    if (card.type === 'feed') {
+      feedRef.current?.present?.();
+    } else if (card.type === 'sleep') {
+      sleepRef.current?.present?.();
+    } else if (card.type === 'diaper') {
+      diaperRef.current?.present?.();
+    }
+  }, []);
+
+  const handleCloseFeed = useCallback(() => {
+    setEditEntry(null);
+    feedRef.current?.dismiss?.();
+    setTimeout(() => timelineRefreshRef.current?.(), 0);
+  }, []);
+
+  const handleCloseSleep = useCallback(() => {
+    setEditEntry(null);
+    sleepRef.current?.dismiss?.();
+    setTimeout(() => timelineRefreshRef.current?.(), 0);
+  }, []);
+
+  const handleCloseDiaper = useCallback(() => {
+    setEditEntry(null);
+    diaperRef.current?.dismiss?.();
+    setTimeout(() => timelineRefreshRef.current?.(), 0);
+  }, []);
+
   return (
     <>
       <SafeAreaView style={[appStyles.safe, { backgroundColor: appBg }]} edges={['top', 'left', 'right']}>
-        <AppHeader />
+        {detailFilter == null ? <AppHeader /> : null}
         <View style={appStyles.content}>
-          {activeTab === 'tracker' && <TrackerScreen onOpenSheet={handleTrackerSelect} />}
-          {activeTab === 'trends' && <AnalyticsScreen />}
+          {detailFilter != null ? (
+            <DetailScreen
+              initialFilter={detailFilter}
+              onBack={handleDetailBack}
+              onOpenSheet={handleTrackerSelect}
+              onEditCard={handleEditCard}
+              onDeleteCard={null}
+              timelineRefreshRef={timelineRefreshRef}
+            />
+          ) : (
+            <>
+              {activeTab === 'tracker' && (
+                <TrackerScreen
+                  onOpenSheet={handleTrackerSelect}
+                  onCardTap={handleCardTap}
+                  onEditCard={handleEditCard}
+                  onDeleteCard={null}
+                  timelineRefreshRef={timelineRefreshRef}
+                />
+              )}
+              {activeTab === 'trends' && <AnalyticsScreen />}
+            </>
+          )}
 
           {/* Gradient fade above nav (web script.js:4352-4366) */}
           <LinearGradient
@@ -256,9 +338,23 @@ function AppShell({ activeTab, onTabChange }) {
 
       <FloatingTrackerMenu onSelect={handleTrackerSelect} lastFeedVariant={lastFeedVariant} />
 
-      <DiaperSheet sheetRef={diaperRef} onClose={() => diaperRef.current?.dismiss?.()} />
-      <SleepSheet sheetRef={sleepRef} onClose={() => sleepRef.current?.dismiss?.()} />
-      <FeedSheet sheetRef={feedRef} feedTypeRef={feedTypeRef} onAdd={handleFeedAdded} onClose={() => feedRef.current?.dismiss?.()} />
+      <DiaperSheet
+        sheetRef={diaperRef}
+        entry={editEntry?.type === 'diaper' ? editEntry : null}
+        onClose={handleCloseDiaper}
+      />
+      <SleepSheet
+        sheetRef={sleepRef}
+        entry={editEntry?.type === 'sleep' ? editEntry : null}
+        onClose={handleCloseSleep}
+      />
+      <FeedSheet
+        sheetRef={feedRef}
+        feedTypeRef={feedTypeRef}
+        entry={editEntry?.type === 'feed' ? editEntry : null}
+        onAdd={handleFeedAdded}
+        onClose={handleCloseFeed}
+      />
     </>
   );
 }
