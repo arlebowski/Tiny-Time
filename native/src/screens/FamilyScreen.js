@@ -33,7 +33,6 @@ import TTInputRow from '../components/shared/TTInputRow';
 import HalfSheet from '../components/sheets/HalfSheet';
 import SheetInputRow from '../components/sheets/InputRow';
 import TTPhotoRow from '../components/shared/TTPhotoRow';
-import UILabScreen from './UILabScreen';
 import {
   EditIcon,
   BabyIcon,
@@ -171,7 +170,6 @@ export default function FamilyScreen({
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
   const [newChildPhotoUris, setNewChildPhotoUris] = useState([]);
   const [savingChild, setSavingChild] = useState(false);
-  const [showUILab, setShowUILab] = useState(false);
 
   // Theme
   const defaultThemeKey = THEME_TOKENS.DEFAULT_THEME_KEY || 'theme1';
@@ -433,10 +431,6 @@ export default function FamilyScreen({
 
   // ── Mock user ──
   const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
-
-  if (showUILab) {
-    return <UILabScreen onClose={() => setShowUILab(false)} />;
-  }
 
   // ── Loading ──
   if (loading) {
@@ -928,23 +922,6 @@ export default function FamilyScreen({
         </View>
       </Card>
 
-      {/* ── 6. Internal Card ── */}
-      <Card style={s.cardGap}>
-        <CardHeader title="Internal" />
-        <Pressable
-          onPress={() => setShowUILab(true)}
-          style={({ pressed }) => [
-            s.internalBtn,
-            { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface },
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Text style={[s.internalBtnText, { color: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
-            UI Lab
-          </Text>
-        </Pressable>
-      </Card>
-
       {/* Bottom spacing */}
       <View style={{ height: 40 }} />
 
@@ -1367,19 +1344,6 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   accountBtnText: {
-    fontSize: 16,
-    fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
-  },
-
-  // ── Internal ──
-  internalBtn: {
-    paddingVertical: 12,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  internalBtnText: {
     fontSize: 16,
     fontWeight: '600',
     ...Platform.select({ ios: { fontFamily: 'System' } }),

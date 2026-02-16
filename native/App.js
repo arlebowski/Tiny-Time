@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -46,7 +46,7 @@ import {
 
 // Bottom nav tuning:
 // NAV_MIN_HEIGHT makes the entire bottom nav bar taller or shorter.
-const NAV_MIN_HEIGHT = 50;
+const NAV_MIN_HEIGHT = 40;
 // NAV_TOP_PADDING adds/removes empty space at the top inside the nav bar.
 const NAV_TOP_PADDING = 4;
 // NAV_ROW_VERTICAL_PADDING controls vertical padding around the whole tab row.
@@ -58,7 +58,7 @@ const NAV_ITEM_VERTICAL_PADDING = 8;
 const NAV_BOTTOM_INSET_PADDING = null;
 // NAV_CLUSTER_OFFSET_Y moves Track, Plus, and Trends together:
 // positive = lower on screen, negative = higher on screen.
-const NAV_CLUSTER_OFFSET_Y = 10;
+const NAV_CLUSTER_OFFSET_Y = 12;
 // Base vertical positions for tabs and plus. Usually keep these fixed.
 const BASE_TAB_SHIFT_Y = -4;
 const BASE_PLUS_BOTTOM_OFFSET = 24;
@@ -67,7 +67,7 @@ const NAV_TAB_SHIFT_Y = BASE_TAB_SHIFT_Y + NAV_CLUSTER_OFFSET_Y;
 const NAV_PLUS_BOTTOM_OFFSET = BASE_PLUS_BOTTOM_OFFSET - NAV_CLUSTER_OFFSET_Y;
 // NAV_FADE_HEIGHT controls only the gradient thickness above the nav.
 // It does not change nav height.
-const NAV_FADE_HEIGHT = 20;
+const NAV_FADE_HEIGHT = 40;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
 
 const createLocalInviteCode = (familyId, kidId) => {
@@ -877,7 +877,8 @@ function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
 // ── App Root ──
 export default function App() {
   const [themeKey, setThemeKey] = useState('theme1');
-  const [isDark, setIsDark] = useState(false);
+  const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');
+  const [appearanceHydrated, setAppearanceHydrated] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -886,7 +887,11 @@ export default function App() {
     ]).then(([storedTheme, storedDark]) => {
       if (storedTheme) setThemeKey(storedTheme);
       if (storedDark !== null) setIsDark(storedDark === 'true');
-    }).catch(() => {});
+    }).catch(() => {
+      // Keep fallback defaults if storage is unavailable.
+    }).finally(() => {
+      setAppearanceHydrated(true);
+    });
   }, []);
 
   const handleThemeChange = useCallback((nextKey) => {
@@ -898,6 +903,13 @@ export default function App() {
     setIsDark(nextIsDark);
     AsyncStorage.setItem('tt_dark_mode', String(nextIsDark)).catch(() => {});
   }, []);
+
+  // Prevent first-frame light flash by waiting for persisted appearance.
+  if (!appearanceHydrated) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }} />
+    );
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
