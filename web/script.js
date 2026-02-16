@@ -380,10 +380,8 @@ window.TT.appearance = (() => {
 // APPLY APPEARANCE TO DOM (Step 2)
 // ========================================
 
-// Helper: Validate hex color format (#RRGGBB)
-const isValidHex = (hex) => {
-  return typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex);
-};
+// Use shared validation (from shared-utils.js → window.TT.utils)
+const isValidHex = (hex) => (window.TT && window.TT.utils && window.TT.utils.isValidHex) ? window.TT.utils.isValidHex(hex) : (typeof hex === 'string' && /^#[0-9A-Fa-f]{6}$/.test(hex));
 
 // Helper: Derive softer/soft/strong accent variants from base color
 const deriveAccentVariants = (hex, isDark) => {
@@ -1044,23 +1042,23 @@ const firestoreStorage = {
   },
 
   _sortFeedingsAsc(list) {
-    return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    return (window.TT && window.TT.utils && window.TT.utils.sortFeedingsAsc) ? window.TT.utils.sortFeedingsAsc(list) : [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   },
 
   _sortNursingAsc(list) {
-    return [...(list || [])].sort((a, b) => (a.timestamp || a.startTime || 0) - (b.timestamp || b.startTime || 0));
+    return (window.TT && window.TT.utils && window.TT.utils.sortNursingAsc) ? window.TT.utils.sortNursingAsc(list) : [...(list || [])].sort((a, b) => (a.timestamp || a.startTime || 0) - (b.timestamp || b.startTime || 0));
   },
 
   _sortSleepAsc(list) {
-    return [...(list || [])].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
+    return (window.TT && window.TT.utils && window.TT.utils.sortSleepAsc) ? window.TT.utils.sortSleepAsc(list) : [...(list || [])].sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
   },
 
   _sortDiaperAsc(list) {
-    return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    return (window.TT && window.TT.utils && window.TT.utils.sortDiaperAsc) ? window.TT.utils.sortDiaperAsc(list) : [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   },
 
   _sortSolidsAsc(list) {
-    return [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+    return (window.TT && window.TT.utils && window.TT.utils.sortSolidsAsc) ? window.TT.utils.sortSolidsAsc(list) : [...(list || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
   },
 
   async _initCache() {
@@ -5129,10 +5127,7 @@ const buildAIContext = async (kidId, question) => {
     recentSleepSessions = await firestoreStorage.getSleepSessionsLastNDays(7);
     // Use current sleep day window for AI labeling/aggregation (read-time truth)
     const ss = await firestoreStorage.getSleepSettings();
-    const { start, end } = _normalizeSleepWindowMins(
-      ss?.sleepDayStart ?? ss?.daySleepStartMinutes,
-      ss?.sleepDayEnd ?? ss?.daySleepEndMinutes
-    );
+    const { start, end } = (window.TT && window.TT.utils && window.TT.utils.normalizeSleepWindowMins) ? window.TT.utils.normalizeSleepWindowMins(ss?.sleepDayStart ?? ss?.daySleepStartMinutes, ss?.sleepDayEnd ?? ss?.daySleepEndMinutes) : _normalizeSleepWindowMins(ss?.sleepDayStart ?? ss?.daySleepStartMinutes, ss?.daySleepEnd ?? ss?.daySleepEndMinutes);
     sleepDayStartMins = start;
     sleepDayEndMins = end;
   } catch (e) {
@@ -5140,15 +5135,16 @@ const buildAIContext = async (kidId, question) => {
   }
   const conversation = await firestoreStorage.getConversation();
 
-  const ageInMonths = calculateAgeInMonths(babyData.birthDate);
+  const ageInMonths = (window.TT && window.TT.utils && window.TT.utils.calculateAgeInMonths) ? window.TT.utils.calculateAgeInMonths(babyData.birthDate) : calculateAgeInMonths(babyData.birthDate);
   const ageInDays = Math.floor(
     (Date.now() - babyData.birthDate) / (1000 * 60 * 60 * 24)
   );
 
-  const advancedStats = analyzeAdvancedFeedingPatterns(allFeedings);
-  const recentLog = formatRecentFeedingLog(recentFeedings);
-  const sleepStats = analyzeSleepSessions(allSleepSessions, sleepDayStartMins, sleepDayEndMins);
-  const recentSleepLog = formatRecentSleepLog(recentSleepSessions, sleepDayStartMins, sleepDayEndMins);
+  const u = (window.TT && window.TT.utils) || {};
+  const advancedStats = u.analyzeAdvancedFeedingPatterns ? u.analyzeAdvancedFeedingPatterns(allFeedings) : analyzeAdvancedFeedingPatterns(allFeedings);
+  const recentLog = u.formatRecentFeedingLog ? u.formatRecentFeedingLog(recentFeedings) : formatRecentFeedingLog(recentFeedings);
+  const sleepStats = u.analyzeSleepSessions ? u.analyzeSleepSessions(allSleepSessions, sleepDayStartMins, sleepDayEndMins) : analyzeSleepSessions(allSleepSessions, sleepDayStartMins, sleepDayEndMins);
+  const recentSleepLog = u.formatRecentSleepLog ? u.formatRecentSleepLog(recentSleepSessions, sleepDayStartMins, sleepDayEndMins) : formatRecentSleepLog(recentSleepSessions, sleepDayStartMins, sleepDayEndMins);
 
   const todayAnchor = new Date().toLocaleString("en-US", {
     weekday: "long",
