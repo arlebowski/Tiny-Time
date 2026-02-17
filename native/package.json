@@ -27,6 +27,7 @@
     "expo-image-picker": "^17.0.10",
     "expo-linear-gradient": "~15.0.8",
     "expo-status-bar": "~3.0.9",
+    "firebase-admin": "^13.6.1",
     "react": "19.1.0",
     "react-native": "0.81.5",
     "react-native-draggable-flatlist": "^4.0.3",
