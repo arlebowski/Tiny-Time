@@ -15,7 +15,10 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tinytracker.mobile",
-      "googleServicesFile": "./GoogleService-Info.plist"
+      "googleServicesFile": "./GoogleService-Info.plist",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -33,6 +36,11 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-google-signin/google-signin"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ff440d0d-f003-4380-87ca-9041cbd5835b"
+      }
+    }
   }
 }
