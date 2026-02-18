@@ -20,7 +20,6 @@ prepare_react_native_project!
 $RNFirebaseAsStaticFramework = true
 
 target 'native' do
-  use_frameworks! :linkage => :static
   use_expo_modules!
 
   config_command = [
