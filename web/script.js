@@ -3945,7 +3945,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
         },
         React.createElement(
           'div',
-          { className: "pt-4 pb-6 px-4 relative" },
+          { className: "pt-3 pb-6 px-4 relative" },
           React.createElement(
             'div',
             { className: "grid grid-cols-2 items-center" },

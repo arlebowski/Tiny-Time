@@ -183,7 +183,7 @@ const headerStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 16,        // pt-4
+    paddingTop: 12,        // typical iOS header spacing below safe area
     paddingBottom: 24,     // pb-6
     paddingHorizontal: 16, // px-4
   },
