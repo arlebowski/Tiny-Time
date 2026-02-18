@@ -3,6 +3,7 @@
  * replacing all mock data sources.
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestoreService from '../services/firestoreService';
 import { useAuth } from './AuthContext';
 import {
@@ -14,6 +15,12 @@ import {
 } from '../../../shared/firebase/transforms';
 
 const DataContext = createContext(null);
+const KID_HEADER_CACHE_PREFIX = 'tt_kid_header_v1';
+
+function kidHeaderCacheKey(familyId, kidId) {
+  if (!familyId || !kidId) return null;
+  return `${KID_HEADER_CACHE_PREFIX}:${familyId}:${kidId}`;
+}
 
 export function DataProvider({ children }) {
   const { familyId, kidId } = useAuth();
@@ -73,11 +80,24 @@ export function DataProvider({ children }) {
 
     let cancelled = false;
 
+    const cacheKey = kidHeaderCacheKey(familyId, kidId);
+
     const init = async () => {
       setDataLoading(true);
       firestoreService.initialize(familyId, kidId);
 
       try {
+        if (cacheKey) {
+          const cachedHeader = await AsyncStorage.getItem(cacheKey);
+          if (!cancelled && cachedHeader) {
+            try {
+              const parsed = JSON.parse(cachedHeader);
+              if (parsed?.kidData) setKidData(parsed.kidData);
+              if (Array.isArray(parsed?.kids)) setKids(parsed.kids);
+            } catch {}
+          }
+        }
+
         await firestoreService._refreshCache({ force: true });
 
         if (cancelled) return;
@@ -102,13 +122,23 @@ export function DataProvider({ children }) {
         setSleepSessions(sleep);
         setDiaperChanges(diapers);
         setKidData(kd);
-        setKids(
+        const nextKids =
           Array.isArray(familyKids) && familyKids.length
             ? familyKids
-            : (kd ? [{ id: kd.id, name: kd.name, photoURL: kd.photoURL || null }] : [])
-        );
+            : (kd ? [{ id: kd.id, name: kd.name, photoURL: kd.photoURL || null }] : []);
+        setKids(nextKids);
         setKidSettings(ks);
         setFamilyMembers(members);
+
+        if (cacheKey) {
+          AsyncStorage.setItem(
+            cacheKey,
+            JSON.stringify({
+              kidData: kd || null,
+              kids: nextKids,
+            })
+          ).catch(() => {});
+        }
       } catch (e) {
         console.warn('Data init failed:', e);
       }

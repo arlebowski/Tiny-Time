@@ -1,7 +1,9 @@
 /**
  * AuthContext — provides auth state + family/kid selection to the entire app.
  */
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { Linking } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isFirebaseAuthAvailable,
   ensureUserProfile,
@@ -15,20 +17,111 @@ import {
 } from '../services/authService';
 
 const AuthContext = createContext(null);
+const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
+
+function getKidSelectionKey(uid, familyId) {
+  if (!uid || !familyId) return null;
+  return `${KID_SELECTION_KEY_PREFIX}:${uid}:${familyId}`;
+}
+
+function extractInviteCodeFromUrl(url) {
+  if (!url || typeof url !== 'string') return null;
+  try {
+    const parsed = new URL(url);
+    const invite = parsed.searchParams.get('invite');
+    return invite ? String(invite).trim().toUpperCase() : null;
+  } catch {
+    const match = url.match(/[?&]invite=([^&]+)/i);
+    if (!match?.[1]) return null;
+    try {
+      return decodeURIComponent(match[1]).trim().toUpperCase();
+    } catch {
+      return match[1].trim().toUpperCase();
+    }
+  }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [familyId, setFamilyId] = useState(null);
-  const [kidId, setKidId] = useState(null);
+  const [kidId, setKidIdState] = useState(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
+  const [pendingInviteCode, setPendingInviteCode] = useState(null);
+  const inviteInFlightRef = useRef(false);
+  const handledInviteCodesRef = useRef(new Set());
+
+  const applyInviteForUser = useCallback(async (inviteCode, userId) => {
+    const code = typeof inviteCode === 'string' ? inviteCode.trim().toUpperCase() : '';
+    if (!code || !userId || !isFirebaseAuthAvailable) return false;
+    if (handledInviteCodesRef.current.has(code)) {
+      setPendingInviteCode(null);
+      return true;
+    }
+    if (inviteInFlightRef.current) return false;
+
+    inviteInFlightRef.current = true;
+    try {
+      const result = await acceptInvite(code, userId);
+      handledInviteCodesRef.current.add(code);
+      setPendingInviteCode(null);
+      if (result?.familyId && result?.kidId) {
+        setFamilyId(result.familyId);
+        setKidIdState(result.kidId);
+        setNeedsSetup(false);
+        const key = getKidSelectionKey(userId, result.familyId);
+        if (key) {
+          AsyncStorage.setItem(key, result.kidId).catch(() => {});
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      setPendingInviteCode(null);
+      throw error;
+    } finally {
+      inviteInFlightRef.current = false;
+    }
+  }, []);
+
+  const setKidId = useCallback((nextKidId) => {
+    const resolvedKidId = typeof nextKidId === 'function' ? nextKidId(kidId) : nextKidId;
+    setKidIdState(resolvedKidId);
+    const key = getKidSelectionKey(user?.uid, familyId);
+    if (key && resolvedKidId) {
+      AsyncStorage.setItem(key, resolvedKidId).catch(() => {});
+    }
+  }, [familyId, kidId, user?.uid]);
+
+  useEffect(() => {
+    let mounted = true;
+    const consumeInitialUrl = async () => {
+      try {
+        const initialUrl = await Linking.getInitialURL();
+        if (!mounted) return;
+        const inviteCode = extractInviteCodeFromUrl(initialUrl);
+        if (inviteCode) setPendingInviteCode(inviteCode);
+      } catch {}
+    };
+
+    consumeInitialUrl();
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      const inviteCode = extractInviteCodeFromUrl(url);
+      if (inviteCode) setPendingInviteCode(inviteCode);
+    });
+
+    return () => {
+      mounted = false;
+      subscription?.remove?.();
+    };
+  }, []);
 
   // Listen for auth state changes
   useEffect(() => {
     if (!isFirebaseAuthAvailable) {
       setUser({ uid: 'local-user', email: 'local@tinytracker.app', displayName: 'Local User' });
       setFamilyId('local-family');
-      setKidId('local-kid');
+      setKidIdState('local-kid');
       setNeedsSetup(false);
       setLoading(false);
       return () => {};
@@ -39,11 +132,18 @@ export function AuthProvider({ children }) {
       if (firebaseUser) {
         setUser(firebaseUser);
         try {
+          const inviteHandled = await applyInviteForUser(pendingInviteCode, firebaseUser.uid);
+          if (inviteHandled) {
+            setLoading(false);
+            return;
+          }
           await ensureUserProfile(firebaseUser);
           const family = await loadUserFamily(firebaseUser.uid);
           if (family) {
             setFamilyId(family.familyId);
-            setKidId(family.kidId);
+            const cachedKidKey = getKidSelectionKey(firebaseUser.uid, family.familyId);
+            const cachedKidId = cachedKidKey ? await AsyncStorage.getItem(cachedKidKey) : null;
+            setKidIdState(cachedKidId || family.kidId);
             setNeedsSetup(false);
           } else {
             // User has no family yet — needs onboarding
@@ -56,14 +156,22 @@ export function AuthProvider({ children }) {
       } else {
         setUser(null);
         setFamilyId(null);
-        setKidId(null);
+        setKidIdState(null);
         setNeedsSetup(false);
       }
       setLoading(false);
     });
 
     return unsubscribe;
-  }, []);
+  }, [applyInviteForUser, pendingInviteCode]);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    if (!pendingInviteCode) return;
+    applyInviteForUser(pendingInviteCode, user.uid).catch((e) => {
+      console.warn('Failed to accept invite from deep link:', e);
+    });
+  }, [user?.uid, pendingInviteCode, applyInviteForUser]);
 
   const handleSignIn = useCallback(async (email, password) => {
     if (!isFirebaseAuthAvailable) return;
@@ -101,15 +209,19 @@ export function AuthProvider({ children }) {
   }, []);
 
   /** Create family + kid for first-time user */
-  const handleCreateFamily = useCallback(async (babyName) => {
+  const handleCreateFamily = useCallback(async (babyName, options = {}) => {
     if (!isFirebaseAuthAvailable) return;
     if (!user) return;
     setLoading(true);
     try {
-      const result = await createFamilyWithKid(user.uid, babyName);
+      const result = await createFamilyWithKid(user.uid, babyName, options);
       setFamilyId(result.familyId);
-      setKidId(result.kidId);
+      setKidIdState(result.kidId);
       setNeedsSetup(false);
+      const key = getKidSelectionKey(user.uid, result.familyId);
+      if (key) {
+        AsyncStorage.setItem(key, result.kidId).catch(() => {});
+      }
     } finally {
       setLoading(false);
     }
@@ -123,8 +235,12 @@ export function AuthProvider({ children }) {
     try {
       const result = await acceptInvite(code, user.uid);
       setFamilyId(result.familyId);
-      setKidId(result.kidId);
+      setKidIdState(result.kidId);
       setNeedsSetup(false);
+      const key = getKidSelectionKey(user.uid, result.familyId);
+      if (key) {
+        AsyncStorage.setItem(key, result.kidId).catch(() => {});
+      }
     } finally {
       setLoading(false);
     }

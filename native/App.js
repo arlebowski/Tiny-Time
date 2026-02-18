@@ -3,7 +3,7 @@ import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndi
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import Popover from 'react-native-popover-view';
@@ -79,12 +79,6 @@ const NAV_FADE_HEIGHT = 50;
 const NAV_FADE_BOTTOM_OFFSET = 0;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
 
-const createLocalInviteCode = (familyId, kidId) => {
-  if (!familyId || !kidId) throw new Error('Missing ids');
-  const random = Math.random().toString(36).slice(2, 10).toUpperCase();
-  return `${kidId.slice(0, 2).toUpperCase()}${random}`;
-};
-
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
@@ -101,9 +95,16 @@ function AppHeader({
   shareButtonRef,
 }) {
   const { colors, bottle } = useTheme();
-  const { kidData } = useData();
-  const kidName = kidData?.name || 'Baby';
-  const kidPhotoURL = kidData?.photoURL || null;
+  const { kidId } = useAuth();
+  const { kidData, kids } = useData();
+  const selectedKid = useMemo(() => {
+    if (Array.isArray(kids) && kids.length && kidId) {
+      return kids.find((kid) => kid?.id === kidId) || kidData || null;
+    }
+    return kidData || null;
+  }, [kids, kidData, kidId]);
+  const kidName = selectedKid?.name || 'Baby';
+  const kidPhotoURL = selectedKid?.photoURL || null;
 
   return (
     <View style={[headerStyles.container, { backgroundColor: colors.appBg }]}>
@@ -128,12 +129,6 @@ function AppHeader({
             style={showKidMenu ? headerStyles.kidChevronOpen : undefined}
           />
         </Pressable>
-
-        {/* MIDDLE: Brand logo (web lines 4008-4026) */}
-        {/* Web: color var(--tt-brand-icon) = #FF4D79 */}
-        <View style={headerStyles.logoContainer}>
-          <BrandLogo size={26.4} color={colors.brandIcon} />
-        </View>
 
         {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
         {/* Web: hover:bg-[var(--tt-seg-track)] — native uses segTrack on press */}
@@ -170,6 +165,10 @@ function AppHeader({
           </Pressable>
         </View>
       </View>
+      {/* Brand logo — rendered separately, centered on screen, aligned with header row (like plus btn) */}
+      <View style={headerStyles.logoOverlay} pointerEvents="box-none">
+        <BrandLogo size={26.4} color={colors.brandIcon} />
+      </View>
     </View>
   );
 }
@@ -177,8 +176,9 @@ function AppHeader({
 const headerStyles = StyleSheet.create({
   container: {
     zIndex: 1200,
+    position: 'relative',
   },
-  // Web: pt-4 pb-6 px-4, grid grid-cols-3 items-center
+  // Web: pt-4 pb-6 px-4, grid grid-cols-2 items-center (logo is separate overlay)
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -216,10 +216,16 @@ const headerStyles = StyleSheet.create({
       ios: { fontFamily: 'System' },
     }),
   },
-  // Web: flex items-center justify-center
-  logoContainer: {
+  // Brand logo overlay — like plus btn: separate layer, screen-centered, same row as header
+  logoOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    transform: [{ translateY: -5 }], // align with content row (padding 16 top vs 24 bottom)
   },
   // Web: flex items-center justify-end gap-0.5
   rightButtons: {
@@ -305,6 +311,12 @@ function AppShell({
   onToggleForceLoginPreview,
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const topInset = useMemo(() => {
+    if (insets.top > 0) return insets.top;
+    if (Platform.OS === 'ios') return Math.max(20, Constants.statusBarHeight || 0);
+    return Math.max(0, Constants.statusBarHeight || 0);
+  }, [insets.top]);
   const appBg = colors.appBg;
   const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
   const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep, updateKidSettings } = useData();
@@ -522,7 +534,7 @@ function AppShell({
 
     let link;
     try {
-      const code = createLocalInviteCode(familyId, resolvedKidId);
+      const code = await firestoreService.createInvite(resolvedKidId);
       link = `${APP_SHARE_BASE_URL}/?invite=${encodeURIComponent(code)}`;
     } catch {
       Alert.alert('Failed to create invite.');
@@ -543,7 +555,7 @@ function AppShell({
     }
 
     Alert.alert('Copy this invite link:', link);
-  }, [familyId, kidId, kids]);
+  }, [familyId, kidId, kids, firestoreService]);
 
   const handleShareAppFromMenu = useCallback(async () => {
     await handleGlobalShareApp();
@@ -618,7 +630,10 @@ function AppShell({
 
   return (
     <>
-      <SafeAreaView style={[appStyles.safe, { backgroundColor: appBg }]} edges={['top', 'left', 'right']}>
+      <SafeAreaView
+        style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
+        edges={['left', 'right']}
+      >
         {detailFilter == null && !(activeTab === 'trends' && analyticsDetailOpen)
           ? (
             <AppHeader
@@ -941,10 +956,12 @@ export default function App() {
   const [forceLoginPreview, setForceLoginPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
   const showDevSetupToggle = __DEV__ && (Constants?.isDevice === false || Constants?.isDevice == null);
+
   const handleToggleForceSetupPreview = useCallback((nextValue) => {
     setForceSetupPreview(nextValue);
     if (nextValue) setForceLoginPreview(false);
   }, []);
+
   const handleToggleForceLoginPreview = useCallback((nextValue) => {
     setForceLoginPreview(nextValue);
     if (nextValue) setForceSetupPreview(false);

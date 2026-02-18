@@ -2,6 +2,8 @@
  * authService — Firebase Auth for React Native
  * Uses @react-native-firebase/auth
  */
+import { uploadKidPhoto } from './storageService';
+
 let auth = null;
 let firestore = null;
 let GoogleSignin = null;
@@ -149,9 +151,18 @@ export async function loadUserFamily(uid) {
 }
 
 /** Create a new family + kid for a first-time user */
-export async function createFamilyWithKid(uid, babyName) {
+export async function createFamilyWithKid(
+  uid,
+  babyName,
+  {
+    birthDate = null,
+    photoUri = null,
+    preferredVolumeUnit = 'oz',
+  } = {}
+) {
   assertFirebase();
   const now = firestore.FieldValue.serverTimestamp();
+  const birthTimestamp = birthDate ? new Date(birthDate).getTime() : null;
 
   // Create family
   const famRef = await firestore().collection('families').add({
@@ -170,11 +181,32 @@ export async function createFamilyWithKid(uid, babyName) {
       name: babyName,
       members: [uid],
       ownerId: uid,
+      birthDate: Number.isFinite(birthTimestamp) ? birthTimestamp : null,
+      photoURL: null,
       createdAt: now,
     });
 
   // Set primary kid
   await famRef.update({ primaryKidId: kidRef.id });
+
+  // Create default kid settings
+  await firestore()
+    .collection('families')
+    .doc(famRef.id)
+    .collection('kids')
+    .doc(kidRef.id)
+    .collection('settings')
+    .doc('default')
+    .set({
+      preferredVolumeUnit: preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
+      createdAt: now,
+    });
+
+  // Upload profile photo (if provided) and attach URL.
+  if (photoUri) {
+    const uploadedPhotoUrl = await uploadKidPhoto(photoUri, famRef.id, kidRef.id);
+    await kidRef.update({ photoURL: uploadedPhotoUrl || null });
+  }
 
   return { familyId: famRef.id, kidId: kidRef.id };
 }
