@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { SettingsIcon } from '../components/icons';
@@ -8,6 +9,7 @@ import NursingCard from '../components/cards/NursingCard';
 import SolidsCard from '../components/cards/SolidsCard';
 import SleepCard from '../components/cards/SleepCard';
 import DiaperCard from '../components/cards/DiaperCard';
+import ActiveSleepCard from '../components/shared/ActiveSleepCard';
 import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
@@ -115,9 +117,18 @@ export default function TrackerScreen({
   ]);
 
   const orderedVisibleCards = useMemo(
-    () => orderSafe.filter((key) => visibilitySafe[key]).map((key) => renderCardByKey[key]).filter(Boolean),
+    () => orderSafe
+      .filter((key) => visibilitySafe[key])
+      .map((key) => ({ key, element: renderCardByKey[key] }))
+      .filter((item) => Boolean(item.element)),
     [orderSafe, visibilitySafe, renderCardByKey]
   );
+  const allowSleepCard = !!visibilitySafe.sleep;
+  const activeSleepForUi = allowSleepCard ? activeSleep : null;
+  const nextUpSleepStart = activeSleepForUi?.startTime || null;
+  const showNextUp = Boolean(allowSleepCard && activeSleepForUi?.startTime);
+  const CARD_BASE_DELAY_MS = 130;
+  const CARD_STAGGER_MS = 75;
 
   return (
     <ScrollView
@@ -126,7 +137,10 @@ export default function TrackerScreen({
     >
       {/* ── Greeting header (web HorizontalCalendar.js v4 header, lines 424-474) ── */}
       {/* Web: header.mb-1, display flex, alignItems flex-end, justifyContent space-between */}
-      <View style={styles.greetingHeader}>
+      <Animated.View
+        style={styles.greetingHeader}
+        entering={FadeInDown.duration(220).delay(0)}
+      >
         <View>
           {/* Web: text-[15.4px] font-normal, color var(--tt-text-secondary) */}
           <Text style={[styles.dateLabel, { color: colors.textSecondary }]}>
@@ -150,10 +164,32 @@ export default function TrackerScreen({
         >
           <SettingsIcon size={26} color={colors.textPrimary} />
         </Pressable>
-      </View>
+      </Animated.View>
+
+      {/* What's Next Card - mirror web behavior: only while sleep is active */}
+      {showNextUp ? (
+        <Animated.View entering={FadeInDown.duration(220).delay(CARD_BASE_DELAY_MS)}>
+          <ActiveSleepCard
+            sleepStartTime={nextUpSleepStart}
+            onWakeUp={() => onOpenSheet?.('sleep')}
+          />
+        </Animated.View>
+      ) : null}
 
       {/* ── Tracker cards ── */}
-      {orderedVisibleCards}
+      {orderedVisibleCards.map((card, index) => {
+        const sequenceIndex = showNextUp ? index + 1 : index;
+        return (
+          <Animated.View
+            key={card.key}
+            entering={FadeInDown
+              .duration(220)
+              .delay(CARD_BASE_DELAY_MS + sequenceIndex * CARD_STAGGER_MS)}
+          >
+            {card.element}
+          </Animated.View>
+        );
+      })}
     </ScrollView>
   );
 }

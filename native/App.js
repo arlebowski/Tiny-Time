@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
+import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import Popover from 'react-native-popover-view';
@@ -46,35 +47,37 @@ import {
 
 // Bottom nav tuning:
 // NAV_MIN_HEIGHT makes the entire bottom nav bar taller or shorter.
-const NAV_MIN_HEIGHT = 40;
+const NAV_MIN_HEIGHT = 0;
+// NAV_BG_HEIGHT controls only the visible nav background block height.
+// Use `null` to size automatically from content, or a number (e.g. 56).
+const NAV_BG_HEIGHT = 56;
 // NAV_TOP_PADDING adds/removes empty space at the top inside the nav bar.
 const NAV_TOP_PADDING = 4;
 // NAV_ROW_VERTICAL_PADDING controls vertical padding around the whole tab row.
-const NAV_ROW_VERTICAL_PADDING = 12;
+const NAV_ROW_VERTICAL_PADDING = 15;
 // NAV_ITEM_VERTICAL_PADDING controls vertical padding inside each tab/spacer cell.
 const NAV_ITEM_VERTICAL_PADDING = 8;
 // NAV_BOTTOM_INSET_PADDING controls extra space below nav for device safe area.
 // Use `null` for automatic device inset, or a number like 0 to force a specific value.
 const NAV_BOTTOM_INSET_PADDING = null;
-// NAV_CLUSTER_OFFSET_Y moves Track, Plus, and Trends together:
-// positive = lower on screen, negative = higher on screen.
-const NAV_CLUSTER_OFFSET_Y = 12;
-// Base vertical positions for tabs and plus. Usually keep these fixed.
-const BASE_TAB_SHIFT_Y = -4;
-const BASE_PLUS_BOTTOM_OFFSET = 24;
+// NAV_BUTTONS_OFFSET_Y is the single knob for button position vs nav bar.
+// positive = move Track/Plus/Trends lower, negative = move them higher.
+const NAV_BUTTONS_OFFSET_Y = -16;
+// Optional fine-tuning only for the center plus button.
+const NAV_PLUS_FINE_TUNE_Y = -32;
+// Base values (usually leave these as-is).
+const NAV_BASE_TAB_SHIFT_Y = -4;
+const NAV_BASE_PLUS_BOTTOM_OFFSET = 24;
 // Final values passed into BottomNavigationShell.
-const NAV_TAB_SHIFT_Y = BASE_TAB_SHIFT_Y + NAV_CLUSTER_OFFSET_Y;
-const NAV_PLUS_BOTTOM_OFFSET = BASE_PLUS_BOTTOM_OFFSET - NAV_CLUSTER_OFFSET_Y;
+const NAV_TAB_SHIFT_Y = NAV_BASE_TAB_SHIFT_Y + NAV_BUTTONS_OFFSET_Y;
+const NAV_PLUS_BOTTOM_OFFSET = NAV_BASE_PLUS_BOTTOM_OFFSET - NAV_BUTTONS_OFFSET_Y + NAV_PLUS_FINE_TUNE_Y;
 // NAV_FADE_HEIGHT controls only the gradient thickness above the nav.
 // It does not change nav height.
-const NAV_FADE_HEIGHT = 40;
+const NAV_FADE_HEIGHT = 50;
+// NAV_FADE_BOTTOM_OFFSET moves gradient anchor relative to nav top line.
+// positive = move fade up, negative = let fade start lower (into nav area).
+const NAV_FADE_BOTTOM_OFFSET = 0;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
-
-const createLocalInviteCode = (familyId, kidId) => {
-  if (!familyId || !kidId) throw new Error('Missing ids');
-  const random = Math.random().toString(36).slice(2, 10).toUpperCase();
-  return `${kidId.slice(0, 2).toUpperCase()}${random}`;
-};
 
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
@@ -92,9 +95,16 @@ function AppHeader({
   shareButtonRef,
 }) {
   const { colors, bottle } = useTheme();
-  const { kidData } = useData();
-  const kidName = kidData?.name || 'Baby';
-  const kidPhotoURL = kidData?.photoURL || null;
+  const { kidId } = useAuth();
+  const { kidData, kids } = useData();
+  const selectedKid = useMemo(() => {
+    if (Array.isArray(kids) && kids.length && kidId) {
+      return kids.find((kid) => kid?.id === kidId) || kidData || null;
+    }
+    return kidData || null;
+  }, [kids, kidData, kidId]);
+  const kidName = selectedKid?.name || 'Baby';
+  const kidPhotoURL = selectedKid?.photoURL || null;
 
   return (
     <View style={[headerStyles.container, { backgroundColor: colors.appBg }]}>
@@ -119,12 +129,6 @@ function AppHeader({
             style={showKidMenu ? headerStyles.kidChevronOpen : undefined}
           />
         </Pressable>
-
-        {/* MIDDLE: Brand logo (web lines 4008-4026) */}
-        {/* Web: color var(--tt-brand-icon) = #FF4D79 */}
-        <View style={headerStyles.logoContainer}>
-          <BrandLogo size={26.4} color={colors.brandIcon} />
-        </View>
 
         {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
         {/* Web: hover:bg-[var(--tt-seg-track)] — native uses segTrack on press */}
@@ -161,6 +165,10 @@ function AppHeader({
           </Pressable>
         </View>
       </View>
+      {/* Brand logo — rendered separately, centered on screen, aligned with header row (like plus btn) */}
+      <View style={headerStyles.logoOverlay} pointerEvents="box-none">
+        <BrandLogo size={26.4} color={colors.brandIcon} />
+      </View>
     </View>
   );
 }
@@ -168,8 +176,9 @@ function AppHeader({
 const headerStyles = StyleSheet.create({
   container: {
     zIndex: 1200,
+    position: 'relative',
   },
-  // Web: pt-4 pb-6 px-4, grid grid-cols-3 items-center
+  // Web: pt-4 pb-6 px-4, grid grid-cols-2 items-center (logo is separate overlay)
   inner: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -207,10 +216,16 @@ const headerStyles = StyleSheet.create({
       ios: { fontFamily: 'System' },
     }),
   },
-  // Web: flex items-center justify-center
-  logoContainer: {
+  // Brand logo overlay — like plus btn: separate layer, screen-centered, same row as header
+  logoOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    transform: [{ translateY: -5 }], // align with content row (padding 16 top vs 24 bottom)
   },
   // Web: flex items-center justify-end gap-0.5
   rightButtons: {
@@ -282,11 +297,29 @@ const headerStyles = StyleSheet.create({
 });
 
 // ── App shell (uses theme for all colors) ──
-function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onDarkModeChange }) {
+function AppShell({
+  activeTab,
+  onTabChange,
+  themeKey,
+  isDark,
+  onThemeChange,
+  onDarkModeChange,
+  showDevSetupToggle,
+  forceSetupPreview,
+  forceLoginPreview,
+  onToggleForceSetupPreview,
+  onToggleForceLoginPreview,
+}) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
+  const topInset = useMemo(() => {
+    if (insets.top > 0) return insets.top;
+    if (Platform.OS === 'ios') return Math.max(20, Constants.statusBarHeight || 0);
+    return Math.max(0, Constants.statusBarHeight || 0);
+  }, [insets.top]);
   const appBg = colors.appBg;
   const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
-  const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep } = useData();
+  const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep, updateKidSettings } = useData();
 
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
@@ -389,14 +422,14 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
     setActivityVisibility(visibilityNext);
     setActivityOrder(orderNext);
     try {
-      await firestoreService.updateKidSettings({
+      await updateKidSettings({
         activityVisibility: visibilityNext,
         activityOrder: orderNext,
       });
     } catch (error) {
       console.warn('Failed to save activity visibility settings:', error);
     }
-  }, [firestoreService]);
+  }, [updateKidSettings]);
 
   useEffect(() => {
     const visibilitySafe = normalizeActivityVisibility(activityVisibility);
@@ -501,7 +534,7 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
 
     let link;
     try {
-      const code = createLocalInviteCode(familyId, resolvedKidId);
+      const code = await firestoreService.createInvite(resolvedKidId);
       link = `${APP_SHARE_BASE_URL}/?invite=${encodeURIComponent(code)}`;
     } catch {
       Alert.alert('Failed to create invite.');
@@ -522,7 +555,7 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
     }
 
     Alert.alert('Copy this invite link:', link);
-  }, [familyId, kidId, kids]);
+  }, [familyId, kidId, kids, firestoreService]);
 
   const handleShareAppFromMenu = useCallback(async () => {
     await handleGlobalShareApp();
@@ -597,7 +630,10 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
 
   return (
     <>
-      <SafeAreaView style={[appStyles.safe, { backgroundColor: appBg }]} edges={['top', 'left', 'right']}>
+      <SafeAreaView
+        style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
+        edges={['left', 'right']}
+      >
         {detailFilter == null && !(activeTab === 'trends' && analyticsDetailOpen)
           ? (
             <AppHeader
@@ -664,7 +700,13 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
                   onThemeChange={onThemeChange}
                   isDark={isDark}
                   onDarkModeChange={onDarkModeChange}
+                  showDevSetupToggle={showDevSetupToggle}
+                  forceSetupPreview={forceSetupPreview}
+                  forceLoginPreview={forceLoginPreview}
+                  onToggleForceSetupPreview={onToggleForceSetupPreview}
+                  onToggleForceLoginPreview={onToggleForceLoginPreview}
                   onRequestToggleActivitySheet={handleToggleActivitySheet}
+                  onSignOut={handleSignOut}
                 />
               )}
             </>
@@ -795,6 +837,7 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
         }}
         lastFeedVariant={lastFeedVariant}
         navMinHeight={NAV_MIN_HEIGHT}
+        navBackgroundHeight={NAV_BG_HEIGHT}
         navTopPadding={NAV_TOP_PADDING}
         navRowVerticalPadding={NAV_ROW_VERTICAL_PADDING}
         navItemVerticalPadding={NAV_ITEM_VERTICAL_PADDING}
@@ -837,7 +880,17 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
 }
 
 // ── Auth-gated content ──
-function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
+function AuthGatedApp({
+  themeKey,
+  isDark,
+  onThemeChange,
+  onDarkModeChange,
+  showDevSetupToggle,
+  forceSetupPreview,
+  forceLoginPreview,
+  onToggleForceSetupPreview,
+  onToggleForceLoginPreview,
+}) {
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('tracker');
@@ -854,6 +907,22 @@ function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
     return <LoginScreen />;
   }
 
+  if (showDevSetupToggle && forceLoginPreview) {
+    return (
+      <LoginScreen
+        onDevExitPreview={() => onToggleForceLoginPreview(false)}
+      />
+    );
+  }
+
+  if (showDevSetupToggle && forceSetupPreview) {
+    return (
+      <SetupScreen
+        onDevExitPreview={() => onToggleForceSetupPreview(false)}
+      />
+    );
+  }
+
   if (needsSetup || !familyId || !kidId) {
     return <SetupScreen />;
   }
@@ -868,6 +937,11 @@ function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
           isDark={isDark}
           onThemeChange={onThemeChange}
           onDarkModeChange={onDarkModeChange}
+          showDevSetupToggle={showDevSetupToggle}
+          forceSetupPreview={forceSetupPreview}
+          forceLoginPreview={forceLoginPreview}
+          onToggleForceSetupPreview={onToggleForceSetupPreview}
+          onToggleForceLoginPreview={onToggleForceLoginPreview}
         />
       </BottomSheetModalProvider>
     </DataProvider>
@@ -878,7 +952,20 @@ function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
 export default function App() {
   const [themeKey, setThemeKey] = useState('theme1');
   const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');
+  const [forceSetupPreview, setForceSetupPreview] = useState(false);
+  const [forceLoginPreview, setForceLoginPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
+  const showDevSetupToggle = __DEV__ && (Constants?.isDevice === false || Constants?.isDevice == null);
+
+  const handleToggleForceSetupPreview = useCallback((nextValue) => {
+    setForceSetupPreview(nextValue);
+    if (nextValue) setForceLoginPreview(false);
+  }, []);
+
+  const handleToggleForceLoginPreview = useCallback((nextValue) => {
+    setForceLoginPreview(nextValue);
+    if (nextValue) setForceSetupPreview(false);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -921,6 +1008,11 @@ export default function App() {
               isDark={isDark}
               onThemeChange={handleThemeChange}
               onDarkModeChange={handleDarkModeChange}
+              showDevSetupToggle={showDevSetupToggle}
+              forceSetupPreview={forceSetupPreview}
+              forceLoginPreview={forceLoginPreview}
+              onToggleForceSetupPreview={handleToggleForceSetupPreview}
+              onToggleForceLoginPreview={handleToggleForceLoginPreview}
             />
           </AuthProvider>
         </SafeAreaProvider>
@@ -939,7 +1031,7 @@ const appStyles = StyleSheet.create({
   // Visual fade above the nav; thickness is controlled by NAV_FADE_HEIGHT.
   fadeGradient: {
     position: 'absolute',
-    bottom: 0,
+    bottom: NAV_FADE_BOTTOM_OFFSET,
     left: 0,
     right: 0,
     height: NAV_FADE_HEIGHT,

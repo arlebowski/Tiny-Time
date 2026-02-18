@@ -143,6 +143,11 @@ export default function FamilyScreen({
   onThemeChange,
   isDark: propIsDark,
   onDarkModeChange,
+  showDevSetupToggle = false,
+  forceSetupPreview = false,
+  forceLoginPreview = false,
+  onToggleForceSetupPreview,
+  onToggleForceLoginPreview,
   onRequestToggleActivitySheet,
   onSignOut,
   onDeleteAccount,
@@ -456,7 +461,51 @@ export default function FamilyScreen({
       {/* ── 1. Appearance Card ── */}
       {/* Web: TTCard variant="tracker", header "Appearance", space-y-4 */}
       <Card>
-        <CardHeader title="Appearance" />
+        <CardHeader
+          title="Appearance"
+          right={showDevSetupToggle ? (
+            <View style={s.devToggleRow}>
+              <Pressable
+                onPress={() => onToggleForceSetupPreview?.(!forceSetupPreview)}
+                style={[
+                  s.devSetupToggle,
+                  {
+                    borderColor: forceSetupPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
+                    backgroundColor: forceSetupPreview ? colors.inputBg : 'transparent',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    s.devSetupToggleText,
+                    { color: forceSetupPreview ? colors.brandIcon : colors.textTertiary },
+                  ]}
+                >
+                  OB
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onToggleForceLoginPreview?.(!forceLoginPreview)}
+                style={[
+                  s.devSetupToggle,
+                  {
+                    borderColor: forceLoginPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
+                    backgroundColor: forceLoginPreview ? colors.inputBg : 'transparent',
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    s.devSetupToggleText,
+                    { color: forceLoginPreview ? colors.brandIcon : colors.textTertiary },
+                  ]}
+                >
+                  LG
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        />
         <View style={s.sectionBody}>
           {/* Dark Mode toggle */}
           {/* Web: label text-xs mb-1, then SegmentedToggle */}
@@ -908,16 +957,15 @@ export default function FamilyScreen({
           </Pressable>
 
           {/* Delete Account button */}
-          {/* Web: w-full py-3 rounded-xl font-semibold, bg error, color white */}
+          {/* Subtle destructive action: text-only, reduced emphasis */}
           <Pressable
             onPress={handleDeleteAccount}
             style={({ pressed }) => [
-              s.accountBtn,
-              { backgroundColor: colors.error },
-              pressed && { opacity: 0.7 },
+              s.deleteAccountBtn,
+              pressed && { opacity: 0.65 },
             ]}
           >
-            <Text style={[s.accountBtnText, { color: '#ffffff' }]}>Delete My Account</Text>
+            <Text style={[s.deleteAccountBtnText, { color: colors.textSecondary }]}>Delete My Account</Text>
           </Pressable>
         </View>
       </Card>
@@ -1023,6 +1071,26 @@ const s = StyleSheet.create({
 
   // Card gap (web: space-y-4 = 16px between cards)
   cardGap: { marginTop: 16 },
+  devToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  devSetupToggle: {
+    minWidth: 24,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  devSetupToggleText: {
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
 
   // ── Appearance ──
   sectionBody: { gap: 16 },       // space-y-4
@@ -1346,6 +1414,16 @@ const s = StyleSheet.create({
   accountBtnText: {
     fontSize: 16,
     fontWeight: '600',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  deleteAccountBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 6,
+  },
+  deleteAccountBtnText: {
+    fontSize: 13,
+    fontWeight: '500',
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
 

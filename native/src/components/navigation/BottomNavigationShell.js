@@ -14,6 +14,7 @@ function BottomNav({
   activeTab,
   onTabChange,
   navMinHeight,
+  navBackgroundHeight,
   navTopPadding,
   tabShiftY,
   navRowVerticalPadding,
@@ -23,7 +24,17 @@ function BottomNav({
   const tabColor = colors.textPrimary;
 
   return (
-    <View style={[styles.navContainer, { backgroundColor: colors.appBg, minHeight: navMinHeight, paddingTop: navTopPadding }]}>
+    <View
+      style={[
+        styles.navContainer,
+        {
+          backgroundColor: colors.appBg,
+          minHeight: navMinHeight,
+          paddingTop: navTopPadding,
+        },
+        navBackgroundHeight == null ? null : { height: navBackgroundHeight },
+      ]}
+    >
       <View style={[styles.navInner, { paddingVertical: navRowVerticalPadding }]}>
         <Pressable
           style={[
@@ -73,6 +84,7 @@ export default function BottomNavigationShell({
   visibleTypes,
   lastFeedVariant,
   navMinHeight = 80,
+  navBackgroundHeight,
   navTopPadding = 10,
   tabShiftY = -15,
   plusBottomOffset = 36,
@@ -90,6 +102,7 @@ export default function BottomNavigationShell({
           activeTab={activeTab}
           onTabChange={onTabChange}
           navMinHeight={navMinHeight}
+          navBackgroundHeight={navBackgroundHeight}
           navTopPadding={navTopPadding}
           tabShiftY={tabShiftY}
           navRowVerticalPadding={navRowVerticalPadding}

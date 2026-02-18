@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
+import { useData } from '../../context/DataContext';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
@@ -16,6 +17,26 @@ function calculateDuration(startTime, endTime) {
   const end = new Date(endTime).getTime();
   if (end < start) return null;
   return end - start;
+}
+
+function normalizeIsoTime(value) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
+function clampStartIsoToNow(value) {
+  const normalized = normalizeIsoTime(value);
+  const now = Date.now();
+  if (!normalized) return new Date(now).toISOString();
+  const startMs = new Date(normalized).getTime();
+  return startMs > now ? new Date(now).toISOString() : normalized;
+}
+
+function normalizeSleepStartMs(startMs, nowMs = Date.now()) {
+  if (!startMs) return null;
+  return startMs > nowMs + 3 * 3600000 ? startMs - 86400000 : startMs;
 }
 
 export default function SleepSheet({
@@ -29,15 +50,22 @@ export default function SleepSheet({
   storage = null,
 }) {
   const { colors, sleep } = useTheme();
+  const { activeSleep, sleepSessions } = useData();
   const isInputVariant = !entry;
+  const activeSleepId = activeSleep?.id || null;
 
-  const [startTime, setStartTime] = useState(() => new Date().toISOString());
+  const [startTime, setStartTime] = useState(() => {
+    if (!isInputVariant) return new Date().toISOString();
+    return activeSleep?.startTime ? new Date(activeSleep.startTime).toISOString() : null;
+  });
   const [endTime, setEndTime] = useState(null);
   const [sleepState, setSleepState] = useState('idle'); // 'idle' | 'running'
   const [sleepElapsedMs, setSleepElapsedMs] = useState(0);
+  const [endTimeManuallyEdited, setEndTimeManuallyEdited] = useState(false);
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState([]);
   const [existingPhotoURLs, setExistingPhotoURLs] = useState([]);
+  const [lastValidDurationMs, setLastValidDurationMs] = useState(0);
   const [saving, setSaving] = useState(false);
   const [showStartTray, setShowStartTray] = useState(false);
   const [showEndTray, setShowEndTray] = useState(false);
@@ -46,15 +74,24 @@ export default function SleepSheet({
   const [activeSleepSessionId, setActiveSleepSessionId] = useState(null);
 
   const sleepIntervalRef = useRef(null);
+  const endTimeManuallyEditedRef = useRef(false);
 
-  const durationMs = (() => {
-    if (isInputVariant && sleepState === 'running' && !endTime) return sleepElapsedMs;
+  const durationResultMs = (() => {
     if (!startTime || !endTime) return 0;
-    const d = calculateDuration(startTime, endTime);
-    return d || 0;
+    return calculateDuration(startTime, endTime);
   })();
-  const tParts = formatElapsedHmsTT(durationMs);
-  const isValid = !startTime || !endTime || calculateDuration(startTime, endTime) !== null;
+  const isValid = durationResultMs !== null;
+  const stableDurationMs = isValid ? Number(durationResultMs || 0) : lastValidDurationMs;
+  const displayMs = (() => {
+    if (isInputVariant && sleepState === 'running' && !endTimeManuallyEditedRef.current) return sleepElapsedMs;
+    if (!startTime || !endTime) return 0;
+    return stableDurationMs;
+  })();
+  const tParts = formatElapsedHmsTT(displayMs);
+
+  useEffect(() => {
+    if (isValid) setLastValidDurationMs(stableDurationMs);
+  }, [isValid, stableDurationMs]);
 
   useEffect(() => {
     if (entry) {
@@ -63,23 +100,62 @@ export default function SleepSheet({
       setNotes(entry.notes || '');
       setExistingPhotoURLs(entry.photoURLs || []);
       setSleepState('idle');
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
     } else {
-      setStartTime(new Date().toISOString());
+      const activeStartIso = isInputVariant && activeSleep?.startTime ? new Date(activeSleep.startTime).toISOString() : null;
+      setStartTime(activeStartIso);
       setEndTime(null);
-      setSleepState('idle');
+      if (isInputVariant && !activeSleepId) {
+        setSleepState('idle');
+        setSleepElapsedMs(0);
+        setEndTimeManuallyEdited(false);
+        endTimeManuallyEditedRef.current = false;
+      }
       setNotes('');
       setExistingPhotoURLs([]);
       setPhotos([]);
-      setSleepElapsedMs(0);
     }
     setNotesExpanded(false);
     setPhotosExpanded(false);
-  }, [entry]);
+  }, [entry, isInputVariant, activeSleep, activeSleepId]);
+
+  useEffect(() => {
+    if (!isInputVariant) return;
+    if (activeSleep && activeSleep.id) {
+      if (!activeSleepSessionId || activeSleepSessionId !== activeSleep.id) {
+        setActiveSleepSessionId(activeSleep.id);
+      }
+      if (activeSleep.startTime) {
+        const serverStartIso = new Date(activeSleep.startTime).toISOString();
+        setStartTime(serverStartIso);
+        const normalizedStart = normalizeSleepStartMs(activeSleep.startTime);
+        if (normalizedStart) setSleepElapsedMs(Date.now() - normalizedStart);
+      }
+      if (!endTimeManuallyEditedRef.current) {
+        setEndTime(null);
+        setEndTimeManuallyEdited(false);
+      }
+      if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
+        setSleepState('running');
+      }
+      return;
+    }
+
+    if (sleepState === 'running') setSleepState('idle');
+    setStartTime(null);
+    setEndTime(null);
+    setSleepElapsedMs(0);
+    setEndTimeManuallyEdited(false);
+    endTimeManuallyEditedRef.current = false;
+    if (activeSleepSessionId) setActiveSleepSessionId(null);
+  }, [isInputVariant, activeSleep, sleepState, activeSleepSessionId]);
 
   useEffect(() => {
     if (sleepIntervalRef.current) clearInterval(sleepIntervalRef.current);
-    if (!isInputVariant || sleepState !== 'running' || !startTime) return;
-    const startMs = new Date(startTime).getTime();
+    if (!isInputVariant || sleepState !== 'running' || endTimeManuallyEditedRef.current || !startTime) return;
+    const startMs = normalizeSleepStartMs(new Date(startTime).getTime());
+    if (!startMs) return;
     const tick = () => setSleepElapsedMs(Math.max(0, Date.now() - startMs));
     tick();
     sleepIntervalRef.current = setInterval(tick, 1000);
@@ -93,25 +169,93 @@ export default function SleepSheet({
   }, [onClose]);
 
   const handleStartTimeChange = (isoString) => {
-    if (isoString) setStartTime(isoString);
+    const clamped = clampStartIsoToNow(isoString);
+    setStartTime(clamped);
+    if (isInputVariant && sleepState === 'running') {
+      setEndTime(null);
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
+      const sessionId = activeSleepSessionId || activeSleepId;
+      if (sessionId && clamped && storage?.updateSleepSession) {
+        const startMs = new Date(clamped).getTime();
+        (async () => {
+          try {
+            await storage.updateSleepSession(sessionId, {
+              startTime: startMs,
+              endTime: null,
+              isActive: true,
+            });
+          } catch (e) {
+            console.error('[SleepSheet] Failed to update active sleep start time:', e);
+          }
+        })();
+      }
+    }
   };
 
   const handleEndTimeChange = (isoString) => {
-    if (isoString) setEndTime(isoString);
+    setEndTime(isoString || null);
+    setEndTimeManuallyEdited(true);
+    endTimeManuallyEditedRef.current = true;
+    if (isInputVariant && sleepState === 'running') {
+      setSleepState('idle');
+    }
   };
+
+  const checkSleepOverlap = useCallback(
+    async (startMs, endMs, excludeId = null) => {
+      if (!startMs || !endMs || !Array.isArray(sleepSessions)) return false;
+      return sleepSessions.some((s) => {
+        if (!s || (excludeId && s.id === excludeId)) return false;
+        const sStart = Number(s.startTime || 0);
+        if (!sStart) return false;
+        const sEnd = Number(s.endTime || Date.now());
+        return startMs < sEnd && endMs > sStart;
+      });
+    },
+    [sleepSessions]
+  );
 
   const handleStartSleep = async () => {
     if (!isInputVariant || saving) return;
     try {
-      const startMs = new Date(startTime || new Date()).getTime();
-      let sessionId = activeSleepSessionId;
-      if (!sessionId && storage && storage.startSleep) {
-        const session = await storage.startSleep(startMs);
+      const isIdleWithTimes = sleepState === 'idle' && startTime && endTime;
+      let sessionId = activeSleepSessionId || activeSleepId;
+      let startMs;
+      let effectiveStartIso = startTime;
+
+      if (isIdleWithTimes) {
+        startMs = new Date(startTime).getTime();
+        setEndTime(null);
+      } else {
+        const parsed = effectiveStartIso ? new Date(effectiveStartIso).getTime() : NaN;
+        if (!effectiveStartIso || !Number.isFinite(parsed)) {
+          effectiveStartIso = new Date().toISOString();
+          setStartTime(effectiveStartIso);
+          startMs = new Date(effectiveStartIso).getTime();
+        } else {
+          const clamped = clampStartIsoToNow(effectiveStartIso);
+          if (clamped !== effectiveStartIso) {
+            effectiveStartIso = clamped;
+            setStartTime(effectiveStartIso);
+          }
+          startMs = new Date(effectiveStartIso).getTime();
+        }
+        setEndTime(null);
+      }
+
+      if (!sessionId) {
+        const session = await storage?.startSleep?.(startMs);
         sessionId = session?.id;
-        setActiveSleepSessionId(sessionId);
+        if (sessionId) setActiveSleepSessionId(sessionId);
+      } else if (storage?.updateSleepSession) {
+        await storage.updateSleepSession(sessionId, {
+          startTime: startMs,
+          endTime: null,
+          isActive: true,
+        });
       }
       setSleepState('running');
-      setEndTime(null);
     } catch (e) {
       console.error('[SleepSheet] Start sleep failed:', e);
       Alert.alert('Error', 'Failed to start sleep.');
@@ -126,7 +270,7 @@ export default function SleepSheet({
       const endMs = Date.now();
       setEndTime(nowIso);
 
-      const sessionId = activeSleepSessionId;
+      const sessionId = activeSleepSessionId || activeSleepId;
       if (sessionId && storage && storage.endSleep) {
         await storage.endSleep(sessionId, endMs);
         if (notes || photos.length > 0) {
@@ -156,9 +300,14 @@ export default function SleepSheet({
       setNotes('');
       setPhotos([]);
       setSleepElapsedMs(0);
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
 
       handleClose();
-      if (onAdd) await onAdd({ type: 'sleep', startTime: new Date(startTime).getTime(), endTime: endMs });
+      if (onAdd) {
+        const startMs = startTime ? new Date(startTime).getTime() : null;
+        await onAdd(startMs && endMs ? { type: 'sleep', startTime: startMs, endTime: endMs } : undefined);
+      }
     } catch (e) {
       console.error('[SleepSheet] End sleep failed:', e);
       Alert.alert('Error', 'Failed to end sleep.');
@@ -168,11 +317,19 @@ export default function SleepSheet({
   };
 
   const handleSaveSleep = async () => {
-    if (!isInputVariant || saving || !isValid) return;
+    if (!isInputVariant || saving) return;
+    if (!isValid) return;
     setSaving(true);
     try {
       const startMs = new Date(startTime).getTime();
       const endMs = new Date(endTime).getTime();
+      const excludeId = activeSleepSessionId || activeSleepId || null;
+      const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
+      if (hasOverlap) {
+        Alert.alert('Overlap detected', 'This sleep session overlaps an existing sleep session. Please adjust the times.');
+        setSaving(false);
+        return;
+      }
 
       let uploadedURLs = [];
       if (storage?.uploadSleepPhoto && photos.length > 0) {
@@ -185,10 +342,11 @@ export default function SleepSheet({
       }
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
 
-      if (activeSleepSessionId && storage?.endSleep) {
-        await storage.endSleep(activeSleepSessionId, endMs);
+      const sessionId = activeSleepSessionId || activeSleepId;
+      if (sessionId && storage?.endSleep) {
+        await storage.endSleep(sessionId, endMs);
         if (notes || allPhotos.length > 0) {
-          await storage.updateSleepSession?.(activeSleepSessionId, {
+          await storage.updateSleepSession?.(sessionId, {
             notes: notes || null,
             photoURLs: allPhotos,
           });
@@ -205,8 +363,17 @@ export default function SleepSheet({
         }
       }
 
+      setSleepState('idle');
+      setStartTime(new Date().toISOString());
+      setEndTime(null);
+      setNotes('');
+      setPhotos([]);
+      setSleepElapsedMs(0);
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
+
       handleClose();
-      if (onAdd) await onAdd({ type: 'sleep', startTime: startMs, endTime: endMs });
+      if (onAdd) await onAdd({ type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
     } catch (e) {
       console.error('[SleepSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save sleep session.');
@@ -238,43 +405,40 @@ export default function SleepSheet({
 
   let ctaLabel = 'Save';
   let ctaOnPress = handleSaveSleep;
+  let ctaDisabled = !isValid;
   if (saving) {
     ctaLabel = 'Saving...';
     ctaOnPress = () => {};
+    ctaDisabled = true;
   } else if (isInputVariant && sleepState === 'running') {
     ctaLabel = 'End sleep';
     ctaOnPress = handleEndSleep;
-  } else if (isInputVariant && !startTime && !endTime) {
+    ctaDisabled = false;
+  } else if (isInputVariant && endTimeManuallyEdited) {
+    ctaLabel = 'Save';
+    ctaOnPress = handleSaveSleep;
+    ctaDisabled = !isValid;
+  } else if (isInputVariant) {
     ctaLabel = 'Start sleep';
     ctaOnPress = handleStartSleep;
+    ctaDisabled = false;
+  } else {
+    ctaDisabled = !isValid;
   }
 
   const footer = (
     <View style={styles.footerRow}>
-      {isInputVariant && sleepState === 'idle' && !startTime && !endTime ? (
-        <Pressable
-          style={({ pressed }) => [
-            styles.cta,
-            { backgroundColor: sleep.primary },
-            pressed && { opacity: 0.9 },
-          ]}
-          onPress={handleStartSleep}
-        >
-          <Text style={styles.ctaText}>Start sleep</Text>
-        </Pressable>
-      ) : (
-        <Pressable
-          style={({ pressed }) => [
-            styles.cta,
-            { backgroundColor: saving ? sleep.dark : sleep.primary },
-            pressed && !saving && { opacity: 0.9 },
-          ]}
-          onPress={ctaOnPress}
-          disabled={saving || (ctaLabel === 'Save' && !isValid)}
-        >
-          <Text style={styles.ctaText}>{ctaLabel}</Text>
-        </Pressable>
-      )}
+      <Pressable
+        style={({ pressed }) => [
+          styles.cta,
+          { backgroundColor: saving ? sleep.dark : sleep.primary, opacity: ctaDisabled ? 0.7 : 1 },
+          pressed && !saving && !ctaDisabled && { opacity: 0.9 },
+        ]}
+        onPress={ctaOnPress}
+        disabled={ctaDisabled}
+      >
+        <Text style={styles.ctaText}>{ctaLabel}</Text>
+      </Pressable>
     </View>
   );
 
@@ -368,7 +532,7 @@ export default function SleepSheet({
       <DateTimePickerTray
         isOpen={showStartTray}
         onClose={() => setShowStartTray(false)}
-        value={startTime}
+        value={startTime || new Date().toISOString()}
         onChange={handleStartTimeChange}
         title="Start time"
       />

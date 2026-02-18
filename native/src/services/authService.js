@@ -2,21 +2,47 @@
  * authService — Firebase Auth for React Native
  * Uses @react-native-firebase/auth
  */
+import { uploadKidPhoto } from './storageService';
+
 let auth = null;
 let firestore = null;
+let GoogleSignin = null;
+let googleStatusCodes = null;
 try {
   auth = require('@react-native-firebase/auth').default;
 } catch {}
 try {
   firestore = require('@react-native-firebase/firestore').default;
 } catch {}
+try {
+  const googleSignIn = require('@react-native-google-signin/google-signin');
+  GoogleSignin = googleSignIn.GoogleSignin;
+  googleStatusCodes = googleSignIn.statusCodes;
+} catch {}
 export const isFirebaseAuthAvailable =
   typeof auth === 'function' && typeof firestore === 'function';
+const GOOGLE_WEB_CLIENT_ID = '775043948126-045tnb5lf159e1ik8ildjj6sfdv4reac.apps.googleusercontent.com';
+let googleConfigured = false;
 
 const assertFirebase = () => {
   if (!isFirebaseAuthAvailable) {
     throw new Error('Firebase native modules are unavailable in this runtime');
   }
+};
+
+const assertGoogleSignIn = () => {
+  if (!GoogleSignin || !googleStatusCodes) {
+    throw new Error('Google Sign-In is unavailable in this runtime');
+  }
+};
+
+const ensureGoogleConfigured = () => {
+  assertGoogleSignIn();
+  if (googleConfigured) return;
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
+  googleConfigured = true;
 };
 
 /** Email/password sign-up — creates auth user + ensures profile doc */
@@ -31,6 +57,27 @@ export async function signUpWithEmail(email, password) {
 export async function signInWithEmail(email, password) {
   assertFirebase();
   const result = await auth().signInWithEmailAndPassword(email, password);
+  await ensureUserProfile(result.user);
+  return result;
+}
+
+/** Google sign-in using native Google SDK -> Firebase credential */
+export async function signInWithGoogle() {
+  assertFirebase();
+  ensureGoogleConfigured();
+
+  if (typeof GoogleSignin.hasPlayServices === 'function') {
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  }
+
+  const signInResult = await GoogleSignin.signIn();
+  const idToken = signInResult?.idToken || signInResult?.data?.idToken;
+  if (!idToken) {
+    throw new Error('Google sign-in failed to return an ID token');
+  }
+
+  const credential = auth.GoogleAuthProvider.credential(idToken);
+  const result = await auth().signInWithCredential(credential);
   await ensureUserProfile(result.user);
   return result;
 }
@@ -104,9 +151,18 @@ export async function loadUserFamily(uid) {
 }
 
 /** Create a new family + kid for a first-time user */
-export async function createFamilyWithKid(uid, babyName) {
+export async function createFamilyWithKid(
+  uid,
+  babyName,
+  {
+    birthDate = null,
+    photoUri = null,
+    preferredVolumeUnit = 'oz',
+  } = {}
+) {
   assertFirebase();
   const now = firestore.FieldValue.serverTimestamp();
+  const birthTimestamp = birthDate ? new Date(birthDate).getTime() : null;
 
   // Create family
   const famRef = await firestore().collection('families').add({
@@ -125,11 +181,32 @@ export async function createFamilyWithKid(uid, babyName) {
       name: babyName,
       members: [uid],
       ownerId: uid,
+      birthDate: Number.isFinite(birthTimestamp) ? birthTimestamp : null,
+      photoURL: null,
       createdAt: now,
     });
 
   // Set primary kid
   await famRef.update({ primaryKidId: kidRef.id });
+
+  // Create default kid settings
+  await firestore()
+    .collection('families')
+    .doc(famRef.id)
+    .collection('kids')
+    .doc(kidRef.id)
+    .collection('settings')
+    .doc('default')
+    .set({
+      preferredVolumeUnit: preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
+      createdAt: now,
+    });
+
+  // Upload profile photo (if provided) and attach URL.
+  if (photoUri) {
+    const uploadedPhotoUrl = await uploadKidPhoto(photoUri, famRef.id, kidRef.id);
+    await kidRef.update({ photoURL: uploadedPhotoUrl || null });
+  }
 
   return { familyId: famRef.id, kidId: kidRef.id };
 }

@@ -1,6 +1,5 @@
 /**
- * LoginScreen — email/password auth with sign-up toggle.
- * Google sign-in button included but disabled until Firebase console config is done.
+ * LoginScreen — Google + email/password auth with sign-up toggle.
  */
 import React, { useState } from 'react';
 import {
@@ -12,15 +11,14 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Alert,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { BrandLogo } from '../components/icons';
 
-export default function LoginScreen() {
-  const { colors, spacing, radius } = useTheme();
-  const { signIn, signUp, loading } = useAuth();
+export default function LoginScreen({ onDevExitPreview = null }) {
+  const { colors, radius } = useTheme();
+  const { signIn, signUp, signInWithGoogle, loading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -55,6 +53,27 @@ export default function LoginScreen() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    try {
+      await signInWithGoogle();
+    } catch (e) {
+      const code = String(e?.code || '');
+      const msg = String(e?.message || 'Google sign-in failed. Please try again.');
+
+      if (code.includes('SIGN_IN_CANCELLED')) return;
+      if (code.includes('IN_PROGRESS')) {
+        setError('Google sign-in is already in progress.');
+        return;
+      }
+      if (code.includes('PLAY_SERVICES_NOT_AVAILABLE')) {
+        setError('Google Play Services is unavailable on this device.');
+        return;
+      }
+      setError(msg);
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.appBg }]}
@@ -72,6 +91,34 @@ export default function LoginScreen() {
 
         {/* Form */}
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderRadius: radius?.['2xl'] ?? 16 }]}>
+          <Pressable
+            style={({ pressed }) => [
+              styles.googleButton,
+              {
+                backgroundColor: pressed ? colors.inputBg : colors.appBg,
+                borderColor: colors.textTertiary,
+                borderRadius: radius?.lg ?? 12,
+              },
+            ]}
+            onPress={handleGoogleSignIn}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color={colors.textPrimary} />
+            ) : (
+              <>
+                <Text style={styles.googleGlyph}>G</Text>
+                <Text style={[styles.googleButtonText, { color: colors.textPrimary }]}>Sign in with Google</Text>
+              </>
+            )}
+          </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={[styles.dividerLine, { backgroundColor: colors.inputBg }]} />
+            <Text style={[styles.dividerText, { color: colors.textSecondary }]}>Or continue with email</Text>
+            <View style={[styles.dividerLine, { backgroundColor: colors.inputBg }]} />
+          </View>
+
           <TextInput
             style={[styles.input, { backgroundColor: colors.inputBg, color: colors.textPrimary, borderRadius: radius?.lg ?? 12 }]}
             placeholder="Email"
@@ -114,6 +161,11 @@ export default function LoginScreen() {
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
             </Text>
           </Pressable>
+          {__DEV__ && typeof onDevExitPreview === 'function' ? (
+            <Pressable onPress={onDevExitPreview}>
+              <Text style={[styles.toggleText, { color: colors.textSecondary }]}>Back to app (dev)</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -142,8 +194,44 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   card: {
-    padding: 24,
+    padding: 20,
     gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  googleButton: {
+    height: 48,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  googleGlyph: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#4285F4',
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontSize: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
   input: {
     height: 48,
