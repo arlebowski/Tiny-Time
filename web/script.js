@@ -4178,7 +4178,7 @@ const MainApp = ({ user, kidId, familyId, onKidChange, bootKids, bootActiveKid, 
           // Brand logo — rendered separately, centered on screen, aligned with header row (like plus btn)
           React.createElement(
             'div',
-            { className: "absolute inset-0 flex items-center justify-center pointer-events-none -translate-y-[5px]" },
+            { className: "absolute left-1/2 -translate-x-1/2 top-0 bottom-0 flex items-center justify-center pointer-events-none -translate-y-[5px]" },
             React.createElement(
               'svg',
               {

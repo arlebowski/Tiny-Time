@@ -216,11 +216,11 @@ const headerStyles = StyleSheet.create({
       ios: { fontFamily: 'System' },
     }),
   },
-  // Brand logo overlay — like plus btn: separate layer, screen-centered, same row as header
+  // Brand logo overlay — same centering logic as plus btn: left 50% + offset
   logoOverlay: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: '50%',
+    marginLeft: -13.2,     // half of icon size 26.4 (matches plus: marginLeft -32 for 64px)
     top: 0,
     bottom: 0,
     alignItems: 'center',
