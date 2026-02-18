@@ -4,8 +4,8 @@ require File.join(File.dirname(`node --print "require.resolve('react-native/pack
 require 'json'
 podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties.json'))) rescue {}
 
-# REQUIRED for Firebase Swift pods
-use_modular_headers!
+# Use static frameworks for Firebase + Expo/RN pods.
+use_frameworks! :linkage => :static
 
 # REQUIRED for RNFirebase static integration
 $RNFirebaseAsStaticFramework = true
