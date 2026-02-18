@@ -166,6 +166,14 @@ export function DataProvider({ children }) {
     }
   }, [familyId, kidId, usingMockData]);
 
+  const updateKidSettings = useCallback(async (settings) => {
+    const nextSettings = (settings && typeof settings === 'object') ? settings : {};
+    setKidSettings((prev) => ({ ...(prev || {}), ...nextSettings }));
+    if (usingMockData) return;
+    if (!familyId || !kidId) return;
+    await firestoreService.updateKidSettings(nextSettings);
+  }, [familyId, kidId, usingMockData]);
+
   /** Get timeline items for a specific date (replaces getMockTimelineItems) */
   const getTimelineItems = useCallback((date, filter = null) => {
     const dayStart = new Date(date);
@@ -328,6 +336,7 @@ export function DataProvider({ children }) {
     familyMembers,
     dataLoading,
     refresh,
+    updateKidSettings,
     getTimelineItems,
     getDaySummary,
     firestoreService,

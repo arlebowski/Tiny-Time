@@ -32,6 +32,7 @@ const TrackerCard = ({
 }) => {
   const { colors, radius } = useTheme();
   const hasComparison = !!comparisonElement;
+  const shouldRotateBottleIcon = title === 'Bottle';
 
   return (
     <Pressable
@@ -47,9 +48,17 @@ const TrackerCard = ({
         <View style={styles.headerLeft}>
           {icon ? (
             typeof icon === 'string' ? (
-              <Text style={[styles.headerIcon, { color: accentColor }]}>{icon}</Text>
+              <Text
+                style={[
+                  styles.headerIcon,
+                  { color: accentColor },
+                  shouldRotateBottleIcon && styles.bottleIconRotate,
+                ]}
+              >
+                {icon}
+              </Text>
             ) : (
-              <View style={styles.headerIconWrap}>{icon}</View>
+              <View style={[styles.headerIconWrap, shouldRotateBottleIcon && styles.bottleIconRotate]}>{icon}</View>
             )
           ) : null}
           <Text style={[styles.headerLabel, { color: accentColor }]}>{title}</Text>
@@ -125,6 +134,9 @@ const styles = StyleSheet.create({
     height: 22,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  bottleIconRotate: {
+    transform: [{ rotate: '20deg' }],
   },
   headerLabel: {
     fontSize: 18,                     // text-[18px]

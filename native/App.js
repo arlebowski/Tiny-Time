@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Constants from 'expo-constants';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -46,28 +47,36 @@ import {
 
 // Bottom nav tuning:
 // NAV_MIN_HEIGHT makes the entire bottom nav bar taller or shorter.
-const NAV_MIN_HEIGHT = 40;
+const NAV_MIN_HEIGHT = 0;
+// NAV_BG_HEIGHT controls only the visible nav background block height.
+// Use `null` to size automatically from content, or a number (e.g. 56).
+const NAV_BG_HEIGHT = 56;
 // NAV_TOP_PADDING adds/removes empty space at the top inside the nav bar.
 const NAV_TOP_PADDING = 4;
 // NAV_ROW_VERTICAL_PADDING controls vertical padding around the whole tab row.
-const NAV_ROW_VERTICAL_PADDING = 12;
+const NAV_ROW_VERTICAL_PADDING = 15;
 // NAV_ITEM_VERTICAL_PADDING controls vertical padding inside each tab/spacer cell.
 const NAV_ITEM_VERTICAL_PADDING = 8;
 // NAV_BOTTOM_INSET_PADDING controls extra space below nav for device safe area.
 // Use `null` for automatic device inset, or a number like 0 to force a specific value.
 const NAV_BOTTOM_INSET_PADDING = null;
-// NAV_CLUSTER_OFFSET_Y moves Track, Plus, and Trends together:
-// positive = lower on screen, negative = higher on screen.
-const NAV_CLUSTER_OFFSET_Y = 12;
-// Base vertical positions for tabs and plus. Usually keep these fixed.
-const BASE_TAB_SHIFT_Y = -4;
-const BASE_PLUS_BOTTOM_OFFSET = 24;
+// NAV_BUTTONS_OFFSET_Y is the single knob for button position vs nav bar.
+// positive = move Track/Plus/Trends lower, negative = move them higher.
+const NAV_BUTTONS_OFFSET_Y = -16;
+// Optional fine-tuning only for the center plus button.
+const NAV_PLUS_FINE_TUNE_Y = -32;
+// Base values (usually leave these as-is).
+const NAV_BASE_TAB_SHIFT_Y = -4;
+const NAV_BASE_PLUS_BOTTOM_OFFSET = 24;
 // Final values passed into BottomNavigationShell.
-const NAV_TAB_SHIFT_Y = BASE_TAB_SHIFT_Y + NAV_CLUSTER_OFFSET_Y;
-const NAV_PLUS_BOTTOM_OFFSET = BASE_PLUS_BOTTOM_OFFSET - NAV_CLUSTER_OFFSET_Y;
+const NAV_TAB_SHIFT_Y = NAV_BASE_TAB_SHIFT_Y + NAV_BUTTONS_OFFSET_Y;
+const NAV_PLUS_BOTTOM_OFFSET = NAV_BASE_PLUS_BOTTOM_OFFSET - NAV_BUTTONS_OFFSET_Y + NAV_PLUS_FINE_TUNE_Y;
 // NAV_FADE_HEIGHT controls only the gradient thickness above the nav.
 // It does not change nav height.
-const NAV_FADE_HEIGHT = 40;
+const NAV_FADE_HEIGHT = 50;
+// NAV_FADE_BOTTOM_OFFSET moves gradient anchor relative to nav top line.
+// positive = move fade up, negative = let fade start lower (into nav area).
+const NAV_FADE_BOTTOM_OFFSET = 0;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
 
 const createLocalInviteCode = (familyId, kidId) => {
@@ -282,11 +291,23 @@ const headerStyles = StyleSheet.create({
 });
 
 // ── App shell (uses theme for all colors) ──
-function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onDarkModeChange }) {
+function AppShell({
+  activeTab,
+  onTabChange,
+  themeKey,
+  isDark,
+  onThemeChange,
+  onDarkModeChange,
+  showDevSetupToggle,
+  forceSetupPreview,
+  forceLoginPreview,
+  onToggleForceSetupPreview,
+  onToggleForceLoginPreview,
+}) {
   const { colors } = useTheme();
   const appBg = colors.appBg;
   const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
-  const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep } = useData();
+  const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep, updateKidSettings } = useData();
 
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
@@ -389,14 +410,14 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
     setActivityVisibility(visibilityNext);
     setActivityOrder(orderNext);
     try {
-      await firestoreService.updateKidSettings({
+      await updateKidSettings({
         activityVisibility: visibilityNext,
         activityOrder: orderNext,
       });
     } catch (error) {
       console.warn('Failed to save activity visibility settings:', error);
     }
-  }, [firestoreService]);
+  }, [updateKidSettings]);
 
   useEffect(() => {
     const visibilitySafe = normalizeActivityVisibility(activityVisibility);
@@ -664,7 +685,13 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
                   onThemeChange={onThemeChange}
                   isDark={isDark}
                   onDarkModeChange={onDarkModeChange}
+                  showDevSetupToggle={showDevSetupToggle}
+                  forceSetupPreview={forceSetupPreview}
+                  forceLoginPreview={forceLoginPreview}
+                  onToggleForceSetupPreview={onToggleForceSetupPreview}
+                  onToggleForceLoginPreview={onToggleForceLoginPreview}
                   onRequestToggleActivitySheet={handleToggleActivitySheet}
+                  onSignOut={handleSignOut}
                 />
               )}
             </>
@@ -795,6 +822,7 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
         }}
         lastFeedVariant={lastFeedVariant}
         navMinHeight={NAV_MIN_HEIGHT}
+        navBackgroundHeight={NAV_BG_HEIGHT}
         navTopPadding={NAV_TOP_PADDING}
         navRowVerticalPadding={NAV_ROW_VERTICAL_PADDING}
         navItemVerticalPadding={NAV_ITEM_VERTICAL_PADDING}
@@ -837,7 +865,17 @@ function AppShell({ activeTab, onTabChange, themeKey, isDark, onThemeChange, onD
 }
 
 // ── Auth-gated content ──
-function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
+function AuthGatedApp({
+  themeKey,
+  isDark,
+  onThemeChange,
+  onDarkModeChange,
+  showDevSetupToggle,
+  forceSetupPreview,
+  forceLoginPreview,
+  onToggleForceSetupPreview,
+  onToggleForceLoginPreview,
+}) {
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('tracker');
@@ -854,6 +892,22 @@ function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
     return <LoginScreen />;
   }
 
+  if (showDevSetupToggle && forceLoginPreview) {
+    return (
+      <LoginScreen
+        onDevExitPreview={() => onToggleForceLoginPreview(false)}
+      />
+    );
+  }
+
+  if (showDevSetupToggle && forceSetupPreview) {
+    return (
+      <SetupScreen
+        onDevExitPreview={() => onToggleForceSetupPreview(false)}
+      />
+    );
+  }
+
   if (needsSetup || !familyId || !kidId) {
     return <SetupScreen />;
   }
@@ -868,6 +922,11 @@ function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
           isDark={isDark}
           onThemeChange={onThemeChange}
           onDarkModeChange={onDarkModeChange}
+          showDevSetupToggle={showDevSetupToggle}
+          forceSetupPreview={forceSetupPreview}
+          forceLoginPreview={forceLoginPreview}
+          onToggleForceSetupPreview={onToggleForceSetupPreview}
+          onToggleForceLoginPreview={onToggleForceLoginPreview}
         />
       </BottomSheetModalProvider>
     </DataProvider>
@@ -878,7 +937,18 @@ function AuthGatedApp({ themeKey, isDark, onThemeChange, onDarkModeChange }) {
 export default function App() {
   const [themeKey, setThemeKey] = useState('theme1');
   const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');
+  const [forceSetupPreview, setForceSetupPreview] = useState(false);
+  const [forceLoginPreview, setForceLoginPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
+  const showDevSetupToggle = __DEV__ && (Constants?.isDevice === false || Constants?.isDevice == null);
+  const handleToggleForceSetupPreview = useCallback((nextValue) => {
+    setForceSetupPreview(nextValue);
+    if (nextValue) setForceLoginPreview(false);
+  }, []);
+  const handleToggleForceLoginPreview = useCallback((nextValue) => {
+    setForceLoginPreview(nextValue);
+    if (nextValue) setForceSetupPreview(false);
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -921,6 +991,11 @@ export default function App() {
               isDark={isDark}
               onThemeChange={handleThemeChange}
               onDarkModeChange={handleDarkModeChange}
+              showDevSetupToggle={showDevSetupToggle}
+              forceSetupPreview={forceSetupPreview}
+              forceLoginPreview={forceLoginPreview}
+              onToggleForceSetupPreview={handleToggleForceSetupPreview}
+              onToggleForceLoginPreview={handleToggleForceLoginPreview}
             />
           </AuthProvider>
         </SafeAreaProvider>
@@ -939,7 +1014,7 @@ const appStyles = StyleSheet.create({
   // Visual fade above the nav; thickness is controlled by NAV_FADE_HEIGHT.
   fadeGradient: {
     position: 'absolute',
-    bottom: 0,
+    bottom: NAV_FADE_BOTTOM_OFFSET,
     left: 0,
     right: 0,
     height: NAV_FADE_HEIGHT,

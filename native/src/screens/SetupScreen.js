@@ -17,7 +17,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { BrandLogo } from '../components/icons';
 
-export default function SetupScreen() {
+export default function SetupScreen({ onDevExitPreview = null }) {
   const { colors, radius } = useTheme();
   const { createFamily, acceptInvite, loading, signOut } = useAuth();
   const [mode, setMode] = useState('create'); // 'create' | 'invite'
@@ -133,6 +133,11 @@ export default function SetupScreen() {
           <Pressable onPress={signOut}>
             <Text style={[styles.toggleText, { color: colors.textTertiary }]}>Sign out</Text>
           </Pressable>
+          {__DEV__ && typeof onDevExitPreview === 'function' ? (
+            <Pressable onPress={onDevExitPreview}>
+              <Text style={[styles.toggleText, { color: colors.textTertiary }]}>Back to app (dev)</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </KeyboardAvoidingView>

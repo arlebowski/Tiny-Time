@@ -16,7 +16,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { BrandLogo } from '../components/icons';
 
-export default function LoginScreen() {
+export default function LoginScreen({ onDevExitPreview = null }) {
   const { colors, radius } = useTheme();
   const { signIn, signUp, signInWithGoogle, loading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
@@ -161,6 +161,11 @@ export default function LoginScreen() {
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
             </Text>
           </Pressable>
+          {__DEV__ && typeof onDevExitPreview === 'function' ? (
+            <Pressable onPress={onDevExitPreview}>
+              <Text style={[styles.toggleText, { color: colors.textSecondary }]}>Back to app (dev)</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </KeyboardAvoidingView>
@@ -189,8 +194,13 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   card: {
-    padding: 24,
+    padding: 20,
     gap: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
   },
   googleButton: {
     height: 48,

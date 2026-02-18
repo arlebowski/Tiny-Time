@@ -8,6 +8,7 @@ import NursingCard from '../components/cards/NursingCard';
 import SolidsCard from '../components/cards/SolidsCard';
 import SleepCard from '../components/cards/SleepCard';
 import DiaperCard from '../components/cards/DiaperCard';
+import NextUpCard from '../components/shared/NextUpCard';
 import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
@@ -118,6 +119,10 @@ export default function TrackerScreen({
     () => orderSafe.filter((key) => visibilitySafe[key]).map((key) => renderCardByKey[key]).filter(Boolean),
     [orderSafe, visibilitySafe, renderCardByKey]
   );
+  const allowSleepCard = !!visibilitySafe.sleep;
+  const activeSleepForUi = allowSleepCard ? activeSleep : null;
+  const nextUpBabyState = activeSleepForUi?.startTime ? 'sleeping' : 'awake';
+  const nextUpSleepStart = activeSleepForUi?.startTime || null;
 
   return (
     <ScrollView
@@ -151,6 +156,18 @@ export default function TrackerScreen({
           <SettingsIcon size={26} color={colors.textPrimary} />
         </Pressable>
       </View>
+
+      {/* What's Next Card - mirror web behavior: only while sleep is active */}
+      {allowSleepCard && activeSleepForUi?.startTime ? (
+        <NextUpCard
+          babyState={nextUpBabyState}
+          sleepStartTime={nextUpSleepStart}
+          nextEvent={null}
+          onWakeUp={() => onOpenSheet?.('sleep')}
+          onLogFeed={() => onOpenSheet?.('bottle')}
+          onStartSleep={() => onOpenSheet?.('sleep')}
+        />
+      ) : null}
 
       {/* ── Tracker cards ── */}
       {orderedVisibleCards}

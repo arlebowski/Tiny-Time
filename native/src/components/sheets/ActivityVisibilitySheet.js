@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -52,6 +52,7 @@ export default function ActivityVisibilitySheet({
   const { colors, bottle, nursing, solids, sleep, diaper, isDark } = useTheme();
   const [draft, setDraft] = useState(() => normalizeActivityVisibility(visibility));
   const [draftOrder, setDraftOrder] = useState(() => normalizeActivityOrder(order));
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const accentByKey = useMemo(
     () => ({
@@ -70,6 +71,12 @@ export default function ActivityVisibilitySheet({
     setDraft(normalizeActivityVisibility(visibility));
     setDraftOrder(normalizeActivityOrder(order));
   }, [visibility, order]);
+
+  useEffect(() => {
+    if (isSheetOpen) return;
+    setDraft(normalizeActivityVisibility(visibility));
+    setDraftOrder(normalizeActivityOrder(order));
+  }, [visibility, order, isSheetOpen]);
 
   const handleToggle = useCallback((key) => {
     if (!key) return;
@@ -173,8 +180,12 @@ export default function ActivityVisibilitySheet({
   return (
     <HalfSheet
       sheetRef={sheetRef}
-      onClose={onClose}
+      onClose={() => {
+        setIsSheetOpen(false);
+        onClose?.();
+      }}
       onOpen={() => {
+        setIsSheetOpen(true);
         resetDraft();
         onOpen?.();
       }}
