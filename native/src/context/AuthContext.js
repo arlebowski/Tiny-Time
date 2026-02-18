@@ -9,6 +9,7 @@ import {
   createFamilyWithKid,
   signOutUser,
   signInWithEmail,
+  signInWithGoogle,
   signUpWithEmail,
   acceptInvite,
 } from '../services/authService';
@@ -84,6 +85,16 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const handleGoogleSignIn = useCallback(async () => {
+    if (!isFirebaseAuthAvailable) return;
+    setLoading(true);
+    try {
+      await signInWithGoogle();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const handleSignOut = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
     await signOutUser();
@@ -126,6 +137,7 @@ export function AuthProvider({ children }) {
     loading,
     needsSetup,
     signIn: handleSignIn,
+    signInWithGoogle: handleGoogleSignIn,
     signUp: handleSignUp,
     signOut: handleSignOut,
     createFamily: handleCreateFamily,

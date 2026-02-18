@@ -4,19 +4,43 @@
  */
 let auth = null;
 let firestore = null;
+let GoogleSignin = null;
+let googleStatusCodes = null;
 try {
   auth = require('@react-native-firebase/auth').default;
 } catch {}
 try {
   firestore = require('@react-native-firebase/firestore').default;
 } catch {}
+try {
+  const googleSignIn = require('@react-native-google-signin/google-signin');
+  GoogleSignin = googleSignIn.GoogleSignin;
+  googleStatusCodes = googleSignIn.statusCodes;
+} catch {}
 export const isFirebaseAuthAvailable =
   typeof auth === 'function' && typeof firestore === 'function';
+const GOOGLE_WEB_CLIENT_ID = '775043948126-045tnb5lf159e1ik8ildjj6sfdv4reac.apps.googleusercontent.com';
+let googleConfigured = false;
 
 const assertFirebase = () => {
   if (!isFirebaseAuthAvailable) {
     throw new Error('Firebase native modules are unavailable in this runtime');
   }
+};
+
+const assertGoogleSignIn = () => {
+  if (!GoogleSignin || !googleStatusCodes) {
+    throw new Error('Google Sign-In is unavailable in this runtime');
+  }
+};
+
+const ensureGoogleConfigured = () => {
+  assertGoogleSignIn();
+  if (googleConfigured) return;
+  GoogleSignin.configure({
+    webClientId: GOOGLE_WEB_CLIENT_ID,
+  });
+  googleConfigured = true;
 };
 
 /** Email/password sign-up — creates auth user + ensures profile doc */
@@ -31,6 +55,27 @@ export async function signUpWithEmail(email, password) {
 export async function signInWithEmail(email, password) {
   assertFirebase();
   const result = await auth().signInWithEmailAndPassword(email, password);
+  await ensureUserProfile(result.user);
+  return result;
+}
+
+/** Google sign-in using native Google SDK -> Firebase credential */
+export async function signInWithGoogle() {
+  assertFirebase();
+  ensureGoogleConfigured();
+
+  if (typeof GoogleSignin.hasPlayServices === 'function') {
+    await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  }
+
+  const signInResult = await GoogleSignin.signIn();
+  const idToken = signInResult?.idToken || signInResult?.data?.idToken;
+  if (!idToken) {
+    throw new Error('Google sign-in failed to return an ID token');
+  }
+
+  const credential = auth.GoogleAuthProvider.credential(idToken);
+  const result = await auth().signInWithCredential(credential);
   await ensureUserProfile(result.user);
   return result;
 }
