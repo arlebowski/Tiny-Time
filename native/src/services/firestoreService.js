@@ -1098,15 +1098,35 @@ const firestoreService = {
   async createInvite(kidId = null) {
     const user = auth().currentUser;
     if (!user) throw new Error('Not signed in');
-    const code = Math.random().toString(36).substring(2, 10).toUpperCase();
-    await firestore().collection('invites').doc(code).set({
-      familyId: this.currentFamilyId,
-      kidId: kidId || this.currentKidId,
-      createdBy: user.uid,
-      createdAt: firestore.FieldValue.serverTimestamp(),
-      used: false,
-    });
-    return code;
+    const INVITE_CODE_LENGTH = 6;
+    const MAX_ATTEMPTS = 3;
+
+    const buildInviteCode = () => {
+      let code = '';
+      while (code.length < INVITE_CODE_LENGTH) {
+        code += Math.random().toString(36).slice(2).toUpperCase();
+      }
+      return code.slice(0, INVITE_CODE_LENGTH);
+    };
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
+      const code = buildInviteCode();
+      const inviteRef = firestore().collection('invites').doc(code);
+      try {
+        await inviteRef.set({
+          familyId: this.currentFamilyId,
+          kidId: kidId || this.currentKidId,
+          createdBy: user.uid,
+          createdAt: firestore.FieldValue.serverTimestamp(),
+          used: false,
+        });
+        return code;
+      } catch (error) {
+        if (attempt === MAX_ATTEMPTS - 1) throw error;
+      }
+    }
+
+    throw new Error('Failed to generate unique invite code');
   },
 
   async removeMember(memberId) {

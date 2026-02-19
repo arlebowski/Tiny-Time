@@ -2,7 +2,7 @@
  * SetupScreen — shown when a user is signed in but has no family/kid.
  * Allows creating a new baby or entering an invite code.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
@@ -21,15 +22,53 @@ import { BrandLogo } from '../components/icons';
 
 export default function SetupScreen({ onDevExitPreview = null }) {
   const { colors, radius } = useTheme();
-  const { createFamily, loading } = useAuth();
+  const { createFamily, acceptInvite, loading } = useAuth();
+  const [onboardingMode, setOnboardingMode] = useState('create');
   const [familyName, setFamilyName] = useState('');
   const [babyName, setBabyName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [babyWeight, setBabyWeight] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [photoExpanded, setPhotoExpanded] = useState(true);
   const [newPhotos, setNewPhotos] = useState([]);
   const [error, setError] = useState(null);
-  const canSubmit = !!babyName.trim() && !!birthDate && !!newPhotos?.[0];
+  const modeProgress = useRef(new Animated.Value(1)).current;
+  const normalizedInviteCode = String(inviteCode || '').trim().toUpperCase();
+  const canSubmit = onboardingMode === 'create'
+    ? !!babyName.trim() && !!birthDate && !!newPhotos?.[0]
+    : !!normalizedInviteCode;
+  const createOpacity = modeProgress;
+  const joinOpacity = modeProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, 0],
+  });
+  const createMaxHeight = modeProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 760],
+  });
+  const joinMaxHeight = modeProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [140, 0],
+  });
+  const createTranslateY = modeProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [8, 0],
+  });
+  const joinTranslateY = modeProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 8],
+  });
+
+  const switchMode = (nextMode) => {
+    if (nextMode === onboardingMode) return;
+    Animated.timing(modeProgress, {
+      toValue: nextMode === 'create' ? 1 : 0,
+      duration: 260,
+      useNativeDriver: false,
+    }).start();
+    setOnboardingMode(nextMode);
+    setError(null);
+  };
 
   const handleAddPhoto = async () => {
     try {
@@ -88,6 +127,27 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     }
   };
 
+  const handleJoin = async () => {
+    if (!normalizedInviteCode) {
+      setError('Please enter an invite code');
+      return;
+    }
+    setError(null);
+    try {
+      await acceptInvite(normalizedInviteCode);
+    } catch (e) {
+      setError(e?.message || 'Failed to join family');
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (onboardingMode === 'create') {
+      await handleCreate();
+      return;
+    }
+    await handleJoin();
+  };
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.appBg }]}
@@ -99,81 +159,142 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             <BrandLogo size={40} color={colors.brandIcon} />
           </View>
           <Text style={[styles.setupTitle, { color: colors.textPrimary }]}>Welcome to Tiny Tracker!</Text>
-          <Text style={[styles.setupSubtitle, { color: colors.textSecondary }]}>Let's set up your baby's profile</Text>
+          <Text style={[styles.setupSubtitle, { color: colors.textSecondary }]}>
+            {onboardingMode === 'create'
+              ? "Let's set up your baby's profile"
+              : 'Enter your invite code to join your family'}
+          </Text>
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderRadius: radius?.['2xl'] ?? 16 }]}>
-          <View style={styles.sectionSpacer}>
-            <TTInputRow
-              label="Family Name"
-              value={familyName}
-              onChange={setFamilyName}
-              placeholder="Our Family"
-              showIcon={false}
-              showChevron={false}
-              enableTapAnimation
-              showLabel
-              type="text"
-            />
+          <View style={[styles.modeToggle, { backgroundColor: colors.inputBg }]}>
+            <Pressable
+              style={[
+                styles.modeToggleOption,
+                onboardingMode === 'create' && [styles.modeToggleOptionActive, { backgroundColor: colors.cardBg }],
+              ]}
+              onPress={() => switchMode('create')}
+            >
+              <Text style={[styles.modeToggleText, { color: colors.textPrimary }]}>Create Family</Text>
+            </Pressable>
+            <Pressable
+              style={[
+                styles.modeToggleOption,
+                onboardingMode === 'join' && [styles.modeToggleOptionActive, { backgroundColor: colors.cardBg }],
+              ]}
+              onPress={() => switchMode('join')}
+            >
+              <Text style={[styles.modeToggleText, { color: colors.textPrimary }]}>Join with Code</Text>
+            </Pressable>
           </View>
 
-          <View style={styles.sectionSpacer}>
-            <TTInputRow
-              label="Baby's Name"
-              value={babyName}
-              onChange={setBabyName}
-              placeholder="Emma"
-              showIcon={false}
-              showChevron={false}
-              enableTapAnimation
-              showLabel
-              type="text"
-            />
-          </View>
-
-          <View style={styles.sectionSpacer}>
-            <TTInputRow
-              label="Birth Date"
-              value={birthDate}
-              onChange={setBirthDate}
-              placeholder="Add..."
-              showIcon={false}
-              showChevron={false}
-              enableTapAnimation
-              showLabel
-              type="text"
-            />
-          </View>
-
-          <View style={styles.sectionSpacer}>
-            <TTInputRow
-              label="Current Weight (lbs)"
-              value={babyWeight}
-              onChange={setBabyWeight}
-              placeholder="13.0"
-              showIcon={false}
-              showChevron={false}
-              enableTapAnimation
-              showLabel
-              type="text"
-            />
-          </View>
-
-          <TTPhotoRow
-            expanded={photoExpanded}
-            onExpand={() => setPhotoExpanded(true)}
-            title="Add a photo"
-            existingPhotos={[]}
-            newPhotos={newPhotos}
-            onAddPhoto={handleAddPhoto}
-            onRemovePhoto={(index, isExisting) => {
-              if (isExisting) return;
-              setNewPhotos((prev) => prev.filter((_, i) => i !== index));
+          <Animated.View
+            pointerEvents={onboardingMode === 'create' ? 'auto' : 'none'}
+            style={{
+              opacity: createOpacity,
+              maxHeight: createMaxHeight,
+              overflow: 'hidden',
+              transform: [{ translateY: createTranslateY }],
             }}
-            onPreviewPhoto={() => {}}
-            containerStyle={styles.photoSection}
-          />
-          <View style={styles.photoToCtaSpacer} />
+          >
+            <>
+              <View style={styles.sectionSpacer}>
+                <TTInputRow
+                  label="Family Name"
+                  value={familyName}
+                  onChange={setFamilyName}
+                  placeholder="Our Family"
+                  showIcon={false}
+                  showChevron={false}
+                  enableTapAnimation
+                  showLabel
+                  type="text"
+                />
+              </View>
+
+              <View style={styles.sectionSpacer}>
+                <TTInputRow
+                  label="Baby's Name"
+                  value={babyName}
+                  onChange={setBabyName}
+                  placeholder="Emma"
+                  showIcon={false}
+                  showChevron={false}
+                  enableTapAnimation
+                  showLabel
+                  type="text"
+                />
+              </View>
+
+              <View style={styles.sectionSpacer}>
+                <TTInputRow
+                  label="Birth Date"
+                  value={birthDate}
+                  onChange={setBirthDate}
+                  placeholder="Add..."
+                  showIcon={false}
+                  showChevron={false}
+                  enableTapAnimation
+                  showLabel
+                  type="text"
+                />
+              </View>
+
+              <View style={styles.sectionSpacer}>
+                <TTInputRow
+                  label="Current Weight (lbs)"
+                  value={babyWeight}
+                  onChange={setBabyWeight}
+                  placeholder="13.0"
+                  showIcon={false}
+                  showChevron={false}
+                  enableTapAnimation
+                  showLabel
+                  type="text"
+                />
+              </View>
+
+              <TTPhotoRow
+                expanded={photoExpanded}
+                onExpand={() => setPhotoExpanded(true)}
+                title="Add a photo"
+                existingPhotos={[]}
+                newPhotos={newPhotos}
+                onAddPhoto={handleAddPhoto}
+                onRemovePhoto={(index, isExisting) => {
+                  if (isExisting) return;
+                  setNewPhotos((prev) => prev.filter((_, i) => i !== index));
+                }}
+                onPreviewPhoto={() => {}}
+                containerStyle={styles.photoSection}
+              />
+              <View style={styles.photoToCtaSpacer} />
+            </>
+          </Animated.View>
+
+          <Animated.View
+            pointerEvents={onboardingMode === 'join' ? 'auto' : 'none'}
+            style={{
+              opacity: joinOpacity,
+              maxHeight: joinMaxHeight,
+              overflow: 'hidden',
+              transform: [{ translateY: joinTranslateY }],
+            }}
+          >
+            <View style={styles.sectionSpacer}>
+              <TTInputRow
+                label="Invite Code"
+                value={inviteCode}
+                onChange={(value) => setInviteCode(String(value || '').toUpperCase())}
+                placeholder="ABC123"
+                showIcon={false}
+                showChevron={false}
+                enableTapAnimation
+                showLabel
+                type="text"
+              />
+            </View>
+          </Animated.View>
 
           {error && <Text style={styles.error}>{error}</Text>}
           <Pressable
@@ -185,11 +306,13 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                 opacity: loading || !canSubmit ? 0.5 : 1,
               },
             ]}
-            onPress={handleCreate}
+            onPress={handleSubmit}
             disabled={loading || !canSubmit}
           >
             {loading ? <ActivityIndicator color="#fff" /> : (
-              <Text style={styles.buttonText}>Get Started</Text>
+              <Text style={styles.buttonText}>
+                {onboardingMode === 'create' ? 'Get Started' : 'Join Family'}
+              </Text>
             )}
           </Pressable>
 
@@ -240,6 +363,30 @@ const styles = StyleSheet.create({
   setupSubtitle: {
     fontSize: 16,
     textAlign: 'center',
+  },
+  modeToggle: {
+    flexDirection: 'row',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 12,
+  },
+  modeToggleOption: {
+    flex: 1,
+    borderRadius: 8,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modeToggleOptionActive: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  modeToggleText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   error: { color: '#EF4444', fontSize: 14, textAlign: 'center', marginBottom: 8 },
   photoSection: {

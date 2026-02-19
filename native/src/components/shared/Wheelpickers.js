@@ -25,6 +25,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FullWindowOverlay } from 'react-native-screens';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -38,6 +39,8 @@ const PICKER_TRACE = false;
 const pickerTrace = (...args) => {
   if (PICKER_TRACE) console.log('[TimeTrace][TTPickerTray]', ...args);
 };
+// One-line rollback switch for native iOS spinner experiment.
+const USE_NATIVE_IOS_DATETIME_TRAY = true;
 
 // Context so WheelPicker overlay uses the exact tray background (avoids theme/portal mismatches)
 const PickerTrayBgContext = createContext(null);
@@ -202,7 +205,7 @@ export function WheelPicker({
   containerStyle = null,
   overlayColor = null,
 }) {
-  const { colors } = useTheme();
+  const { colors, radius } = useTheme();
   const trayBgFromContext = useContext(PickerTrayBgContext);
   const offsetY = useSharedValue(0);
   const gestureStartOffset = useSharedValue(0);
@@ -393,6 +396,7 @@ export function WheelPicker({
               style={[
                 wheelStyles.selection,
                 { backgroundColor: colors.wheelpickerBar || colors.subtle },
+                { borderRadius: radius?.['2xl'] ?? 16 },
               ]}
             />
           )}
@@ -674,6 +678,7 @@ export function TTPickerTray({
   header = null,
   height = '44%',
   scrollEnabled = true,
+  contentContainerStyle = null,
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
@@ -769,7 +774,10 @@ export function TTPickerTray({
           )}
           <ScrollView
             style={styles.trayContent}
-            contentContainerStyle={{ paddingTop: 22, paddingBottom: 12 }}
+            contentContainerStyle={[
+              { paddingTop: 22, paddingBottom: 12 },
+              contentContainerStyle,
+            ]}
             showsVerticalScrollIndicator={false}
             scrollEnabled={scrollEnabled}
           >
@@ -839,7 +847,7 @@ export function DateTimePickerTray({
   onChange,
   title = 'Date & Time',
 }) {
-  const { colors, bottle } = useTheme();
+  const { colors, bottle, isDark, radius } = useTheme();
   const base = value ? new Date(value) : new Date();
   const safeBase = Number.isNaN(base.getTime()) ? new Date() : base;
 
@@ -918,6 +926,40 @@ export function DateTimePickerTray({
   const { width } = Dimensions.get('window');
   const dateWidth = Math.min(65, width * 0.16);
   const timeWidth = Math.min(50, width * 0.12);
+  const nativePickerDate = useMemo(() => {
+    const parsed = value ? new Date(value) : new Date();
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, [value]);
+
+  if (USE_NATIVE_IOS_DATETIME_TRAY && Platform.OS === 'ios') {
+    return (
+      <TTPickerTray
+        isOpen={isOpen}
+        onClose={onClose}
+        header={header}
+        height="44%"
+        scrollEnabled={false}
+        contentContainerStyle={styles.nativePickerContent}
+      >
+        <View style={styles.nativePickerWrap}>
+          <DateTimePicker
+            value={nativePickerDate}
+            mode="datetime"
+            display="spinner"
+            onChange={(event, selectedDate) => {
+              if (event?.type === 'dismissed') return;
+              if (!selectedDate || Number.isNaN(selectedDate.getTime())) return;
+              if (typeof onChange === 'function') onChange(selectedDate.toISOString());
+            }}
+            style={styles.nativePicker}
+            textColor={colors.textPrimary}
+            accentColor={bottle?.primary || colors.textPrimary}
+            themeVariant={isDark ? 'dark' : 'light'}
+          />
+        </View>
+      </TTPickerTray>
+    );
+  }
 
   return (
     <TTPickerTray isOpen={isOpen} onClose={onClose} header={header} height="44%" scrollEnabled={false}>
@@ -927,6 +969,7 @@ export function DateTimePickerTray({
             style={[
               styles.dateTimeSelectionBar,
               { backgroundColor: colors.subtleSurface || colors.subtle || colors.track },
+              { borderRadius: radius?.['2xl'] ?? 16 },
             ]}
           />
           <View style={styles.dateTimeRow}>
@@ -1141,5 +1184,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -2,
+  },
+  nativePickerWrap: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+  },
+  nativePicker: {
+    width: '96%',
+  },
+  nativePickerContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
   },
 });

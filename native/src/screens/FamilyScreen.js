@@ -26,7 +26,18 @@ import {
   StyleSheet,
   Platform,
   ActivityIndicator,
+  useWindowDimensions,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  Easing,
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
@@ -83,6 +94,11 @@ const formatMonthDay = (dateLike) => {
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
+
+const OPEN_DURATION_MS = 340;
+const CLOSE_DURATION_MS = 280;
+const SWIPE_CLOSE_THRESHOLD = 0.33;
+const SWIPE_VELOCITY_THRESHOLD = 950;
 
 // ── Card wrapper (matches web TTCard variant="tracker") ──
 // Web: rounded-2xl p-5 shadow-sm bg var(--tt-card-bg)
@@ -171,11 +187,18 @@ export default function FamilyScreen({
   onDeleteAccount,
 }) {
   const { colors, radius } = useTheme();
+  const { width: screenWidth } = useWindowDimensions();
+  const width = Math.max(screenWidth || 0, 1);
   const { createFamily, loading: authLoading } = useAuth();
   const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
 
   // ── State ──
-  const [currentView, setCurrentView] = useState('hub');
+  const [viewStack, setViewStack] = useState(['hub']);
+  const [transition, setTransition] = useState(null); // { from, to, direction: 'push' | 'pop' }
+  const currentView = viewStack[viewStack.length - 1] || 'hub';
+  const previousView = viewStack.length > 1 ? viewStack[viewStack.length - 2] : 'hub';
+  const canGoBack = viewStack.length > 1;
+  const navProgress = useSharedValue(0); // 0 = no overlay, 1 = overlay fully open
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, preferredVolumeUnit: 'oz' });
@@ -287,6 +310,124 @@ export default function FamilyScreen({
     addFamilySheetRef.current?.dismiss?.();
   }, []);
 
+  const finishPush = useCallback(() => {
+    setTransition(null);
+    navProgress.value = 0;
+  }, [navProgress]);
+
+  const finishPop = useCallback(() => {
+    setTransition(null);
+    navProgress.value = 0;
+  }, [navProgress]);
+
+  const pushView = useCallback((nextView) => {
+    if (!nextView || nextView === currentView || transition) return;
+    setTransition({ from: currentView, to: nextView, direction: 'push' });
+    setViewStack((prev) => [...prev, nextView]);
+    navProgress.value = 0;
+    navProgress.value = withTiming(1, {
+      duration: OPEN_DURATION_MS,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+    }, (finished) => {
+      if (finished) runOnJS(finishPush)();
+    });
+  }, [currentView, finishPush, navProgress, transition]);
+
+  const popView = useCallback(() => {
+    if (!canGoBack || transition) return;
+    setTransition({ from: currentView, to: previousView, direction: 'pop' });
+    setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+    navProgress.value = 1;
+    navProgress.value = withTiming(0, {
+      duration: CLOSE_DURATION_MS,
+      easing: Easing.bezier(0.22, 1, 0.36, 1),
+    }, (finished) => {
+      if (finished) runOnJS(finishPop)();
+    });
+  }, [canGoBack, currentView, finishPop, navProgress, previousView, transition]);
+
+  const cancelSwipeBack = useCallback((fromView) => {
+    setViewStack((prev) => (prev[prev.length - 1] === fromView ? prev : [...prev, fromView]));
+    setTransition(null);
+    navProgress.value = 0;
+  }, [navProgress]);
+
+  const popStackOne = useCallback(() => {
+    setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
+  }, []);
+
+  const resetToHub = useCallback(() => {
+    setViewStack(['hub']);
+    setTransition(null);
+  }, []);
+
+  const baseLayerStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { translateX: interpolate(navProgress.value, [0, 1], [0, -width * 0.22], Extrapolation.CLAMP) },
+        { scale: interpolate(navProgress.value, [0, 1], [1, 0.985], Extrapolation.CLAMP) },
+      ],
+    };
+  }, [width]);
+
+  const overlayLayerStyle = useAnimatedStyle(() => ({
+    transform: [
+      {
+        translateX: interpolate(navProgress.value, [0, 1], [width, 0], Extrapolation.CLAMP),
+      },
+    ],
+  }), [width]);
+
+  const scrimStyle = useAnimatedStyle(() => {
+    if (!transition) return { opacity: 0 };
+    return { opacity: interpolate(navProgress.value, [0, 1], [0, 0.08], Extrapolation.CLAMP) };
+  }, [transition]);
+
+  const edgeSwipeGesture = useMemo(() => Gesture.Pan()
+    .enabled(canGoBack && !transition)
+    .hitSlop({ left: 0, width: 32 })
+    .activeOffsetX(10)
+    .failOffsetY([-12, 12])
+    .onBegin(() => {
+      runOnJS(setTransition)({ from: currentView, to: previousView, direction: 'pop' });
+      runOnJS(popStackOne)();
+      navProgress.value = 1;
+    })
+    .onUpdate((event) => {
+      const delta = Math.max(0, event.translationX);
+      navProgress.value = Math.max(0, Math.min(1, 1 - (delta / width)));
+    })
+    .onEnd((event) => {
+      const shouldClose =
+        event.translationX > width * SWIPE_CLOSE_THRESHOLD
+        || event.velocityX > SWIPE_VELOCITY_THRESHOLD;
+      if (shouldClose) {
+        navProgress.value = withTiming(0, {
+          duration: CLOSE_DURATION_MS,
+          easing: Easing.bezier(0.22, 1, 0.36, 1),
+        }, (finished) => {
+          if (finished) runOnJS(finishPop)();
+        });
+      } else {
+        navProgress.value = withTiming(1, {
+          duration: 220,
+          easing: Easing.bezier(0.22, 1, 0.36, 1),
+        }, (finished) => {
+          if (finished) runOnJS(cancelSwipeBack)(currentView);
+        });
+      }
+    }), [
+      cancelSwipeBack,
+      canGoBack,
+      currentView,
+      finishPop,
+      navProgress,
+      popStackOne,
+      previousView,
+      transition,
+      width,
+    ]);
+
   useEffect(() => {
     if (ctxKidData) {
       setKidData(ctxKidData);
@@ -338,11 +479,11 @@ export default function FamilyScreen({
   }, [firestoreService, familyId, members.length]);
 
   useEffect(() => {
-    onDetailOpenChange?.(currentView !== 'hub');
+    onDetailOpenChange?.(currentView !== 'hub' || !!transition);
     return () => {
       onDetailOpenChange?.(false);
     };
-  }, [currentView, onDetailOpenChange]);
+  }, [currentView, onDetailOpenChange, transition]);
 
   useEffect(() => {
     // Ensure every subview opens from top even if hub was previously scrolled.
@@ -573,13 +714,13 @@ export default function FamilyScreen({
 
   const handleOpenProfile = useCallback(() => {
     screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
-    setCurrentView('profile');
-  }, []);
+    pushView('profile');
+  }, [pushView]);
 
   const handleOpenFamily = useCallback(() => {
     screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
-    setCurrentView('family');
-  }, []);
+    pushView('family');
+  }, [pushView]);
 
   const handleOpenKidSubpage = useCallback((kid) => {
     screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
@@ -588,13 +729,13 @@ export default function FamilyScreen({
     setEditingName(false);
     setEditingWeight(false);
     setSelectedKidForSubpage(kid || null);
-    setCurrentView('kid');
-  }, []);
+    pushView('kid');
+  }, [pushView]);
 
-  const handleBackToHub = useCallback(() => {
+  const handleBack = useCallback(() => {
     screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
-    setCurrentView('hub');
-  }, []);
+    popView();
+  }, [popView]);
 
   const handleProfilePhotoClick = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -643,14 +784,14 @@ export default function FamilyScreen({
       await refresh?.();
       setProfilePhotoUrl(nextPhotoUrl);
       Alert.alert('Saved', 'Profile updated.');
-      setCurrentView('hub');
+      resetToHub();
     } catch (error) {
       console.error('Failed to save profile:', error);
       Alert.alert('Error', 'Unable to save profile. You may need to sign in again to update your email.');
     } finally {
       setSavingProfile(false);
     }
-  }, [currentUser?.uid, familyId, profileNameDraft, profileEmailDraft, profilePhotoUrl, refresh]);
+  }, [currentUser?.uid, familyId, profileNameDraft, profileEmailDraft, profilePhotoUrl, refresh, resetToHub]);
 
   const isFamilyOwner = useMemo(() => {
     const ownerUid = familyInfo?.ownerId
@@ -764,7 +905,7 @@ export default function FamilyScreen({
 
       const nextKids = (Array.isArray(kids) ? kids : []).filter((k) => k.id !== targetKid.id);
       setKids(nextKids);
-      setCurrentView('hub');
+      resetToHub();
       setSelectedKidForSubpage(null);
       setSelectedKidData(null);
       setSelectedKidSettings({ babyWeight: null, preferredVolumeUnit: 'oz' });
@@ -781,7 +922,7 @@ export default function FamilyScreen({
       console.error('Failed to delete kid:', error);
       Alert.alert('Error', 'Unable to delete this child right now.');
     }
-  }, [kidPendingDelete, firestoreService, currentUser?.uid, kids, kidId, onKidChange, refresh]);
+  }, [kidPendingDelete, firestoreService, currentUser?.uid, kids, kidId, onKidChange, refresh, resetToHub]);
 
   const handleAddChildPhoto = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -919,7 +1060,7 @@ export default function FamilyScreen({
       });
       closeAddFamilySheet();
       resetAddFamilyForm();
-      setCurrentView('hub');
+      resetToHub();
     } catch (error) {
       console.error('Error creating family:', error);
       Alert.alert('Error', error?.message || 'Failed to create family. Please try again.');
@@ -935,6 +1076,7 @@ export default function FamilyScreen({
     createFamily,
     closeAddFamilySheet,
     resetAddFamilyForm,
+    resetToHub,
   ]);
 
   const handleOpenActivityVisibility = () => {
@@ -963,6 +1105,16 @@ export default function FamilyScreen({
 
   return (
     <>
+    <View style={s.flowContainer}>
+    <Animated.View
+      pointerEvents={transition ? 'none' : 'auto'}
+      style={[
+        s.flowLayer,
+        transition
+          ? (transition.direction === 'push' ? overlayLayerStyle : baseLayerStyle)
+          : null,
+      ]}
+    >
     <ScrollView
       ref={screenScrollRef}
       style={[s.scroll, { backgroundColor: colors.appBg }]}
@@ -974,7 +1126,7 @@ export default function FamilyScreen({
         <>
           <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
             <View style={s.profileHeaderCol}>
-              <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
+              <Pressable onPress={handleBack} hitSlop={8} style={s.profileBackButton}>
                 <ChevronLeftIcon size={20} color={colors.textSecondary} />
                 <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
                   Back
@@ -1083,7 +1235,7 @@ export default function FamilyScreen({
         <>
           <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
             <View style={s.profileHeaderCol}>
-              <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
+              <Pressable onPress={handleBack} hitSlop={8} style={s.profileBackButton}>
                 <ChevronLeftIcon size={20} color={colors.textSecondary} />
                 <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
                   Back
@@ -1317,7 +1469,7 @@ export default function FamilyScreen({
         <>
           <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
             <View style={s.profileHeaderCol}>
-              <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
+              <Pressable onPress={handleBack} hitSlop={8} style={s.profileBackButton}>
                 <ChevronLeftIcon size={20} color={colors.textSecondary} />
                 <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
                   Back
@@ -1697,6 +1849,18 @@ export default function FamilyScreen({
         </>
       )}
     </ScrollView>
+    </Animated.View>
+    {transition ? (
+      <Animated.View pointerEvents="none" style={[s.flowScrim, scrimStyle]} />
+    ) : null}
+    {canGoBack ? (
+      <View pointerEvents="box-none" style={s.gestureOverlayContainer}>
+        <GestureDetector gesture={edgeSwipeGesture}>
+          <View style={s.edgeSwipeZone} />
+        </GestureDetector>
+      </View>
+    ) : null}
+    </View>
     <HalfSheet
       sheetRef={feedingUnitSheetRef}
       title="Feeding Unit"
@@ -2113,6 +2277,27 @@ export default function FamilyScreen({
 // ══════════════════════════════════════════════════
 
 const s = StyleSheet.create({
+  flowContainer: {
+    flex: 1,
+    overflow: 'hidden',
+  },
+  flowLayer: {
+    flex: 1,
+  },
+  flowScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+  },
+  gestureOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  edgeSwipeZone: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 32,
+  },
   // Scroll
   scroll: { flex: 1 },
   scrollContent: {

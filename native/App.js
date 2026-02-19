@@ -84,6 +84,7 @@ const NAV_FADE_BOTTOM_OFFSET = 0;
 const LAUNCH_SPLASH_ICON_BG_ENABLED = false;
 const LAUNCH_SPLASH_MIN_MS = 900;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
+const APP_INSTALL_URL_PLACEHOLDER = '[APP STORE URL]';
 const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
 const CHEVRON_ROTATE_MS = 260;
 // ── Header (web: script.js lines 3941-4201) ──
@@ -619,21 +620,36 @@ function AppShell({
       return;
     }
 
-    let link;
+    let code;
     try {
-      const code = await firestoreService.createInvite(resolvedKidId);
-      link = `${APP_SHARE_BASE_URL}/?invite=${encodeURIComponent(code)}`;
-    } catch {
+      code = await firestoreService.createInvite(resolvedKidId);
+    } catch (error) {
+      console.warn('Failed to create invite:', error);
       Alert.alert('Failed to create invite.');
       return;
     }
+
+    const resolvedKid = (
+      (Array.isArray(kids) && resolvedKidId
+        ? kids.find((kid) => kid?.id === resolvedKidId)
+        : null)
+      || (kidData?.id === resolvedKidId ? kidData : null)
+      || null
+    );
+    const rawKidName = String(resolvedKid?.name || '').trim();
+    const possessiveKidName = rawKidName
+      ? (rawKidName.toLowerCase().endsWith('s') ? `${rawKidName}'` : `${rawKidName}'s`)
+      : 'your';
+    const headerLine = rawKidName
+      ? `Join ${possessiveKidName} family on Tiny Tracker.`
+      : 'Join your family on Tiny Tracker.';
+    const message = `${headerLine}\nInstall app: ${APP_INSTALL_URL_PLACEHOLDER}\nInvite code: ${code}`;
 
     if (Share?.share) {
       try {
         await Share.share({
           title: 'Join me on Tiny Tracker',
-          message: `Come join me so we can track together. ${link}`,
-          url: link,
+          message,
         });
         return;
       } catch {
@@ -641,8 +657,8 @@ function AppShell({
       }
     }
 
-    Alert.alert('Copy this invite link:', link);
-  }, [familyId, kidId, kids, firestoreService]);
+    Alert.alert('Copy this invite info:', message);
+  }, [familyId, kidId, kids, kidData, firestoreService]);
 
   const handleShareAppFromMenu = useCallback(async () => {
     await handleGlobalShareApp();
