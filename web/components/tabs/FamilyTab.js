@@ -23,6 +23,10 @@ const FamilyTab = ({
   const [loading, setLoading] = useState(true);
   const [babyPhotoUrl, setBabyPhotoUrl] = useState(null);
   const [showUILab, setShowUILab] = useState(false);
+  const [viewMode, setViewMode] = useState('main');
+  const [familyName, setFamilyName] = useState('');
+  const [tempFamilyName, setTempFamilyName] = useState('');
+  const [savingFamilyName, setSavingFamilyName] = useState(false);
   const themeTokens = (typeof window !== 'undefined' && window.TT && window.TT.themeTokens) ? window.TT.themeTokens : null;
   const [appearance, setAppearance] = useState(() => {
     if (typeof window !== 'undefined' && window.TT && window.TT.appearance) {
@@ -172,6 +176,7 @@ const FamilyTab = ({
 
   useEffect(() => {
     if (requestAddChild) {
+      setViewMode('family');
       setShowAddChild(true);
       if (onRequestAddChildHandled) {
         onRequestAddChildHandled();
@@ -279,6 +284,16 @@ const FamilyTab = ({
 
       const memberList = await firestoreStorage.getMembers();
       setMembers(memberList);
+
+      if (familyId) {
+        const famDoc = await db.collection('families').doc(familyId).get();
+        const famData = famDoc.exists ? famDoc.data() : {};
+        const resolvedFamilyName = (famData?.name && String(famData.name).trim())
+          ? String(famData.name).trim()
+          : 'Family';
+        setFamilyName(resolvedFamilyName);
+        setTempFamilyName(resolvedFamilyName);
+      }
 
       const settingsData = await firestoreStorage.getSettings();
       if (settingsData) {
@@ -446,6 +461,30 @@ const FamilyTab = ({
       setEditingName(false);
     } catch (error) {
       console.error('Error updating name:', error);
+    }
+  };
+
+  const handleFamilyNameChange = (nextValue) => {
+    setTempFamilyName(nextValue);
+  };
+
+  const handleUpdateFamilyName = async () => {
+    if (!familyId) return;
+    const raw = String(tempFamilyName || '').trim();
+    if (!raw || raw === familyName || savingFamilyName) {
+      setTempFamilyName(familyName);
+      return;
+    }
+    setSavingFamilyName(true);
+    try {
+      await db.collection('families').doc(familyId).set({ name: raw }, { merge: true });
+      setFamilyName(raw);
+      setTempFamilyName(raw);
+    } catch (error) {
+      console.error('Error updating family name:', error);
+      setTempFamilyName(familyName);
+    } finally {
+      setSavingFamilyName(false);
     }
   };
 
@@ -713,6 +752,218 @@ const FamilyTab = ({
     );
   };
 
+  const KidsSection = () =>
+    React.createElement(
+      TTCard,
+      { variant: 'tracker' },
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            title: React.createElement(
+              'div',
+              {
+                className: 'text-base font-semibold',
+                style: { color: 'var(--tt-text-primary)' }
+              },
+              'Kids'
+            ),
+            right: React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: () => setShowAddChild(true),
+                className: 'text-sm font-medium',
+                style: { color: 'var(--tt-feed)' }
+              },
+              '+ Add Child'
+            ),
+            showIcon: false,
+            showTitle: true,
+            className: 'mb-3'
+          })
+        : React.createElement(
+            'div',
+            { className: 'flex items-center justify-between mb-3' },
+            React.createElement(
+              'h2',
+              {
+                className: 'text-lg font-semibold',
+                style: { color: 'var(--tt-text-primary)' }
+              },
+              'Kids'
+            ),
+            React.createElement(
+              'button',
+              {
+                type: 'button',
+                onClick: () => setShowAddChild(true),
+                className: 'text-sm font-medium',
+                style: { color: 'var(--tt-feed)' }
+              },
+              '+ Add Child'
+            )
+          ),
+      React.createElement(
+        'div',
+        { className: 'space-y-2' },
+        (kids || []).map((k) => {
+          const isCurrent = k.id === kidId;
+          return React.createElement(
+            'button',
+            {
+              key: k.id,
+              onClick: () => {
+                if (isCurrent) return;
+                if (typeof onKidChange === 'function') {
+                  onKidChange(k.id);
+                }
+              },
+              className: 'w-full px-4 py-3 rounded-xl border flex items-center justify-between text-sm',
+              style: isCurrent
+                ? {
+                    borderColor: 'var(--tt-outline-strong)',
+                    backgroundColor: 'var(--tt-subtle-surface)',
+                    color: 'var(--tt-text-primary)'
+                  }
+                : {
+                    borderColor: 'var(--tt-card-border)',
+                    backgroundColor: 'var(--tt-card-bg)',
+                    color: 'var(--tt-text-secondary)'
+                  }
+            },
+            React.createElement(
+              'span',
+              { className: 'font-medium truncate' },
+              k.name || 'Baby'
+            ),
+            isCurrent &&
+              React.createElement(
+                'span',
+                {
+                  className: 'text-xs font-semibold',
+                  style: { color: kidAccent }
+                },
+                'Active'
+              )
+          );
+        })
+      ),
+      React.createElement(
+        'p',
+        {
+          className: 'mt-3 text-xs',
+          style: { color: 'var(--tt-text-secondary)' }
+        },
+        'Active kid controls what you see in Tracker and Analytics.'
+      )
+    );
+
+  const FamilyMembersSection = () =>
+    React.createElement(
+      TTCard,
+      { variant: 'tracker' },
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            title: React.createElement(
+              'div',
+              { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
+              'Family Members'
+            ),
+            showIcon: false,
+            showTitle: true,
+            className: 'mb-4'
+          })
+        : React.createElement(
+            'h2',
+            { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
+            'Family Members'
+          ),
+      React.createElement(
+        'div',
+        { className: 'space-y-3 mb-4' },
+        members.map((member) =>
+          React.createElement(
+            'div',
+            {
+              key: member.uid,
+              className: 'flex items-center gap-3 p-3 rounded-xl',
+              style: { backgroundColor: 'var(--tt-input-bg)' }
+            },
+            React.createElement(
+              'div',
+              { className: 'flex-shrink-0' },
+              member.photoURL
+                ? React.createElement('img', {
+                    src: member.photoURL,
+                    alt: member.displayName || member.email,
+                    className: 'w-12 h-12 rounded-full'
+                  })
+                : React.createElement(
+                    'div',
+                    {
+                      className: 'w-12 h-12 rounded-full flex items-center justify-center font-semibold',
+                      style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-primary)' }
+                    },
+                    (member.displayName || member.email || '?')
+                      .charAt(0)
+                      .toUpperCase()
+                  )
+            ),
+            React.createElement(
+              'div',
+              { className: 'flex-1 min-w-0' },
+              React.createElement(
+                'div',
+                { className: 'text-sm font-medium truncate', style: { color: 'var(--tt-text-primary)' } },
+                member.displayName || member.email || 'Member'
+              ),
+              React.createElement(
+                'div',
+                { className: 'text-xs truncate', style: { color: 'var(--tt-text-secondary)' } },
+                member.email
+              )
+            ),
+            member.uid !== user.uid &&
+              React.createElement(
+                'button',
+                {
+                  onClick: () => handleRemoveMember(member.uid),
+                  className: 'text-xs text-red-500 hover:text-red-600 font-medium'
+                },
+                'Remove'
+              )
+          )
+        )
+      )
+    );
+
+  const FamilySummaryCard = () =>
+    React.createElement(
+      TTCard,
+      { variant: 'tracker' },
+      React.createElement(
+        'button',
+        {
+          type: 'button',
+          onClick: () => setViewMode('family'),
+          className: 'w-full text-left flex items-center justify-between rounded-2xl p-4 transition tt-tapable',
+          style: { backgroundColor: 'var(--tt-input-bg)' }
+        },
+        React.createElement(
+          'div',
+          { className: 'flex flex-col' },
+          React.createElement('div', { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } }, familyName || 'Family'),
+          React.createElement(
+            'div',
+            { className: 'text-xs mt-1', style: { color: 'var(--tt-text-secondary)' } },
+            `${members.length} member${members.length === 1 ? '' : 's'} • ${(kids || []).length} kid${(kids || []).length === 1 ? '' : 's'}`
+          )
+        ),
+        ChevronRightIcon
+          ? React.createElement(ChevronRightIcon, { className: 'w-4 h-4', style: { color: 'var(--tt-text-secondary)' } })
+          : React.createElement('span', { style: { color: 'var(--tt-text-secondary)' } }, '›')
+      )
+    );
+
   const AccountSection = () =>
     React.createElement(TTCard, { variant: 'tracker' },
       TTCardHeader
@@ -812,7 +1063,6 @@ const FamilyTab = ({
   const activeThemeKey = settings.themeKey || themeKey || defaultThemeKey;
   const activeTheme = resolveTheme(activeThemeKey);
   const kidAccent = activeTheme?.cards?.bottle?.primary || 'var(--tt-primary-brand)';
-  const kidSoft = activeTheme?.cards?.bottle?.soft || 'var(--tt-subtle-surface)';
 
   // Day sleep window (slider UI)
   // Anything that STARTS inside this window is counted as Day Sleep (naps). Everything else = Night Sleep.
@@ -979,127 +1229,81 @@ const FamilyTab = ({
     )
   );
 
-  return React.createElement(
+  const familySubpage = React.createElement(
     'div',
-    { className: 'space-y-4 relative' },
-
-    // Hidden file input
-    React.createElement('input', {
-      ref: fileInputRef,
-      type: 'file',
-      accept: 'image/*',
-      onChange: handlePhotoChange,
-      style: { display: 'none' }
-    }),
-
-    AppearanceSection(),
-
-    // Kids Card (multi-kid)
-    kids && kids.length > 0 &&
+    { className: 'space-y-4' },
+    React.createElement(
+      'div',
+      { className: 'flex items-center justify-between' },
       React.createElement(
-        TTCard,
-        { variant: 'tracker' },
-        TTCardHeader
-          ? React.createElement(TTCardHeader, {
-              title: React.createElement(
-                'div',
-                { 
-                  className: 'text-base font-semibold',
-                  style: { color: 'var(--tt-text-primary)' }
-                },
-                'Kids'
-              ),
-              right: React.createElement(
-                'button',
-                {
-                  type: 'button',
-                  onClick: () => setShowAddChild(true),
-                  className: 'text-sm font-medium',
-                  style: { color: 'var(--tt-feed)' }
-                },
-                '+ Add Child'
-              ),
-              showIcon: false,
-              showTitle: true,
-              className: 'mb-3'
-            })
-          : React.createElement(
-              'div',
-              { className: 'flex items-center justify-between mb-3' },
-              React.createElement(
-                'h2',
-                { 
-                  className: 'text-lg font-semibold',
-                  style: { color: 'var(--tt-text-primary)' }
-                },
-                'Kids'
-              ),
-              React.createElement(
-                'button',
-                {
-                  type: 'button',
-                  onClick: () => setShowAddChild(true),
-                  className: 'text-sm font-medium',
-                  style: { color: 'var(--tt-feed)' }
-                },
-                '+ Add Child'
-              )
-            ),
-        React.createElement(
-          'div',
-          { className: 'space-y-2' },
-          kids.map((k) => {
-            const isCurrent = k.id === kidId;
-            return React.createElement(
-              'button',
-              {
-                key: k.id,
-                onClick: () => {
-                  if (isCurrent) return;
-                  if (typeof onKidChange === 'function') {
-                    onKidChange(k.id);
-                  }
-                },
-                className: 'w-full px-4 py-3 rounded-xl border flex items-center justify-between text-sm',
-                style: isCurrent
-                  ? {
-                      borderColor: 'var(--tt-outline-strong)',
-                      backgroundColor: 'var(--tt-subtle-surface)',
-                      color: 'var(--tt-text-primary)'
-                    }
-                  : {
-                      borderColor: 'var(--tt-card-border)',
-                      backgroundColor: 'var(--tt-card-bg)',
-                      color: 'var(--tt-text-secondary)'
-                    }
-              },
-              React.createElement(
-                'span',
-                { className: 'font-medium truncate' },
-                k.name || 'Baby'
-              ),
-              isCurrent &&
-                React.createElement(
-                  'span',
-                  { 
-                    className: 'text-xs font-semibold',
-                    style: { color: kidAccent }
-                  },
-                  'Active'
-                )
-            );
-          })
-        ),
-        React.createElement(
-          'p',
-          { 
-            className: 'mt-3 text-xs',
-            style: { color: 'var(--tt-text-secondary)' }
-          },
-          'Active kid controls what you see in Tracker and Analytics.'
-        )
+        'button',
+        {
+          type: 'button',
+          onClick: () => setViewMode('main'),
+          className: 'text-sm font-medium',
+          style: { color: 'var(--tt-text-secondary)' }
+        },
+        'Back'
       ),
+      React.createElement(
+        'div',
+        { className: 'text-sm font-semibold', style: { color: 'var(--tt-text-primary)' } },
+        familyName || 'Family'
+      ),
+      React.createElement('div', { className: 'w-10' })
+    ),
+    React.createElement(
+      TTCard,
+      { variant: 'tracker' },
+      TTCardHeader
+        ? React.createElement(TTCardHeader, {
+            title: React.createElement(
+              'div',
+              { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
+              'Family'
+            ),
+            showIcon: false,
+            showTitle: true,
+            className: 'mb-4'
+          })
+        : React.createElement(
+            'h2',
+            { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
+            'Family'
+          ),
+      TTInputRow && React.createElement(TTInputRow, {
+        label: 'Family name',
+        type: 'text',
+        size: 'compact',
+        icon: TTEditIcon,
+        value: tempFamilyName,
+        placeholder: 'Family',
+        onChange: handleFamilyNameChange,
+        onBlur: handleUpdateFamilyName,
+        onKeyDown: (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            e.currentTarget.blur();
+          }
+        }
+      }),
+      savingFamilyName
+        ? React.createElement(
+            'div',
+            { className: 'mt-2 text-xs', style: { color: 'var(--tt-text-secondary)' } },
+            'Saving...'
+          )
+        : null
+    ),
+    KidsSection(),
+    FamilyMembersSection()
+  );
 
+  const mainPage = React.createElement(
+    React.Fragment,
+    null,
+    AppearanceSection(),
+    FamilySummaryCard(),
     // Baby Info Card
     React.createElement(
       TTCard,
@@ -1316,91 +1520,24 @@ const FamilyTab = ({
         )
       ),
     ),
-
-    // Family Members Card
-    React.createElement(
-      TTCard,
-      { variant: 'tracker' },
-      TTCardHeader
-        ? React.createElement(TTCardHeader, {
-            title: React.createElement(
-              'div',
-              { className: 'text-base font-semibold', style: { color: 'var(--tt-text-primary)' } },
-              'Family Members'
-            ),
-            showIcon: false,
-            showTitle: true,
-            className: 'mb-4'
-          })
-        : React.createElement(
-            'h2',
-            { className: 'text-base font-semibold mb-4', style: { color: 'var(--tt-text-primary)' } },
-            'Family Members'
-          ),
-      React.createElement(
-        'div',
-        { className: 'space-y-3 mb-4' },
-        members.map((member) =>
-          React.createElement(
-            'div',
-            {
-              key: member.uid,
-              className:
-                'flex items-center gap-3 p-3 rounded-xl',
-              style: { backgroundColor: 'var(--tt-input-bg)' }
-            },
-            React.createElement(
-              'div',
-              { className: 'flex-shrink-0' },
-              member.photoURL
-                ? React.createElement('img', {
-                    src: member.photoURL,
-                    alt: member.displayName || member.email,
-                    className: 'w-12 h-12 rounded-full'
-                  })
-                : React.createElement(
-                    'div',
-                    {
-                      className:
-                        'w-12 h-12 rounded-full flex items-center justify-center font-semibold',
-                      style: { backgroundColor: 'var(--tt-subtle-surface)', color: 'var(--tt-text-primary)' }
-                    },
-                    (member.displayName || member.email || '?')
-                      .charAt(0)
-                      .toUpperCase()
-                  )
-            ),
-            React.createElement(
-              'div',
-              { className: 'flex-1 min-w-0' },
-              React.createElement(
-                'div',
-                { className: 'text-sm font-medium truncate', style: { color: 'var(--tt-text-primary)' } },
-                member.displayName || member.email || 'Member'
-              ),
-              React.createElement(
-                'div',
-                { className: 'text-xs truncate', style: { color: 'var(--tt-text-secondary)' } },
-                member.email
-              )
-            ),
-            member.uid !== user.uid &&
-              React.createElement(
-                'button',
-                {
-                  onClick: () => handleRemoveMember(member.uid),
-                  className:
-                    'text-xs text-red-500 hover:text-red-600 font-medium'
-                },
-                'Remove'
-              )
-          )
-        )
-      )
-    ),
-
     AccountSection(),
-    InternalSection(),
+    InternalSection()
+  );
+
+  return React.createElement(
+    'div',
+    { className: 'space-y-4 relative' },
+
+    // Hidden file input
+    React.createElement('input', {
+      ref: fileInputRef,
+      type: 'file',
+      accept: 'image/*',
+      onChange: handlePhotoChange,
+      style: { display: 'none' }
+    }),
+
+    viewMode === 'family' ? familySubpage : mainPage,
 
     DatePickerTray && React.createElement(DatePickerTray, {
       isOpen: showBirthDatePicker,

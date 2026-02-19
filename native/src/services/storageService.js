@@ -5,6 +5,19 @@
 const SUPABASE_URL = 'https://zzxnkjssveypcxbguzif.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_z_Sz0xirzaY1y5E6x7wssw_qJdXb2yB';
 const SUPABASE_BUCKET = 'photos';
+const UPLOAD_TIMEOUT_MS = 20000;
+const FREEZE_DEBUG = false;
+const debugLog = (...args) => {
+  if (FREEZE_DEBUG) console.log('[FreezeDebug][StorageService]', ...args);
+};
+
+const withTimeout = (promise, timeoutMs, label) =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+    }),
+  ]);
 
 function ensureJpgPath(path) {
   if (!path) return '';
@@ -30,7 +43,7 @@ function getUploadUrl(path) {
 
 async function sourceToBlob(source) {
   if (!source) return null;
-  const response = await fetch(source);
+  const response = await withTimeout(fetch(source), UPLOAD_TIMEOUT_MS, 'sourceToBlob:fetch');
   return await response.blob();
 }
 
@@ -42,26 +55,33 @@ async function sourceToBlob(source) {
  */
 export async function uploadPhoto(sourceUriOrDataUrl, storagePath) {
   if (!sourceUriOrDataUrl) return null;
+  const start = Date.now();
   const finalPath = ensureJpgPath(storagePath);
+  debugLog('uploadPhoto:start', { finalPath });
   const blob = await sourceToBlob(sourceUriOrDataUrl);
   if (!blob) throw new Error('uploadPhoto: failed to create blob');
 
-  const uploadRes = await fetch(getUploadUrl(finalPath), {
-    method: 'POST',
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      'Content-Type': blob.type || 'image/jpeg',
-      'x-upsert': 'false',
-    },
-    body: blob,
-  });
+  const uploadRes = await withTimeout(
+    fetch(getUploadUrl(finalPath), {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': blob.type || 'image/jpeg',
+        'x-upsert': 'false',
+      },
+      body: blob,
+    }),
+    UPLOAD_TIMEOUT_MS,
+    'uploadPhoto:upload'
+  );
 
   if (!uploadRes.ok) {
     const body = await uploadRes.text().catch(() => '');
     throw new Error(`Supabase upload failed (${uploadRes.status}): ${body}`);
   }
 
+  debugLog('uploadPhoto:done', { finalPath, ms: Date.now() - start, bytes: blob.size || 0 });
   return getPublicUrl(finalPath);
 }
 

@@ -22,6 +22,7 @@ import { BrandLogo } from '../components/icons';
 export default function SetupScreen({ onDevExitPreview = null }) {
   const { colors, radius } = useTheme();
   const { createFamily, loading } = useAuth();
+  const [familyName, setFamilyName] = useState('');
   const [babyName, setBabyName] = useState('');
   const [birthDate, setBirthDate] = useState('');
   const [babyWeight, setBabyWeight] = useState('');
@@ -76,6 +77,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     setError(null);
     try {
       await createFamily(babyName.trim(), {
+        familyName: familyName.trim(),
         birthDate,
         photoUri: newPhotos[0],
         preferredVolumeUnit: 'oz',
@@ -101,6 +103,20 @@ export default function SetupScreen({ onDevExitPreview = null }) {
         </View>
 
         <View style={[styles.card, { backgroundColor: colors.cardBg, borderRadius: radius?.['2xl'] ?? 16 }]}>
+          <View style={styles.sectionSpacer}>
+            <TTInputRow
+              label="Family Name"
+              value={familyName}
+              onChange={setFamilyName}
+              placeholder="Our Family"
+              showIcon={false}
+              showChevron={false}
+              enableTapAnimation
+              showLabel
+              type="text"
+            />
+          </View>
+
           <View style={styles.sectionSpacer}>
             <TTInputRow
               label="Baby's Name"

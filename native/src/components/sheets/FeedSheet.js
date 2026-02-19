@@ -69,6 +69,23 @@ const FEED_TYPES = [
   { id: 'nursing', label: 'Nursing', Icon: NursingIcon, accent: 'nursing' },
   { id: 'solids', label: 'Solids', Icon: SolidsIcon, accent: 'solids' },
 ];
+const FUTURE_TOLERANCE_MS = 60 * 1000;
+const TIME_TRACE = true;
+const timeTrace = (...args) => {
+  if (TIME_TRACE) console.log('[TimeTrace][FeedSheet]', ...args);
+};
+const clampIsoToNow = (isoString) => {
+  const parsed = new Date(isoString);
+  const nowMs = Date.now();
+  if (Number.isNaN(parsed.getTime())) return new Date(nowMs).toISOString();
+  const ts = parsed.getTime();
+  if (ts > nowMs + FUTURE_TOLERANCE_MS) return new Date(nowMs).toISOString();
+  return parsed.toISOString();
+};
+const FREEZE_DEBUG = false;
+const debugLog = (...args) => {
+  if (FREEZE_DEBUG) console.log('[FreezeDebug][FeedSheet]', ...args);
+};
 
 export default function FeedSheet({
   sheetRef,
@@ -117,6 +134,7 @@ export default function FeedSheet({
   const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const dateTimeTouchedRef = useRef(false);
+  const lastTimeTraceRef = useRef(0);
   const userEditedAmountRef = useRef(false);
   const userEditedUnitRef = useRef(false);
   const didInitOpenRef = useRef(false);
@@ -378,25 +396,73 @@ export default function FeedSheet({
 
   const handleDateTimeChange = (isoString) => {
     if (!isoString) return;
+    const clamped = clampIsoToNow(isoString);
+    const now = Date.now();
+    if (now - lastTimeTraceRef.current > 400) {
+      const rawTs = new Date(isoString).getTime();
+      const clampedTs = new Date(clamped).getTime();
+      timeTrace('time:change', {
+        rawIso: isoString,
+        clampedIso: clamped,
+        rawDeltaMs: Number.isFinite(rawTs) ? rawTs - now : null,
+        clampedDeltaMs: Number.isFinite(clampedTs) ? clampedTs - now : null,
+      });
+      lastTimeTraceRef.current = now;
+    }
     dateTimeTouchedRef.current = true;
-    setDateTime(isoString);
+    setDateTime(clamped);
   };
 
   const handleSave = async () => {
     if (saving) return;
+    timeTrace('save:tap', { feedType, dateTime });
+    const timestamp = new Date(dateTime).getTime();
+    timeTrace('save:timestamp', {
+      timestamp,
+      deltaFromNowMs: Number.isFinite(timestamp) ? timestamp - Date.now() : null,
+    });
+    if (!Number.isFinite(timestamp)) {
+      Alert.alert('Invalid time', 'Please choose a valid date and time.');
+      return;
+    }
+    if (timestamp > Date.now() + FUTURE_TOLERANCE_MS) {
+      Alert.alert('Invalid time', 'Time cannot be in the future.');
+      return;
+    }
+    const saveStart = Date.now();
+    const saveId = `${feedType}-${saveStart}`;
+    debugLog('save:start', {
+      saveId,
+      feedType,
+      photos: photos.length,
+      existingPhotos: existingPhotoURLs.length,
+      hasNotes: !!(notes && String(notes).trim()),
+    });
     setSaving(true);
 
     try {
-      const timestamp = new Date(dateTime).getTime();
+      const stepStart = Date.now();
+      const logStep = (name, extra = null) =>
+        debugLog(`step:${name}`, { saveId, ms: Date.now() - stepStart, ...(extra || {}) });
+      const logAwait = async (name, fn) => {
+        const started = Date.now();
+        logStep(`${name}:start`);
+        const result = await fn();
+        logStep(`${name}:done`, { tookMs: Date.now() - started });
+        return result;
+      };
       let uploadedURLs = [];
 
       if (storage?.uploadFeedingPhoto && photos.length > 0) {
-        for (const p of photos) {
+        logStep('upload:start');
+        for (let i = 0; i < photos.length; i += 1) {
+          const p = photos[i];
           try {
-            const url = await storage.uploadFeedingPhoto(p);
+            const url = await logAwait(`upload:item:${i}`, () => storage.uploadFeedingPhoto(p));
             uploadedURLs.push(url);
           } catch (e) {}
         }
+        logStep('upload:done');
       }
 
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
@@ -410,52 +476,70 @@ export default function FeedSheet({
           return;
         }
         if (storage) {
+          logStep('bottle:write:start');
           if (entry?.id) {
             if (typeof storage.updateFeedingWithNotes === 'function') {
-              await storage.updateFeedingWithNotes(entry.id, oz, timestamp, notes || null, allPhotos);
+              await logAwait('bottle:updateFeedingWithNotes', () =>
+                storage.updateFeedingWithNotes(entry.id, oz, timestamp, notes || null, allPhotos)
+              );
             } else {
-              await storage.updateFeeding?.(entry.id, {
-                ounces: oz,
-                timestamp,
-                notes: notes || null,
-                photoURLs: allPhotos,
-              });
+              await logAwait('bottle:updateFeeding', () =>
+                storage.updateFeeding?.(entry.id, {
+                  ounces: oz,
+                  timestamp,
+                  notes: notes || null,
+                  photoURLs: allPhotos,
+                })
+              );
             }
           } else {
             if (typeof storage.addFeedingWithNotes === 'function') {
-              createdEntry = await storage.addFeedingWithNotes(oz, timestamp, notes || null, allPhotos);
+              createdEntry = await logAwait('bottle:addFeedingWithNotes', () =>
+                storage.addFeedingWithNotes(oz, timestamp, notes || null, allPhotos)
+              );
             } else {
-              createdEntry = await storage.addFeeding?.(oz, timestamp);
+              createdEntry = await logAwait('bottle:addFeeding', () =>
+                storage.addFeeding?.(oz, timestamp)
+              );
             }
           }
+          logStep('bottle:write:done');
         }
         try {
           const hasNote = !!(notes && String(notes).trim().length > 0);
           const hasPhotos = Array.isArray(allPhotos) && allPhotos.length > 0;
           if ((hasNote || hasPhotos) && storage && typeof storage.saveMessage === 'function') {
+            logStep('bottle:message:start');
             const timeLabel = new Date(timestamp).toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
             });
-            await storage.saveMessage({
-              role: 'assistant',
-              content: `@tinytracker: Feeding • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
-              timestamp: Date.now(),
-              source: 'log',
-              logType: 'feeding',
-              logTimestamp: timestamp,
-              photoURLs: hasPhotos ? allPhotos : [],
-            });
+            await logAwait('bottle:saveMessage', () =>
+              storage.saveMessage({
+                role: 'assistant',
+                content: `@tinytracker: Feeding • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
+                timestamp: Date.now(),
+                source: 'log',
+                logType: 'feeding',
+                logTimestamp: timestamp,
+                photoURLs: hasPhotos ? allPhotos : [],
+              })
+            );
+            logStep('bottle:message:done');
           }
         } catch (_) {}
-        if (onAdd && !entry) await onAdd({
-          id: createdEntry?.id || null,
-          type: 'bottle',
-          ounces: oz,
-          timestamp,
-          notes: notes || null,
-          photoURLs: allPhotos,
-        });
+        if (onAdd && !entry) {
+          logStep('bottle:onAdd:start');
+          await onAdd({
+            id: createdEntry?.id || null,
+            type: 'bottle',
+            ounces: oz,
+            timestamp,
+            notes: notes || null,
+            photoURLs: allPhotos,
+          });
+          logStep('bottle:onAdd:done');
+        }
       } else if (feedType === 'nursing') {
         const leftSec = Math.round(leftElapsedMs / 1000);
         const rightSec = Math.round(rightElapsedMs / 1000);
@@ -466,62 +550,77 @@ export default function FeedSheet({
           return;
         }
         if (storage) {
+          logStep('nursing:write:start');
           if (entry?.id) {
             if (typeof storage.updateNursingSessionWithNotes === 'function') {
-              await storage.updateNursingSessionWithNotes(
-                entry.id,
+              await logAwait('nursing:updateWithNotes', () =>
+                storage.updateNursingSessionWithNotes(
+                  entry.id,
+                  timestamp,
+                  leftSec,
+                  rightSec,
+                  lastSide,
+                  notes || null,
+                  allPhotos
+                )
+              );
+            } else {
+              await logAwait('nursing:update', () =>
+                storage.updateNursingSession?.(entry.id, {
+                  startTime: timestamp,
+                  timestamp,
+                  leftDurationSec: leftSec,
+                  rightDurationSec: rightSec,
+                  lastSide,
+                  notes: notes || null,
+                  photoURLs: allPhotos,
+                })
+              );
+            }
+          }
+          else if (typeof storage.addNursingSessionWithNotes === 'function') {
+            createdEntry = await logAwait('nursing:addWithNotes', () =>
+              storage.addNursingSessionWithNotes(
                 timestamp,
                 leftSec,
                 rightSec,
                 lastSide,
                 notes || null,
                 allPhotos
-              );
-            } else {
-              await storage.updateNursingSession?.(entry.id, {
-                startTime: timestamp,
-                timestamp,
-                leftDurationSec: leftSec,
-                rightDurationSec: rightSec,
-                lastSide,
-                notes: notes || null,
-                photoURLs: allPhotos,
-              });
-            }
-          }
-          else if (typeof storage.addNursingSessionWithNotes === 'function') {
-            createdEntry = await storage.addNursingSessionWithNotes(
-              timestamp,
-              leftSec,
-              rightSec,
-              lastSide,
-              notes || null,
-              allPhotos
+              )
             );
           } else {
-            createdEntry = await storage.addNursingSession?.(timestamp, leftSec, rightSec, lastSide);
+            createdEntry = await logAwait('nursing:add', () =>
+              storage.addNursingSession?.(timestamp, leftSec, rightSec, lastSide)
+            );
           }
+          logStep('nursing:write:done');
         }
         try {
           const hasNote = !!(notes && String(notes).trim().length > 0);
           const hasPhotos = Array.isArray(allPhotos) && allPhotos.length > 0;
           if ((hasNote || hasPhotos) && storage && typeof storage.saveMessage === 'function') {
+            logStep('nursing:message:start');
             const timeLabel = new Date(timestamp).toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
             });
-            await storage.saveMessage({
-              role: 'assistant',
-              content: `@tinytracker: Nursing • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
-              timestamp: Date.now(),
-              source: 'log',
-              logType: 'nursing',
-              logTimestamp: timestamp,
-              photoURLs: hasPhotos ? allPhotos : [],
-            });
+            await logAwait('nursing:saveMessage', () =>
+              storage.saveMessage({
+                role: 'assistant',
+                content: `@tinytracker: Nursing • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
+                timestamp: Date.now(),
+                source: 'log',
+                logType: 'nursing',
+                logTimestamp: timestamp,
+                photoURLs: hasPhotos ? allPhotos : [],
+              })
+            );
+            logStep('nursing:message:done');
           }
         } catch (_) {}
-        if (onAdd && !entry)
+        if (onAdd && !entry) {
+          logStep('nursing:onAdd:start');
           await onAdd({
             id: createdEntry?.id || null,
             type: 'nursing',
@@ -532,6 +631,8 @@ export default function FeedSheet({
             notes: notes || null,
             photoURLs: allPhotos,
           });
+          logStep('nursing:onAdd:done');
+        }
       } else if (feedType === 'solids') {
         let createdEntry = null;
         if (addedFoods.length === 0) {
@@ -551,11 +652,23 @@ export default function FeedSheet({
           notes: f.notes || null,
         }));
         if (storage) {
-          if (entry?.id) await storage.updateSolidsSession?.(entry.id, { timestamp, foods, notes: notes || null, photoURLs: allPhotos });
-          else createdEntry = await storage.addSolidsSession?.({ timestamp, foods, notes: notes || null, photoURLs: allPhotos });
+          logStep('solids:write:start');
+          if (entry?.id) {
+            await logAwait('solids:update', () =>
+              storage.updateSolidsSession?.(entry.id, { timestamp, foods, notes: notes || null, photoURLs: allPhotos })
+            );
+          } else {
+            createdEntry = await logAwait('solids:add', () =>
+              storage.addSolidsSession?.({ timestamp, foods, notes: notes || null, photoURLs: allPhotos })
+            );
+          }
+          logStep('solids:write:done');
         }
         try {
-          const currentRecentRaw = await storage?.getRecentFoods?.({ forceServer: true });
+          logStep('solids:recentFoods:start');
+          const currentRecentRaw = await logAwait('solids:getRecentFoods', () =>
+            storage?.getRecentFoods?.({ forceServer: true })
+          );
           const currentRecent = Array.isArray(currentRecentRaw)
             ? currentRecentRaw
                 .map((item) => (typeof item === 'string' ? { name: item } : item))
@@ -580,13 +693,20 @@ export default function FeedSheet({
           });
           updatedRecent = updatedRecent.slice(0, 20);
           if (typeof storage?.updateKidData === 'function') {
-            await storage.updateKidData({ recentSolidFoods: updatedRecent });
+            await logAwait('solids:updateKidData', () =>
+              storage.updateKidData({ recentSolidFoods: updatedRecent })
+            );
           } else {
-            for (const item of updatedRecent.slice().reverse()) {
-              await storage?.updateRecentFoods?.(item?.name);
+            const reversed = updatedRecent.slice().reverse();
+            for (let i = 0; i < reversed.length; i += 1) {
+              const item = reversed[i];
+              await logAwait(`solids:updateRecentFoods:${i}`, () =>
+                storage?.updateRecentFoods?.(item?.name)
+              );
             }
           }
           setRecentFoods(updatedRecent);
+          logStep('solids:recentFoods:done');
         } catch (e) {
           console.error('[FeedSheet] Failed to update recent foods:', e);
         }
@@ -594,37 +714,48 @@ export default function FeedSheet({
           const hasNote = !!(notes && String(notes).trim().length > 0);
           const hasPhotos = Array.isArray(allPhotos) && allPhotos.length > 0;
           if ((hasNote || hasPhotos) && storage && typeof storage.saveMessage === 'function') {
+            logStep('solids:message:start');
             const timeLabel = new Date(timestamp).toLocaleTimeString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
             });
             const foodNames = addedFoods.map((f) => f.name).join(', ');
-            await storage.saveMessage({
-              role: 'assistant',
-              content: `@tinytracker: Solids • ${timeLabel}\n${foodNames}${hasNote ? `\n${String(notes).trim()}` : ''}`,
-              timestamp: Date.now(),
-              source: 'log',
-              logType: 'solids',
-              logTimestamp: timestamp,
-              photoURLs: hasPhotos ? allPhotos : [],
-            });
+            await logAwait('solids:saveMessage', () =>
+              storage.saveMessage({
+                role: 'assistant',
+                content: `@tinytracker: Solids • ${timeLabel}\n${foodNames}${hasNote ? `\n${String(notes).trim()}` : ''}`,
+                timestamp: Date.now(),
+                source: 'log',
+                logType: 'solids',
+                logTimestamp: timestamp,
+                photoURLs: hasPhotos ? allPhotos : [],
+              })
+            );
+            logStep('solids:message:done');
           }
         } catch (_) {}
-        if (onAdd && !entry) await onAdd({
-          id: createdEntry?.id || null,
-          type: 'solids',
-          timestamp,
-          foods,
-          notes: notes || null,
-          photoURLs: allPhotos,
-        });
+        if (onAdd && !entry) {
+          logStep('solids:onAdd:start');
+          await onAdd({
+            id: createdEntry?.id || null,
+            type: 'solids',
+            timestamp,
+            foods,
+            notes: notes || null,
+            photoURLs: allPhotos,
+          });
+          logStep('solids:onAdd:done');
+        }
       }
 
+      logStep('dismiss:start');
       dismissSheet();
+      logStep('dismiss:done');
     } catch (e) {
       console.error('[FeedSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save.');
     } finally {
+      debugLog('save:done', { saveId, ms: Date.now() - saveStart });
       setSaving(false);
     }
   };
@@ -814,7 +945,19 @@ export default function FeedSheet({
           { backgroundColor: saving ? solids.dark || accent : accent },
           pressed && !solidsFooter.disabled && { opacity: 0.9 },
         ]}
-        onPress={solidsFooter.onClick}
+        onPress={() => {
+          timeTrace('cta:press', {
+            feedType,
+            label: solidsFooter.label,
+            disabled: !!solidsFooter.disabled,
+          });
+          debugLog('cta:tap', {
+            feedType,
+            label: solidsFooter.label,
+            disabled: !!solidsFooter.disabled,
+          });
+          solidsFooter.onClick?.();
+        }}
         disabled={solidsFooter.disabled}
       >
         <Text style={[styles.ctaText, solidsFooter.disabled && { opacity: 0.5 }]}>{solidsFooter.label}</Text>
@@ -826,7 +969,19 @@ export default function FeedSheet({
           { backgroundColor: saving ? accentMap[feedType]?.dark || bottle.dark : accent },
           pressed && !saving && { opacity: 0.9 },
         ]}
-        onPress={handleSave}
+        onPress={() => {
+          timeTrace('cta:press', {
+            feedType,
+            label: saving ? 'Saving...' : entry ? 'Save' : 'Add',
+            disabled: !!saving,
+          });
+          debugLog('cta:tap', {
+            feedType,
+            label: saving ? 'Saving...' : entry ? 'Save' : 'Add',
+            disabled: !!saving,
+          });
+          handleSave();
+        }}
         disabled={saving}
       >
         <Text style={styles.ctaText}>{saving ? 'Saving...' : entry ? 'Save' : 'Add'}</Text>

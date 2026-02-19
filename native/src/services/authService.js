@@ -196,6 +196,7 @@ export async function createFamilyWithKid(
   uid,
   babyName,
   {
+    familyName = null,
     birthDate = null,
     photoUri = null,
     preferredVolumeUnit = 'oz',
@@ -211,10 +212,12 @@ export async function createFamilyWithKid(
     ? parsedBabyWeight
     : null;
 
+  const normalizedFamilyName = String(familyName || '').trim();
+
   // Create family
   const famRef = await firestore().collection('families').add({
     members: [uid],
-    name: `${babyName}'s family`,
+    name: normalizedFamilyName || `${babyName}'s family`,
     createdAt: now,
     primaryKidId: null,
   });

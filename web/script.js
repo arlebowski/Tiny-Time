@@ -3314,6 +3314,7 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
     null;
 
   const [babyName, setBabyName] = useState("");
+  const [familyName, setFamilyName] = useState("");
   const [birthDate, setBirthDate] = useState(getTodayLocalDateString);
   const [photoExpanded, setPhotoExpanded] = useState(true);
   const [newPhotos, setNewPhotos] = useState([]);
@@ -3372,9 +3373,10 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
       //
       // Create a NEW family + kid
       //
+      const resolvedFamilyName = familyName.trim() || `${babyName.trim()}'s family`;
       const famRef = await db.collection("families").add({
         members: [user.uid],
-        name: `${babyName}'s family`,
+        name: resolvedFamilyName,
         createdAt: firebase.firestore.FieldValue.serverTimestamp(),
         primaryKidId: null,
       });
@@ -3478,6 +3480,21 @@ const BabySetupScreen = ({ user, onComplete, previewOnly = false }) => {
       React.createElement(
         "div",
         { className: "space-y-4" },
+
+        TTInputRow
+          ? React.createElement(TTInputRow, {
+              label: "Family Name",
+              value: familyName,
+              onChange: setFamilyName,
+              placeholder: "Our Family",
+              showIcon: false,
+              showChevron: false,
+              enableTapAnimation: true,
+              showLabel: true,
+              type: 'text',
+              valueClassName: 'text-[18px]'
+            })
+          : null,
 
         TTInputRow
           ? React.createElement(TTInputRow, {

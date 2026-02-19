@@ -15,7 +15,11 @@ import {
 
 const DataContext = createContext(null);
 const KID_HEADER_CACHE_PREFIX = 'tt_kid_header_v1';
-const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v1';
+const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v2';
+const FREEZE_DEBUG = false;
+const debugLog = (...args) => {
+  if (FREEZE_DEBUG) console.log('[FreezeDebug][DataContext]', ...args);
+};
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -157,6 +161,25 @@ function summarizeForDay({
   };
 }
 
+function buildTrackerBootstrapPayload({
+  activeSleep = null,
+  kidData = null,
+  kids = [],
+  kidSettings = {},
+  familyMembers = [],
+  trackerSnapshot = null,
+}) {
+  return {
+    activeSleep: activeSleep || null,
+    kidData: kidData || null,
+    kids: Array.isArray(kids) ? kids : [],
+    kidSettings: kidSettings && typeof kidSettings === 'object' ? kidSettings : {},
+    familyMembers: Array.isArray(familyMembers) ? familyMembers : [],
+    trackerSnapshot: trackerSnapshot || null,
+    savedAt: Date.now(),
+  };
+}
+
 export function DataProvider({ children }) {
   const { familyId, kidId } = useAuth();
 
@@ -180,6 +203,7 @@ export function DataProvider({ children }) {
   const unsubSolidsRef = useRef(null);
   const unsubSleepRef = useRef(null);
   const unsubDiapersRef = useRef(null);
+  const bootstrapWriteTimerRef = useRef(null);
   const didHydrateBootstrapRef = useRef(false);
   const usingMockData = !firestoreService?.isAvailable;
 
@@ -234,7 +258,9 @@ export function DataProvider({ children }) {
     const bootstrapKey = trackerBootstrapCacheKey(familyId, kidId);
 
     const init = async () => {
+      const initStart = Date.now();
       setDataLoading(true);
+      debugLog('init:start', { familyId, kidId });
       firestoreService.initialize(familyId, kidId);
       const bootstrapHydrated = {
         feedings: false,
@@ -248,10 +274,18 @@ export function DataProvider({ children }) {
 
       try {
         if (bootstrapKey) {
+          const bootstrapReadStart = Date.now();
           const cachedBootstrap = await AsyncStorage.getItem(bootstrapKey);
+          debugLog('bootstrap:read', {
+            ms: Date.now() - bootstrapReadStart,
+            bytes: cachedBootstrap ? cachedBootstrap.length : 0,
+            hasData: !!cachedBootstrap,
+          });
           if (!cancelled && cachedBootstrap) {
             try {
+              const parseStart = Date.now();
               const parsed = JSON.parse(cachedBootstrap);
+              debugLog('bootstrap:parse', { ms: Date.now() - parseStart });
               if (Array.isArray(parsed?.feedings)) {
                 setFeedings(parsed.feedings);
                 bootstrapHydrated.feedings = true;
@@ -311,7 +345,9 @@ export function DataProvider({ children }) {
         }
 
         await firestoreService._loadCache();
+        debugLog('cache:load:done');
         if (!cancelled) {
+          debugLog('cache:apply:start');
           const cachedFeeds = Array.isArray(firestoreService?._cache?.feedings)
             ? [...firestoreService._cache.feedings].reverse()
             : null;
@@ -327,6 +363,13 @@ export function DataProvider({ children }) {
           const cachedDiapers = Array.isArray(firestoreService?._cache?.diaperChanges)
             ? [...firestoreService._cache.diaperChanges].reverse()
             : null;
+          debugLog('cache:apply:sizes', {
+            feedings: cachedFeeds?.length || 0,
+            nursing: cachedNursing?.length || 0,
+            solids: cachedSolids?.length || 0,
+            sleep: cachedSleep?.length || 0,
+            diapers: cachedDiapers?.length || 0,
+          });
           if (Array.isArray(cachedFeeds) && (cachedFeeds.length > 0 || !bootstrapHydrated.feedings)) {
             setFeedings(cachedFeeds);
           }
@@ -367,10 +410,17 @@ export function DataProvider({ children }) {
               savedAt: Date.now(),
             });
           }
+          debugLog('cache:apply:done');
         }
 
         if (cacheKey) {
+          const headerReadStart = Date.now();
           const cachedHeader = await AsyncStorage.getItem(cacheKey);
+          debugLog('header:read', {
+            ms: Date.now() - headerReadStart,
+            bytes: cachedHeader ? cachedHeader.length : 0,
+            hasData: !!cachedHeader,
+          });
           if (!cancelled && cachedHeader) {
             try {
               const parsed = JSON.parse(cachedHeader);
@@ -383,7 +433,9 @@ export function DataProvider({ children }) {
         if (!cancelled) setTrackerBootstrapReady(true);
         didHydrateBootstrapRef.current = true;
 
+        debugLog('refresh:force:start');
         await firestoreService._refreshCache({ force: true });
+        debugLog('cache:refresh:done');
 
         if (cancelled) return;
 
@@ -414,7 +466,7 @@ export function DataProvider({ children }) {
         setKids(nextKids);
         setKidSettings(ks);
         setFamilyMembers(members);
-        setTrackerSnapshot({
+        const freshTrackerSnapshot = {
           dateKey: toLocalDateKey(),
           summary: summarizeForDay({
             feedings: feeds,
@@ -425,7 +477,8 @@ export function DataProvider({ children }) {
           }),
           activeSleep: sleep.find((s) => s?.isActive && s?.startTime) || null,
           savedAt: Date.now(),
-        });
+        };
+        setTrackerSnapshot(freshTrackerSnapshot);
 
         if (cacheKey) {
           AsyncStorage.setItem(
@@ -438,34 +491,25 @@ export function DataProvider({ children }) {
         }
 
         if (bootstrapKey) {
+          const serializeStart = Date.now();
+          const serialized = JSON.stringify(
+            buildTrackerBootstrapPayload({
+              activeSleep: sleep.find((s) => s?.isActive && s?.startTime) || null,
+              kidData: kd,
+              kids: nextKids,
+              kidSettings: ks,
+              familyMembers: members,
+              trackerSnapshot: freshTrackerSnapshot,
+            })
+          );
           AsyncStorage.setItem(
             bootstrapKey,
-            JSON.stringify({
-              feedings: feeds,
-              nursingSessions: nursing,
-              solidsSessions: solids,
-              sleepSessions: sleep,
-              diaperChanges: diapers,
-              activeSleep: sleep.find((s) => s?.isActive && s?.startTime) || null,
-              kidData: kd || null,
-              kids: nextKids,
-              kidSettings: ks || {},
-              familyMembers: members || [],
-              trackerSnapshot: {
-                dateKey: toLocalDateKey(),
-                summary: summarizeForDay({
-                  feedings: feeds,
-                  nursingSessions: nursing,
-                  solidsSessions: solids,
-                  sleepSessions: sleep,
-                  diaperChanges: diapers,
-                }),
-                activeSleep: sleep.find((s) => s?.isActive && s?.startTime) || null,
-                savedAt: Date.now(),
-              },
-              savedAt: Date.now(),
-            })
+            serialized
           ).catch(() => {});
+          debugLog('bootstrap:initialWrite', {
+            ms: Date.now() - serializeStart,
+            bytes: serialized.length,
+          });
         }
       } catch (e) {
         console.warn('Data init failed:', e);
@@ -511,6 +555,7 @@ export function DataProvider({ children }) {
       });
 
       if (!cancelled) setDataLoading(false);
+      debugLog('init:done', { ms: Date.now() - initStart });
     };
 
     init();
@@ -541,6 +586,10 @@ export function DataProvider({ children }) {
         unsubDiapersRef.current();
         unsubDiapersRef.current = null;
       }
+      if (bootstrapWriteTimerRef.current) {
+        clearTimeout(bootstrapWriteTimerRef.current);
+        bootstrapWriteTimerRef.current = null;
+      }
     };
   }, [familyId, kidId, usingMockData]);
 
@@ -563,23 +612,34 @@ export function DataProvider({ children }) {
       savedAt: Date.now(),
     };
     setTrackerSnapshot(nextTrackerSnapshot);
-    AsyncStorage.setItem(
-      bootstrapKey,
-      JSON.stringify({
-        feedings,
-        nursingSessions,
-        solidsSessions,
-        sleepSessions,
-        diaperChanges,
-        activeSleep,
-        kidData: kidData || null,
-        kids: kids || [],
-        kidSettings: kidSettings || {},
-        familyMembers: familyMembers || [],
-        trackerSnapshot: nextTrackerSnapshot,
-        savedAt: Date.now(),
-      })
-    ).catch(() => {});
+    if (bootstrapWriteTimerRef.current) {
+      clearTimeout(bootstrapWriteTimerRef.current);
+      bootstrapWriteTimerRef.current = null;
+    }
+    const payload = buildTrackerBootstrapPayload({
+      activeSleep,
+      kidData,
+      kids,
+      kidSettings,
+      familyMembers,
+      trackerSnapshot: nextTrackerSnapshot,
+    });
+    bootstrapWriteTimerRef.current = setTimeout(() => {
+      const serializeStart = Date.now();
+      const serialized = JSON.stringify(payload);
+      AsyncStorage.setItem(bootstrapKey, serialized).catch(() => {});
+      debugLog('bootstrap:debouncedWrite', {
+        ms: Date.now() - serializeStart,
+        bytes: serialized.length,
+      });
+      bootstrapWriteTimerRef.current = null;
+    }, 750);
+    return () => {
+      if (bootstrapWriteTimerRef.current) {
+        clearTimeout(bootstrapWriteTimerRef.current);
+        bootstrapWriteTimerRef.current = null;
+      }
+    };
   }, [
     familyId,
     kidId,

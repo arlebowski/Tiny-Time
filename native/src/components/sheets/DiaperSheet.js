@@ -11,6 +11,20 @@ import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
 
+const FUTURE_TOLERANCE_MS = 60 * 1000;
+const TIME_TRACE = true;
+const timeTrace = (...args) => {
+  if (TIME_TRACE) console.log('[TimeTrace][DiaperSheet]', ...args);
+};
+const clampIsoToNow = (isoString) => {
+  const parsed = new Date(isoString);
+  const nowMs = Date.now();
+  if (Number.isNaN(parsed.getTime())) return new Date(nowMs).toISOString();
+  const ts = parsed.getTime();
+  if (ts > nowMs + FUTURE_TOLERANCE_MS) return new Date(nowMs).toISOString();
+  return parsed.toISOString();
+};
+
 const normalizePhotoUrls = (input) => {
   if (!input) return [];
   const items = Array.isArray(input) ? input : [input];
@@ -35,6 +49,10 @@ const normalizePhotoUrls = (input) => {
     }
   }
   return urls;
+};
+const FREEZE_DEBUG = false;
+const debugLog = (...args) => {
+  if (FREEZE_DEBUG) console.log('[FreezeDebug][DiaperSheet]', ...args);
 };
 
 function TypeButton({ label, icon: Icon, selected, dim, onPress }) {
@@ -78,6 +96,7 @@ export default function DiaperSheet({
   const [isWet, setIsWet] = useState(false);
   const [isDry, setIsDry] = useState(true);
   const [isPoo, setIsPoo] = useState(false);
+  const lastTimeTraceRef = React.useRef(0);
 
   const hasSelection = isDry || isWet || isPoo;
 
@@ -117,6 +136,14 @@ export default function DiaperSheet({
     if (onClose) onClose();
   }, [onClose]);
 
+  const dismissSheet = useCallback(() => {
+    if (sheetRef?.current?.dismiss) {
+      sheetRef.current.dismiss();
+      return;
+    }
+    handleClose();
+  }, [sheetRef, handleClose]);
+
   const handleToggleDry = () => {
     const next = !isDry;
     if (next) {
@@ -139,8 +166,26 @@ export default function DiaperSheet({
   };
 
   const handleDateTimeChange = (isoString) => {
-    if (isoString) setDateTime(isoString);
+    if (!isoString) return;
+    const clamped = clampIsoToNow(isoString);
+    const now = Date.now();
+    if (now - lastTimeTraceRef.current > 400) {
+      const rawTs = new Date(isoString).getTime();
+      const clampedTs = new Date(clamped).getTime();
+      timeTrace('time:change', {
+        rawIso: isoString,
+        clampedIso: clamped,
+        rawDeltaMs: Number.isFinite(rawTs) ? rawTs - now : null,
+        clampedDeltaMs: Number.isFinite(clampedTs) ? clampedTs - now : null,
+      });
+      lastTimeTraceRef.current = now;
+    }
+    setDateTime(clamped);
   };
+
+  React.useEffect(() => {
+    timeTrace('tray:state', { open: showDateTimeTray });
+  }, [showDateTimeTray]);
 
   const handleAddPhoto = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -165,22 +210,56 @@ export default function DiaperSheet({
 
   const handleSave = async () => {
     if (saving) return;
+    timeTrace('save:tap', { dateTime });
+    const timestamp = new Date(dateTime).getTime();
+    timeTrace('save:timestamp', {
+      timestamp,
+      deltaFromNowMs: Number.isFinite(timestamp) ? timestamp - Date.now() : null,
+    });
+    if (!Number.isFinite(timestamp)) {
+      Alert.alert('Invalid time', 'Please choose a valid date and time.');
+      return;
+    }
+    if (timestamp > Date.now() + FUTURE_TOLERANCE_MS) {
+      Alert.alert('Invalid time', 'Time cannot be in the future.');
+      return;
+    }
+    const saveStart = Date.now();
+    const saveId = `diaper-${saveStart}`;
+    debugLog('save:start', {
+      saveId,
+      photos: photos.length,
+      existingPhotos: existingPhotoURLs.length,
+      hasNotes: !!(notes && String(notes).trim()),
+      hasSelection,
+    });
     if (!hasSelection) {
       Alert.alert('Select type', 'Select dry, wet, or poop.');
       return;
     }
     setSaving(true);
     try {
-      const timestamp = new Date(dateTime).getTime();
+      const stepStart = Date.now();
+      const logStep = (name, extra = null) =>
+        debugLog(`step:${name}`, { saveId, ms: Date.now() - stepStart, ...(extra || {}) });
+      const logAwait = async (name, fn) => {
+        const started = Date.now();
+        logStep(`${name}:start`);
+        const result = await fn();
+        logStep(`${name}:done`, { tookMs: Date.now() - started });
+        return result;
+      };
       let uploadedURLs = [];
+      logStep('upload:start');
       for (let i = 0; i < photos.length; i++) {
         try {
-          const url = await storage.uploadDiaperPhoto(photos[i]);
+          const url = await logAwait(`upload:item:${i}`, () => storage.uploadDiaperPhoto(photos[i]));
           uploadedURLs.push(url);
         } catch (e) {
           console.error('[DiaperSheet] Photo upload failed:', e);
         }
       }
+      logStep('upload:done');
       const mergedPhotos = normalizePhotoUrls([...(existingPhotoURLs || []), ...uploadedURLs]);
       const payload = {
         timestamp,
@@ -192,21 +271,32 @@ export default function DiaperSheet({
       };
 
       if (entry && entry.id) {
-        await storage.updateDiaperChange(entry.id, payload);
+        logStep('write:update:start');
+        await logAwait('write:update', () => storage.updateDiaperChange(entry.id, payload));
+        logStep('write:update:done');
       } else {
-        const created = await storage.addDiaperChange(payload);
+        logStep('write:add:start');
+        const created = await logAwait('write:add', () => storage.addDiaperChange(payload));
         payload.id = created?.id || null;
+        logStep('write:add:done');
       }
 
       if (typeof onSave === 'function') {
         const isNewEntry = !(entry && entry.id);
-        await onSave(isNewEntry ? { type: 'diaper', ...payload } : undefined);
+        logStep('onSave:start');
+        await logAwait('onSave', () =>
+          onSave(isNewEntry ? { type: 'diaper', ...payload } : undefined)
+        );
+        logStep('onSave:done');
       }
-      handleClose();
+      logStep('close:start');
+      dismissSheet();
+      logStep('close:done');
     } catch (error) {
       console.error('[DiaperSheet] Save failed:', error);
       Alert.alert('Error', 'Failed to save diaper change. Please try again.');
     } finally {
+      debugLog('save:done', { saveId, ms: Date.now() - saveStart });
       setSaving(false);
     }
   };
@@ -220,7 +310,11 @@ export default function DiaperSheet({
         { backgroundColor: saving ? diaper.dark : diaper.primary },
         pressed && !saving && { opacity: 0.9 },
       ]}
-      onPress={handleSave}
+      onPress={() => {
+        timeTrace('cta:press', { label: ctaLabel, disabled: !!saving });
+        debugLog('cta:tap', { label: ctaLabel, disabled: !!saving });
+        handleSave();
+      }}
       disabled={saving}
     >
       <Text style={styles.ctaText}>{ctaLabel}</Text>
@@ -246,7 +340,10 @@ export default function DiaperSheet({
           rawValue={dateTime}
           type="datetime"
           formatDateTime={formatDateTime}
-          onOpenPicker={() => setShowDateTimeTray(true)}
+          onOpenPicker={() => {
+            timeTrace('tray:openRequest');
+            setShowDateTimeTray(true);
+          }}
         />
 
         <View style={styles.typePicker}>
@@ -300,7 +397,10 @@ export default function DiaperSheet({
 
       <DateTimePickerTray
         isOpen={showDateTimeTray}
-        onClose={() => setShowDateTimeTray(false)}
+        onClose={() => {
+          timeTrace('tray:onClose');
+          setShowDateTimeTray(false);
+        }}
         value={dateTime}
         onChange={handleDateTimeChange}
         title="Time"

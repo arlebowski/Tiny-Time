@@ -14,6 +14,7 @@
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
+import { useAuth } from '../context/AuthContext';
 import {
   View,
   Text,
@@ -170,6 +171,7 @@ export default function FamilyScreen({
   onDeleteAccount,
 }) {
   const { colors, radius } = useTheme();
+  const { createFamily, loading: authLoading } = useAuth();
   const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
 
   // ── State ──
@@ -193,12 +195,19 @@ export default function FamilyScreen({
   const feedingUnitSheetRef = useRef(null);
   const daySleepSheetRef = useRef(null);
   const addChildSheetRef = useRef(null);
+  const addFamilySheetRef = useRef(null);
   const screenScrollRef = useRef(null);
   const [newBabyName, setNewBabyName] = useState('');
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
   const [newBabyWeight, setNewBabyWeight] = useState('');
   const [newChildPhotoUris, setNewChildPhotoUris] = useState([]);
   const [savingChild, setSavingChild] = useState(false);
+  const [newFamilyName, setNewFamilyName] = useState('');
+  const [newFamilyBabyName, setNewFamilyBabyName] = useState('');
+  const [newFamilyBirthDate, setNewFamilyBirthDate] = useState('');
+  const [newFamilyWeight, setNewFamilyWeight] = useState('');
+  const [newFamilyPhotoUris, setNewFamilyPhotoUris] = useState([]);
+  const [savingFamily, setSavingFamily] = useState(false);
   const [profileNameDraft, setProfileNameDraft] = useState(currentUser.displayName || '');
   const [profileEmailDraft, setProfileEmailDraft] = useState(currentUser.email || '');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(currentUser.photoURL || null);
@@ -242,8 +251,20 @@ export default function FamilyScreen({
     setNewChildPhotoUris([]);
   }, []);
 
+  const resetAddFamilyForm = useCallback(() => {
+    setNewFamilyName('');
+    setNewFamilyBabyName('');
+    setNewFamilyBirthDate('');
+    setNewFamilyWeight('');
+    setNewFamilyPhotoUris([]);
+  }, []);
+
   const openAddChildSheet = useCallback(() => {
     addChildSheetRef.current?.present?.();
+  }, []);
+
+  const openAddFamilySheet = useCallback(() => {
+    addFamilySheetRef.current?.present?.();
   }, []);
 
   const openAppearanceSheet = useCallback(() => {
@@ -260,6 +281,10 @@ export default function FamilyScreen({
 
   const closeAddChildSheet = useCallback(() => {
     addChildSheetRef.current?.dismiss?.();
+  }, []);
+
+  const closeAddFamilySheet = useCallback(() => {
+    addFamilySheetRef.current?.dismiss?.();
   }, []);
 
   useEffect(() => {
@@ -776,6 +801,24 @@ export default function FamilyScreen({
     setNewChildPhotoUris((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  const handleAddFamilyPhoto = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+      ...(Platform.OS === 'ios' ? { presentationStyle: 'fullScreen' } : {}),
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setNewFamilyPhotoUris((prev) => [...prev, result.assets[0].uri]);
+    }
+  }, []);
+
+  const handleRemoveFamilyPhoto = useCallback((index, isExisting) => {
+    if (isExisting) return;
+    setNewFamilyPhotoUris((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
   const handleCreateChild = async () => {
     if (!newBabyName.trim()) {
       Alert.alert('Error', "Please enter your child's name");
@@ -831,6 +874,68 @@ export default function FamilyScreen({
       setSavingChild(false);
     }
   };
+
+  const handleCreateFamilyFromSheet = useCallback(async () => {
+    if (!newFamilyName.trim()) {
+      Alert.alert('Error', 'Please enter a family name');
+      return;
+    }
+    if (!newFamilyBabyName.trim()) {
+      Alert.alert('Error', "Please enter your child's name");
+      return;
+    }
+    if (!newFamilyBirthDate.trim()) {
+      Alert.alert('Error', 'Please enter birth date');
+      return;
+    }
+
+    const parsedDate = new Date(newFamilyBirthDate.trim());
+    if (Number.isNaN(parsedDate.getTime())) {
+      Alert.alert('Error', 'Please enter a valid birth date');
+      return;
+    }
+
+    const parsedWeight = String(newFamilyWeight || '').trim()
+      ? Number.parseFloat(String(newFamilyWeight).trim())
+      : null;
+    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
+      Alert.alert('Error', 'Please enter a valid weight');
+      return;
+    }
+
+    if (typeof createFamily !== 'function') {
+      Alert.alert('Error', 'Family creation is unavailable right now.');
+      return;
+    }
+
+    setSavingFamily(true);
+    try {
+      await createFamily(newFamilyBabyName.trim(), {
+        familyName: newFamilyName.trim(),
+        birthDate: newFamilyBirthDate.trim(),
+        photoUri: newFamilyPhotoUris[0] || null,
+        preferredVolumeUnit: 'oz',
+        babyWeight: parsedWeight,
+      });
+      closeAddFamilySheet();
+      resetAddFamilyForm();
+      setCurrentView('hub');
+    } catch (error) {
+      console.error('Error creating family:', error);
+      Alert.alert('Error', error?.message || 'Failed to create family. Please try again.');
+    } finally {
+      setSavingFamily(false);
+    }
+  }, [
+    newFamilyName,
+    newFamilyBabyName,
+    newFamilyBirthDate,
+    newFamilyWeight,
+    newFamilyPhotoUris,
+    createFamily,
+    closeAddFamilySheet,
+    resetAddFamilyForm,
+  ]);
 
   const handleOpenActivityVisibility = () => {
     if (typeof onRequestToggleActivitySheet === 'function') {
@@ -1026,95 +1131,169 @@ export default function FamilyScreen({
             </Pressable>
           ) : null}
 
-          <Card style={s.cardGap}>
-            <CardHeader title="Family Members" />
-            <View style={s.membersList}>
-              {members.map((member) => {
-                const memberUid = member?.uid || null;
-                const isOwner = Boolean(memberUid && familyOwnerUid && memberUid === familyOwnerUid);
+          <View style={s.familyHubHeader}>
+            <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Your Kids</Text>
+          </View>
+
+          {Array.isArray(kids) && kids.length > 0 && (
+            <View style={s.hubKidCards}>
+              {kids.map((k) => {
+                const isCurrent = k.id === kidId;
+                const ageLabel = formatAgeFromDate(k.birthDate);
+                const weightVal = Number(k?.babyWeight || k?.currentWeight || k?.weight || 0);
+                const weightLabel = Number.isFinite(weightVal) && weightVal > 0 ? `${Math.round(weightVal * 10) / 10} lbs` : null;
+                const birthLabel = formatMonthDay(k.birthDate);
+                const subtitle = [ageLabel, weightLabel, birthLabel].filter(Boolean).join(' • ');
                 return (
-                  <View
-                    key={member.uid}
-                    style={[
-                      s.memberRow,
-                      {
-                        backgroundColor: colors.inputBg,
-                        borderRadius: radius?.['2xl'] ?? 16,
-                      },
-                    ]}
-                  >
-                      <View style={s.memberAvatarWrap}>
-                        {member.photoURL ? (
-                          <Image
-                            source={{ uri: member.photoURL }}
-                            style={s.memberAvatar}
-                          />
-                        ) : (
-                          <View
-                            style={[
-                              s.memberAvatarFallback,
-                              { backgroundColor: colors.subtleSurface },
-                            ]}
-                          >
-                            <Text style={[s.memberInitial, { color: colors.textPrimary }]}>
-                              {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
-                            </Text>
-                          </View>
-                        )}
-                      </View>
-                      <View style={s.memberInfo}>
-                        <View style={s.memberNameRow}>
-                          <Text
-                            style={[s.memberName, { color: colors.textPrimary }]}
-                            numberOfLines={1}
-                          >
-                            {member.displayName || member.email || 'Member'}
-                          </Text>
-                          {isOwner ? (
-                            <View
-                              style={[
-                                s.ownerBadge,
-                                {
-                                  backgroundColor: colors.segTrack || colors.track,
-                                  borderColor: colors.cardBorder || colors.borderSubtle,
-                                },
-                              ]}
-                            >
-                              <Text style={[s.ownerBadgeText, { color: colors.textSecondary }]}>
-                                Owner
-                              </Text>
+                  <Card key={`family-kid-${k.id}`}>
+                    <Pressable
+                      onPress={() => handleOpenKidSubpage(k)}
+                      style={({ pressed }) => [
+                        s.hubKidRow,
+                        pressed && { opacity: 0.75 },
+                      ]}
+                    >
+                      <View style={s.hubKidLeft}>
+                        <View style={[s.hubKidAvatarRing, { borderColor: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
+                          {k.photoURL ? (
+                            <Image source={{ uri: k.photoURL }} style={s.hubKidAvatarImage} />
+                          ) : (
+                            <View style={[s.hubKidAvatarFallback, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
+                              <Text style={s.hubKidAvatarEmoji}>👶</Text>
                             </View>
-                          ) : null}
+                          )}
                         </View>
-                        <Text
-                          style={[s.memberEmail, { color: colors.textSecondary }]}
-                          numberOfLines={1}
-                        >
-                          {member.email}
-                        </Text>
+                        <View style={s.hubKidTextWrap}>
+                          <Text style={[s.hubKidTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                            {k.name || 'Baby'}
+                          </Text>
+                          <Text style={[s.hubKidSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                            {subtitle || 'Tap to open profile'}
+                          </Text>
+                        </View>
                       </View>
-                      {member.uid !== currentUser.uid && (
-                        <Pressable
-                          onPress={() => handleRemoveMember(member.uid)}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Remove ${member.displayName || member.email || 'member'}`}
-                          style={({ pressed }) => [
-                            s.memberRemoveIconButton,
-                            {
-                              backgroundColor: colors.segTrack || colors.track,
-                              borderColor: colors.cardBorder,
-                            },
-                            pressed && s.memberRemoveIconButtonPressed,
-                          ]}
-                        >
-                          <TrashIcon size={20} color={colors.error} />
-                        </Pressable>
-                      )}
-                  </View>
+                      <View style={s.hubKidRight}>
+                        {isCurrent ? (
+                          <View style={s.hubKidActiveBadge}>
+                            <Text style={s.hubKidActiveBadgeText}>Active</Text>
+                          </View>
+                        ) : null}
+                        <ChevronRightIcon size={16} color={colors.textSecondary} />
+                      </View>
+                    </Pressable>
+                  </Card>
                 );
               })}
             </View>
+          )}
+
+          <Card style={s.cardGap}>
+            <Pressable
+              onPress={openAddChildSheet}
+              style={({ pressed }) => [
+                s.appearanceEntryRow,
+                pressed && { opacity: 0.75 },
+              ]}
+            >
+              <View style={s.appearanceEntryLeft}>
+                <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
+                  <PlusIcon size={20} color={colors.textPrimary} />
+                </View>
+                <View>
+                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Add Child</Text>
+                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                    Track another little one
+                  </Text>
+                </View>
+              </View>
+              <View style={s.appearanceEntryRight}>
+                <ChevronRightIcon size={16} color={colors.textSecondary} />
+              </View>
+            </Pressable>
           </Card>
+
+          <View style={s.familyHubHeader}>
+            <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Family Members</Text>
+          </View>
+          <View style={s.membersCardsList}>
+            {members.map((member) => {
+              const memberUid = member?.uid || null;
+              const isOwner = Boolean(memberUid && familyOwnerUid && memberUid === familyOwnerUid);
+              return (
+                <Card key={member.uid}>
+                  <View style={s.memberCardRow}>
+                    <View style={s.memberAvatarWrap}>
+                      {member.photoURL ? (
+                        <Image
+                          source={{ uri: member.photoURL }}
+                          style={s.memberAvatar}
+                        />
+                      ) : (
+                        <View
+                          style={[
+                            s.memberAvatarFallback,
+                            { backgroundColor: colors.subtleSurface },
+                          ]}
+                        >
+                          <Text style={[s.memberInitial, { color: colors.textPrimary }]}>
+                            {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={s.memberInfo}>
+                      <View style={s.memberNameRow}>
+                        <Text
+                          style={[s.memberName, { color: colors.textPrimary }]}
+                          numberOfLines={1}
+                        >
+                          {member.displayName || member.email || 'Member'}
+                        </Text>
+                        {isOwner ? (
+                          <View
+                            style={[
+                              s.ownerBadge,
+                              {
+                                backgroundColor: colors.segTrack || colors.track,
+                                borderColor: colors.cardBorder || colors.borderSubtle,
+                              },
+                            ]}
+                          >
+                            <Text style={[s.ownerBadgeText, { color: colors.textSecondary }]}>
+                              Owner
+                            </Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text
+                        style={[s.memberEmail, { color: colors.textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        {member.email}
+                      </Text>
+                    </View>
+                    {member.uid !== currentUser.uid && (
+                      <Pressable
+                        onPress={() => handleRemoveMember(member.uid)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Remove ${member.displayName || member.email || 'member'}`}
+                        style={({ pressed }) => [
+                          s.memberRemoveIconButton,
+                          {
+                            backgroundColor: colors.segTrack || colors.track,
+                            borderColor: colors.cardBorder,
+                          },
+                          pressed && s.memberRemoveIconButtonPressed,
+                        ]}
+                      >
+                        <TrashIcon size={20} color={colors.error} />
+                      </Pressable>
+                    )}
+                  </View>
+                </Card>
+              );
+            })}
+          </View>
 
           <Card style={s.cardGap}>
             <View style={s.familyInviteCard}>
@@ -1230,6 +1409,32 @@ export default function FamilyScreen({
 
           <Card style={s.cardGap}>
             <Pressable
+              onPress={openFeedingUnitSheet}
+              style={({ pressed }) => [
+                s.appearanceEntryRow,
+                pressed && { opacity: 0.75 },
+              ]}
+            >
+              <View style={s.appearanceEntryLeft}>
+                <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
+                  <Text style={s.appearanceEntryIconLabel}>🍼</Text>
+                </View>
+                <View>
+                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Feeding Unit</Text>
+                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>This child's unit</Text>
+                </View>
+              </View>
+              <View style={s.appearanceEntryRight}>
+                <Text style={[s.feedUnitValue, { color: colors.textSecondary }]}>
+                  {selectedKidSettings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}
+                </Text>
+                <ChevronRightIcon size={16} color={colors.textSecondary} />
+              </View>
+            </Pressable>
+          </Card>
+
+          <Card style={s.cardGap}>
+            <Pressable
               onPress={openDaySleepSheet}
               style={({ pressed }) => [
                 s.appearanceEntryRow,
@@ -1300,7 +1505,7 @@ export default function FamilyScreen({
         <>
       <View style={s.familyHubHeader}>
         <View style={s.familyHubHeaderRow}>
-          <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Account and Profile</Text>
+          <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Account & Appearance</Text>
           {showDevSetupToggle ? (
             <View style={s.devToggleRow}>
               <Pressable
@@ -1417,93 +1622,11 @@ export default function FamilyScreen({
       </Card>
 
       <View style={s.familyHubHeader}>
-        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Your Kids</Text>
-      </View>
-
-      {/* ── 2. Kids Top-level Cards ── */}
-      {Array.isArray(kids) && kids.length > 0 && (
-        <View style={s.hubKidCards}>
-          {kids.map((k) => {
-            const isCurrent = k.id === kidId;
-            const ageLabel = formatAgeFromDate(k.birthDate);
-            const weightVal = Number(k?.babyWeight || k?.currentWeight || k?.weight || 0);
-            const weightLabel = Number.isFinite(weightVal) && weightVal > 0 ? `${Math.round(weightVal * 10) / 10} lbs` : null;
-            const birthLabel = formatMonthDay(k.birthDate);
-            const subtitle = [ageLabel, weightLabel, birthLabel].filter(Boolean).join(' \u2022 ');
-            return (
-              <Card key={`hub-kid-${k.id}`}>
-                <Pressable
-                  onPress={() => handleOpenKidSubpage(k)}
-                  style={({ pressed }) => [
-                    s.hubKidRow,
-                    pressed && { opacity: 0.75 },
-                  ]}
-                >
-                  <View style={s.hubKidLeft}>
-                    <View style={[s.hubKidAvatarRing, { borderColor: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
-                      {k.photoURL ? (
-                        <Image source={{ uri: k.photoURL }} style={s.hubKidAvatarImage} />
-                      ) : (
-                        <View style={[s.hubKidAvatarFallback, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
-                          <Text style={s.hubKidAvatarEmoji}>👶</Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={s.hubKidTextWrap}>
-                      <Text style={[s.hubKidTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                        {k.name || 'Baby'}
-                      </Text>
-                      <Text style={[s.hubKidSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
-                        {subtitle || 'Tap to open profile'}
-                      </Text>
-                    </View>
-                  </View>
-                  <View style={s.hubKidRight}>
-                    {isCurrent ? (
-                      <View style={s.hubKidActiveBadge}>
-                        <Text style={s.hubKidActiveBadgeText}>Active</Text>
-                      </View>
-                    ) : null}
-                    <ChevronRightIcon size={16} color={colors.textSecondary} />
-                  </View>
-                </Pressable>
-              </Card>
-            );
-          })}
-        </View>
-      )}
-
-      <Card style={s.cardGap}>
-        <Pressable
-          onPress={openAddChildSheet}
-          style={({ pressed }) => [
-            s.appearanceEntryRow,
-            pressed && { opacity: 0.75 },
-          ]}
-        >
-          <View style={s.appearanceEntryLeft}>
-            <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
-              <PlusIcon size={20} color={colors.textPrimary} />
-            </View>
-            <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Add Child</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
-                Track another little one
-              </Text>
-            </View>
-          </View>
-          <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
-          </View>
-        </Pressable>
-      </Card>
-
-      <View style={s.familyHubHeader}>
-        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Family</Text>
+        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Families</Text>
       </View>
 
       {/* ── 4. Family Card ── */}
-      <Card style={s.cardGap}>
+      <Card>
         <Pressable
           onPress={handleOpenFamily}
           style={({ pressed }) => [
@@ -1516,7 +1639,9 @@ export default function FamilyScreen({
               <FamilyIcon size={24} color={colors.textPrimary} />
             </View>
             <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Family</Text>
+              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>
+                {String(familyInfo?.name || '').trim() || 'Family'}
+              </Text>
               <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
                 {`${members.length} ${members.length === 1 ? 'person' : 'people'} with access`}
               </Text>
@@ -1546,25 +1671,22 @@ export default function FamilyScreen({
 
       <Card style={s.cardGap}>
         <Pressable
-          onPress={openFeedingUnitSheet}
+          onPress={openAddFamilySheet}
           style={({ pressed }) => [
             s.appearanceEntryRow,
             pressed && { opacity: 0.75 },
           ]}
         >
           <View style={s.appearanceEntryLeft}>
-            <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
-              <Text style={s.appearanceEntryIconLabel}>🍼</Text>
+            <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
+              <PlusIcon size={20} color={colors.textPrimary} />
             </View>
             <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Feeding Unit</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Shared across all kids</Text>
+              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Add Family</Text>
+              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Create another family</Text>
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
-            <Text style={[s.feedUnitValue, { color: colors.textSecondary }]}>
-              {settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}
-            </Text>
             <ChevronRightIcon size={16} color={colors.textSecondary} />
           </View>
         </Pressable>
@@ -1584,10 +1706,10 @@ export default function FamilyScreen({
       scrollable
     >
       <Text style={[s.feedUnitSheetDescription, { color: colors.textSecondary }]}>
-        Everyone in your family logs in the same unit. Switching applies everywhere.
+        Choose how to log bottles for this child.
       </Text>
       <SegmentedToggle
-        value={settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}
+        value={(currentView === 'kid' ? selectedKidSettings.preferredVolumeUnit : settings.preferredVolumeUnit) === 'ml' ? 'ml' : 'oz'}
         options={[
           { value: 'oz', label: 'oz' },
           { value: 'ml', label: 'ml' },
@@ -1841,6 +1963,103 @@ export default function FamilyScreen({
         newPhotos={newChildPhotoUris}
         onAddPhoto={handleAddChildPhoto}
         onRemovePhoto={handleRemoveChildPhoto}
+        onPreviewPhoto={() => {}}
+        containerStyle={s.addChildPhotoSection}
+      />
+      <View style={s.addChildPhotoToCtaSpacer} />
+    </HalfSheet>
+    <HalfSheet
+      sheetRef={addFamilySheetRef}
+      title="Add Family"
+      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
+      onClose={() => {
+        if (!savingFamily) resetAddFamilyForm();
+      }}
+      snapPoints={['76%']}
+      initialSnapIndex={0}
+      enableDynamicSizing={false}
+      scrollable
+      useFullWindowOverlay={false}
+      footer={(
+        <View style={s.addChildFooter}>
+          <Pressable
+            onPress={handleCreateFamilyFromSheet}
+            disabled={savingFamily || authLoading}
+            style={({ pressed }) => [
+              s.addChildSubmit,
+              {
+                backgroundColor: colors.primaryActionBg,
+                opacity: (savingFamily || authLoading) ? 0.5 : (pressed ? 0.85 : 1),
+              },
+            ]}
+          >
+            <Text style={[s.addChildSubmitText, { color: colors.primaryActionText }]}>
+              {savingFamily ? 'Saving...' : 'Add Family'}
+            </Text>
+          </Pressable>
+        </View>
+      )}
+    >
+      <View style={s.addChildSectionSpacer}>
+        <TTInputRow
+          label="Family Name"
+          type="text"
+          value={newFamilyName}
+          onChange={setNewFamilyName}
+          placeholder="Our Family"
+          showIcon={false}
+          showChevron={false}
+          enableTapAnimation
+          showLabel
+        />
+      </View>
+      <View style={s.addChildSectionSpacer}>
+        <TTInputRow
+          label="Child's Name"
+          type="text"
+          value={newFamilyBabyName}
+          onChange={setNewFamilyBabyName}
+          placeholder="Emma"
+          showIcon={false}
+          showChevron={false}
+          enableTapAnimation
+          showLabel
+        />
+      </View>
+      <View style={s.addChildSectionSpacer}>
+        <TTInputRow
+          label="Birth date"
+          type="text"
+          value={newFamilyBirthDate}
+          onChange={setNewFamilyBirthDate}
+          placeholder="Add..."
+          showIcon={false}
+          showChevron={false}
+          enableTapAnimation
+          showLabel
+        />
+      </View>
+      <View style={s.addChildSectionSpacer}>
+        <TTInputRow
+          label="Current weight (lbs)"
+          type="text"
+          value={newFamilyWeight}
+          onChange={setNewFamilyWeight}
+          placeholder="Add..."
+          showIcon={false}
+          showChevron={false}
+          enableTapAnimation
+          showLabel
+        />
+      </View>
+      <TTPhotoRow
+        expanded
+        showTitle
+        title="Add a photo"
+        existingPhotos={[]}
+        newPhotos={newFamilyPhotoUris}
+        onAddPhoto={handleAddFamilyPhoto}
+        onRemovePhoto={handleRemoveFamilyPhoto}
         onPreviewPhoto={() => {}}
         containerStyle={s.addChildPhotoSection}
       />
@@ -2451,14 +2670,11 @@ const s = StyleSheet.create({
   },
 
   // ── Family Members ──
-  membersList: { gap: 12 },       // space-y-3
-  // Web: flex items-center gap-3 p-3 rounded-xl
-  memberRow: {
+  membersCardsList: { gap: 16 },
+  memberCardRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,                       // gap-3
-    padding: 12,                   // p-3
-    borderRadius: 16,              // rounded-2xl
+    gap: 12,
   },
   memberAvatarWrap: { flexShrink: 0 },
   // Web: w-12 h-12 rounded-full

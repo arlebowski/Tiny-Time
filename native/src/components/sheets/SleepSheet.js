@@ -11,6 +11,8 @@ import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
 
+const FUTURE_TOLERANCE_MS = 60 * 1000;
+
 function calculateDuration(startTime, endTime) {
   if (!startTime || !endTime) return null;
   const start = new Date(startTime).getTime();
@@ -31,7 +33,11 @@ function clampStartIsoToNow(value) {
   const now = Date.now();
   if (!normalized) return new Date(now).toISOString();
   const startMs = new Date(normalized).getTime();
-  return startMs > now ? new Date(now).toISOString() : normalized;
+  return startMs > now + FUTURE_TOLERANCE_MS ? new Date(now).toISOString() : normalized;
+}
+
+function isFutureMs(value, nowMs = Date.now()) {
+  return Number(value) > nowMs + FUTURE_TOLERANCE_MS;
 }
 
 function normalizeSleepStartMs(startMs, nowMs = Date.now()) {
@@ -64,6 +70,14 @@ function normalizePhotoUrls(input) {
   }
   return urls;
 }
+const FREEZE_DEBUG = false;
+const debugLog = (...args) => {
+  if (FREEZE_DEBUG) console.log('[FreezeDebug][SleepSheet]', ...args);
+};
+const TIME_TRACE = true;
+const timeTrace = (...args) => {
+  if (TIME_TRACE) console.log('[TimeTrace][SleepSheet]', ...args);
+};
 
 export default function SleepSheet({
   sheetRef,
@@ -101,6 +115,7 @@ export default function SleepSheet({
 
   const sleepIntervalRef = useRef(null);
   const endTimeManuallyEditedRef = useRef(false);
+  const lastTimeTraceRef = useRef(0);
 
   const durationResultMs = (() => {
     if (!startTime || !endTime) return 0;
@@ -207,6 +222,18 @@ export default function SleepSheet({
 
   const handleStartTimeChange = (isoString) => {
     const clamped = clampStartIsoToNow(isoString);
+    const now = Date.now();
+    if (now - lastTimeTraceRef.current > 400) {
+      const rawTs = new Date(isoString).getTime();
+      const clampedTs = new Date(clamped).getTime();
+      timeTrace('start:change', {
+        rawIso: isoString,
+        clampedIso: clamped,
+        rawDeltaMs: Number.isFinite(rawTs) ? rawTs - now : null,
+        clampedDeltaMs: Number.isFinite(clampedTs) ? clampedTs - now : null,
+      });
+      lastTimeTraceRef.current = now;
+    }
     setStartTime(clamped);
     if (isInputVariant && sleepState === 'running') {
       setEndTime(null);
@@ -231,7 +258,20 @@ export default function SleepSheet({
   };
 
   const handleEndTimeChange = (isoString) => {
-    setEndTime(isoString || null);
+    const clamped = clampStartIsoToNow(isoString);
+    const now = Date.now();
+    if (now - lastTimeTraceRef.current > 400) {
+      const rawTs = new Date(isoString).getTime();
+      const clampedTs = new Date(clamped).getTime();
+      timeTrace('end:change', {
+        rawIso: isoString,
+        clampedIso: clamped,
+        rawDeltaMs: Number.isFinite(rawTs) ? rawTs - now : null,
+        clampedDeltaMs: Number.isFinite(clampedTs) ? clampedTs - now : null,
+      });
+      lastTimeTraceRef.current = now;
+    }
+    setEndTime(clamped || null);
     setEndTimeManuallyEdited(true);
     endTimeManuallyEditedRef.current = true;
     if (isInputVariant && sleepState === 'running') {
@@ -255,8 +295,21 @@ export default function SleepSheet({
 
   const handleStartSleep = async () => {
     if (!isInputVariant || saving) return;
+    const opStart = Date.now();
+    const opId = `sleep-start-${opStart}`;
+    debugLog('startSleep:start', { opId, sleepState, hasActiveSleep: !!(activeSleepSessionId || activeSleepId) });
     setSaving(true);
     try {
+      const stepStart = Date.now();
+      const logStep = (name, extra = null) =>
+        debugLog(`startSleep:${name}`, { opId, ms: Date.now() - stepStart, ...(extra || {}) });
+      const logAwait = async (name, fn) => {
+        const started = Date.now();
+        logStep(`${name}:start`);
+        const result = await fn();
+        logStep(`${name}:done`, { tookMs: Date.now() - started });
+        return result;
+      };
       const isIdleWithTimes = sleepState === 'idle' && startTime && endTime;
       let sessionId = activeSleepSessionId || activeSleepId;
       let startMs;
@@ -283,52 +336,76 @@ export default function SleepSheet({
       }
 
       if (!sessionId) {
-        const session = await storage?.startSleep?.(startMs);
+        const session = await logAwait('storage:startSleep', () => storage?.startSleep?.(startMs));
         sessionId = session?.id;
         if (sessionId) setActiveSleepSessionId(sessionId);
       } else if (storage?.updateSleepSession) {
-        await storage.updateSleepSession(sessionId, {
-          startTime: startMs,
-          endTime: null,
-          isActive: true,
-        });
+        await logAwait('storage:updateSleepSession', () =>
+          storage.updateSleepSession(sessionId, {
+            startTime: startMs,
+            endTime: null,
+            isActive: true,
+          })
+        );
       }
       setSleepState('running');
     } catch (e) {
       console.error('[SleepSheet] Start sleep failed:', e);
       Alert.alert('Error', 'Failed to start sleep.');
     } finally {
+      debugLog('startSleep:done', { opId, ms: Date.now() - opStart });
       setSaving(false);
     }
   };
 
   const handleEndSleep = async () => {
     if (!isInputVariant || sleepState !== 'running' || saving) return;
+    const opStart = Date.now();
+    const opId = `sleep-end-${opStart}`;
+    debugLog('endSleep:start', {
+      opId,
+      photos: photos.length,
+      existingPhotos: existingPhotoURLs.length,
+      hasNotes: !!(notes && String(notes).trim()),
+    });
     setSaving(true);
     try {
+      const stepStart = Date.now();
+      const logStep = (name, extra = null) =>
+        debugLog(`endSleep:${name}`, { opId, ms: Date.now() - stepStart, ...(extra || {}) });
+      const logAwait = async (name, fn) => {
+        const started = Date.now();
+        logStep(`${name}:start`);
+        const result = await fn();
+        logStep(`${name}:done`, { tookMs: Date.now() - started });
+        return result;
+      };
       const nowIso = new Date().toISOString();
       const endMs = Date.now();
       setEndTime(nowIso);
 
       const sessionId = activeSleepSessionId || activeSleepId;
       if (sessionId && storage && storage.endSleep) {
-        await storage.endSleep(sessionId, endMs);
+        await logAwait('storage:endSleep', () => storage.endSleep(sessionId, endMs));
         if (notes || photos.length > 0) {
           let uploadedURLs = [];
           if (storage.uploadSleepPhoto && photos.length > 0) {
-            for (const p of photos) {
+            for (let i = 0; i < photos.length; i += 1) {
+              const p = photos[i];
               try {
-                const url = await storage.uploadSleepPhoto(p);
+                const url = await logAwait(`upload:item:${i}`, () => storage.uploadSleepPhoto(p));
                 uploadedURLs.push(url);
               } catch (e) {}
             }
           }
           const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
           if (storage.updateSleepSession) {
-            await storage.updateSleepSession(sessionId, {
-              notes: notes || null,
-              photoURLs: allPhotos,
-            });
+            await logAwait('storage:updateSleepSession', () =>
+              storage.updateSleepSession(sessionId, {
+                notes: notes || null,
+                photoURLs: allPhotos,
+              })
+            );
           }
         }
         setActiveSleepSessionId(null);
@@ -346,17 +423,20 @@ export default function SleepSheet({
       dismissSheet();
       if (onAdd) {
         const startMs = startTime ? new Date(startTime).getTime() : null;
-        await onAdd(startMs && endMs ? {
-          id: sessionId || null,
-          type: 'sleep',
-          startTime: startMs,
-          endTime: endMs,
-        } : undefined);
+        await logAwait('onAdd', () =>
+          onAdd(startMs && endMs ? {
+            id: sessionId || null,
+            type: 'sleep',
+            startTime: startMs,
+            endTime: endMs,
+          } : undefined)
+        );
       }
     } catch (e) {
       console.error('[SleepSheet] End sleep failed:', e);
       Alert.alert('Error', 'Failed to end sleep.');
     } finally {
+      debugLog('endSleep:done', { opId, ms: Date.now() - opStart });
       setSaving(false);
     }
   };
@@ -364,12 +444,50 @@ export default function SleepSheet({
   const handleSaveSleep = async () => {
     if (!isInputVariant || saving) return;
     if (!isValid) return;
+    timeTrace('save:tap', { startTime, endTime, sleepState, endTimeManuallyEdited });
+    const startMs = new Date(startTime).getTime();
+    const endMs = new Date(endTime).getTime();
+    timeTrace('save:timestamp', {
+      startMs,
+      endMs,
+      startDeltaMs: Number.isFinite(startMs) ? startMs - Date.now() : null,
+      endDeltaMs: Number.isFinite(endMs) ? endMs - Date.now() : null,
+    });
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+      Alert.alert('Invalid time', 'Please choose valid start and end times.');
+      return;
+    }
+    if (isFutureMs(startMs) || isFutureMs(endMs)) {
+      Alert.alert('Invalid time', 'Start and end times cannot be in the future.');
+      return;
+    }
+    const saveStart = Date.now();
+    const saveId = `sleep-${saveStart}`;
+    debugLog('save:start', {
+      saveId,
+      photos: photos.length,
+      existingPhotos: existingPhotoURLs.length,
+      hasNotes: !!(notes && String(notes).trim()),
+      hasActiveSleep: !!(activeSleepSessionId || activeSleepId),
+    });
     setSaving(true);
     try {
-      const startMs = new Date(startTime).getTime();
-      const endMs = new Date(endTime).getTime();
+      const stepStart = Date.now();
+      const logStep = (name, extra = null) =>
+        debugLog(`step:${name}`, { saveId, ms: Date.now() - stepStart, ...(extra || {}) });
+      const logAwait = async (name, fn) => {
+        const started = Date.now();
+        logStep(`${name}:start`);
+        const result = await fn();
+        logStep(`${name}:done`, { tookMs: Date.now() - started });
+        return result;
+      };
       const excludeId = activeSleepSessionId || activeSleepId || null;
-      const hasOverlap = await checkSleepOverlap(startMs, endMs, excludeId);
+      logStep('overlap:start');
+      const hasOverlap = await logAwait('overlap:check', () =>
+        checkSleepOverlap(startMs, endMs, excludeId)
+      );
+      logStep('overlap:done');
       if (hasOverlap) {
         Alert.alert('Overlap detected', 'This sleep session overlaps an existing sleep session. Please adjust the times.');
         setSaving(false);
@@ -378,35 +496,52 @@ export default function SleepSheet({
 
       let uploadedURLs = [];
       if (storage?.uploadSleepPhoto && photos.length > 0) {
-        for (const p of photos) {
+        logStep('upload:start');
+        for (let i = 0; i < photos.length; i += 1) {
+          const p = photos[i];
           try {
-            const url = await storage.uploadSleepPhoto(p);
+            const url = await logAwait(`upload:item:${i}`, () => storage.uploadSleepPhoto(p));
             uploadedURLs.push(url);
           } catch (e) {}
         }
+        logStep('upload:done');
       }
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
 
       const sessionId = activeSleepSessionId || activeSleepId;
       let resolvedSessionId = sessionId || null;
       if (sessionId && storage?.endSleep) {
-        await storage.endSleep(sessionId, endMs);
+        logStep('sleep:end:start');
+        await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs));
+        logStep('sleep:end:done');
         if (notes || allPhotos.length > 0) {
-          await storage.updateSleepSession?.(sessionId, {
-            notes: notes || null,
-            photoURLs: allPhotos,
-          });
+          logStep('sleep:update:start');
+          await logAwait('sleep:update', () =>
+            storage.updateSleepSession?.(sessionId, {
+              notes: notes || null,
+              photoURLs: allPhotos,
+            })
+          );
+          logStep('sleep:update:done');
         }
         setActiveSleepSessionId(null);
       } else if (storage?.startSleep) {
-        const session = await storage.startSleep(startMs);
+        logStep('sleep:start:start');
+        const session = await logAwait('sleep:start', () => storage.startSleep(startMs));
+        logStep('sleep:start:done');
         resolvedSessionId = session?.id || null;
-        await storage.endSleep(session.id, endMs);
+        logStep('sleep:end:start');
+        await logAwait('sleep:end', () => storage.endSleep(session.id, endMs));
+        logStep('sleep:end:done');
         if (notes || allPhotos.length > 0) {
-          await storage.updateSleepSession?.(session.id, {
-            notes: notes || null,
-            photoURLs: allPhotos,
-          });
+          logStep('sleep:update:start');
+          await logAwait('sleep:update', () =>
+            storage.updateSleepSession?.(session.id, {
+              notes: notes || null,
+              photoURLs: allPhotos,
+            })
+          );
+          logStep('sleep:update:done');
         }
       }
 
@@ -419,19 +554,28 @@ export default function SleepSheet({
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
 
+      logStep('dismiss:start');
       dismissSheet();
-      if (onAdd) await onAdd({
-        id: resolvedSessionId,
-        type: 'sleep',
-        startTime: startMs,
-        endTime: endMs,
-        notes: notes || null,
-        photoURLs: allPhotos || [],
-      });
+      logStep('dismiss:done');
+      if (onAdd) {
+        logStep('onAdd:start');
+        await logAwait('onAdd', () =>
+          onAdd({
+            id: resolvedSessionId,
+            type: 'sleep',
+            startTime: startMs,
+            endTime: endMs,
+            notes: notes || null,
+            photoURLs: allPhotos || [],
+          })
+        );
+        logStep('onAdd:done');
+      }
     } catch (e) {
       console.error('[SleepSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save sleep session.');
     } finally {
+      debugLog('save:done', { saveId, ms: Date.now() - saveStart });
       setSaving(false);
     }
   };
@@ -488,7 +632,21 @@ export default function SleepSheet({
           { backgroundColor: saving ? sleep.dark : sleep.primary, opacity: ctaDisabled ? 0.7 : 1 },
           pressed && !saving && !ctaDisabled && { opacity: 0.9 },
         ]}
-        onPress={ctaOnPress}
+        onPress={() => {
+          timeTrace('cta:press', {
+            label: ctaLabel,
+            disabled: !!ctaDisabled,
+            sleepState,
+            endTimeManuallyEdited,
+          });
+          debugLog('cta:tap', {
+            label: ctaLabel,
+            disabled: !!ctaDisabled,
+            sleepState,
+            endTimeManuallyEdited,
+          });
+          ctaOnPress();
+        }}
         disabled={ctaDisabled}
       >
         <Text style={styles.ctaText}>{ctaLabel}</Text>

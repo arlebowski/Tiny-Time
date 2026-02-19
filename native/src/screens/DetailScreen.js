@@ -23,6 +23,19 @@ import Timeline from '../components/Timeline/Timeline';
 import { ChevronLeftIcon, BottleIcon, NursingIcon, SolidsIcon, SleepIcon, DiaperIcon, DiaperWetIcon, DiaperPooIcon } from '../components/icons';
 import { formatV2Number, formatVolume } from '../components/cards/cardUtils';
 import { useData } from '../context/DataContext';
+import {
+  TT_AVG_EVEN_EPSILON,
+  startOfDayMsLocal,
+  bucketIndexCeilFromMs,
+  buildFeedAvgBuckets,
+  buildNursingAvgBuckets,
+  buildSolidsAvgBuckets,
+  buildSleepAvgBuckets,
+  calcFeedCumulativeAtBucket,
+  calcNursingCumulativeAtBucket,
+  calcSolidsCumulativeAtBucket,
+  calcSleepCumulativeAtBucket,
+} from '../../../shared/utils/trackerComparisons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DETAIL_SECTION_GAP = 12;
@@ -33,11 +46,6 @@ const FILTER_OPTIONS = [
   { label: 'Sleep', value: 'sleep' },
   { label: 'Diaper', value: 'diaper' },
 ];
-const TT_AVG_BUCKET_MINUTES = 15;
-const TT_AVG_BUCKET_MS = TT_AVG_BUCKET_MINUTES * 60000;
-const TT_AVG_BUCKETS = 96;
-const TT_AVG_DAYS = 7;
-const TT_AVG_EVEN_EPSILON = 0.05;
 const PTR_MIN_VISIBLE_MS = 600;
 const PTR_IOS_OFFSET = 88;
 
@@ -50,225 +58,6 @@ function hexToTransparentRgba(hex) {
   const b = parseInt(h.slice(4, 6), 16);
   if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return 'rgba(255,255,255,0)';
   return `rgba(${r},${g},${b},0)`;
-}
-
-function startOfDayMsLocal(ts) {
-  const d = new Date(ts);
-  d.setHours(0, 0, 0, 0);
-  return d.getTime();
-}
-
-function bucketIndexCeilFromMinutes(mins) {
-  const clamped = Math.max(
-    0,
-    Math.min(1440, Math.ceil(mins / TT_AVG_BUCKET_MINUTES) * TT_AVG_BUCKET_MINUTES)
-  );
-  return Math.min(TT_AVG_BUCKETS - 1, Math.floor(clamped / TT_AVG_BUCKET_MINUTES));
-}
-
-function bucketIndexCeilFromMs(ts) {
-  const d = new Date(ts);
-  return bucketIndexCeilFromMinutes(d.getHours() * 60 + d.getMinutes());
-}
-
-function normalizeSleepIntervalForAvg(startMs, endMs, nowMs = Date.now()) {
-  let sMs = Number(startMs);
-  let eMs = Number(endMs);
-  if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
-  if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
-  if (eMs < sMs) sMs -= 86400000;
-  if (eMs < sMs) return null;
-  return { startMs: sMs, endMs: eMs };
-}
-
-function addSleepOverlapToBuckets(startMs, endMs, dayStartMs, increments) {
-  const dayEndMs = dayStartMs + 86400000;
-  const overlapStart = Math.max(startMs, dayStartMs);
-  const overlapEnd = Math.min(endMs, dayEndMs);
-  if (overlapEnd <= overlapStart) return;
-
-  const startBucket = Math.max(0, Math.floor((overlapStart - dayStartMs) / TT_AVG_BUCKET_MS));
-  const endBucket = Math.min(
-    TT_AVG_BUCKETS - 1,
-    Math.floor((overlapEnd - dayStartMs - 1) / TT_AVG_BUCKET_MS)
-  );
-
-  for (let i = startBucket; i <= endBucket; i += 1) {
-    const bucketStart = dayStartMs + i * TT_AVG_BUCKET_MS;
-    const bucketEnd = bucketStart + TT_AVG_BUCKET_MS;
-    const overlap = Math.max(0, Math.min(overlapEnd, bucketEnd) - Math.max(overlapStart, bucketStart));
-    if (overlap > 0) increments[i] += overlap;
-  }
-}
-
-function buildFeedAvgBuckets(allFeedings, todayStartMs) {
-  if (!Array.isArray(allFeedings) || allFeedings.length === 0) return null;
-  const dayMap = new Map();
-  allFeedings.forEach((f) => {
-    const ts = Number(f?.timestamp || 0);
-    if (!Number.isFinite(ts) || ts >= todayStartMs) return;
-    const dayStartMs = startOfDayMsLocal(ts);
-    const list = dayMap.get(dayStartMs) || [];
-    list.push(f);
-    dayMap.set(dayStartMs, list);
-  });
-  const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
-  if (dayStarts.length === 0) return null;
-
-  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
-  dayStarts.forEach((dayStartMs) => {
-    const increments = Array(TT_AVG_BUCKETS).fill(0);
-    const dayFeedings = dayMap.get(dayStartMs) || [];
-    dayFeedings.forEach((f) => {
-      const ts = Number(f?.timestamp || 0);
-      const oz = Number(f?.ounces || 0);
-      if (!Number.isFinite(ts) || !Number.isFinite(oz) || oz <= 0) return;
-      const idx = bucketIndexCeilFromMs(ts);
-      increments[idx] += oz;
-    });
-    let running = 0;
-    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
-      running += increments[i];
-      sumBuckets[i] += running;
-    }
-  });
-
-  return {
-    buckets: sumBuckets.map((v) => v / dayStarts.length),
-    daysUsed: dayStarts.length,
-  };
-}
-
-function buildNursingAvgBuckets(allNursingSessions, todayStartMs) {
-  if (!Array.isArray(allNursingSessions) || allNursingSessions.length === 0) return null;
-  const dayMap = new Map();
-  allNursingSessions.forEach((s) => {
-    const ts = Number(s?.timestamp || s?.startTime || 0);
-    if (!Number.isFinite(ts) || ts >= todayStartMs) return;
-    const dayStartMs = startOfDayMsLocal(ts);
-    const list = dayMap.get(dayStartMs) || [];
-    list.push(s);
-    dayMap.set(dayStartMs, list);
-  });
-  const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
-  if (dayStarts.length === 0) return null;
-
-  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
-  dayStarts.forEach((dayStartMs) => {
-    const increments = Array(TT_AVG_BUCKETS).fill(0);
-    const daySessions = dayMap.get(dayStartMs) || [];
-    daySessions.forEach((s) => {
-      const ts = Number(s?.timestamp || s?.startTime || 0);
-      const left = Number(s?.leftDurationSec || 0);
-      const right = Number(s?.rightDurationSec || 0);
-      const totalSec = Math.max(0, left + right);
-      if (!Number.isFinite(ts) || totalSec <= 0) return;
-      const idx = bucketIndexCeilFromMs(ts);
-      increments[idx] += totalSec / 3600;
-    });
-    let running = 0;
-    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
-      running += increments[i];
-      sumBuckets[i] += running;
-    }
-  });
-
-  return {
-    buckets: sumBuckets.map((v) => v / dayStarts.length),
-    daysUsed: dayStarts.length,
-  };
-}
-
-function buildSolidsAvgBuckets(allSolidsSessions, todayStartMs) {
-  if (!Array.isArray(allSolidsSessions) || allSolidsSessions.length === 0) return null;
-  const dayMap = new Map();
-  allSolidsSessions.forEach((s) => {
-    const ts = Number(s?.timestamp || 0);
-    if (!Number.isFinite(ts) || ts >= todayStartMs) return;
-    const dayStartMs = startOfDayMsLocal(ts);
-    const list = dayMap.get(dayStartMs) || [];
-    list.push(s);
-    dayMap.set(dayStartMs, list);
-  });
-  const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
-  if (dayStarts.length === 0) return null;
-
-  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
-  dayStarts.forEach((dayStartMs) => {
-    const increments = Array(TT_AVG_BUCKETS).fill(0);
-    const daySessions = dayMap.get(dayStartMs) || [];
-    daySessions.forEach((s) => {
-      const ts = Number(s?.timestamp || 0);
-      const foods = Array.isArray(s?.foods) ? s.foods.length : 0;
-      if (!Number.isFinite(ts) || foods <= 0) return;
-      const idx = bucketIndexCeilFromMs(ts);
-      increments[idx] += foods;
-    });
-    let running = 0;
-    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
-      running += increments[i];
-      sumBuckets[i] += running;
-    }
-  });
-
-  return {
-    buckets: sumBuckets.map((v) => v / dayStarts.length),
-    daysUsed: dayStarts.length,
-  };
-}
-
-function buildSleepAvgBuckets(allSleepSessions, todayStartMs) {
-  if (!Array.isArray(allSleepSessions) || allSleepSessions.length === 0) return null;
-  const normalized = allSleepSessions
-    .map((s) => {
-      if (!s?.startTime || !s?.endTime) return null;
-      const norm = normalizeSleepIntervalForAvg(s.startTime, s.endTime);
-      return norm ? { startMs: norm.startMs, endMs: norm.endMs } : null;
-    })
-    .filter(Boolean);
-  if (normalized.length === 0) return null;
-
-  const daySet = new Set();
-  normalized.forEach((s) => {
-    const endDayStart = startOfDayMsLocal(s.endMs);
-    for (let ds = startOfDayMsLocal(s.startMs); ds <= endDayStart; ds += 86400000) {
-      if (ds < todayStartMs) daySet.add(ds);
-    }
-  });
-  const dayStarts = Array.from(daySet).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
-  if (dayStarts.length === 0) return null;
-
-  const dayIndex = new Map(dayStarts.map((d, i) => [d, i]));
-  const perDayIncrements = dayStarts.map(() => Array(TT_AVG_BUCKETS).fill(0));
-  normalized.forEach((s) => {
-    const endDayStart = startOfDayMsLocal(s.endMs);
-    for (let ds = startOfDayMsLocal(s.startMs); ds <= endDayStart; ds += 86400000) {
-      const idx = dayIndex.get(ds);
-      if (idx == null) continue;
-      addSleepOverlapToBuckets(s.startMs, s.endMs, ds, perDayIncrements[idx]);
-    }
-  });
-
-  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
-  perDayIncrements.forEach((increments) => {
-    let running = 0;
-    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
-      running += increments[i];
-      sumBuckets[i] += running;
-    }
-  });
-
-  return {
-    buckets: sumBuckets.map((v) => (v / dayStarts.length) / 3600000),
-    daysUsed: dayStarts.length,
-  };
-}
-
-function roundComparisonDelta(delta) {
-  const raw = Number(delta);
-  const normalized = Number.isFinite(raw) ? raw : 0;
-  const roundedDelta = Math.round(normalized * 10) / 10;
-  return Math.abs(roundedDelta) < 1e-6 ? 0 : roundedDelta;
 }
 
 // ── Summary card (inline, matches web renderSummaryCard) ──
@@ -457,6 +246,7 @@ export default function DetailSheet({
     nursingSessions,
     solidsSessions,
     sleepSessions,
+    activeSleep,
   } = useData();
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
@@ -538,6 +328,7 @@ export default function DetailSheet({
   const nowMs = Date.now();
   const nowBucketIndex = bucketIndexCeilFromMs(nowMs);
   const avgTodayStartMs = startOfDayMsLocal(nowMs);
+  const avgTodayEndMs = avgTodayStartMs + 86400000;
   const selectedStartMs = startOfDayMsLocal(selectedDate.getTime());
   const isViewingToday = selectedStartMs === avgTodayStartMs;
   const feedAvg = useMemo(
@@ -560,17 +351,33 @@ export default function DetailSheet({
   const nursingAvgValue = nursingAvg?.buckets?.[nowBucketIndex];
   const solidsAvgValue = solidsAvg?.buckets?.[nowBucketIndex];
   const sleepAvgValue = sleepAvg?.buckets?.[nowBucketIndex];
+  const todayFeedValue = useMemo(
+    () => calcFeedCumulativeAtBucket(feedings, nowBucketIndex, avgTodayStartMs, avgTodayEndMs),
+    [feedings, nowBucketIndex, avgTodayStartMs, avgTodayEndMs]
+  );
+  const todayNursingValue = useMemo(
+    () => calcNursingCumulativeAtBucket(nursingSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs),
+    [nursingSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs]
+  );
+  const todaySolidsValue = useMemo(
+    () => calcSolidsCumulativeAtBucket(solidsSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs),
+    [solidsSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs]
+  );
+  const todaySleepValue = useMemo(
+    () => calcSleepCumulativeAtBucket(sleepSessions, nowBucketIndex, avgTodayStartMs, activeSleep, nowMs),
+    [sleepSessions, nowBucketIndex, avgTodayStartMs, activeSleep, nowMs]
+  );
   const feedComparison = isViewingToday && Number.isFinite(feedAvgValue) && (feedAvg?.daysUsed || 0) > 0
-    ? { delta: roundComparisonDelta(Number(summary.feedOz || 0) - feedAvgValue), unit: 'oz', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    ? { delta: todayFeedValue - feedAvgValue, unit: 'oz', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
   const nursingComparison = isViewingToday && Number.isFinite(nursingAvgValue) && (nursingAvg?.daysUsed || 0) > 0
-    ? { delta: roundComparisonDelta((Number(summary.nursingMs || 0) / 3600000) - nursingAvgValue), unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    ? { delta: todayNursingValue - nursingAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
   const solidsComparison = isViewingToday && Number.isFinite(solidsAvgValue) && (solidsAvg?.daysUsed || 0) > 0
-    ? { delta: roundComparisonDelta(solidsCount - solidsAvgValue), unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    ? { delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
   const sleepComparison = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
-    ? { delta: roundComparisonDelta(sleepHours - sleepAvgValue), unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
   const diaperComparison = null;
 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance, Animated, Easing } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance, Animated, Easing, LogBox } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -11,6 +11,10 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
+
+LogBox.ignoreLogs([
+  'This method is deprecated (as well as all React Native Firebase namespaced API)',
+]);
 
 // Screens
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
