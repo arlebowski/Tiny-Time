@@ -510,9 +510,24 @@ export default function SleepSheet({
       >
         <View style={styles.durationBlock}>
           <Text style={[styles.durationText, { color: colors.textPrimary }]}>
-            {tParts.showH && <><Text>{tParts.hStr}</Text><Text style={[styles.unit, { color: colors.textSecondary }]}>h </Text></>}
-            {tParts.showM && <><Text>{tParts.mStr}</Text><Text style={[styles.unit, { color: colors.textSecondary }]}>m </Text></>}
+            {tParts.showH && (
+              <>
+                <Text>{tParts.hStr}</Text>
+                <Text>{'\u200A'}</Text>
+                <Text style={[styles.unit, { color: colors.textSecondary }]}>h</Text>
+                <Text>{'  '}</Text>
+              </>
+            )}
+            {tParts.showM && (
+              <>
+                <Text>{tParts.mStr}</Text>
+                <Text>{'\u200A'}</Text>
+                <Text style={[styles.unit, { color: colors.textSecondary }]}>m</Text>
+                <Text>{'  '}</Text>
+              </>
+            )}
             <Text>{tParts.sStr}</Text>
+            <Text>{'\u200A'}</Text>
             <Text style={[styles.unit, { color: colors.textSecondary }]}>s</Text>
           </Text>
         </View>
@@ -609,10 +624,14 @@ const styles = StyleSheet.create({
   durationText: {
     fontSize: 40,
     fontWeight: '700',
+    lineHeight: 40,
+    includeFontPadding: false,
   },
   unit: {
-    fontSize: 16,
+    fontSize: 30,
     fontWeight: '300',
+    lineHeight: 30,
+    includeFontPadding: false,
   },
   inputRow: {
     flexDirection: 'row',

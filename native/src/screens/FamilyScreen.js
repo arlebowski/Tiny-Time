@@ -12,7 +12,7 @@
  * Web cards: TTCard variant="tracker" → rounded-2xl p-5 shadow-sm bg cardBg
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useData } from '../context/DataContext';
 import {
   View,
@@ -36,10 +36,14 @@ import TTPhotoRow from '../components/shared/TTPhotoRow';
 import {
   EditIcon,
   BabyIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   CameraIcon,
+  TrashIcon,
+  PlusIcon,
 } from '../components/icons';
-import { uploadKidPhoto } from '../services/storageService';
+import { updateCurrentUserProfile } from '../services/authService';
+import { uploadKidPhoto, uploadUserPhoto } from '../services/storageService';
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -66,6 +70,13 @@ const formatAgeFromDate = (birthDate) => {
   if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks old`;
   const months = Math.floor(diffDays / 30);
   return `${months} month${months === 1 ? '' : 's'} old`;
+};
+
+const formatMonthDay = (dateLike) => {
+  if (!dateLike) return null;
+  const d = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
 
 // ── Card wrapper (matches web TTCard variant="tracker") ──
@@ -149,12 +160,16 @@ export default function FamilyScreen({
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
   onRequestToggleActivitySheet,
+  onDetailOpenChange,
+  onInvitePartner,
   onSignOut,
   onDeleteAccount,
 }) {
-  const { colors } = useTheme();
+  const { colors, radius } = useTheme();
+  const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
 
   // ── State ──
+  const [currentView, setCurrentView] = useState('hub');
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, preferredVolumeUnit: 'oz' });
@@ -170,11 +185,26 @@ export default function FamilyScreen({
   const [tempWeight, setTempWeight] = useState(null);
 
   // Add Child modal
+  const appearanceSheetRef = useRef(null);
+  const feedingUnitSheetRef = useRef(null);
+  const daySleepSheetRef = useRef(null);
   const addChildSheetRef = useRef(null);
+  const screenScrollRef = useRef(null);
   const [newBabyName, setNewBabyName] = useState('');
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
   const [newChildPhotoUris, setNewChildPhotoUris] = useState([]);
   const [savingChild, setSavingChild] = useState(false);
+  const [profileNameDraft, setProfileNameDraft] = useState(currentUser.displayName || '');
+  const [profileEmailDraft, setProfileEmailDraft] = useState(currentUser.email || '');
+  const [profilePhotoUrl, setProfilePhotoUrl] = useState(currentUser.photoURL || null);
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [familyInfo, setFamilyInfo] = useState(null);
+  const [familyNameDraft, setFamilyNameDraft] = useState('');
+  const [savingFamilyName, setSavingFamilyName] = useState(false);
+  const [selectedKidForSubpage, setSelectedKidForSubpage] = useState(null);
+  const [selectedKidData, setSelectedKidData] = useState(null);
+  const [selectedKidSettings, setSelectedKidSettings] = useState({ babyWeight: null, preferredVolumeUnit: 'oz' });
+  const [selectedKidLoading, setSelectedKidLoading] = useState(false);
 
   // Theme
   const defaultThemeKey = THEME_TOKENS.DEFAULT_THEME_KEY || 'theme1';
@@ -187,7 +217,6 @@ export default function FamilyScreen({
     colorThemes[key] || colorThemes[defaultThemeKey] || Object.values(colorThemes)[0] || null;
 
   const activeTheme = resolveTheme(activeThemeKey);
-  const kidAccent = activeTheme?.bottle?.primary || colors.primaryBrand;
   const segmentedTrackColor = isDark ? colors.appBg : colors.inputBg;
 
   // Load real data from Firestore via DataContext
@@ -210,6 +239,18 @@ export default function FamilyScreen({
     addChildSheetRef.current?.present?.();
   }, []);
 
+  const openAppearanceSheet = useCallback(() => {
+    appearanceSheetRef.current?.present?.();
+  }, []);
+
+  const openFeedingUnitSheet = useCallback(() => {
+    feedingUnitSheetRef.current?.present?.();
+  }, []);
+
+  const openDaySleepSheet = useCallback(() => {
+    daySleepSheetRef.current?.present?.();
+  }, []);
+
   const closeAddChildSheet = useCallback(() => {
     addChildSheetRef.current?.dismiss?.();
   }, []);
@@ -217,7 +258,9 @@ export default function FamilyScreen({
   useEffect(() => {
     if (ctxKidData) {
       setKidData(ctxKidData);
-      setBabyPhotoUrl(ctxKidData.photoURL || null);
+      if (currentView !== 'kid') {
+        setBabyPhotoUrl(ctxKidData.photoURL || null);
+      }
     }
     if (ctxMembers?.length) {
       setMembers(ctxMembers);
@@ -227,7 +270,7 @@ export default function FamilyScreen({
       if (ctxSettings.sleepDayStart != null) setDaySleepStartMin(ctxSettings.sleepDayStart);
       if (ctxSettings.sleepDayEnd != null) setDaySleepEndMin(ctxSettings.sleepDayEnd);
     }
-  }, [ctxKidData, ctxMembers, ctxSettings]);
+  }, [ctxKidData, ctxMembers, ctxSettings, currentView]);
 
   useEffect(() => {
     if (!requestAddChild) return;
@@ -236,6 +279,121 @@ export default function FamilyScreen({
       onRequestAddChildHandled();
     }
   }, [requestAddChild, onRequestAddChildHandled, openAddChildSheet]);
+
+  useEffect(() => {
+    setProfileNameDraft(currentUser.displayName || '');
+    setProfileEmailDraft(currentUser.email || '');
+    setProfilePhotoUrl(currentUser.photoURL || null);
+  }, [currentUser.displayName, currentUser.email, currentUser.photoURL]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadFamilyInfo = async () => {
+      try {
+        const info = await firestoreService?.getFamilyInfo?.();
+        if (cancelled) return;
+        setFamilyInfo(info || null);
+        setFamilyNameDraft(info?.name || '');
+      } catch {
+        if (!cancelled) {
+          setFamilyInfo(null);
+          setFamilyNameDraft('');
+        }
+      }
+    };
+    loadFamilyInfo();
+    return () => { cancelled = true; };
+  }, [firestoreService, familyId, members.length]);
+
+  useEffect(() => {
+    onDetailOpenChange?.(currentView !== 'hub');
+    return () => {
+      onDetailOpenChange?.(false);
+    };
+  }, [currentView, onDetailOpenChange]);
+
+  useEffect(() => {
+    // Ensure every subview opens from top even if hub was previously scrolled.
+    requestAnimationFrame(() => {
+      screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    });
+  }, [currentView]);
+
+  const loadSelectedKidData = useCallback(async (kidCandidate) => {
+    if (!kidCandidate?.id) return;
+    setTempBabyName(null);
+    setTempWeight(null);
+    setEditingName(false);
+    setEditingWeight(false);
+
+    const fallbackKidData = kidCandidate.id === kidId && ctxKidData ? { ...ctxKidData } : { ...kidCandidate };
+    const fallbackSettings = kidCandidate.id === kidId && ctxSettings
+      ? { ...ctxSettings }
+      : { babyWeight: kidCandidate?.babyWeight ?? null, preferredVolumeUnit: 'oz' };
+
+    setSelectedKidLoading(true);
+    setSelectedKidData(fallbackKidData);
+    setSelectedKidSettings((prev) => ({ ...prev, ...fallbackSettings }));
+    setBabyPhotoUrl(fallbackKidData?.photoURL || null);
+    setDaySleepStartMin(
+      fallbackKidData?.sleepDayStart
+      ?? fallbackKidData?.daySleepStartMinutes
+      ?? fallbackSettings?.sleepDayStart
+      ?? 390
+    );
+    setDaySleepEndMin(
+      fallbackKidData?.sleepDayEnd
+      ?? fallbackKidData?.daySleepEndMinutes
+      ?? fallbackSettings?.sleepDayEnd
+      ?? 1170
+    );
+
+    try {
+      if (!firestoreService?.isAvailable || !familyId) {
+        setSelectedKidLoading(false);
+        return;
+      }
+
+      const firestoreModule = require('@react-native-firebase/firestore').default;
+      const kidRef = firestoreModule()
+        .collection('families')
+        .doc(familyId)
+        .collection('kids')
+        .doc(kidCandidate.id);
+      const [kidDoc, settingsDoc] = await Promise.all([
+        kidRef.get(),
+        kidRef.collection('settings').doc('default').get(),
+      ]);
+
+      const loadedKidData = kidDoc.exists ? { id: kidDoc.id, ...kidDoc.data() } : fallbackKidData;
+      const loadedSettings = settingsDoc.exists ? settingsDoc.data() : fallbackSettings;
+
+      setSelectedKidData(loadedKidData);
+      setSelectedKidSettings((prev) => ({ ...prev, ...(loadedSettings || {}) }));
+      setBabyPhotoUrl(loadedKidData?.photoURL || null);
+      setDaySleepStartMin(
+        loadedKidData?.sleepDayStart
+        ?? loadedKidData?.daySleepStartMinutes
+        ?? loadedSettings?.sleepDayStart
+        ?? 390
+      );
+      setDaySleepEndMin(
+        loadedKidData?.sleepDayEnd
+        ?? loadedKidData?.daySleepEndMinutes
+        ?? loadedSettings?.sleepDayEnd
+        ?? 1170
+      );
+    } catch (error) {
+      console.error('Failed to load selected kid details:', error);
+    } finally {
+      setSelectedKidLoading(false);
+    }
+  }, [ctxKidData, ctxSettings, familyId, firestoreService?.isAvailable, kidId]);
+
+  useEffect(() => {
+    if (currentView !== 'kid' || !selectedKidForSubpage?.id) return;
+    loadSelectedKidData(selectedKidForSubpage);
+  }, [currentView, selectedKidForSubpage?.id, loadSelectedKidData]);
 
   // ── Handlers ──
 
@@ -253,18 +411,31 @@ export default function FamilyScreen({
     setTempBabyName(nextValue);
   };
 
-  const handleUpdateBabyName = () => {
+  const handleUpdateBabyName = async () => {
+    const targetKidId = selectedKidForSubpage?.id;
     if (tempBabyName === null) {
       setEditingName(false);
       return;
     }
     const raw = String(tempBabyName).trim();
     if (!raw) {
-      setTempBabyName(kidData?.name || null);
+      setTempBabyName(selectedKidData?.name || null);
       setEditingName(false);
       return;
     }
-    setKidData((prev) => (prev ? { ...prev, name: raw } : prev));
+    setSelectedKidData((prev) => (prev ? { ...prev, name: raw } : prev));
+    setSelectedKidForSubpage((prev) => (prev ? { ...prev, name: raw } : prev));
+    setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, name: raw } : k)));
+    if (targetKidId === kidId) {
+      setKidData((prev) => (prev ? { ...prev, name: raw } : prev));
+    }
+    try {
+      if (targetKidId) {
+        await firestoreService?.updateKidDataById?.(targetKidId, { name: raw });
+      }
+    } catch (error) {
+      console.error('Failed to update kid name:', error);
+    }
     setTempBabyName(null);
     setEditingName(false);
   };
@@ -274,7 +445,8 @@ export default function FamilyScreen({
     setTempWeight(nextValue);
   };
 
-  const handleUpdateWeight = () => {
+  const handleUpdateWeight = async () => {
+    const targetKidId = selectedKidForSubpage?.id;
     if (tempWeight === null) {
       setEditingWeight(false);
       return;
@@ -287,26 +459,55 @@ export default function FamilyScreen({
     }
     const weight = parseFloat(raw);
     if (!weight || weight <= 0) {
-      setTempWeight(settings.babyWeight?.toString() || null);
+      setTempWeight(selectedKidSettings.babyWeight?.toString() || null);
       setEditingWeight(false);
       return;
     }
-    setSettings((prev) => ({ ...prev, babyWeight: weight }));
+    setSelectedKidSettings((prev) => ({ ...prev, babyWeight: weight }));
+    setSelectedKidData((prev) => (prev ? { ...prev, babyWeight: weight } : prev));
+    setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, babyWeight: weight } : k)));
+    if (targetKidId === kidId) {
+      setSettings((prev) => ({ ...prev, babyWeight: weight }));
+    }
+    try {
+      if (targetKidId) {
+        await firestoreService?.updateKidDataById?.(targetKidId, { babyWeight: weight });
+      }
+    } catch (error) {
+      console.error('Failed to update kid weight:', error);
+    }
     setTempWeight(null);
     setEditingWeight(false);
   };
 
   const handleVolumeUnitChange = async (nextUnit) => {
+    const targetKidId = selectedKidForSubpage?.id || kidId;
     const unit = nextUnit === 'ml' ? 'ml' : 'oz';
-    setSettings((prev) => ({ ...prev, preferredVolumeUnit: unit }));
+    setSelectedKidSettings((prev) => ({ ...prev, preferredVolumeUnit: unit }));
+    if (targetKidId === kidId) {
+      setSettings((prev) => ({ ...prev, preferredVolumeUnit: unit }));
+    }
     try {
-      await updateKidSettings?.({ preferredVolumeUnit: unit });
+      if (targetKidId === kidId) {
+        await updateKidSettings?.({ preferredVolumeUnit: unit });
+      } else if (firestoreService?.isAvailable && familyId && targetKidId) {
+        const firestoreModule = require('@react-native-firebase/firestore').default;
+        await firestoreModule()
+          .collection('families')
+          .doc(familyId)
+          .collection('kids')
+          .doc(targetKidId)
+          .collection('settings')
+          .doc('default')
+          .set({ preferredVolumeUnit: unit }, { merge: true });
+      }
     } catch (error) {
       console.error('Failed to update preferred volume unit:', error);
     }
   };
 
   const handlePhotoClick = async () => {
+    const targetKidId = selectedKidForSubpage?.id;
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -314,9 +515,156 @@ export default function FamilyScreen({
       quality: 0.8,
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
-      setBabyPhotoUrl(result.assets[0].uri);
+      const localUri = result.assets[0].uri;
+      setBabyPhotoUrl(localUri);
+      setSelectedKidData((prev) => (prev ? { ...prev, photoURL: localUri } : prev));
+      setSelectedKidForSubpage((prev) => (prev ? { ...prev, photoURL: localUri } : prev));
+      setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, photoURL: localUri } : k)));
+      try {
+        if (familyId && targetKidId) {
+          const uploadedPhotoUrl = await uploadKidPhoto(localUri, familyId, targetKidId);
+          await firestoreService?.updateKidDataById?.(targetKidId, { photoURL: uploadedPhotoUrl });
+          setBabyPhotoUrl(uploadedPhotoUrl);
+          setSelectedKidData((prev) => (prev ? { ...prev, photoURL: uploadedPhotoUrl } : prev));
+          setSelectedKidForSubpage((prev) => (prev ? { ...prev, photoURL: uploadedPhotoUrl } : prev));
+          setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, photoURL: uploadedPhotoUrl } : k)));
+          if (targetKidId === kidId) {
+            setKidData((prev) => (prev ? { ...prev, photoURL: uploadedPhotoUrl } : prev));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to upload kid photo:', error);
+        Alert.alert('Error', 'Unable to update photo right now.');
+      }
     }
   };
+
+  const handleOpenProfile = useCallback(() => {
+    screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    setCurrentView('profile');
+  }, []);
+
+  const handleOpenFamily = useCallback(() => {
+    screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    setCurrentView('family');
+  }, []);
+
+  const handleOpenKidSubpage = useCallback((kid) => {
+    screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    setTempBabyName(null);
+    setTempWeight(null);
+    setEditingName(false);
+    setEditingWeight(false);
+    setSelectedKidForSubpage(kid || null);
+    setCurrentView('kid');
+  }, []);
+
+  const handleBackToHub = useCallback(() => {
+    screenScrollRef.current?.scrollTo?.({ y: 0, animated: false });
+    setCurrentView('hub');
+  }, []);
+
+  const handleProfilePhotoClick = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setProfilePhotoUrl(result.assets[0].uri);
+    }
+  }, []);
+
+  const handleSaveProfile = useCallback(async () => {
+    const uid = currentUser?.uid;
+    if (!uid) {
+      Alert.alert('Error', 'Unable to update profile right now.');
+      return;
+    }
+
+    const nextName = String(profileNameDraft || '').trim();
+    const nextEmail = String(profileEmailDraft || '').trim().toLowerCase();
+    if (!nextEmail) {
+      Alert.alert('Error', 'Email is required.');
+      return;
+    }
+
+    const basicEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!basicEmailPattern.test(nextEmail)) {
+      Alert.alert('Error', 'Please enter a valid email address.');
+      return;
+    }
+
+    setSavingProfile(true);
+    try {
+      let nextPhotoUrl = profilePhotoUrl || null;
+      if (profilePhotoUrl && !String(profilePhotoUrl).startsWith('http')) {
+        nextPhotoUrl = await uploadUserPhoto(profilePhotoUrl, familyId, uid);
+      }
+
+      await updateCurrentUserProfile({
+        displayName: nextName || null,
+        email: nextEmail,
+        photoURL: nextPhotoUrl,
+      });
+      await refresh?.();
+      setProfilePhotoUrl(nextPhotoUrl);
+      Alert.alert('Saved', 'Profile updated.');
+      setCurrentView('hub');
+    } catch (error) {
+      console.error('Failed to save profile:', error);
+      Alert.alert('Error', 'Unable to save profile. You may need to sign in again to update your email.');
+    } finally {
+      setSavingProfile(false);
+    }
+  }, [currentUser?.uid, familyId, profileNameDraft, profileEmailDraft, profilePhotoUrl, refresh]);
+
+  const isFamilyOwner = useMemo(() => {
+    const ownerUid = familyInfo?.ownerId
+      || familyInfo?.createdBy
+      || (Array.isArray(familyInfo?.members) ? familyInfo.members[0] : null)
+      || (Array.isArray(members) ? members[0]?.uid : null);
+    const uid = currentUser?.uid;
+    if (!uid) return false;
+    return ownerUid === uid;
+  }, [currentUser?.uid, familyInfo?.ownerId, familyInfo?.createdBy, familyInfo?.members, members]);
+
+  const familyOwnerUid = useMemo(
+    () => familyInfo?.ownerId
+      || familyInfo?.createdBy
+      || (Array.isArray(familyInfo?.members) ? familyInfo.members[0] : null)
+      || (Array.isArray(members) ? members[0]?.uid : null)
+      || null,
+    [familyInfo?.ownerId, familyInfo?.createdBy, familyInfo?.members, members]
+  );
+
+  const handleSaveFamilyName = useCallback(async () => {
+    if (!isFamilyOwner) return;
+    const nextName = String(familyNameDraft || '').trim();
+    if (!nextName) return;
+    setSavingFamilyName(true);
+    try {
+      await firestoreService?.updateFamilyData?.({ name: nextName });
+      await refresh?.();
+      setFamilyInfo((prev) => ({ ...(prev || {}), name: nextName }));
+    } catch (error) {
+      console.error('Failed to save family name:', error);
+      Alert.alert('Error', 'Unable to save family name.');
+    } finally {
+      setSavingFamilyName(false);
+    }
+  }, [isFamilyOwner, familyNameDraft, firestoreService, refresh]);
+
+  const hasProfileChanges = useMemo(() => {
+    const currentName = String(currentUser.displayName || '').trim();
+    const draftName = String(profileNameDraft || '').trim();
+    const currentEmail = String(currentUser.email || '').trim().toLowerCase();
+    const draftEmail = String(profileEmailDraft || '').trim().toLowerCase();
+    const currentPhoto = currentUser.photoURL || '';
+    const draftPhoto = profilePhotoUrl || '';
+    return draftName !== currentName || draftEmail !== currentEmail || draftPhoto !== currentPhoto;
+  }, [currentUser.displayName, currentUser.email, currentUser.photoURL, profileNameDraft, profileEmailDraft, profilePhotoUrl]);
 
   const handleRemoveMember = (memberId) => {
     Alert.alert(
@@ -439,9 +787,7 @@ export default function FamilyScreen({
   // ── Day sleep window ──
   const dayStart = clamp(daySleepStartMin, 0, 1439);
   const dayEnd = clamp(daySleepEndMin, 0, 1439);
-
-  // ── Mock user ──
-  const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
+  const selectedKidName = selectedKidData?.name || selectedKidForSubpage?.name || 'Kid';
 
   // ── Loading ──
   if (loading) {
@@ -459,527 +805,893 @@ export default function FamilyScreen({
   return (
     <>
     <ScrollView
+      ref={screenScrollRef}
       style={[s.scroll, { backgroundColor: colors.appBg }]}
       contentContainerStyle={s.scrollContent}
       showsVerticalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
     >
-      {/* ── 1. Appearance Card ── */}
-      {/* Web: TTCard variant="tracker", header "Appearance", space-y-4 */}
-      <Card>
-        <CardHeader
-          title="Appearance"
-          right={showDevSetupToggle ? (
-            <View style={s.devToggleRow}>
-              <Pressable
-                onPress={() => onToggleForceSetupPreview?.(!forceSetupPreview)}
-                style={[
-                  s.devSetupToggle,
-                  {
-                    borderColor: forceSetupPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
-                    backgroundColor: forceSetupPreview ? colors.inputBg : 'transparent',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    s.devSetupToggleText,
-                    { color: forceSetupPreview ? colors.brandIcon : colors.textTertiary },
-                  ]}
-                >
-                  OB
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onToggleForceLoginPreview?.(!forceLoginPreview)}
-                style={[
-                  s.devSetupToggle,
-                  {
-                    borderColor: forceLoginPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
-                    backgroundColor: forceLoginPreview ? colors.inputBg : 'transparent',
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    s.devSetupToggleText,
-                    { color: forceLoginPreview ? colors.brandIcon : colors.textTertiary },
-                  ]}
-                >
-                  LG
+      {currentView === 'profile' ? (
+        <>
+          <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
+            <View style={s.profileHeaderCol}>
+              <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
+                <ChevronLeftIcon size={20} color={colors.textSecondary} />
+                <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
+                  Account
                 </Text>
               </Pressable>
             </View>
-          ) : null}
-        />
-        <View style={s.sectionBody}>
-          {/* Dark Mode toggle */}
-          {/* Web: label text-xs mb-1, then SegmentedToggle */}
-          <View>
-            <Text style={[s.fieldLabel, { color: colors.textSecondary }]}>Dark Mode</Text>
-            <SegmentedToggle
-              value={isDark ? 'dark' : 'light'}
-              options={[
-                { value: 'light', label: 'Light' },
-                { value: 'dark', label: 'Dark' },
-              ]}
-              onChange={handleDarkModeChange}
-              variant="body"
-              size="medium"
-              trackColor={segmentedTrackColor}
-            />
+            <View style={[s.profileHeaderCol, s.profileHeaderCenter, s.familyHeaderTitleSlot]}>
+              <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Profile</Text>
+            </View>
+            <View style={[s.profileHeaderCol, s.profileHeaderRight]} />
           </View>
 
-          {/* Color Theme picker */}
-          {/* Web: label text-xs mb-2 "Color Theme", grid grid-cols-2 gap-3 */}
-          <View style={s.themeSection}>
-            <Text style={[s.fieldLabel, { color: colors.textSecondary, marginBottom: 8 }]}>
-              Color Theme
-            </Text>
-            <View style={s.themeGrid}>
-              {colorThemeOrder.map((key) => {
-                const t = resolveTheme(key);
-                if (!t) return null;
-                const isSelected = activeThemeKey === key;
-                const swatchOrder = ['bottle', 'nursing', 'sleep', 'diaper', 'solids'];
-                return (
-                  <Pressable
-                    key={key}
-                    onPress={() => handleThemeChange(key)}
-                    style={[
-                      s.themeButton,
-                      {
-                        backgroundColor: isSelected ? colors.subtleSurface : colors.cardBg,
-                        borderColor: isSelected ? colors.outlineStrong : (colors.cardBorder || colors.borderSubtle),
-                      },
-                    ]}
-                  >
-                    {/* Web: text-sm font-semibold */}
-                    <Text style={[s.themeName, { color: colors.textPrimary }]}>
-                      {t.name || key}
-                    </Text>
-                    {/* Web: flex items-center gap-2 mt-2 */}
-                    <View style={s.swatchRow}>
-                      {swatchOrder.map((cardKey) => {
-                        const accent = t[cardKey]?.primary || 'transparent';
-                        return (
-                          <View
-                            key={`${key}-${cardKey}`}
-                            style={[
-                              s.swatch,
-                              {
-                                backgroundColor: accent,
-                                borderColor: colors.cardBorder || colors.borderSubtle,
-                              },
-                            ]}
-                          />
-                        );
-                      })}
+          <Card style={s.profileMainCard}>
+            <View style={s.profileAvatarUpload}>
+              <Pressable onPress={handleProfilePhotoClick} style={s.photoWrap}>
+                <View style={[s.photoCircle, { backgroundColor: colors.inputBg }]}>
+                  {profilePhotoUrl ? (
+                    <Image source={{ uri: profilePhotoUrl }} style={s.photoImage} />
+                  ) : (
+                    <View style={[s.photoPlaceholder, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
+                      <Text style={[s.profileInitial, { color: activeTheme?.bottle?.primary || colors.textPrimary }]}>
+                        {(profileNameDraft || currentUser.displayName || currentUser.email || '?').charAt(0).toUpperCase()}
+                      </Text>
                     </View>
-                  </Pressable>
-                );
-              })}
-            </View>
-          </View>
-        </View>
-      </Card>
-
-      {/* ── 2. Kids Card ── */}
-      {/* Web: TTCard, header "Kids" with "+ Add Child" right action */}
-      {kids && kids.length > 0 && (
-        <Card style={s.cardGap}>
-          <CardHeader
-            title="Kids"
-            right={
-              <Pressable onPress={openAddChildSheet}>
-                <Text style={[s.addChildBtn, { color: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
-                  + Add Child
-                </Text>
-              </Pressable>
-            }
-          />
-          {/* Web: space-y-2 */}
-          <View style={s.kidsList}>
-            {kids.map((k) => {
-              const isCurrent = k.id === kidId;
-              return (
-                <Pressable
-                  key={k.id}
-                  onPress={() => {
-                    if (!isCurrent && typeof onKidChange === 'function') onKidChange(k.id);
-                  }}
+                  )}
+                </View>
+                <View
                   style={[
-                    s.kidRow,
+                    s.cameraBadge,
                     {
-                      borderColor: isCurrent ? colors.outlineStrong : (colors.cardBorder || colors.borderSubtle),
-                      backgroundColor: isCurrent ? colors.subtleSurface : colors.cardBg,
+                      backgroundColor: activeTheme?.bottle?.primary || colors.primaryBrand,
+                      borderColor: colors.cardBg,
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      s.kidName,
-                      { color: isCurrent ? colors.textPrimary : colors.textSecondary },
-                    ]}
-                    numberOfLines={1}
-                  >
-                    {k.name || 'Baby'}
-                  </Text>
-                  {isCurrent && (
-                    <Text style={[s.kidActive, { color: kidAccent }]}>Active</Text>
-                  )}
-                </Pressable>
-              );
-            })}
-          </View>
-          {/* Web: mt-3 text-xs color textSecondary */}
-          <Text style={[s.kidsHint, { color: colors.textSecondary }]}>
-            Active kid controls what you see in Tracker and Analytics.
-          </Text>
-        </Card>
-      )}
-
-      {/* ── 3. Baby Info Card ── */}
-      {/* Web: TTCard, header "Baby Info" mb-4, photo+name row mb-6 */}
-      <Card style={s.cardGap}>
-        <CardHeader title="Baby Info" />
-
-        {/* Photo + Name row */}
-        {/* Web: flex items-center gap-4 mb-6 */}
-        <View style={s.photoNameRow}>
-          {/* Photo */}
-          {/* Web: w-24 h-24 rounded-full, camera badge w-8 h-8 */}
-          <Pressable onPress={handlePhotoClick} style={s.photoWrap}>
-            <View style={[s.photoCircle, { backgroundColor: colors.inputBg }]}>
-              {babyPhotoUrl ? (
-                <Image
-                  source={{ uri: babyPhotoUrl }}
-                  style={s.photoImage}
-                />
-              ) : (
-                <View style={[s.photoPlaceholder, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
-                  <BabyIcon size={48} color={activeTheme?.bottle?.primary || colors.textTertiary} />
+                  <CameraIcon size={16} color="#ffffff" />
                 </View>
-              )}
+              </Pressable>
+              <Text style={[s.profileAvatarHint, { color: colors.textSecondary }]}>Tap to change photo</Text>
             </View>
-            {/* Camera badge */}
-            {/* Web: absolute bottom-0 right-0 w-8 h-8 rounded-full, bg var(--tt-feed), border-2 cardBg */}
-            <View
-              style={[
-                s.cameraBadge,
-                {
-                  backgroundColor: activeTheme?.bottle?.primary || colors.primaryBrand,
-                  borderColor: colors.cardBg,
-                },
+            <View style={s.profileFieldsWrap}>
+              <TTInputRow
+                label="Name"
+                type="text"
+                icon={EditIcon}
+                value={profileNameDraft}
+                placeholder="Your name"
+                onChange={setProfileNameDraft}
+              />
+              <TTInputRow
+                label="Email"
+                type="text"
+                icon={EditIcon}
+                value={profileEmailDraft}
+                placeholder="name@example.com"
+                onChange={setProfileEmailDraft}
+              />
+            </View>
+          </Card>
+
+          {hasProfileChanges ? (
+            <Pressable
+              onPress={handleSaveProfile}
+              disabled={savingProfile}
+              style={({ pressed }) => [
+                s.profileSaveButton,
+                { backgroundColor: colors.primaryActionBg, opacity: savingProfile ? 0.6 : 1 },
+                pressed && !savingProfile && { opacity: 0.8 },
               ]}
             >
-              <CameraIcon size={16} color="#ffffff" />
-            </View>
-          </Pressable>
+              <Text style={[s.accountBtnText, { color: colors.primaryActionText }]}>
+                {savingProfile ? 'Saving...' : 'Save Changes'}
+              </Text>
+            </Pressable>
+          ) : null}
 
-          {/* Name input */}
-          {/* Web: flex-1 min-w-0, marginTop 10px */}
-          <View style={s.nameInputWrap}>
-            <TTInputRow
-              label="Name"
-              type="text"
-              size="compact"
-              icon={EditIcon}
-              value={tempBabyName !== null ? tempBabyName : (kidData?.name || '')}
-              placeholder="Baby"
-              onChange={handleBabyNameChange}
-              onFocus={() => setEditingName(true)}
-              onBlur={handleUpdateBabyName}
-            />
+          <Text style={[s.profileSectionLabel, s.profileAccountLabel, { color: colors.textTertiary }]}>ACCOUNT</Text>
+
+          <Card>
+            <View style={s.accountBody}>
+              <Pressable
+                onPress={handleSignOut}
+                style={({ pressed }) => [
+                  s.accountBtn,
+                  { backgroundColor: colors.errorSoft },
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[s.accountBtnText, { color: colors.error }]}>Sign Out</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleDeleteAccount}
+                style={({ pressed }) => [
+                  s.deleteAccountBtn,
+                  pressed && { opacity: 0.65 },
+                ]}
+              >
+                <Text style={[s.deleteAccountBtnText, { color: colors.textSecondary }]}>Delete My Account</Text>
+              </Pressable>
+            </View>
+          </Card>
+
+          <View style={{ height: 40 }} />
+        </>
+      ) : currentView === 'family' ? (
+        <>
+          <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
+            <View style={s.profileHeaderCol}>
+              <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
+                <ChevronLeftIcon size={20} color={colors.textSecondary} />
+                <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
+                  Account
+                </Text>
+              </Pressable>
+            </View>
+            <View style={[s.profileHeaderCol, s.profileHeaderCenter, s.familyHeaderTitleSlot]}>
+              <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Family</Text>
+            </View>
+            <View style={[s.profileHeaderCol, s.profileHeaderRight]} />
+          </View>
+
+          <View style={s.familyNameBlock}>
+            {isFamilyOwner ? (
+              <TTInputRow
+                label="Family Name"
+                type="text"
+                icon={EditIcon}
+                value={familyNameDraft}
+                placeholder="Family"
+                onChange={setFamilyNameDraft}
+              />
+            ) : (
+              <View style={[s.familyNameReadOnlyCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder || colors.borderSubtle }]}>
+                <Text style={[s.familyNameReadOnlyLabel, { color: colors.textSecondary }]}>Family Name</Text>
+                <Text style={[s.familyNameReadOnlyValue, { color: colors.textPrimary }]}>
+                  {familyInfo?.name || 'Family'}
+                </Text>
+              </View>
+            )}
+          </View>
+          {isFamilyOwner && String(familyNameDraft || '').trim() && String(familyNameDraft || '').trim() !== String(familyInfo?.name || '').trim() ? (
+            <Pressable
+              onPress={handleSaveFamilyName}
+              disabled={savingFamilyName}
+              style={({ pressed }) => [
+                s.profileSaveButton,
+                { backgroundColor: colors.primaryActionBg, opacity: savingFamilyName ? 0.6 : 1 },
+                pressed && !savingFamilyName && { opacity: 0.8 },
+              ]}
+            >
+              <Text style={[s.accountBtnText, { color: colors.primaryActionText }]}>
+                {savingFamilyName ? 'Saving...' : 'Save Family Name'}
+              </Text>
+            </Pressable>
+          ) : null}
+
+          <Card style={s.cardGap}>
+            <CardHeader title="Family Members" />
+            <View style={s.membersList}>
+              {members.map((member) => {
+                const memberUid = member?.uid || null;
+                const isOwner = Boolean(memberUid && familyOwnerUid && memberUid === familyOwnerUid);
+                return (
+                  <View
+                    key={member.uid}
+                    style={[
+                      s.memberRow,
+                      {
+                        backgroundColor: colors.inputBg,
+                        borderRadius: radius?.['2xl'] ?? 16,
+                      },
+                    ]}
+                  >
+                      <View style={s.memberAvatarWrap}>
+                        {member.photoURL ? (
+                          <Image
+                            source={{ uri: member.photoURL }}
+                            style={s.memberAvatar}
+                          />
+                        ) : (
+                          <View
+                            style={[
+                              s.memberAvatarFallback,
+                              { backgroundColor: colors.subtleSurface },
+                            ]}
+                          >
+                            <Text style={[s.memberInitial, { color: colors.textPrimary }]}>
+                              {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                      <View style={s.memberInfo}>
+                        <View style={s.memberNameRow}>
+                          <Text
+                            style={[s.memberName, { color: colors.textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {member.displayName || member.email || 'Member'}
+                          </Text>
+                          {isOwner ? (
+                            <View
+                              style={[
+                                s.ownerBadge,
+                                {
+                                  backgroundColor: colors.segTrack || colors.track,
+                                  borderColor: colors.cardBorder || colors.borderSubtle,
+                                },
+                              ]}
+                            >
+                              <Text style={[s.ownerBadgeText, { color: colors.textSecondary }]}>
+                                Owner
+                              </Text>
+                            </View>
+                          ) : null}
+                        </View>
+                        <Text
+                          style={[s.memberEmail, { color: colors.textSecondary }]}
+                          numberOfLines={1}
+                        >
+                          {member.email}
+                        </Text>
+                      </View>
+                      {member.uid !== currentUser.uid && (
+                        <Pressable
+                          onPress={() => handleRemoveMember(member.uid)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${member.displayName || member.email || 'member'}`}
+                          style={({ pressed }) => [
+                            s.memberRemoveIconButton,
+                            {
+                              backgroundColor: colors.segTrack || colors.track,
+                              borderColor: colors.cardBorder,
+                            },
+                            pressed && s.memberRemoveIconButtonPressed,
+                          ]}
+                        >
+                          <TrashIcon size={20} color={colors.error} />
+                        </Pressable>
+                      )}
+                  </View>
+                );
+              })}
+            </View>
+          </Card>
+
+          <Card style={s.cardGap}>
+            <View style={s.familyInviteCard}>
+              <Text style={[s.familyInviteText, { color: colors.textSecondary }]}>
+                Share a link to invite someone. They'll need a Tiny account if they don't have one yet.
+              </Text>
+              <Pressable
+                onPress={() => onInvitePartner?.()}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              >
+                <Text style={[s.familyInviteLink, { color: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
+                  Copy invite link ↗
+                </Text>
+              </Pressable>
+            </View>
+          </Card>
+
+          <View style={{ height: 40 }} />
+        </>
+      ) : currentView === 'kid' ? (
+        <>
+          <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
+            <View style={s.profileHeaderCol}>
+              <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
+                <ChevronLeftIcon size={20} color={colors.textSecondary} />
+                <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
+                  Your Kids
+                </Text>
+              </Pressable>
+            </View>
+            <View style={[s.profileHeaderCol, s.profileHeaderCenter, s.familyHeaderTitleSlot]}>
+              <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>{selectedKidName}</Text>
+            </View>
+            <View style={[s.profileHeaderCol, s.profileHeaderRight]} />
+          </View>
+          {selectedKidLoading ? (
+            <View style={s.loadingContainer}>
+              <ActivityIndicator color={colors.textSecondary} />
+            </View>
+          ) : (
+            <Card style={s.profileMainCard}>
+              <View style={s.profileAvatarUpload}>
+                <Pressable onPress={handlePhotoClick} style={s.photoWrap}>
+                  <View style={[s.photoCircle, { backgroundColor: colors.inputBg }]}>
+                    {babyPhotoUrl ? (
+                      <Image
+                        source={{ uri: babyPhotoUrl }}
+                        style={s.photoImage}
+                      />
+                    ) : (
+                      <View style={[s.photoPlaceholder, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
+                        <BabyIcon size={48} color={activeTheme?.bottle?.primary || colors.textTertiary} />
+                      </View>
+                    )}
+                  </View>
+                  <View
+                    style={[
+                      s.cameraBadge,
+                      {
+                        backgroundColor: activeTheme?.bottle?.primary || colors.primaryBrand,
+                        borderColor: colors.cardBg,
+                      },
+                    ]}
+                  >
+                    <CameraIcon size={16} color="#ffffff" />
+                  </View>
+                </Pressable>
+                <Text style={[s.profileAvatarHint, { color: colors.textSecondary }]}>Tap to change photo</Text>
+              </View>
+
+              <View style={s.profileFieldsWrap}>
+                <TTInputRow
+                  label="Name"
+                  type="text"
+                  icon={EditIcon}
+                  value={tempBabyName !== null ? tempBabyName : (selectedKidData?.name || '')}
+                  placeholder="Baby"
+                  onChange={handleBabyNameChange}
+                  onFocus={() => setEditingName(true)}
+                  onBlur={handleUpdateBabyName}
+                />
+                <TTInputRow
+                  label="Birth date"
+                  type="datetime"
+                  icon={EditIcon}
+                  rawValue={selectedKidData?.birthDate ? new Date(selectedKidData.birthDate).toISOString() : null}
+                  placeholder={
+                    selectedKidData?.birthDate
+                      ? `${new Date(selectedKidData.birthDate).toLocaleDateString()} \u2022 ${formatAgeFromDate(selectedKidData.birthDate)}`
+                      : 'Not set'
+                  }
+                  formatDateTime={(iso) => {
+                    const d = new Date(iso);
+                    const dateLabel = d.toLocaleDateString();
+                    const ageLabel = formatAgeFromDate(d);
+                    return ageLabel ? `${dateLabel} \u2022 ${ageLabel}` : dateLabel;
+                  }}
+                />
+                <TTInputRow
+                  label="Current weight (lbs)"
+                  type="number"
+                  icon={EditIcon}
+                  value={tempWeight !== null ? tempWeight : (selectedKidSettings.babyWeight?.toString() || '')}
+                  placeholder="Not set"
+                  onChange={handleWeightChange}
+                  onFocus={() => setEditingWeight(true)}
+                  onBlur={handleUpdateWeight}
+                />
+              </View>
+
+            </Card>
+          )}
+
+          <Card style={s.cardGap}>
+            <Pressable
+              onPress={openDaySleepSheet}
+              style={({ pressed }) => [
+                s.appearanceEntryRow,
+                pressed && { opacity: 0.75 },
+              ]}
+            >
+              <View style={s.appearanceEntryLeft}>
+                <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
+                  <Text style={s.appearanceEntryIconLabel}>🌙</Text>
+                </View>
+                <View>
+                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Day Sleep Window</Text>
+                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                    Set day vs night sleep timing
+                  </Text>
+                </View>
+              </View>
+              <View style={s.appearanceEntryRight}>
+                <ChevronRightIcon size={16} color={colors.textSecondary} />
+              </View>
+            </Pressable>
+          </Card>
+
+          <Card style={s.cardGap}>
+            <Pressable
+              onPress={handleOpenActivityVisibility}
+              style={({ pressed }) => [
+                s.appearanceEntryRow,
+                pressed && { opacity: 0.75 },
+              ]}
+            >
+              <View style={s.appearanceEntryLeft}>
+                <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
+                  <Text style={s.appearanceEntryIconLabel}>👁️</Text>
+                </View>
+                <View>
+                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Activity Visibility</Text>
+                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                    Show & hide tracker activities
+                  </Text>
+                </View>
+              </View>
+              <View style={s.appearanceEntryRight}>
+                <ChevronRightIcon size={16} color={colors.textSecondary} />
+              </View>
+            </Pressable>
+          </Card>
+
+          <View style={{ height: 40 }} />
+        </>
+      ) : (
+        <>
+      {showDevSetupToggle ? (
+        <View style={s.familyDevRowTop}>
+          <View style={s.devToggleRow}>
+            <Pressable
+              onPress={() => onToggleForceSetupPreview?.(!forceSetupPreview)}
+              style={({ pressed }) => [
+                s.devSetupToggle,
+                {
+                  borderColor: forceSetupPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
+                  backgroundColor: forceSetupPreview ? colors.subtleSurface : colors.cardBg,
+                },
+                pressed && s.devSetupTogglePressed,
+              ]}
+            >
+              <Text
+                style={[
+                  s.devSetupToggleText,
+                  { color: forceSetupPreview ? colors.brandIcon : colors.textTertiary },
+                ]}
+              >
+                OB
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => onToggleForceLoginPreview?.(!forceLoginPreview)}
+              style={({ pressed }) => [
+                s.devSetupToggle,
+                {
+                  borderColor: forceLoginPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
+                  backgroundColor: forceLoginPreview ? colors.subtleSurface : colors.cardBg,
+                },
+                pressed && s.devSetupTogglePressed,
+              ]}
+            >
+              <Text
+                style={[
+                  s.devSetupToggleText,
+                  { color: forceLoginPreview ? colors.brandIcon : colors.textTertiary },
+                ]}
+              >
+                LG
+              </Text>
+            </Pressable>
           </View>
         </View>
+      ) : null}
+      <View style={s.familyHubHeader}>
+        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Account and Profile</Text>
+      </View>
+      {/* ── Account Card ── */}
+      {/* Hub entrypoint for Profile subpage */}
+      <Card>
+        <Pressable
+          onPress={handleOpenProfile}
+          style={({ pressed }) => [
+            s.appearanceEntryRow,
+            pressed && { opacity: 0.75 },
+          ]}
+        >
+          <View style={s.appearanceEntryLeft}>
+            {currentUser.photoURL ? (
+              <Image source={{ uri: currentUser.photoURL }} style={s.appearanceAccountAvatar} />
+            ) : (
+              <View style={[s.appearanceAccountAvatarFallback, { backgroundColor: colors.subtleSurface }]}>
+                <Text style={[s.appearanceAccountAvatarInitial, { color: colors.textPrimary }]}>
+                  {(currentUser.displayName || currentUser.email || '?').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View>
+              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>
+                {currentUser.displayName || 'User'}
+              </Text>
+              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                {currentUser.email}
+              </Text>
+            </View>
+          </View>
+          <View style={s.appearanceEntryRight}>
+            <ChevronRightIcon size={16} color={colors.textSecondary} />
+          </View>
+        </Pressable>
+      </Card>
+      {/* ── 1. Appearance Card ── */}
+      <Card style={s.cardGap}>
+        <Pressable
+          onPress={openAppearanceSheet}
+          style={({ pressed }) => [
+            s.appearanceEntryRow,
+            pressed && { opacity: 0.75 },
+          ]}
+        >
+          <View style={s.appearanceEntryLeft}>
+            <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
+              <Text style={s.appearanceEntryIconLabel}>🎨</Text>
+            </View>
+            <View>
+              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Appearance</Text>
+              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Theme & dark mode</Text>
+            </View>
+          </View>
+          <View style={s.appearanceEntryRight}>
+            <View style={s.appearancePreviewDots}>
+              {['bottle', 'nursing', 'sleep'].map((cardKey) => (
+                <View
+                  key={`preview-${cardKey}`}
+                  style={[
+                    s.appearancePreviewDot,
+                    { backgroundColor: activeTheme?.[cardKey]?.primary || colors.textTertiary },
+                  ]}
+                />
+              ))}
+            </View>
+            <ChevronRightIcon size={16} color={colors.textSecondary} />
+          </View>
+        </Pressable>
+      </Card>
 
-        {/* Baby info rows */}
-        {/* Web: space-y-2 mb-3 */}
-        <View style={s.infoRows}>
-          {/* Birth date — display only (tappable opens picker on web, static on native for now) */}
+      <View style={s.familyHubHeader}>
+        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Your Kids</Text>
+      </View>
+
+      {/* ── 2. Kids Top-level Cards ── */}
+      {Array.isArray(kids) && kids.length > 0 && (
+        <View style={s.hubKidCards}>
+          {kids.map((k) => {
+            const isCurrent = k.id === kidId;
+            const ageLabel = formatAgeFromDate(k.birthDate);
+            const weightVal = Number(k?.babyWeight || k?.currentWeight || k?.weight || 0);
+            const weightLabel = Number.isFinite(weightVal) && weightVal > 0 ? `${Math.round(weightVal * 10) / 10} lbs` : null;
+            const birthLabel = formatMonthDay(k.birthDate);
+            const subtitle = [ageLabel, weightLabel, birthLabel].filter(Boolean).join(' \u2022 ');
+            return (
+              <Card key={`hub-kid-${k.id}`}>
+                <Pressable
+                  onPress={() => handleOpenKidSubpage(k)}
+                  style={({ pressed }) => [
+                    s.hubKidRow,
+                    pressed && { opacity: 0.75 },
+                  ]}
+                >
+                  <View style={s.hubKidLeft}>
+                    <View style={[s.hubKidAvatarRing, { borderColor: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
+                      {k.photoURL ? (
+                        <Image source={{ uri: k.photoURL }} style={s.hubKidAvatarImage} />
+                      ) : (
+                        <View style={[s.hubKidAvatarFallback, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
+                          <Text style={s.hubKidAvatarEmoji}>👶</Text>
+                        </View>
+                      )}
+                    </View>
+                    <View style={s.hubKidTextWrap}>
+                      <Text style={[s.hubKidTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                        {k.name || 'Baby'}
+                      </Text>
+                      <Text style={[s.hubKidSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+                        {subtitle || 'Tap to open profile'}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={s.hubKidRight}>
+                    {isCurrent ? (
+                      <View style={s.hubKidActiveBadge}>
+                        <Text style={s.hubKidActiveBadgeText}>Active</Text>
+                      </View>
+                    ) : null}
+                    <ChevronRightIcon size={16} color={colors.textSecondary} />
+                  </View>
+                </Pressable>
+              </Card>
+            );
+          })}
+        </View>
+      )}
+
+      <Card style={s.cardGap}>
+        <Pressable
+          onPress={openAddChildSheet}
+          style={({ pressed }) => [
+            s.appearanceEntryRow,
+            pressed && { opacity: 0.75 },
+          ]}
+        >
+          <View style={s.appearanceEntryLeft}>
+            <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
+              <PlusIcon size={20} color={colors.textPrimary} />
+            </View>
+            <View>
+              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Add Child</Text>
+              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                Track another little one
+              </Text>
+            </View>
+          </View>
+          <View style={s.appearanceEntryRight}>
+            <ChevronRightIcon size={16} color={colors.textSecondary} />
+          </View>
+        </Pressable>
+      </Card>
+
+      <View style={s.familyHubHeader}>
+        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Family</Text>
+      </View>
+
+      {/* ── 4. Family Card ── */}
+      <Card style={s.cardGap}>
+        <Pressable
+          onPress={handleOpenFamily}
+          style={({ pressed }) => [
+            s.appearanceEntryRow,
+            pressed && { opacity: 0.75 },
+          ]}
+        >
+          <View style={s.appearanceEntryLeft}>
+            <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
+              <Text style={s.appearanceEntryIconLabel}>👨‍👩‍👧</Text>
+            </View>
+            <View>
+              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Family</Text>
+              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                {`${members.length} ${members.length === 1 ? 'person' : 'people'} with access`}
+              </Text>
+            </View>
+          </View>
+          <View style={s.appearanceEntryRight}>
+            <View style={s.familyAvatarStack}>
+              {members.slice(0, 4).map((member, index) => (
+                <View
+                  key={`fam-preview-${member.uid}`}
+                  style={[
+                    s.familyAvatarBubble,
+                    index === 0 && s.familyAvatarBubbleFirst,
+                    { backgroundColor: colors.inputBg, borderColor: colors.cardBg },
+                  ]}
+                >
+                  <Text style={[s.familyAvatarBubbleText, { color: colors.textPrimary }]}>
+                    {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <ChevronRightIcon size={16} color={colors.textSecondary} />
+          </View>
+        </Pressable>
+      </Card>
+
+      <Card style={s.cardGap}>
+        <Pressable
+          onPress={openFeedingUnitSheet}
+          style={({ pressed }) => [
+            s.appearanceEntryRow,
+            pressed && { opacity: 0.75 },
+          ]}
+        >
+          <View style={s.appearanceEntryLeft}>
+            <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
+              <Text style={s.appearanceEntryIconLabel}>🍼</Text>
+            </View>
+            <View>
+              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Feeding Unit</Text>
+              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Shared across all kids</Text>
+            </View>
+          </View>
+          <View style={s.appearanceEntryRight}>
+            <Text style={[s.feedUnitValue, { color: colors.textSecondary }]}>
+              {settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}
+            </Text>
+            <ChevronRightIcon size={16} color={colors.textSecondary} />
+          </View>
+        </Pressable>
+      </Card>
+
+      {/* Bottom spacing */}
+      <View style={{ height: 40 }} />
+        </>
+      )}
+    </ScrollView>
+    <HalfSheet
+      sheetRef={feedingUnitSheetRef}
+      title="Feeding Unit"
+      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
+      snapPoints={['92%']}
+      enableDynamicSizing
+      scrollable
+    >
+      <Text style={[s.feedUnitSheetDescription, { color: colors.textSecondary }]}>
+        Everyone in your family logs in the same unit. Switching applies everywhere.
+      </Text>
+      <SegmentedToggle
+        value={settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}
+        options={[
+          { value: 'oz', label: 'oz' },
+          { value: 'ml', label: 'ml' },
+        ]}
+        onChange={handleVolumeUnitChange}
+        variant="body"
+        size="medium"
+        trackColor={segmentedTrackColor}
+      />
+      <View style={s.feedUnitSheetSpacer} />
+    </HalfSheet>
+    <HalfSheet
+      sheetRef={daySleepSheetRef}
+      title="Day Sleep Window"
+      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
+      snapPoints={['92%']}
+      enableDynamicSizing
+      scrollable
+    >
+      <Text style={[s.sleepDescription, { color: colors.textSecondary }]}>
+        Sleep that starts between these times counts as{' '}
+        <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Day Sleep</Text>
+        {' '}(naps). Everything else counts as{' '}
+        <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Night Sleep</Text>.
+      </Text>
+
+      <View style={s.sleepInputRow}>
+        <View style={s.sleepInputHalf}>
           <TTInputRow
-            label="Birth date"
+            label="Start"
             type="datetime"
             icon={EditIcon}
-            rawValue={kidData?.birthDate ? new Date(kidData.birthDate).toISOString() : null}
-            placeholder={
-              kidData?.birthDate
-                ? `${new Date(kidData.birthDate).toLocaleDateString()} \u2022 ${formatAgeFromDate(kidData.birthDate)}`
-                : 'Not set'
-            }
-            formatDateTime={(iso) => {
-              const d = new Date(iso);
-              const dateLabel = d.toLocaleDateString();
-              const ageLabel = formatAgeFromDate(d);
-              return ageLabel ? `${dateLabel} \u2022 ${ageLabel}` : dateLabel;
-            }}
-          />
-          <TTInputRow
-            label="Current weight (lbs)"
-            type="number"
-            icon={EditIcon}
-            value={tempWeight !== null ? tempWeight : (settings.babyWeight?.toString() || '')}
-            placeholder="Not set"
-            onChange={handleWeightChange}
-            onFocus={() => setEditingWeight(true)}
-            onBlur={handleUpdateWeight}
+            rawValue={null}
+            placeholder={minutesToLabel(dayStart)}
+            formatDateTime={() => minutesToLabel(dayStart)}
           />
         </View>
+        <View style={s.sleepInputHalf}>
+          <TTInputRow
+            label="End"
+            type="datetime"
+            icon={EditIcon}
+            rawValue={null}
+            placeholder={minutesToLabel(dayEnd)}
+            formatDateTime={() => minutesToLabel(dayEnd)}
+          />
+        </View>
+      </View>
 
-        {/* Feeding unit */}
-        {/* Web: mt-4 pt-4 border-t, label text-base font-semibold mb-2 */}
-        <View style={[s.dividerSection, { borderTopColor: colors.cardBorder || colors.borderSubtle }]}>
-          <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>Feeding unit</Text>
-          <SegmentedToggle
-            value={settings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}
-            options={[
-              { value: 'oz', label: 'oz' },
-              { value: 'ml', label: 'ml' },
+      <View style={s.sliderContainer}>
+        <View
+          style={[
+            s.sliderTrack,
+            {
+              backgroundColor: colors.inputBg,
+              borderColor: colors.cardBorder || colors.borderSubtle,
+            },
+          ]}
+        >
+          <View
+            style={[
+              s.sliderRange,
+              {
+                left: `${(Math.min(dayStart, dayEnd) / 1440) * 100}%`,
+                width: `${(Math.abs(dayEnd - dayStart) / 1440) * 100}%`,
+                backgroundColor: activeTheme?.sleep?.soft || colors.highlightSoft,
+              },
             ]}
-            onChange={handleVolumeUnitChange}
+          />
+          <View
+            style={[
+              s.sliderHandle,
+              {
+                left: `${(dayStart / 1440) * 100}%`,
+                backgroundColor: colors.cardBg,
+                borderColor: colors.cardBorder || colors.borderSubtle,
+              },
+            ]}
+          />
+          <View
+            style={[
+              s.sliderHandle,
+              {
+                left: `${(dayEnd / 1440) * 100}%`,
+                backgroundColor: colors.cardBg,
+                borderColor: colors.cardBorder || colors.borderSubtle,
+              },
+            ]}
+          />
+        </View>
+        <View style={s.sliderLabels}>
+          {['6AM', '9AM', '12PM', '3PM', '6PM', '9PM'].map((label) => (
+            <Text key={label} style={[s.sliderLabel, { color: colors.textTertiary }]}>
+              {label}
+            </Text>
+          ))}
+        </View>
+      </View>
+      <View style={s.feedUnitSheetSpacer} />
+    </HalfSheet>
+    <HalfSheet
+      sheetRef={appearanceSheetRef}
+      title="Appearance"
+      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
+      snapPoints={['92%']}
+      enableDynamicSizing
+      scrollable
+    >
+      <View style={s.sectionBody}>
+        <View>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary, marginBottom: 8 }]}>Dark Mode</Text>
+          <SegmentedToggle
+            value={isDark ? 'dark' : 'light'}
+            options={[
+              { value: 'light', label: 'Light' },
+              { value: 'dark', label: 'Dark' },
+            ]}
+            onChange={handleDarkModeChange}
             variant="body"
             size="medium"
             trackColor={segmentedTrackColor}
           />
         </View>
 
-        {/* Day sleep window */}
-        {/* Web: mt-4 pt-4 border-t */}
-        <View style={[s.dividerSection, { borderTopColor: colors.cardBorder || colors.borderSubtle }]}>
-          <View>
-            <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>Day sleep window</Text>
-            <Text style={[s.sleepDescription, { color: colors.textSecondary }]}>
-              Sleep that starts between these times counts as{' '}
-              <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Day Sleep</Text>
-              {' '}(naps). Everything else counts as{' '}
-              <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Night Sleep</Text>.
-            </Text>
-          </View>
-
-          {/* Start / End inputs */}
-          {/* Web: grid grid-cols-2 gap-3 mt-4 */}
-          <View style={s.sleepInputRow}>
-            <View style={s.sleepInputHalf}>
-              <TTInputRow
-                label="Start"
-                type="datetime"
-                icon={EditIcon}
-                rawValue={null}
-                placeholder={minutesToLabel(dayStart)}
-                formatDateTime={() => minutesToLabel(dayStart)}
-              />
-            </View>
-            <View style={s.sleepInputHalf}>
-              <TTInputRow
-                label="End"
-                type="datetime"
-                icon={EditIcon}
-                rawValue={null}
-                placeholder={minutesToLabel(dayEnd)}
-                formatDateTime={() => minutesToLabel(dayEnd)}
-              />
-            </View>
-          </View>
-
-          {/* Visual slider bar */}
-          {/* Web: mt-4, h-12 rounded-2xl overflow-hidden border */}
-          <View style={s.sliderContainer}>
-            <View
-              style={[
-                s.sliderTrack,
-                {
-                  backgroundColor: colors.inputBg,
-                  borderColor: colors.cardBorder || colors.borderSubtle,
-                },
-              ]}
-            >
-              {/* Highlighted range */}
-              <View
-                style={[
-                  s.sliderRange,
-                  {
-                    left: `${(Math.min(dayStart, dayEnd) / 1440) * 100}%`,
-                    width: `${(Math.abs(dayEnd - dayStart) / 1440) * 100}%`,
-                    backgroundColor: activeTheme?.sleep?.soft || colors.highlightSoft,
-                  },
-                ]}
-              />
-              {/* Start handle */}
-              <View
-                style={[
-                  s.sliderHandle,
-                  {
-                    left: `${(dayStart / 1440) * 100}%`,
-                    backgroundColor: colors.cardBg,
-                    borderColor: colors.cardBorder || colors.borderSubtle,
-                  },
-                ]}
-              />
-              {/* End handle */}
-              <View
-                style={[
-                  s.sliderHandle,
-                  {
-                    left: `${(dayEnd / 1440) * 100}%`,
-                    backgroundColor: colors.cardBg,
-                    borderColor: colors.cardBorder || colors.borderSubtle,
-                  },
-                ]}
-              />
-            </View>
-            {/* Time labels */}
-            {/* Web: flex justify-between text-xs mt-2 px-3 */}
-            <View style={s.sliderLabels}>
-              {['6AM', '9AM', '12PM', '3PM', '6PM', '9PM'].map((label) => (
-                <Text key={label} style={[s.sliderLabel, { color: colors.textTertiary }]}>
-                  {label}
-                </Text>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        {/* Activity visibility */}
-        {/* Web: mt-4 pt-4 border-t */}
-        <View style={[s.dividerSection, { borderTopColor: colors.cardBorder || colors.borderSubtle }]}>
-          <Text style={[s.sectionTitle, { color: colors.textPrimary }]}>Activity visibility</Text>
-          {/* Web: w-full flex items-center justify-between rounded-2xl p-4, bg inputBg */}
-          <Pressable
-            onPress={handleOpenActivityVisibility}
-            style={({ pressed }) => [
-              s.activityVisBtn,
-              { backgroundColor: colors.inputBg },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <View>
-              <Text style={[s.activityVisTitle, { color: colors.textPrimary }]}>
-                Show & hide activities
-              </Text>
-              <Text style={[s.activityVisHint, { color: colors.textSecondary }]}>
-                Choose which Tracker cards appear
-              </Text>
-            </View>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
-          </Pressable>
-        </View>
-      </Card>
-
-      {/* ── 4. Family Members Card ── */}
-      {/* Web: TTCard, header "Family Members" mb-4, space-y-3 mb-4 */}
-      <Card style={s.cardGap}>
-        <CardHeader title="Family Members" />
-        <View style={s.membersList}>
-          {members.map((member) => (
-            <View
-              key={member.uid}
-              style={[s.memberRow, { backgroundColor: colors.inputBg }]}
-            >
-              {/* Avatar */}
-              {/* Web: flex-shrink-0, w-12 h-12 rounded-full */}
-              <View style={s.memberAvatarWrap}>
-                {member.photoURL ? (
-                  <Image
-                    source={{ uri: member.photoURL }}
-                    style={s.memberAvatar}
-                  />
-                ) : (
-                  <View
-                    style={[
-                      s.memberAvatarFallback,
-                      { backgroundColor: colors.subtleSurface },
-                    ]}
-                  >
-                    <Text style={[s.memberInitial, { color: colors.textPrimary }]}>
-                      {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
-                    </Text>
+        <View style={[s.themeSection, s.appearanceThemeSection]}>
+          <Text style={[s.fieldLabel, { color: colors.textSecondary, marginBottom: 8 }]}>
+            Color Theme
+          </Text>
+          <View style={s.themeGrid}>
+            {colorThemeOrder.map((key) => {
+              const t = resolveTheme(key);
+              if (!t) return null;
+              const isSelected = activeThemeKey === key;
+              const swatchOrder = ['bottle', 'nursing', 'sleep', 'diaper', 'solids'];
+              return (
+                <Pressable
+                  key={key}
+                  onPress={() => handleThemeChange(key)}
+                  style={[
+                    s.themeButton,
+                    {
+                      backgroundColor: isSelected ? colors.subtleSurface : colors.cardBg,
+                      borderColor: isSelected ? colors.outlineStrong : (colors.cardBorder || colors.borderSubtle),
+                    },
+                  ]}
+                >
+                  <Text style={[s.themeName, { color: colors.textPrimary }]}>
+                    {t.name || key}
+                  </Text>
+                  <View style={s.swatchRow}>
+                    {swatchOrder.map((cardKey) => {
+                      const accent = t[cardKey]?.primary || 'transparent';
+                      return (
+                        <View
+                          key={`${key}-${cardKey}`}
+                          style={[
+                            s.swatch,
+                            {
+                              backgroundColor: accent,
+                              borderColor: colors.cardBorder || colors.borderSubtle,
+                            },
+                          ]}
+                        />
+                      );
+                    })}
                   </View>
-                )}
-              </View>
-              {/* Info */}
-              {/* Web: flex-1 min-w-0, name text-sm font-medium, email text-xs */}
-              <View style={s.memberInfo}>
-                <Text
-                  style={[s.memberName, { color: colors.textPrimary }]}
-                  numberOfLines={1}
-                >
-                  {member.displayName || member.email || 'Member'}
-                </Text>
-                <Text
-                  style={[s.memberEmail, { color: colors.textSecondary }]}
-                  numberOfLines={1}
-                >
-                  {member.email}
-                </Text>
-              </View>
-              {/* Remove button (not for current user) */}
-              {member.uid !== currentUser.uid && (
-                <Pressable onPress={() => handleRemoveMember(member.uid)}>
-                  <Text style={s.removeBtn}>Remove</Text>
                 </Pressable>
-              )}
-            </View>
-          ))}
-        </View>
-      </Card>
-
-      {/* ── 5. Account Card ── */}
-      {/* Web: TTCard, header "Account" mb-4 */}
-      <Card style={s.cardGap}>
-        <CardHeader title="Account" />
-        {/* Web: space-y-3 */}
-        <View style={s.accountBody}>
-          {/* User info row */}
-          {/* Web: flex items-center justify-between p-3 rounded-lg, bg inputBg */}
-          <View style={[s.userInfoRow, { backgroundColor: colors.inputBg }]}>
-            <View>
-              <Text style={[s.userName, { color: colors.textPrimary }]}>
-                {currentUser.displayName || 'User'}
-              </Text>
-              <Text style={[s.userEmail, { color: colors.textSecondary }]}>
-                {currentUser.email}
-              </Text>
-            </View>
-            {currentUser.photoURL && (
-              <Image
-                source={{ uri: currentUser.photoURL }}
-                style={s.userAvatar}
-              />
-            )}
+              );
+            })}
           </View>
-
-          {/* Sign Out button */}
-          {/* Web: w-full py-3 rounded-xl font-semibold, bg error-soft, color error */}
-          <Pressable
-            onPress={handleSignOut}
-            style={({ pressed }) => [
-              s.accountBtn,
-              { backgroundColor: colors.errorSoft },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Text style={[s.accountBtnText, { color: colors.error }]}>Sign Out</Text>
-          </Pressable>
-
-          {/* Delete Account button */}
-          {/* Subtle destructive action: text-only, reduced emphasis */}
-          <Pressable
-            onPress={handleDeleteAccount}
-            style={({ pressed }) => [
-              s.deleteAccountBtn,
-              pressed && { opacity: 0.65 },
-            ]}
-          >
-            <Text style={[s.deleteAccountBtnText, { color: colors.textSecondary }]}>Delete My Account</Text>
-          </Pressable>
         </View>
-      </Card>
-
-      {/* Bottom spacing */}
-      <View style={{ height: 40 }} />
-
-    </ScrollView>
+        <View style={s.appearanceSheetSpacer} />
+      </View>
+    </HalfSheet>
     <HalfSheet
       sheetRef={addChildSheetRef}
       title="Add Child"
@@ -1074,22 +1786,81 @@ const s = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 48,
   },
+  profileHeader: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: -16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+  },
+  profileHeaderCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  profileHeaderCenter: {
+    alignItems: 'center',
+  },
+  familyHeaderTitleSlot: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    pointerEvents: 'none',
+  },
+  profileHeaderRight: {
+    alignItems: 'flex-end',
+  },
+  profileBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  profileBackText: {
+    fontSize: 15,
+    fontWeight: '500',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  profileHeaderMonthLabel: {
+    fontSize: 18,
+    fontWeight: '600',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
 
   // Card gap (web: space-y-4 = 16px between cards)
   cardGap: { marginTop: 16 },
+  familyDevRowTop: {
+    marginTop: 4,
+    marginBottom: 8,
+    alignItems: 'flex-end',
+  },
+  familyHubHeader: {
+    marginTop: 16,
+    marginBottom: 16,
+  },
   devToggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   devSetupToggle: {
-    minWidth: 24,
-    height: 20,
-    borderRadius: 10,
+    minWidth: 30,
+    height: 26,
+    borderRadius: 13,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 5,
+    paddingHorizontal: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  devSetupTogglePressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.97 }],
   },
   devSetupToggleText: {
     fontSize: 10,
@@ -1099,6 +1870,129 @@ const s = StyleSheet.create({
   },
 
   // ── Appearance ──
+  appearanceEntryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  appearanceEntryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  appearanceEntryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appearanceEntryIconLabel: {
+    fontSize: 17,
+    lineHeight: 20,
+  },
+  appearanceAccountAvatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+  },
+  appearanceAccountAvatarFallback: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  appearanceAccountAvatarInitial: {
+    fontSize: 14,
+    fontWeight: '700',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  appearanceEntryTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  appearanceEntrySubtitle: {
+    fontSize: 12,
+    marginTop: 2,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  appearanceEntryRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  appearancePreviewDots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  appearancePreviewDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  familyAvatarStack: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  familyAvatarBubble: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    marginLeft: -7,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  familyAvatarBubbleFirst: {
+    marginLeft: 0,
+  },
+  familyAvatarBubbleText: {
+    fontSize: 9,
+    fontWeight: '700',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  familyInviteCard: {
+    padding: 0,
+  },
+  familyNameReadOnlyCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    marginBottom: 8,
+  },
+  familyNameBlock: {
+    marginTop: 12,
+  },
+  familyNameReadOnlyLabel: {
+    fontSize: 12,
+    marginBottom: 4,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  familyNameReadOnlyValue: {
+    fontSize: 16,
+    fontWeight: '400',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  familyInviteText: {
+    fontSize: 14,
+    lineHeight: 22,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  familyInviteLink: {
+    marginTop: 10,
+    fontSize: 14,
+    fontWeight: '600',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  appearanceSheetSpacer: {
+    height: 108,
+  },
   sectionBody: { gap: 16 },       // space-y-4
   fieldLabel: {
     fontSize: 12,                  // text-xs
@@ -1106,6 +2000,9 @@ const s = StyleSheet.create({
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
   themeSection: { marginTop: 0 },
+  appearanceThemeSection: {
+    marginTop: 12,
+  },
   // Web: grid grid-cols-2 gap-3
   themeGrid: {
     flexDirection: 'row',
@@ -1142,49 +2039,110 @@ const s = StyleSheet.create({
   },
 
   // ── Kids ──
-  addChildBtn: {
-    fontSize: 14,                  // text-sm
-    fontWeight: '500',             // font-medium
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  hubKidCards: {
+    gap: 16,
   },
-  kidsList: { gap: 8 },           // space-y-2
-  // Web: w-full px-4 py-3 rounded-xl border flex items-center justify-between text-sm
-  kidRow: {
+  hubKidRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,         // px-4
-    paddingVertical: 12,           // py-3
-    borderRadius: 12,              // rounded-xl
-    borderWidth: 1,
+  },
+  hubKidLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+    minWidth: 0,
+  },
+  hubKidAvatarRing: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 2,
+    padding: 2,
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  hubKidAvatarImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+  },
+  hubKidAvatarFallback: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  hubKidAvatarEmoji: {
+    fontSize: 18,
+    lineHeight: 20,
+  },
+  hubKidTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  hubKidTitle: {
+    fontSize: 16,
+    fontWeight: '500',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  hubKidSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  hubKidRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginLeft: 12,
+  },
+  hubKidActiveBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: 'rgba(52, 199, 89, 0.15)',
+  },
+  hubKidActiveBadgeText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#34C759',
+    fontVariant: ['tabular-nums'],
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  addChildIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  addChildBtn: {
+    fontSize: 14,
+    fontWeight: '500',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
   kidName: {
-    fontSize: 14,                  // text-sm
-    fontWeight: '500',             // font-medium
+    fontSize: 14,
+    fontWeight: '500',
     flex: 1,
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
-  // Web: text-xs font-semibold
   kidActive: {
     fontSize: 12,
     fontWeight: '600',
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
-  // Web: mt-3 text-xs
   kidsHint: {
-    marginTop: 12,                 // mt-3
-    fontSize: 12,                  // text-xs
+    marginTop: 12,
+    fontSize: 12,
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
 
   // ── Baby Info ──
-  // Web: flex items-center gap-4 mb-6
-  photoNameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,                       // gap-4
-    marginBottom: 24,              // mb-6
-  },
   photoWrap: {
     position: 'relative',
     flexShrink: 0,
@@ -1206,6 +2164,27 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  profileInitial: {
+    fontSize: 36,
+    fontWeight: '700',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  profileAvatarUpload: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  profileMainCard: {
+    marginTop: 12,
+  },
+  profileAvatarHint: {
+    fontSize: 13,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  profileFieldsWrap: {
+    marginTop: 12,
+  },
   // Web: absolute bottom-0 right-0 w-8 h-8 rounded-full, border-2
   cameraBadge: {
     position: 'absolute',
@@ -1218,18 +2197,24 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 2,
   },
-  // Web: flex-1 min-w-0, marginTop: 10px
-  nameInputWrap: {
-    flex: 1,
-    minWidth: 0,
-    marginTop: 10,
+  profileSectionLabel: {
+    marginTop: 14,
+    marginBottom: 8,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.9,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
-  // Web: space-y-2 mb-3
-  infoRows: {
-    gap: 8,                        // space-y-2
-    marginBottom: 12,              // mb-3
+  profileAccountLabel: {
+    marginTop: 16,
   },
-
+  profileSaveButton: {
+    marginTop: 8,
+    borderRadius: 11,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   // Divider sections (mt-4 pt-4 border-t)
   dividerSection: {
     marginTop: 16,                 // mt-4
@@ -1242,6 +2227,20 @@ const s = StyleSheet.create({
     fontWeight: '600',             // font-semibold
     marginBottom: 8,               // mb-2
     ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  feedUnitValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  feedUnitSheetDescription: {
+    fontSize: 14,
+    lineHeight: 22,
+    marginBottom: 16,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  feedUnitSheetSpacer: {
+    height: 120,
   },
 
   // Day sleep
@@ -1336,7 +2335,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
     gap: 12,                       // gap-3
     padding: 12,                   // p-3
-    borderRadius: 12,              // rounded-xl
+    borderRadius: 16,              // rounded-2xl
   },
   memberAvatarWrap: { flexShrink: 0 },
   // Web: w-12 h-12 rounded-full
@@ -1362,10 +2361,27 @@ const s = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  memberNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   // Web: text-sm font-medium truncate
   memberName: {
     fontSize: 14,
     fontWeight: '500',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  ownerBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    flexShrink: 0,
+  },
+  ownerBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
   // Web: text-xs truncate
@@ -1374,12 +2390,16 @@ const s = StyleSheet.create({
     marginTop: 2,
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
-  // Web: text-xs text-red-500 font-medium
-  removeBtn: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#ef4444',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  memberRemoveIconButton: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  memberRemoveIconButtonPressed: {
+    transform: [{ scale: 0.95 }],
   },
 
   // ── Account ──
@@ -1391,6 +2411,13 @@ const s = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 12,                   // p-3
     borderRadius: 8,               // rounded-lg
+  },
+  profileEntryLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+    minWidth: 0,
   },
   // Web: text-sm font-medium
   userName: {
@@ -1409,6 +2436,18 @@ const s = StyleSheet.create({
     width: 40,                     // w-10
     height: 40,                    // h-10
     borderRadius: 20,
+  },
+  userAvatarFallback: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userAvatarInitial: {
+    fontSize: 14,
+    fontWeight: '700',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
   // Web: w-full py-3 rounded-xl font-semibold
   accountBtn: {

@@ -363,6 +363,7 @@ function AppShell({
   const [editEntry, setEditEntry] = useState(null);
   const timelineRefreshRef = useRef(null);
   const [isTrackerDetailOpen, setIsTrackerDetailOpen] = useState(false);
+  const [isFamilyDetailOpen, setIsFamilyDetailOpen] = useState(false);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
   const [analyticsResetSignal, setAnalyticsResetSignal] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -568,6 +569,7 @@ function AppShell({
     setShareAnchor(null);
     setShowKidMenu(false);
     setKidAnchor(null);
+    if (nextTab !== 'family') setIsFamilyDetailOpen(false);
     if (nextTab === 'tracker' && activeTab === 'tracker' && isTrackerDetailOpen) {
       trackerDetailFlowRef.current?.closeDetail?.();
       return;
@@ -725,7 +727,7 @@ function AppShell({
         style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
         edges={['left', 'right']}
       >
-        {!isTrackerDetailOpen && !(activeTab === 'trends' && analyticsDetailOpen)
+        {!isTrackerDetailOpen && !(activeTab === 'trends' && analyticsDetailOpen) && !(activeTab === 'family' && isFamilyDetailOpen)
           ? (
             <AppHeader
               onFamilyPress={() => handleTabChange('family')}
@@ -790,6 +792,8 @@ function AppShell({
               onToggleForceSetupPreview={onToggleForceSetupPreview}
               onToggleForceLoginPreview={onToggleForceLoginPreview}
               onRequestToggleActivitySheet={handleToggleActivitySheet}
+              onDetailOpenChange={setIsFamilyDetailOpen}
+              onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
             />
           )}

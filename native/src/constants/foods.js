@@ -4,6 +4,7 @@
 export const COMMON_FOODS = [
   { id: 'apple', name: 'Apple', emoji: '🍎' },
   { id: 'avocado', name: 'Avocado', emoji: '🥑' },
+  { id: 'bamba', name: 'Bamba', icon: 'bamba' },
   { id: 'banana', name: 'Banana', emoji: '🍌' },
   { id: 'blueberries', name: 'Blueberries', emoji: '🫐' },
   { id: 'broccoli', name: 'Broccoli', emoji: '🥦' },
@@ -12,6 +13,7 @@ export const COMMON_FOODS = [
   { id: 'cheese', name: 'Cheese', emoji: '🧀' },
   { id: 'chicken', name: 'Chicken', emoji: '🍗' },
   { id: 'egg', name: 'Egg', emoji: '🥚' },
+  { id: 'hummus', name: 'Hummus', icon: 'hummus' },
   { id: 'oatmeal', name: 'Oatmeal', emoji: '🥣' },
   { id: 'pasta', name: 'Pasta', emoji: '🍝' },
   { id: 'pear', name: 'Pear', emoji: '🍐' },

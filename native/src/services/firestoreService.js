@@ -888,6 +888,29 @@ const firestoreService = {
     }));
   },
 
+  async getFamilyInfo() {
+    if (!this.currentFamilyId) return null;
+    const famDoc = await firestore()
+      .collection('families')
+      .doc(this.currentFamilyId)
+      .get();
+    if (!famDoc.exists) return null;
+    return { id: famDoc.id, ...famDoc.data() };
+  },
+
+  async updateFamilyData(patch = {}) {
+    if (!this.currentFamilyId) throw new Error('Missing family id');
+    const update = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(update, 'name') && typeof update.name === 'string') {
+      update.name = update.name.trim();
+    }
+    update.updatedAt = firestore.FieldValue.serverTimestamp();
+    await firestore()
+      .collection('families')
+      .doc(this.currentFamilyId)
+      .set(update, { merge: true });
+  },
+
   async createChild({
     name,
     birthDate,

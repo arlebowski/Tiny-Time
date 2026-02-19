@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
@@ -28,6 +28,7 @@ import {
   XIcon,
 } from '../icons';
 import { COMMON_FOODS } from '../../constants/foods';
+import { resolveFoodIconAsset } from '../../constants/foodIcons';
 
 const slugifyFoodId = (value) =>
   String(value || '')
@@ -697,7 +698,7 @@ export default function FeedSheet({
           id,
           name,
           category: 'Custom',
-          icon: food.emoji ? null : 'SolidsIcon',
+          icon: food.icon || (food.emoji ? null : 'SolidsIcon'),
           emoji: food.emoji || null,
           isCustom: true,
         });
@@ -728,7 +729,9 @@ export default function FeedSheet({
     const resolved = normalized.map((item) => {
       const name = String(item.name);
       const mapped = solidsFoodByName.get(name.toLowerCase());
-      return mapped ? { ...mapped, emoji: mapped.emoji || item.emoji || null } : { id: item.id || slugifyFoodId(name), name, emoji: item.emoji || null };
+      return mapped
+        ? { ...mapped, icon: mapped.icon || item.icon || null, emoji: mapped.emoji || item.emoji || null }
+        : { id: item.id || slugifyFoodId(name), name, icon: item.icon || null, emoji: item.emoji || null };
     });
 
     return resolved.slice(0, 6);
@@ -1016,24 +1019,27 @@ export default function FeedSheet({
                       onOpenPicker={() => setShowDateTimeTray(true)}
                     />
                     <View style={styles.nursingTotal}>
-                      <View style={styles.nursingTotalRow}>
+                      <Text style={[styles.durationText, { color: colors.textPrimary }]}>
                         {nursingParts.showH && (
                           <>
-                            <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.hStr}</Text>
-                            <Text style={[styles.unit, { color: colors.textSecondary }]}>h </Text>
-                            <View style={styles.unitSpacer} />
+                            <Text>{nursingParts.hStr}</Text>
+                            <Text>{'\u200A'}</Text>
+                            <Text style={[styles.unit, { color: colors.textSecondary }]}>h</Text>
+                            <Text>{'  '}</Text>
                           </>
                         )}
                         {nursingParts.showM && (
                           <>
-                            <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.mStr}</Text>
-                            <Text style={[styles.unit, { color: colors.textSecondary }]}>m </Text>
-                            <View style={styles.unitSpacer} />
+                            <Text>{nursingParts.mStr}</Text>
+                            <Text>{'\u200A'}</Text>
+                            <Text style={[styles.unit, { color: colors.textSecondary }]}>m</Text>
+                            <Text>{'  '}</Text>
                           </>
                         )}
-                        <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.sStr}</Text>
+                        <Text>{nursingParts.sStr}</Text>
+                        <Text>{'\u200A'}</Text>
                         <Text style={[styles.unit, { color: colors.textSecondary }]}>s</Text>
-                      </View>
+                      </Text>
                     </View>
 
                     <View style={styles.sideTimers}>
@@ -1132,6 +1138,7 @@ export default function FeedSheet({
 function FoodTile({ food, selected, onPress, dashed, labelOverride, colors, solids }) {
   if (!food) return null;
   const emoji = food.emoji || '🍽️';
+  const iconAsset = resolveFoodIconAsset(food.icon);
   const bg = selected ? colorMix(solids.primary, colors.inputBg || '#F5F5F7', 16) : colors.inputBg || '#F5F5F7';
   const border = selected ? solids.primary : colors.cardBorder || colors.borderSubtle || 'transparent';
   const labelColor = selected ? solids.primary : colors.textSecondary;
@@ -1146,7 +1153,7 @@ function FoodTile({ food, selected, onPress, dashed, labelOverride, colors, soli
       onPress={onPress}
     >
       <View style={styles.foodTileIcon}>
-        <Text style={styles.foodTileEmoji}>{emoji}</Text>
+        {iconAsset ? <Image source={iconAsset} style={styles.foodTileImage} resizeMode="contain" /> : <Text style={styles.foodTileEmoji}>{emoji}</Text>}
       </View>
       <Text style={[styles.foodTileLabel, { color: labelColor }]} numberOfLines={1}>
         {labelOverride || food.name}
@@ -1264,27 +1271,36 @@ function SolidsStepThree({ addedFoods, removeFoodById, colors, solids }) {
   return (
     <View style={styles.solidsStepThree}>
       <View style={styles.solidsReviewList}>
-        {addedFoods.map((food) => (
-          <Pressable
-            key={food.id}
-            style={({ pressed }) => [styles.solidsReviewRow, { backgroundColor: colors.inputBg }, pressed && { opacity: 0.7 }]}
-            onPress={() => {}}
-          >
-            <View style={styles.solidsReviewRowInner}>
-              <View style={[styles.solidsReviewIcon, { backgroundColor: colorMix(solids.primary, colors.inputBg || '#F5F5F7', 20) }]}>
-                {food.emoji ? <Text style={styles.solidsReviewEmoji}>{food.emoji}</Text> : <SolidsIcon size={20} color={solids.primary} />}
-              </View>
+        {addedFoods.map((food) => {
+          const iconAsset = resolveFoodIconAsset(food.icon);
+          return (
+            <Pressable
+              key={food.id}
+              style={({ pressed }) => [styles.solidsReviewRow, { backgroundColor: colors.inputBg }, pressed && { opacity: 0.7 }]}
+              onPress={() => {}}
+            >
+              <View style={styles.solidsReviewRowInner}>
+                <View style={[styles.solidsReviewIcon, { backgroundColor: colorMix(solids.primary, colors.inputBg || '#F5F5F7', 20) }]}>
+                  {iconAsset ? (
+                    <Image source={iconAsset} style={styles.solidsReviewIconImage} resizeMode="contain" />
+                  ) : food.emoji ? (
+                    <Text style={styles.solidsReviewEmoji}>{food.emoji}</Text>
+                  ) : (
+                    <SolidsIcon size={20} color={solids.primary} />
+                  )}
+                </View>
 
-              <View style={styles.solidsReviewContent}>
-                <Text style={[styles.solidsReviewName, { color: colors.textPrimary }]}>{food.name}</Text>
-              </View>
+                <View style={styles.solidsReviewContent}>
+                  <Text style={[styles.solidsReviewName, { color: colors.textPrimary }]}>{food.name}</Text>
+                </View>
 
-              <Pressable onPress={() => removeFoodById(food.id)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
-                <XIcon size={18} color={colors.textTertiary} />
-              </Pressable>
-            </View>
-          </Pressable>
-        ))}
+                <Pressable onPress={() => removeFoodById(food.id)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+                  <XIcon size={18} color={colors.textTertiary} />
+                </Pressable>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -1390,30 +1406,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: 8,
     paddingBottom: 4,
-    marginBottom: 8,
-  },
-
-  nursingTotalRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
+    marginBottom: 4,
   },
 
   durationText: {
-    fontSize: 38,
+    fontSize: 40,
     fontWeight: '700',
-    lineHeight: 38,
+    lineHeight: 40,
+    includeFontPadding: false,
     fontVariant: ['tabular-nums'],
   },
 
   unit: {
-    fontSize: 16,
+    fontSize: 30,
     fontWeight: '300',
-    marginLeft: 4,
-  },
-
-  unitSpacer: {
-    width: 8,
+    lineHeight: 30,
+    includeFontPadding: false,
   },
 
   sideTimers: {
@@ -1421,7 +1429,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 56,
-    paddingTop: 8,
+    paddingTop: 0,
     paddingBottom: 4,
     marginBottom: 0,
   },
@@ -1486,6 +1494,11 @@ const styles = StyleSheet.create({
   foodTileEmoji: {
     fontSize: 28,
     lineHeight: 28,
+  },
+  foodTileImage: {
+    width: 28,
+    height: 28,
+    transform: [{ scale: 1.65 }],
   },
 
   foodTileLabel: {
@@ -1605,6 +1618,11 @@ const styles = StyleSheet.create({
   solidsReviewEmoji: {
     fontSize: 20,
     lineHeight: 20,
+  },
+  solidsReviewIconImage: {
+    width: 20,
+    height: 20,
+    transform: [{ scale: 1.65 }],
   },
 
   solidsReviewContent: {

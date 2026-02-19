@@ -17,7 +17,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { ChevronDownIcon, ChevronLeftIcon } from '../icons';
+import { ChevronDownIcon } from '../icons';
 
 function HeaderHandle({
   style,
@@ -54,7 +54,7 @@ function HeaderHandle({
           accessibilityLabel={onHeaderBackPress ? 'Go back' : 'Close sheet'}
         >
           {onHeaderBackPress ? (
-            <ChevronLeftIcon size={20} color={resolvedIconColor} />
+            <Text style={[styles.backText, { color: resolvedIconColor }]}>Back</Text>
           ) : (
             <ChevronDownIcon size={20} color={resolvedIconColor} />
           )}
@@ -226,10 +226,15 @@ const styles = StyleSheet.create({
   },
 
   closeBtn: {
-    width: 24,
+    minWidth: 44,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+
+  backText: {
+    fontSize: 16,
+    fontWeight: '500',
   },
 
   title: {
@@ -242,11 +247,11 @@ const styles = StyleSheet.create({
   },
 
   spacer: {
-    width: 24,
+    width: 44,
   },
 
   headerRight: {
-    minWidth: 24,
+    minWidth: 44,
     alignItems: 'flex-end',
   },
 

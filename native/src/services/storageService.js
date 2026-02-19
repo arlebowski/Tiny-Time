@@ -92,6 +92,19 @@ export async function uploadKidPhoto(localUri, familyId, kidId) {
 }
 
 /**
+ * Upload a user profile photo.
+ * @param {string} localUri
+ * @param {string} familyId
+ * @param {string} userId
+ * @returns {string} download URL
+ */
+export async function uploadUserPhoto(localUri, familyId, userId) {
+  const resolvedFamilyId = familyId || 'shared';
+  const path = `families/${resolvedFamilyId}/users/${userId}/profile_photo`;
+  return await uploadPhoto(localUri, path);
+}
+
+/**
  * Delete a photo from Supabase Storage by its public URL.
  * @param {string} url
  */

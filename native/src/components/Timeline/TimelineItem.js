@@ -18,6 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
 import { colorMix } from '../../utils/colorBlend';
+import { resolveFoodIconAsset } from '../../constants/foodIcons';
 import {
   BottleIcon,
   NursingIcon,
@@ -453,6 +454,7 @@ export default function TimelineItem({
       ) ||
       null;
     const foodEmoji = foodDef?.emoji || food.emoji || '🍽️';
+    const foodIconAsset = resolveFoodIconAsset(foodDef?.icon || food.icon);
     const detailParts = [];
     if (food.preparation) {
       const prep = formatPrep(food.preparation);
@@ -469,7 +471,7 @@ export default function TimelineItem({
     return (
       <View key={`${card?.id}-food-${idx}`} style={styles.foodRow}>
         <View style={styles.foodEmojiWrap}>
-          <Text style={styles.foodEmoji}>{foodEmoji}</Text>
+          {foodIconAsset ? <Image source={foodIconAsset} style={styles.foodIconImage} resizeMode="contain" /> : <Text style={styles.foodEmoji}>{foodEmoji}</Text>}
         </View>
         <View style={styles.foodDetails}>
           <Text style={[styles.foodName, { color: colors.textPrimary }]}>{food.name}</Text>
@@ -787,6 +789,11 @@ const styles = StyleSheet.create({
   },
   foodEmoji: {
     fontSize: 14,
+  },
+  foodIconImage: {
+    width: 14,
+    height: 14,
+    transform: [{ scale: 1.65 }],
   },
   foodDetails: {
     flex: 1,
