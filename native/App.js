@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance, Animated, Easing } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -13,7 +13,6 @@ import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
 
 // Screens
-import TrackerScreen from './src/screens/TrackerScreen';
 import AnalyticsScreen from './src/screens/AnalyticsScreen';
 import FamilyScreen from './src/screens/FamilyScreen';
 import LoginScreen from './src/screens/LoginScreen';
@@ -24,8 +23,8 @@ import DiaperSheet from './src/components/sheets/DiaperSheet';
 import SleepSheet from './src/components/sheets/SleepSheet';
 import FeedSheet from './src/components/sheets/FeedSheet';
 import ActivityVisibilitySheet from './src/components/sheets/ActivityVisibilitySheet';
-import DetailScreen from './src/screens/DetailScreen';
 import BottomNavigationShell from './src/components/navigation/BottomNavigationShell';
+import TrackerDetailFlow from './src/components/navigation/TrackerDetailFlow';
 import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
@@ -78,7 +77,11 @@ const NAV_FADE_HEIGHT = 50;
 // NAV_FADE_BOTTOM_OFFSET moves gradient anchor relative to nav top line.
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
+const LAUNCH_SPLASH_ICON_BG_ENABLED = false;
+const LAUNCH_SPLASH_MIN_MS = 900;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
+const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
+const CHEVRON_ROTATE_MS = 260;
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
@@ -107,6 +110,21 @@ function AppHeader({
   }, [kids, kidData, kidId, selectedKidSnapshot]);
   const kidName = selectedKid?.name || 'Baby';
   const kidPhotoURL = selectedKid?.photoURL || null;
+  const kidChevronProgress = useRef(new Animated.Value(showKidMenu ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(kidChevronProgress, {
+      toValue: showKidMenu ? 1 : 0,
+      duration: CHEVRON_ROTATE_MS,
+      easing: TIMELINE_EASE,
+      useNativeDriver: true,
+    }).start();
+  }, [showKidMenu, kidChevronProgress]);
+
+  const kidChevronRotate = kidChevronProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
 
   return (
     <View style={[headerStyles.container, { backgroundColor: colors.appBg }]}>
@@ -125,11 +143,9 @@ function AppHeader({
             )}
           </View>
           <Text style={[headerStyles.kidName, { color: colors.textPrimary }]}>{kidName}</Text>
-          <ChevronDownIcon
-            size={20}
-            color={colors.textTertiary}
-            style={showKidMenu ? headerStyles.kidChevronOpen : undefined}
-          />
+          <Animated.View style={{ transform: [{ rotate: kidChevronRotate }] }}>
+            <ChevronDownIcon size={20} color={colors.textTertiary} />
+          </Animated.View>
         </Pressable>
 
         {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
@@ -194,9 +210,6 @@ const headerStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,               // gap-[10px]
-  },
-  kidChevronOpen: {
-    transform: [{ rotate: '180deg' }],
   },
   // Web: w-[36px] h-[36px] rounded-full overflow-hidden, outer bg var(--tt-input-bg)
   avatar: {
@@ -311,6 +324,8 @@ function AppShell({
   forceLoginPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  trackerEntranceSeed,
+  trackerUiReady,
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -341,12 +356,13 @@ function AppShell({
   const sleepRef = useRef(null);
   const feedRef = useRef(null);
   const activityVisibilityRef = useRef(null);
+  const trackerDetailFlowRef = useRef(null);
 
   const feedTypeRef = useRef('bottle');
   const [lastFeedVariant, setLastFeedVariant] = useState('bottle');
   const [editEntry, setEditEntry] = useState(null);
   const timelineRefreshRef = useRef(null);
-  const [detailFilter, setDetailFilter] = useState(null);
+  const [isTrackerDetailOpen, setIsTrackerDetailOpen] = useState(false);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
   const [analyticsResetSignal, setAnalyticsResetSignal] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -368,20 +384,6 @@ function AppShell({
 
   // Derive user info from real data
   const familyUser = user ? { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL } : null;
-
-  const handleCardTap = useCallback((filterType) => {
-    setShowShareMenu(false);
-    setShowKidMenu(false);
-    setKidAnchor(null);
-    setDetailFilter(filterType);
-  }, []);
-
-  const handleDetailBack = useCallback(() => {
-    setShowShareMenu(false);
-    setShowKidMenu(false);
-    setKidAnchor(null);
-    setDetailFilter(null);
-  }, []);
 
   useEffect(() => {
     AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
@@ -563,8 +565,13 @@ function AppShell({
 
   const handleTabChange = useCallback((nextTab) => {
     setShowShareMenu(false);
+    setShareAnchor(null);
     setShowKidMenu(false);
     setKidAnchor(null);
+    if (nextTab === 'tracker' && activeTab === 'tracker' && isTrackerDetailOpen) {
+      trackerDetailFlowRef.current?.closeDetail?.();
+      return;
+    }
     if (nextTab === activeTab && nextTab === 'trends') {
       setAnalyticsResetSignal((s) => s + 1);
       setAnalyticsDetailOpen(false);
@@ -576,7 +583,7 @@ function AppShell({
         setAnalyticsDetailOpen(false);
       }
     }
-  }, [activeTab, onTabChange]);
+  }, [activeTab, isTrackerDetailOpen, onTabChange]);
 
   const handleGlobalShareApp = useCallback(async () => {
     const url = APP_SHARE_BASE_URL;
@@ -702,13 +709,23 @@ function AppShell({
     setHeaderRequestedAddChild(true);
   }, [handleTabChange]);
 
+  const handleTrackerDetailOpenChange = useCallback((isOpen) => {
+    setIsTrackerDetailOpen(isOpen);
+    if (isOpen) {
+      setShowShareMenu(false);
+      setShareAnchor(null);
+      setShowKidMenu(false);
+      setKidAnchor(null);
+    }
+  }, []);
+
   return (
     <>
       <SafeAreaView
         style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
         edges={['left', 'right']}
       >
-        {detailFilter == null && !(activeTab === 'trends' && analyticsDetailOpen)
+        {!isTrackerDetailOpen && !(activeTab === 'trends' && analyticsDetailOpen)
           ? (
             <AppHeader
               onFamilyPress={() => handleTabChange('family')}
@@ -731,59 +748,50 @@ function AppShell({
           )
           : null}
         <View style={appStyles.content}>
-          {detailFilter != null ? (
-            <DetailScreen
-              initialFilter={detailFilter}
-              onBack={handleDetailBack}
+          {activeTab === 'tracker' && trackerUiReady ? (
+            <TrackerDetailFlow
+              ref={trackerDetailFlowRef}
               onOpenSheet={handleTrackerSelect}
+              onRequestToggleActivitySheet={handleToggleActivitySheet}
+              activityVisibility={activityVisibility}
+              activityOrder={activityOrder}
               onEditCard={handleEditCard}
               onDeleteCard={handleDeleteCard}
               timelineRefreshRef={timelineRefreshRef}
-              activityVisibility={activityVisibility}
+              onDetailOpenChange={handleTrackerDetailOpenChange}
+              entranceSeed={trackerEntranceSeed}
             />
-          ) : (
-            <>
-              {activeTab === 'tracker' && (
-                <TrackerScreen
-                  onOpenSheet={handleTrackerSelect}
-                  onCardTap={handleCardTap}
-                  onRequestToggleActivitySheet={handleToggleActivitySheet}
-                  activityVisibility={activityVisibility}
-                  activityOrder={activityOrder}
-                  onEditCard={handleEditCard}
-                  onDeleteCard={handleDeleteCard}
-                  timelineRefreshRef={timelineRefreshRef}
-                />
-              )}
-              {activeTab === 'trends' && (
-                <AnalyticsScreen
-                  onDetailOpenChange={setAnalyticsDetailOpen}
-                  resetSignal={analyticsResetSignal}
-                />
-              )}
-              {activeTab === 'family' && (
-                <FamilyScreen
-                  user={familyUser}
-                  kidId={kidId}
-                  familyId={familyId}
-                  kids={kids}
-                  onKidChange={setKidId}
-                  requestAddChild={headerRequestedAddChild}
-                  onRequestAddChildHandled={() => setHeaderRequestedAddChild(false)}
-                  themeKey={themeKey}
-                  onThemeChange={onThemeChange}
-                  isDark={isDark}
-                  onDarkModeChange={onDarkModeChange}
-                  showDevSetupToggle={showDevSetupToggle}
-                  forceSetupPreview={forceSetupPreview}
-                  forceLoginPreview={forceLoginPreview}
-                  onToggleForceSetupPreview={onToggleForceSetupPreview}
-                  onToggleForceLoginPreview={onToggleForceLoginPreview}
-                  onRequestToggleActivitySheet={handleToggleActivitySheet}
-                  onSignOut={handleSignOut}
-                />
-              )}
-            </>
+          ) : null}
+          {activeTab === 'tracker' && !trackerUiReady ? (
+            <View style={{ flex: 1, backgroundColor: appBg }} />
+          ) : null}
+          {activeTab === 'trends' && (
+            <AnalyticsScreen
+              onDetailOpenChange={setAnalyticsDetailOpen}
+              resetSignal={analyticsResetSignal}
+            />
+          )}
+          {activeTab === 'family' && (
+            <FamilyScreen
+              user={familyUser}
+              kidId={kidId}
+              familyId={familyId}
+              kids={kids}
+              onKidChange={setKidId}
+              requestAddChild={headerRequestedAddChild}
+              onRequestAddChildHandled={() => setHeaderRequestedAddChild(false)}
+              themeKey={themeKey}
+              onThemeChange={onThemeChange}
+              isDark={isDark}
+              onDarkModeChange={onDarkModeChange}
+              showDevSetupToggle={showDevSetupToggle}
+              forceSetupPreview={forceSetupPreview}
+              forceLoginPreview={forceLoginPreview}
+              onToggleForceSetupPreview={onToggleForceSetupPreview}
+              onToggleForceLoginPreview={onToggleForceLoginPreview}
+              onRequestToggleActivitySheet={handleToggleActivitySheet}
+              onSignOut={handleSignOut}
+            />
           )}
 
           {/* Gradient fade above nav (web script.js:4352-4366) */}
@@ -969,6 +977,8 @@ function AuthGatedApp({
   forceLoginPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  trackerEntranceSeed,
+  trackerUiReady,
 }) {
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
@@ -1021,9 +1031,56 @@ function AuthGatedApp({
           forceLoginPreview={forceLoginPreview}
           onToggleForceSetupPreview={onToggleForceSetupPreview}
           onToggleForceLoginPreview={onToggleForceLoginPreview}
+          trackerEntranceSeed={trackerEntranceSeed}
+          trackerUiReady={trackerUiReady}
         />
       </BottomSheetModalProvider>
     </DataProvider>
+  );
+}
+
+function LaunchSplashOverlay({
+  opacity,
+  logoOpacity,
+  logoScale,
+  logoFloat,
+}) {
+  const { colors } = useTheme();
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        appStyles.launchSplash,
+        {
+          opacity,
+          backgroundColor: colors.appBg,
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          appStyles.launchSplashCenter,
+          {
+            opacity: logoOpacity,
+            transform: [{ scale: logoScale }, { translateY: logoFloat }],
+          },
+        ]}
+      >
+        <View
+          style={[
+            appStyles.launchLogoPill,
+            !LAUNCH_SPLASH_ICON_BG_ENABLED
+              ? { width: 52, height: 52, borderRadius: 0 }
+              : null,
+            { marginBottom: LAUNCH_SPLASH_ICON_BG_ENABLED ? 14 : 6 },
+            LAUNCH_SPLASH_ICON_BG_ENABLED ? { backgroundColor: colors.inputBg } : null,
+          ]}
+        >
+          <BrandLogo size={52} color={colors.brandIcon} />
+        </View>
+        <Text style={[appStyles.launchTitle, { color: colors.textPrimary }]}>Tiny Tracker</Text>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -1034,6 +1091,13 @@ export default function App() {
   const [forceSetupPreview, setForceSetupPreview] = useState(false);
   const [forceLoginPreview, setForceLoginPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
+  const [showLaunchSplash, setShowLaunchSplash] = useState(true);
+  const [trackerEntranceSeed, setTrackerEntranceSeed] = useState(0);
+  const launchSplashOpacity = useRef(new Animated.Value(1)).current;
+  const launchLogoOpacity = useRef(new Animated.Value(0)).current;
+  const launchLogoScale = useRef(new Animated.Value(0.9)).current;
+  const launchLogoFloat = useRef(new Animated.Value(0)).current;
+  const launchStartedAtRef = useRef(Date.now());
   const showDevSetupToggle = __DEV__ && (Constants?.isDevice === false || Constants?.isDevice == null);
 
   const handleToggleForceSetupPreview = useCallback((nextValue) => {
@@ -1060,6 +1124,60 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(launchLogoOpacity, {
+        toValue: 1,
+        duration: 340,
+        useNativeDriver: true,
+      }),
+      Animated.spring(launchLogoScale, {
+        toValue: 1,
+        speed: 16,
+        bounciness: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [launchLogoOpacity, launchLogoScale]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(launchLogoFloat, {
+          toValue: -4,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(launchLogoFloat, {
+          toValue: 0,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [launchLogoFloat]);
+
+  useEffect(() => {
+    if (!appearanceHydrated || !showLaunchSplash) return;
+    const elapsed = Date.now() - launchStartedAtRef.current;
+    const waitMs = Math.max(0, LAUNCH_SPLASH_MIN_MS - elapsed);
+    const timeoutId = setTimeout(() => {
+      Animated.timing(launchSplashOpacity, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setShowLaunchSplash(false);
+          setTrackerEntranceSeed((v) => v + 1);
+        }
+      });
+    }, waitMs);
+    return () => clearTimeout(timeoutId);
+  }, [appearanceHydrated, showLaunchSplash, launchSplashOpacity]);
+
   const handleThemeChange = useCallback((nextKey) => {
     setThemeKey(nextKey);
     AsyncStorage.setItem('tt_theme_key', nextKey).catch(() => {});
@@ -1070,32 +1188,37 @@ export default function App() {
     AsyncStorage.setItem('tt_dark_mode', String(nextIsDark)).catch(() => {});
   }, []);
 
-  // Prevent first-frame light flash by waiting for persisted appearance.
-  if (!appearanceHydrated) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }} />
-    );
-  }
-
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider themeKey={themeKey} isDark={isDark}>
-        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          <AuthProvider>
-            <AuthGatedApp
-              themeKey={themeKey}
-              isDark={isDark}
-              onThemeChange={handleThemeChange}
-              onDarkModeChange={handleDarkModeChange}
-              showDevSetupToggle={showDevSetupToggle}
-              forceSetupPreview={forceSetupPreview}
-              forceLoginPreview={forceLoginPreview}
-              onToggleForceSetupPreview={handleToggleForceSetupPreview}
-              onToggleForceLoginPreview={handleToggleForceLoginPreview}
-            />
-          </AuthProvider>
-        </SafeAreaProvider>
-      </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
+      {appearanceHydrated ? (
+        <ThemeProvider themeKey={themeKey} isDark={isDark}>
+          <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+            <AuthProvider>
+              <AuthGatedApp
+                themeKey={themeKey}
+                isDark={isDark}
+                onThemeChange={handleThemeChange}
+                onDarkModeChange={handleDarkModeChange}
+                showDevSetupToggle={showDevSetupToggle}
+                forceSetupPreview={forceSetupPreview}
+                forceLoginPreview={forceLoginPreview}
+                onToggleForceSetupPreview={handleToggleForceSetupPreview}
+                onToggleForceLoginPreview={handleToggleForceLoginPreview}
+                trackerEntranceSeed={trackerEntranceSeed}
+                trackerUiReady={!showLaunchSplash}
+              />
+            </AuthProvider>
+            {showLaunchSplash ? (
+              <LaunchSplashOverlay
+                opacity={launchSplashOpacity}
+                logoOpacity={launchLogoOpacity}
+                logoScale={launchLogoScale}
+                logoFloat={launchLogoFloat}
+              />
+            ) : null}
+          </SafeAreaProvider>
+        </ThemeProvider>
+      ) : null}
     </GestureHandlerRootView>
   );
 }
@@ -1114,5 +1237,27 @@ const appStyles = StyleSheet.create({
     left: 0,
     right: 0,
     height: NAV_FADE_HEIGHT,
+  },
+  launchSplash: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  launchSplashCenter: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  launchLogoPill: {
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  launchTitle: {
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
 });

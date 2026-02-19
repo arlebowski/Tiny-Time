@@ -136,6 +136,7 @@ export default function Timeline({
   allowItemExpand = true,
   sleepSettings = null,
   hideFilter = false,
+  suppressEmptyState = false,
 }) {
   const { colors } = useTheme();
   const [filter, setFilter] = useState(initialFilter || 'all');
@@ -284,7 +285,7 @@ export default function Timeline({
   }, [fullSizePhoto]);
 
   const renderItem = useCallback(
-    ({ item, index }) => {
+    ({ item }) => {
       const hasDetails = getHasDetails(item);
       const isExpanded = expandedId === item.id;
       const isLogged = item?.variant === 'logged';
@@ -303,8 +304,7 @@ export default function Timeline({
       return (
         <Animated.View
           entering={FadeInDown
-            .duration(320)
-            .delay(index * 22)
+            .duration(90)
             .easing(Easing.out(Easing.cubic))}
           exiting={FadeOut
             .duration(180)
@@ -335,8 +335,6 @@ export default function Timeline({
       onActiveSleepClick,
       onEditCard,
       openSwipeId,
-      swipingCardId,
-      filteredItems.length,
       allowItemExpand,
       sleepSettings,
     ]
@@ -389,6 +387,7 @@ export default function Timeline({
     () => <EmptyState filter={filter} colors={colors} />,
     [filter, colors]
   );
+  const shouldShowEmptyState = filteredItems.length === 0 && !suppressEmptyState;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.appBg }]}>
@@ -402,10 +401,10 @@ export default function Timeline({
             : LinearTransition.duration(300).easing(TIMELINE_EASE)
         }
         ListHeaderComponent={ListHeaderComponentMerged}
-        ListEmptyComponent={ListEmptyComponent}
+        ListEmptyComponent={shouldShowEmptyState ? ListEmptyComponent : null}
         contentContainerStyle={[
           styles.listContent,
-          filteredItems.length === 0 && styles.listContentEmpty,
+          shouldShowEmptyState && styles.listContentEmpty,
         ]}
         refreshControl={
           onRefresh ? (

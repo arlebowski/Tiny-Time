@@ -51,6 +51,7 @@ function isSnapshotForToday(snapshot, todayKey) {
 }
 
 export default function TrackerScreen({
+  entranceToken = 0,
   onOpenSheet,
   onCardTap,
   onRequestToggleActivitySheet,
@@ -208,6 +209,7 @@ export default function TrackerScreen({
       {/* ── Greeting header (web HorizontalCalendar.js v4 header, lines 424-474) ── */}
       {/* Web: header.mb-1, display flex, alignItems flex-end, justifyContent space-between */}
       <Animated.View
+        key={`greeting-${entranceToken}`}
         style={styles.greetingHeader}
         entering={FadeInDown.duration(220).delay(0)}
       >
@@ -238,7 +240,10 @@ export default function TrackerScreen({
 
       {/* What's Next Card - mirror web behavior: only while sleep is active */}
       {showNextUp ? (
-        <Animated.View entering={FadeInDown.duration(220).delay(CARD_BASE_DELAY_MS)}>
+        <Animated.View
+          key={`nextup-${entranceToken}`}
+          entering={FadeInDown.duration(220).delay(CARD_BASE_DELAY_MS)}
+        >
           <ActiveSleepCard
             sleepStartTime={nextUpSleepStart}
             onWakeUp={() => onOpenSheet?.('sleep')}
@@ -251,7 +256,7 @@ export default function TrackerScreen({
         const sequenceIndex = showNextUp ? index + 1 : index;
         return (
           <Animated.View
-            key={card.key}
+            key={`${card.key}-${entranceToken}`}
             entering={FadeInDown
               .duration(220)
               .delay(CARD_BASE_DELAY_MS + sequenceIndex * CARD_STAGGER_MS)}

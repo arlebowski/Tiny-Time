@@ -135,6 +135,8 @@ export default function FeedSheet({
   const [solidsStep, setSolidsStep] = useState(1); // 1: entry, 2: browse, 3: review
   const [recentFoods, setRecentFoods] = useState([]);
   const [customFoods, setCustomFoods] = useState([]);
+  const [modeHeights, setModeHeights] = useState({ bottle: 0, nursing: 0, solids: 0 });
+  const [lockedModeHeight, setLockedModeHeight] = useState(0);
 
   const accentMap = { bottle, nursing, solids };
   const accent = accentMap[feedType]?.primary || bottle.primary;
@@ -775,6 +777,23 @@ export default function FeedSheet({
   const solidsCanSave = !!dateTime && addedFoods.length > 0;
   const solidsCanNext = addedFoods.length > 0;
 
+  const updateModeHeight = useCallback((mode, nextHeightRaw) => {
+    const nextHeight = Math.ceil(Number(nextHeightRaw) || 0);
+    if (!nextHeight) return;
+    setModeHeights((prev) => {
+      const prevHeight = prev[mode] || 0;
+      if (Math.abs(prevHeight - nextHeight) < 1) return prev;
+      return { ...prev, [mode]: nextHeight };
+    });
+  }, []);
+
+  useEffect(() => {
+    const heights = visibleTypes.map((type) => modeHeights[type] || 0).filter((h) => h > 0);
+    if (heights.length === 0) return;
+    const maxHeight = Math.max(...heights);
+    setLockedModeHeight((prev) => (prev === maxHeight ? prev : maxHeight));
+  }, [visibleTypes, modeHeights]);
+
   const getSolidsFooter = () => {
     if (feedType !== 'solids') return null;
     if (solidsStep === 2) return null; // browse: no footer
@@ -811,27 +830,6 @@ export default function FeedSheet({
       </Pressable>
     ) : null;
 
-  // ---- Deterministic expansion triggers ----
-  // Expand when notes/photos expand (but NOT when mode changes).
-  useEffect(() => {
-    if (!sheetRef?.current) return;
-    if (notesExpanded || photosExpanded) {
-      try {
-        sheetRef.current.snapToIndex?.(1);
-      } catch (_) {}
-    }
-  }, [notesExpanded, photosExpanded, sheetRef]);
-
-  // Expand when switching to Solids browse (step 2) so it can breathe.
-  useEffect(() => {
-    if (!sheetRef?.current) return;
-    if (feedType === 'solids' && solidsStep === 2) {
-      try {
-        sheetRef.current.snapToIndex?.(1);
-      } catch (_) {}
-    }
-  }, [feedType, solidsStep, sheetRef]);
-
   const handleSheetOpen = useCallback(() => {
     if (didInitOpenRef.current) {
       return;
@@ -865,6 +863,50 @@ export default function FeedSheet({
   }, [defaultType, feedTypeRef, entry, initialBottleAmount, preferredVolumeUnit]);
 
   const scrollable = feedType === 'solids' && solidsStep === 2;
+
+  const renderNotesPhotosBlock = () => (
+    <View style={styles.addonsBlock}>
+      {!notesExpanded && !photosExpanded && (
+        <View style={styles.addRow}>
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
+          </Pressable>
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {notesExpanded && <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />}
+
+      {photosExpanded && (
+        <TTPhotoRow
+          expanded={photosExpanded}
+          onExpand={() => setPhotosExpanded(true)}
+          title="Photos"
+          showTitle={true}
+          existingPhotos={existingPhotoURLs}
+          newPhotos={photos}
+          onAddPhoto={handleAddPhoto}
+          onRemovePhoto={handleRemovePhoto}
+          onPreviewPhoto={() => {}}
+          addLabel="+ Add photos"
+        />
+      )}
+
+      {photosExpanded && !notesExpanded && (
+        <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+          <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
+        </Pressable>
+      )}
+
+      {notesExpanded && !photosExpanded && (
+        <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+          <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
+        </Pressable>
+      )}
+    </View>
+  );
 
   return (
     <>
@@ -910,167 +952,168 @@ export default function FeedSheet({
             </View>
           )}
 
-          {feedType === 'bottle' && (
-            <>
-              <TTInputRow
-                label="Time"
-                rawValue={dateTime}
-                type="datetime"
-                formatDateTime={formatDateTime}
-                onOpenPicker={() => setShowDateTimeTray(true)}
-              />
-              <AmountStepper
-                valueOz={parseFloat(ounces) || 0}
-                unit={amountDisplayUnit}
-                onChangeUnit={async (unit) => {
-                  const normalized = unit === 'ml' ? 'ml' : 'oz';
-                  userEditedUnitRef.current = true;
-                  setAmountDisplayUnit(normalized);
-                  if (typeof onPreferredVolumeUnitChange === 'function') {
-                    try {
-                      await onPreferredVolumeUnitChange(normalized);
-                    } catch (_) {}
-                  }
-                }}
-                onChangeOz={(oz) => {
-                  userEditedAmountRef.current = true;
-                  setOunces(String(oz));
-                }}
-              />
-            </>
-          )}
-
-          {feedType === 'nursing' && (
-            <>
-              <TTInputRow
-                label="Start time"
-                rawValue={dateTime}
-                type="datetime"
-                formatDateTime={formatDateTime}
-                onOpenPicker={() => setShowDateTimeTray(true)}
-              />
-              <View style={styles.nursingTotal}>
-                <View style={styles.nursingTotalRow}>
-                  {nursingParts.showH && (
-                    <>
-                      <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.hStr}</Text>
-                      <Text style={[styles.unit, { color: colors.textSecondary }]}>h </Text>
-                      <View style={styles.unitSpacer} />
-                    </>
-                  )}
-                  {nursingParts.showM && (
-                    <>
-                      <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.mStr}</Text>
-                      <Text style={[styles.unit, { color: colors.textSecondary }]}>m </Text>
-                      <View style={styles.unitSpacer} />
-                    </>
-                  )}
-                  <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.sStr}</Text>
-                  <Text style={[styles.unit, { color: colors.textSecondary }]}>s</Text>
+          {!(feedType === 'solids' && solidsStep >= 2) && (
+            <View style={styles.modePanels}>
+              {visibleTypes.includes('bottle') && (
+                <View
+                  collapsable={false}
+                  style={[
+                    styles.modePanel,
+                    feedType !== 'bottle' && styles.modePanelHidden,
+                    lockedModeHeight > 0 && { minHeight: lockedModeHeight },
+                  ]}
+                  pointerEvents={feedType === 'bottle' ? 'auto' : 'none'}
+                  onLayout={(e) => updateModeHeight('bottle', e.nativeEvent.layout.height)}
+                >
+                  <>
+                    <TTInputRow
+                      label="Time"
+                      rawValue={dateTime}
+                      type="datetime"
+                      formatDateTime={formatDateTime}
+                      onOpenPicker={() => setShowDateTimeTray(true)}
+                    />
+                    <AmountStepper
+                      valueOz={parseFloat(ounces) || 0}
+                      unit={amountDisplayUnit}
+                      onChangeUnit={async (unit) => {
+                        const normalized = unit === 'ml' ? 'ml' : 'oz';
+                        userEditedUnitRef.current = true;
+                        setAmountDisplayUnit(normalized);
+                        if (typeof onPreferredVolumeUnitChange === 'function') {
+                          try {
+                            await onPreferredVolumeUnitChange(normalized);
+                          } catch (_) {}
+                        }
+                      }}
+                      onChangeOz={(oz) => {
+                        userEditedAmountRef.current = true;
+                        setOunces(String(oz));
+                      }}
+                    />
+                    {feedType === 'bottle' && renderNotesPhotosBlock()}
+                  </>
                 </View>
-              </View>
+              )}
 
-              <View style={styles.sideTimers}>
-                <SideTimer
-                  side="left"
-                  displayMs={leftDisplayMs}
-                  isActive={activeSide === 'left'}
-                  isLast={lastSide === 'left'}
-                  onPress={handleToggleSide}
-                  accent={nursing.primary}
-                  accentSoft={nursing.soft}
-                  colors={colors}
-                  runningSide={activeSide}
-                />
-                <SideTimer
-                  side="right"
-                  displayMs={rightDisplayMs}
-                  isActive={activeSide === 'right'}
-                  isLast={lastSide === 'right'}
-                  onPress={handleToggleSide}
-                  accent={nursing.primary}
-                  accentSoft={nursing.soft}
-                  colors={colors}
-                  runningSide={activeSide}
-                />
-              </View>
-            </>
-          )}
+              {visibleTypes.includes('nursing') && (
+                <View
+                  collapsable={false}
+                  style={[
+                    styles.modePanel,
+                    feedType !== 'nursing' && styles.modePanelHidden,
+                    lockedModeHeight > 0 && { minHeight: lockedModeHeight },
+                  ]}
+                  pointerEvents={feedType === 'nursing' ? 'auto' : 'none'}
+                  onLayout={(e) => updateModeHeight('nursing', e.nativeEvent.layout.height)}
+                >
+                  <>
+                    <TTInputRow
+                      label="Start time"
+                      rawValue={dateTime}
+                      type="datetime"
+                      formatDateTime={formatDateTime}
+                      onOpenPicker={() => setShowDateTimeTray(true)}
+                    />
+                    <View style={styles.nursingTotal}>
+                      <View style={styles.nursingTotalRow}>
+                        {nursingParts.showH && (
+                          <>
+                            <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.hStr}</Text>
+                            <Text style={[styles.unit, { color: colors.textSecondary }]}>h </Text>
+                            <View style={styles.unitSpacer} />
+                          </>
+                        )}
+                        {nursingParts.showM && (
+                          <>
+                            <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.mStr}</Text>
+                            <Text style={[styles.unit, { color: colors.textSecondary }]}>m </Text>
+                            <View style={styles.unitSpacer} />
+                          </>
+                        )}
+                        <Text style={[styles.durationText, { color: colors.textPrimary }]}>{nursingParts.sStr}</Text>
+                        <Text style={[styles.unit, { color: colors.textSecondary }]}>s</Text>
+                      </View>
+                    </View>
 
-          {feedType === 'solids' && solidsStep === 1 && (
-            <SolidsStepOne
-              dateTime={dateTime}
-              formatDateTime={formatDateTime}
-              onOpenPicker={() => setShowDateTimeTray(true)}
-              solidsTileLabel={addedFoods.length === 0 ? 'Add foods' : `${addedFoods.length} food${addedFoods.length !== 1 ? 's' : ''} added`}
-              solidsTileFoods={solidsTileFoods}
-              isFoodSelected={isFoodSelected}
-              addFoodToList={addFoodToList}
-              removeFoodById={removeFoodById}
-              onBrowsePress={() => setSolidsStep(2)}
-              colors={colors}
-              solids={solids}
-            />
-          )}
+                    <View style={styles.sideTimers}>
+                      <SideTimer
+                        side="left"
+                        displayMs={leftDisplayMs}
+                        isActive={activeSide === 'left'}
+                        isLast={lastSide === 'left'}
+                        onPress={handleToggleSide}
+                        accent={nursing.primary}
+                        accentSoft={nursing.soft}
+                        colors={colors}
+                        runningSide={activeSide}
+                      />
+                      <SideTimer
+                        side="right"
+                        displayMs={rightDisplayMs}
+                        isActive={activeSide === 'right'}
+                        isLast={lastSide === 'right'}
+                        onPress={handleToggleSide}
+                        accent={nursing.primary}
+                        accentSoft={nursing.soft}
+                        colors={colors}
+                        runningSide={activeSide}
+                      />
+                    </View>
+                    {feedType === 'nursing' && renderNotesPhotosBlock()}
+                  </>
+                </View>
+              )}
 
-          {feedType === 'solids' && solidsStep === 2 && (
-            <SolidsStepTwo
-              solidsSearch={solidsSearch}
-              setSolidsSearch={setSolidsSearch}
-              solidsFilteredFoods={solidsFilteredFoods}
-              isFoodSelected={isFoodSelected}
-              addFoodToList={addFoodToList}
-              removeFoodById={removeFoodById}
-              colors={colors}
-              solids={solids}
-            />
-          )}
-
-          {feedType === 'solids' && solidsStep === 3 && (
-            <SolidsStepThree addedFoods={addedFoods} removeFoodById={removeFoodById} colors={colors} solids={solids} />
-          )}
-
-          {/* Add notes/photos row */}
-          {((feedType === 'solids' && solidsStep === 3) || feedType !== 'solids') && !notesExpanded && !photosExpanded && (
-            <View style={styles.addRow}>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
-                <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
-              </Pressable>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
-                <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
-              </Pressable>
+              {visibleTypes.includes('solids') && (
+                <View
+                  collapsable={false}
+                  style={[
+                    styles.modePanel,
+                    feedType !== 'solids' && styles.modePanelHidden,
+                    lockedModeHeight > 0 && { minHeight: lockedModeHeight },
+                  ]}
+                  pointerEvents={feedType === 'solids' ? 'auto' : 'none'}
+                  onLayout={(e) => updateModeHeight('solids', e.nativeEvent.layout.height)}
+                >
+                  <SolidsStepOne
+                    dateTime={dateTime}
+                    formatDateTime={formatDateTime}
+                    onOpenPicker={() => setShowDateTimeTray(true)}
+                    solidsTileLabel={addedFoods.length === 0 ? 'Add foods' : `${addedFoods.length} food${addedFoods.length !== 1 ? 's' : ''} added`}
+                    solidsTileFoods={solidsTileFoods}
+                    isFoodSelected={isFoodSelected}
+                    addFoodToList={addFoodToList}
+                    removeFoodById={removeFoodById}
+                    onBrowsePress={() => setSolidsStep(2)}
+                    colors={colors}
+                    solids={solids}
+                  />
+                </View>
+              )}
             </View>
           )}
 
-          {((feedType === 'solids' && solidsStep === 3) || feedType !== 'solids') && notesExpanded && (
-            <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+          {feedType === 'solids' && solidsStep === 2 && (
+            <View style={lockedModeHeight > 0 ? { minHeight: lockedModeHeight } : null}>
+              <SolidsStepTwo
+                solidsSearch={solidsSearch}
+                setSolidsSearch={setSolidsSearch}
+                solidsFilteredFoods={solidsFilteredFoods}
+                isFoodSelected={isFoodSelected}
+                addFoodToList={addFoodToList}
+                removeFoodById={removeFoodById}
+                colors={colors}
+                solids={solids}
+              />
+            </View>
           )}
 
-          {((feedType === 'solids' && solidsStep === 3) || feedType !== 'solids') && photosExpanded && (
-            <TTPhotoRow
-              expanded={photosExpanded}
-              onExpand={() => setPhotosExpanded(true)}
-              title="Photos"
-              showTitle={true}
-              existingPhotos={existingPhotoURLs}
-              newPhotos={photos}
-              onAddPhoto={handleAddPhoto}
-              onRemovePhoto={handleRemovePhoto}
-              onPreviewPhoto={() => {}}
-              addLabel="+ Add photos"
-            />
-          )}
-
-          {photosExpanded && !notesExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
-              <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
-            </Pressable>
-          )}
-
-          {((feedType === 'solids' && solidsStep === 3) || feedType !== 'solids') && notesExpanded && !photosExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
-              <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
-            </Pressable>
+          {feedType === 'solids' && solidsStep === 3 && (
+            <View style={lockedModeHeight > 0 ? { minHeight: lockedModeHeight } : null}>
+              <SolidsStepThree addedFoods={addedFoods} removeFoodById={removeFoodById} colors={colors} solids={solids} />
+              {renderNotesPhotosBlock()}
+            </View>
           )}
         </View>
       </HalfSheet>
@@ -1305,6 +1348,22 @@ const styles = StyleSheet.create({
     gap: 0,
   },
 
+  modePanels: {
+    position: 'relative',
+  },
+
+  modePanel: {
+    width: '100%',
+  },
+
+  modePanelHidden: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    opacity: 0,
+  },
+
   feedTypePicker: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
@@ -1364,7 +1423,7 @@ const styles = StyleSheet.create({
     gap: 56,
     paddingTop: 8,
     paddingBottom: 4,
-    marginBottom: 8,
+    marginBottom: 0,
   },
 
   sideTimerWrap: {
@@ -1558,11 +1617,16 @@ const styles = StyleSheet.create({
   },
 
   // Add row
+  addonsBlock: {
+    marginTop: 12,
+    paddingBottom: 6,
+  },
+
   addRow: {
     flexDirection: 'row',
     gap: 12,
     paddingTop: 0,
-    paddingBottom: 12,
+    paddingBottom: 0,
   },
 
   addItem: {

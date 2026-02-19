@@ -3,6 +3,15 @@ import { THEME_TOKENS } from '../../../shared/config/theme';
 
 const ThemeContext = createContext(null);
 
+const resolveAccent = (accent, isDark) => {
+  if (!accent) return accent;
+  if (!isDark) return accent;
+  return {
+    ...accent,
+    primary: accent.dark || accent.primary,
+  };
+};
+
 /**
  * ThemeProvider — provides resolved theme colors to all child components.
  *
@@ -17,6 +26,11 @@ export function ThemeProvider({ themeKey = 'theme1', isDark = false, children })
   const value = useMemo(() => {
     const base = isDark ? THEME_TOKENS.DARK_MODE : THEME_TOKENS.LIGHT_MODE;
     const colorTheme = THEME_TOKENS.COLOR_THEMES[themeKey] || THEME_TOKENS.COLOR_THEMES.theme1;
+    const bottle = resolveAccent(colorTheme.bottle, isDark);
+    const nursing = resolveAccent(colorTheme.nursing, isDark);
+    const sleep = resolveAccent(colorTheme.sleep, isDark);
+    const diaper = resolveAccent(colorTheme.diaper, isDark);
+    const solids = resolveAccent(colorTheme.solids, isDark);
     const shadows = isDark
       ? { ...THEME_TOKENS.SHADOWS, ...THEME_TOKENS.SHADOWS_DARK }
       : THEME_TOKENS.SHADOWS;
@@ -25,11 +39,11 @@ export function ThemeProvider({ themeKey = 'theme1', isDark = false, children })
       themeKey,
       isDark,
       colors: base,
-      bottle: colorTheme.bottle,
-      nursing: colorTheme.nursing,
-      sleep: colorTheme.sleep,
-      diaper: colorTheme.diaper,
-      solids: colorTheme.solids,
+      bottle,
+      nursing,
+      sleep,
+      diaper,
+      solids,
       spacing: THEME_TOKENS.SPACING,
       typography: THEME_TOKENS.TYPOGRAPHY,
       radius: THEME_TOKENS.RADIUS,

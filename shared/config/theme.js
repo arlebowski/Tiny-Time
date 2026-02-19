@@ -475,13 +475,21 @@ export const THEME_TOKENS = {
 export const getThemeColors = (isDark = false, themeKey = 'theme1') => {
   const base = isDark ? THEME_TOKENS.DARK_MODE : THEME_TOKENS.LIGHT_MODE;
   const colorTheme = THEME_TOKENS.COLOR_THEMES[themeKey] || THEME_TOKENS.COLOR_THEMES.theme1;
+  const resolveAccent = (accent) => {
+    if (!accent) return accent;
+    if (!isDark) return accent;
+    return {
+      ...accent,
+      primary: accent.dark || accent.primary,
+    };
+  };
 
   return {
     ...base,
-    bottle: colorTheme.bottle,
-    nursing: colorTheme.nursing,
-    sleep: colorTheme.sleep,
-    diaper: colorTheme.diaper,
-    solids: colorTheme.solids,
+    bottle: resolveAccent(colorTheme.bottle),
+    nursing: resolveAccent(colorTheme.nursing),
+    sleep: resolveAccent(colorTheme.sleep),
+    diaper: resolveAccent(colorTheme.diaper),
+    solids: resolveAccent(colorTheme.solids),
   };
 };

@@ -221,7 +221,7 @@ export default function DetailSheet({
     diaperPooCount: 0,
   });
 
-  const { getTimelineItems, getDaySummary, kidSettings } = useData();
+  const { getTimelineItems, getDaySummary, kidSettings, dataLoading } = useData();
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   // Load data for selected date
@@ -534,6 +534,7 @@ export default function DetailSheet({
         onActiveSleepClick={handleActiveSleepClick}
         allowItemExpand
         hideFilter
+        suppressEmptyState={dataLoading}
         ListHeaderComponent={listHeader}
       />
     </View>
