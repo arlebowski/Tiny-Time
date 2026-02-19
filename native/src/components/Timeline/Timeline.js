@@ -132,6 +132,7 @@ export default function Timeline({
   initialSortOrder = 'desc',
   onFilterChange,
   refreshing = false,
+  refreshProgressOffset = 0,
   ListHeaderComponent,
   allowItemExpand = true,
   sleepSettings = null,
@@ -226,6 +227,18 @@ export default function Timeline({
     [getHasDetails, allowItemExpand]
   );
 
+  const handleRowPrimaryPress = useCallback(
+    (card) => {
+      const isLogged = card?.variant === 'logged';
+      if (isLogged) {
+        onEditCard?.(card);
+        return;
+      }
+      handleItemPress(card);
+    },
+    [handleItemPress, onEditCard]
+  );
+
   const handleDeleteCard = useCallback((card) => {
     setDeletingCard(card);
   }, []);
@@ -294,7 +307,7 @@ export default function Timeline({
           card={item}
           isExpanded={isExpanded}
           hasDetails={hasDetails}
-          onPress={() => handleItemPress(item)}
+          onChevronPress={() => handleItemPress(item)}
           onActiveSleepClick={onActiveSleepClick}
           onPhotoClick={handlePhotoClick}
           sleepSettings={sleepSettings}
@@ -315,7 +328,7 @@ export default function Timeline({
             isSwipeEnabled={isLogged}
             onEdit={onEditCard}
             onDelete={handleDeleteCard}
-            onRowPress={() => handleItemPress(item)}
+            onRowPress={() => handleRowPrimaryPress(item)}
             openSwipeId={openSwipeId}
             setOpenSwipeId={setOpenSwipeId}
             onSwipeStart={setSwipingCardId}
@@ -330,6 +343,7 @@ export default function Timeline({
       expandedId,
       getHasDetails,
       handleItemPress,
+      handleRowPrimaryPress,
       handleDeleteCard,
       handlePhotoClick,
       onActiveSleepClick,
@@ -411,10 +425,14 @@ export default function Timeline({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={colors.textTertiary}
+              tintColor={colors.textPrimary}
+              title="Refreshing..."
+              titleColor={colors.textSecondary}
+              progressViewOffset={refreshProgressOffset}
             />
           ) : undefined
         }
+        alwaysBounceVertical
         showsVerticalScrollIndicator={false}
         onScrollBeginDrag={() => setOpenSwipeId(null)}
       />

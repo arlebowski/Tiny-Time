@@ -34,12 +34,14 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
   const progress = useSharedValue(0); // 0 = tracker, 1 = detail
   const [detailFilter, setDetailFilter] = useState(null);
   const [detailMounted, setDetailMounted] = useState(false);
+  const [detailInteractive, setDetailInteractive] = useState(false);
   const [trackerEntranceToken, setTrackerEntranceToken] = useState(0);
 
   const mergedEntranceToken = `${entranceSeed}-${trackerEntranceToken}`;
 
   const finishClose = useCallback(() => {
     setDetailMounted(false);
+    setDetailInteractive(false);
     setDetailFilter(null);
   }, []);
 
@@ -63,6 +65,7 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
   }, [progress]);
 
   const animateToClose = useCallback(() => {
+    setDetailInteractive(false);
     markDetailClosed();
     triggerTrackerEntrance();
     progress.value = withTiming(0, {
@@ -78,6 +81,7 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
   const handleCardTap = useCallback((filterType) => {
     setDetailFilter(filterType || 'all');
     setDetailMounted(true);
+    setDetailInteractive(true);
     markDetailOpen();
     progress.value = 0;
     animateToOpen();
@@ -113,6 +117,7 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
         event.translationX > width * SWIPE_CLOSE_THRESHOLD
         || event.velocityX > SWIPE_VELOCITY_THRESHOLD;
       if (shouldClose) {
+        runOnJS(setDetailInteractive)(false);
         progress.value = withTiming(0, {
           duration: CLOSE_DURATION_MS,
           easing: Easing.bezier(0.22, 1, 0.36, 1),
@@ -121,6 +126,7 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
         });
       } else {
         runOnJS(markDetailOpen)();
+        runOnJS(setDetailInteractive)(true);
         progress.value = withTiming(1, {
           duration: 220,
           easing: Easing.bezier(0.22, 1, 0.36, 1),
@@ -175,19 +181,22 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
       {detailMounted ? (
         <>
           <Animated.View pointerEvents="none" style={[styles.scrim, trackerScrimStyle]} />
-          <GestureDetector gesture={edgeSwipeGesture}>
-            <Animated.View style={[styles.detailLayer, detailStyle]}>
-              <DetailScreen
-                initialFilter={detailFilter || 'all'}
-                onBack={handleDetailBack}
-                onOpenSheet={onOpenSheet}
-                onEditCard={onEditCard}
-                onDeleteCard={onDeleteCard}
-                timelineRefreshRef={timelineRefreshRef}
-                activityVisibility={activityVisibility}
-              />
-            </Animated.View>
-          </GestureDetector>
+          <Animated.View pointerEvents={detailInteractive ? 'auto' : 'none'} style={[styles.detailLayer, detailStyle]}>
+            <DetailScreen
+              initialFilter={detailFilter || 'all'}
+              onBack={handleDetailBack}
+              onOpenSheet={onOpenSheet}
+              onEditCard={onEditCard}
+              onDeleteCard={onDeleteCard}
+              timelineRefreshRef={timelineRefreshRef}
+              activityVisibility={activityVisibility}
+            />
+            <View pointerEvents="box-none" style={styles.gestureOverlayContainer}>
+              <GestureDetector gesture={edgeSwipeGesture}>
+                <View style={styles.edgeSwipeZone} />
+              </GestureDetector>
+            </View>
+          </Animated.View>
         </>
       ) : null}
     </View>
@@ -215,5 +224,15 @@ const styles = StyleSheet.create({
     shadowRadius: 20,
     shadowOffset: { width: -8, height: 0 },
     elevation: 18,
+  },
+  gestureOverlayContainer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  edgeSwipeZone: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 32,
   },
 });

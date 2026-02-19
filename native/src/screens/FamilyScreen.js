@@ -21,6 +21,7 @@ import {
   ScrollView,
   Image,
   Alert,
+  Modal,
   StyleSheet,
   Platform,
   ActivityIndicator,
@@ -31,7 +32,6 @@ import { THEME_TOKENS } from '../../../shared/config/theme';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import TTInputRow from '../components/shared/TTInputRow';
 import HalfSheet from '../components/sheets/HalfSheet';
-import SheetInputRow from '../components/sheets/InputRow';
 import TTPhotoRow from '../components/shared/TTPhotoRow';
 import {
   EditIcon,
@@ -41,6 +41,10 @@ import {
   CameraIcon,
   TrashIcon,
   PlusIcon,
+  PaletteIcon,
+  FamilyIcon,
+  SettingsIcon,
+  DaySleepWindowIcon,
 } from '../components/icons';
 import { updateCurrentUserProfile } from '../services/authService';
 import { uploadKidPhoto, uploadUserPhoto } from '../services/storageService';
@@ -192,6 +196,7 @@ export default function FamilyScreen({
   const screenScrollRef = useRef(null);
   const [newBabyName, setNewBabyName] = useState('');
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
+  const [newBabyWeight, setNewBabyWeight] = useState('');
   const [newChildPhotoUris, setNewChildPhotoUris] = useState([]);
   const [savingChild, setSavingChild] = useState(false);
   const [profileNameDraft, setProfileNameDraft] = useState(currentUser.displayName || '');
@@ -205,6 +210,7 @@ export default function FamilyScreen({
   const [selectedKidData, setSelectedKidData] = useState(null);
   const [selectedKidSettings, setSelectedKidSettings] = useState({ babyWeight: null, preferredVolumeUnit: 'oz' });
   const [selectedKidLoading, setSelectedKidLoading] = useState(false);
+  const [kidPendingDelete, setKidPendingDelete] = useState(null);
 
   // Theme
   const defaultThemeKey = THEME_TOKENS.DEFAULT_THEME_KEY || 'theme1';
@@ -232,6 +238,7 @@ export default function FamilyScreen({
   const resetAddChildForm = useCallback(() => {
     setNewBabyName('');
     setNewBabyBirthDate('');
+    setNewBabyWeight('');
     setNewChildPhotoUris([]);
   }, []);
 
@@ -713,12 +720,51 @@ export default function FamilyScreen({
     );
   };
 
+  const handleRequestDeleteKid = useCallback(() => {
+    if (!selectedKidForSubpage?.id) return;
+    setKidPendingDelete({
+      id: selectedKidForSubpage.id,
+      name: selectedKidData?.name || selectedKidForSubpage?.name || 'this child',
+    });
+  }, [selectedKidForSubpage, selectedKidData?.name]);
+
+  const handleConfirmDeleteKid = useCallback(async () => {
+    const targetKid = kidPendingDelete;
+    if (!targetKid?.id) return;
+
+    setKidPendingDelete(null);
+
+    try {
+      await firestoreService?.softDeleteKidById?.(targetKid.id, currentUser?.uid || null);
+
+      const nextKids = (Array.isArray(kids) ? kids : []).filter((k) => k.id !== targetKid.id);
+      setKids(nextKids);
+      setCurrentView('hub');
+      setSelectedKidForSubpage(null);
+      setSelectedKidData(null);
+      setSelectedKidSettings({ babyWeight: null, preferredVolumeUnit: 'oz' });
+
+      if (kidId === targetKid.id) {
+        const fallbackKidId = nextKids[0]?.id || null;
+        if (fallbackKidId && typeof onKidChange === 'function') {
+          onKidChange(fallbackKidId);
+        }
+      }
+
+      await refresh?.();
+    } catch (error) {
+      console.error('Failed to delete kid:', error);
+      Alert.alert('Error', 'Unable to delete this child right now.');
+    }
+  }, [kidPendingDelete, firestoreService, currentUser?.uid, kids, kidId, onKidChange, refresh]);
+
   const handleAddChildPhoto = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
+      ...(Platform.OS === 'ios' ? { presentationStyle: 'fullScreen' } : {}),
     });
     if (!result.canceled && result.assets?.[0]?.uri) {
       setNewChildPhotoUris((prev) => [...prev, result.assets[0].uri]);
@@ -744,9 +790,16 @@ export default function FamilyScreen({
       return;
     }
 
-    const parsedDate = new Date(`${newBabyBirthDate.trim()}T12:00:00`);
+    const parsedDate = new Date(newBabyBirthDate.trim());
     if (Number.isNaN(parsedDate.getTime())) {
-      Alert.alert('Error', 'Please use YYYY-MM-DD for birth date');
+      Alert.alert('Error', 'Please enter a valid birth date');
+      return;
+    }
+    const parsedWeight = String(newBabyWeight || '').trim()
+      ? Number.parseFloat(String(newBabyWeight).trim())
+      : null;
+    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
+      Alert.alert('Error', 'Please enter a valid weight');
       return;
     }
 
@@ -755,6 +808,7 @@ export default function FamilyScreen({
       const newKidId = await firestoreService.createChild({
         name: newBabyName.trim(),
         birthDate: parsedDate.getTime(),
+        babyWeight: parsedWeight,
         ownerId: user?.uid || null,
         photoURL: null,
         preferredVolumeUnit: 'oz',
@@ -818,7 +872,7 @@ export default function FamilyScreen({
               <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
                 <ChevronLeftIcon size={20} color={colors.textSecondary} />
                 <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
-                  Account
+                  Back
                 </Text>
               </Pressable>
             </View>
@@ -927,7 +981,7 @@ export default function FamilyScreen({
               <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
                 <ChevronLeftIcon size={20} color={colors.textSecondary} />
                 <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
-                  Account
+                  Back
                 </Text>
               </Pressable>
             </View>
@@ -1087,7 +1141,7 @@ export default function FamilyScreen({
               <Pressable onPress={handleBackToHub} hitSlop={8} style={s.profileBackButton}>
                 <ChevronLeftIcon size={20} color={colors.textSecondary} />
                 <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
-                  Your Kids
+                  Back
                 </Text>
               </Pressable>
             </View>
@@ -1161,7 +1215,7 @@ export default function FamilyScreen({
                 />
                 <TTInputRow
                   label="Current weight (lbs)"
-                  type="number"
+                  type="text"
                   icon={EditIcon}
                   value={tempWeight !== null ? tempWeight : (selectedKidSettings.babyWeight?.toString() || '')}
                   placeholder="Not set"
@@ -1183,8 +1237,8 @@ export default function FamilyScreen({
               ]}
             >
               <View style={s.appearanceEntryLeft}>
-                <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
-                  <Text style={s.appearanceEntryIconLabel}>🌙</Text>
+                <View style={s.appearanceEntryIcon}>
+                  <DaySleepWindowIcon size={24} color={colors.textPrimary} />
                 </View>
                 <View>
                   <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Day Sleep Window</Text>
@@ -1208,8 +1262,8 @@ export default function FamilyScreen({
               ]}
             >
               <View style={s.appearanceEntryLeft}>
-                <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
-                  <Text style={s.appearanceEntryIconLabel}>👁️</Text>
+                <View style={s.appearanceEntryIcon}>
+                  <SettingsIcon size={24} color={colors.textPrimary} />
                 </View>
                 <View>
                   <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Activity Visibility</Text>
@@ -1224,58 +1278,74 @@ export default function FamilyScreen({
             </Pressable>
           </Card>
 
+          <Card style={s.cardGap}>
+            <Pressable
+              onPress={handleRequestDeleteKid}
+              style={({ pressed }) => [
+                s.accountBtn,
+                { backgroundColor: colors.errorSoft },
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={[s.accountBtnText, { color: colors.error }]}>Delete Kid</Text>
+            </Pressable>
+            <Text style={[s.deleteKidWarning, { color: colors.textSecondary }]}>
+              This removes the child and their data from Tiny Tracker. It cannot be undone.
+            </Text>
+          </Card>
+
           <View style={{ height: 40 }} />
         </>
       ) : (
         <>
-      {showDevSetupToggle ? (
-        <View style={s.familyDevRowTop}>
-          <View style={s.devToggleRow}>
-            <Pressable
-              onPress={() => onToggleForceSetupPreview?.(!forceSetupPreview)}
-              style={({ pressed }) => [
-                s.devSetupToggle,
-                {
-                  borderColor: forceSetupPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
-                  backgroundColor: forceSetupPreview ? colors.subtleSurface : colors.cardBg,
-                },
-                pressed && s.devSetupTogglePressed,
-              ]}
-            >
-              <Text
-                style={[
-                  s.devSetupToggleText,
-                  { color: forceSetupPreview ? colors.brandIcon : colors.textTertiary },
-                ]}
-              >
-                OB
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={() => onToggleForceLoginPreview?.(!forceLoginPreview)}
-              style={({ pressed }) => [
-                s.devSetupToggle,
-                {
-                  borderColor: forceLoginPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
-                  backgroundColor: forceLoginPreview ? colors.subtleSurface : colors.cardBg,
-                },
-                pressed && s.devSetupTogglePressed,
-              ]}
-            >
-              <Text
-                style={[
-                  s.devSetupToggleText,
-                  { color: forceLoginPreview ? colors.brandIcon : colors.textTertiary },
-                ]}
-              >
-                LG
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
       <View style={s.familyHubHeader}>
-        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Account and Profile</Text>
+        <View style={s.familyHubHeaderRow}>
+          <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Account and Profile</Text>
+          {showDevSetupToggle ? (
+            <View style={s.devToggleRow}>
+              <Pressable
+                onPress={() => onToggleForceSetupPreview?.(!forceSetupPreview)}
+                style={({ pressed }) => [
+                  s.devSetupToggle,
+                  {
+                    borderColor: forceSetupPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
+                    backgroundColor: forceSetupPreview ? colors.subtleSurface : colors.cardBg,
+                  },
+                  pressed && s.devSetupTogglePressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    s.devSetupToggleText,
+                    { color: forceSetupPreview ? colors.brandIcon : colors.textTertiary },
+                  ]}
+                >
+                  OB
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onToggleForceLoginPreview?.(!forceLoginPreview)}
+                style={({ pressed }) => [
+                  s.devSetupToggle,
+                  {
+                    borderColor: forceLoginPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
+                    backgroundColor: forceLoginPreview ? colors.subtleSurface : colors.cardBg,
+                  },
+                  pressed && s.devSetupTogglePressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    s.devSetupToggleText,
+                    { color: forceLoginPreview ? colors.brandIcon : colors.textTertiary },
+                  ]}
+                >
+                  LG
+                </Text>
+              </Pressable>
+            </View>
+          ) : null}
+        </View>
       </View>
       {/* ── Account Card ── */}
       {/* Hub entrypoint for Profile subpage */}
@@ -1321,8 +1391,8 @@ export default function FamilyScreen({
           ]}
         >
           <View style={s.appearanceEntryLeft}>
-            <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
-              <Text style={s.appearanceEntryIconLabel}>🎨</Text>
+            <View style={s.appearanceEntryIcon}>
+              <PaletteIcon size={24} color={colors.textPrimary} />
             </View>
             <View>
               <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Appearance</Text>
@@ -1442,8 +1512,8 @@ export default function FamilyScreen({
           ]}
         >
           <View style={s.appearanceEntryLeft}>
-            <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
-              <Text style={s.appearanceEntryIconLabel}>👨‍👩‍👧</Text>
+            <View style={s.appearanceEntryIcon}>
+              <FamilyIcon size={24} color={colors.textPrimary} />
             </View>
             <View>
               <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Family</Text>
@@ -1703,15 +1773,9 @@ export default function FamilyScreen({
       initialSnapIndex={0}
       enableDynamicSizing={false}
       scrollable
+      useFullWindowOverlay={false}
       footer={(
         <View style={s.addChildFooter}>
-          <Pressable
-            onPress={closeAddChildSheet}
-            disabled={savingChild}
-            style={({ pressed }) => [pressed && { opacity: 0.7 }, s.addChildCancelWrap]}
-          >
-            <Text style={[s.addChildCancel, { color: colors.textSecondary }]}>Cancel</Text>
-          </Pressable>
           <Pressable
             onPress={handleCreateChild}
             disabled={savingChild}
@@ -1730,39 +1794,97 @@ export default function FamilyScreen({
         </View>
       )}
     >
-      <Text style={[s.addChildSubtitle, { color: colors.textSecondary }]}>
-        This child will share the same family and members.
-      </Text>
-      <SheetInputRow
+      <View style={s.addChildSectionSpacer}>
+        <TTInputRow
         label="Child's Name"
         type="text"
-        icon={EditIcon}
         value={newBabyName}
         onChange={setNewBabyName}
-        placeholder="Enter name"
+        placeholder="Emma"
+        showIcon={false}
+        showChevron={false}
+        enableTapAnimation
+        showLabel
       />
-      <SheetInputRow
+      </View>
+      <View style={s.addChildSectionSpacer}>
+        <TTInputRow
         label="Birth date"
         type="text"
-        icon={EditIcon}
         value={newBabyBirthDate}
         onChange={setNewBabyBirthDate}
-        placeholder="YYYY-MM-DD"
+        placeholder="Add..."
+        showIcon={false}
+        showChevron={false}
+        enableTapAnimation
+        showLabel
       />
+      </View>
+      <View style={s.addChildSectionSpacer}>
+        <TTInputRow
+        label="Current weight (lbs)"
+        type="text"
+        value={newBabyWeight}
+        onChange={setNewBabyWeight}
+        placeholder="Add..."
+        showIcon={false}
+        showChevron={false}
+        enableTapAnimation
+        showLabel
+      />
+      </View>
       <TTPhotoRow
         expanded
         showTitle
-        title="Photo"
+        title="Add a photo"
         existingPhotos={[]}
         newPhotos={newChildPhotoUris}
         onAddPhoto={handleAddChildPhoto}
         onRemovePhoto={handleRemoveChildPhoto}
         onPreviewPhoto={() => {}}
-        showAddHint
-        addHint="Add"
-        addTileBorder
+        containerStyle={s.addChildPhotoSection}
       />
+      <View style={s.addChildPhotoToCtaSpacer} />
     </HalfSheet>
+    {kidPendingDelete ? (
+      <Modal
+        visible
+        transparent
+        animationType="fade"
+        onRequestClose={() => setKidPendingDelete(null)}
+      >
+        <Pressable
+          style={s.modalOverlay}
+          onPress={() => setKidPendingDelete(null)}
+        >
+          <Pressable
+            style={[s.deleteModal, { backgroundColor: colors.timelineItemBg || colors.card }]}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={[s.deleteTitle, { color: colors.textPrimary }]}>
+              Delete Kid?
+            </Text>
+            <Text style={[s.deleteMessage, { color: colors.textSecondary }]}>
+              Are you sure you want to delete {kidPendingDelete.name}?
+            </Text>
+            <View style={s.deleteActions}>
+              <Pressable
+                style={[s.deleteBtn, s.cancelBtn, { backgroundColor: colors.subtleSurface ?? colors.subtle }]}
+                onPress={() => setKidPendingDelete(null)}
+              >
+                <Text style={[s.deleteBtnText, { color: colors.textPrimary }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[s.deleteBtn, s.confirmBtn, { backgroundColor: colors.error }]}
+                onPress={handleConfirmDeleteKid}
+              >
+                <Text style={[s.deleteBtnText, { color: colors.textOnAccent }]}>Delete</Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    ) : null}
     </>
   );
 }
@@ -1830,14 +1952,15 @@ const s = StyleSheet.create({
 
   // Card gap (web: space-y-4 = 16px between cards)
   cardGap: { marginTop: 16 },
-  familyDevRowTop: {
-    marginTop: 4,
-    marginBottom: 8,
-    alignItems: 'flex-end',
-  },
   familyHubHeader: {
     marginTop: 16,
     marginBottom: 16,
+  },
+  familyHubHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
   },
   devToggleRow: {
     flexDirection: 'row',
@@ -2471,36 +2594,79 @@ const s = StyleSheet.create({
     fontWeight: '500',
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },
+  deleteKidWarning: {
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 10,
+    textAlign: 'center',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
 
   // ── Add Child HalfSheet ──
-  addChildSubtitle: {
-    fontSize: 12,
-    marginBottom: 16,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
-  },
   addChildFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  addChildCancelWrap: {
-    paddingHorizontal: 4,
-    paddingVertical: 10,
-  },
-  addChildCancel: {
-    fontSize: 14,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    width: '100%',
   },
   addChildSubmit: {
-    minHeight: 40,
-    paddingHorizontal: 16,
+    height: 48,
+    width: '100%',
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addChildSubmitText: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: '600',
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  addChildSectionSpacer: {
+    marginBottom: 4,
+  },
+  addChildPhotoSection: {
+    paddingTop: 0,
+    paddingBottom: 0,
+  },
+  addChildPhotoToCtaSpacer: {
+    height: 40,
+  },
+  // Timeline-style confirmation modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  deleteModal: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 24,
+    padding: 24,
+  },
+  deleteTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 8,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  deleteMessage: {
+    fontSize: 16,
+    marginBottom: 24,
+    ...Platform.select({ ios: { fontFamily: 'System' } }),
+  },
+  deleteActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  deleteBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelBtn: {},
+  confirmBtn: {},
+  deleteBtnText: {
+    fontSize: 16,
     fontWeight: '600',
     ...Platform.select({ ios: { fontFamily: 'System' } }),
   },

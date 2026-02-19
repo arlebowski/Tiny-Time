@@ -23,11 +23,8 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const { colors, radius } = useTheme();
   const { createFamily, loading } = useAuth();
   const [babyName, setBabyName] = useState('');
-  const [birthDate, setBirthDate] = useState(() => {
-    const now = new Date();
-    const offsetMs = now.getTimezoneOffset() * 60000;
-    return new Date(now.getTime() - offsetMs).toISOString().split('T')[0];
-  });
+  const [birthDate, setBirthDate] = useState('');
+  const [babyWeight, setBabyWeight] = useState('');
   const [photoExpanded, setPhotoExpanded] = useState(true);
   const [newPhotos, setNewPhotos] = useState([]);
   const [error, setError] = useState(null);
@@ -69,12 +66,20 @@ export default function SetupScreen({ onDevExitPreview = null }) {
       setError('Please add a photo');
       return;
     }
+    const parsedWeight = String(babyWeight || '').trim()
+      ? Number.parseFloat(String(babyWeight).trim())
+      : null;
+    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
+      setError('Please enter a valid weight');
+      return;
+    }
     setError(null);
     try {
       await createFamily(babyName.trim(), {
         birthDate,
         photoUri: newPhotos[0],
         preferredVolumeUnit: 'oz',
+        babyWeight: parsedWeight,
       });
     } catch (e) {
       setError(e.message || 'Failed to create family');
@@ -115,7 +120,21 @@ export default function SetupScreen({ onDevExitPreview = null }) {
               label="Birth Date"
               value={birthDate}
               onChange={setBirthDate}
-              placeholder="YYYY-MM-DD"
+              placeholder="Add..."
+              showIcon={false}
+              showChevron={false}
+              enableTapAnimation
+              showLabel
+              type="text"
+            />
+          </View>
+
+          <View style={styles.sectionSpacer}>
+            <TTInputRow
+              label="Current Weight (lbs)"
+              value={babyWeight}
+              onChange={setBabyWeight}
+              placeholder="13.0"
               showIcon={false}
               showChevron={false}
               enableTapAnimation

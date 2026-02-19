@@ -774,7 +774,9 @@ const firestoreService = {
         .doc(this.currentFamilyId)
         .collection('kids')
         .get();
-      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      return snap.docs
+        .map((d) => ({ id: d.id, ...d.data() }))
+        .filter((kid) => !kid?.isDeleted);
     } catch {
       return [];
     }
@@ -868,6 +870,25 @@ const firestoreService = {
       .set(data, { merge: true });
   },
 
+  async softDeleteKidById(kidId, deletedBy = null) {
+    if (!kidId || !this.currentFamilyId) return;
+    if (!FIREBASE_AVAILABLE) return;
+
+    await firestore()
+      .collection('families')
+      .doc(this.currentFamilyId)
+      .collection('kids')
+      .doc(kidId)
+      .set(
+        {
+          isDeleted: true,
+          deletedAt: firestore.FieldValue.serverTimestamp(),
+          deletedBy: deletedBy || auth()?.currentUser?.uid || null,
+        },
+        { merge: true }
+      );
+  },
+
   // ─── FAMILY ───
 
   async getFamilyMembers() {
@@ -914,6 +935,7 @@ const firestoreService = {
   async createChild({
     name,
     birthDate,
+    babyWeight = null,
     ownerId = null,
     photoURL = null,
     preferredVolumeUnit = 'oz',
@@ -930,10 +952,16 @@ const firestoreService = {
         ? famDoc.data().members
         : (uid ? [uid] : []);
 
+    const parsedBabyWeight = Number.parseFloat(String(babyWeight ?? '').trim());
+    const normalizedBabyWeight = Number.isFinite(parsedBabyWeight) && parsedBabyWeight > 0
+      ? parsedBabyWeight
+      : null;
+
     const kidRef = await familyRef.collection('kids').add({
       name: String(name).trim(),
       ownerId: uid,
       birthDate,
+      babyWeight: normalizedBabyWeight,
       members: famMembers,
       photoURL: photoURL || null,
       createdAt: firestore.FieldValue.serverTimestamp(),
@@ -941,6 +969,7 @@ const firestoreService = {
 
     const settingsPayload = {
       preferredVolumeUnit: preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
+      ...(normalizedBabyWeight != null ? { babyWeight: normalizedBabyWeight } : {}),
       createdAt: firestore.FieldValue.serverTimestamp(),
     };
     if (themeKey) settingsPayload.themeKey = themeKey;

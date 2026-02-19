@@ -6,6 +6,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,10 +33,13 @@ const FILTER_OPTIONS = [
   { label: 'Sleep', value: 'sleep' },
   { label: 'Diaper', value: 'diaper' },
 ];
-const FEED_COMPARISON_OZ_DELTA = 2.5;
-const NURSING_COMPARISON = { delta: 0.7, unit: 'hrs' };
-const SOLIDS_COMPARISON = { delta: 0.4, unit: 'foods' };
-const SLEEP_COMPARISON = { delta: -0.8, unit: 'hrs' };
+const TT_AVG_BUCKET_MINUTES = 15;
+const TT_AVG_BUCKET_MS = TT_AVG_BUCKET_MINUTES * 60000;
+const TT_AVG_BUCKETS = 96;
+const TT_AVG_DAYS = 7;
+const TT_AVG_EVEN_EPSILON = 0.05;
+const PTR_MIN_VISIBLE_MS = 600;
+const PTR_IOS_OFFSET = 88;
 
 // expo-linear-gradient treats "transparent" as rgba(0,0,0,0), which can tint dark.
 function hexToTransparentRgba(hex) {
@@ -46,6 +50,225 @@ function hexToTransparentRgba(hex) {
   const b = parseInt(h.slice(4, 6), 16);
   if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) return 'rgba(255,255,255,0)';
   return `rgba(${r},${g},${b},0)`;
+}
+
+function startOfDayMsLocal(ts) {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+function bucketIndexCeilFromMinutes(mins) {
+  const clamped = Math.max(
+    0,
+    Math.min(1440, Math.ceil(mins / TT_AVG_BUCKET_MINUTES) * TT_AVG_BUCKET_MINUTES)
+  );
+  return Math.min(TT_AVG_BUCKETS - 1, Math.floor(clamped / TT_AVG_BUCKET_MINUTES));
+}
+
+function bucketIndexCeilFromMs(ts) {
+  const d = new Date(ts);
+  return bucketIndexCeilFromMinutes(d.getHours() * 60 + d.getMinutes());
+}
+
+function normalizeSleepIntervalForAvg(startMs, endMs, nowMs = Date.now()) {
+  let sMs = Number(startMs);
+  let eMs = Number(endMs);
+  if (!Number.isFinite(sMs) || !Number.isFinite(eMs)) return null;
+  if (sMs > nowMs + 3 * 3600000) sMs -= 86400000;
+  if (eMs < sMs) sMs -= 86400000;
+  if (eMs < sMs) return null;
+  return { startMs: sMs, endMs: eMs };
+}
+
+function addSleepOverlapToBuckets(startMs, endMs, dayStartMs, increments) {
+  const dayEndMs = dayStartMs + 86400000;
+  const overlapStart = Math.max(startMs, dayStartMs);
+  const overlapEnd = Math.min(endMs, dayEndMs);
+  if (overlapEnd <= overlapStart) return;
+
+  const startBucket = Math.max(0, Math.floor((overlapStart - dayStartMs) / TT_AVG_BUCKET_MS));
+  const endBucket = Math.min(
+    TT_AVG_BUCKETS - 1,
+    Math.floor((overlapEnd - dayStartMs - 1) / TT_AVG_BUCKET_MS)
+  );
+
+  for (let i = startBucket; i <= endBucket; i += 1) {
+    const bucketStart = dayStartMs + i * TT_AVG_BUCKET_MS;
+    const bucketEnd = bucketStart + TT_AVG_BUCKET_MS;
+    const overlap = Math.max(0, Math.min(overlapEnd, bucketEnd) - Math.max(overlapStart, bucketStart));
+    if (overlap > 0) increments[i] += overlap;
+  }
+}
+
+function buildFeedAvgBuckets(allFeedings, todayStartMs) {
+  if (!Array.isArray(allFeedings) || allFeedings.length === 0) return null;
+  const dayMap = new Map();
+  allFeedings.forEach((f) => {
+    const ts = Number(f?.timestamp || 0);
+    if (!Number.isFinite(ts) || ts >= todayStartMs) return;
+    const dayStartMs = startOfDayMsLocal(ts);
+    const list = dayMap.get(dayStartMs) || [];
+    list.push(f);
+    dayMap.set(dayStartMs, list);
+  });
+  const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
+  if (dayStarts.length === 0) return null;
+
+  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
+  dayStarts.forEach((dayStartMs) => {
+    const increments = Array(TT_AVG_BUCKETS).fill(0);
+    const dayFeedings = dayMap.get(dayStartMs) || [];
+    dayFeedings.forEach((f) => {
+      const ts = Number(f?.timestamp || 0);
+      const oz = Number(f?.ounces || 0);
+      if (!Number.isFinite(ts) || !Number.isFinite(oz) || oz <= 0) return;
+      const idx = bucketIndexCeilFromMs(ts);
+      increments[idx] += oz;
+    });
+    let running = 0;
+    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
+      running += increments[i];
+      sumBuckets[i] += running;
+    }
+  });
+
+  return {
+    buckets: sumBuckets.map((v) => v / dayStarts.length),
+    daysUsed: dayStarts.length,
+  };
+}
+
+function buildNursingAvgBuckets(allNursingSessions, todayStartMs) {
+  if (!Array.isArray(allNursingSessions) || allNursingSessions.length === 0) return null;
+  const dayMap = new Map();
+  allNursingSessions.forEach((s) => {
+    const ts = Number(s?.timestamp || s?.startTime || 0);
+    if (!Number.isFinite(ts) || ts >= todayStartMs) return;
+    const dayStartMs = startOfDayMsLocal(ts);
+    const list = dayMap.get(dayStartMs) || [];
+    list.push(s);
+    dayMap.set(dayStartMs, list);
+  });
+  const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
+  if (dayStarts.length === 0) return null;
+
+  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
+  dayStarts.forEach((dayStartMs) => {
+    const increments = Array(TT_AVG_BUCKETS).fill(0);
+    const daySessions = dayMap.get(dayStartMs) || [];
+    daySessions.forEach((s) => {
+      const ts = Number(s?.timestamp || s?.startTime || 0);
+      const left = Number(s?.leftDurationSec || 0);
+      const right = Number(s?.rightDurationSec || 0);
+      const totalSec = Math.max(0, left + right);
+      if (!Number.isFinite(ts) || totalSec <= 0) return;
+      const idx = bucketIndexCeilFromMs(ts);
+      increments[idx] += totalSec / 3600;
+    });
+    let running = 0;
+    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
+      running += increments[i];
+      sumBuckets[i] += running;
+    }
+  });
+
+  return {
+    buckets: sumBuckets.map((v) => v / dayStarts.length),
+    daysUsed: dayStarts.length,
+  };
+}
+
+function buildSolidsAvgBuckets(allSolidsSessions, todayStartMs) {
+  if (!Array.isArray(allSolidsSessions) || allSolidsSessions.length === 0) return null;
+  const dayMap = new Map();
+  allSolidsSessions.forEach((s) => {
+    const ts = Number(s?.timestamp || 0);
+    if (!Number.isFinite(ts) || ts >= todayStartMs) return;
+    const dayStartMs = startOfDayMsLocal(ts);
+    const list = dayMap.get(dayStartMs) || [];
+    list.push(s);
+    dayMap.set(dayStartMs, list);
+  });
+  const dayStarts = Array.from(dayMap.keys()).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
+  if (dayStarts.length === 0) return null;
+
+  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
+  dayStarts.forEach((dayStartMs) => {
+    const increments = Array(TT_AVG_BUCKETS).fill(0);
+    const daySessions = dayMap.get(dayStartMs) || [];
+    daySessions.forEach((s) => {
+      const ts = Number(s?.timestamp || 0);
+      const foods = Array.isArray(s?.foods) ? s.foods.length : 0;
+      if (!Number.isFinite(ts) || foods <= 0) return;
+      const idx = bucketIndexCeilFromMs(ts);
+      increments[idx] += foods;
+    });
+    let running = 0;
+    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
+      running += increments[i];
+      sumBuckets[i] += running;
+    }
+  });
+
+  return {
+    buckets: sumBuckets.map((v) => v / dayStarts.length),
+    daysUsed: dayStarts.length,
+  };
+}
+
+function buildSleepAvgBuckets(allSleepSessions, todayStartMs) {
+  if (!Array.isArray(allSleepSessions) || allSleepSessions.length === 0) return null;
+  const normalized = allSleepSessions
+    .map((s) => {
+      if (!s?.startTime || !s?.endTime) return null;
+      const norm = normalizeSleepIntervalForAvg(s.startTime, s.endTime);
+      return norm ? { startMs: norm.startMs, endMs: norm.endMs } : null;
+    })
+    .filter(Boolean);
+  if (normalized.length === 0) return null;
+
+  const daySet = new Set();
+  normalized.forEach((s) => {
+    const endDayStart = startOfDayMsLocal(s.endMs);
+    for (let ds = startOfDayMsLocal(s.startMs); ds <= endDayStart; ds += 86400000) {
+      if (ds < todayStartMs) daySet.add(ds);
+    }
+  });
+  const dayStarts = Array.from(daySet).sort((a, b) => b - a).slice(0, TT_AVG_DAYS);
+  if (dayStarts.length === 0) return null;
+
+  const dayIndex = new Map(dayStarts.map((d, i) => [d, i]));
+  const perDayIncrements = dayStarts.map(() => Array(TT_AVG_BUCKETS).fill(0));
+  normalized.forEach((s) => {
+    const endDayStart = startOfDayMsLocal(s.endMs);
+    for (let ds = startOfDayMsLocal(s.startMs); ds <= endDayStart; ds += 86400000) {
+      const idx = dayIndex.get(ds);
+      if (idx == null) continue;
+      addSleepOverlapToBuckets(s.startMs, s.endMs, ds, perDayIncrements[idx]);
+    }
+  });
+
+  const sumBuckets = Array(TT_AVG_BUCKETS).fill(0);
+  perDayIncrements.forEach((increments) => {
+    let running = 0;
+    for (let i = 0; i < TT_AVG_BUCKETS; i += 1) {
+      running += increments[i];
+      sumBuckets[i] += running;
+    }
+  });
+
+  return {
+    buckets: sumBuckets.map((v) => (v / dayStarts.length) / 3600000),
+    daysUsed: dayStarts.length,
+  };
+}
+
+function roundComparisonDelta(delta) {
+  const raw = Number(delta);
+  const normalized = Number.isFinite(raw) ? raw : 0;
+  const roundedDelta = Math.round(normalized * 10) / 10;
+  return Math.abs(roundedDelta) < 1e-6 ? 0 : roundedDelta;
 }
 
 // ── Summary card (inline, matches web renderSummaryCard) ──
@@ -67,8 +290,10 @@ function SummaryCard({
   const valueSize = isCompact ? 22 : 24;
   const unitSize = isCompact ? 15 : 17.6;
   const iconSize = isCompact ? 22 : 24;
+  const comparisonHasDelta = comparison?.delta != null;
   const comparisonDelta = Number(comparison?.delta || 0);
-  const comparisonIsZero = Math.abs(comparisonDelta) < 0.05;
+  const comparisonEpsilon = Number.isFinite(comparison?.evenEpsilon) ? comparison.evenEpsilon : 0.05;
+  const comparisonIsZero = comparisonHasDelta ? Math.abs(comparisonDelta) < comparisonEpsilon : true;
   const comparisonText = comparisonIsZero
     ? 'Even'
     : `${formatV2Number(Math.abs(comparisonDelta))}${comparison?.unit ? ` ${comparison.unit}` : ''}`;
@@ -144,7 +369,7 @@ function SummaryCard({
     ],
   };
 
-  const footerContent = comparison ? (
+  const footerContent = comparisonHasDelta ? (
     <Animated.View style={[styles.summaryComparison, isCompact ? styles.summaryComparisonCompact : null, comparisonAnimatedStyle]}>
       <View style={styles.summaryComparisonValueRow}>
         {!comparisonIsZero && (
@@ -211,6 +436,7 @@ export default function DetailSheet({
   const [summaryLayoutMode, setSummaryLayoutMode] = useState(initialFilter || 'all');
   const [timelineFilter, setTimelineFilter] = useState(initialFilter || 'all');
   const [timelineItems, setTimelineItems] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState({
     feedOz: 0,
     nursingMs: 0,
@@ -221,7 +447,17 @@ export default function DetailSheet({
     diaperPooCount: 0,
   });
 
-  const { getTimelineItems, getDaySummary, kidSettings, dataLoading } = useData();
+  const {
+    getTimelineItems,
+    getDaySummary,
+    kidSettings,
+    dataLoading,
+    refresh,
+    feedings,
+    nursingSessions,
+    solidsSessions,
+    sleepSessions,
+  } = useData();
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   // Load data for selected date
@@ -272,6 +508,21 @@ export default function DetailSheet({
   const handleActiveSleepClick = useCallback(() => {
     onOpenSheet?.('sleep');
   }, [onOpenSheet]);
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    const refreshStartedAt = Date.now();
+    try {
+      await refresh?.();
+    } finally {
+      const elapsedMs = Date.now() - refreshStartedAt;
+      const remainingMs = PTR_MIN_VISIBLE_MS - elapsedMs;
+      if (remainingMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingMs));
+      }
+      setRefreshing(false);
+    }
+  }, [refresh, refreshing]);
 
   // Computed display values
   const feedDisplay = formatVolume(summary.feedOz, preferredVolumeUnit);
@@ -284,15 +535,43 @@ export default function DetailSheet({
   const diaperDisplay = formatV2Number(summary.diaperCount || 0);
   const diaperUnit = summaryLayoutMode === 'all' ? '' : 'changes';
 
-  // Mock comparisons (will be replaced with real avg computation)
-  const feedComparison = useMemo(() => {
-    const deltaOz = Number(FEED_COMPARISON_OZ_DELTA) || 0;
-    const delta = preferredVolumeUnit === 'ml' ? (deltaOz * 29.5735) : deltaOz;
-    return { delta, unit: preferredVolumeUnit };
-  }, [preferredVolumeUnit]);
-  const nursingComparison = NURSING_COMPARISON;
-  const solidsComparison = SOLIDS_COMPARISON;
-  const sleepComparison = SLEEP_COMPARISON;
+  const nowMs = Date.now();
+  const nowBucketIndex = bucketIndexCeilFromMs(nowMs);
+  const avgTodayStartMs = startOfDayMsLocal(nowMs);
+  const selectedStartMs = startOfDayMsLocal(selectedDate.getTime());
+  const isViewingToday = selectedStartMs === avgTodayStartMs;
+  const feedAvg = useMemo(
+    () => buildFeedAvgBuckets(feedings, avgTodayStartMs),
+    [feedings, avgTodayStartMs]
+  );
+  const nursingAvg = useMemo(
+    () => buildNursingAvgBuckets(nursingSessions, avgTodayStartMs),
+    [nursingSessions, avgTodayStartMs]
+  );
+  const solidsAvg = useMemo(
+    () => buildSolidsAvgBuckets(solidsSessions, avgTodayStartMs),
+    [solidsSessions, avgTodayStartMs]
+  );
+  const sleepAvg = useMemo(
+    () => buildSleepAvgBuckets(sleepSessions, avgTodayStartMs),
+    [sleepSessions, avgTodayStartMs]
+  );
+  const feedAvgValue = feedAvg?.buckets?.[nowBucketIndex];
+  const nursingAvgValue = nursingAvg?.buckets?.[nowBucketIndex];
+  const solidsAvgValue = solidsAvg?.buckets?.[nowBucketIndex];
+  const sleepAvgValue = sleepAvg?.buckets?.[nowBucketIndex];
+  const feedComparison = isViewingToday && Number.isFinite(feedAvgValue) && (feedAvg?.daysUsed || 0) > 0
+    ? { delta: roundComparisonDelta(Number(summary.feedOz || 0) - feedAvgValue), unit: 'oz', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const nursingComparison = isViewingToday && Number.isFinite(nursingAvgValue) && (nursingAvg?.daysUsed || 0) > 0
+    ? { delta: roundComparisonDelta((Number(summary.nursingMs || 0) / 3600000) - nursingAvgValue), unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const solidsComparison = isViewingToday && Number.isFinite(solidsAvgValue) && (solidsAvg?.daysUsed || 0) > 0
+    ? { delta: roundComparisonDelta(solidsCount - solidsAvgValue), unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const sleepComparison = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
+    ? { delta: roundComparisonDelta(sleepHours - sleepAvgValue), unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
   const diaperComparison = null;
 
   const activityVisibilitySafe = useMemo(() => {
@@ -472,6 +751,12 @@ export default function DetailSheet({
   const listHeader = useMemo(
     () => (
       <View style={styles.listHeader}>
+        {refreshing ? (
+          <View style={[styles.refreshIndicator, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+            <ActivityIndicator size="small" color={colors.textPrimary} />
+            <Text style={[styles.refreshIndicatorText, { color: colors.textSecondary }]}>Refreshing...</Text>
+          </View>
+        ) : null}
         <HorizontalCalendar
           onDateSelect={handleDateSelect}
           headerLeft={calendarHeaderLeft}
@@ -519,7 +804,8 @@ export default function DetailSheet({
     ),
     [
       handleDateSelect, calendarHeaderLeft, summaryLayoutMode,
-      handleSummaryToggleChange, isHorizontalScrollMode, feedSummaryCount, appBgTransparent, summaryCards, colors.appBg,
+      handleSummaryToggleChange, isHorizontalScrollMode, feedSummaryCount, appBgTransparent,
+      summaryCards, refreshing, colors.appBg, colors.cardBg, colors.cardBorder, colors.textPrimary, colors.textSecondary,
     ]
   );
 
@@ -532,6 +818,9 @@ export default function DetailSheet({
         onEditCard={onEditCard}
         onDeleteCard={onDeleteCard}
         onActiveSleepClick={handleActiveSleepClick}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+        refreshProgressOffset={Platform.OS === 'ios' ? PTR_IOS_OFFSET : 0}
         allowItemExpand
         hideFilter
         suppressEmptyState={dataLoading}
@@ -550,6 +839,20 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     gap: DETAIL_SECTION_GAP,
     marginBottom: DETAIL_SECTION_GAP,
+  },
+  refreshIndicator: {
+    minHeight: 36,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  refreshIndicatorText: {
+    fontSize: 14,
+    fontWeight: '500',
   },
   toggleWrap: {
     marginTop: 0,

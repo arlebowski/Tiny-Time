@@ -17,7 +17,7 @@ import {
 } from '@gorhom/bottom-sheet';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
-import { ChevronDownIcon } from '../icons';
+import { ChevronDownIcon, ChevronLeftIcon } from '../icons';
 
 function HeaderHandle({
   style,
@@ -54,7 +54,7 @@ function HeaderHandle({
           accessibilityLabel={onHeaderBackPress ? 'Go back' : 'Close sheet'}
         >
           {onHeaderBackPress ? (
-            <Text style={[styles.backText, { color: resolvedIconColor }]}>Back</Text>
+            <ChevronLeftIcon size={20} color={resolvedIconColor} />
           ) : (
             <ChevronDownIcon size={20} color={resolvedIconColor} />
           )}
@@ -94,6 +94,7 @@ export default function HalfSheet({
   scrollable = false,
   enableDynamicSizing = true,
   initialSnapIndex = 0,
+  useFullWindowOverlay = true,
 }) {
   const insets = useSafeAreaInsets();
   const { colors, radius } = useTheme();
@@ -178,7 +179,9 @@ export default function HalfSheet({
       handleComponent={handleComponent}
       footerComponent={footerComponent}
       style={styles.modal}
-      containerComponent={Platform.OS === 'ios' ? FullWindowOverlay : undefined}
+      containerComponent={
+        Platform.OS === 'ios' && useFullWindowOverlay ? FullWindowOverlay : undefined
+      }
     >
       {scrollable ? (
         <BottomSheetScrollView
@@ -226,15 +229,10 @@ const styles = StyleSheet.create({
   },
 
   closeBtn: {
-    minWidth: 44,
+    width: 24,
     height: 24,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-
-  backText: {
-    fontSize: 16,
-    fontWeight: '500',
   },
 
   title: {
@@ -247,11 +245,11 @@ const styles = StyleSheet.create({
   },
 
   spacer: {
-    width: 44,
+    width: 24,
   },
 
   headerRight: {
-    minWidth: 44,
+    minWidth: 24,
     alignItems: 'flex-end',
   },
 

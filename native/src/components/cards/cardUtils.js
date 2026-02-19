@@ -30,6 +30,15 @@ export const CHICKLET_COLORS = {
  *             textTertiary / subtle for even
  */
 export const ComparisonChicklet = ({ comparison, volumeUnit, evenTextColor, evenBgColor, formatValue }) => {
+  if (comparison?.state === 'no_comparison_yet') {
+    const label = comparison?.label || 'No avg';
+    return (
+      <View style={[chipStyles.chip, { backgroundColor: evenBgColor }]}>
+        <Text style={[chipStyles.label, { color: evenTextColor }]}>{label}</Text>
+      </View>
+    );
+  }
+
   if (!comparison || comparison.delta == null) return null;
 
   const rawDelta = Number(comparison.delta || 0);

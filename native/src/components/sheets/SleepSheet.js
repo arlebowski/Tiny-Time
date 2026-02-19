@@ -507,6 +507,7 @@ export default function SleepSheet({
         onClose={handleClose}
         footer={footer}
         contentPaddingTop={16}
+        useFullWindowOverlay={false}
       >
         <View style={styles.durationBlock}>
           <Text style={[styles.durationText, { color: colors.textPrimary }]}>

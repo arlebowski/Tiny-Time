@@ -927,6 +927,7 @@ export default function FeedSheet({
         maxDynamicContentSize={undefined}
         scrollable={scrollable}
         footer={footer}
+        useFullWindowOverlay={false}
         onHeaderBackPress={feedType === 'solids' && solidsStep >= 2 ? () => setSolidsStep(1) : undefined}
         headerRight={
           feedType === 'solids' && solidsStep === 2 && addedFoods.length > 0 ? (

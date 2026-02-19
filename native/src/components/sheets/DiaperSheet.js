@@ -239,6 +239,7 @@ export default function DiaperSheet({
         onOpen={handleSheetOpen}
         footer={footer}
         contentPaddingTop={16}
+        useFullWindowOverlay={false}
       >
         <TTInputRow
           label="Time"

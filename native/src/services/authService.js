@@ -199,11 +199,17 @@ export async function createFamilyWithKid(
     birthDate = null,
     photoUri = null,
     preferredVolumeUnit = 'oz',
+    babyWeight = null,
   } = {}
 ) {
   assertFirebase();
   const now = firestore.FieldValue.serverTimestamp();
   const birthTimestamp = birthDate ? new Date(birthDate).getTime() : null;
+
+  const parsedBabyWeight = Number.parseFloat(String(babyWeight ?? '').trim());
+  const normalizedBabyWeight = Number.isFinite(parsedBabyWeight) && parsedBabyWeight > 0
+    ? parsedBabyWeight
+    : null;
 
   // Create family
   const famRef = await firestore().collection('families').add({
@@ -223,6 +229,7 @@ export async function createFamilyWithKid(
       members: [uid],
       ownerId: uid,
       birthDate: Number.isFinite(birthTimestamp) ? birthTimestamp : null,
+      babyWeight: normalizedBabyWeight,
       photoURL: null,
       createdAt: now,
     });
@@ -240,6 +247,7 @@ export async function createFamilyWithKid(
     .doc('default')
     .set({
       preferredVolumeUnit: preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
+      ...(normalizedBabyWeight != null ? { babyWeight: normalizedBabyWeight } : {}),
       createdAt: now,
     });
 

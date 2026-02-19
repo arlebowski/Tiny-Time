@@ -167,7 +167,7 @@ export default function TimelineItem({
   card,
   isExpanded = false,
   hasDetails: hasDetailsProp,
-  onPress,
+  onChevronPress,
   onActiveSleepClick,
   onPhotoClick,
   sleepSettings = null,
@@ -507,7 +507,6 @@ export default function TimelineItem({
         },
       ]}
     >
-      <Pressable style={StyleSheet.absoluteFill} onPress={onPress} />
       <View style={styles.inner}>
         {/* Icon with bottle rotate(20deg) for bottle */}
         <View
@@ -600,9 +599,16 @@ export default function TimelineItem({
                 {timeText}
               </Text>
               {showChevron && (
-                <Animated.View style={[styles.chevronWrap, chevronStyle]}>
-                  <ChevronDownIcon size={20} color={colors.textSecondary} />
-                </Animated.View>
+                <Pressable
+                  onPress={onChevronPress}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={isExpanded ? 'Collapse details' : 'Expand details'}
+                >
+                  <Animated.View style={[styles.chevronWrap, chevronStyle]}>
+                    <ChevronDownIcon size={20} color={colors.textSecondary} />
+                  </Animated.View>
+                </Pressable>
               )}
               {isActiveSleep && onActiveSleepClick && (
                 <Pressable
