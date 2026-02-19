@@ -1,24 +1,21 @@
-/**
- * TimelineSwipeRow — Swipe left to reveal Edit + Delete actions
- * Migrated from web Timeline.js TimelineSwipeRow (Framer Motion → Reanimated)
- */
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
-  useSharedValue,
+  Extrapolation,
+  interpolate,
+  runOnJS,
   useAnimatedStyle,
+  useSharedValue,
+  withDelay,
   withSpring,
   withTiming,
-  runOnJS,
-  interpolate,
-  Extrapolation,
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../../context/ThemeContext';
 import { EditIcon } from '../icons';
 
-const SPRING = { stiffness: 420, damping: 55 };
+const SPRING = { stiffness: 900, damping: 80 };
 
 function rubberband(value, min, max, constant = 0.55) {
   'worklet';
@@ -71,6 +68,37 @@ function ActionLabel({ progress, primary = false, icon, label, color = '#fff' })
   );
 }
 
+function ActionColumn({ progress, width, primary, bgColor, icon, label, onPress, textColor }) {
+  const actionStyle = useAnimatedStyle(() => {
+    const p = progress.value;
+    const offset = primary
+      ? Math.abs(p) >= 0.8
+        ? 0
+        : -(p * width * 0.5)
+      : 0;
+
+    return {
+      transform: [{ translateX: withSpring(offset, SPRING) }],
+    };
+  }, [primary, width]);
+
+  return (
+    <Animated.View style={[styles.actionLayer, { backgroundColor: bgColor }, actionStyle]}>
+      <View style={styles.actionButtonWrap}>
+        <Pressable style={styles.actionTouch} onPress={onPress}>
+          <ActionLabel
+            progress={progress}
+            primary={primary}
+            icon={icon}
+            label={label}
+            color={textColor}
+          />
+        </Pressable>
+      </View>
+    </Animated.View>
+  );
+}
+
 export default function TimelineSwipeRow({
   card,
   isSwipeEnabled,
@@ -84,19 +112,16 @@ export default function TimelineSwipeRow({
   children,
 }) {
   const { colors } = useTheme();
+  const [width, setWidth] = useState(Dimensions.get('window').width - 32);
+
   const translateX = useSharedValue(0);
+  const startOffset = useSharedValue(0);
+  const progress = useSharedValue(0);
   const lockState = useSharedValue(0); // 0 none, 1 locked delete
-  const [width, setWidth] = React.useState(Dimensions.get('window').width - 32);
+
   const containerScaleX = useSharedValue(1);
   const containerScaleY = useSharedValue(1);
   const containerY = useSharedValue(0);
-
-  const editBg = colors.positiveAlt || '#00BE68';
-  const deleteBg = colors.negativeWarm || '#FF6037';
-  const rowBg = colors.swipeRowBg || '#F7F7F7';
-
-  const maxSwipe = width;
-  const progress = useSharedValue(0);
 
   const closeSwipe = useCallback(() => {
     translateX.value = withSpring(0, SPRING);
@@ -117,24 +142,23 @@ export default function TimelineSwipeRow({
     .activeOffsetX([-6, 6])
     .failOffsetY([-15, 15])
     .onStart(() => {
+      startOffset.value = translateX.value;
       lockState.value = 0;
       if (onSwipeStart) runOnJS(onSwipeStart)(card?.id);
     })
     .onUpdate((e) => {
-      const dx = e.translationX;
-
-      const raw = dx;
-      const threshold = 0.8 * maxSwipe;
+      const raw = startOffset.value + e.translationX;
+      const threshold = 0.8 * width;
       const abs = Math.abs(raw);
 
       if (lockState.value === 1) {
         if (abs < threshold) {
           lockState.value = 0;
-          const rb = rubberband(raw, -maxSwipe, 0);
+          const rb = rubberband(raw, -width, 0);
           translateX.value = rb;
-          progress.value = rb / Math.max(1, maxSwipe);
+          progress.value = rb / Math.max(1, width);
         } else {
-          translateX.value = -maxSwipe;
+          translateX.value = -width;
           progress.value = -1;
         }
         return;
@@ -142,31 +166,24 @@ export default function TimelineSwipeRow({
 
       if (abs > threshold) {
         lockState.value = 1;
-        translateX.value = -maxSwipe;
+        translateX.value = -width;
         progress.value = -1;
         return;
       }
 
-      const clamped = Math.max(-maxSwipe, Math.min(0, raw));
-      const rb = rubberband(clamped, -maxSwipe, 0);
+      const clamped = Math.max(-width, Math.min(0, raw));
+      const rb = rubberband(clamped, -width, 0);
       translateX.value = rb;
-      progress.value = rb / Math.max(1, maxSwipe);
+      progress.value = rb / Math.max(1, width);
     })
     .onEnd((e) => {
       if (lockState.value === 1) {
         if (onDelete) runOnJS(onDelete)(card);
-        containerScaleY.value = withTiming(1.05, { duration: 100 }, () => {
-          containerScaleY.value = withSpring(1, SPRING);
-        });
-        containerScaleX.value = withTiming(0.95, { duration: 100 }, () => {
-          containerScaleX.value = withSpring(1, SPRING);
-        });
-        containerY.value = withTiming(-24, { duration: 100 }, () => {
-          containerY.value = withSpring(0, SPRING);
-        });
-        translateX.value = withTiming(0, { duration: 500 });
-        progress.value = withTiming(0, { duration: 500 });
+        // Keep row pinned in delete state; Timeline handles the only exit animation.
+        translateX.value = -width;
+        progress.value = -1;
         lockState.value = 0;
+
         if (setOpenSwipeId) runOnJS(setOpenSwipeId)(null);
         if (onSwipeEnd) runOnJS(onSwipeEnd)(card?.id);
         return;
@@ -177,11 +194,11 @@ export default function TimelineSwipeRow({
       let target = 0;
 
       if (vx < -500) {
-        target = -width * 0.6;
+        target = -width * 0.50;
       } else if (vx > 500) {
         target = 0;
-      } else if (Math.abs(current) > width * 0.3) {
-        target = current < 0 ? -width * 0.5 : 0;
+      } else if (Math.abs(current) > width * 0.18) {
+        target = current < 0 ? -width * 0.50 : 0;
       }
 
       if (target < 0) {
@@ -192,6 +209,7 @@ export default function TimelineSwipeRow({
 
       translateX.value = withSpring(target, SPRING);
       progress.value = withSpring(target / Math.max(1, width), SPRING);
+
       if (onSwipeEnd) runOnJS(onSwipeEnd)(card?.id);
     });
 
@@ -207,11 +225,9 @@ export default function TimelineSwipeRow({
     transform: [{ translateX: translateX.value }],
   }));
 
-  const primaryActionStyle = useAnimatedStyle(() => {
-    const p = progress.value;
-    const offset = Math.abs(p) >= 0.8 ? 0 : -(p * width * 0.5);
-    return { transform: [{ translateX: withSpring(offset, SPRING) }] };
-  });
+  const actionsTrackStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }],
+  }));
 
   const handleEdit = useCallback(() => {
     closeSwipe();
@@ -224,9 +240,12 @@ export default function TimelineSwipeRow({
   }, [card, closeSwipe, onDelete]);
 
   const handleRowPress = useCallback(() => {
-    if (openSwipeId === card?.id) return;
+    if (openSwipeId === card?.id) {
+      closeSwipe();
+      return;
+    }
     onRowPress?.();
-  }, [card?.id, onRowPress, openSwipeId]);
+  }, [card?.id, closeSwipe, onRowPress, openSwipeId]);
 
   if (!isSwipeEnabled) {
     return (
@@ -239,35 +258,37 @@ export default function TimelineSwipeRow({
   return (
     <GestureDetector gesture={panGesture}>
       <Animated.View
-        style={[styles.row, { backgroundColor: rowBg }, containerStyle]}
-        onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+        style={[styles.row, { backgroundColor: colors.swipeRowBg || '#F7F7F7' }, containerStyle]}
+        onLayout={(e) => {
+          const next = e.nativeEvent.layout.width;
+          if (next > 0 && Math.abs(next - width) > 1) setWidth(next);
+        }}
       >
-        <View style={styles.actions} pointerEvents="box-none">
-          <View style={[styles.actionBtn, { backgroundColor: editBg }]}>
-            <Pressable style={styles.actionTouch} onPress={handleEdit}>
-              <ActionLabel
-                progress={progress}
-                primary={false}
-                icon={<EditIcon size={24} color={colors.textPrimary} />}
-                label="Edit"
-                color={colors.textPrimary}
-              />
-            </Pressable>
-          </View>
-          <Animated.View style={[styles.actionBtn, { backgroundColor: deleteBg }, primaryActionStyle]}>
-            <Pressable style={styles.actionTouch} onPress={handleDelete}>
-              <ActionLabel
-                progress={progress}
-                primary
-                icon={<DeleteIconSvg size={24} color={colors.textPrimary} />}
-                label="Delete"
-                color={colors.textPrimary}
-              />
-            </Pressable>
-          </Animated.View>
-        </View>
+        <Animated.View style={[styles.actionsTrack, actionsTrackStyle]} pointerEvents="box-none">
+          <ActionColumn
+            progress={progress}
+            width={width}
+            primary={false}
+            bgColor={colors.positiveAlt || '#00BE68'}
+            icon={<EditIcon size={24} color={colors.textPrimary} />}
+            label="Edit"
+            textColor={colors.textPrimary}
+            onPress={handleEdit}
+          />
+          <ActionColumn
+            progress={progress}
+            width={width}
+            primary
+            bgColor={colors.negativeWarm || '#FF6037'}
+            icon={<DeleteIconSvg size={24} color={colors.textPrimary} />}
+            label="Delete"
+            textColor={colors.textPrimary}
+            onPress={handleDelete}
+          />
+        </Animated.View>
+
         <Animated.View style={[styles.content, contentStyle]}>
-          <Pressable onPress={handleRowPress} style={StyleSheet.absoluteFill}>
+          <Pressable onPress={handleRowPress} style={styles.contentPressable}>
             {children}
           </Pressable>
         </Animated.View>
@@ -283,14 +304,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 8,
   },
-  actions: {
-    ...StyleSheet.absoluteFillObject,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
+  actionsTrack: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '100%',
+    width: '100%',
   },
-  actionBtn: {
+  actionLayer: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'flex-start',
+    flexDirection: 'row',
+  },
+  actionButtonWrap: {
     width: '25%',
     minWidth: 72,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -310,7 +339,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   content: {
-    ...StyleSheet.absoluteFillObject,
     zIndex: 10,
+  },
+  contentPressable: {
+    width: '100%',
   },
 });

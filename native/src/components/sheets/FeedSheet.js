@@ -37,6 +37,31 @@ const slugifyFoodId = (value) =>
     .replace(/(^-|-$)+/g, '');
 
 const FOOD_MAP = Object.fromEntries(COMMON_FOODS.map((f) => [f.id, f]));
+const normalizePhotoUrls = (input) => {
+  if (!input) return [];
+  const items = Array.isArray(input) ? input : [input];
+  const urls = [];
+  for (const item of items) {
+    if (typeof item === 'string' && item.trim()) {
+      urls.push(item);
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const maybe =
+        item.url ||
+        item.publicUrl ||
+        item.publicURL ||
+        item.downloadURL ||
+        item.downloadUrl ||
+        item.src ||
+        item.uri;
+      if (typeof maybe === 'string' && maybe.trim()) {
+        urls.push(maybe);
+      }
+    }
+  }
+  return urls;
+};
 
 const FEED_TYPES = [
   { id: 'bottle', label: 'Bottle', Icon: BottleIcon, accent: 'bottle' },
@@ -51,6 +76,7 @@ export default function FeedSheet({
   onSave = null,
   onAdd = null,
   preferredVolumeUnit = 'oz',
+  lastBottleAmountOz = null,
   activityVisibility = { bottle: true, nursing: true, solids: true },
   feedTypeRef = null,
   storage = null,
@@ -81,6 +107,12 @@ export default function FeedSheet({
   const [showDateTimeTray, setShowDateTimeTray] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+
+  const dateTimeTouchedRef = useRef(false);
+  const userEditedAmountRef = useRef(false);
+  const userEditedUnitRef = useRef(false);
+  const didInitOpenRef = useRef(false);
 
   // Nursing timers
   const [leftElapsedMs, setLeftElapsedMs] = useState(0);
@@ -110,19 +142,29 @@ export default function FeedSheet({
         setLeftElapsedMs((entry.leftDurationSec || 0) * 1000);
         setRightElapsedMs((entry.rightDurationSec || 0) * 1000);
         setLastSide(entry.lastSide || null);
+        setOunces('');
       } else if (t === 'solids' && entry.foods) {
         setAddedFoods(entry.foods.map((f) => ({ id: f.id || f.name, name: f.name || f })));
+        setOunces(entry.ounces ? String(entry.ounces) : '');
       } else if (t === 'bottle') {
         setOunces(entry.ounces ? String(entry.ounces) : '');
       }
 
       setFeedType(t);
-      setDateTime(entry.timestamp ? new Date(entry.timestamp).toISOString() : new Date().toISOString());
+      const entryTs = t === 'nursing' ? (entry.startTime || entry.timestamp) : entry.timestamp;
+      setDateTime(entryTs ? new Date(entryTs).toISOString() : new Date().toISOString());
+      dateTimeTouchedRef.current = false;
+      userEditedAmountRef.current = false;
       setNotes(entry.notes || '');
-      setExistingPhotoURLs(entry.photoURLs || []);
+      const normalizedExisting = normalizePhotoUrls(entry.photoURLs);
+      setExistingPhotoURLs(normalizedExisting);
+      setNotesExpanded(Boolean(String(entry.notes || '').trim()));
+      setPhotosExpanded(normalizedExisting.length > 0);
     } else {
       setFeedType(getInitialType());
       setDateTime(new Date().toISOString());
+      dateTimeTouchedRef.current = false;
+      userEditedAmountRef.current = false;
       setOunces('');
       setNotes('');
       setExistingPhotoURLs([]);
@@ -132,12 +174,74 @@ export default function FeedSheet({
       setActiveSide(null);
       setLastSide(null);
       setAddedFoods([]);
+      setNotesExpanded(false);
+      setPhotosExpanded(false);
     }
 
-    setNotesExpanded(false);
-    setPhotosExpanded(false);
     if (!entry) setSolidsStep(1);
   }, [entry]);
+
+  // ---- Web parity: when creating, nursing starts with empty time unless user explicitly set it ----
+  useEffect(() => {
+    if (!isSheetOpen || entry) return;
+    if (feedType === 'nursing') {
+      if (!dateTimeTouchedRef.current) {
+        setDateTime('');
+      }
+      return;
+    }
+    if (!dateTimeTouchedRef.current) {
+      setDateTime(new Date().toISOString());
+    }
+  }, [feedType, isSheetOpen, entry]);
+
+  // ---- Web parity: prefill amount from latest feeding for new entries ----
+  useEffect(() => {
+    let cancelled = false;
+
+    const maybePrefillFromServer = async () => {
+      if (!isSheetOpen || entry) return;
+      if (userEditedAmountRef.current) return;
+      if (!storage) return;
+
+      const getAllFeedings =
+        storage.getAllFeedings ||
+        storage.getFeedings ||
+        null;
+      if (typeof getAllFeedings !== 'function') return;
+
+      try {
+        const all = await getAllFeedings();
+        if (cancelled || userEditedAmountRef.current) return;
+        if (!Array.isArray(all) || all.length === 0) return;
+
+        const last = all.reduce((acc, cur) => {
+          if (!cur) return acc;
+          const t = Number(cur.timestamp || cur.time || cur.createdAt || 0);
+          if (!acc) return cur;
+          const accT = Number(acc.timestamp || acc.time || acc.createdAt || 0);
+          return t > accT ? cur : acc;
+        }, null);
+
+        const lastOz = Number(last?.ounces ?? last?.amountOz ?? last?.amount ?? last?.volumeOz ?? last?.volume);
+        if (!Number.isFinite(lastOz) || lastOz <= 0) return;
+
+        const lastUnitRaw = String(last?.unit || last?.amountUnit || last?.volumeUnit || '').toLowerCase();
+        const lastUnit = lastUnitRaw === 'ml' || lastUnitRaw === 'oz' ? lastUnitRaw : null;
+        const unit = userEditedUnitRef.current
+          ? (amountDisplayUnit === 'ml' ? 'ml' : 'oz')
+          : (lastUnit || (preferredVolumeUnit === 'ml' ? 'ml' : 'oz'));
+
+        setOunces(String(lastOz));
+        setAmountDisplayUnit(unit);
+      } catch (_) {}
+    };
+
+    maybePrefillFromServer();
+    return () => {
+      cancelled = true;
+    };
+  }, [isSheetOpen, entry, storage, preferredVolumeUnit]);
 
   // ---- Solids: load recent/custom when solids active ----
   useEffect(() => {
@@ -220,21 +324,40 @@ export default function FeedSheet({
         return;
       }
       if (activeSideRef.current) stopActiveSide();
+      if (!dateTime) {
+        setDateTime(new Date().toISOString());
+        dateTimeTouchedRef.current = false;
+      }
       activeSideStartRef.current = Date.now();
       activeSideRef.current = side;
       setActiveSide(side);
       setLastSide(side);
     },
-    [stopActiveSide]
+    [stopActiveSide, dateTime]
   );
 
   const handleClose = useCallback(() => {
     stopActiveSide();
+    setIsSheetOpen(false);
+    didInitOpenRef.current = false;
+    dateTimeTouchedRef.current = false;
+    userEditedAmountRef.current = false;
+    userEditedUnitRef.current = false;
     if (onClose) onClose();
   }, [onClose, stopActiveSide]);
 
+  const dismissSheet = useCallback(() => {
+    if (sheetRef?.current?.dismiss) {
+      sheetRef.current.dismiss();
+      return;
+    }
+    handleClose();
+  }, [sheetRef, handleClose]);
+
   const handleDateTimeChange = (isoString) => {
-    if (isoString) setDateTime(isoString);
+    if (!isoString) return;
+    dateTimeTouchedRef.current = true;
+    setDateTime(isoString);
   };
 
   const handleSave = async () => {
@@ -258,33 +381,127 @@ export default function FeedSheet({
 
       if (feedType === 'bottle') {
         const oz = parseFloat(ounces) || 0;
+        let createdEntry = null;
         if (oz <= 0) {
           Alert.alert('Enter amount', 'Please enter the amount.');
           setSaving(false);
           return;
         }
         if (storage) {
-          if (entry?.id) await storage.updateFeeding?.(entry.id, { ounces: oz, timestamp, notes: notes || null, photoURLs: allPhotos });
-          else await storage.addFeeding?.(oz, timestamp);
+          if (entry?.id) {
+            if (typeof storage.updateFeedingWithNotes === 'function') {
+              await storage.updateFeedingWithNotes(entry.id, oz, timestamp, notes || null, allPhotos);
+            } else {
+              await storage.updateFeeding?.(entry.id, {
+                ounces: oz,
+                timestamp,
+                notes: notes || null,
+                photoURLs: allPhotos,
+              });
+            }
+          } else {
+            if (typeof storage.addFeedingWithNotes === 'function') {
+              createdEntry = await storage.addFeedingWithNotes(oz, timestamp, notes || null, allPhotos);
+            } else {
+              createdEntry = await storage.addFeeding?.(oz, timestamp);
+            }
+          }
         }
-        if (onAdd && !entry) await onAdd({ type: 'bottle', ounces: oz, timestamp, notes: notes || null, photoURLs: allPhotos });
+        try {
+          const hasNote = !!(notes && String(notes).trim().length > 0);
+          const hasPhotos = Array.isArray(allPhotos) && allPhotos.length > 0;
+          if ((hasNote || hasPhotos) && storage && typeof storage.saveMessage === 'function') {
+            const timeLabel = new Date(timestamp).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+            });
+            await storage.saveMessage({
+              role: 'assistant',
+              content: `@tinytracker: Feeding • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
+              timestamp: Date.now(),
+              source: 'log',
+              logType: 'feeding',
+              logTimestamp: timestamp,
+              photoURLs: hasPhotos ? allPhotos : [],
+            });
+          }
+        } catch (_) {}
+        if (onAdd && !entry) await onAdd({
+          id: createdEntry?.id || null,
+          type: 'bottle',
+          ounces: oz,
+          timestamp,
+          notes: notes || null,
+          photoURLs: allPhotos,
+        });
       } else if (feedType === 'nursing') {
         const leftSec = Math.round(leftElapsedMs / 1000);
         const rightSec = Math.round(rightElapsedMs / 1000);
-        if (storage) {
-          if (entry?.id)
-            await storage.updateNursingSession?.(entry.id, {
-              startTime: timestamp,
-              leftDurationSec: leftSec,
-              rightDurationSec: rightSec,
-              lastSide: lastSide,
-              notes: notes || null,
-              photoURLs: allPhotos,
-            });
-          else await (storage.addNursingSessionWithNotes || storage.addNursingSession)?.(timestamp, leftSec, rightSec, lastSide, notes || null, allPhotos);
+        let createdEntry = null;
+        if (leftSec + rightSec <= 0) {
+          Alert.alert('Track duration', 'Please track at least one side before saving.');
+          setSaving(false);
+          return;
         }
+        if (storage) {
+          if (entry?.id) {
+            if (typeof storage.updateNursingSessionWithNotes === 'function') {
+              await storage.updateNursingSessionWithNotes(
+                entry.id,
+                timestamp,
+                leftSec,
+                rightSec,
+                lastSide,
+                notes || null,
+                allPhotos
+              );
+            } else {
+              await storage.updateNursingSession?.(entry.id, {
+                startTime: timestamp,
+                timestamp,
+                leftDurationSec: leftSec,
+                rightDurationSec: rightSec,
+                lastSide,
+                notes: notes || null,
+                photoURLs: allPhotos,
+              });
+            }
+          }
+          else if (typeof storage.addNursingSessionWithNotes === 'function') {
+            createdEntry = await storage.addNursingSessionWithNotes(
+              timestamp,
+              leftSec,
+              rightSec,
+              lastSide,
+              notes || null,
+              allPhotos
+            );
+          } else {
+            createdEntry = await storage.addNursingSession?.(timestamp, leftSec, rightSec, lastSide);
+          }
+        }
+        try {
+          const hasNote = !!(notes && String(notes).trim().length > 0);
+          const hasPhotos = Array.isArray(allPhotos) && allPhotos.length > 0;
+          if ((hasNote || hasPhotos) && storage && typeof storage.saveMessage === 'function') {
+            const timeLabel = new Date(timestamp).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+            });
+            await storage.saveMessage({
+              role: 'assistant',
+              content: `@tinytracker: Nursing • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
+              timestamp: Date.now(),
+              source: 'log',
+              logType: 'nursing',
+              logTimestamp: timestamp,
+              photoURLs: hasPhotos ? allPhotos : [],
+            });
+          }
+        } catch (_) {}
         if (onAdd && !entry)
           await onAdd({
+            id: createdEntry?.id || null,
             type: 'nursing',
             startTime: timestamp,
             leftDurationSec: leftSec,
@@ -294,20 +511,94 @@ export default function FeedSheet({
             photoURLs: allPhotos,
           });
       } else if (feedType === 'solids') {
+        let createdEntry = null;
         if (addedFoods.length === 0) {
           Alert.alert('Add foods', 'Please add at least one food.');
           setSaving(false);
           return;
         }
-        const foods = addedFoods.map((f) => ({ id: f.id, name: f.name }));
+        const foods = addedFoods.map((f) => ({
+          id: f.id || slugifyFoodId(f.name || ''),
+          name: f.name,
+          icon: f.icon || null,
+          emoji: f.emoji || null,
+          category: f.category || 'Custom',
+          amount: f.amount || null,
+          reaction: f.reaction || null,
+          preparation: f.preparation || null,
+          notes: f.notes || null,
+        }));
         if (storage) {
           if (entry?.id) await storage.updateSolidsSession?.(entry.id, { timestamp, foods, notes: notes || null, photoURLs: allPhotos });
-          else await storage.addSolidsSession?.({ timestamp, foods, notes: notes || null, photoURLs: allPhotos });
+          else createdEntry = await storage.addSolidsSession?.({ timestamp, foods, notes: notes || null, photoURLs: allPhotos });
         }
-        if (onAdd && !entry) await onAdd({ type: 'solids', timestamp, foods, notes: notes || null, photoURLs: allPhotos });
+        try {
+          const currentRecentRaw = await storage?.getRecentFoods?.({ forceServer: true });
+          const currentRecent = Array.isArray(currentRecentRaw)
+            ? currentRecentRaw
+                .map((item) => (typeof item === 'string' ? { name: item } : item))
+                .filter((item) => item && item.name)
+            : [];
+          let updatedRecent = [...currentRecent];
+          addedFoods.forEach((food) => {
+            const name = String(food?.name || '').trim();
+            if (!name) return;
+            const nextItem = {
+              name,
+              icon: food?.icon || null,
+              emoji: food?.emoji || null,
+              category: food?.category || 'Custom',
+            };
+            updatedRecent = [
+              nextItem,
+              ...updatedRecent.filter(
+                (existing) => String(existing?.name || '').toLowerCase() !== name.toLowerCase()
+              ),
+            ];
+          });
+          updatedRecent = updatedRecent.slice(0, 20);
+          if (typeof storage?.updateKidData === 'function') {
+            await storage.updateKidData({ recentSolidFoods: updatedRecent });
+          } else {
+            for (const item of updatedRecent.slice().reverse()) {
+              await storage?.updateRecentFoods?.(item?.name);
+            }
+          }
+          setRecentFoods(updatedRecent);
+        } catch (e) {
+          console.error('[FeedSheet] Failed to update recent foods:', e);
+        }
+        try {
+          const hasNote = !!(notes && String(notes).trim().length > 0);
+          const hasPhotos = Array.isArray(allPhotos) && allPhotos.length > 0;
+          if ((hasNote || hasPhotos) && storage && typeof storage.saveMessage === 'function') {
+            const timeLabel = new Date(timestamp).toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+            });
+            const foodNames = addedFoods.map((f) => f.name).join(', ');
+            await storage.saveMessage({
+              role: 'assistant',
+              content: `@tinytracker: Solids • ${timeLabel}\n${foodNames}${hasNote ? `\n${String(notes).trim()}` : ''}`,
+              timestamp: Date.now(),
+              source: 'log',
+              logType: 'solids',
+              logTimestamp: timestamp,
+              photoURLs: hasPhotos ? allPhotos : [],
+            });
+          }
+        } catch (_) {}
+        if (onAdd && !entry) await onAdd({
+          id: createdEntry?.id || null,
+          type: 'solids',
+          timestamp,
+          foods,
+          notes: notes || null,
+          photoURLs: allPhotos,
+        });
       }
 
-      handleClose();
+      dismissSheet();
     } catch (e) {
       console.error('[FeedSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save.');
@@ -523,10 +814,38 @@ export default function FeedSheet({
   }, [feedType, solidsStep, sheetRef]);
 
   const handleSheetOpen = useCallback(() => {
+    if (didInitOpenRef.current) {
+      return;
+    }
+    didInitOpenRef.current = true;
     const fromRef = feedTypeRef?.current;
     const t = fromRef && ['bottle', 'nursing', 'solids'].includes(fromRef) ? fromRef : defaultType;
+    setIsSheetOpen(true);
     setFeedType(t);
-  }, [defaultType]);
+    if (!entry) {
+      const initialBottleAmount =
+        Number.isFinite(Number(lastBottleAmountOz)) && Number(lastBottleAmountOz) > 0
+          ? String(Number(lastBottleAmountOz))
+          : '';
+      setDateTime(t === 'nursing' ? '' : new Date().toISOString());
+      dateTimeTouchedRef.current = false;
+      userEditedAmountRef.current = false;
+      userEditedUnitRef.current = false;
+      setOunces(initialBottleAmount);
+      setNotes('');
+      setExistingPhotoURLs([]);
+      setPhotos([]);
+      setLeftElapsedMs(0);
+      setRightElapsedMs(0);
+      setActiveSide(null);
+      setLastSide(null);
+      setAddedFoods([]);
+      setNotesExpanded(false);
+      setPhotosExpanded(false);
+      setSolidsStep(1);
+      setSolidsSearch('');
+    }
+  }, [defaultType, feedTypeRef, entry, lastBottleAmountOz]);
 
   const scrollable = feedType === 'solids' && solidsStep === 2;
 
@@ -586,8 +905,14 @@ export default function FeedSheet({
               <AmountStepper
                 valueOz={parseFloat(ounces) || 0}
                 unit={amountDisplayUnit}
-                onChangeUnit={setAmountDisplayUnit}
-                onChangeOz={(oz) => setOunces(String(oz))}
+                onChangeUnit={(unit) => {
+                  userEditedUnitRef.current = true;
+                  setAmountDisplayUnit(unit);
+                }}
+                onChangeOz={(oz) => {
+                  userEditedAmountRef.current = true;
+                  setOunces(String(oz));
+                }}
               />
             </>
           )}

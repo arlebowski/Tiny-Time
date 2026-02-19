@@ -214,7 +214,6 @@ const styles = StyleSheet.create({
     marginLeft: -32,
     width: 64,
     height: 64,
-    zIndex: 1000,
   },
   inner: {
     position: 'relative',

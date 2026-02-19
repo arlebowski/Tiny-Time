@@ -30,6 +30,21 @@ function getGreeting(now) {
   return 'Good evening';
 }
 
+function toLocalDateKey(dateLike = Date.now()) {
+  const d = dateLike instanceof Date ? dateLike : new Date(dateLike);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function isSnapshotForToday(snapshot, todayKey) {
+  if (!snapshot) return false;
+  if (snapshot.dateKey === todayKey) return true;
+  if (snapshot.savedAt) return toLocalDateKey(snapshot.savedAt) === todayKey;
+  return false;
+}
+
 export default function TrackerScreen({
   onOpenSheet,
   onCardTap,
@@ -38,7 +53,7 @@ export default function TrackerScreen({
   activityOrder,
 }) {
   const { colors } = useTheme();
-  const { getDaySummary, activeSleep } = useData();
+  const { getDaySummary, activeSleep, trackerBootstrapReady, trackerSnapshot } = useData();
   const [now, setNow] = useState(new Date());
 
   // Web HorizontalCalendar.js:199-201 — refresh greeting every 60s
@@ -49,7 +64,14 @@ export default function TrackerScreen({
 
   const dateLabel = useMemo(() => formatDateLabel(now), [now]);
   const greeting = useMemo(() => getGreeting(now), [now]);
-  const summary = useMemo(() => getDaySummary(now), [getDaySummary, now]);
+  const liveSummary = useMemo(() => getDaySummary(now), [getDaySummary, now]);
+  const todayKey = useMemo(() => toLocalDateKey(now), [now]);
+  const snapshotSummary = useMemo(() => {
+    if (!trackerSnapshot?.summary) return null;
+    if (!isSnapshotForToday(trackerSnapshot, todayKey)) return null;
+    return trackerSnapshot.summary;
+  }, [trackerSnapshot, todayKey]);
+  const summary = trackerBootstrapReady ? liveSummary : snapshotSummary;
   const visibilitySafe = useMemo(
     () => normalizeActivityVisibility(activityVisibility),
     [activityVisibility]
@@ -58,8 +80,17 @@ export default function TrackerScreen({
     () => normalizeActivityOrder(activityOrder),
     [activityOrder]
   );
+  const allowSleepCard = !!visibilitySafe.sleep;
+  const snapshotActiveSleep = useMemo(() => {
+    if (!trackerSnapshot?.activeSleep?.startTime) return null;
+    if (!isSnapshotForToday(trackerSnapshot, todayKey)) return null;
+    return trackerSnapshot.activeSleep;
+  }, [trackerSnapshot, todayKey]);
+  const activeSleepForUi = allowSleepCard ? (activeSleep || snapshotActiveSleep) : null;
 
-  const renderCardByKey = useMemo(() => ({
+  const renderCardByKey = useMemo(() => {
+    if (!summary) return {};
+    return {
     bottle: (
       <BottleCard
         key="bottle"
@@ -90,7 +121,7 @@ export default function TrackerScreen({
         onPress={() => onCardTap?.('sleep')}
         totalHours={Math.round((summary.sleepMs / 3600000) * 10) / 10}
         lastSleepEndTime={summary.lastSleepTime}
-        isActive={!!activeSleep}
+        isActive={!!activeSleepForUi}
       />
     ),
     diaper: (
@@ -101,19 +132,20 @@ export default function TrackerScreen({
         lastEntryTime={summary.lastDiaperTime}
       />
     ),
-  }), [
+  };
+  }, [
     onCardTap,
-    summary.feedOz,
-    summary.lastBottleTime,
-    summary.nursingMs,
-    summary.lastNursingTime,
-    summary.solidsCount,
-    summary.lastSolidsTime,
-    summary.sleepMs,
-    summary.lastSleepTime,
-    activeSleep,
-    summary.diaperCount,
-    summary.lastDiaperTime,
+    summary?.feedOz,
+    summary?.lastBottleTime,
+    summary?.nursingMs,
+    summary?.lastNursingTime,
+    summary?.solidsCount,
+    summary?.lastSolidsTime,
+    summary?.sleepMs,
+    summary?.lastSleepTime,
+    activeSleepForUi,
+    summary?.diaperCount,
+    summary?.lastDiaperTime,
   ]);
 
   const orderedVisibleCards = useMemo(
@@ -123,8 +155,6 @@ export default function TrackerScreen({
       .filter((item) => Boolean(item.element)),
     [orderSafe, visibilitySafe, renderCardByKey]
   );
-  const allowSleepCard = !!visibilitySafe.sleep;
-  const activeSleepForUi = allowSleepCard ? activeSleep : null;
   const nextUpSleepStart = activeSleepForUi?.startTime || null;
   const showNextUp = Boolean(allowSleepCard && activeSleepForUi?.startTime);
   const CARD_BASE_DELAY_MS = 130;

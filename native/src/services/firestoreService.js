@@ -191,6 +191,22 @@ const firestoreService = {
     }
   },
 
+  async getAllFeedings() {
+    if (this._cache.feedings) {
+      this._refreshCache({ force: false });
+      return this._cache.feedings;
+    }
+    const snap = await this._kidRef()
+      .collection(COLLECTIONS.feedings)
+      .orderBy('timestamp', 'asc')
+      .get();
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    this._cache.feedings = sortAsc(data);
+    this._cache.lastSyncMs = Date.now();
+    await this._saveCache();
+    return this._cache.feedings;
+  },
+
   // ─── NURSING SESSIONS ───
 
   async addNursingSession({ startTime, leftDurationSec, rightDurationSec, lastSide = null, notes = null, photoURLs = null }) {
@@ -337,6 +353,22 @@ const firestoreService = {
       this._cache.solidsSessions = this._cache.solidsSessions.filter((s) => s.id !== id);
       await this._saveCache();
     }
+  },
+
+  async getAllSolidsSessions() {
+    if (this._cache.solidsSessions) {
+      this._refreshCache({ force: false });
+      return this._cache.solidsSessions;
+    }
+    const snap = await this._kidRef()
+      .collection(COLLECTIONS.solidsSessions)
+      .orderBy('timestamp', 'asc')
+      .get();
+    const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    this._cache.solidsSessions = sortAsc(data);
+    this._cache.lastSyncMs = Date.now();
+    await this._saveCache();
+    return this._cache.solidsSessions;
   },
 
   // ─── DIAPER CHANGES ───
@@ -552,6 +584,89 @@ const firestoreService = {
     }
   },
 
+  _subscribeCollection({ collectionName, orderByField, orderDirection = 'desc', cacheKey, cacheField = 'timestamp', callback }) {
+    if (typeof callback !== 'function') throw new Error('Missing callback');
+    if (!this.currentFamilyId || !this.currentKidId) {
+      callback([]);
+      return () => {};
+    }
+
+    try {
+      return this._kidRef()
+        .collection(collectionName)
+        .orderBy(orderByField, orderDirection)
+        .onSnapshot(
+          (snap) => {
+            const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+            if (cacheKey) {
+              this._cache[cacheKey] = sortAsc(data, cacheField);
+              this._cache.lastSyncMs = Date.now();
+              this._saveCache().catch(() => {});
+            }
+            callback(data);
+          },
+          (err) => {
+            console.error(`[firestoreService] ${collectionName} subscription error:`, err);
+            callback([]);
+          }
+        );
+    } catch (err) {
+      console.warn(`[firestoreService] Could not subscribe to ${collectionName}:`, err);
+      callback([]);
+      return () => {};
+    }
+  },
+
+  subscribeFeedings(callback) {
+    return this._subscribeCollection({
+      collectionName: COLLECTIONS.feedings,
+      orderByField: 'timestamp',
+      cacheKey: 'feedings',
+      cacheField: 'timestamp',
+      callback,
+    });
+  },
+
+  subscribeNursingSessions(callback) {
+    return this._subscribeCollection({
+      collectionName: COLLECTIONS.nursingSessions,
+      orderByField: 'timestamp',
+      cacheKey: 'nursingSessions',
+      cacheField: 'timestamp',
+      callback,
+    });
+  },
+
+  subscribeSolidsSessions(callback) {
+    return this._subscribeCollection({
+      collectionName: COLLECTIONS.solidsSessions,
+      orderByField: 'timestamp',
+      cacheKey: 'solidsSessions',
+      cacheField: 'timestamp',
+      callback,
+    });
+  },
+
+  subscribeSleepSessions(callback) {
+    return this._subscribeCollection({
+      collectionName: COLLECTIONS.sleepSessions,
+      orderByField: 'startTime',
+      cacheKey: 'sleepSessions',
+      cacheField: 'startTime',
+      callback,
+    });
+  },
+
+  subscribeDiaperChanges(callback) {
+    return this._subscribeCollection({
+      collectionName: COLLECTIONS.diaperChanges,
+      orderByField: 'timestamp',
+      cacheKey: 'diaperChanges',
+      cacheField: 'timestamp',
+      callback,
+    });
+  },
+
   async getSleepSessions() {
     if (this._cache.sleepSessions) {
       this._refreshCache({ force: false });
@@ -669,6 +784,79 @@ const firestoreService = {
     await this._kidRef().set(data, { merge: true });
   },
 
+  async getRecentFoods(options = {}) {
+    const forceServer = !!options?.forceServer;
+    if (forceServer) {
+      const snap = await this._kidRef().get();
+      const remote = snap.exists ? snap.data() : {};
+      return Array.isArray(remote?.recentSolidFoods) ? remote.recentSolidFoods : [];
+    }
+    const kidData = await this.getKidData();
+    return Array.isArray(kidData?.recentSolidFoods) ? kidData.recentSolidFoods : [];
+  },
+
+  async updateRecentFoods(foodName) {
+    if (!foodName || typeof foodName !== 'string') return;
+    const currentRaw = await this.getRecentFoods();
+    const current = Array.isArray(currentRaw)
+      ? currentRaw.map((item) => (typeof item === 'string' ? item : item?.name)).filter(Boolean)
+      : [];
+    const filtered = current.filter((f) => String(f).toLowerCase() !== String(foodName).toLowerCase());
+    const updated = [foodName, ...filtered].slice(0, 20);
+    await this._kidRef().set({ recentSolidFoods: updated }, { merge: true });
+  },
+
+  async addCustomFood({ name, category, icon, emoji }) {
+    if (!this.currentFamilyId) throw new Error('No family ID');
+    const familyRef = firestore().collection('families').doc(this.currentFamilyId);
+    const data = {
+      name,
+      category: category || 'Custom',
+      icon: icon || null,
+      emoji: emoji || null,
+      isDeleted: false,
+      createdAt: firestore.FieldValue.serverTimestamp(),
+    };
+    const ref = await familyRef.collection('customFoods').add(data);
+    return { id: ref.id, ...data };
+  },
+
+  async getCustomFoods() {
+    if (!this.currentFamilyId) return [];
+    const familyRef = firestore().collection('families').doc(this.currentFamilyId);
+    const snap = await familyRef.collection('customFoods').get();
+    return snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((item) => !item?.isDeleted);
+  },
+
+  async updateCustomFood(foodId, patch = {}) {
+    if (!this.currentFamilyId) throw new Error('No family ID');
+    if (!foodId) throw new Error('No custom food ID');
+    const familyRef = firestore().collection('families').doc(this.currentFamilyId);
+    const update = { ...patch };
+    if (Object.prototype.hasOwnProperty.call(update, 'name') && typeof update.name === 'string') {
+      update.name = update.name.trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(update, 'emoji')) update.emoji = update.emoji || null;
+    if (Object.prototype.hasOwnProperty.call(update, 'icon')) update.icon = update.icon || null;
+    update.updatedAt = firestore.FieldValue.serverTimestamp();
+    await familyRef.collection('customFoods').doc(foodId).set(update, { merge: true });
+  },
+
+  async deleteCustomFood(foodId) {
+    if (!this.currentFamilyId) throw new Error('No family ID');
+    if (!foodId) throw new Error('No custom food ID');
+    const familyRef = firestore().collection('families').doc(this.currentFamilyId);
+    await familyRef.collection('customFoods').doc(foodId).set(
+      {
+        isDeleted: true,
+        deletedAt: firestore.FieldValue.serverTimestamp(),
+      },
+      { merge: true }
+    );
+  },
+
   async updateKidDataById(kidId, data) {
     if (!kidId || !this.currentFamilyId) return;
     if (!FIREBASE_AVAILABLE) return;
@@ -773,6 +961,23 @@ const firestoreService = {
         })
       )
     );
+  },
+
+  async getConversation() {
+    const doc = await this._kidRef().collection('conversations').doc('default').get();
+    return doc.exists ? doc.data() : { messages: [] };
+  },
+
+  async saveMessage(message) {
+    const ref = this._kidRef().collection('conversations').doc('default');
+    const doc = await ref.get();
+    const messages = doc.exists ? doc.data()?.messages || [] : [];
+    messages.push(message);
+    await ref.set({ messages }, { merge: true });
+  },
+
+  async clearConversation() {
+    await this._kidRef().collection('conversations').doc('default').delete();
   },
 
   // ─── SLEEP SETTINGS (convenience) ───

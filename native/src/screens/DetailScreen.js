@@ -32,6 +32,10 @@ const FILTER_OPTIONS = [
   { label: 'Sleep', value: 'sleep' },
   { label: 'Diaper', value: 'diaper' },
 ];
+const FEED_COMPARISON = { delta: 2.5, unit: 'oz' };
+const NURSING_COMPARISON = { delta: 0.7, unit: 'hrs' };
+const SOLIDS_COMPARISON = { delta: 0.4, unit: 'foods' };
+const SLEEP_COMPARISON = { delta: -0.8, unit: 'hrs' };
 
 // expo-linear-gradient treats "transparent" as rgba(0,0,0,0), which can tint dark.
 function hexToTransparentRgba(hex) {
@@ -58,6 +62,7 @@ function SummaryCard({
 }) {
   const valueAnim = React.useRef(new Animated.Value(1)).current;
   const comparisonAnim = React.useRef(new Animated.Value(1)).current;
+  const lastComparisonAnimRef = React.useRef({ sig: '', at: 0 });
   const padding = isCompact ? 10 : 14;
   const valueSize = isCompact ? 22 : 24;
   const unitSize = isCompact ? 15 : 17.6;
@@ -85,6 +90,15 @@ function SummaryCard({
   }, [valueAnim, value, unit, color, isCompact, rotateIcon, IconComponent]);
 
   useEffect(() => {
+    const sig = `${comparisonText}|${paceText}|${comparisonColor}|${comparisonIsZero ? 1 : 0}`;
+    const now = Date.now();
+    if (
+      lastComparisonAnimRef.current.sig === sig
+      && now - lastComparisonAnimRef.current.at < 180
+    ) {
+      return;
+    }
+    lastComparisonAnimRef.current = { sig, at: now };
     comparisonAnim.setValue(0);
     Animated.timing(comparisonAnim, {
       toValue: 1,
@@ -93,7 +107,7 @@ function SummaryCard({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [comparisonAnim, comparisonText, paceText, comparisonColor, comparisonIsZero, comparison]);
+  }, [comparisonAnim, comparisonText, paceText, comparisonColor, comparisonIsZero]);
 
   const valueRowAnimatedStyle = {
     opacity: valueAnim,
@@ -270,10 +284,10 @@ export default function DetailSheet({
   const diaperUnit = summaryLayoutMode === 'all' ? '' : 'changes';
 
   // Mock comparisons (will be replaced with real avg computation)
-  const feedComparison = { delta: 2.5, unit: 'oz' };
-  const nursingComparison = { delta: 0.7, unit: 'hrs' };
-  const solidsComparison = { delta: 0.4, unit: 'foods' };
-  const sleepComparison = { delta: -0.8, unit: 'hrs' };
+  const feedComparison = FEED_COMPARISON;
+  const nursingComparison = NURSING_COMPARISON;
+  const solidsComparison = SOLIDS_COMPARISON;
+  const sleepComparison = SLEEP_COMPARISON;
   const diaperComparison = null;
 
   const activityVisibilitySafe = useMemo(() => {

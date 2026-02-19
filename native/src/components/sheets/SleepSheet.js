@@ -39,6 +39,32 @@ function normalizeSleepStartMs(startMs, nowMs = Date.now()) {
   return startMs > nowMs + 3 * 3600000 ? startMs - 86400000 : startMs;
 }
 
+function normalizePhotoUrls(input) {
+  if (!input) return [];
+  const items = Array.isArray(input) ? input : [input];
+  const urls = [];
+  for (const item of items) {
+    if (typeof item === 'string' && item.trim()) {
+      urls.push(item);
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const maybe =
+        item.url ||
+        item.publicUrl ||
+        item.publicURL ||
+        item.downloadURL ||
+        item.downloadUrl ||
+        item.src ||
+        item.uri;
+      if (typeof maybe === 'string' && maybe.trim()) {
+        urls.push(maybe);
+      }
+    }
+  }
+  return urls;
+}
+
 export default function SleepSheet({
   sheetRef,
   onClose,
@@ -98,7 +124,10 @@ export default function SleepSheet({
       setStartTime(entry.startTime ? new Date(entry.startTime).toISOString() : new Date().toISOString());
       setEndTime(entry.endTime ? new Date(entry.endTime).toISOString() : null);
       setNotes(entry.notes || '');
-      setExistingPhotoURLs(entry.photoURLs || []);
+      const normalizedExisting = normalizePhotoUrls(entry.photoURLs);
+      setExistingPhotoURLs(normalizedExisting);
+      setNotesExpanded(Boolean(String(entry.notes || '').trim()));
+      setPhotosExpanded(normalizedExisting.length > 0);
       setSleepState('idle');
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
@@ -115,9 +144,9 @@ export default function SleepSheet({
       setNotes('');
       setExistingPhotoURLs([]);
       setPhotos([]);
+      setNotesExpanded(false);
+      setPhotosExpanded(false);
     }
-    setNotesExpanded(false);
-    setPhotosExpanded(false);
   }, [entry, isInputVariant, activeSleep, activeSleepId]);
 
   useEffect(() => {
@@ -167,6 +196,14 @@ export default function SleepSheet({
   const handleClose = useCallback(() => {
     if (onClose) onClose();
   }, [onClose]);
+
+  const dismissSheet = useCallback(() => {
+    if (sheetRef?.current?.dismiss) {
+      sheetRef.current.dismiss();
+      return;
+    }
+    handleClose();
+  }, [sheetRef, handleClose]);
 
   const handleStartTimeChange = (isoString) => {
     const clamped = clampStartIsoToNow(isoString);
@@ -218,6 +255,7 @@ export default function SleepSheet({
 
   const handleStartSleep = async () => {
     if (!isInputVariant || saving) return;
+    setSaving(true);
     try {
       const isIdleWithTimes = sleepState === 'idle' && startTime && endTime;
       let sessionId = activeSleepSessionId || activeSleepId;
@@ -259,6 +297,8 @@ export default function SleepSheet({
     } catch (e) {
       console.error('[SleepSheet] Start sleep failed:', e);
       Alert.alert('Error', 'Failed to start sleep.');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -303,10 +343,15 @@ export default function SleepSheet({
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
 
-      handleClose();
+      dismissSheet();
       if (onAdd) {
         const startMs = startTime ? new Date(startTime).getTime() : null;
-        await onAdd(startMs && endMs ? { type: 'sleep', startTime: startMs, endTime: endMs } : undefined);
+        await onAdd(startMs && endMs ? {
+          id: sessionId || null,
+          type: 'sleep',
+          startTime: startMs,
+          endTime: endMs,
+        } : undefined);
       }
     } catch (e) {
       console.error('[SleepSheet] End sleep failed:', e);
@@ -343,6 +388,7 @@ export default function SleepSheet({
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
 
       const sessionId = activeSleepSessionId || activeSleepId;
+      let resolvedSessionId = sessionId || null;
       if (sessionId && storage?.endSleep) {
         await storage.endSleep(sessionId, endMs);
         if (notes || allPhotos.length > 0) {
@@ -354,6 +400,7 @@ export default function SleepSheet({
         setActiveSleepSessionId(null);
       } else if (storage?.startSleep) {
         const session = await storage.startSleep(startMs);
+        resolvedSessionId = session?.id || null;
         await storage.endSleep(session.id, endMs);
         if (notes || allPhotos.length > 0) {
           await storage.updateSleepSession?.(session.id, {
@@ -372,8 +419,15 @@ export default function SleepSheet({
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
 
-      handleClose();
-      if (onAdd) await onAdd({ type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
+      dismissSheet();
+      if (onAdd) await onAdd({
+        id: resolvedSessionId,
+        type: 'sleep',
+        startTime: startMs,
+        endTime: endMs,
+        notes: notes || null,
+        photoURLs: allPhotos || [],
+      });
     } catch (e) {
       console.error('[SleepSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save sleep session.');

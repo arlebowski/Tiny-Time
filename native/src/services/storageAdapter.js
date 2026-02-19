@@ -10,6 +10,7 @@ export function createStorageAdapter(familyId, kidId) {
     const noop = async () => null;
     return {
       addFeeding: noop,
+      getAllFeedings: async () => [],
       updateFeeding: noop,
       addFeedingWithNotes: noop,
       updateFeedingWithNotes: noop,
@@ -22,6 +23,14 @@ export function createStorageAdapter(familyId, kidId) {
       addSolidsSession: noop,
       updateSolidsSession: noop,
       deleteSolidsSession: noop,
+      getAllSolidsSessions: async () => [],
+      getCustomFoods: async () => [],
+      getRecentFoods: async () => [],
+      updateRecentFoods: noop,
+      addCustomFood: noop,
+      updateCustomFood: noop,
+      deleteCustomFood: noop,
+      saveMessage: noop,
       addDiaperChange: noop,
       updateDiaperChange: noop,
       deleteDiaperChange: noop,
@@ -48,6 +57,8 @@ export function createStorageAdapter(familyId, kidId) {
     // ── Feedings ──
     addFeeding: (ounces, timestamp) =>
       firestoreService.addFeeding({ ounces, timestamp }),
+
+    getAllFeedings: () => firestoreService.getAllFeedings(),
 
     updateFeeding: (id, data) =>
       firestoreService.updateFeeding(id, data),
@@ -81,6 +92,14 @@ export function createStorageAdapter(familyId, kidId) {
     updateSolidsSession: (id, data) => firestoreService.updateSolidsSession(id, data),
 
     deleteSolidsSession: (id) => firestoreService.deleteSolidsSession(id),
+
+    getAllSolidsSessions: () => firestoreService.getAllSolidsSessions(),
+    getCustomFoods: () => firestoreService.getCustomFoods(),
+    getRecentFoods: (options) => firestoreService.getRecentFoods(options),
+    updateRecentFoods: (foodName) => firestoreService.updateRecentFoods(foodName),
+    addCustomFood: (data) => firestoreService.addCustomFood(data),
+    updateCustomFood: (foodId, patch) => firestoreService.updateCustomFood(foodId, patch),
+    deleteCustomFood: (foodId) => firestoreService.deleteCustomFood(foodId),
 
     // ── Diaper ──
     addDiaperChange: (data) => firestoreService.addDiaperChange(data),
@@ -120,5 +139,6 @@ export function createStorageAdapter(familyId, kidId) {
     getFamilyMembers: () => firestoreService.getFamilyMembers(),
     createInvite: (kidId) => firestoreService.createInvite(kidId),
     removeMember: (memberId) => firestoreService.removeMember(memberId),
+    saveMessage: (message) => firestoreService.saveMessage(message),
   };
 }

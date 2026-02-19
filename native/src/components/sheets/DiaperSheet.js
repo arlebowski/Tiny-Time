@@ -11,6 +11,32 @@ import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
 
+const normalizePhotoUrls = (input) => {
+  if (!input) return [];
+  const items = Array.isArray(input) ? input : [input];
+  const urls = [];
+  for (const item of items) {
+    if (typeof item === 'string' && item.trim()) {
+      urls.push(item);
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const maybe =
+        item.url ||
+        item.publicUrl ||
+        item.publicURL ||
+        item.downloadURL ||
+        item.downloadUrl ||
+        item.src ||
+        item.uri;
+      if (typeof maybe === 'string' && maybe.trim()) {
+        urls.push(maybe);
+      }
+    }
+  }
+  return urls;
+};
+
 function TypeButton({ label, icon: Icon, selected, dim, onPress }) {
   const { colors, diaper } = useTheme();
   const bg = selected ? `${diaper.primary}29` : colors.inputBg;
@@ -55,14 +81,17 @@ export default function DiaperSheet({
 
   const hasSelection = isDry || isWet || isPoo;
 
-  useEffect(() => {
+  const hydrateFromEntry = useCallback(() => {
     if (entry && entry.timestamp) {
       setDateTime(new Date(entry.timestamp).toISOString());
       setNotes(entry.notes || '');
-      setExistingPhotoURLs(entry.photoURLs || []);
+      const normalizedExisting = normalizePhotoUrls(entry.photoURLs);
+      setExistingPhotoURLs(normalizedExisting);
       setIsWet(!!entry.isWet);
       setIsDry(!!entry.isDry);
       setIsPoo(!!entry.isPoo);
+      setNotesExpanded(Boolean(String(entry.notes || '').trim()));
+      setPhotosExpanded(normalizedExisting.length > 0);
     } else {
       setDateTime(new Date().toISOString());
       setNotes('');
@@ -70,11 +99,19 @@ export default function DiaperSheet({
       setIsWet(false);
       setIsDry(true);
       setIsPoo(false);
+      setNotesExpanded(false);
+      setPhotosExpanded(false);
     }
     setPhotos([]);
-    setNotesExpanded(false);
-    setPhotosExpanded(false);
   }, [entry]);
+
+  useEffect(() => {
+    hydrateFromEntry();
+  }, [hydrateFromEntry]);
+
+  const handleSheetOpen = useCallback(() => {
+    hydrateFromEntry();
+  }, [hydrateFromEntry]);
 
   const handleClose = useCallback(() => {
     if (onClose) onClose();
@@ -136,17 +173,15 @@ export default function DiaperSheet({
     try {
       const timestamp = new Date(dateTime).getTime();
       let uploadedURLs = [];
-      if (storage && storage.uploadDiaperPhoto && photos.length > 0) {
-        for (let i = 0; i < photos.length; i++) {
-          try {
-            const url = await storage.uploadDiaperPhoto(photos[i]);
-            uploadedURLs.push(url);
-          } catch (e) {
-            console.error('[DiaperSheet] Photo upload failed:', e);
-          }
+      for (let i = 0; i < photos.length; i++) {
+        try {
+          const url = await storage.uploadDiaperPhoto(photos[i]);
+          uploadedURLs.push(url);
+        } catch (e) {
+          console.error('[DiaperSheet] Photo upload failed:', e);
         }
       }
-      const mergedPhotos = [...(existingPhotoURLs || []), ...uploadedURLs];
+      const mergedPhotos = normalizePhotoUrls([...(existingPhotoURLs || []), ...uploadedURLs]);
       const payload = {
         timestamp,
         isWet: !!isWet,
@@ -156,12 +191,11 @@ export default function DiaperSheet({
         photoURLs: mergedPhotos,
       };
 
-      if (storage) {
-        if (entry && entry.id) {
-          await storage.updateDiaperChange(entry.id, payload);
-        } else {
-          await storage.addDiaperChange(payload);
-        }
+      if (entry && entry.id) {
+        await storage.updateDiaperChange(entry.id, payload);
+      } else {
+        const created = await storage.addDiaperChange(payload);
+        payload.id = created?.id || null;
       }
 
       if (typeof onSave === 'function') {
@@ -202,6 +236,7 @@ export default function DiaperSheet({
         title="Diaper"
         accentColor={diaper.primary}
         onClose={handleClose}
+        onOpen={handleSheetOpen}
         footer={footer}
         contentPaddingTop={16}
       >

@@ -18,10 +18,16 @@ import {
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
+const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v1';
 
 function getKidSelectionKey(uid, familyId) {
   if (!uid || !familyId) return null;
   return `${KID_SELECTION_KEY_PREFIX}:${uid}:${familyId}`;
+}
+
+function getTrackerBootstrapKey(familyId, kidId) {
+  if (!familyId || !kidId) return null;
+  return `${TRACKER_BOOTSTRAP_CACHE_PREFIX}:${familyId}:${kidId}`;
 }
 
 function extractInviteCodeFromUrl(url) {
@@ -45,11 +51,35 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [familyId, setFamilyId] = useState(null);
   const [kidId, setKidIdState] = useState(null);
+  const [selectedKidSnapshot, setSelectedKidSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [pendingInviteCode, setPendingInviteCode] = useState(null);
   const inviteInFlightRef = useRef(false);
   const handledInviteCodesRef = useRef(new Set());
+
+  const hydrateKidSnapshot = useCallback(async (nextFamilyId, nextKidId) => {
+    const key = getTrackerBootstrapKey(nextFamilyId, nextKidId);
+    if (!key) {
+      setSelectedKidSnapshot(null);
+      return;
+    }
+    try {
+      const raw = await AsyncStorage.getItem(key);
+      if (!raw) {
+        setSelectedKidSnapshot(null);
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      const fromKids = Array.isArray(parsed?.kids)
+        ? parsed.kids.find((kid) => kid?.id === nextKidId)
+        : null;
+      const fromKidData = parsed?.kidData?.id === nextKidId ? parsed.kidData : null;
+      setSelectedKidSnapshot(fromKids || fromKidData || null);
+    } catch {
+      setSelectedKidSnapshot(null);
+    }
+  }, []);
 
   const applyInviteForUser = useCallback(async (inviteCode, userId) => {
     const code = typeof inviteCode === 'string' ? inviteCode.trim().toUpperCase() : '';
@@ -69,6 +99,7 @@ export function AuthProvider({ children }) {
         setFamilyId(result.familyId);
         setKidIdState(result.kidId);
         setNeedsSetup(false);
+        await hydrateKidSnapshot(result.familyId, result.kidId);
         const key = getKidSelectionKey(userId, result.familyId);
         if (key) {
           AsyncStorage.setItem(key, result.kidId).catch(() => {});
@@ -82,16 +113,17 @@ export function AuthProvider({ children }) {
     } finally {
       inviteInFlightRef.current = false;
     }
-  }, []);
+  }, [hydrateKidSnapshot]);
 
   const setKidId = useCallback((nextKidId) => {
     const resolvedKidId = typeof nextKidId === 'function' ? nextKidId(kidId) : nextKidId;
     setKidIdState(resolvedKidId);
+    hydrateKidSnapshot(familyId, resolvedKidId).catch(() => {});
     const key = getKidSelectionKey(user?.uid, familyId);
     if (key && resolvedKidId) {
       AsyncStorage.setItem(key, resolvedKidId).catch(() => {});
     }
-  }, [familyId, kidId, user?.uid]);
+  }, [familyId, kidId, user?.uid, hydrateKidSnapshot]);
 
   useEffect(() => {
     let mounted = true;
@@ -122,6 +154,7 @@ export function AuthProvider({ children }) {
       setUser({ uid: 'local-user', email: 'local@tinytracker.app', displayName: 'Local User' });
       setFamilyId('local-family');
       setKidIdState('local-kid');
+      setSelectedKidSnapshot({ id: 'local-kid', name: 'Levi', photoURL: null });
       setNeedsSetup(false);
       setLoading(false);
       return () => {};
@@ -143,10 +176,13 @@ export function AuthProvider({ children }) {
             setFamilyId(family.familyId);
             const cachedKidKey = getKidSelectionKey(firebaseUser.uid, family.familyId);
             const cachedKidId = cachedKidKey ? await AsyncStorage.getItem(cachedKidKey) : null;
-            setKidIdState(cachedKidId || family.kidId);
+            const resolvedKidId = cachedKidId || family.kidId;
+            setKidIdState(resolvedKidId);
+            await hydrateKidSnapshot(family.familyId, resolvedKidId);
             setNeedsSetup(false);
           } else {
             // User has no family yet — needs onboarding
+            setSelectedKidSnapshot(null);
             setNeedsSetup(true);
           }
         } catch (e) {
@@ -157,13 +193,14 @@ export function AuthProvider({ children }) {
         setUser(null);
         setFamilyId(null);
         setKidIdState(null);
+        setSelectedKidSnapshot(null);
         setNeedsSetup(false);
       }
       setLoading(false);
     });
 
     return unsubscribe;
-  }, [applyInviteForUser, pendingInviteCode]);
+  }, [applyInviteForUser, pendingInviteCode, hydrateKidSnapshot]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -217,6 +254,7 @@ export function AuthProvider({ children }) {
       const result = await createFamilyWithKid(user.uid, babyName, options);
       setFamilyId(result.familyId);
       setKidIdState(result.kidId);
+      await hydrateKidSnapshot(result.familyId, result.kidId);
       setNeedsSetup(false);
       const key = getKidSelectionKey(user.uid, result.familyId);
       if (key) {
@@ -225,7 +263,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, hydrateKidSnapshot]);
 
   /** Accept an invite code and join that family */
   const handleAcceptInvite = useCallback(async (code) => {
@@ -236,6 +274,7 @@ export function AuthProvider({ children }) {
       const result = await acceptInvite(code, user.uid);
       setFamilyId(result.familyId);
       setKidIdState(result.kidId);
+      await hydrateKidSnapshot(result.familyId, result.kidId);
       setNeedsSetup(false);
       const key = getKidSelectionKey(user.uid, result.familyId);
       if (key) {
@@ -244,12 +283,13 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, hydrateKidSnapshot]);
 
   const value = {
     user,
     familyId,
     kidId,
+    selectedKidSnapshot,
     loading,
     needsSetup,
     signIn: handleSignIn,

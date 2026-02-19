@@ -30,6 +30,7 @@ import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
   hasAtLeastOneActivityEnabled,
+  DEFAULT_ACTIVITY_ORDER,
 } from './src/constants/activityVisibility';
 
 // Icons (1:1 from web/components/shared/icons.js)
@@ -78,7 +79,13 @@ const NAV_FADE_HEIGHT = 50;
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
-
+const HIDDEN_ACTIVITY_VISIBILITY = {
+  bottle: false,
+  nursing: false,
+  solids: false,
+  sleep: false,
+  diaper: false,
+};
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
@@ -95,14 +102,16 @@ function AppHeader({
   shareButtonRef,
 }) {
   const { colors, bottle } = useTheme();
-  const { kidId } = useAuth();
+  const { kidId, selectedKidSnapshot } = useAuth();
   const { kidData, kids } = useData();
+
   const selectedKid = useMemo(() => {
     if (Array.isArray(kids) && kids.length && kidId) {
-      return kids.find((kid) => kid?.id === kidId) || kidData || null;
+      return kids.find((kid) => kid?.id === kidId) || kidData || selectedKidSnapshot || null;
     }
-    return kidData || null;
-  }, [kids, kidData, kidId]);
+    if (kidData?.id && kidId && kidData.id !== kidId) return selectedKidSnapshot || null;
+    return kidData || selectedKidSnapshot || null;
+  }, [kids, kidData, kidId, selectedKidSnapshot]);
   const kidName = selectedKid?.name || 'Baby';
   const kidPhotoURL = selectedKid?.photoURL || null;
 
@@ -225,7 +234,7 @@ const headerStyles = StyleSheet.create({
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ translateY: -5 }], // align with content row (padding 16 top vs 24 bottom)
+    transform: [{ translateY: -6 }], // align with content row (padding 16 top vs 24 bottom)
   },
   // Web: flex items-center justify-end gap-0.5
   rightButtons: {
@@ -319,7 +328,19 @@ function AppShell({
   }, [insets.top]);
   const appBg = colors.appBg;
   const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
-  const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep, updateKidSettings } = useData();
+  const {
+    kidData,
+    familyMembers,
+    refresh,
+    applyOptimisticEntry,
+    kids,
+    kidSettings,
+    trackerBootstrapReady,
+    lastBottleAmountOz,
+    firestoreService,
+    activeSleep,
+    updateKidSettings,
+  } = useData();
 
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
@@ -342,8 +363,8 @@ function AppShell({
   const [kidAnchor, setKidAnchor] = useState(null);
   const kidButtonRef = useRef(null);
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
-  const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
-  const [activityOrder, setActivityOrder] = useState(() => normalizeActivityOrder(null));
+  const [activityVisibility, setActivityVisibility] = useState(() => ({ ...HIDDEN_ACTIVITY_VISIBILITY }));
+  const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
 
   // Create storage adapter for sheets
@@ -376,9 +397,24 @@ function AppShell({
   }, []);
 
   useEffect(() => {
-    setActivityVisibility(normalizeActivityVisibility(kidSettings?.activityVisibility));
+    if (!trackerBootstrapReady) return;
+    const hasPersistedVisibility =
+      kidSettings?.activityVisibility &&
+      typeof kidSettings.activityVisibility === 'object' &&
+      Object.values(kidSettings.activityVisibility).some((value) => typeof value === 'boolean');
+
+    setActivityVisibility(
+      hasPersistedVisibility
+        ? normalizeActivityVisibility(kidSettings.activityVisibility)
+        : normalizeActivityVisibility(null)
+    );
     setActivityOrder(normalizeActivityOrder(kidSettings?.activityOrder));
-  }, [kidSettings?.activityVisibility, kidSettings?.activityOrder, kidId]);
+  }, [
+    trackerBootstrapReady,
+    kidSettings?.activityVisibility,
+    kidSettings?.activityOrder,
+    kidId,
+  ]);
 
   const handleTrackerSelect = useCallback((type) => {
     const visibilitySafe = normalizeActivityVisibility(activityVisibility);
@@ -404,7 +440,22 @@ function AppShell({
       setLastFeedVariant(entry.type);
       AsyncStorage.setItem('tt_last_feed_variant', entry.type).catch(() => {});
     }
-  }, []);
+    if (entry) {
+      applyOptimisticEntry(entry);
+    }
+  }, [applyOptimisticEntry]);
+
+  const handleSleepAdded = useCallback((entry) => {
+    if (entry) {
+      applyOptimisticEntry(entry);
+    }
+  }, [applyOptimisticEntry]);
+
+  const handleDiaperSaved = useCallback((entry) => {
+    if (entry) {
+      applyOptimisticEntry(entry);
+    }
+  }, [applyOptimisticEntry]);
 
   const handleToggleActivitySheet = useCallback(() => {
     setShowShareMenu(false);
@@ -469,23 +520,45 @@ function AppShell({
     }
   }, []);
 
+  const handleDeleteCard = useCallback(async (card) => {
+    if (!card?.id) return false;
+    try {
+      if (card.type === 'feed') {
+        if (card.feedType === 'nursing') {
+          await firestoreService.deleteNursingSession(card.id);
+        } else if (card.feedType === 'solids') {
+          await firestoreService.deleteSolidsSession(card.id);
+        } else {
+          await firestoreService.deleteFeeding(card.id);
+        }
+      } else if (card.type === 'sleep') {
+        await firestoreService.deleteSleepSession(card.id);
+      } else if (card.type === 'diaper') {
+        await firestoreService.deleteDiaperChange(card.id);
+      } else {
+        return false;
+      }
+      await refresh();
+      timelineRefreshRef.current?.();
+      return true;
+    } catch (error) {
+      console.warn('Failed to delete timeline entry:', error);
+      Alert.alert('Error', 'Failed to delete entry. Please try again.');
+      return false;
+    }
+  }, [firestoreService, refresh]);
+
   const handleCloseFeed = useCallback(() => {
     setEditEntry(null);
-    feedRef.current?.dismiss?.();
-    refresh().then(() => timelineRefreshRef.current?.());
-  }, [refresh]);
+  }, []);
 
   const handleCloseSleep = useCallback(() => {
     setEditEntry(null);
-    sleepRef.current?.dismiss?.();
-    refresh().then(() => timelineRefreshRef.current?.());
-  }, [refresh]);
+  }, []);
 
   const handleCloseDiaper = useCallback(() => {
     setEditEntry(null);
-    diaperRef.current?.dismiss?.();
-    refresh().then(() => timelineRefreshRef.current?.());
-  }, [refresh]);
+  }, []);
 
   const handleTabChange = useCallback((nextTab) => {
     setShowShareMenu(false);
@@ -663,7 +736,7 @@ function AppShell({
               onBack={handleDetailBack}
               onOpenSheet={handleTrackerSelect}
               onEditCard={handleEditCard}
-              onDeleteCard={null}
+              onDeleteCard={handleDeleteCard}
               timelineRefreshRef={timelineRefreshRef}
               activityVisibility={activityVisibility}
             />
@@ -677,7 +750,7 @@ function AppShell({
                   activityVisibility={activityVisibility}
                   activityOrder={activityOrder}
                   onEditCard={handleEditCard}
-                  onDeleteCard={null}
+                  onDeleteCard={handleDeleteCard}
                   timelineRefreshRef={timelineRefreshRef}
                 />
               )}
@@ -850,12 +923,14 @@ function AppShell({
         sheetRef={diaperRef}
         entry={editEntry?.type === 'diaper' ? editEntry : null}
         onClose={handleCloseDiaper}
+        onSave={handleDiaperSaved}
         storage={storage}
       />
       <SleepSheet
         sheetRef={sleepRef}
         entry={editEntry?.type === 'sleep' ? editEntry : null}
         onClose={handleCloseSleep}
+        onAdd={handleSleepAdded}
         storage={storage}
       />
       <FeedSheet
@@ -865,6 +940,7 @@ function AppShell({
         onAdd={handleFeedAdded}
         onClose={handleCloseFeed}
         activityVisibility={activityVisibility}
+        lastBottleAmountOz={lastBottleAmountOz}
         storage={storage}
       />
       <ActivityVisibilitySheet

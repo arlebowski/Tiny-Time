@@ -8,14 +8,13 @@ import Svg, { Path } from 'react-native-svg';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withRepeat,
   withSequence,
   withTiming,
   Easing,
-  FadeIn,
-  FadeOut,
   Layout,
+  interpolate,
+  Extrapolation,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
 import { colorMix } from '../../utils/colorBlend';
@@ -30,6 +29,14 @@ import {
 import { COMMON_FOODS } from '../../constants/foods';
 
 const FOOD_MAP = Object.fromEntries(COMMON_FOODS.map((f) => [f.id, f]));
+const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
+const CHEVRON_ROTATE_MS = 260;
+const DETAILS_LAYOUT_MS = 300;
+const DETAILS_ENTER_MS = 260;
+const DETAILS_EXIT_MS = 220;
+const DETAILS_MAX_HEIGHT = 600;
+const DETAILS_PADDING_TOP = 8;
+const DETAILS_PADDING_BOTTOM = 8;
 
 const normalizePhotoUrls = (input) => {
   if (!input) return [];
@@ -329,17 +336,25 @@ export default function TimelineItem({
 
   // Animations
   const chevronRotate = useSharedValue(isExpanded ? 180 : 0);
+  const detailsProgress = useSharedValue(isExpanded ? 1 : 0);
   const zzzY = useSharedValue(0);
   const zzzOpacity = useSharedValue(1);
   const badgeScale = useSharedValue(1);
   const badgeOpacity = useSharedValue(0.8);
 
   useEffect(() => {
-    chevronRotate.value = withSpring(isExpanded ? 180 : 0, {
-      stiffness: 300,
-      damping: 26,
-    });
+    chevronRotate.value = withTiming(
+      isExpanded ? 180 : 0,
+      { duration: CHEVRON_ROTATE_MS, easing: TIMELINE_EASE }
+    );
   }, [isExpanded, chevronRotate]);
+
+  useEffect(() => {
+    detailsProgress.value = withTiming(isExpanded ? 1 : 0, {
+      duration: isExpanded ? DETAILS_ENTER_MS : DETAILS_EXIT_MS,
+      easing: TIMELINE_EASE,
+    });
+  }, [isExpanded, detailsProgress]);
 
   useEffect(() => {
     if (isActiveSleep) {
@@ -395,6 +410,38 @@ export default function TimelineItem({
   const badgeStyle = useAnimatedStyle(() => ({
     transform: [{ scale: badgeScale.value }],
     opacity: badgeOpacity.value,
+  }));
+
+  const detailsInnerStyle = useAnimatedStyle(() => ({
+    maxHeight: interpolate(
+      detailsProgress.value,
+      [0, 1],
+      [0, DETAILS_MAX_HEIGHT],
+      Extrapolation.CLAMP
+    ),
+    opacity: detailsProgress.value,
+    paddingTop: interpolate(
+      detailsProgress.value,
+      [0, 1],
+      [0, DETAILS_PADDING_TOP],
+      Extrapolation.CLAMP
+    ),
+    paddingBottom: interpolate(
+      detailsProgress.value,
+      [0, 1],
+      [0, DETAILS_PADDING_BOTTOM],
+      Extrapolation.CLAMP
+    ),
+    transform: [
+      {
+        translateY: interpolate(
+          detailsProgress.value,
+          [0, 1],
+          [-2, 0],
+          Extrapolation.CLAMP
+        ),
+      },
+    ],
   }));
 
   const renderSolidsFoodDetails = (food, idx) => {
@@ -573,15 +620,13 @@ export default function TimelineItem({
           {/* Expanded details with layout animation */}
           {hasDetails && (
             <Animated.View
-              layout={Layout.springify().damping(30).stiffness(300)}
+              layout={Layout.duration(DETAILS_LAYOUT_MS).easing(TIMELINE_EASE)}
               style={styles.details}
             >
-              {isExpanded ? (
-                <Animated.View
-                  entering={FadeIn.duration(150)}
-                  exiting={FadeOut.duration(100)}
-                  style={styles.detailsInner}
-                >
+              <Animated.View
+                pointerEvents={isExpanded ? 'auto' : 'none'}
+                style={[styles.detailsInner, detailsInnerStyle]}
+              >
                   {isNursing && (
                     <View style={styles.nursingDetails}>
                       <Text
@@ -621,8 +666,7 @@ export default function TimelineItem({
                       ))}
                     </View>
                   )}
-                </Animated.View>
-              ) : null}
+              </Animated.View>
             </Animated.View>
           )}
         </View>
@@ -722,8 +766,6 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   detailsInner: {
-    paddingTop: 8,
-    paddingBottom: 8,
     gap: 12,
   },
   nursingDetails: {

@@ -1,24 +1,68 @@
 /**
- * storageService — Firebase Storage for photo uploads in React Native
- * Uses @react-native-firebase/storage
+ * storageService — Supabase Storage uploads for React Native.
+ * Mirrors web/supabaseUpload.js behavior (photos bucket + public URL).
  */
-let storage = null;
-try {
-  storage = require('@react-native-firebase/storage').default;
-} catch {}
-const STORAGE_AVAILABLE = typeof storage === 'function';
+const SUPABASE_URL = 'https://zzxnkjssveypcxbguzif.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_z_Sz0xirzaY1y5E6x7wssw_qJdXb2yB';
+const SUPABASE_BUCKET = 'photos';
+
+function ensureJpgPath(path) {
+  if (!path) return '';
+  return path.endsWith('.jpg') ? path : `${path}.jpg`;
+}
+
+function encodeStoragePath(path) {
+  return String(path || '')
+    .split('/')
+    .map((segment) => encodeURIComponent(segment))
+    .join('/');
+}
+
+function getPublicUrl(path) {
+  const encodedPath = encodeStoragePath(path);
+  return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${encodedPath}`;
+}
+
+function getUploadUrl(path) {
+  const encodedPath = encodeStoragePath(path);
+  return `${SUPABASE_URL}/storage/v1/object/${SUPABASE_BUCKET}/${encodedPath}`;
+}
+
+async function sourceToBlob(source) {
+  if (!source) return null;
+  const response = await fetch(source);
+  return await response.blob();
+}
 
 /**
- * Upload a photo to Firebase Storage.
- * @param {string} localUri - local file URI from image picker (file://...)
+ * Upload a photo to Supabase Storage.
+ * @param {string} sourceUriOrDataUrl - file://... or data:image/...;base64,...
  * @param {string} storagePath - e.g. "families/{fId}/kids/{kId}/photos/{uuid}"
  * @returns {string} public download URL
  */
-export async function uploadPhoto(localUri, storagePath) {
-  if (!STORAGE_AVAILABLE) return localUri || null;
-  const ref = storage().ref(storagePath);
-  await ref.putFile(localUri);
-  return await ref.getDownloadURL();
+export async function uploadPhoto(sourceUriOrDataUrl, storagePath) {
+  if (!sourceUriOrDataUrl) return null;
+  const finalPath = ensureJpgPath(storagePath);
+  const blob = await sourceToBlob(sourceUriOrDataUrl);
+  if (!blob) throw new Error('uploadPhoto: failed to create blob');
+
+  const uploadRes = await fetch(getUploadUrl(finalPath), {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+      'Content-Type': blob.type || 'image/jpeg',
+      'x-upsert': 'false',
+    },
+    body: blob,
+  });
+
+  if (!uploadRes.ok) {
+    const body = await uploadRes.text().catch(() => '');
+    throw new Error(`Supabase upload failed (${uploadRes.status}): ${body}`);
+  }
+
+  return getPublicUrl(finalPath);
 }
 
 /**
@@ -48,16 +92,27 @@ export async function uploadKidPhoto(localUri, familyId, kidId) {
 }
 
 /**
- * Delete a photo from Firebase Storage by its download URL.
+ * Delete a photo from Supabase Storage by its public URL.
  * @param {string} url
  */
 export async function deletePhoto(url) {
-  if (!STORAGE_AVAILABLE) return;
   if (!url) return;
-  try {
-    const ref = storage().refFromURL(url);
-    await ref.delete();
-  } catch (e) {
-    console.warn('Failed to delete photo:', e);
+  const marker = `/${SUPABASE_BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return;
+  const encodedPath = url.substring(idx + marker.length).split('?')[0].split('#')[0];
+  const path = decodeURIComponent(encodedPath);
+
+  const deleteRes = await fetch(getUploadUrl(path), {
+    method: 'DELETE',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+    },
+  });
+
+  if (!deleteRes.ok) {
+    const body = await deleteRes.text().catch(() => '');
+    throw new Error(`Supabase delete failed (${deleteRes.status}): ${body}`);
   }
 }
