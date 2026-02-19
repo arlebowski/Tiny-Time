@@ -79,13 +79,6 @@ const NAV_FADE_HEIGHT = 50;
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
-const HIDDEN_ACTIVITY_VISIBILITY = {
-  bottle: false,
-  nursing: false,
-  solids: false,
-  sleep: false,
-  diaper: false,
-};
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
@@ -335,7 +328,6 @@ function AppShell({
     applyOptimisticEntry,
     kids,
     kidSettings,
-    trackerBootstrapReady,
     lastBottleAmountOz,
     firestoreService,
     activeSleep,
@@ -364,7 +356,7 @@ function AppShell({
   const [kidAnchor, setKidAnchor] = useState(null);
   const kidButtonRef = useRef(null);
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
-  const [activityVisibility, setActivityVisibility] = useState(() => ({ ...HIDDEN_ACTIVITY_VISIBILITY }));
+  const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
   const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
 
@@ -398,7 +390,6 @@ function AppShell({
   }, []);
 
   useEffect(() => {
-    if (!trackerBootstrapReady) return;
     const hasPersistedVisibility =
       kidSettings?.activityVisibility &&
       typeof kidSettings.activityVisibility === 'object' &&
@@ -411,7 +402,6 @@ function AppShell({
     );
     setActivityOrder(normalizeActivityOrder(kidSettings?.activityOrder));
   }, [
-    trackerBootstrapReady,
     kidSettings?.activityVisibility,
     kidSettings?.activityOrder,
     kidId,

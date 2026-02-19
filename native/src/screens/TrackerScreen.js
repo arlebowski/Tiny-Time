@@ -15,6 +15,11 @@ import {
   normalizeActivityOrder,
 } from '../constants/activityVisibility';
 
+const FEED_COMPARISON_OZ_DELTA = 2.5;
+const NURSING_COMPARISON = { delta: 0.7, unit: 'hrs' };
+const SOLIDS_COMPARISON = { delta: 0.4, unit: 'foods' };
+const SLEEP_COMPARISON = { delta: -0.8, unit: 'hrs' };
+
 // ── Date formatting (web: __ttHorizontalFormat(selectedDate, "EEEE, MMM d")) ──
 function formatDateLabel(date) {
   const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -53,7 +58,14 @@ export default function TrackerScreen({
   activityOrder,
 }) {
   const { colors } = useTheme();
-  const { getDaySummary, activeSleep, trackerBootstrapReady, trackerSnapshot, kidSettings } = useData();
+  const {
+    getDaySummary,
+    activeSleep,
+    trackerBootstrapReady,
+    trackerSnapshot,
+    kidSettings,
+    diaperChanges,
+  } = useData();
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
   const [now, setNow] = useState(new Date());
 
@@ -72,7 +84,7 @@ export default function TrackerScreen({
     if (!isSnapshotForToday(trackerSnapshot, todayKey)) return null;
     return trackerSnapshot.summary;
   }, [trackerSnapshot, todayKey]);
-  const summary = trackerBootstrapReady ? liveSummary : snapshotSummary;
+  const summary = trackerBootstrapReady ? liveSummary : (snapshotSummary || liveSummary);
   const visibilitySafe = useMemo(
     () => normalizeActivityVisibility(activityVisibility),
     [activityVisibility]
@@ -88,6 +100,24 @@ export default function TrackerScreen({
     return trackerSnapshot.activeSleep;
   }, [trackerSnapshot, todayKey]);
   const activeSleepForUi = allowSleepCard ? (activeSleep || snapshotActiveSleep) : null;
+  const feedComparison = useMemo(() => {
+    const deltaOz = Number(FEED_COMPARISON_OZ_DELTA) || 0;
+    const delta = preferredVolumeUnit === 'ml' ? (deltaOz * 29.5735) : deltaOz;
+    return { delta, unit: preferredVolumeUnit };
+  }, [preferredVolumeUnit]);
+  const todayDiaperTimelineItems = useMemo(() => {
+    if (!Array.isArray(diaperChanges) || diaperChanges.length === 0) return [];
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(now);
+    end.setHours(23, 59, 59, 999);
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    return diaperChanges.filter((item) => {
+      const ts = Number(item?.timestamp || item?.startTime || 0);
+      return ts >= startMs && ts <= endMs;
+    });
+  }, [diaperChanges, now]);
 
   const renderCardByKey = useMemo(() => {
     if (!summary) return {};
@@ -99,6 +129,7 @@ export default function TrackerScreen({
         totalOz={summary.feedOz}
         volumeUnit={preferredVolumeUnit}
         lastEntryTime={summary.lastBottleTime}
+        comparison={feedComparison}
       />
     ),
     nursing: (
@@ -107,6 +138,7 @@ export default function TrackerScreen({
         onPress={() => onCardTap?.('feed')}
         totalMs={summary.nursingMs}
         lastEntryTime={summary.lastNursingTime}
+        comparison={NURSING_COMPARISON}
       />
     ),
     solids: (
@@ -115,6 +147,7 @@ export default function TrackerScreen({
         onPress={() => onCardTap?.('feed')}
         totalFoods={summary.solidsCount}
         lastEntryTime={summary.lastSolidsTime}
+        comparison={SOLIDS_COMPARISON}
       />
     ),
     sleep: (
@@ -124,6 +157,7 @@ export default function TrackerScreen({
         totalHours={Math.round((summary.sleepMs / 3600000) * 10) / 10}
         lastSleepEndTime={summary.lastSleepTime}
         isActive={!!activeSleepForUi}
+        comparison={SLEEP_COMPARISON}
       />
     ),
     diaper: (
@@ -132,6 +166,7 @@ export default function TrackerScreen({
         onPress={() => onCardTap?.('diaper')}
         totalChanges={summary.diaperCount}
         lastEntryTime={summary.lastDiaperTime}
+        timelineItems={todayDiaperTimelineItems}
       />
     ),
   };
@@ -139,6 +174,7 @@ export default function TrackerScreen({
     onCardTap,
     summary?.feedOz,
     preferredVolumeUnit,
+    feedComparison,
     summary?.lastBottleTime,
     summary?.nursingMs,
     summary?.lastNursingTime,
@@ -149,6 +185,7 @@ export default function TrackerScreen({
     activeSleepForUi,
     summary?.diaperCount,
     summary?.lastDiaperTime,
+    todayDiaperTimelineItems,
   ]);
 
   const orderedVisibleCards = useMemo(

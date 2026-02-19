@@ -572,7 +572,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-negative-warm', lightTokens.negativeWarm);
       root.style.setProperty('--tt-negative-warm-soft', lightTokens.negativeWarmSoft);
       root.style.setProperty('--tt-pulse-highlight', lightTokens.pulseHighlight);
-      root.style.setProperty('--tt-highlight-indigo-soft', lightTokens.highlightIndigoSoft);
+      root.style.setProperty('--tt-highlight-soft', lightTokens.highlightSoft);
       root.style.setProperty('--tt-tray-bg', lightTokens.trayBg);
       root.style.setProperty('--tt-tray-shadow', lightTokens.trayShadow);
       root.style.setProperty('--tt-tray-divider', lightTokens.trayDivider);
@@ -643,7 +643,7 @@ window.TT.applyAppearance = function(appearance) {
       root.style.setProperty('--tt-negative-warm', darkTokens.negativeWarm);
       root.style.setProperty('--tt-negative-warm-soft', darkTokens.negativeWarmSoft);
       root.style.setProperty('--tt-pulse-highlight', darkTokens.pulseHighlight);
-      root.style.setProperty('--tt-highlight-indigo-soft', darkTokens.highlightIndigoSoft);
+      root.style.setProperty('--tt-highlight-soft', darkTokens.highlightSoft);
       root.style.setProperty('--tt-tray-bg', darkTokens.trayBg);
       root.style.setProperty('--tt-tray-shadow', darkTokens.trayShadow);
       root.style.setProperty('--tt-tray-divider', darkTokens.trayDivider);

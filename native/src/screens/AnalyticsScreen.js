@@ -52,7 +52,15 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
     diaper: false,
   });
 
-  const { feedings: rawFeedings, nursingSessions: rawNursing, solidsSessions: rawSolids, diaperChanges: rawDiapers, sleepSessions: rawSleep } = useData();
+  const {
+    feedings: rawFeedings,
+    nursingSessions: rawNursing,
+    solidsSessions: rawSolids,
+    diaperChanges: rawDiapers,
+    sleepSessions: rawSleep,
+    kidSettings,
+  } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   const sourceData = useMemo(() => {
     const allFeedings = (rawFeedings || []).map((f) => ({
@@ -84,8 +92,9 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
       allDiaperChanges,
       sleepSessions,
       sleepSettings: { sleepDayStart: 7 * 60, sleepDayEnd: 19 * 60 },
+      preferredVolumeUnit,
     };
-  }, [rawFeedings, rawNursing, rawSolids, rawDiapers, rawSleep]);
+  }, [rawFeedings, rawNursing, rawSolids, rawDiapers, rawSleep, preferredVolumeUnit]);
 
   const hasAnyAnalyticsData = useMemo(
     () =>
@@ -292,6 +301,7 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
               <FeedingChart
                 data={feedingChartData}
                 average={feedingChartAverage}
+                volumeUnit={preferredVolumeUnit}
                 feedColor={bottle.primary}
                 mutedBarColor={colors.subtleSurface || colors.subtle}
                 tertiaryText={colors.textTertiary}

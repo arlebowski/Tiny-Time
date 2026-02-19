@@ -801,7 +801,7 @@ export default function FamilyScreen({
                   {
                     left: `${(Math.min(dayStart, dayEnd) / 1440) * 100}%`,
                     width: `${(Math.abs(dayEnd - dayStart) / 1440) * 100}%`,
-                    backgroundColor: colors.highlightIndigoSoft,
+                    backgroundColor: activeTheme?.sleep?.soft || colors.highlightSoft,
                   },
                 ]}
               />

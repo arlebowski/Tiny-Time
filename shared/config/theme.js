@@ -147,7 +147,7 @@ export const THEME_TOKENS = {
 
     // Highlights + trays
     pulseHighlight: 'rgba(255, 255, 255, 0.5)',
-    highlightIndigoSoft: 'rgba(75, 156, 126, 0.22)',
+    highlightSoft: 'rgba(75, 156, 126, 0.22)',
     trayBg: '#ffffff',
     trayDivider: 'rgba(0,0,0,0.06)',
   },
@@ -243,7 +243,7 @@ export const THEME_TOKENS = {
 
     // Highlights + trays
     pulseHighlight: 'rgba(255, 255, 255, 0.5)',
-    highlightIndigoSoft: 'rgba(82, 181, 122, 0.22)',
+    highlightSoft: 'rgba(82, 181, 122, 0.22)',
     trayBg: '#222224',
     trayDivider: 'rgba(255,255,255,0.08)',
   },

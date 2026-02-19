@@ -236,6 +236,15 @@ export function DataProvider({ children }) {
     const init = async () => {
       setDataLoading(true);
       firestoreService.initialize(familyId, kidId);
+      const bootstrapHydrated = {
+        feedings: false,
+        nursingSessions: false,
+        solidsSessions: false,
+        sleepSessions: false,
+        diaperChanges: false,
+        activeSleep: false,
+        trackerSnapshot: false,
+      };
 
       try {
         if (bootstrapKey) {
@@ -243,25 +252,45 @@ export function DataProvider({ children }) {
           if (!cancelled && cachedBootstrap) {
             try {
               const parsed = JSON.parse(cachedBootstrap);
-              if (Array.isArray(parsed?.feedings)) setFeedings(parsed.feedings);
-              if (Array.isArray(parsed?.nursingSessions)) setNursingSessions(parsed.nursingSessions);
-              if (Array.isArray(parsed?.solidsSessions)) setSolidsSessions(parsed.solidsSessions);
-              if (Array.isArray(parsed?.sleepSessions)) setSleepSessions(parsed.sleepSessions);
-              if (Array.isArray(parsed?.diaperChanges)) setDiaperChanges(parsed.diaperChanges);
+              if (Array.isArray(parsed?.feedings)) {
+                setFeedings(parsed.feedings);
+                bootstrapHydrated.feedings = true;
+              }
+              if (Array.isArray(parsed?.nursingSessions)) {
+                setNursingSessions(parsed.nursingSessions);
+                bootstrapHydrated.nursingSessions = true;
+              }
+              if (Array.isArray(parsed?.solidsSessions)) {
+                setSolidsSessions(parsed.solidsSessions);
+                bootstrapHydrated.solidsSessions = true;
+              }
+              if (Array.isArray(parsed?.sleepSessions)) {
+                setSleepSessions(parsed.sleepSessions);
+                bootstrapHydrated.sleepSessions = true;
+              }
+              if (Array.isArray(parsed?.diaperChanges)) {
+                setDiaperChanges(parsed.diaperChanges);
+                bootstrapHydrated.diaperChanges = true;
+              }
               if (parsed?.kidSettings && typeof parsed.kidSettings === 'object') setKidSettings(parsed.kidSettings);
               if (parsed?.kidData) setKidData(parsed.kidData);
               if (Array.isArray(parsed?.kids)) setKids(parsed.kids);
               if (Array.isArray(parsed?.familyMembers)) setFamilyMembers(parsed.familyMembers);
               if (parsed?.activeSleep) {
                 setActiveSleep(parsed.activeSleep);
+                bootstrapHydrated.activeSleep = true;
               } else if (Array.isArray(parsed?.sleepSessions)) {
                 const cachedActive = parsed.sleepSessions
                   .filter((s) => s?.isActive && s?.startTime)
                   .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))[0];
-                if (cachedActive) setActiveSleep(cachedActive);
+                if (cachedActive) {
+                  setActiveSleep(cachedActive);
+                  bootstrapHydrated.activeSleep = true;
+                }
               }
               if (parsed?.trackerSnapshot) {
                 setTrackerSnapshot(parsed.trackerSnapshot);
+                bootstrapHydrated.trackerSnapshot = true;
               } else {
                 setTrackerSnapshot({
                   dateKey: toLocalDateKey(),
@@ -275,6 +304,7 @@ export function DataProvider({ children }) {
                   activeSleep: parsed?.activeSleep || null,
                   savedAt: parsed?.savedAt || Date.now(),
                 });
+                bootstrapHydrated.trackerSnapshot = true;
               }
             } catch {}
           }
@@ -297,16 +327,33 @@ export function DataProvider({ children }) {
           const cachedDiapers = Array.isArray(firestoreService?._cache?.diaperChanges)
             ? [...firestoreService._cache.diaperChanges].reverse()
             : null;
-          if (cachedFeeds) setFeedings(cachedFeeds);
-          if (cachedNursing) setNursingSessions(cachedNursing);
-          if (cachedSolids) setSolidsSessions(cachedSolids);
-          if (cachedSleep) {
+          if (Array.isArray(cachedFeeds) && (cachedFeeds.length > 0 || !bootstrapHydrated.feedings)) {
+            setFeedings(cachedFeeds);
+          }
+          if (Array.isArray(cachedNursing) && (cachedNursing.length > 0 || !bootstrapHydrated.nursingSessions)) {
+            setNursingSessions(cachedNursing);
+          }
+          if (Array.isArray(cachedSolids) && (cachedSolids.length > 0 || !bootstrapHydrated.solidsSessions)) {
+            setSolidsSessions(cachedSolids);
+          }
+          if (Array.isArray(cachedSleep) && (cachedSleep.length > 0 || !bootstrapHydrated.sleepSessions)) {
             setSleepSessions(cachedSleep);
             const cachedActive = cachedSleep.find((s) => s?.isActive && s?.startTime) || null;
-            if (cachedActive) setActiveSleep(cachedActive);
+            if (cachedActive || !bootstrapHydrated.activeSleep) setActiveSleep(cachedActive);
           }
-          if (cachedDiapers) setDiaperChanges(cachedDiapers);
-          if (!trackerSnapshot && (cachedFeeds || cachedNursing || cachedSolids || cachedSleep || cachedDiapers)) {
+          if (Array.isArray(cachedDiapers) && (cachedDiapers.length > 0 || !bootstrapHydrated.diaperChanges)) {
+            setDiaperChanges(cachedDiapers);
+          }
+          if (
+            !bootstrapHydrated.trackerSnapshot
+            && (
+              (Array.isArray(cachedFeeds) && cachedFeeds.length > 0)
+              || (Array.isArray(cachedNursing) && cachedNursing.length > 0)
+              || (Array.isArray(cachedSolids) && cachedSolids.length > 0)
+              || (Array.isArray(cachedSleep) && cachedSleep.length > 0)
+              || (Array.isArray(cachedDiapers) && cachedDiapers.length > 0)
+            )
+          ) {
             setTrackerSnapshot({
               dateKey: toLocalDateKey(),
               summary: summarizeForDay({

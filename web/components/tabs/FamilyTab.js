@@ -923,7 +923,7 @@ const FamilyTab = ({
             borderColor: 'var(--tt-card-border)'
           }
         },
-        React.createElement('div', { className: 'absolute inset-y-0', style: { left: `${leftPct}%`, width: `${widthPct}%`, background: 'var(--tt-highlight-indigo-soft)' } }),
+        React.createElement('div', { className: 'absolute inset-y-0', style: { left: `${leftPct}%`, width: `${widthPct}%`, background: 'var(--tt-highlight-soft)' } }),
         React.createElement('div', {
           className: 'absolute top-1/2 -translate-y-1/2 w-3 h-8 rounded-full shadow-sm border',
           style: {

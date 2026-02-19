@@ -40,7 +40,7 @@ export const ComparisonChicklet = ({ comparison, volumeUnit, evenTextColor, even
 
   const formattedValue = formatValue
     ? formatValue(absDelta)
-    : formatVolume(absDelta, volumeUnit);
+    : formatV2Number(absDelta);
   const label = isEven ? 'Even' : `${formattedValue}${unitSuffix}`;
 
   const chipColor = isEven

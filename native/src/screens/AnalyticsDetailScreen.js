@@ -82,6 +82,13 @@ function StatCard({ title, valueNode, subLabel, bgColor, titleColor, valueColor,
 export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
   const [timeframe, setTimeframe] = useState('week');
+  const preferredVolumeUnit = sourceData?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
+  const formatFeedValue = (oz, digits = 1) => {
+    const valueOz = Number(oz || 0);
+    if (!Number.isFinite(valueOz)) return (0).toFixed(digits);
+    if (preferredVolumeUnit === 'ml') return String(Math.round(valueOz * 29.5735));
+    return valueOz.toFixed(digits);
+  };
 
   const cfg = useMemo(() => {
     if (type === 'bottle') return { key: 'bottle', title: 'Bottle', color: bottle.primary, Icon: BottleIcon };
@@ -122,15 +129,23 @@ export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
           key: String(key),
           dateLabel: formatDayLabel(key),
           value: vol,
-          valueLabel: Number(vol.toFixed(1)).toString(),
+          valueLabel: formatFeedValue(vol, 1),
           count: inDay.length,
         });
       }
       return {
         labelText,
         cards: [
-          { title: 'Oz / Feed', value: (recent.length ? totalVolume / recent.length : 0).toFixed(1), unit: 'oz' },
-          { title: 'Oz / Day', value: (daysInPeriod ? totalVolume / daysInPeriod : 0).toFixed(1), unit: 'oz' },
+          {
+            title: `${preferredVolumeUnit === 'ml' ? 'Ml' : 'Oz'} / Feed`,
+            value: formatFeedValue((recent.length ? totalVolume / recent.length : 0), 1),
+            unit: preferredVolumeUnit,
+          },
+          {
+            title: `${preferredVolumeUnit === 'ml' ? 'Ml' : 'Oz'} / Day`,
+            value: formatFeedValue((daysInPeriod ? totalVolume / daysInPeriod : 0), 1),
+            unit: preferredVolumeUnit,
+          },
           { title: 'Bottles / Day', value: (daysInPeriod ? recent.length / daysInPeriod : 0).toFixed(1), unit: '' },
           { title: 'Interval', interval: recent.length > 1 ? intervalSum / (recent.length - 1) : 0 },
         ],
@@ -138,7 +153,7 @@ export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
         historyItems: buckets,
         maxValue: Math.max(...buckets.map((b) => b.value), 1),
         countFormatter: (item) => `${item.count} bottles`,
-        valueSuffix: 'oz',
+        valueSuffix: preferredVolumeUnit,
       };
     }
 
@@ -348,7 +363,7 @@ export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
       countFormatter: () => null,
       valueSuffix: '',
     };
-  }, [timeframe, type, sourceData]);
+  }, [timeframe, type, sourceData, preferredVolumeUnit]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.appBg }]}>
