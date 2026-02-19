@@ -84,7 +84,7 @@ export default function TrackerScreen({
     if (!isSnapshotForToday(trackerSnapshot, todayKey)) return null;
     return trackerSnapshot.summary;
   }, [trackerSnapshot, todayKey]);
-  const summary = trackerBootstrapReady ? liveSummary : (snapshotSummary || liveSummary);
+  const summary = trackerBootstrapReady ? liveSummary : snapshotSummary;
   const visibilitySafe = useMemo(
     () => normalizeActivityVisibility(activityVisibility),
     [activityVisibility]
