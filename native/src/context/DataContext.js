@@ -682,7 +682,8 @@ export function DataProvider({ children }) {
     if (!filter || filter === 'feed' || filter === 'bottle') {
       feedings.forEach((doc) => {
         if (doc.timestamp >= startMs && doc.timestamp <= endMs) {
-          items.push(feedingDocToCard(doc));
+          const volumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
+          items.push(feedingDocToCard(doc, volumeUnit));
         }
       });
     }
@@ -768,7 +769,7 @@ export function DataProvider({ children }) {
     // Sort by time
     items.sort((a, b) => (a.timestamp || a.startTime || 0) - (b.timestamp || b.startTime || 0));
     return items;
-  }, [feedings, nursingSessions, solidsSessions, sleepSessions, diaperChanges]);
+  }, [feedings, nursingSessions, solidsSessions, sleepSessions, diaperChanges, kidSettings?.preferredVolumeUnit]);
 
   /** Get summary totals for a date (replaces getMockDaySummary) */
   const getDaySummary = useCallback((date) => {

@@ -6,7 +6,7 @@
  * - No double bottom insets
  */
 
-import React, { useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import {

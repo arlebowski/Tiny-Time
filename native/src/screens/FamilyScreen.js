@@ -197,6 +197,7 @@ export default function FamilyScreen({
     kidSettings: ctxSettings,
     refresh,
     firestoreService,
+    updateKidSettings,
   } = useData();
 
   const resetAddChildForm = useCallback(() => {
@@ -295,9 +296,14 @@ export default function FamilyScreen({
     setEditingWeight(false);
   };
 
-  const handleVolumeUnitChange = (nextUnit) => {
+  const handleVolumeUnitChange = async (nextUnit) => {
     const unit = nextUnit === 'ml' ? 'ml' : 'oz';
     setSettings((prev) => ({ ...prev, preferredVolumeUnit: unit }));
+    try {
+      await updateKidSettings?.({ preferredVolumeUnit: unit });
+    } catch (error) {
+      console.error('Failed to update preferred volume unit:', error);
+    }
   };
 
   const handlePhotoClick = async () => {

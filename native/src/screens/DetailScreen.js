@@ -20,7 +20,7 @@ import HorizontalCalendar from '../components/shared/HorizontalCalendar';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import Timeline from '../components/Timeline/Timeline';
 import { ChevronLeftIcon, BottleIcon, NursingIcon, SolidsIcon, SleepIcon, DiaperIcon, DiaperWetIcon, DiaperPooIcon } from '../components/icons';
-import { formatV2Number } from '../components/cards/cardUtils';
+import { formatV2Number, formatVolume } from '../components/cards/cardUtils';
 import { useData } from '../context/DataContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -32,7 +32,7 @@ const FILTER_OPTIONS = [
   { label: 'Sleep', value: 'sleep' },
   { label: 'Diaper', value: 'diaper' },
 ];
-const FEED_COMPARISON = { delta: 2.5, unit: 'oz' };
+const FEED_COMPARISON_OZ_DELTA = 2.5;
 const NURSING_COMPARISON = { delta: 0.7, unit: 'hrs' };
 const SOLIDS_COMPARISON = { delta: 0.4, unit: 'foods' };
 const SLEEP_COMPARISON = { delta: -0.8, unit: 'hrs' };
@@ -221,7 +221,8 @@ export default function DetailSheet({
     diaperPooCount: 0,
   });
 
-  const { getTimelineItems, getDaySummary } = useData();
+  const { getTimelineItems, getDaySummary, kidSettings } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   // Load data for selected date
   const loadData = useCallback((date) => {
@@ -273,7 +274,7 @@ export default function DetailSheet({
   }, [onOpenSheet]);
 
   // Computed display values
-  const feedDisplay = formatV2Number(summary.feedOz);
+  const feedDisplay = formatVolume(summary.feedOz, preferredVolumeUnit);
   const nursingHours = (summary.nursingMs || 0) / 3600000;
   const nursingDisplay = formatV2Number(nursingHours);
   const solidsCount = Number(summary.solidsCount || 0);
@@ -284,7 +285,11 @@ export default function DetailSheet({
   const diaperUnit = summaryLayoutMode === 'all' ? '' : 'changes';
 
   // Mock comparisons (will be replaced with real avg computation)
-  const feedComparison = FEED_COMPARISON;
+  const feedComparison = useMemo(() => {
+    const deltaOz = Number(FEED_COMPARISON_OZ_DELTA) || 0;
+    const delta = preferredVolumeUnit === 'ml' ? (deltaOz * 29.5735) : deltaOz;
+    return { delta, unit: preferredVolumeUnit };
+  }, [preferredVolumeUnit]);
   const nursingComparison = NURSING_COMPARISON;
   const solidsComparison = SOLIDS_COMPARISON;
   const sleepComparison = SLEEP_COMPARISON;
@@ -353,7 +358,7 @@ export default function DetailSheet({
             icon={BottleIcon}
             color={bottle.primary}
             value={feedDisplay}
-            unit="oz"
+            unit={preferredVolumeUnit}
             isCompact={isAllCompactMode}
             comparison={feedComparison}
             rotateIcon

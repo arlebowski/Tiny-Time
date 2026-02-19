@@ -341,6 +341,7 @@ function AppShell({
     activeSleep,
     updateKidSettings,
   } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
@@ -482,6 +483,16 @@ function AppShell({
     }
   }, [updateKidSettings]);
 
+  const handlePreferredVolumeUnitChange = useCallback(async (nextUnit) => {
+    const unit = nextUnit === 'ml' ? 'ml' : 'oz';
+    if (unit === (kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz')) return;
+    try {
+      await updateKidSettings({ preferredVolumeUnit: unit });
+    } catch (error) {
+      console.warn('Failed to save preferred volume unit:', error);
+    }
+  }, [kidSettings?.preferredVolumeUnit, updateKidSettings]);
+
   useEffect(() => {
     const visibilitySafe = normalizeActivityVisibility(activityVisibility);
     if (visibilitySafe.sleep) return;
@@ -496,7 +507,7 @@ function AppShell({
     entry.photoURLs = card.photoURLs ?? [];
     if (card.type === 'feed') {
       if (card.feedType === 'bottle') {
-        entry.ounces = card.amount ?? card.ounces;
+        entry.ounces = card.ounces ?? card.amount;
       } else if (card.feedType === 'nursing') {
         entry.timestamp = card.timestamp ?? card.startTime;
       }
@@ -940,6 +951,8 @@ function AppShell({
         onAdd={handleFeedAdded}
         onClose={handleCloseFeed}
         activityVisibility={activityVisibility}
+        preferredVolumeUnit={preferredVolumeUnit}
+        onPreferredVolumeUnitChange={handlePreferredVolumeUnitChange}
         lastBottleAmountOz={lastBottleAmountOz}
         storage={storage}
       />

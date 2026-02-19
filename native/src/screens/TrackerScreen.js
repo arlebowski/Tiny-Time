@@ -53,7 +53,8 @@ export default function TrackerScreen({
   activityOrder,
 }) {
   const { colors } = useTheme();
-  const { getDaySummary, activeSleep, trackerBootstrapReady, trackerSnapshot } = useData();
+  const { getDaySummary, activeSleep, trackerBootstrapReady, trackerSnapshot, kidSettings } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
   const [now, setNow] = useState(new Date());
 
   // Web HorizontalCalendar.js:199-201 — refresh greeting every 60s
@@ -96,6 +97,7 @@ export default function TrackerScreen({
         key="bottle"
         onPress={() => onCardTap?.('feed')}
         totalOz={summary.feedOz}
+        volumeUnit={preferredVolumeUnit}
         lastEntryTime={summary.lastBottleTime}
       />
     ),
@@ -136,6 +138,7 @@ export default function TrackerScreen({
   }, [
     onCardTap,
     summary?.feedOz,
+    preferredVolumeUnit,
     summary?.lastBottleTime,
     summary?.nursingMs,
     summary?.lastNursingTime,

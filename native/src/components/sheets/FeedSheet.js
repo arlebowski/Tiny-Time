@@ -76,6 +76,7 @@ export default function FeedSheet({
   onSave = null,
   onAdd = null,
   preferredVolumeUnit = 'oz',
+  onPreferredVolumeUnitChange = null,
   lastBottleAmountOz = null,
   activityVisibility = { bottle: true, nursing: true, solids: true },
   feedTypeRef = null,
@@ -91,6 +92,11 @@ export default function FeedSheet({
   ].filter(Boolean);
 
   const defaultType = visibleTypes[0] || 'bottle';
+  const initialBottleAmount = useMemo(() => {
+    const n = Number(lastBottleAmountOz);
+    return Number.isFinite(n) && n > 0 ? String(n) : '';
+  }, [lastBottleAmountOz]);
+
   const getInitialType = () => {
     const fromRef = feedTypeRef?.current;
     return fromRef && visibleTypes.includes(fromRef) ? fromRef : defaultType;
@@ -98,7 +104,7 @@ export default function FeedSheet({
 
   const [feedType, setFeedType] = useState(getInitialType);
   const [dateTime, setDateTime] = useState(() => new Date().toISOString());
-  const [ounces, setOunces] = useState('');
+  const [ounces, setOunces] = useState(() => initialBottleAmount);
   const [amountDisplayUnit, setAmountDisplayUnit] = useState(preferredVolumeUnit === 'ml' ? 'ml' : 'oz');
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState([]);
@@ -165,7 +171,7 @@ export default function FeedSheet({
       setDateTime(new Date().toISOString());
       dateTimeTouchedRef.current = false;
       userEditedAmountRef.current = false;
-      setOunces('');
+      setOunces(initialBottleAmount);
       setNotes('');
       setExistingPhotoURLs([]);
       setPhotos([]);
@@ -179,7 +185,13 @@ export default function FeedSheet({
     }
 
     if (!entry) setSolidsStep(1);
-  }, [entry]);
+  }, [entry, initialBottleAmount]);
+
+  // Keep bottle amount primed while closed so first render on open is never empty/0.
+  useEffect(() => {
+    if (isSheetOpen || entry) return;
+    setOunces(initialBottleAmount);
+  }, [initialBottleAmount, isSheetOpen, entry]);
 
   // ---- Web parity: when creating, nursing starts with empty time unless user explicitly set it ----
   useEffect(() => {
@@ -194,6 +206,13 @@ export default function FeedSheet({
       setDateTime(new Date().toISOString());
     }
   }, [feedType, isSheetOpen, entry]);
+
+  // Keep amount toggle aligned with preferred unit unless user manually changes it in this open session.
+  useEffect(() => {
+    if (!isSheetOpen || entry) return;
+    if (userEditedUnitRef.current) return;
+    setAmountDisplayUnit(preferredVolumeUnit === 'ml' ? 'ml' : 'oz');
+  }, [preferredVolumeUnit, isSheetOpen, entry]);
 
   // ---- Web parity: prefill amount from latest feeding for new entries ----
   useEffect(() => {
@@ -823,15 +842,13 @@ export default function FeedSheet({
     setIsSheetOpen(true);
     setFeedType(t);
     if (!entry) {
-      const initialBottleAmount =
-        Number.isFinite(Number(lastBottleAmountOz)) && Number(lastBottleAmountOz) > 0
-          ? String(Number(lastBottleAmountOz))
-          : '';
+      const preferredUnit = preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
       setDateTime(t === 'nursing' ? '' : new Date().toISOString());
       dateTimeTouchedRef.current = false;
       userEditedAmountRef.current = false;
       userEditedUnitRef.current = false;
       setOunces(initialBottleAmount);
+      setAmountDisplayUnit(preferredUnit);
       setNotes('');
       setExistingPhotoURLs([]);
       setPhotos([]);
@@ -845,7 +862,7 @@ export default function FeedSheet({
       setSolidsStep(1);
       setSolidsSearch('');
     }
-  }, [defaultType, feedTypeRef, entry, lastBottleAmountOz]);
+  }, [defaultType, feedTypeRef, entry, initialBottleAmount, preferredVolumeUnit]);
 
   const scrollable = feedType === 'solids' && solidsStep === 2;
 
@@ -905,9 +922,15 @@ export default function FeedSheet({
               <AmountStepper
                 valueOz={parseFloat(ounces) || 0}
                 unit={amountDisplayUnit}
-                onChangeUnit={(unit) => {
+                onChangeUnit={async (unit) => {
+                  const normalized = unit === 'ml' ? 'ml' : 'oz';
                   userEditedUnitRef.current = true;
-                  setAmountDisplayUnit(unit);
+                  setAmountDisplayUnit(normalized);
+                  if (typeof onPreferredVolumeUnitChange === 'function') {
+                    try {
+                      await onPreferredVolumeUnitChange(normalized);
+                    } catch (_) {}
+                  }
                 }}
                 onChangeOz={(oz) => {
                   userEditedAmountRef.current = true;
