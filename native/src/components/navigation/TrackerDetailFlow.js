@@ -1,25 +1,26 @@
 import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useState } from 'react';
-import { StyleSheet, useWindowDimensions, View } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  Easing,
-  Extrapolation,
-  interpolate,
+import { useWindowDimensions } from 'react-native';
+import { Gesture } from 'react-native-gesture-handler';
+import {
   runOnJS,
-  useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
 import TrackerScreen from '../../screens/TrackerScreen';
 import DetailScreen from '../../screens/DetailScreen';
-
-const OPEN_DURATION_MS = 340;
-const CLOSE_DURATION_MS = 280;
-const SWIPE_CLOSE_THRESHOLD = 0.33;
-const SWIPE_VELOCITY_THRESHOLD = 950;
+import LayeredSubpageContainer from './LayeredSubpageContainer';
+import {
+  SUBPAGE_CANCEL_DURATION_MS,
+  SUBPAGE_CLOSE_DURATION_MS,
+  SUBPAGE_EASING,
+  SUBPAGE_OPEN_DURATION_MS,
+  SUBPAGE_SWIPE_CLOSE_THRESHOLD,
+  SUBPAGE_SWIPE_VELOCITY_THRESHOLD,
+} from '../../constants/subpageMotion';
 
 const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
   onOpenSheet,
+  header = null,
   onRequestToggleActivitySheet,
   activityVisibility,
   activityOrder,
@@ -59,8 +60,8 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
 
   const animateToOpen = useCallback(() => {
     progress.value = withTiming(1, {
-      duration: OPEN_DURATION_MS,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      duration: SUBPAGE_OPEN_DURATION_MS,
+      easing: SUBPAGE_EASING,
     });
   }, [progress]);
 
@@ -69,8 +70,8 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
     markDetailClosed();
     triggerTrackerEntrance();
     progress.value = withTiming(0, {
-      duration: CLOSE_DURATION_MS,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      duration: SUBPAGE_CLOSE_DURATION_MS,
+      easing: SUBPAGE_EASING,
     }, (finished) => {
       if (finished) {
         runOnJS(finishClose)();
@@ -114,13 +115,13 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
     })
     .onEnd((event) => {
       const shouldClose =
-        event.translationX > width * SWIPE_CLOSE_THRESHOLD
-        || event.velocityX > SWIPE_VELOCITY_THRESHOLD;
+        event.translationX > width * SUBPAGE_SWIPE_CLOSE_THRESHOLD
+        || event.velocityX > SUBPAGE_SWIPE_VELOCITY_THRESHOLD;
       if (shouldClose) {
         runOnJS(setDetailInteractive)(false);
         progress.value = withTiming(0, {
-          duration: CLOSE_DURATION_MS,
-          easing: Easing.bezier(0.22, 1, 0.36, 1),
+          duration: SUBPAGE_CLOSE_DURATION_MS,
+          easing: SUBPAGE_EASING,
         }, (finished) => {
           if (finished) runOnJS(finishClose)();
         });
@@ -128,111 +129,56 @@ const TrackerDetailFlow = forwardRef(function TrackerDetailFlow({
         runOnJS(markDetailOpen)();
         runOnJS(setDetailInteractive)(true);
         progress.value = withTiming(1, {
-          duration: 220,
-          easing: Easing.bezier(0.22, 1, 0.36, 1),
+          duration: SUBPAGE_CANCEL_DURATION_MS,
+          easing: SUBPAGE_EASING,
         });
       }
     }), [detailMounted, finishClose, markDetailClosed, markDetailOpen, progress, width]);
-
-  const trackerStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(progress.value, [0, 1], [0, -width * 0.22], Extrapolation.CLAMP),
-      },
-      {
-        scale: interpolate(progress.value, [0, 1], [1, 0.985], Extrapolation.CLAMP),
-      },
-    ],
-  }), [width]);
-
-  const trackerScrimStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(progress.value, [0, 1], [0, 0.08], Extrapolation.CLAMP),
-  }));
-
-  const detailStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(progress.value, [0, 1], [width, 0], Extrapolation.CLAMP),
-      },
-    ],
-    shadowOpacity: interpolate(progress.value, [0, 1], [0, 0.16], Extrapolation.CLAMP),
-  }), [width]);
 
   useEffect(() => () => {
     onDetailOpenChange?.(false);
   }, [onDetailOpenChange]);
 
-  return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.trackerLayer, trackerStyle]}>
-        <TrackerScreen
-          entranceToken={mergedEntranceToken}
-          onOpenSheet={onOpenSheet}
-          onCardTap={handleCardTap}
-          onRequestToggleActivitySheet={onRequestToggleActivitySheet}
-          activityVisibility={activityVisibility}
-          activityOrder={activityOrder}
-          onEditCard={onEditCard}
-          onDeleteCard={onDeleteCard}
-          timelineRefreshRef={timelineRefreshRef}
-        />
-      </Animated.View>
+  const baseContent = (
+    <>
+      {header}
+      <TrackerScreen
+        entranceToken={mergedEntranceToken}
+        onOpenSheet={onOpenSheet}
+        onCardTap={handleCardTap}
+        onRequestToggleActivitySheet={onRequestToggleActivitySheet}
+        activityVisibility={activityVisibility}
+        activityOrder={activityOrder}
+        onEditCard={onEditCard}
+        onDeleteCard={onDeleteCard}
+        timelineRefreshRef={timelineRefreshRef}
+      />
+    </>
+  );
 
-      {detailMounted ? (
-        <>
-          <Animated.View pointerEvents="none" style={[styles.scrim, trackerScrimStyle]} />
-          <Animated.View pointerEvents={detailInteractive ? 'auto' : 'none'} style={[styles.detailLayer, detailStyle]}>
-            <DetailScreen
-              initialFilter={detailFilter || 'all'}
-              onBack={handleDetailBack}
-              onOpenSheet={onOpenSheet}
-              onEditCard={onEditCard}
-              onDeleteCard={onDeleteCard}
-              timelineRefreshRef={timelineRefreshRef}
-              activityVisibility={activityVisibility}
-            />
-            <View pointerEvents="box-none" style={styles.gestureOverlayContainer}>
-              <GestureDetector gesture={edgeSwipeGesture}>
-                <View style={styles.edgeSwipeZone} />
-              </GestureDetector>
-            </View>
-          </Animated.View>
-        </>
-      ) : null}
-    </View>
+  const overlayContent = (
+    <DetailScreen
+      initialFilter={detailFilter || 'all'}
+      onBack={handleDetailBack}
+      onOpenSheet={onOpenSheet}
+      onEditCard={onEditCard}
+      onDeleteCard={onDeleteCard}
+      timelineRefreshRef={timelineRefreshRef}
+      activityVisibility={activityVisibility}
+    />
+  );
+
+  return (
+    <LayeredSubpageContainer
+      progress={progress}
+      width={width}
+      overlayMounted={detailMounted}
+      overlayInteractive={detailInteractive}
+      edgeSwipeGesture={edgeSwipeGesture}
+      baseContent={baseContent}
+      overlayContent={overlayContent}
+    />
   );
 });
 
 export default TrackerDetailFlow;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    overflow: 'hidden',
-  },
-  trackerLayer: {
-    flex: 1,
-  },
-  scrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
-  },
-  detailLayer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    shadowColor: '#000',
-    shadowRadius: 20,
-    shadowOffset: { width: -8, height: 0 },
-    elevation: 18,
-  },
-  gestureOverlayContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  edgeSwipeZone: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: 32,
-  },
-});

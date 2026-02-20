@@ -28,12 +28,9 @@ import {
   ActivityIndicator,
   useWindowDimensions,
 } from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, {
-  Extrapolation,
-  interpolate,
+import { Gesture } from 'react-native-gesture-handler';
+import {
   runOnJS,
-  useAnimatedStyle,
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
@@ -52,18 +49,14 @@ import DaySleepWindowHalfSheet from '../components/sheets/family/DaySleepWindowH
 import AddChildHalfSheet from '../components/sheets/family/AddChildHalfSheet';
 import AddFamilyHalfSheet from '../components/sheets/family/AddFamilyHalfSheet';
 import {
-  SUBPAGE_BASE_SCALE,
-  SUBPAGE_BASE_SHIFT_FACTOR,
   SUBPAGE_CANCEL_DURATION_MS,
   SUBPAGE_CLOSE_DURATION_MS,
-  SUBPAGE_DETAIL_SHADOW_OPACITY,
-  SUBPAGE_DETAIL_START_X_FACTOR,
   SUBPAGE_EASING,
   SUBPAGE_OPEN_DURATION_MS,
-  SUBPAGE_SCRIM_OPACITY,
   SUBPAGE_SWIPE_CLOSE_THRESHOLD,
   SUBPAGE_SWIPE_VELOCITY_THRESHOLD,
 } from '../constants/subpageMotion';
+import FamilyDetailFlow from '../components/navigation/FamilyDetailFlow';
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -163,6 +156,7 @@ const headerStyles = StyleSheet.create({
 // ══════════════════════════════════════════════════
 
 export default function FamilyScreen({
+  header = null,
   user,
   kidId,
   familyId,
@@ -209,6 +203,7 @@ export default function FamilyScreen({
   const canGoBack = viewStack.length > 1;
   const navProgress = useSharedValue(0); // 0 = no overlay, 1 = overlay fully open
   const navMutationLock = useSharedValue(0); // 0 = unlocked, 1 = locked
+  const edgeSwipeEnded = useSharedValue(0); // 0 = no onEnd yet, 1 = onEnd handled
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, preferredVolumeUnit: 'oz' });
@@ -321,18 +316,34 @@ export default function FamilyScreen({
   }, []);
 
   const releaseNavMutationLock = useCallback(() => {
+    logNav('navLock:release', {
+      currentView,
+      transition: transition ? transition.direction : null,
+      progress: navProgress.value,
+    });
     navMutationLock.value = 0;
-  }, [navMutationLock]);
+  }, [currentView, logNav, navMutationLock, navProgress, transition]);
 
   const finishPush = useCallback(() => {
+    logNav('pushView:finish', {
+      currentView,
+      transition: transition ? transition.direction : null,
+      progress: navProgress.value,
+    });
     setTransition(null);
     navMutationLock.value = 0;
-  }, [navMutationLock]);
+  }, [currentView, logNav, navMutationLock, navProgress, transition]);
 
-  const finishPop = useCallback(() => {
+  const commitPopAndFinish = useCallback(() => {
+    logNav('popView:finish', {
+      currentView,
+      transition: transition ? transition.direction : null,
+      progress: navProgress.value,
+    });
+    setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
     setTransition(null);
     navMutationLock.value = 0;
-  }, [navMutationLock]);
+  }, [currentView, logNav, navMutationLock, navProgress, transition]);
 
   const pushView = useCallback((nextView) => {
     if (!nextView || nextView === currentView || transition || navMutationLock.value) return;
@@ -367,7 +378,6 @@ export default function FamilyScreen({
     navMutationLock.value = 1;
     logNav('popView:start', { from: currentView, to: previousView });
     setTransition({ from: currentView, to: previousView, direction: 'pop' });
-    setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
     navProgress.value = 1;
     navProgress.value = withTiming(0, {
       duration: SUBPAGE_CLOSE_DURATION_MS,
@@ -375,15 +385,15 @@ export default function FamilyScreen({
     }, (finished) => {
       runOnJS(logNav)('popView:end', { from: currentView, to: previousView, finished });
       if (finished) {
-        runOnJS(finishPop)();
+        runOnJS(commitPopAndFinish)();
       } else {
         runOnJS(releaseNavMutationLock)();
       }
     });
   }, [
     canGoBack,
+    commitPopAndFinish,
     currentView,
-    finishPop,
     logNav,
     navMutationLock,
     navProgress,
@@ -392,44 +402,22 @@ export default function FamilyScreen({
     transition,
   ]);
 
-  const cancelSwipeBack = useCallback((fromView) => {
-    setViewStack((prev) => (prev[prev.length - 1] === fromView ? prev : [...prev, fromView]));
+  const cancelSwipeBack = useCallback(() => {
+    logNav('edgeSwipe:cancelSwipeBack', {
+      currentView,
+      transition: transition ? transition.direction : null,
+      progress: navProgress.value,
+    });
     setTransition(null);
-    navProgress.value = 0;
+    navProgress.value = 1;
     navMutationLock.value = 0;
-  }, [navMutationLock, navProgress]);
-
-  const popStackOne = useCallback(() => {
-    setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
-  }, []);
+  }, [currentView, logNav, navMutationLock, navProgress, transition]);
 
   const resetToHub = useCallback(() => {
     setViewStack(['hub']);
     setTransition(null);
     navMutationLock.value = 0;
   }, [navMutationLock]);
-
-  const baseLayerStyle = useAnimatedStyle(() => {
-    return {
-      transform: [
-        { translateX: interpolate(navProgress.value, [0, 1], [0, -width * SUBPAGE_BASE_SHIFT_FACTOR], Extrapolation.CLAMP) },
-        { scale: interpolate(navProgress.value, [0, 1], [1, SUBPAGE_BASE_SCALE], Extrapolation.CLAMP) },
-      ],
-    };
-  }, [width]);
-
-  const detailLayerStyle = useAnimatedStyle(() => ({
-    transform: [
-      {
-        translateX: interpolate(navProgress.value, [0, 1], [width * SUBPAGE_DETAIL_START_X_FACTOR, 0], Extrapolation.CLAMP),
-      },
-    ],
-    shadowOpacity: interpolate(navProgress.value, [0, 1], [0, SUBPAGE_DETAIL_SHADOW_OPACITY], Extrapolation.CLAMP),
-  }), [width]);
-
-  const flowScrimStyle = useAnimatedStyle(() => ({
-    opacity: interpolate(navProgress.value, [0, 1], [0, SUBPAGE_SCRIM_OPACITY], Extrapolation.CLAMP),
-  }));
 
   const edgeSwipeGesture = useMemo(() => Gesture.Pan()
     .enabled(canGoBack && !transition)
@@ -442,9 +430,9 @@ export default function FamilyScreen({
         return;
       }
       navMutationLock.value = 1;
+      edgeSwipeEnded.value = 0;
       runOnJS(logNav)('edgeSwipe:start', { from: currentView, to: previousView });
       runOnJS(setTransition)({ from: currentView, to: previousView, direction: 'pop' });
-      runOnJS(popStackOne)();
       navProgress.value = 1;
     })
     .onUpdate((event) => {
@@ -452,6 +440,7 @@ export default function FamilyScreen({
       navProgress.value = Math.max(0, Math.min(1, 1 - (delta / width)));
     })
     .onEnd((event) => {
+      edgeSwipeEnded.value = 1;
       const shouldClose =
         event.translationX > width * SUBPAGE_SWIPE_CLOSE_THRESHOLD
         || event.velocityX > SUBPAGE_SWIPE_VELOCITY_THRESHOLD;
@@ -468,7 +457,7 @@ export default function FamilyScreen({
           easing: SUBPAGE_EASING,
         }, (finished) => {
           if (finished) {
-            runOnJS(finishPop)();
+            runOnJS(commitPopAndFinish)();
           } else {
             runOnJS(releaseNavMutationLock)();
           }
@@ -479,21 +468,34 @@ export default function FamilyScreen({
           easing: SUBPAGE_EASING,
         }, (finished) => {
           if (finished) {
-            runOnJS(cancelSwipeBack)(currentView);
+            runOnJS(cancelSwipeBack)();
           } else {
             runOnJS(releaseNavMutationLock)();
           }
         });
       }
+    })
+    .onFinalize(() => {
+      runOnJS(logNav)('edgeSwipe:finalize', {
+        from: currentView,
+        to: previousView,
+      });
+      if (edgeSwipeEnded.value === 0 && navMutationLock.value && transition?.direction === 'pop') {
+        runOnJS(logNav)('edgeSwipe:finalize:recover-cancelled', {
+          from: currentView,
+          to: previousView,
+        });
+        runOnJS(cancelSwipeBack)();
+      }
     }), [
       cancelSwipeBack,
       canGoBack,
+      commitPopAndFinish,
       currentView,
-      finishPop,
+      edgeSwipeEnded,
       logNav,
       navMutationLock,
       navProgress,
-      popStackOne,
       previousView,
       releaseNavMutationLock,
       transition,
@@ -503,6 +505,21 @@ export default function FamilyScreen({
   useEffect(() => {
     logNav('stack', { viewStack: [...viewStack], transition: transition ? transition.direction : null });
   }, [logNav, transition, viewStack]);
+
+  useEffect(() => {
+    if (!transition) return undefined;
+    const timeoutId = setTimeout(() => {
+      logNav('nav:watchdog:transition-still-active', {
+        currentView,
+        previousView,
+        transition: transition.direction,
+        lock: navMutationLock.value,
+        progress: navProgress.value,
+        viewStack: [...viewStack],
+      });
+    }, 1400);
+    return () => clearTimeout(timeoutId);
+  }, [currentView, logNav, navMutationLock, navProgress, previousView, transition, viewStack]);
 
   useEffect(() => {
     if (ctxKidData) {
@@ -1363,16 +1380,9 @@ export default function FamilyScreen({
   // ── RENDER ──
   // ════════════════════════════════
 
-  return (
-    <>
-    <View style={s.flowContainer}>
-    <Animated.View
-      pointerEvents={hasStackedSubpage ? 'none' : 'auto'}
-      style={[
-        s.flowLayer,
-        hasStackedSubpage ? baseLayerStyle : null,
-      ]}
-    >
+  const baseContent = (
+    <View style={s.baseContentRoot}>
+      {header}
       <ScrollView
         ref={!hasStackedSubpage ? screenScrollRef : null}
         style={[s.scroll, { backgroundColor: colors.appBg }]}
@@ -1382,34 +1392,32 @@ export default function FamilyScreen({
       >
         {renderSubpageContent(baseViewKey)}
       </ScrollView>
-    </Animated.View>
-    {detailViewKey ? (
-      <>
-        <Animated.View pointerEvents="none" style={[s.flowScrim, flowScrimStyle]} />
-        <Animated.View
-          pointerEvents={transition ? 'none' : 'auto'}
-          style={[s.flowDetailLayer, detailLayerStyle]}
-        >
-          <ScrollView
-            ref={screenScrollRef}
-            style={[s.scroll, { backgroundColor: colors.appBg }]}
-            contentContainerStyle={s.scrollContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            {renderSubpageContent(detailViewKey)}
-          </ScrollView>
-        </Animated.View>
-      </>
-    ) : null}
-    {canGoBack ? (
-      <View pointerEvents="box-none" style={s.gestureOverlayContainer}>
-        <GestureDetector gesture={edgeSwipeGesture}>
-          <View style={s.edgeSwipeZone} />
-        </GestureDetector>
-      </View>
-    ) : null}
     </View>
+  );
+
+  const overlayContent = detailViewKey ? (
+    <ScrollView
+      ref={screenScrollRef}
+      style={[s.scroll, { backgroundColor: colors.appBg }]}
+      contentContainerStyle={s.scrollContent}
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    >
+      {renderSubpageContent(detailViewKey)}
+    </ScrollView>
+  ) : null;
+
+  return (
+    <>
+    <FamilyDetailFlow
+      progress={navProgress}
+      width={width}
+      hasStackedSubpage={hasStackedSubpage}
+      canGoBack={canGoBack}
+      edgeSwipeGesture={edgeSwipeGesture}
+      baseContent={baseContent}
+      overlayContent={overlayContent}
+    />
     <FeedingUnitHalfSheet
       sheetRef={feedingUnitSheetRef}
       s={s}
@@ -1532,35 +1540,8 @@ export default function FamilyScreen({
 // ══════════════════════════════════════════════════
 
 const s = StyleSheet.create({
-  flowContainer: {
+  baseContentRoot: {
     flex: 1,
-    overflow: 'hidden',
-  },
-  flowLayer: {
-    flex: 1,
-  },
-  flowScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: '#000',
-  },
-  flowDetailLayer: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'transparent',
-    shadowColor: '#000',
-    shadowRadius: 20,
-    shadowOffset: { width: -8, height: 0 },
-    elevation: 18,
-  },
-  gestureOverlayContainer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  edgeSwipeZone: {
-    position: 'absolute',
-    left: 0,
-    // Keep edge-swipe from overlapping the in-subpage Back button area.
-    top: 72,
-    bottom: 0,
-    width: 32,
   },
   // Scroll
   scroll: { flex: 1 },

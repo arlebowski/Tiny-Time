@@ -368,7 +368,6 @@ function AppShell({
   const [editEntry, setEditEntry] = useState(null);
   const timelineRefreshRef = useRef(null);
   const [isTrackerDetailOpen, setIsTrackerDetailOpen] = useState(false);
-  const [isFamilyDetailOpen, setIsFamilyDetailOpen] = useState(false);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
   const [analyticsResetSignal, setAnalyticsResetSignal] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
@@ -381,17 +380,6 @@ function AppShell({
   const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
   const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
-  const FAMILY_NAV_DEBUG = __DEV__;
-
-  const logFamilyNav = useCallback((event, payload = null) => {
-    if (!FAMILY_NAV_DEBUG) return;
-    if (payload) {
-      console.log(`[FamilyNav/App] ${event}`, payload);
-      return;
-    }
-    console.log(`[FamilyNav/App] ${event}`);
-  }, [FAMILY_NAV_DEBUG]);
-
   // Create storage adapter for sheets
   const storage = useMemo(
     () => (familyId && kidId ? createStorageAdapter(familyId, kidId) : null),
@@ -584,7 +572,6 @@ function AppShell({
     setShareAnchor(null);
     setShowKidMenu(false);
     setKidAnchor(null);
-    if (nextTab !== 'family') setIsFamilyDetailOpen(false);
     if (nextTab === 'tracker' && activeTab === 'tracker' && isTrackerDetailOpen) {
       trackerDetailFlowRef.current?.closeDetail?.();
       return;
@@ -751,10 +738,31 @@ function AppShell({
     }
   }, []);
 
-  const handleFamilyDetailOpenChange = useCallback((isOpen) => {
-    logFamilyNav('onDetailOpenChange', { isOpen });
-    setIsFamilyDetailOpen(isOpen);
-  }, [logFamilyNav]);
+  const trackerHeader = (
+    <AppHeader
+      onFamilyPress={() => handleTabChange('family')}
+      activeTab={activeTab}
+      showKidMenu={showKidMenu}
+      onToggleKidMenu={handleToggleKidMenu}
+      kidButtonRef={kidButtonRef}
+      showShareMenu={showShareMenu}
+      onToggleShareMenu={handleToggleShareMenu}
+      onCloseShareMenu={() => {
+        setShowShareMenu(false);
+        setShareAnchor(null);
+      }}
+      onCloseKidMenu={() => {
+        setShowKidMenu(false);
+        setKidAnchor(null);
+      }}
+      shareButtonRef={shareButtonRef}
+    />
+  );
+
+  const showGlobalHeader =
+    activeTab !== 'tracker'
+    && activeTab !== 'family'
+    && !(activeTab === 'trends' && analyticsDetailOpen);
 
   return (
     <>
@@ -762,32 +770,12 @@ function AppShell({
         style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
         edges={['left', 'right']}
       >
-        {!isTrackerDetailOpen && !(activeTab === 'trends' && analyticsDetailOpen) && !(activeTab === 'family' && isFamilyDetailOpen)
-          ? (
-            <AppHeader
-              onFamilyPress={() => handleTabChange('family')}
-              activeTab={activeTab}
-              showKidMenu={showKidMenu}
-              onToggleKidMenu={handleToggleKidMenu}
-              kidButtonRef={kidButtonRef}
-              showShareMenu={showShareMenu}
-              onToggleShareMenu={handleToggleShareMenu}
-              onCloseShareMenu={() => {
-                setShowShareMenu(false);
-                setShareAnchor(null);
-              }}
-              onCloseKidMenu={() => {
-                setShowKidMenu(false);
-                setKidAnchor(null);
-              }}
-              shareButtonRef={shareButtonRef}
-            />
-          )
-          : null}
+        {showGlobalHeader ? trackerHeader : null}
         <View style={appStyles.content}>
           {activeTab === 'tracker' && trackerUiReady ? (
             <TrackerDetailFlow
               ref={trackerDetailFlowRef}
+              header={trackerHeader}
               onOpenSheet={handleTrackerSelect}
               onRequestToggleActivitySheet={handleToggleActivitySheet}
               activityVisibility={activityVisibility}
@@ -810,6 +798,7 @@ function AppShell({
           )}
           {activeTab === 'family' && (
             <FamilyScreen
+              header={trackerHeader}
               user={familyUser}
               kidId={kidId}
               familyId={familyId}
@@ -827,7 +816,6 @@ function AppShell({
               onToggleForceSetupPreview={onToggleForceSetupPreview}
               onToggleForceLoginPreview={onToggleForceLoginPreview}
               onRequestToggleActivitySheet={handleToggleActivitySheet}
-              onDetailOpenChange={handleFamilyDetailOpenChange}
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
             />

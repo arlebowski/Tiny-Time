@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image, ScrollView } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
@@ -1184,6 +1184,15 @@ export default function FeedSheet({
     const t = fromRef && ['bottle', 'nursing', 'solids'].includes(fromRef) ? fromRef : defaultType;
     setIsSheetOpen(true);
     setFeedType(t);
+    if (entry) {
+      setNotes(entry.notes || '');
+      const normalizedExisting = normalizePhotoUrls(entry.photoURLs);
+      setExistingPhotoURLs(normalizedExisting);
+      setPhotos([]);
+      setNotesExpanded(Boolean(String(entry.notes || '').trim()));
+      setPhotosExpanded(normalizedExisting.length > 0);
+      return;
+    }
     if (!entry) {
       const preferredUnit = preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
       setDateTime(t === 'nursing' ? '' : new Date().toISOString());
@@ -1211,7 +1220,7 @@ export default function FeedSheet({
     }
   }, [defaultType, feedTypeRef, entry, initialBottleAmount, preferredVolumeUnit]);
 
-  const scrollable = feedType === 'solids' && solidsStep === 2;
+  const scrollable = false;
 
   useEffect(() => {
     if (feedType !== 'solids') return;
@@ -1777,7 +1786,12 @@ function SolidsStepTwo({ solidsSearch, setSolidsSearch, solidsFilteredFoods, isF
         />
       </View>
 
-      <View style={styles.solidsBrowseGrid}>
+      <ScrollView
+        style={styles.solidsBrowseScroll}
+        contentContainerStyle={styles.solidsBrowseGrid}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
         {solidsFilteredFoods.map((food) => {
           const selected = isFoodSelected(food.id);
           return (
@@ -1811,7 +1825,7 @@ function SolidsStepTwo({ solidsSearch, setSolidsSearch, solidsFilteredFoods, isF
             />
           </View>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -2172,6 +2186,12 @@ const styles = StyleSheet.create({
   solidsStepTwo: {
     flexDirection: 'column',
     gap: 16,
+    flex: 1,
+    minHeight: 0,
+  },
+  solidsBrowseScroll: {
+    flex: 1,
+    minHeight: 0,
   },
 
   solidsSearchBar: {

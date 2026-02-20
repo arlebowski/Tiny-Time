@@ -165,7 +165,10 @@ export default function HalfSheet({
       enableContentPanningGesture={enableContentPanningGesture}
       enableHandlePanningGesture={enableHandlePanningGesture}
       enableOverDrag
-      onClose={onClose}
+      onClose={() => {
+        prevIndexRef.current = -1;
+        onClose?.();
+      }}
       onChange={(index) => {
         const prev = prevIndexRef.current;
         prevIndexRef.current = index;

@@ -2,11 +2,11 @@ import { Easing } from 'react-native-reanimated';
 
 // How long the forward (open/push) animation takes, in milliseconds.
 // Increase for a slower, more dramatic slide. Decrease for a snappier push.
-export const SUBPAGE_OPEN_DURATION_MS = 400;
+export const SUBPAGE_OPEN_DURATION_MS = 360;
 
 // How long the back (close/pop) animation takes, in milliseconds.
 // Increase for a softer retreat. Decrease for a faster "go back" feel.
-export const SUBPAGE_CLOSE_DURATION_MS = 400;
+export const SUBPAGE_CLOSE_DURATION_MS = 360;
 
 // How long the "snap back" animation takes when a swipe-back is canceled.
 // Lower values feel more elastic/snappy. Higher values feel heavier.

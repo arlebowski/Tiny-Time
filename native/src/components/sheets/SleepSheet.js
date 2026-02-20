@@ -220,6 +220,23 @@ export default function SleepSheet({
     handleClose();
   }, [sheetRef, handleClose]);
 
+  const handleSheetOpen = useCallback(() => {
+    if (entry) {
+      setNotes(entry.notes || '');
+      const normalizedExisting = normalizePhotoUrls(entry.photoURLs);
+      setExistingPhotoURLs(normalizedExisting);
+      setPhotos([]);
+      setNotesExpanded(Boolean(String(entry.notes || '').trim()));
+      setPhotosExpanded(normalizedExisting.length > 0);
+      return;
+    }
+    setNotes('');
+    setExistingPhotoURLs([]);
+    setPhotos([]);
+    setNotesExpanded(false);
+    setPhotosExpanded(false);
+  }, [entry]);
+
   const handleStartTimeChange = (isoString) => {
     const clamped = clampStartIsoToNow(isoString);
     const now = Date.now();
@@ -663,6 +680,7 @@ export default function SleepSheet({
         title="Sleep"
         accentColor={sleep.primary}
         onClose={handleClose}
+        onOpen={handleSheetOpen}
         footer={footer}
         contentPaddingTop={16}
         useFullWindowOverlay={false}
