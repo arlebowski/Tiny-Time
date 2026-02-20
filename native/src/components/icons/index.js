@@ -51,3 +51,8 @@ export { default as BrandLogo } from './BrandLogo';
 export { default as CameraIcon } from './CameraIcon';
 export { default as SunIcon } from './SunIcon';
 export { default as MoonIcon } from './MoonIcon';
+export { default as TrashIcon } from './TrashIcon';
+export { default as PaletteIcon } from './PaletteIcon';
+export { default as FamilyIcon } from './FamilyIcon';
+export { default as DaySleepWindowIcon } from './DaySleepWindowIcon';
+export { default as SpinnerIcon } from './spinnericon';

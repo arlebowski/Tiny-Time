@@ -147,7 +147,7 @@ export const THEME_TOKENS = {
 
     // Highlights + trays
     pulseHighlight: 'rgba(255, 255, 255, 0.5)',
-    highlightIndigoSoft: 'rgba(75, 156, 126, 0.22)',
+    highlightSoft: 'rgba(75, 156, 126, 0.22)',
     trayBg: '#ffffff',
     trayDivider: 'rgba(0,0,0,0.06)',
   },
@@ -243,7 +243,7 @@ export const THEME_TOKENS = {
 
     // Highlights + trays
     pulseHighlight: 'rgba(255, 255, 255, 0.5)',
-    highlightIndigoSoft: 'rgba(82, 181, 122, 0.22)',
+    highlightSoft: 'rgba(82, 181, 122, 0.22)',
     trayBg: '#222224',
     trayDivider: 'rgba(255,255,255,0.08)',
   },
@@ -300,6 +300,12 @@ export const THEME_TOKENS = {
     red: '#EA4335',
   },
 
+  // ── Sheet layout tokens (vertical gaps between content sections) ──
+  SHEET_LAYOUT: {
+    sectionGap: 16,   // between major content blocks (time, amount, type picker, notes)
+    fieldGap: 8,      // between adjacent form fields (TTInputRow → AmountStepper)
+  },
+
   // ── Spacing scale (Tailwind-inspired, px values) ──
   SPACING: {
     0: 0,
@@ -320,6 +326,9 @@ export const THEME_TOKENS = {
 
   // ── Typography scale ──
   TYPOGRAPHY: {
+    fontFamily: 'SF-Pro',
+    fontFamilyKidName: 'Fraunces',
+    fontVariationSettingsKidName: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
     fontSize: {
       xs: 12,
       sm: 13,
@@ -475,13 +484,21 @@ export const THEME_TOKENS = {
 export const getThemeColors = (isDark = false, themeKey = 'theme1') => {
   const base = isDark ? THEME_TOKENS.DARK_MODE : THEME_TOKENS.LIGHT_MODE;
   const colorTheme = THEME_TOKENS.COLOR_THEMES[themeKey] || THEME_TOKENS.COLOR_THEMES.theme1;
+  const resolveAccent = (accent) => {
+    if (!accent) return accent;
+    if (!isDark) return accent;
+    return {
+      ...accent,
+      primary: accent.dark || accent.primary,
+    };
+  };
 
   return {
     ...base,
-    bottle: colorTheme.bottle,
-    nursing: colorTheme.nursing,
-    sleep: colorTheme.sleep,
-    diaper: colorTheme.diaper,
-    solids: colorTheme.solids,
+    bottle: resolveAccent(colorTheme.bottle),
+    nursing: resolveAccent(colorTheme.nursing),
+    sleep: resolveAccent(colorTheme.sleep),
+    diaper: resolveAccent(colorTheme.diaper),
+    solids: resolveAccent(colorTheme.solids),
   };
 };

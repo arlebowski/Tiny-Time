@@ -206,7 +206,7 @@
 
         // Highlights + trays
         pulseHighlight: "rgba(255, 255, 255, 0.5)",
-        highlightIndigoSoft: "rgba(75, 156, 126, 0.22)",
+        highlightSoft: "rgba(75, 156, 126, 0.22)",
         trayBg: "#ffffff",
         trayShadow: "0 -10px 28px rgba(0,0,0,0.18)",
         trayDivider: "rgba(0,0,0,0.06)"
@@ -292,7 +292,7 @@
       negativeWarm: "#FF6037",
       negativeWarmSoft: "rgba(255, 96, 55, 0.2)",
       pulseHighlight: "rgba(255, 255, 255, 0.5)",
-      highlightIndigoSoft: "rgba(82, 181, 122, 0.22)",
+      highlightSoft: "rgba(82, 181, 122, 0.22)",
       trayBg: "#222224",
       trayShadow: "0 -10px 28px rgba(0,0,0,0.35)",
       trayDivider: "rgba(255,255,255,0.08)"

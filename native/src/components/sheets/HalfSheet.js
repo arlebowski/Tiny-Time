@@ -6,7 +6,7 @@
  * - No double bottom insets
  */
 
-import React, { useRef, useCallback, useMemo } from 'react';
+import React, { useRef, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import {
@@ -15,6 +15,12 @@ import {
   BottomSheetView,
   BottomSheetFooter,
 } from '@gorhom/bottom-sheet';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { ChevronDownIcon, ChevronLeftIcon } from '../icons';
@@ -94,12 +100,22 @@ export default function HalfSheet({
   scrollable = false,
   enableDynamicSizing = true,
   initialSnapIndex = 0,
+  useFullWindowOverlay = true,
+  footerBottomOffset = 30,
+  footerTopOffset = 20,
 }) {
   const insets = useSafeAreaInsets();
   const { colors, radius } = useTheme();
   const prevIndexRef = useRef(-1);
   const headerBg = accentColor || colors.primaryBrand;
   const topRadius = radius?.['3xl'] ?? 20;
+
+  // Footer starts hidden, fades in when sheet opens so it appears
+  // to enter as part of the sheet rather than as a separate overlay.
+  const footerOpacity = useSharedValue(0);
+  const footerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: footerOpacity.value,
+  }));
 
   const handleComponent = useCallback(
     (props) => (
@@ -138,20 +154,22 @@ export default function HalfSheet({
     (props) =>
       footer ? (
         <BottomSheetFooter {...props} bottomInset={0}>
-          <View
+          <Animated.View
             style={[
               styles.footer,
               {
                 backgroundColor: colors.halfsheetBg || colors.cardBg,
-                paddingBottom: insets.bottom + 50, // only safe area, no artificial lift
+                paddingTop: footerTopOffset,
+                paddingBottom: insets.bottom + footerBottomOffset,
               },
+              footerAnimatedStyle,
             ]}
           >
             {footer}
-          </View>
+          </Animated.View>
         </BottomSheetFooter>
       ) : null,
-    [footer, colors.halfsheetBg, colors.cardBg, insets.bottom]
+    [footer, colors.halfsheetBg, colors.cardBg, insets.bottom, footerBottomOffset, footerAnimatedStyle]
   );
 
   return (
@@ -164,7 +182,17 @@ export default function HalfSheet({
       enableContentPanningGesture={enableContentPanningGesture}
       enableHandlePanningGesture={enableHandlePanningGesture}
       enableOverDrag
-      onClose={onClose}
+      onClose={() => {
+        prevIndexRef.current = -1;
+        footerOpacity.value = 0;
+        onClose?.();
+      }}
+      onAnimate={(fromIndex, toIndex) => {
+        if (fromIndex === -1 && toIndex >= 0) {
+          // Sheet is presenting — delay footer fade-in to sync with slide
+          footerOpacity.value = withDelay(150, withTiming(1, { duration: 200 }));
+        }
+      }}
       onChange={(index) => {
         const prev = prevIndexRef.current;
         prevIndexRef.current = index;
@@ -178,7 +206,9 @@ export default function HalfSheet({
       handleComponent={handleComponent}
       footerComponent={footerComponent}
       style={styles.modal}
-      containerComponent={Platform.OS === 'ios' ? FullWindowOverlay : undefined}
+      containerComponent={
+        Platform.OS === 'ios' && useFullWindowOverlay ? FullWindowOverlay : undefined
+      }
     >
       {scrollable ? (
         <BottomSheetScrollView

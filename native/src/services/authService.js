@@ -113,6 +113,47 @@ export async function ensureUserProfile(user) {
 }
 
 /**
+ * Update signed-in user profile fields in Firebase Auth and users/{uid}.
+ * @param {{displayName?: string, email?: string, photoURL?: string}} patch
+ */
+export async function updateCurrentUserProfile(patch = {}) {
+  assertFirebase();
+  const currentUser = auth().currentUser;
+  if (!currentUser) throw new Error('Not signed in');
+
+  const nextDisplayName = Object.prototype.hasOwnProperty.call(patch, 'displayName')
+    ? (patch.displayName || '').trim()
+    : currentUser.displayName || null;
+  const nextEmail = Object.prototype.hasOwnProperty.call(patch, 'email')
+    ? (patch.email || '').trim()
+    : currentUser.email || null;
+  const nextPhotoURL = Object.prototype.hasOwnProperty.call(patch, 'photoURL')
+    ? (patch.photoURL || null)
+    : (currentUser.photoURL || null);
+
+  if (Object.prototype.hasOwnProperty.call(patch, 'displayName') || Object.prototype.hasOwnProperty.call(patch, 'photoURL')) {
+    await currentUser.updateProfile({
+      displayName: nextDisplayName || null,
+      photoURL: nextPhotoURL || null,
+    });
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'email') && nextEmail && nextEmail !== currentUser.email) {
+    await currentUser.updateEmail(nextEmail);
+  }
+
+  const userRef = firestore().collection('users').doc(currentUser.uid);
+  await userRef.set(
+    {
+      email: nextEmail || null,
+      displayName: nextDisplayName || null,
+      photoURL: nextPhotoURL || null,
+      lastActiveAt: firestore.FieldValue.serverTimestamp(),
+    },
+    { merge: true }
+  );
+}
+
+/**
  * Load the user's familyId and kidId from their families.
  * Returns { familyId, kidId } or null if none found.
  */
@@ -155,19 +196,28 @@ export async function createFamilyWithKid(
   uid,
   babyName,
   {
+    familyName = null,
     birthDate = null,
     photoUri = null,
     preferredVolumeUnit = 'oz',
+    babyWeight = null,
   } = {}
 ) {
   assertFirebase();
   const now = firestore.FieldValue.serverTimestamp();
   const birthTimestamp = birthDate ? new Date(birthDate).getTime() : null;
 
+  const parsedBabyWeight = Number.parseFloat(String(babyWeight ?? '').trim());
+  const normalizedBabyWeight = Number.isFinite(parsedBabyWeight) && parsedBabyWeight > 0
+    ? parsedBabyWeight
+    : null;
+
+  const normalizedFamilyName = String(familyName || '').trim();
+
   // Create family
   const famRef = await firestore().collection('families').add({
     members: [uid],
-    name: `${babyName}'s family`,
+    name: normalizedFamilyName || `${babyName}'s family`,
     createdAt: now,
     primaryKidId: null,
   });
@@ -182,6 +232,7 @@ export async function createFamilyWithKid(
       members: [uid],
       ownerId: uid,
       birthDate: Number.isFinite(birthTimestamp) ? birthTimestamp : null,
+      babyWeight: normalizedBabyWeight,
       photoURL: null,
       createdAt: now,
     });
@@ -199,6 +250,7 @@ export async function createFamilyWithKid(
     .doc('default')
     .set({
       preferredVolumeUnit: preferredVolumeUnit === 'ml' ? 'ml' : 'oz',
+      ...(normalizedBabyWeight != null ? { babyWeight: normalizedBabyWeight } : {}),
       createdAt: now,
     });
 

@@ -1155,7 +1155,7 @@ const SettingsTab = ({ user, kidId }) => {
       React.createElement('div', { className: "flex items-center gap-3 mb-4" },
         React.createElement('button', {
           onClick: () => setShowUILab(false),
-          className: "p-2 rounded-lg transition text-[var(--tt-primary-brand)] hover:bg-[var(--tt-highlight-indigo-soft)]"
+          className: "p-2 rounded-lg transition text-[var(--tt-primary-brand)] hover:bg-[var(--tt-highlight-soft)]"
         },
           React.createElement(ChevronLeft, { className: "w-5 h-5" })
         ),

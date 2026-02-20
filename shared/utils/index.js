@@ -5,4 +5,5 @@
 export * from './dateTime';
 export * from './formatters';
 export * from './calculations';
+export * from './trackerComparisons';
 export * from './validation';

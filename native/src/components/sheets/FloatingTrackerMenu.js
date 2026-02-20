@@ -5,13 +5,7 @@
  */
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
-  Easing,
-} from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { BottleIcon, NursingIcon, SleepIcon, DiaperIcon } from '../icons';
@@ -19,63 +13,33 @@ import { PlusIcon } from '../icons';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-// Web PlusButton: initial scale 0.2 rotate 180 opacity 0 → animate scale 1 rotate 0 opacity 1
-// exit: scale 0.2 rotate 180 opacity 0, duration 0.3 easeInOut
-const plusEntering = () => {
-  'worklet';
-  const easing = Easing.inOut(Easing.ease);
-  return {
-    initialValues: {
-      transform: [{ scale: 0.2 }, { rotate: '180deg' }],
-      opacity: 0,
-    },
-    animations: {
-      transform: [
-        { scale: withTiming(1, { duration: 300, easing }) },
-        { rotate: withTiming('0deg', { duration: 300, easing }) },
-      ],
-      opacity: withTiming(1, { duration: 300, easing }),
-    },
-  };
-};
-const plusExiting = () => {
-  'worklet';
-  const easing = Easing.inOut(Easing.ease);
-  return {
-    initialValues: {
-      transform: [{ scale: 1 }, { rotate: '0deg' }],
-      opacity: 1,
-    },
-    animations: {
-      transform: [
-        { scale: withTiming(0.2, { duration: 300, easing }) },
-        { rotate: withTiming('180deg', { duration: 300, easing }) },
-      ],
-      opacity: withTiming(0, { duration: 300, easing }),
-    },
-  };
-};
-
 // Web SplitButton: Feed left (-74, -112), Diaper top (0, -164), Sleep right (74, -112)
 const SPLIT_POSITIONS = {
-  feed: { x: -74, y: -112 },
+  feed: { x: -80, y: -112 },
   diaper: { x: 0, y: -164 },
-  sleep: { x: 74, y: -112 },
+  sleep: { x: 80, y: -112 },
 };
 
-function SplitButton({ icon: Icon, label, positionKey, onPress, accentColor, shadows, labelColor }) {
-  const scale = useSharedValue(0.7);
-  const opacity = useSharedValue(0);
+function SplitButton({ icon: Icon, label, positionKey, onPress, accentColor, shadows, labelColor, active }) {
+  const pos = SPLIT_POSITIONS[positionKey] || { x: 0, y: 0 };
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  const scale = useSharedValue(0.7);
+  const opacity = useSharedValue(0);
 
   useEffect(() => {
-    const pos = SPLIT_POSITIONS[positionKey] || { x: 0, y: 0 };
-    scale.value = withSpring(1, { damping: 20, stiffness: 260 });
-    opacity.value = withTiming(1, { duration: 200 });
-    translateX.value = withSpring(pos.x);
-    translateY.value = withSpring(pos.y);
-  }, [positionKey]);
+    if (active) {
+      translateX.value = withSpring(pos.x);
+      translateY.value = withSpring(pos.y);
+      scale.value = withSpring(1, { damping: 30, stiffness: 300 });
+      opacity.value = withTiming(1, { duration: 200 });
+      return;
+    }
+    translateX.value = withTiming(0, { duration: 220 });
+    translateY.value = withTiming(0, { duration: 220 });
+    scale.value = withTiming(0.7, { duration: 220 });
+    opacity.value = withTiming(0, { duration: 180 });
+  }, [active, pos.x, pos.y, opacity, scale, translateX, translateY]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -90,6 +54,7 @@ function SplitButton({ icon: Icon, label, positionKey, onPress, accentColor, sha
     <AnimatedPressable
       style={[styles.splitButton, animatedStyle]}
       onPress={onPress}
+      disabled={!active}
     >
       <View style={[styles.splitCircle, { backgroundColor: accentColor }, shadows?.floating]}>
         <Icon size={32} color="#fff" />
@@ -108,15 +73,40 @@ export default function FloatingTrackerMenu({
   const insets = useSafeAreaInsets();
   const { colors, shadows, bottle, nursing, sleep, diaper } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
+  const [isSplitClosing, setIsSplitClosing] = useState(false);
 
   const positionBottom = insets.bottom + bottomOffset;
+  const isSplitLayerVisible = isOpen || isSplitClosing;
 
-  const handleToggle = useCallback(() => setIsOpen((p) => !p), []);
-  const handleClose = useCallback(() => setIsOpen(false), []);
+  useEffect(() => {
+    if (isOpen) {
+      setIsSplitClosing(false);
+      return;
+    }
+    if (!isSplitClosing) {
+      return;
+    }
+    const timer = setTimeout(() => setIsSplitClosing(false), 240);
+    return () => clearTimeout(timer);
+  }, [isOpen, isSplitClosing]);
+
+  const closeMenu = useCallback(() => {
+    setIsOpen(false);
+    setIsSplitClosing(true);
+  }, []);
+
+  const handleToggle = useCallback(() => {
+    if (isOpen) {
+      closeMenu();
+      return;
+    }
+    setIsOpen(true);
+  }, [isOpen, closeMenu]);
+  const handleClose = useCallback(() => closeMenu(), [closeMenu]);
   const handleSelect = useCallback((type) => {
     onSelect?.(type);
-    setIsOpen(false);
-  }, [onSelect]);
+    closeMenu();
+  }, [onSelect, closeMenu]);
 
   const showFeed = visibleTypes?.feeding !== false;
   const showSleep = visibleTypes?.sleep !== false;
@@ -133,12 +123,12 @@ export default function FloatingTrackerMenu({
   return (
     <>
       {/* When open: transparent overlay to close on outside tap (web: document pointerdown) */}
-      {isOpen && (
+      {isSplitLayerVisible && (
         <Modal visible transparent animationType="none">
-          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+          <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} disabled={!isOpen} />
           {/* Split buttons inside Modal so they render above the overlay */}
           <View style={[styles.modalContent, { bottom: positionBottom }]}>
-            <Pressable style={styles.centerClose} onPress={handleClose} />
+            <Pressable style={styles.centerClose} onPress={handleClose} disabled={!isOpen} />
             {showFeed && (
               <SplitButton
                 icon={FeedIcon}
@@ -148,6 +138,7 @@ export default function FloatingTrackerMenu({
                 accentColor={feedAccent}
                 shadows={shadows}
                 labelColor={colors.textPrimary}
+                active={isOpen}
               />
             )}
             {showDiaper && (
@@ -159,6 +150,7 @@ export default function FloatingTrackerMenu({
                 accentColor={diaper.primary}
                 shadows={shadows}
                 labelColor={colors.textPrimary}
+                active={isOpen}
               />
             )}
             {showSleep && (
@@ -170,6 +162,7 @@ export default function FloatingTrackerMenu({
                 accentColor={sleep.primary}
                 shadows={shadows}
                 labelColor={colors.textPrimary}
+                active={isOpen}
               />
             )}
           </View>
@@ -183,11 +176,7 @@ export default function FloatingTrackerMenu({
           pointerEvents="box-none"
         >
           <View style={styles.inner}>
-            <Animated.View
-              entering={plusEntering}
-              exiting={plusExiting}
-              style={styles.plusWrapper}
-            >
+            <View style={styles.plusWrapper}>
               <Pressable
                 style={({ pressed }) => [
                   styles.plusButton,
@@ -199,7 +188,7 @@ export default function FloatingTrackerMenu({
               >
                 <PlusIcon size={21.6} color={colors.plusFg} />
               </Pressable>
-            </Animated.View>
+            </View>
           </View>
         </View>
       )}
@@ -214,7 +203,6 @@ const styles = StyleSheet.create({
     marginLeft: -32,
     width: 64,
     height: 64,
-    zIndex: 1000,
   },
   inner: {
     position: 'relative',

@@ -281,12 +281,12 @@ const styles = StyleSheet.create({
   rowLabel: {
     fontSize: 18,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   hint: {
     fontSize: 12,
     paddingTop: 4,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   doneBtn: {
     width: '100%',
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   doneText: {
     fontSize: 16,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   toggleLabelPad: {
     minWidth: 26,

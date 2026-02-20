@@ -15,14 +15,23 @@ const formatTime12Hour = (timestamp) => {
   return `${hours}:${mins} ${ampm}`;
 };
 
+const toDisplayFeedAmount = (ounces, unit = 'oz') => {
+  const oz = Number(ounces || 0);
+  if (!Number.isFinite(oz)) return 0;
+  if (unit === 'ml') return Math.round(oz * 29.5735);
+  return Math.round(oz * 10) / 10;
+};
+
 /** Firestore feeding doc → timeline card */
-export function feedingDocToCard(doc) {
+export function feedingDocToCard(doc, volumeUnit = 'oz') {
   const ts = doc.timestamp || 0;
   const d = new Date(ts);
+  const unit = volumeUnit === 'ml' ? 'ml' : 'oz';
+  const ounces = Number(doc.ounces || 0);
   return {
     id: doc.id,
     timestamp: ts,
-    ounces: doc.ounces,
+    ounces,
     notes: doc.notes || null,
     photoURLs: doc.photoURLs || null,
     time: formatTime12Hour(ts),
@@ -31,8 +40,8 @@ export function feedingDocToCard(doc) {
     variant: 'logged',
     type: 'feed',
     feedType: 'bottle',
-    amount: doc.ounces,
-    unit: 'oz',
+    amount: toDisplayFeedAmount(ounces, unit),
+    unit,
     note: doc.notes || null,
   };
 }

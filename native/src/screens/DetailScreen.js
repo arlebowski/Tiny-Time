@@ -6,6 +6,7 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,8 +21,21 @@ import HorizontalCalendar from '../components/shared/HorizontalCalendar';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import Timeline from '../components/Timeline/Timeline';
 import { ChevronLeftIcon, BottleIcon, NursingIcon, SolidsIcon, SleepIcon, DiaperIcon, DiaperWetIcon, DiaperPooIcon } from '../components/icons';
-import { formatV2Number } from '../components/cards/cardUtils';
+import { formatV2Number, formatVolume } from '../components/cards/cardUtils';
 import { useData } from '../context/DataContext';
+import {
+  TT_AVG_EVEN_EPSILON,
+  startOfDayMsLocal,
+  bucketIndexCeilFromMs,
+  buildFeedAvgBuckets,
+  buildNursingAvgBuckets,
+  buildSolidsAvgBuckets,
+  buildSleepAvgBuckets,
+  calcFeedCumulativeAtBucket,
+  calcNursingCumulativeAtBucket,
+  calcSolidsCumulativeAtBucket,
+  calcSleepCumulativeAtBucket,
+} from '../../../shared/utils/trackerComparisons';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const DETAIL_SECTION_GAP = 12;
@@ -32,6 +46,8 @@ const FILTER_OPTIONS = [
   { label: 'Sleep', value: 'sleep' },
   { label: 'Diaper', value: 'diaper' },
 ];
+const PTR_MIN_VISIBLE_MS = 600;
+const PTR_IOS_OFFSET = 88;
 
 // expo-linear-gradient treats "transparent" as rgba(0,0,0,0), which can tint dark.
 function hexToTransparentRgba(hex) {
@@ -51,6 +67,7 @@ function SummaryCard({
   value,
   unit,
   isCompact,
+  fillHeight = false,
   comparison,
   subline,
   rotateIcon = false,
@@ -58,12 +75,15 @@ function SummaryCard({
 }) {
   const valueAnim = React.useRef(new Animated.Value(1)).current;
   const comparisonAnim = React.useRef(new Animated.Value(1)).current;
+  const lastComparisonAnimRef = React.useRef({ sig: '', at: 0 });
   const padding = isCompact ? 10 : 14;
   const valueSize = isCompact ? 22 : 24;
   const unitSize = isCompact ? 15 : 17.6;
   const iconSize = isCompact ? 22 : 24;
+  const comparisonHasDelta = comparison?.delta != null;
   const comparisonDelta = Number(comparison?.delta || 0);
-  const comparisonIsZero = Math.abs(comparisonDelta) < 0.05;
+  const comparisonEpsilon = Number.isFinite(comparison?.evenEpsilon) ? comparison.evenEpsilon : 0.05;
+  const comparisonIsZero = comparisonHasDelta ? Math.abs(comparisonDelta) < comparisonEpsilon : true;
   const comparisonText = comparisonIsZero
     ? 'Even'
     : `${formatV2Number(Math.abs(comparisonDelta))}${comparison?.unit ? ` ${comparison.unit}` : ''}`;
@@ -85,6 +105,15 @@ function SummaryCard({
   }, [valueAnim, value, unit, color, isCompact, rotateIcon, IconComponent]);
 
   useEffect(() => {
+    const sig = `${comparisonText}|${paceText}|${comparisonColor}|${comparisonIsZero ? 1 : 0}`;
+    const now = Date.now();
+    if (
+      lastComparisonAnimRef.current.sig === sig
+      && now - lastComparisonAnimRef.current.at < 180
+    ) {
+      return;
+    }
+    lastComparisonAnimRef.current = { sig, at: now };
     comparisonAnim.setValue(0);
     Animated.timing(comparisonAnim, {
       toValue: 1,
@@ -93,7 +122,7 @@ function SummaryCard({
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [comparisonAnim, comparisonText, paceText, comparisonColor, comparisonIsZero, comparison]);
+  }, [comparisonAnim, comparisonText, paceText, comparisonColor, comparisonIsZero]);
 
   const valueRowAnimatedStyle = {
     opacity: valueAnim,
@@ -130,7 +159,7 @@ function SummaryCard({
     ],
   };
 
-  const footerContent = comparison ? (
+  const footerContent = comparisonHasDelta ? (
     <Animated.View style={[styles.summaryComparison, isCompact ? styles.summaryComparisonCompact : null, comparisonAnimatedStyle]}>
       <View style={styles.summaryComparisonValueRow}>
         {!comparisonIsZero && (
@@ -151,7 +180,7 @@ function SummaryCard({
   ) : subline;
 
   return (
-    <View style={[styles.summaryCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, padding }]}>
+    <View style={[styles.summaryCard, fillHeight ? styles.summaryCardFillHeight : null, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, padding }]}>
       <View style={styles.summaryCardInner}>
         {/* Icon + value + unit row */}
         <Animated.View style={[styles.summaryValueRow, isCompact ? styles.summaryValueRowCompact : null, valueRowAnimatedStyle]}>
@@ -197,6 +226,7 @@ export default function DetailSheet({
   const [summaryLayoutMode, setSummaryLayoutMode] = useState(initialFilter || 'all');
   const [timelineFilter, setTimelineFilter] = useState(initialFilter || 'all');
   const [timelineItems, setTimelineItems] = useState([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState({
     feedOz: 0,
     nursingMs: 0,
@@ -207,7 +237,19 @@ export default function DetailSheet({
     diaperPooCount: 0,
   });
 
-  const { getTimelineItems, getDaySummary } = useData();
+  const {
+    getTimelineItems,
+    getDaySummary,
+    kidSettings,
+    dataLoading,
+    refresh,
+    feedings,
+    nursingSessions,
+    solidsSessions,
+    sleepSessions,
+    activeSleep,
+  } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   // Load data for selected date
   const loadData = useCallback((date) => {
@@ -257,9 +299,24 @@ export default function DetailSheet({
   const handleActiveSleepClick = useCallback(() => {
     onOpenSheet?.('sleep');
   }, [onOpenSheet]);
+  const handleRefresh = useCallback(async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    const refreshStartedAt = Date.now();
+    try {
+      await refresh?.();
+    } finally {
+      const elapsedMs = Date.now() - refreshStartedAt;
+      const remainingMs = PTR_MIN_VISIBLE_MS - elapsedMs;
+      if (remainingMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, remainingMs));
+      }
+      setRefreshing(false);
+    }
+  }, [refresh, refreshing]);
 
   // Computed display values
-  const feedDisplay = formatV2Number(summary.feedOz);
+  const feedDisplay = formatVolume(summary.feedOz, preferredVolumeUnit);
   const nursingHours = (summary.nursingMs || 0) / 3600000;
   const nursingDisplay = formatV2Number(nursingHours);
   const solidsCount = Number(summary.solidsCount || 0);
@@ -269,11 +326,60 @@ export default function DetailSheet({
   const diaperDisplay = formatV2Number(summary.diaperCount || 0);
   const diaperUnit = summaryLayoutMode === 'all' ? '' : 'changes';
 
-  // Mock comparisons (will be replaced with real avg computation)
-  const feedComparison = { delta: 2.5, unit: 'oz' };
-  const nursingComparison = { delta: 0.7, unit: 'hrs' };
-  const solidsComparison = { delta: 0.4, unit: 'foods' };
-  const sleepComparison = { delta: -0.8, unit: 'hrs' };
+  const nowMs = Date.now();
+  const nowBucketIndex = bucketIndexCeilFromMs(nowMs);
+  const avgTodayStartMs = startOfDayMsLocal(nowMs);
+  const avgTodayEndMs = avgTodayStartMs + 86400000;
+  const selectedStartMs = startOfDayMsLocal(selectedDate.getTime());
+  const isViewingToday = selectedStartMs === avgTodayStartMs;
+  const feedAvg = useMemo(
+    () => buildFeedAvgBuckets(feedings, avgTodayStartMs),
+    [feedings, avgTodayStartMs]
+  );
+  const nursingAvg = useMemo(
+    () => buildNursingAvgBuckets(nursingSessions, avgTodayStartMs),
+    [nursingSessions, avgTodayStartMs]
+  );
+  const solidsAvg = useMemo(
+    () => buildSolidsAvgBuckets(solidsSessions, avgTodayStartMs),
+    [solidsSessions, avgTodayStartMs]
+  );
+  const sleepAvg = useMemo(
+    () => buildSleepAvgBuckets(sleepSessions, avgTodayStartMs),
+    [sleepSessions, avgTodayStartMs]
+  );
+  const feedAvgValue = feedAvg?.buckets?.[nowBucketIndex];
+  const nursingAvgValue = nursingAvg?.buckets?.[nowBucketIndex];
+  const solidsAvgValue = solidsAvg?.buckets?.[nowBucketIndex];
+  const sleepAvgValue = sleepAvg?.buckets?.[nowBucketIndex];
+  const todayFeedValue = useMemo(
+    () => calcFeedCumulativeAtBucket(feedings, nowBucketIndex, avgTodayStartMs, avgTodayEndMs),
+    [feedings, nowBucketIndex, avgTodayStartMs, avgTodayEndMs]
+  );
+  const todayNursingValue = useMemo(
+    () => calcNursingCumulativeAtBucket(nursingSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs),
+    [nursingSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs]
+  );
+  const todaySolidsValue = useMemo(
+    () => calcSolidsCumulativeAtBucket(solidsSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs),
+    [solidsSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs]
+  );
+  const todaySleepValue = useMemo(
+    () => calcSleepCumulativeAtBucket(sleepSessions, nowBucketIndex, avgTodayStartMs, activeSleep, nowMs),
+    [sleepSessions, nowBucketIndex, avgTodayStartMs, activeSleep, nowMs]
+  );
+  const feedComparison = isViewingToday && Number.isFinite(feedAvgValue) && (feedAvg?.daysUsed || 0) > 0
+    ? { delta: todayFeedValue - feedAvgValue, unit: 'oz', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const nursingComparison = isViewingToday && Number.isFinite(nursingAvgValue) && (nursingAvg?.daysUsed || 0) > 0
+    ? { delta: todayNursingValue - nursingAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const solidsComparison = isViewingToday && Number.isFinite(solidsAvgValue) && (solidsAvg?.daysUsed || 0) > 0
+    ? { delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const sleepComparison = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
+    ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
   const diaperComparison = null;
 
   const activityVisibilitySafe = useMemo(() => {
@@ -319,6 +425,7 @@ export default function DetailSheet({
   const feedSummaryCount = 1 + (hasNursingSummary ? 1 : 0) + (hasSolidsSummary ? 1 : 0);
   const isAllCompactMode = summaryLayoutMode === 'all';
   const isFeedThreeMode = summaryLayoutMode === 'feed' && feedSummaryCount >= 3;
+  const isFeedTwoColMode = summaryLayoutMode === 'feed' && feedSummaryCount === 2;
   const isHorizontalScrollMode = isAllCompactMode || isFeedThreeMode;
   const allModeCardWidth = (SCREEN_WIDTH - 48) / 3;
   const twoColCardWidth = (SCREEN_WIDTH - 48) / 2;
@@ -333,14 +440,15 @@ export default function DetailSheet({
       cards.push(
         <View
           key="feed"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridItem}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridItem}
         >
           <SummaryCard
             icon={BottleIcon}
             color={bottle.primary}
             value={feedDisplay}
-            unit="oz"
+            unit={preferredVolumeUnit}
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={feedComparison}
             rotateIcon
             colors={colors}
@@ -354,7 +462,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="nursing"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridItem}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridItem}
         >
           <SummaryCard
             icon={NursingIcon}
@@ -362,6 +470,7 @@ export default function DetailSheet({
             value={nursingDisplay}
             unit="hrs"
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={nursingComparison}
             colors={colors}
           />
@@ -374,7 +483,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="solids"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridItem}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridItem}
         >
           <SummaryCard
             icon={SolidsIcon}
@@ -382,6 +491,7 @@ export default function DetailSheet({
             value={solidsDisplay}
             unit="foods"
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={solidsComparison}
             colors={colors}
           />
@@ -394,7 +504,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="sleep"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridFull}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridFull}
         >
           <SummaryCard
             icon={SleepIcon}
@@ -402,6 +512,7 @@ export default function DetailSheet({
             value={sleepDisplay}
             unit="hrs"
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode}
             comparison={sleepComparison}
             colors={colors}
           />
@@ -414,7 +525,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="diaper"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridFull}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridFull}
         >
           <SummaryCard
             icon={DiaperIcon}
@@ -422,6 +533,7 @@ export default function DetailSheet({
             value={diaperDisplay}
             unit={diaperUnit}
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode}
             comparison={diaperComparison}
             subline={diaperSubline}
             colors={colors}
@@ -432,7 +544,7 @@ export default function DetailSheet({
 
     return cards;
   }, [
-    summaryLayoutMode, isAllCompactMode, isFeedThreeMode, isHorizontalScrollMode, allModeCardWidth, twoColCardWidth,
+    summaryLayoutMode, isAllCompactMode, isFeedThreeMode, isFeedTwoColMode, isHorizontalScrollMode, allModeCardWidth, twoColCardWidth,
     bottle.primary, nursing.primary, solids.primary, sleep.primary, diaper.primary,
     feedDisplay, nursingDisplay, solidsDisplay, sleepDisplay, diaperDisplay, diaperUnit,
     hasNursingSummary, hasSolidsSummary, feedComparison, nursingComparison, solidsComparison, sleepComparison, diaperComparison, diaperSubline, colors,
@@ -441,7 +553,7 @@ export default function DetailSheet({
   // Back button for calendar header
   const calendarHeaderLeft = useMemo(
     () => (
-      <Pressable onPress={onBack} style={styles.backButton}>
+      <Pressable onPressIn={onBack} style={styles.backButton}>
         <ChevronLeftIcon size={20} color={colors.textSecondary} />
         <Text style={[styles.backText, { color: colors.textSecondary }]}>Back</Text>
       </Pressable>
@@ -453,6 +565,12 @@ export default function DetailSheet({
   const listHeader = useMemo(
     () => (
       <View style={styles.listHeader}>
+        {refreshing ? (
+          <View style={[styles.refreshIndicator, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
+            <ActivityIndicator size="small" color={colors.textPrimary} />
+            <Text style={[styles.refreshIndicatorText, { color: colors.textSecondary }]}>Refreshing...</Text>
+          </View>
+        ) : null}
         <HorizontalCalendar
           onDateSelect={handleDateSelect}
           headerLeft={calendarHeaderLeft}
@@ -500,7 +618,8 @@ export default function DetailSheet({
     ),
     [
       handleDateSelect, calendarHeaderLeft, summaryLayoutMode,
-      handleSummaryToggleChange, isHorizontalScrollMode, feedSummaryCount, appBgTransparent, summaryCards, colors.appBg,
+      handleSummaryToggleChange, isHorizontalScrollMode, feedSummaryCount, appBgTransparent,
+      summaryCards, refreshing, colors.appBg, colors.cardBg, colors.cardBorder, colors.textPrimary, colors.textSecondary,
     ]
   );
 
@@ -513,8 +632,12 @@ export default function DetailSheet({
         onEditCard={onEditCard}
         onDeleteCard={onDeleteCard}
         onActiveSleepClick={handleActiveSleepClick}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
+        refreshProgressOffset={Platform.OS === 'ios' ? PTR_IOS_OFFSET : 0}
         allowItemExpand
         hideFilter
+        suppressEmptyState={dataLoading}
         ListHeaderComponent={listHeader}
       />
     </View>
@@ -531,6 +654,20 @@ const styles = StyleSheet.create({
     gap: DETAIL_SECTION_GAP,
     marginBottom: DETAIL_SECTION_GAP,
   },
+  refreshIndicator: {
+    minHeight: 36,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  refreshIndicatorText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
   toggleWrap: {
     marginTop: 0,
     marginBottom: 0,
@@ -544,7 +681,7 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: 15,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   // Summary cards — horizontal scroll for 'all' mode
   summaryScrollWrap: {
@@ -556,8 +693,12 @@ const styles = StyleSheet.create({
   },
   summaryScrollRow: {
     flexDirection: 'row',
+    alignItems: 'stretch',
     gap: 12,
     paddingBottom: 4,
+  },
+  summaryScrollItem: {
+    alignSelf: 'stretch',
   },
   summaryScrollFade: {
     position: 'absolute',
@@ -574,6 +715,7 @@ const styles = StyleSheet.create({
   summaryGridTwoCols: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'stretch',
   },
   summaryGridItem: {
     flex: 1,
@@ -587,6 +729,9 @@ const styles = StyleSheet.create({
     minHeight: 56,
     borderRadius: 16,
     borderWidth: 1,
+  },
+  summaryCardFillHeight: {
+    flex: 1,
   },
   summaryCardInner: {
     gap: 8,
@@ -610,11 +755,11 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontWeight: '700',
     lineHeight: undefined,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryUnit: {
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryIconPlaceholder: {
     borderRadius: 16,
@@ -634,13 +779,13 @@ const styles = StyleSheet.create({
   summaryComparisonArrow: {
     fontSize: 14,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryComparisonValue: {
     fontSize: 12,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryComparisonCompact: {
     flexDirection: 'column',
@@ -648,7 +793,7 @@ const styles = StyleSheet.create({
   summaryPaceText: {
     fontSize: 12,
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   // Diaper tally subline
   diaperTally: {
@@ -666,6 +811,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     fontVariant: ['tabular-nums'],
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

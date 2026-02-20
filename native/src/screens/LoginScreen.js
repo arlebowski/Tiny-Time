@@ -11,13 +11,16 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Image,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-import { BrandLogo } from '../components/icons';
+
+const lockupLt = require('../../assets/lockup-lt.png');
+const lockupDk = require('../../assets/lockup-dk.png');
 
 export default function LoginScreen({ onDevExitPreview = null }) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, isDark } = useTheme();
   const { signIn, signUp, signInWithGoogle, loading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
@@ -82,8 +85,11 @@ export default function LoginScreen({ onDevExitPreview = null }) {
       <View style={styles.content}>
         {/* Logo */}
         <View style={styles.logoArea}>
-          <BrandLogo size={48} color={colors.brandIcon} />
-          <Text style={[styles.title, { color: colors.textPrimary }]}>Tiny Time</Text>
+          <Image
+            source={isDark ? lockupDk : lockupLt}
+            style={styles.lockup}
+            resizeMode="contain"
+          />
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Track your little one's day
           </Text>
@@ -184,14 +190,13 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 40,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: '800',
-    marginTop: 12,
+  lockup: {
+    width: 234,
+    height: 59,
   },
   subtitle: {
     fontSize: 16,
-    marginTop: 4,
+    marginTop: 8,
   },
   card: {
     padding: 20,

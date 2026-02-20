@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance, Animated, Easing, LogBox } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -12,10 +13,13 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
 
+LogBox.ignoreLogs([
+  'This method is deprecated (as well as all React Native Firebase namespaced API)',
+]);
+
 // Screens
-import TrackerScreen from './src/screens/TrackerScreen';
-import AnalyticsScreen from './src/screens/AnalyticsScreen';
-import FamilyScreen from './src/screens/FamilyScreen';
+import AnalyticsStack from './src/components/navigation/AnalyticsStack';
+import FamilyStack from './src/components/navigation/FamilyStack';
 import LoginScreen from './src/screens/LoginScreen';
 import SetupScreen from './src/screens/SetupScreen';
 
@@ -24,18 +28,19 @@ import DiaperSheet from './src/components/sheets/DiaperSheet';
 import SleepSheet from './src/components/sheets/SleepSheet';
 import FeedSheet from './src/components/sheets/FeedSheet';
 import ActivityVisibilitySheet from './src/components/sheets/ActivityVisibilitySheet';
-import DetailScreen from './src/screens/DetailScreen';
 import BottomNavigationShell from './src/components/navigation/BottomNavigationShell';
+import { StackActions } from '@react-navigation/native';
+import TrackerStack from './src/components/navigation/TrackerStack';
 import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
   hasAtLeastOneActivityEnabled,
+  DEFAULT_ACTIVITY_ORDER,
 } from './src/constants/activityVisibility';
 
 // Icons (1:1 from web/components/shared/icons.js)
 // Web uses HomeIcon (not HouseIcon) for header
 import {
-  BrandLogo,
   ChevronDownIcon,
   ShareIcon,
   HomeIcon,
@@ -77,8 +82,11 @@ const NAV_FADE_HEIGHT = 50;
 // NAV_FADE_BOTTOM_OFFSET moves gradient anchor relative to nav top line.
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
+const LAUNCH_SPLASH_MIN_MS = 900;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
-
+const APP_INSTALL_URL_PLACEHOLDER = '[APP STORE URL]';
+const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
+const CHEVRON_ROTATE_MS = 260;
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
@@ -94,17 +102,34 @@ function AppHeader({
   onCloseKidMenu,
   shareButtonRef,
 }) {
-  const { colors, bottle } = useTheme();
-  const { kidId } = useAuth();
+  const { colors, bottle, isDark } = useTheme();
+  const { kidId, selectedKidSnapshot } = useAuth();
   const { kidData, kids } = useData();
+
   const selectedKid = useMemo(() => {
     if (Array.isArray(kids) && kids.length && kidId) {
-      return kids.find((kid) => kid?.id === kidId) || kidData || null;
+      return kids.find((kid) => kid?.id === kidId) || kidData || selectedKidSnapshot || null;
     }
-    return kidData || null;
-  }, [kids, kidData, kidId]);
+    if (kidData?.id && kidId && kidData.id !== kidId) return selectedKidSnapshot || null;
+    return kidData || selectedKidSnapshot || null;
+  }, [kids, kidData, kidId, selectedKidSnapshot]);
   const kidName = selectedKid?.name || 'Baby';
   const kidPhotoURL = selectedKid?.photoURL || null;
+  const kidChevronProgress = useRef(new Animated.Value(showKidMenu ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.timing(kidChevronProgress, {
+      toValue: showKidMenu ? 1 : 0,
+      duration: CHEVRON_ROTATE_MS,
+      easing: TIMELINE_EASE,
+      useNativeDriver: true,
+    }).start();
+  }, [showKidMenu, kidChevronProgress]);
+
+  const kidChevronRotate = kidChevronProgress.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '180deg'],
+  });
 
   return (
     <View style={[headerStyles.container, { backgroundColor: colors.appBg }]}>
@@ -122,12 +147,12 @@ function AppHeader({
               <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
             )}
           </View>
-          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]}>{kidName}</Text>
-          <ChevronDownIcon
-            size={20}
-            color={colors.textTertiary}
-            style={showKidMenu ? headerStyles.kidChevronOpen : undefined}
-          />
+          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+            {kidName}
+          </Text>
+          <Animated.View style={{ transform: [{ rotate: kidChevronRotate }] }}>
+            <ChevronDownIcon size={20} color={colors.textTertiary} />
+          </Animated.View>
         </Pressable>
 
         {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
@@ -167,7 +192,11 @@ function AppHeader({
       </View>
       {/* Brand logo — rendered separately, centered on screen, aligned with header row (like plus btn) */}
       <View style={headerStyles.logoOverlay} pointerEvents="box-none">
-        <BrandLogo size={26.4} color={colors.brandIcon} />
+        <Image
+          source={isDark ? require('./assets/brandlogo-dark.png') : require('./assets/brandlogo-lt.png')}
+          style={headerStyles.brandLogoImage}
+          resizeMode="contain"
+        />
       </View>
     </View>
   );
@@ -189,17 +218,16 @@ const headerStyles = StyleSheet.create({
   },
   // Web: flex items-center gap-[10px]
   kidPicker: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,               // gap-[10px]
-  },
-  kidChevronOpen: {
-    transform: [{ rotate: '180deg' }],
+    minWidth: 0,           // allow text to shrink and truncate before center logo
   },
   // Web: w-[36px] h-[36px] rounded-full overflow-hidden, outer bg var(--tt-input-bg)
   avatar: {
-    width: 36,
-    height: 36,
+    width: 30,
+    height: 30,
     borderRadius: 18,
     overflow: 'hidden',
   },
@@ -210,22 +238,26 @@ const headerStyles = StyleSheet.create({
   },
   // Web: text-2xl font-extrabold leading-none, color var(--tt-text-primary)
   kidName: {
+    flexShrink: 1,         // allow truncation when space is tight (before center logo)
     fontSize: 24,          // text-2xl
-    fontWeight: '800',     // font-extrabold
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontWeight: '700',
+    fontFamily: 'Fraunces',
+    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
   // Brand logo overlay — same centering logic as plus btn: left 50% + offset
   logoOverlay: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -13.2,     // half of icon size 26.4 (matches plus: marginLeft -32 for 64px)
+    marginLeft: -20,       // half of brand logo width (40px)
     top: 0,
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
-    transform: [{ translateY: -5 }], // align with content row (padding 16 top vs 24 bottom)
+    transform: [{ translateY: -6 }], // align with content row (padding 16 top vs 24 bottom)
+  },
+  brandLogoImage: {
+    width: 34,
+    height: 34,
   },
   // Web: flex items-center justify-end gap-0.5
   rightButtons: {
@@ -261,9 +293,7 @@ const headerStyles = StyleSheet.create({
   },
   shareMenuText: {
     fontSize: 14,          // text-sm
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontFamily: 'SF-Pro',
   },
   kidMenuItem: {
     height: 44,            // h-11
@@ -276,10 +306,9 @@ const headerStyles = StyleSheet.create({
   kidMenuLabel: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontWeight: '700',
+    fontFamily: 'Fraunces',
+    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
   kidMenuAddItem: {
     height: 44,            // h-11
@@ -290,9 +319,7 @@ const headerStyles = StyleSheet.create({
   kidMenuAddText: {
     fontSize: 14,
     fontWeight: '500',
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontFamily: 'SF-Pro',
   },
 });
 
@@ -309,6 +336,8 @@ function AppShell({
   forceLoginPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  trackerEntranceSeed,
+  trackerUiReady,
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -319,7 +348,19 @@ function AppShell({
   }, [insets.top]);
   const appBg = colors.appBg;
   const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
-  const { kidData, familyMembers, refresh, kids, kidSettings, firestoreService, activeSleep, updateKidSettings } = useData();
+  const {
+    kidData,
+    familyMembers,
+    refresh,
+    applyOptimisticEntry,
+    kids,
+    kidSettings,
+    lastBottleAmountOz,
+    firestoreService,
+    activeSleep,
+    updateKidSettings,
+  } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
@@ -327,14 +368,16 @@ function AppShell({
   const sleepRef = useRef(null);
   const feedRef = useRef(null);
   const activityVisibilityRef = useRef(null);
+  const trackerNavRef = useRef(null);
+  const familyNavRef = useRef(null);
+  const analyticsNavRef = useRef(null);
 
   const feedTypeRef = useRef('bottle');
   const [lastFeedVariant, setLastFeedVariant] = useState('bottle');
   const [editEntry, setEditEntry] = useState(null);
   const timelineRefreshRef = useRef(null);
-  const [detailFilter, setDetailFilter] = useState(null);
+  const [isTrackerDetailOpen, setIsTrackerDetailOpen] = useState(false);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
-  const [analyticsResetSignal, setAnalyticsResetSignal] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [shareAnchor, setShareAnchor] = useState(null);
   const shareButtonRef = useRef(null);
@@ -343,9 +386,8 @@ function AppShell({
   const kidButtonRef = useRef(null);
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
   const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
-  const [activityOrder, setActivityOrder] = useState(() => normalizeActivityOrder(null));
+  const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
-
   // Create storage adapter for sheets
   const storage = useMemo(
     () => (familyId && kidId ? createStorageAdapter(familyId, kidId) : null),
@@ -355,20 +397,6 @@ function AppShell({
   // Derive user info from real data
   const familyUser = user ? { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL } : null;
 
-  const handleCardTap = useCallback((filterType) => {
-    setShowShareMenu(false);
-    setShowKidMenu(false);
-    setKidAnchor(null);
-    setDetailFilter(filterType);
-  }, []);
-
-  const handleDetailBack = useCallback(() => {
-    setShowShareMenu(false);
-    setShowKidMenu(false);
-    setKidAnchor(null);
-    setDetailFilter(null);
-  }, []);
-
   useEffect(() => {
     AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
       if (stored === 'nursing' || stored === 'bottle') setLastFeedVariant(stored);
@@ -376,9 +404,22 @@ function AppShell({
   }, []);
 
   useEffect(() => {
-    setActivityVisibility(normalizeActivityVisibility(kidSettings?.activityVisibility));
+    const hasPersistedVisibility =
+      kidSettings?.activityVisibility &&
+      typeof kidSettings.activityVisibility === 'object' &&
+      Object.values(kidSettings.activityVisibility).some((value) => typeof value === 'boolean');
+
+    setActivityVisibility(
+      hasPersistedVisibility
+        ? normalizeActivityVisibility(kidSettings.activityVisibility)
+        : normalizeActivityVisibility(null)
+    );
     setActivityOrder(normalizeActivityOrder(kidSettings?.activityOrder));
-  }, [kidSettings?.activityVisibility, kidSettings?.activityOrder, kidId]);
+  }, [
+    kidSettings?.activityVisibility,
+    kidSettings?.activityOrder,
+    kidId,
+  ]);
 
   const handleTrackerSelect = useCallback((type) => {
     const visibilitySafe = normalizeActivityVisibility(activityVisibility);
@@ -404,7 +445,22 @@ function AppShell({
       setLastFeedVariant(entry.type);
       AsyncStorage.setItem('tt_last_feed_variant', entry.type).catch(() => {});
     }
-  }, []);
+    if (entry) {
+      applyOptimisticEntry(entry);
+    }
+  }, [applyOptimisticEntry]);
+
+  const handleSleepAdded = useCallback((entry) => {
+    if (entry) {
+      applyOptimisticEntry(entry);
+    }
+  }, [applyOptimisticEntry]);
+
+  const handleDiaperSaved = useCallback((entry) => {
+    if (entry) {
+      applyOptimisticEntry(entry);
+    }
+  }, [applyOptimisticEntry]);
 
   const handleToggleActivitySheet = useCallback(() => {
     setShowShareMenu(false);
@@ -431,6 +487,16 @@ function AppShell({
     }
   }, [updateKidSettings]);
 
+  const handlePreferredVolumeUnitChange = useCallback(async (nextUnit) => {
+    const unit = nextUnit === 'ml' ? 'ml' : 'oz';
+    if (unit === (kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz')) return;
+    try {
+      await updateKidSettings({ preferredVolumeUnit: unit });
+    } catch (error) {
+      console.warn('Failed to save preferred volume unit:', error);
+    }
+  }, [kidSettings?.preferredVolumeUnit, updateKidSettings]);
+
   useEffect(() => {
     const visibilitySafe = normalizeActivityVisibility(activityVisibility);
     if (visibilitySafe.sleep) return;
@@ -445,7 +511,7 @@ function AppShell({
     entry.photoURLs = card.photoURLs ?? [];
     if (card.type === 'feed') {
       if (card.feedType === 'bottle') {
-        entry.ounces = card.amount ?? card.ounces;
+        entry.ounces = card.ounces ?? card.amount;
       } else if (card.feedType === 'nursing') {
         entry.timestamp = card.timestamp ?? card.startTime;
       }
@@ -469,31 +535,57 @@ function AppShell({
     }
   }, []);
 
+  const handleDeleteCard = useCallback(async (card) => {
+    if (!card?.id) return false;
+    try {
+      if (card.type === 'feed') {
+        if (card.feedType === 'nursing') {
+          await firestoreService.deleteNursingSession(card.id);
+        } else if (card.feedType === 'solids') {
+          await firestoreService.deleteSolidsSession(card.id);
+        } else {
+          await firestoreService.deleteFeeding(card.id);
+        }
+      } else if (card.type === 'sleep') {
+        await firestoreService.deleteSleepSession(card.id);
+      } else if (card.type === 'diaper') {
+        await firestoreService.deleteDiaperChange(card.id);
+      } else {
+        return false;
+      }
+      await refresh();
+      timelineRefreshRef.current?.();
+      return true;
+    } catch (error) {
+      console.warn('Failed to delete timeline entry:', error);
+      Alert.alert('Error', 'Failed to delete entry. Please try again.');
+      return false;
+    }
+  }, [firestoreService, refresh]);
+
   const handleCloseFeed = useCallback(() => {
     setEditEntry(null);
-    feedRef.current?.dismiss?.();
-    refresh().then(() => timelineRefreshRef.current?.());
-  }, [refresh]);
+  }, []);
 
   const handleCloseSleep = useCallback(() => {
     setEditEntry(null);
-    sleepRef.current?.dismiss?.();
-    refresh().then(() => timelineRefreshRef.current?.());
-  }, [refresh]);
+  }, []);
 
   const handleCloseDiaper = useCallback(() => {
     setEditEntry(null);
-    diaperRef.current?.dismiss?.();
-    refresh().then(() => timelineRefreshRef.current?.());
-  }, [refresh]);
+  }, []);
 
   const handleTabChange = useCallback((nextTab) => {
     setShowShareMenu(false);
+    setShareAnchor(null);
     setShowKidMenu(false);
     setKidAnchor(null);
+    if (nextTab === 'tracker' && activeTab === 'tracker' && isTrackerDetailOpen) {
+      trackerNavRef.current?.dispatch(StackActions.popToTop());
+      return;
+    }
     if (nextTab === activeTab && nextTab === 'trends') {
-      setAnalyticsResetSignal((s) => s + 1);
-      setAnalyticsDetailOpen(false);
+      analyticsNavRef.current?.dispatch(StackActions.popToTop());
       return;
     }
     if (nextTab !== activeTab) {
@@ -502,7 +594,7 @@ function AppShell({
         setAnalyticsDetailOpen(false);
       }
     }
-  }, [activeTab, onTabChange]);
+  }, [activeTab, isTrackerDetailOpen, onTabChange]);
 
   const handleGlobalShareApp = useCallback(async () => {
     const url = APP_SHARE_BASE_URL;
@@ -532,21 +624,36 @@ function AppShell({
       return;
     }
 
-    let link;
+    let code;
     try {
-      const code = await firestoreService.createInvite(resolvedKidId);
-      link = `${APP_SHARE_BASE_URL}/?invite=${encodeURIComponent(code)}`;
-    } catch {
+      code = await firestoreService.createInvite(resolvedKidId);
+    } catch (error) {
+      console.warn('Failed to create invite:', error);
       Alert.alert('Failed to create invite.');
       return;
     }
+
+    const resolvedKid = (
+      (Array.isArray(kids) && resolvedKidId
+        ? kids.find((kid) => kid?.id === resolvedKidId)
+        : null)
+      || (kidData?.id === resolvedKidId ? kidData : null)
+      || null
+    );
+    const rawKidName = String(resolvedKid?.name || '').trim();
+    const possessiveKidName = rawKidName
+      ? (rawKidName.toLowerCase().endsWith('s') ? `${rawKidName}'` : `${rawKidName}'s`)
+      : 'your';
+    const headerLine = rawKidName
+      ? `Join ${possessiveKidName} family on Tiny Tracker.`
+      : 'Join your family on Tiny Tracker.';
+    const message = `${headerLine}\nInstall app: ${APP_INSTALL_URL_PLACEHOLDER}\nInvite code: ${code}`;
 
     if (Share?.share) {
       try {
         await Share.share({
           title: 'Join me on Tiny Tracker',
-          message: `Come join me so we can track together. ${link}`,
-          url: link,
+          message,
         });
         return;
       } catch {
@@ -554,8 +661,8 @@ function AppShell({
       }
     }
 
-    Alert.alert('Copy this invite link:', link);
-  }, [familyId, kidId, kids, firestoreService]);
+    Alert.alert('Copy this invite info:', message);
+  }, [familyId, kidId, kids, kidData, firestoreService]);
 
   const handleShareAppFromMenu = useCallback(async () => {
     await handleGlobalShareApp();
@@ -628,88 +735,98 @@ function AppShell({
     setHeaderRequestedAddChild(true);
   }, [handleTabChange]);
 
+  const handleTrackerDetailOpenChange = useCallback((isOpen) => {
+    setIsTrackerDetailOpen(isOpen);
+    if (isOpen) {
+      setShowShareMenu(false);
+      setShareAnchor(null);
+      setShowKidMenu(false);
+      setKidAnchor(null);
+    }
+  }, []);
+
+  const trackerHeader = (
+    <AppHeader
+      onFamilyPress={() => handleTabChange('family')}
+      activeTab={activeTab}
+      showKidMenu={showKidMenu}
+      onToggleKidMenu={handleToggleKidMenu}
+      kidButtonRef={kidButtonRef}
+      showShareMenu={showShareMenu}
+      onToggleShareMenu={handleToggleShareMenu}
+      onCloseShareMenu={() => {
+        setShowShareMenu(false);
+        setShareAnchor(null);
+      }}
+      onCloseKidMenu={() => {
+        setShowKidMenu(false);
+        setKidAnchor(null);
+      }}
+      shareButtonRef={shareButtonRef}
+    />
+  );
+
+  const showGlobalHeader =
+    activeTab !== 'tracker'
+    && activeTab !== 'family'
+    && !(activeTab === 'trends' && analyticsDetailOpen);
+
   return (
     <>
       <SafeAreaView
         style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
         edges={['left', 'right']}
       >
-        {detailFilter == null && !(activeTab === 'trends' && analyticsDetailOpen)
-          ? (
-            <AppHeader
-              onFamilyPress={() => handleTabChange('family')}
-              activeTab={activeTab}
-              showKidMenu={showKidMenu}
-              onToggleKidMenu={handleToggleKidMenu}
-              kidButtonRef={kidButtonRef}
-              showShareMenu={showShareMenu}
-              onToggleShareMenu={handleToggleShareMenu}
-              onCloseShareMenu={() => {
-                setShowShareMenu(false);
-                setShareAnchor(null);
-              }}
-              onCloseKidMenu={() => {
-                setShowKidMenu(false);
-                setKidAnchor(null);
-              }}
-              shareButtonRef={shareButtonRef}
-            />
-          )
-          : null}
+        {showGlobalHeader ? trackerHeader : null}
         <View style={appStyles.content}>
-          {detailFilter != null ? (
-            <DetailScreen
-              initialFilter={detailFilter}
-              onBack={handleDetailBack}
+          {activeTab === 'tracker' && trackerUiReady ? (
+            <TrackerStack
+              navigationRef={trackerNavRef}
+              header={trackerHeader}
               onOpenSheet={handleTrackerSelect}
-              onEditCard={handleEditCard}
-              onDeleteCard={null}
-              timelineRefreshRef={timelineRefreshRef}
+              onRequestToggleActivitySheet={handleToggleActivitySheet}
               activityVisibility={activityVisibility}
+              activityOrder={activityOrder}
+              onEditCard={handleEditCard}
+              onDeleteCard={handleDeleteCard}
+              timelineRefreshRef={timelineRefreshRef}
+              onDetailOpenChange={handleTrackerDetailOpenChange}
+              entranceSeed={trackerEntranceSeed}
             />
-          ) : (
-            <>
-              {activeTab === 'tracker' && (
-                <TrackerScreen
-                  onOpenSheet={handleTrackerSelect}
-                  onCardTap={handleCardTap}
-                  onRequestToggleActivitySheet={handleToggleActivitySheet}
-                  activityVisibility={activityVisibility}
-                  activityOrder={activityOrder}
-                  onEditCard={handleEditCard}
-                  onDeleteCard={null}
-                  timelineRefreshRef={timelineRefreshRef}
-                />
-              )}
-              {activeTab === 'trends' && (
-                <AnalyticsScreen
-                  onDetailOpenChange={setAnalyticsDetailOpen}
-                  resetSignal={analyticsResetSignal}
-                />
-              )}
-              {activeTab === 'family' && (
-                <FamilyScreen
-                  user={familyUser}
-                  kidId={kidId}
-                  familyId={familyId}
-                  kids={kids}
-                  onKidChange={setKidId}
-                  requestAddChild={headerRequestedAddChild}
-                  onRequestAddChildHandled={() => setHeaderRequestedAddChild(false)}
-                  themeKey={themeKey}
-                  onThemeChange={onThemeChange}
-                  isDark={isDark}
-                  onDarkModeChange={onDarkModeChange}
-                  showDevSetupToggle={showDevSetupToggle}
-                  forceSetupPreview={forceSetupPreview}
-                  forceLoginPreview={forceLoginPreview}
-                  onToggleForceSetupPreview={onToggleForceSetupPreview}
-                  onToggleForceLoginPreview={onToggleForceLoginPreview}
-                  onRequestToggleActivitySheet={handleToggleActivitySheet}
-                  onSignOut={handleSignOut}
-                />
-              )}
-            </>
+          ) : null}
+          {activeTab === 'tracker' && !trackerUiReady ? (
+            <View style={{ flex: 1, backgroundColor: appBg }} />
+          ) : null}
+          {activeTab === 'trends' && (
+            <AnalyticsStack
+              navigationRef={analyticsNavRef}
+              onDetailOpenChange={setAnalyticsDetailOpen}
+            />
+          )}
+          {activeTab === 'family' && (
+            <FamilyStack
+              navigationRef={familyNavRef}
+              header={trackerHeader}
+              user={familyUser}
+              kidId={kidId}
+              familyId={familyId}
+              kids={kids}
+              onKidChange={setKidId}
+              requestAddChild={headerRequestedAddChild}
+              onRequestAddChildHandled={() => setHeaderRequestedAddChild(false)}
+              themeKey={themeKey}
+              onThemeChange={onThemeChange}
+              isDark={isDark}
+              onDarkModeChange={onDarkModeChange}
+              showDevSetupToggle={showDevSetupToggle}
+              forceSetupPreview={forceSetupPreview}
+              forceLoginPreview={forceLoginPreview}
+              onToggleForceSetupPreview={onToggleForceSetupPreview}
+              onToggleForceLoginPreview={onToggleForceLoginPreview}
+              onRequestToggleActivitySheet={handleToggleActivitySheet}
+              onInvitePartner={handleGlobalInvitePartner}
+              onSignOut={handleSignOut}
+            />
           )}
 
           {/* Gradient fade above nav (web script.js:4352-4366) */}
@@ -850,12 +967,14 @@ function AppShell({
         sheetRef={diaperRef}
         entry={editEntry?.type === 'diaper' ? editEntry : null}
         onClose={handleCloseDiaper}
+        onSave={handleDiaperSaved}
         storage={storage}
       />
       <SleepSheet
         sheetRef={sleepRef}
         entry={editEntry?.type === 'sleep' ? editEntry : null}
         onClose={handleCloseSleep}
+        onAdd={handleSleepAdded}
         storage={storage}
       />
       <FeedSheet
@@ -865,6 +984,9 @@ function AppShell({
         onAdd={handleFeedAdded}
         onClose={handleCloseFeed}
         activityVisibility={activityVisibility}
+        preferredVolumeUnit={preferredVolumeUnit}
+        onPreferredVolumeUnitChange={handlePreferredVolumeUnitChange}
+        lastBottleAmountOz={lastBottleAmountOz}
         storage={storage}
       />
       <ActivityVisibilitySheet
@@ -890,6 +1012,8 @@ function AuthGatedApp({
   forceLoginPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  trackerEntranceSeed,
+  trackerUiReady,
 }) {
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
@@ -942,19 +1066,73 @@ function AuthGatedApp({
           forceLoginPreview={forceLoginPreview}
           onToggleForceSetupPreview={onToggleForceSetupPreview}
           onToggleForceLoginPreview={onToggleForceLoginPreview}
+          trackerEntranceSeed={trackerEntranceSeed}
+          trackerUiReady={trackerUiReady}
         />
       </BottomSheetModalProvider>
     </DataProvider>
   );
 }
 
+function LaunchSplashOverlay({
+  opacity,
+  logoOpacity,
+  logoScale,
+  logoFloat,
+  isDark,
+}) {
+  const { colors } = useTheme();
+  const lockupSource = isDark
+    ? require('./assets/lockup-dk.png')
+    : require('./assets/lockup-lt.png');
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        appStyles.launchSplash,
+        {
+          opacity,
+          backgroundColor: colors.appBg,
+        },
+      ]}
+    >
+      <Animated.View
+        style={[
+          appStyles.launchSplashCenter,
+          {
+            opacity: logoOpacity,
+            transform: [{ scale: logoScale }, { translateY: logoFloat }],
+          },
+        ]}
+      >
+        <Image
+          source={lockupSource}
+          style={appStyles.launchLockup}
+          resizeMode="contain"
+        />
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 // ── App Root ──
 export default function App() {
+  const [fontsLoaded] = Font.useFonts({
+    'SF-Pro': require('./assets/fonts/SF-Pro.ttf'),
+    Fraunces: require('./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf'),
+  });
   const [themeKey, setThemeKey] = useState('theme1');
   const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');
   const [forceSetupPreview, setForceSetupPreview] = useState(false);
   const [forceLoginPreview, setForceLoginPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
+  const [showLaunchSplash, setShowLaunchSplash] = useState(true);
+  const [trackerEntranceSeed, setTrackerEntranceSeed] = useState(0);
+  const launchSplashOpacity = useRef(new Animated.Value(1)).current;
+  const launchLogoOpacity = useRef(new Animated.Value(0)).current;
+  const launchLogoScale = useRef(new Animated.Value(0.9)).current;
+  const launchLogoFloat = useRef(new Animated.Value(0)).current;
+  const launchStartedAtRef = useRef(Date.now());
   const showDevSetupToggle = __DEV__ && (Constants?.isDevice === false || Constants?.isDevice == null);
 
   const handleToggleForceSetupPreview = useCallback((nextValue) => {
@@ -981,6 +1159,60 @@ export default function App() {
     });
   }, []);
 
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(launchLogoOpacity, {
+        toValue: 1,
+        duration: 340,
+        useNativeDriver: true,
+      }),
+      Animated.spring(launchLogoScale, {
+        toValue: 1,
+        speed: 16,
+        bounciness: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [launchLogoOpacity, launchLogoScale]);
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(launchLogoFloat, {
+          toValue: -4,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+        Animated.timing(launchLogoFloat, {
+          toValue: 0,
+          duration: 900,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [launchLogoFloat]);
+
+  useEffect(() => {
+    if (!appearanceHydrated || !showLaunchSplash) return;
+    const elapsed = Date.now() - launchStartedAtRef.current;
+    const waitMs = Math.max(0, LAUNCH_SPLASH_MIN_MS - elapsed);
+    const timeoutId = setTimeout(() => {
+      Animated.timing(launchSplashOpacity, {
+        toValue: 0,
+        duration: 280,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) {
+          setShowLaunchSplash(false);
+          setTrackerEntranceSeed((v) => v + 1);
+        }
+      });
+    }, waitMs);
+    return () => clearTimeout(timeoutId);
+  }, [appearanceHydrated, showLaunchSplash, launchSplashOpacity]);
+
   const handleThemeChange = useCallback((nextKey) => {
     setThemeKey(nextKey);
     AsyncStorage.setItem('tt_theme_key', nextKey).catch(() => {});
@@ -991,32 +1223,40 @@ export default function App() {
     AsyncStorage.setItem('tt_dark_mode', String(nextIsDark)).catch(() => {});
   }, []);
 
-  // Prevent first-frame light flash by waiting for persisted appearance.
-  if (!appearanceHydrated) {
-    return (
-      <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }} />
-    );
-  }
+  const ready = fontsLoaded && appearanceHydrated;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider themeKey={themeKey} isDark={isDark}>
-        <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-          <AuthProvider>
-            <AuthGatedApp
-              themeKey={themeKey}
-              isDark={isDark}
-              onThemeChange={handleThemeChange}
-              onDarkModeChange={handleDarkModeChange}
-              showDevSetupToggle={showDevSetupToggle}
-              forceSetupPreview={forceSetupPreview}
-              forceLoginPreview={forceLoginPreview}
-              onToggleForceSetupPreview={handleToggleForceSetupPreview}
-              onToggleForceLoginPreview={handleToggleForceLoginPreview}
-            />
-          </AuthProvider>
-        </SafeAreaProvider>
-      </ThemeProvider>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
+      {ready ? (
+        <ThemeProvider themeKey={themeKey} isDark={isDark}>
+          <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+            <AuthProvider>
+              <AuthGatedApp
+                themeKey={themeKey}
+                isDark={isDark}
+                onThemeChange={handleThemeChange}
+                onDarkModeChange={handleDarkModeChange}
+                showDevSetupToggle={showDevSetupToggle}
+                forceSetupPreview={forceSetupPreview}
+                forceLoginPreview={forceLoginPreview}
+                onToggleForceSetupPreview={handleToggleForceSetupPreview}
+                onToggleForceLoginPreview={handleToggleForceLoginPreview}
+                trackerEntranceSeed={trackerEntranceSeed}
+                trackerUiReady={!showLaunchSplash}
+              />
+            </AuthProvider>
+            {showLaunchSplash ? (
+              <LaunchSplashOverlay
+                opacity={launchSplashOpacity}
+                logoOpacity={launchLogoOpacity}
+                logoScale={launchLogoScale}
+                logoFloat={launchLogoFloat}
+                isDark={isDark}
+              />
+            ) : null}
+          </SafeAreaProvider>
+        </ThemeProvider>
+      ) : null}
     </GestureHandlerRootView>
   );
 }
@@ -1035,5 +1275,18 @@ const appStyles = StyleSheet.create({
     left: 0,
     right: 0,
     height: NAV_FADE_HEIGHT,
+  },
+  launchSplash: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  launchSplashCenter: {
+    alignItems: 'center',
+    position: 'relative',
+  },
+  launchLockup: {
+    width: 260,
+    height: 65,
   },
 });

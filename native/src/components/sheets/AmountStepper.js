@@ -86,7 +86,6 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 8,
   },
   // Web: px-4 pt-3
   header: {
@@ -125,12 +124,12 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 40,
     fontWeight: '700',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   // Web: text-base font-light ml-2
   unit: {
     fontSize: 16,
     fontWeight: '300',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

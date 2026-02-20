@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useData } from '../context/DataContext';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import { DetailHistoryBars } from '../components/shared/analyticsCharts';
 import {
@@ -79,9 +80,59 @@ function StatCard({ title, valueNode, subLabel, bgColor, titleColor, valueColor,
   );
 }
 
-export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
+export default function AnalyticsDetailScreen({ type, onBack }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
+  const {
+    feedings: rawFeedings,
+    nursingSessions: rawNursing,
+    solidsSessions: rawSolids,
+    diaperChanges: rawDiapers,
+    sleepSessions: rawSleep,
+    kidSettings,
+  } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
+
+  const sourceData = useMemo(() => {
+    const allFeedings = (rawFeedings || []).map((f) => ({
+      timestamp: f.timestamp,
+      ounces: Number(f.ounces || 0),
+    }));
+    const allNursingSessions = (rawNursing || []).map((s) => ({
+      timestamp: s.timestamp || s.startTime,
+      leftDurationSec: Number(s.leftDurationSec || 0),
+      rightDurationSec: Number(s.rightDurationSec || 0),
+    }));
+    const allSolidsSessions = (rawSolids || []).map((s) => ({
+      timestamp: s.timestamp,
+      foods: s.foods || [],
+    }));
+    const allDiaperChanges = (rawDiapers || []).map((c) => ({
+      timestamp: c.timestamp,
+      isWet: !!c.isWet,
+      isPoo: !!c.isPoo,
+    }));
+    const sleepSessions = (rawSleep || [])
+      .filter((s) => s.startTime && s.endTime)
+      .map((s) => ({ startTime: s.startTime, endTime: s.endTime }));
+
+    return {
+      allFeedings,
+      allNursingSessions,
+      allSolidsSessions,
+      allDiaperChanges,
+      sleepSessions,
+      sleepSettings: { sleepDayStart: 7 * 60, sleepDayEnd: 19 * 60 },
+      preferredVolumeUnit,
+    };
+  }, [rawFeedings, rawNursing, rawSolids, rawDiapers, rawSleep, preferredVolumeUnit]);
+
   const [timeframe, setTimeframe] = useState('week');
+  const formatFeedValue = (oz, digits = 1) => {
+    const valueOz = Number(oz || 0);
+    if (!Number.isFinite(valueOz)) return (0).toFixed(digits);
+    if (preferredVolumeUnit === 'ml') return String(Math.round(valueOz * 29.5735));
+    return valueOz.toFixed(digits);
+  };
 
   const cfg = useMemo(() => {
     if (type === 'bottle') return { key: 'bottle', title: 'Bottle', color: bottle.primary, Icon: BottleIcon };
@@ -122,15 +173,23 @@ export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
           key: String(key),
           dateLabel: formatDayLabel(key),
           value: vol,
-          valueLabel: Number(vol.toFixed(1)).toString(),
+          valueLabel: formatFeedValue(vol, 1),
           count: inDay.length,
         });
       }
       return {
         labelText,
         cards: [
-          { title: 'Oz / Feed', value: (recent.length ? totalVolume / recent.length : 0).toFixed(1), unit: 'oz' },
-          { title: 'Oz / Day', value: (daysInPeriod ? totalVolume / daysInPeriod : 0).toFixed(1), unit: 'oz' },
+          {
+            title: `${preferredVolumeUnit === 'ml' ? 'Ml' : 'Oz'} / Feed`,
+            value: formatFeedValue((recent.length ? totalVolume / recent.length : 0), 1),
+            unit: preferredVolumeUnit,
+          },
+          {
+            title: `${preferredVolumeUnit === 'ml' ? 'Ml' : 'Oz'} / Day`,
+            value: formatFeedValue((daysInPeriod ? totalVolume / daysInPeriod : 0), 1),
+            unit: preferredVolumeUnit,
+          },
           { title: 'Bottles / Day', value: (daysInPeriod ? recent.length / daysInPeriod : 0).toFixed(1), unit: '' },
           { title: 'Interval', interval: recent.length > 1 ? intervalSum / (recent.length - 1) : 0 },
         ],
@@ -138,7 +197,7 @@ export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
         historyItems: buckets,
         maxValue: Math.max(...buckets.map((b) => b.value), 1),
         countFormatter: (item) => `${item.count} bottles`,
-        valueSuffix: 'oz',
+        valueSuffix: preferredVolumeUnit,
       };
     }
 
@@ -348,13 +407,13 @@ export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
       countFormatter: () => null,
       valueSuffix: '',
     };
-  }, [timeframe, type, sourceData]);
+  }, [timeframe, type, sourceData, preferredVolumeUnit]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.appBg }]}>
       <View style={[styles.header, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
         <View style={styles.headerCol}>
-          <Pressable style={styles.backBtn} onPress={onBack}>
+          <Pressable style={styles.backBtn} onPressIn={onBack}>
             <ChevronLeftIcon size={20} color={colors.textSecondary} />
             <Text style={[styles.backText, { color: colors.textSecondary }]}>Back</Text>
           </Pressable>

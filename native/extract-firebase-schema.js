@@ -3,10 +3,30 @@
  */
 
 const admin = require('firebase-admin');
+const fs = require('fs');
+const path = require('path');
 
-// Initialize Firebase Admin with service account key
+function resolveCredential() {
+  const localKeyPath = path.join(__dirname, 'service-account-key.json');
+  const envKeyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS
+    ? path.resolve(process.env.GOOGLE_APPLICATION_CREDENTIALS)
+    : null;
+
+  if (envKeyPath && fs.existsSync(envKeyPath)) {
+    return admin.credential.cert(require(envKeyPath));
+  }
+
+  if (fs.existsSync(localKeyPath)) {
+    return admin.credential.cert(require(localKeyPath));
+  }
+
+  throw new Error(
+    'Missing Firebase Admin credentials. Set GOOGLE_APPLICATION_CREDENTIALS to a service-account JSON path, or add native/service-account-key.json'
+  );
+}
+
 admin.initializeApp({
-  credential: admin.credential.cert(require('./service-account-key.json'))
+  credential: resolveCredential()
 });
 
 const db = admin.firestore();

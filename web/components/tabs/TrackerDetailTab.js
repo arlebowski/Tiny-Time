@@ -56,6 +56,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const __ttAnimatePresence = (typeof window !== 'undefined' && window.Motion && window.Motion.AnimatePresence)
     ? window.Motion.AnimatePresence
     : null;
+  const trackerComparisons = window.TT?.utils?.trackerComparisons || null;
 
   // Helper: format timestamp to 12-hour time string (e.g., "4:23 AM")
   const formatTime12Hour = (timestamp) => {
@@ -476,19 +477,18 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     return x.toFixed(1);
   };
 
-  const buildAvgComparison = (delta, unit) => {
-    const raw = Number(delta);
-    const normalized = Number.isFinite(raw) ? raw : 0;
-    const roundedDelta = Math.round(normalized * 10) / 10;
-    const safeDelta = Math.abs(roundedDelta) < 1e-6 ? 0 : roundedDelta;
-    const isZero = Math.abs(safeDelta) < 0.05;
+  const buildAvgComparison = (comparison) => {
+    if (!comparison || comparison.delta == null) return null;
+    const safeDelta = Number(comparison.delta || 0);
+    const epsilon = Number.isFinite(comparison.evenEpsilon) ? comparison.evenEpsilon : 0.05;
+    const isZero = Math.abs(safeDelta) < epsilon;
     const isPositive = safeDelta >= 0;
     return {
       isZero,
       isPositive,
       color: isZero ? 'var(--tt-text-tertiary)' : (isPositive ? 'var(--tt-positive)' : 'var(--tt-negative)'),
       bg: isZero ? 'var(--tt-subtle-surface)' : (isPositive ? 'var(--tt-positive-soft)' : 'var(--tt-negative-soft)'),
-      text: isZero ? 'Even' : `${formatV2NumberSafe(Math.abs(safeDelta))} ${unit}`
+      text: isZero ? 'Even' : `${formatV2NumberSafe(Math.abs(safeDelta))}${comparison.unit ? ` ${comparison.unit}` : ''}`
     };
   };
 
@@ -955,25 +955,55 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     };
   };
 
-  const nowBucketIndex = bucketIndexCeilFromMs(Date.now());
-  const feedAvg = buildFeedAvgBuckets(allFeedings);
-  const nursingAvg = buildNursingAvgBuckets(allNursingSessions);
-  const sleepAvg = buildSleepAvgBuckets(allSleepSessions);
+  const nowMs = Date.now();
+  const startOfDay = trackerComparisons?.startOfDayMsLocal || startOfDayMsLocal;
+  const bucketAtNow = trackerComparisons?.bucketIndexCeilFromMs || bucketIndexCeilFromMs;
+  const buildFeedAvg = trackerComparisons?.buildFeedAvgBuckets || buildFeedAvgBuckets;
+  const buildNursingAvg = trackerComparisons?.buildNursingAvgBuckets || buildNursingAvgBuckets;
+  const buildSolidsAvg = trackerComparisons?.buildSolidsAvgBuckets || buildSolidsAvgBuckets;
+  const buildSleepAvg = trackerComparisons?.buildSleepAvgBuckets || buildSleepAvgBuckets;
+  const calcFeedAtBucket = trackerComparisons?.calcFeedCumulativeAtBucket;
+  const calcNursingAtBucket = trackerComparisons?.calcNursingCumulativeAtBucket;
+  const calcSolidsAtBucket = trackerComparisons?.calcSolidsCumulativeAtBucket;
+  const calcSleepAtBucket = trackerComparisons?.calcSleepCumulativeAtBucket;
+  const nowBucketIndex = bucketAtNow(nowMs);
+  const avgTodayStartMs = startOfDay(nowMs);
+  const avgTodayEndMs = avgTodayStartMs + 86400000;
+  const feedAvg = buildFeedAvg(allFeedings, avgTodayStartMs);
+  const nursingAvg = buildNursingAvg(allNursingSessions, avgTodayStartMs);
+  const solidsAvg = buildSolidsAvg(allSolidsSessions, avgTodayStartMs);
+  const sleepAvg = buildSleepAvg(allSleepSessions, avgTodayStartMs);
   const diaperAvg = buildDiaperAvgBuckets(allDiaperChanges);
 
   const feedAvgValue = feedAvg?.buckets?.[nowBucketIndex];
   const nursingAvgValue = nursingAvg?.buckets?.[nowBucketIndex];
+  const solidsAvgValue = solidsAvg?.buckets?.[nowBucketIndex];
   const sleepAvgValue = sleepAvg?.buckets?.[nowBucketIndex];
   const diaperAvgValue = diaperAvg?.buckets?.[nowBucketIndex];
+  const todayFeedValue = calcFeedAtBucket
+    ? calcFeedAtBucket(allFeedings, nowBucketIndex, avgTodayStartMs, avgTodayEndMs)
+    : Number(selectedSummary.feedOz || 0);
+  const todayNursingValue = calcNursingAtBucket
+    ? calcNursingAtBucket(allNursingSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs)
+    : (Number(selectedSummary.nursingMs || 0) / 3600000);
+  const todaySolidsValue = calcSolidsAtBucket
+    ? calcSolidsAtBucket(allSolidsSessions, nowBucketIndex, avgTodayStartMs, avgTodayEndMs)
+    : solidsCount;
+  const todaySleepValue = calcSleepAtBucket
+    ? calcSleepAtBucket(allSleepSessions, nowBucketIndex, avgTodayStartMs, null, nowMs)
+    : sleepHours;
 
   const feedComparison = isViewingToday && Number.isFinite(feedAvgValue) && (feedAvg?.daysUsed || 0) > 0
-    ? buildAvgComparison(Number(selectedSummary.feedOz || 0) - feedAvgValue, 'oz')
+    ? buildAvgComparison({ delta: todayFeedValue - feedAvgValue, unit: 'oz', evenEpsilon: 0.05 })
     : null;
   const nursingComparison = isViewingToday && Number.isFinite(nursingAvgValue) && (nursingAvg?.daysUsed || 0) > 0
-    ? buildAvgComparison((Number(selectedSummary.nursingMs || 0) / 3600000) - nursingAvgValue, 'hrs')
+    ? buildAvgComparison({ delta: todayNursingValue - nursingAvgValue, unit: 'hrs', evenEpsilon: 0.05 })
+    : null;
+  const solidsComparison = isViewingToday && Number.isFinite(solidsAvgValue) && (solidsAvg?.daysUsed || 0) > 0
+    ? buildAvgComparison({ delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: 0.05 })
     : null;
   const sleepComparison = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
-    ? buildAvgComparison(sleepHours - sleepAvgValue, 'hrs')
+    ? buildAvgComparison({ delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: 0.05 })
     : null;
   const diaperComparison = null;
 
@@ -1228,7 +1258,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
               rotateIcon: false,
               progressPercent: 0,
               progressKey: `solids-${summaryAnimationEpoch}-${selectedSummaryKey}`,
-              comparison: null,
+              comparison: solidsComparison,
               compactMode: useCompactSummaryCards
             })
           ),

@@ -239,7 +239,6 @@ export default function TTInputRow({
 const styles = StyleSheet.create({
   container: {
     borderRadius: 16,
-    marginBottom: 8,
     overflow: 'hidden',
   },
   tapable: {},
@@ -254,7 +253,7 @@ const styles = StyleSheet.create({
   },
   label: {
     marginBottom: 4,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   valueRow: {
     flexDirection: 'row',
@@ -272,7 +271,7 @@ const styles = StyleSheet.create({
   },
   value: {
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   fullWidth: {
     flex: 1,
@@ -280,11 +279,11 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     padding: 0,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   suffix: {
     fontSize: 12,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   iconBtn: {
     marginLeft: 17,

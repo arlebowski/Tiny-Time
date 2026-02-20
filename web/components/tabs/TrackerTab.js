@@ -1204,27 +1204,6 @@ const TrackerTab = ({
       return sum + (Array.isArray(s.foods) ? s.foods.length : 0);
     }, 0);
 
-    // Calculate yesterday's food count for comparison
-    const yDate = new Date(currentDate);
-    yDate.setDate(yDate.getDate() - 1);
-    const yStart = new Date(yDate);
-    yStart.setHours(0, 0, 0, 0);
-    const yEnd = new Date(yDate);
-    yEnd.setHours(23, 59, 59, 999);
-
-    const allSessions = allSolidsSessions || sessions;
-    const yesterdaySessions = allSessions.filter(s => {
-      const ts = s.timestamp || 0;
-      return ts >= yStart.getTime() && ts <= yEnd.getTime();
-    });
-
-    const yesterdayFoods = yesterdaySessions.reduce((sum, s) => {
-      return sum + (Array.isArray(s.foods) ? s.foods.length : 0);
-    }, 0);
-
-    const delta = totalFoods - yesterdayFoods;
-    const comparison = { delta, unit: 'food' };
-
     const timelineItems = todaySessions
       .sort((a, b) => ((b.timestamp || 0) - (a.timestamp || 0)))
       .map(s => ({
@@ -1238,7 +1217,7 @@ const TrackerTab = ({
 
     const lastEntryTime = timelineItems.length > 0 ? timelineItems[0].timestamp : null;
 
-    return { total: totalFoods, target: null, percent: 0, timelineItems, lastEntryTime, comparison };
+    return { total: totalFoods, target: null, percent: 0, timelineItems, lastEntryTime, comparison: null };
   };
 
   const formatSleepSessionsForCard = (sessions, targetHours, currentDate, activeSleepSession = null) => {
@@ -1420,11 +1399,12 @@ const TrackerTab = ({
     return remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
   };
 
-  const TT_AVG_BUCKET_MINUTES = 15;
-  const TT_AVG_BUCKET_MS = TT_AVG_BUCKET_MINUTES * 60000;
-  const TT_AVG_BUCKETS = 96;
-  const TT_AVG_DAYS = 7;
-  const TT_AVG_EVEN_EPSILON = 0.05;
+  const trackerComparisons = window.TT?.utils?.trackerComparisons || null;
+  const TT_AVG_BUCKET_MINUTES = trackerComparisons?.TT_AVG_BUCKET_MINUTES || 15;
+  const TT_AVG_BUCKET_MS = trackerComparisons?.TT_AVG_BUCKET_MS || (TT_AVG_BUCKET_MINUTES * 60000);
+  const TT_AVG_BUCKETS = trackerComparisons?.TT_AVG_BUCKETS || 96;
+  const TT_AVG_DAYS = trackerComparisons?.TT_AVG_DAYS || 7;
+  const TT_AVG_EVEN_EPSILON = trackerComparisons?.TT_AVG_EVEN_EPSILON || 0.05;
 
   const _startOfDayMsLocal = (ts) => {
     const d = new Date(ts);
@@ -1457,7 +1437,10 @@ const TrackerTab = ({
       }
       return true;
     };
-    return sectionEqual(a.feed, b.feed) && sectionEqual(a.nursing, b.nursing) && sectionEqual(a.sleep, b.sleep);
+    return sectionEqual(a.feed, b.feed)
+      && sectionEqual(a.nursing, b.nursing)
+      && sectionEqual(a.solids, b.solids)
+      && sectionEqual(a.sleep, b.sleep);
   };
 
   const _pickLatestAvgCache = (local, remote) => {
@@ -1740,10 +1723,12 @@ const TrackerTab = ({
 
   React.useEffect(() => {
     if (!avgCacheKey || !hasLoadedOnce) return;
-    const nextFeed = _buildFeedAvgBuckets(allFeedings);
-    const nextNursing = _buildNursingAvgBuckets(allNursingSessions);
-    const nextSleep = _buildSleepAvgBuckets(allSleepSessions);
-    if (!nextFeed && !nextNursing && !nextSleep) {
+    const todayStartMs = (trackerComparisons?.startOfDayMsLocal || _startOfDayMsLocal)(Date.now());
+    const nextFeed = (trackerComparisons?.buildFeedAvgBuckets || _buildFeedAvgBuckets)(allFeedings, todayStartMs);
+    const nextNursing = (trackerComparisons?.buildNursingAvgBuckets || _buildNursingAvgBuckets)(allNursingSessions, todayStartMs);
+    const nextSolids = (trackerComparisons?.buildSolidsAvgBuckets || (() => null))(allSolidsSessions, todayStartMs);
+    const nextSleep = (trackerComparisons?.buildSleepAvgBuckets || _buildSleepAvgBuckets)(allSleepSessions, todayStartMs);
+    if (!nextFeed && !nextNursing && !nextSolids && !nextSleep) {
       avgByTimeCacheRef.current = null;
       setAvgByTimeCache(null);
       _writeAvgCacheLocal(null);
@@ -1765,6 +1750,7 @@ const TrackerTab = ({
       computedAt: Date.now(),
       feed: nextFeed,
       nursing: nextNursing,
+      solids: nextSolids,
       sleep: nextSleep
     };
     if (_avgCacheEqual(next, avgByTimeCacheRef.current)) return;
@@ -1777,23 +1763,52 @@ const TrackerTab = ({
       firestoreStorage.updateKidData({ avgByTime: next });
       setKidDataState((prev) => ({ ...(prev || {}), avgByTime: next }));
     }
-  }, [avgCacheKey, allFeedings, allNursingSessions, allSleepSessions, hasLoadedOnce]);
+  }, [avgCacheKey, allFeedings, allNursingSessions, allSolidsSessions, allSleepSessions, hasLoadedOnce, trackerComparisons]);
 
-  const nowBucketIndex = _bucketIndexCeilFromMs(Date.now());
+  const nowBucketIndex = (trackerComparisons?.bucketIndexCeilFromMs || _bucketIndexCeilFromMs)(Date.now());
+  const comparisonTodayStartMs = (trackerComparisons?.startOfDayMsLocal || _startOfDayMsLocal)(Date.now());
+  const comparisonTodayEndMs = comparisonTodayStartMs + 86400000;
   const feedAvgValue = avgByTimeCache?.feed?.buckets?.[nowBucketIndex];
   const nursingAvgValue = avgByTimeCache?.nursing?.buckets?.[nowBucketIndex];
+  const solidsAvgValue = avgByTimeCache?.solids?.buckets?.[nowBucketIndex];
   const sleepAvgValue = avgByTimeCache?.sleep?.buckets?.[nowBucketIndex];
   const feedDaysUsed = avgByTimeCache?.feed?.daysUsed || 0;
   const nursingDaysUsed = avgByTimeCache?.nursing?.daysUsed || 0;
+  const solidsDaysUsed = avgByTimeCache?.solids?.daysUsed || 0;
   const sleepDaysUsed = avgByTimeCache?.sleep?.daysUsed || 0;
-  const todayFeedValue = _calcFeedCumulativeAtBucket(feedings, nowBucketIndex);
-  const todayNursingValue = _calcNursingCumulativeAtBucket(nursingSessions, nowBucketIndex);
-  const todaySleepValue = _calcSleepCumulativeAtBucket(sleepSessions, nowBucketIndex, activeSleep);
+  const todayFeedValue = (trackerComparisons?.calcFeedCumulativeAtBucket || _calcFeedCumulativeAtBucket)(
+    feedings,
+    nowBucketIndex,
+    comparisonTodayStartMs,
+    comparisonTodayEndMs
+  );
+  const todayNursingValue = (trackerComparisons?.calcNursingCumulativeAtBucket || _calcNursingCumulativeAtBucket)(
+    nursingSessions,
+    nowBucketIndex,
+    comparisonTodayStartMs,
+    comparisonTodayEndMs
+  );
+  const todaySolidsValue = (trackerComparisons?.calcSolidsCumulativeAtBucket || _calcSolidsCumulativeAtBucket)(
+    solidsSessions,
+    nowBucketIndex,
+    comparisonTodayStartMs,
+    comparisonTodayEndMs
+  );
+  const todaySleepValue = (trackerComparisons?.calcSleepCumulativeAtBucket || _calcSleepCumulativeAtBucket)(
+    sleepSessions,
+    nowBucketIndex,
+    comparisonTodayStartMs,
+    activeSleep,
+    Date.now()
+  );
   const feedingComparison = isToday() && Number.isFinite(feedAvgValue) && feedDaysUsed > 0
     ? { delta: todayFeedValue - feedAvgValue, unit: 'oz', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
   const nursingComparison = isToday() && Number.isFinite(nursingAvgValue) && nursingDaysUsed > 0
     ? { delta: todayNursingValue - nursingAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
+    : null;
+  const solidsComparison = isToday() && Number.isFinite(solidsAvgValue) && solidsDaysUsed > 0
+    ? { delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
   const sleepComparison = isToday() && Number.isFinite(sleepAvgValue) && sleepDaysUsed > 0
     ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
@@ -1817,15 +1832,19 @@ const TrackerTab = ({
         bucketLabel,
         feedDaysUsed,
         nursingDaysUsed,
+        solidsDaysUsed,
         sleepDaysUsed,
         feedAvgValue,
         nursingAvgValue,
+        solidsAvgValue,
         sleepAvgValue,
         todayFeedValue,
         todayNursingValue,
+        todaySolidsValue,
         todaySleepValue,
         feedingDelta: feedingComparison ? feedingComparison.delta : null,
         nursingDelta: nursingComparison ? nursingComparison.delta : null,
+        solidsDelta: solidsComparison ? solidsComparison.delta : null,
         sleepDelta: sleepComparison ? sleepComparison.delta : null
       };
     };
@@ -1836,15 +1855,19 @@ const TrackerTab = ({
     nowBucketIndex,
     feedDaysUsed,
     nursingDaysUsed,
+    solidsDaysUsed,
     sleepDaysUsed,
     feedAvgValue,
     nursingAvgValue,
+    solidsAvgValue,
     sleepAvgValue,
     todayFeedValue,
     todayNursingValue,
+    todaySolidsValue,
     todaySleepValue,
     feedingComparison,
     nursingComparison,
+    solidsComparison,
     sleepComparison,
     formatTime12Hour
   ]);
@@ -2114,7 +2137,7 @@ const TrackerTab = ({
             timelineItems: solidsCardData.timelineItems,
             entriesTodayCount: Array.isArray(solidsCardData.timelineItems) ? solidsCardData.timelineItems.length : 0,
             lastEntryTime: solidsCardData.lastEntryTime,
-            comparison: solidsCardData.comparison,
+            comparison: solidsComparison,
             rawFeedings: [],
             rawSleepSessions: [],
             currentDate: currentDate,

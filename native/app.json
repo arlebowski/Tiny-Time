@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "native",
+    "name": "Tiny Tracker",
     "slug": "native",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -15,6 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tinytracker.mobile",
+      "buildNumber": "1",
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false

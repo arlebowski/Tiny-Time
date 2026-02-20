@@ -2,7 +2,7 @@
  * Timeline — RN migration from web/components/shared/Timeline.js
  * Full migration: swipe row, delete modal, photo modal, sort icons, animations.
  */
-import React, { useState, useCallback, useMemo, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,7 +18,7 @@ import {
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
   FadeInDown,
-  FadeOutUp,
+  FadeOut,
   LinearTransition,
   Easing,
 } from 'react-native-reanimated';
@@ -33,6 +33,33 @@ const FILTER_OPTIONS = [
   { value: 'sleep', label: 'Sleep' },
   { value: 'diaper', label: 'Diaper' },
 ];
+const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
+const DELETE_EXIT_DELAY_MS = 180;
+const normalizePhotoUrls = (input) => {
+  if (!input) return [];
+  const items = Array.isArray(input) ? input : [input];
+  const urls = [];
+  for (const item of items) {
+    if (typeof item === 'string' && item.trim()) {
+      urls.push(item);
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const maybe =
+        item.url ||
+        item.publicUrl ||
+        item.publicURL ||
+        item.downloadURL ||
+        item.downloadUrl ||
+        item.src ||
+        item.uri;
+      if (typeof maybe === 'string' && maybe.trim()) {
+        urls.push(maybe);
+      }
+    }
+  }
+  return urls;
+};
 
 // Sort asc icon (arrow up) - when desc, show this to switch to asc
 const SortAscIcon = ({ size = 20, color }) => (
@@ -105,10 +132,12 @@ export default function Timeline({
   initialSortOrder = 'desc',
   onFilterChange,
   refreshing = false,
+  refreshProgressOffset = 0,
   ListHeaderComponent,
   allowItemExpand = true,
   sleepSettings = null,
   hideFilter = false,
+  suppressEmptyState = false,
 }) {
   const { colors } = useTheme();
   const [filter, setFilter] = useState(initialFilter || 'all');
@@ -124,7 +153,9 @@ export default function Timeline({
   const [openSwipeId, setOpenSwipeId] = useState(null);
   const [swipingCardId, setSwipingCardId] = useState(null);
   const [deletingCard, setDeletingCard] = useState(null);
+  const [hiddenItemIds, setHiddenItemIds] = useState(() => new Set());
   const [fullSizePhoto, setFullSizePhoto] = useState(null);
+  const hideTimersRef = useRef(new Map());
 
   const handleFilterChange = useCallback(
     (id) => {
@@ -142,21 +173,44 @@ export default function Timeline({
   const filteredItems = useMemo(() => {
     const filtered =
       filter === 'all' ? items : items.filter((item) => item.type === filter);
-    return [...filtered].sort((a, b) => {
+    const visible = filtered.filter((item) => !hiddenItemIds.has(item?.id));
+    return [...visible].sort((a, b) => {
       const aMinutes = (a.hour ?? 0) * 60 + (a.minute ?? 0);
       const bMinutes = (b.hour ?? 0) * 60 + (b.minute ?? 0);
       const direction = sortOrder === 'asc' ? 1 : -1;
       return (aMinutes - bMinutes) * direction;
     });
-  }, [items, filter, sortOrder]);
+  }, [items, filter, sortOrder, hiddenItemIds]);
+
+  useEffect(() => {
+    setOpenSwipeId(null);
+  }, [filter, sortOrder, items]);
+
+  useEffect(() => {
+    const visibleIds = new Set((items || []).map((item) => item?.id).filter(Boolean));
+    setHiddenItemIds((prev) => {
+      let changed = false;
+      const next = new Set();
+      prev.forEach((id) => {
+        if (visibleIds.has(id)) next.add(id);
+        else changed = true;
+      });
+      return changed ? next : prev;
+    });
+  }, [items]);
+
+  useEffect(
+    () => () => {
+      hideTimersRef.current.forEach((timerId) => clearTimeout(timerId));
+      hideTimersRef.current.clear();
+    },
+    []
+  );
 
   const getHasDetails = useCallback((card) => {
     if (!card) return false;
     const photoList = card.photoURLs || card.photoUrls || card.photos;
-    const urls = Array.isArray(photoList)
-      ? photoList.filter((u) => typeof u === 'string' || (u && (u.uri || u.url)))
-      : [];
-    const hasPhotos = urls.length > 0;
+    const hasPhotos = normalizePhotoUrls(photoList).length > 0;
     const hasNote = Boolean(card.note || card.notes);
     const isNursing = card.type === 'feed' && card.feedType === 'nursing';
     const isSolids = card.type === 'feed' && card.feedType === 'solids';
@@ -173,16 +227,57 @@ export default function Timeline({
     [getHasDetails, allowItemExpand]
   );
 
+  const handleRowPrimaryPress = useCallback(
+    (card) => {
+      const isLogged = card?.variant === 'logged';
+      if (isLogged) {
+        onEditCard?.(card);
+        return;
+      }
+      handleItemPress(card);
+    },
+    [handleItemPress, onEditCard]
+  );
+
   const handleDeleteCard = useCallback((card) => {
     setDeletingCard(card);
   }, []);
 
   const confirmDelete = useCallback(async () => {
-    if (!deletingCard) return;
-    if (typeof onDeleteCard === 'function') {
-      await onDeleteCard(deletingCard);
-    }
+    const card = deletingCard;
+    if (!card) return;
+    const cardId = card.id;
+
+    // Close modal immediately and hide the item instantly for snappier UX.
     setDeletingCard(null);
+    if (cardId) {
+      const existing = hideTimersRef.current.get(cardId);
+      if (existing) clearTimeout(existing);
+      const timerId = setTimeout(() => {
+        setHiddenItemIds((prev) => {
+          const next = new Set(prev);
+          next.add(cardId);
+          return next;
+        });
+        hideTimersRef.current.delete(cardId);
+      }, DELETE_EXIT_DELAY_MS);
+      hideTimersRef.current.set(cardId, timerId);
+    }
+
+    if (typeof onDeleteCard !== 'function') return;
+    const didDelete = await onDeleteCard(card);
+    if (didDelete === false && cardId) {
+      const pending = hideTimersRef.current.get(cardId);
+      if (pending) {
+        clearTimeout(pending);
+        hideTimersRef.current.delete(cardId);
+      }
+      setHiddenItemIds((prev) => {
+        const next = new Set(prev);
+        next.delete(cardId);
+        return next;
+      });
+    }
   }, [deletingCard, onDeleteCard]);
 
   const handlePhotoClick = useCallback((url) => {
@@ -203,7 +298,7 @@ export default function Timeline({
   }, [fullSizePhoto]);
 
   const renderItem = useCallback(
-    ({ item, index }) => {
+    ({ item }) => {
       const hasDetails = getHasDetails(item);
       const isExpanded = expandedId === item.id;
       const isLogged = item?.variant === 'logged';
@@ -212,7 +307,7 @@ export default function Timeline({
           card={item}
           isExpanded={isExpanded}
           hasDetails={hasDetails}
-          onPress={() => handleItemPress(item)}
+          onChevronPress={() => handleItemPress(item)}
           onActiveSleepClick={onActiveSleepClick}
           onPhotoClick={handlePhotoClick}
           sleepSettings={sleepSettings}
@@ -222,12 +317,10 @@ export default function Timeline({
       return (
         <Animated.View
           entering={FadeInDown
-            .duration(320)
-            .delay(index * 22)
+            .duration(90)
             .easing(Easing.out(Easing.cubic))}
-          exiting={FadeOutUp
-            .duration(240)
-            .delay((Math.max(0, filteredItems.length - index - 1)) * 14)
+          exiting={FadeOut
+            .duration(180)
             .easing(Easing.in(Easing.cubic))}
         >
           <TimelineSwipeRow
@@ -235,7 +328,7 @@ export default function Timeline({
             isSwipeEnabled={isLogged}
             onEdit={onEditCard}
             onDelete={handleDeleteCard}
-            onRowPress={() => handleItemPress(item)}
+            onRowPress={() => handleRowPrimaryPress(item)}
             openSwipeId={openSwipeId}
             setOpenSwipeId={setOpenSwipeId}
             onSwipeStart={setSwipingCardId}
@@ -250,13 +343,12 @@ export default function Timeline({
       expandedId,
       getHasDetails,
       handleItemPress,
+      handleRowPrimaryPress,
       handleDeleteCard,
       handlePhotoClick,
       onActiveSleepClick,
       onEditCard,
       openSwipeId,
-      swipingCardId,
-      filteredItems.length,
       allowItemExpand,
       sleepSettings,
     ]
@@ -309,6 +401,7 @@ export default function Timeline({
     () => <EmptyState filter={filter} colors={colors} />,
     [filter, colors]
   );
+  const shouldShowEmptyState = filteredItems.length === 0 && !suppressEmptyState;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.appBg }]}>
@@ -317,26 +410,31 @@ export default function Timeline({
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         itemLayoutAnimation={
-          swipingCardId
+          swipingCardId || hiddenItemIds.size > 0
             ? undefined
-            : LinearTransition.duration(220).easing(Easing.out(Easing.cubic))
+            : LinearTransition.duration(300).easing(TIMELINE_EASE)
         }
         ListHeaderComponent={ListHeaderComponentMerged}
-        ListEmptyComponent={ListEmptyComponent}
+        ListEmptyComponent={shouldShowEmptyState ? ListEmptyComponent : null}
         contentContainerStyle={[
           styles.listContent,
-          filteredItems.length === 0 && styles.listContentEmpty,
+          shouldShowEmptyState && styles.listContentEmpty,
         ]}
         refreshControl={
           onRefresh ? (
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={colors.textTertiary}
+              tintColor={colors.textPrimary}
+              title="Refreshing..."
+              titleColor={colors.textSecondary}
+              progressViewOffset={refreshProgressOffset}
             />
           ) : undefined
         }
+        alwaysBounceVertical
         showsVerticalScrollIndicator={false}
+        onScrollBeginDrag={() => setOpenSwipeId(null)}
       />
 
       {/* Delete confirmation modal */}

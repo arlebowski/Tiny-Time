@@ -25,11 +25,22 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { FullWindowOverlay } from 'react-native-screens';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../context/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Premium spring: responsive, slight overshoot for tactile feel
 const SNAP_SPRING = { damping: 22, stiffness: 280, mass: 0.8 };
+const TIME_TRACE = false;
+const timeTrace = (...args) => {
+  if (TIME_TRACE) console.log('[TimeTrace][DateTimePickerTray]', ...args);
+};
+const PICKER_TRACE = false;
+const pickerTrace = (...args) => {
+  if (PICKER_TRACE) console.log('[TimeTrace][TTPickerTray]', ...args);
+};
+// One-line rollback switch for native iOS spinner experiment.
+const USE_NATIVE_IOS_DATETIME_TRAY = true;
 
 // Context so WheelPicker overlay uses the exact tray background (avoids theme/portal mismatches)
 const PickerTrayBgContext = createContext(null);
@@ -194,7 +205,7 @@ export function WheelPicker({
   containerStyle = null,
   overlayColor = null,
 }) {
-  const { colors } = useTheme();
+  const { colors, radius } = useTheme();
   const trayBgFromContext = useContext(PickerTrayBgContext);
   const offsetY = useSharedValue(0);
   const gestureStartOffset = useSharedValue(0);
@@ -385,6 +396,7 @@ export function WheelPicker({
               style={[
                 wheelStyles.selection,
                 { backgroundColor: colors.wheelpickerBar || colors.subtle },
+                { borderRadius: radius?.['2xl'] ?? 16 },
               ]}
             />
           )}
@@ -666,26 +678,21 @@ export function TTPickerTray({
   header = null,
   height = '44%',
   scrollEnabled = true,
+  contentContainerStyle = null,
 }) {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
   const backdropOpacity = useSharedValue(0);
   const trayTranslateY = useSharedValue(9999);
-  const [closing, setClosing] = useState(false);
+  const closeRequestedRef = useRef(false);
+  const closeAnimatingRef = useRef(false);
+  const [rendered, setRendered] = useState(isOpen);
 
   const { height: screenH } = Dimensions.get('window');
   const trayHeight =
     typeof height === 'number'
       ? height
       : (screenH * parseInt(String(height).replace('%', ''), 10)) / 100;
-
-  const finishClose = useCallback(() => {
-    if (typeof global !== 'undefined' && global.TT?.shared?.pickers) {
-      global.TT.shared.pickers.isTrayOpen = false;
-    }
-    setClosing(false);
-    if (onClose) onClose();
-  }, [onClose]);
 
   useEffect(() => {
     if (typeof global !== 'undefined') {
@@ -696,35 +703,43 @@ export function TTPickerTray({
     }
   }, [isOpen]);
 
+  const finishCloseAnimation = useCallback(() => {
+    closeAnimatingRef.current = false;
+    setRendered(false);
+  }, []);
+
   useEffect(() => {
+    pickerTrace('isOpen:change', { isOpen });
     if (isOpen) {
-      setClosing(false);
+      setRendered(true);
+      closeAnimatingRef.current = false;
+      closeRequestedRef.current = false;
       backdropOpacity.value = 0;
       trayTranslateY.value = trayHeight;
       backdropOpacity.value = withTiming(0.4, { duration: 220 });
       trayTranslateY.value = withSpring(0, SNAP_SPRING);
-    } else if (!closing) {
-      setClosing(true);
-      backdropOpacity.value = withTiming(0, { duration: 180 });
-      trayTranslateY.value = withSpring(trayHeight, { ...SNAP_SPRING, damping: 28 }, (finished) => {
-        if (finished) runOnJS(finishClose)();
-      });
+      return;
     }
-  }, [isOpen]);
-
-  const requestClose = useCallback(() => {
-    if (closing) return;
-    setClosing(true);
+    if (!rendered || closeAnimatingRef.current) return;
+    closeAnimatingRef.current = true;
     backdropOpacity.value = withTiming(0, { duration: 180 });
     trayTranslateY.value = withSpring(trayHeight, { ...SNAP_SPRING, damping: 28 }, (finished) => {
-      if (finished) runOnJS(finishClose)();
+      if (finished) runOnJS(finishCloseAnimation)();
     });
-  }, [closing, trayHeight, finishClose]);
+  }, [isOpen, rendered, trayHeight, backdropOpacity, trayTranslateY, finishCloseAnimation]);
+
+  const requestClose = useCallback(() => {
+    pickerTrace('requestClose', { isOpen });
+    if (!isOpen || closeRequestedRef.current) return;
+    closeRequestedRef.current = true;
+    if (onClose) onClose();
+  }, [isOpen, onClose]);
 
   const onBackdropPress = useCallback(() => {
-    if (!isOpen || closing) return;
+    pickerTrace('backdropPress', { isOpen });
+    if (!isOpen) return;
     requestClose();
-  }, [isOpen, closing, requestClose]);
+  }, [isOpen, requestClose]);
 
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: backdropOpacity.value,
@@ -759,7 +774,10 @@ export function TTPickerTray({
           )}
           <ScrollView
             style={styles.trayContent}
-            contentContainerStyle={{ paddingTop: 22, paddingBottom: 12 }}
+            contentContainerStyle={[
+              { paddingTop: 22, paddingBottom: 12 },
+              contentContainerStyle,
+            ]}
             showsVerticalScrollIndicator={false}
             scrollEnabled={scrollEnabled}
           >
@@ -770,7 +788,7 @@ export function TTPickerTray({
     </PickerTrayBgContext.Provider>
   );
 
-  const modalVisible = isOpen || closing;
+  const modalVisible = isOpen || rendered;
   if (!modalVisible) return null;
 
   return (
@@ -829,7 +847,7 @@ export function DateTimePickerTray({
   onChange,
   title = 'Date & Time',
 }) {
-  const { colors, bottle } = useTheme();
+  const { colors, bottle, isDark, radius } = useTheme();
   const base = value ? new Date(value) : new Date();
   const safeBase = Number.isNaN(base.getTime()) ? new Date() : base;
 
@@ -848,6 +866,7 @@ export function DateTimePickerTray({
   const [dtHour, setDtHour] = useState(initialHour);
   const [dtMinute, setDtMinute] = useState(initialMinute);
   const [dtAmpm, setDtAmpm] = useState(initialAmpm);
+  const lastEmitLogRef = useRef(0);
 
   useEffect(() => {
     if (!value) return;
@@ -870,16 +889,35 @@ export function DateTimePickerTray({
     let hour24 = Number(hour) % 12;
     if (ampm === 'PM') hour24 += 12;
     baseDate.setHours(hour24, Number(minute) || 0, 0, 0);
+    const now = Date.now();
+    if (now - lastEmitLogRef.current > 400) {
+      const outTs = baseDate.getTime();
+      timeTrace('emit', {
+        dateISO,
+        hour,
+        minute,
+        ampm,
+        outIso: baseDate.toISOString(),
+        deltaFromNowMs: Number.isFinite(outTs) ? outTs - now : null,
+      });
+      lastEmitLogRef.current = now;
+    }
     if (typeof onChange === 'function') onChange(baseDate.toISOString());
   };
 
   const header = (close) => (
     <View style={styles.trayHeaderGrid}>
-      <Pressable onPress={close} hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }} style={({ pressed }) => pressed && { opacity: 0.6 }}>
+      <Pressable onPress={() => {
+        timeTrace('header:cancel');
+        close();
+      }} hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }} style={({ pressed }) => pressed && { opacity: 0.6 }}>
         <Text style={[styles.headerBtn, { color: colors.textSecondary }]}>Cancel</Text>
       </Pressable>
       <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{title}</Text>
-      <Pressable onPress={close} hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }} style={({ pressed }) => pressed && { opacity: 0.6 }}>
+      <Pressable onPress={() => {
+        timeTrace('header:done');
+        close();
+      }} hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }} style={({ pressed }) => pressed && { opacity: 0.6 }}>
         <Text style={[styles.headerDone, { color: bottle?.primary || colors.textPrimary }]}>Done</Text>
       </Pressable>
     </View>
@@ -888,6 +926,40 @@ export function DateTimePickerTray({
   const { width } = Dimensions.get('window');
   const dateWidth = Math.min(65, width * 0.16);
   const timeWidth = Math.min(50, width * 0.12);
+  const nativePickerDate = useMemo(() => {
+    const parsed = value ? new Date(value) : new Date();
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, [value]);
+
+  if (USE_NATIVE_IOS_DATETIME_TRAY && Platform.OS === 'ios') {
+    return (
+      <TTPickerTray
+        isOpen={isOpen}
+        onClose={onClose}
+        header={header}
+        height="44%"
+        scrollEnabled={false}
+        contentContainerStyle={styles.nativePickerContent}
+      >
+        <View style={styles.nativePickerWrap}>
+          <DateTimePicker
+            value={nativePickerDate}
+            mode="datetime"
+            display="spinner"
+            onChange={(event, selectedDate) => {
+              if (event?.type === 'dismissed') return;
+              if (!selectedDate || Number.isNaN(selectedDate.getTime())) return;
+              if (typeof onChange === 'function') onChange(selectedDate.toISOString());
+            }}
+            style={styles.nativePicker}
+            textColor={colors.textPrimary}
+            accentColor={bottle?.primary || colors.textPrimary}
+            themeVariant={isDark ? 'dark' : 'light'}
+          />
+        </View>
+      </TTPickerTray>
+    );
+  }
 
   return (
     <TTPickerTray isOpen={isOpen} onClose={onClose} header={header} height="44%" scrollEnabled={false}>
@@ -897,6 +969,7 @@ export function DateTimePickerTray({
             style={[
               styles.dateTimeSelectionBar,
               { backgroundColor: colors.subtleSurface || colors.subtle || colors.track },
+              { borderRadius: radius?.['2xl'] ?? 16 },
             ]}
           />
           <View style={styles.dateTimeRow}>
@@ -1024,7 +1097,7 @@ const styles = StyleSheet.create({
   itemText: {
     fontSize: 18,
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1054,17 +1127,17 @@ const styles = StyleSheet.create({
   },
   headerBtn: {
     fontSize: 17,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   headerDone: {
     fontSize: 17,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   trayContent: {
     flex: 1,
@@ -1111,5 +1184,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -2,
+  },
+  nativePickerWrap: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 0,
+  },
+  nativePicker: {
+    width: '96%',
+    transform: [{ scale: 1 }],
+  },
+  nativePickerContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingTop: 0,
+    paddingBottom: 0,
   },
 });

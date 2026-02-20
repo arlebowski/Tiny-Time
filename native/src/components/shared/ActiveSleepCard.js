@@ -215,7 +215,7 @@ const styles = StyleSheet.create({
     lineHeight: 30,
     fontVariant: ['tabular-nums'],
     includeFontPadding: false,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   cta: {
     alignSelf: 'center',
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     includeFontPadding: false,
     textAlignVertical: 'center',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   zzz: {
     flexDirection: 'row',
@@ -246,6 +246,6 @@ const styles = StyleSheet.create({
     fontSize: 17.6,
     lineHeight: 18,
     includeFontPadding: false,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

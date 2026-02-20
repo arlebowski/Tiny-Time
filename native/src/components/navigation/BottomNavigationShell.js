@@ -123,7 +123,6 @@ export default function BottomNavigationShell({
 const styles = StyleSheet.create({
   bottomSafe: {
     overflow: 'visible',
-    zIndex: 50,
   },
   navContainer: {
     overflow: 'visible',

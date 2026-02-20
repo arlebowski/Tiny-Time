@@ -224,12 +224,21 @@ export function SleepChart({
 export function FeedingChart({
   data = [],
   average = 0,
+  volumeUnit = 'oz',
   feedColor,
   mutedBarColor,
   tertiaryText,
   secondaryText,
   isVisible = true,
 }) {
+  const unit = volumeUnit === 'ml' ? 'ml' : 'oz';
+  const formatAverage = (valueOz) => {
+    const oz = Number(valueOz || 0);
+    if (!Number.isFinite(oz)) return '0';
+    if (unit === 'ml') return String(Math.round(oz * 29.5735));
+    return formatV2Number(oz);
+  };
+
   return (
     <BaseBarChart
       data={data.map((d) => ({ ...d, value: d.volume || 0 }))}
@@ -240,7 +249,8 @@ export function FeedingChart({
       secondaryText={secondaryText}
       valueKey="value"
       title="Average intake"
-      unit="oz"
+      unit={unit}
+      valueFormatter={formatAverage}
       isVisible={isVisible}
     />
   );

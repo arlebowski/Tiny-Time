@@ -16,7 +16,7 @@ import {
   SleepChart,
   SimpleBarChart,
 } from '../components/shared/analyticsCharts';
-import AnalyticsDetailScreen from './AnalyticsDetailScreen';
+
 
 const parseDateKeyToDate = (key) => {
   const parts = String(key || '').split('-');
@@ -38,9 +38,8 @@ const getLastNDaysKeys = (n) => {
   return keys;
 };
 
-export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal = 0 }) {
+export default function AnalyticsScreen({ onCardTap }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
-  const [activeDetail, setActiveDetail] = useState(null);
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [cardLayouts, setCardLayouts] = useState({});
@@ -52,7 +51,15 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
     diaper: false,
   });
 
-  const { feedings: rawFeedings, nursingSessions: rawNursing, solidsSessions: rawSolids, diaperChanges: rawDiapers, sleepSessions: rawSleep } = useData();
+  const {
+    feedings: rawFeedings,
+    nursingSessions: rawNursing,
+    solidsSessions: rawSolids,
+    diaperChanges: rawDiapers,
+    sleepSessions: rawSleep,
+    kidSettings,
+  } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   const sourceData = useMemo(() => {
     const allFeedings = (rawFeedings || []).map((f) => ({
@@ -84,8 +91,9 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
       allDiaperChanges,
       sleepSessions,
       sleepSettings: { sleepDayStart: 7 * 60, sleepDayEnd: 19 * 60 },
+      preferredVolumeUnit,
     };
-  }, [rawFeedings, rawNursing, rawSolids, rawDiapers, rawSleep]);
+  }, [rawFeedings, rawNursing, rawSolids, rawDiapers, rawSleep, preferredVolumeUnit]);
 
   const hasAnyAnalyticsData = useMemo(
     () =>
@@ -238,31 +246,6 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
     });
   }, [cardLayouts, scrollY, viewportHeight]);
 
-  useEffect(() => {
-    onDetailOpenChange?.(Boolean(activeDetail));
-  }, [activeDetail, onDetailOpenChange]);
-
-  useEffect(
-    () => () => {
-      onDetailOpenChange?.(false);
-    },
-    [onDetailOpenChange]
-  );
-
-  useEffect(() => {
-    setActiveDetail(null);
-  }, [resetSignal]);
-
-  if (activeDetail) {
-    return (
-      <AnalyticsDetailScreen
-        type={activeDetail}
-        sourceData={sourceData}
-        onBack={() => setActiveDetail(null)}
-      />
-    );
-  }
-
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.appBg }]}
@@ -287,11 +270,12 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
               categoryColor={bottle.primary}
               cardBg={colors.trackerCardBg || colors.cardBg}
               chevronColor={colors.textTertiary}
-              onPress={() => setActiveDetail('bottle')}
+              onPress={() => onCardTap('bottle')}
             >
               <FeedingChart
                 data={feedingChartData}
                 average={feedingChartAverage}
+                volumeUnit={preferredVolumeUnit}
                 feedColor={bottle.primary}
                 mutedBarColor={colors.subtleSurface || colors.subtle}
                 tertiaryText={colors.textTertiary}
@@ -308,7 +292,7 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
               categoryColor={nursing.primary}
               cardBg={colors.trackerCardBg || colors.cardBg}
               chevronColor={colors.textTertiary}
-              onPress={() => setActiveDetail('nursing')}
+              onPress={() => onCardTap('nursing')}
             >
               <SimpleBarChart
                 data={nursingChartData}
@@ -331,7 +315,7 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
               categoryColor={solids.primary}
               cardBg={colors.trackerCardBg || colors.cardBg}
               chevronColor={colors.textTertiary}
-              onPress={() => setActiveDetail('solids')}
+              onPress={() => onCardTap('solids')}
             >
               <SimpleBarChart
                 data={solidsChartData}
@@ -354,7 +338,7 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
               categoryColor={sleep.primary}
               cardBg={colors.trackerCardBg || colors.cardBg}
               chevronColor={colors.textTertiary}
-              onPress={() => setActiveDetail('sleep')}
+              onPress={() => onCardTap('sleep')}
             >
               <SleepChart
                 data={sleepChartData}
@@ -375,7 +359,7 @@ export default function AnalyticsScreen({ onDetailOpenChange = null, resetSignal
               categoryColor={diaper.primary}
               cardBg={colors.trackerCardBg || colors.cardBg}
               chevronColor={colors.textTertiary}
-              onPress={() => setActiveDetail('diaper')}
+              onPress={() => onCardTap('diaper')}
             >
               <SimpleBarChart
                 data={diaperChartData}
