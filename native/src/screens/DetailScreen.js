@@ -67,6 +67,7 @@ function SummaryCard({
   value,
   unit,
   isCompact,
+  fillHeight = false,
   comparison,
   subline,
   rotateIcon = false,
@@ -179,7 +180,7 @@ function SummaryCard({
   ) : subline;
 
   return (
-    <View style={[styles.summaryCard, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, padding }]}>
+    <View style={[styles.summaryCard, fillHeight ? styles.summaryCardFillHeight : null, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, padding }]}>
       <View style={styles.summaryCardInner}>
         {/* Icon + value + unit row */}
         <Animated.View style={[styles.summaryValueRow, isCompact ? styles.summaryValueRowCompact : null, valueRowAnimatedStyle]}>
@@ -424,6 +425,7 @@ export default function DetailSheet({
   const feedSummaryCount = 1 + (hasNursingSummary ? 1 : 0) + (hasSolidsSummary ? 1 : 0);
   const isAllCompactMode = summaryLayoutMode === 'all';
   const isFeedThreeMode = summaryLayoutMode === 'feed' && feedSummaryCount >= 3;
+  const isFeedTwoColMode = summaryLayoutMode === 'feed' && feedSummaryCount === 2;
   const isHorizontalScrollMode = isAllCompactMode || isFeedThreeMode;
   const allModeCardWidth = (SCREEN_WIDTH - 48) / 3;
   const twoColCardWidth = (SCREEN_WIDTH - 48) / 2;
@@ -438,7 +440,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="feed"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridItem}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridItem}
         >
           <SummaryCard
             icon={BottleIcon}
@@ -446,6 +448,7 @@ export default function DetailSheet({
             value={feedDisplay}
             unit={preferredVolumeUnit}
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={feedComparison}
             rotateIcon
             colors={colors}
@@ -459,7 +462,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="nursing"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridItem}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridItem}
         >
           <SummaryCard
             icon={NursingIcon}
@@ -467,6 +470,7 @@ export default function DetailSheet({
             value={nursingDisplay}
             unit="hrs"
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={nursingComparison}
             colors={colors}
           />
@@ -479,7 +483,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="solids"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridItem}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridItem}
         >
           <SummaryCard
             icon={SolidsIcon}
@@ -487,6 +491,7 @@ export default function DetailSheet({
             value={solidsDisplay}
             unit="foods"
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={solidsComparison}
             colors={colors}
           />
@@ -499,7 +504,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="sleep"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridFull}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridFull}
         >
           <SummaryCard
             icon={SleepIcon}
@@ -507,6 +512,7 @@ export default function DetailSheet({
             value={sleepDisplay}
             unit="hrs"
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode}
             comparison={sleepComparison}
             colors={colors}
           />
@@ -519,7 +525,7 @@ export default function DetailSheet({
       cards.push(
         <View
           key="diaper"
-          style={isHorizontalScrollMode ? { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth } : styles.summaryGridFull}
+          style={isHorizontalScrollMode ? [styles.summaryScrollItem, { width: isFeedThreeMode ? twoColCardWidth : allModeCardWidth }] : styles.summaryGridFull}
         >
           <SummaryCard
             icon={DiaperIcon}
@@ -527,6 +533,7 @@ export default function DetailSheet({
             value={diaperDisplay}
             unit={diaperUnit}
             isCompact={isAllCompactMode}
+            fillHeight={isHorizontalScrollMode}
             comparison={diaperComparison}
             subline={diaperSubline}
             colors={colors}
@@ -537,7 +544,7 @@ export default function DetailSheet({
 
     return cards;
   }, [
-    summaryLayoutMode, isAllCompactMode, isFeedThreeMode, isHorizontalScrollMode, allModeCardWidth, twoColCardWidth,
+    summaryLayoutMode, isAllCompactMode, isFeedThreeMode, isFeedTwoColMode, isHorizontalScrollMode, allModeCardWidth, twoColCardWidth,
     bottle.primary, nursing.primary, solids.primary, sleep.primary, diaper.primary,
     feedDisplay, nursingDisplay, solidsDisplay, sleepDisplay, diaperDisplay, diaperUnit,
     hasNursingSummary, hasSolidsSummary, feedComparison, nursingComparison, solidsComparison, sleepComparison, diaperComparison, diaperSubline, colors,
@@ -546,7 +553,7 @@ export default function DetailSheet({
   // Back button for calendar header
   const calendarHeaderLeft = useMemo(
     () => (
-      <Pressable onPress={onBack} style={styles.backButton}>
+      <Pressable onPressIn={onBack} style={styles.backButton}>
         <ChevronLeftIcon size={20} color={colors.textSecondary} />
         <Text style={[styles.backText, { color: colors.textSecondary }]}>Back</Text>
       </Pressable>
@@ -686,8 +693,12 @@ const styles = StyleSheet.create({
   },
   summaryScrollRow: {
     flexDirection: 'row',
+    alignItems: 'stretch',
     gap: 12,
     paddingBottom: 4,
+  },
+  summaryScrollItem: {
+    alignSelf: 'stretch',
   },
   summaryScrollFade: {
     position: 'absolute',
@@ -704,6 +715,7 @@ const styles = StyleSheet.create({
   summaryGridTwoCols: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    alignItems: 'stretch',
   },
   summaryGridItem: {
     flex: 1,
@@ -717,6 +729,9 @@ const styles = StyleSheet.create({
     minHeight: 56,
     borderRadius: 16,
     borderWidth: 1,
+  },
+  summaryCardFillHeight: {
+    flex: 1,
   },
   summaryCardInner: {
     gap: 8,

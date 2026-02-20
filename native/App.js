@@ -381,6 +381,16 @@ function AppShell({
   const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
   const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
+  const FAMILY_NAV_DEBUG = __DEV__;
+
+  const logFamilyNav = useCallback((event, payload = null) => {
+    if (!FAMILY_NAV_DEBUG) return;
+    if (payload) {
+      console.log(`[FamilyNav/App] ${event}`, payload);
+      return;
+    }
+    console.log(`[FamilyNav/App] ${event}`);
+  }, [FAMILY_NAV_DEBUG]);
 
   // Create storage adapter for sheets
   const storage = useMemo(
@@ -741,6 +751,11 @@ function AppShell({
     }
   }, []);
 
+  const handleFamilyDetailOpenChange = useCallback((isOpen) => {
+    logFamilyNav('onDetailOpenChange', { isOpen });
+    setIsFamilyDetailOpen(isOpen);
+  }, [logFamilyNav]);
+
   return (
     <>
       <SafeAreaView
@@ -812,7 +827,7 @@ function AppShell({
               onToggleForceSetupPreview={onToggleForceSetupPreview}
               onToggleForceLoginPreview={onToggleForceLoginPreview}
               onRequestToggleActivitySheet={handleToggleActivitySheet}
-              onDetailOpenChange={setIsFamilyDetailOpen}
+              onDetailOpenChange={handleFamilyDetailOpenChange}
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
             />

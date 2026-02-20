@@ -30,7 +30,6 @@ import {
 } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  Easing,
   Extrapolation,
   interpolate,
   runOnJS,
@@ -41,25 +40,30 @@ import Animated, {
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
-import SegmentedToggle from '../components/shared/SegmentedToggle';
-import TTInputRow from '../components/shared/TTInputRow';
-import HalfSheet from '../components/sheets/HalfSheet';
-import TTPhotoRow from '../components/shared/TTPhotoRow';
-import {
-  EditIcon,
-  BabyIcon,
-  ChevronLeftIcon,
-  ChevronRightIcon,
-  CameraIcon,
-  TrashIcon,
-  PlusIcon,
-  PaletteIcon,
-  FamilyIcon,
-  SettingsIcon,
-  DaySleepWindowIcon,
-} from '../components/icons';
 import { updateCurrentUserProfile } from '../services/authService';
 import { uploadKidPhoto, uploadUserPhoto } from '../services/storageService';
+import ProfileSubscreen from './family/subscreens/ProfileSubscreen';
+import FamilySubscreen from './family/subscreens/FamilySubscreen';
+import KidSubscreen from './family/subscreens/KidSubscreen';
+import FamilyHubSubscreen from './family/subscreens/FamilyHubSubscreen';
+import AppearanceHalfSheet from '../components/sheets/family/AppearanceHalfSheet';
+import FeedingUnitHalfSheet from '../components/sheets/family/FeedingUnitHalfSheet';
+import DaySleepWindowHalfSheet from '../components/sheets/family/DaySleepWindowHalfSheet';
+import AddChildHalfSheet from '../components/sheets/family/AddChildHalfSheet';
+import AddFamilyHalfSheet from '../components/sheets/family/AddFamilyHalfSheet';
+import {
+  SUBPAGE_BASE_SCALE,
+  SUBPAGE_BASE_SHIFT_FACTOR,
+  SUBPAGE_CANCEL_DURATION_MS,
+  SUBPAGE_CLOSE_DURATION_MS,
+  SUBPAGE_DETAIL_SHADOW_OPACITY,
+  SUBPAGE_DETAIL_START_X_FACTOR,
+  SUBPAGE_EASING,
+  SUBPAGE_OPEN_DURATION_MS,
+  SUBPAGE_SCRIM_OPACITY,
+  SUBPAGE_SWIPE_CLOSE_THRESHOLD,
+  SUBPAGE_SWIPE_VELOCITY_THRESHOLD,
+} from '../constants/subpageMotion';
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -94,11 +98,6 @@ const formatMonthDay = (dateLike) => {
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
-
-const OPEN_DURATION_MS = 340;
-const CLOSE_DURATION_MS = 280;
-const SWIPE_CLOSE_THRESHOLD = 0.33;
-const SWIPE_VELOCITY_THRESHOLD = 950;
 
 // ── Card wrapper (matches web TTCard variant="tracker") ──
 // Web: rounded-2xl p-5 shadow-sm bg var(--tt-card-bg)
@@ -186,6 +185,16 @@ export default function FamilyScreen({
   onSignOut,
   onDeleteAccount,
 }) {
+  const FAMILY_NAV_DEBUG = __DEV__;
+  const logNav = useCallback((event, payload = null) => {
+    if (!FAMILY_NAV_DEBUG) return;
+    if (payload) {
+      console.log(`[FamilyNav/Screen] ${event}`, payload);
+      return;
+    }
+    console.log(`[FamilyNav/Screen] ${event}`);
+  }, [FAMILY_NAV_DEBUG]);
+
   const { colors, radius } = useTheme();
   const { width: screenWidth } = useWindowDimensions();
   const width = Math.max(screenWidth || 0, 1);
@@ -199,6 +208,7 @@ export default function FamilyScreen({
   const previousView = viewStack.length > 1 ? viewStack[viewStack.length - 2] : 'hub';
   const canGoBack = viewStack.length > 1;
   const navProgress = useSharedValue(0); // 0 = no overlay, 1 = overlay fully open
+  const navMutationLock = useSharedValue(0); // 0 = unlocked, 1 = locked
   const [kidData, setKidData] = useState(null);
   const [members, setMembers] = useState([]);
   const [settings, setSettings] = useState({ babyWeight: null, preferredVolumeUnit: 'oz' });
@@ -310,47 +320,84 @@ export default function FamilyScreen({
     addFamilySheetRef.current?.dismiss?.();
   }, []);
 
+  const releaseNavMutationLock = useCallback(() => {
+    navMutationLock.value = 0;
+  }, [navMutationLock]);
+
   const finishPush = useCallback(() => {
     setTransition(null);
-    navProgress.value = 0;
-  }, [navProgress]);
+    navMutationLock.value = 0;
+  }, [navMutationLock]);
 
   const finishPop = useCallback(() => {
     setTransition(null);
-    navProgress.value = 0;
-  }, [navProgress]);
+    navMutationLock.value = 0;
+  }, [navMutationLock]);
 
   const pushView = useCallback((nextView) => {
-    if (!nextView || nextView === currentView || transition) return;
+    if (!nextView || nextView === currentView || transition || navMutationLock.value) return;
+    navMutationLock.value = 1;
+    logNav('pushView:start', { from: currentView, to: nextView });
     setTransition({ from: currentView, to: nextView, direction: 'push' });
     setViewStack((prev) => [...prev, nextView]);
     navProgress.value = 0;
     navProgress.value = withTiming(1, {
-      duration: OPEN_DURATION_MS,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      duration: SUBPAGE_OPEN_DURATION_MS,
+      easing: SUBPAGE_EASING,
     }, (finished) => {
-      if (finished) runOnJS(finishPush)();
+      runOnJS(logNav)('pushView:end', { from: currentView, to: nextView, finished });
+      if (finished) {
+        runOnJS(finishPush)();
+      } else {
+        runOnJS(releaseNavMutationLock)();
+      }
     });
-  }, [currentView, finishPush, navProgress, transition]);
+  }, [
+    currentView,
+    finishPush,
+    logNav,
+    navMutationLock,
+    navProgress,
+    releaseNavMutationLock,
+    transition,
+  ]);
 
   const popView = useCallback(() => {
-    if (!canGoBack || transition) return;
+    if (!canGoBack || transition || navMutationLock.value) return;
+    navMutationLock.value = 1;
+    logNav('popView:start', { from: currentView, to: previousView });
     setTransition({ from: currentView, to: previousView, direction: 'pop' });
     setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
     navProgress.value = 1;
     navProgress.value = withTiming(0, {
-      duration: CLOSE_DURATION_MS,
-      easing: Easing.bezier(0.22, 1, 0.36, 1),
+      duration: SUBPAGE_CLOSE_DURATION_MS,
+      easing: SUBPAGE_EASING,
     }, (finished) => {
-      if (finished) runOnJS(finishPop)();
+      runOnJS(logNav)('popView:end', { from: currentView, to: previousView, finished });
+      if (finished) {
+        runOnJS(finishPop)();
+      } else {
+        runOnJS(releaseNavMutationLock)();
+      }
     });
-  }, [canGoBack, currentView, finishPop, navProgress, previousView, transition]);
+  }, [
+    canGoBack,
+    currentView,
+    finishPop,
+    logNav,
+    navMutationLock,
+    navProgress,
+    previousView,
+    releaseNavMutationLock,
+    transition,
+  ]);
 
   const cancelSwipeBack = useCallback((fromView) => {
     setViewStack((prev) => (prev[prev.length - 1] === fromView ? prev : [...prev, fromView]));
     setTransition(null);
     navProgress.value = 0;
-  }, [navProgress]);
+    navMutationLock.value = 0;
+  }, [navMutationLock, navProgress]);
 
   const popStackOne = useCallback(() => {
     setViewStack((prev) => (prev.length > 1 ? prev.slice(0, -1) : prev));
@@ -359,36 +406,43 @@ export default function FamilyScreen({
   const resetToHub = useCallback(() => {
     setViewStack(['hub']);
     setTransition(null);
-  }, []);
+    navMutationLock.value = 0;
+  }, [navMutationLock]);
 
   const baseLayerStyle = useAnimatedStyle(() => {
     return {
       transform: [
-        { translateX: interpolate(navProgress.value, [0, 1], [0, -width * 0.22], Extrapolation.CLAMP) },
-        { scale: interpolate(navProgress.value, [0, 1], [1, 0.985], Extrapolation.CLAMP) },
+        { translateX: interpolate(navProgress.value, [0, 1], [0, -width * SUBPAGE_BASE_SHIFT_FACTOR], Extrapolation.CLAMP) },
+        { scale: interpolate(navProgress.value, [0, 1], [1, SUBPAGE_BASE_SCALE], Extrapolation.CLAMP) },
       ],
     };
   }, [width]);
 
-  const overlayLayerStyle = useAnimatedStyle(() => ({
+  const detailLayerStyle = useAnimatedStyle(() => ({
     transform: [
       {
-        translateX: interpolate(navProgress.value, [0, 1], [width, 0], Extrapolation.CLAMP),
+        translateX: interpolate(navProgress.value, [0, 1], [width * SUBPAGE_DETAIL_START_X_FACTOR, 0], Extrapolation.CLAMP),
       },
     ],
+    shadowOpacity: interpolate(navProgress.value, [0, 1], [0, SUBPAGE_DETAIL_SHADOW_OPACITY], Extrapolation.CLAMP),
   }), [width]);
 
-  const scrimStyle = useAnimatedStyle(() => {
-    if (!transition) return { opacity: 0 };
-    return { opacity: interpolate(navProgress.value, [0, 1], [0, 0.08], Extrapolation.CLAMP) };
-  }, [transition]);
+  const flowScrimStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(navProgress.value, [0, 1], [0, SUBPAGE_SCRIM_OPACITY], Extrapolation.CLAMP),
+  }));
 
   const edgeSwipeGesture = useMemo(() => Gesture.Pan()
     .enabled(canGoBack && !transition)
     .hitSlop({ left: 0, width: 32 })
     .activeOffsetX(10)
     .failOffsetY([-12, 12])
-    .onBegin(() => {
+    .onStart(() => {
+      if (navMutationLock.value) {
+        runOnJS(logNav)('edgeSwipe:start:blocked');
+        return;
+      }
+      navMutationLock.value = 1;
+      runOnJS(logNav)('edgeSwipe:start', { from: currentView, to: previousView });
       runOnJS(setTransition)({ from: currentView, to: previousView, direction: 'pop' });
       runOnJS(popStackOne)();
       navProgress.value = 1;
@@ -399,21 +453,36 @@ export default function FamilyScreen({
     })
     .onEnd((event) => {
       const shouldClose =
-        event.translationX > width * SWIPE_CLOSE_THRESHOLD
-        || event.velocityX > SWIPE_VELOCITY_THRESHOLD;
+        event.translationX > width * SUBPAGE_SWIPE_CLOSE_THRESHOLD
+        || event.velocityX > SUBPAGE_SWIPE_VELOCITY_THRESHOLD;
+      runOnJS(logNav)('edgeSwipe:end', {
+        from: currentView,
+        to: previousView,
+        shouldClose,
+        translationX: Math.round(event.translationX),
+        velocityX: Math.round(event.velocityX),
+      });
       if (shouldClose) {
         navProgress.value = withTiming(0, {
-          duration: CLOSE_DURATION_MS,
-          easing: Easing.bezier(0.22, 1, 0.36, 1),
+          duration: SUBPAGE_CLOSE_DURATION_MS,
+          easing: SUBPAGE_EASING,
         }, (finished) => {
-          if (finished) runOnJS(finishPop)();
+          if (finished) {
+            runOnJS(finishPop)();
+          } else {
+            runOnJS(releaseNavMutationLock)();
+          }
         });
       } else {
         navProgress.value = withTiming(1, {
-          duration: 220,
-          easing: Easing.bezier(0.22, 1, 0.36, 1),
+          duration: SUBPAGE_CANCEL_DURATION_MS,
+          easing: SUBPAGE_EASING,
         }, (finished) => {
-          if (finished) runOnJS(cancelSwipeBack)(currentView);
+          if (finished) {
+            runOnJS(cancelSwipeBack)(currentView);
+          } else {
+            runOnJS(releaseNavMutationLock)();
+          }
         });
       }
     }), [
@@ -421,12 +490,19 @@ export default function FamilyScreen({
       canGoBack,
       currentView,
       finishPop,
+      logNav,
+      navMutationLock,
       navProgress,
       popStackOne,
       previousView,
+      releaseNavMutationLock,
       transition,
       width,
     ]);
+
+  useEffect(() => {
+    logNav('stack', { viewStack: [...viewStack], transition: transition ? transition.direction : null });
+  }, [logNav, transition, viewStack]);
 
   useEffect(() => {
     if (ctxKidData) {
@@ -479,11 +555,25 @@ export default function FamilyScreen({
   }, [firestoreService, familyId, members.length]);
 
   useEffect(() => {
-    onDetailOpenChange?.(currentView !== 'hub' || !!transition);
-    return () => {
-      onDetailOpenChange?.(false);
-    };
-  }, [currentView, onDetailOpenChange, transition]);
+    const isPopToHub = transition?.direction === 'pop' && transition?.to === 'hub';
+    const shouldHideHeader = currentView !== 'hub' || (!!transition && !isPopToHub);
+    logNav('detailOpenState', {
+      currentView,
+      transition: transition ? transition.direction : null,
+      shouldHideHeader,
+    });
+    onDetailOpenChange?.(shouldHideHeader);
+  }, [currentView, logNav, onDetailOpenChange, transition]);
+
+  useEffect(() => {
+    if (viewStack.length !== 1) return;
+    if (transition) return;
+    onDetailOpenChange?.(false);
+  }, [onDetailOpenChange, transition, viewStack.length]);
+
+  useEffect(() => () => {
+    onDetailOpenChange?.(false);
+  }, [onDetailOpenChange]);
 
   useEffect(() => {
     // Ensure every subview opens from top even if hub was previously scrolled.
@@ -504,7 +594,8 @@ export default function FamilyScreen({
       ? { ...ctxSettings }
       : { babyWeight: kidCandidate?.babyWeight ?? null, preferredVolumeUnit: 'oz' };
 
-    setSelectedKidLoading(true);
+    // Keep existing/fallback kid content mounted during refresh to avoid entry flicker.
+    setSelectedKidLoading(false);
     setSelectedKidData(fallbackKidData);
     setSelectedKidSettings((prev) => ({ ...prev, ...fallbackSettings }));
     setBabyPhotoUrl(fallbackKidData?.photoURL || null);
@@ -523,7 +614,6 @@ export default function FamilyScreen({
 
     try {
       if (!firestoreService?.isAvailable || !familyId) {
-        setSelectedKidLoading(false);
         return;
       }
 
@@ -1089,6 +1179,176 @@ export default function FamilyScreen({
   const dayStart = clamp(daySleepStartMin, 0, 1439);
   const dayEnd = clamp(daySleepEndMin, 0, 1439);
   const selectedKidName = selectedKidData?.name || selectedKidForSubpage?.name || 'Kid';
+  const hasStackedSubpage = Boolean(transition || canGoBack);
+  const baseViewKey = transition
+    ? (transition.direction === 'push' ? transition.from : transition.to)
+    : (canGoBack ? previousView : currentView);
+  const detailViewKey = transition
+    ? (transition.direction === 'push' ? transition.to : transition.from)
+    : (canGoBack ? currentView : null);
+
+  const renderSubpageContent = useCallback((viewKey) => {
+    if (viewKey === 'profile') {
+      return (
+        <ProfileSubscreen
+          s={s}
+          Card={Card}
+          colors={colors}
+          activeTheme={activeTheme}
+          currentUser={currentUser}
+          profilePhotoUrl={profilePhotoUrl}
+          profileNameDraft={profileNameDraft}
+          profileEmailDraft={profileEmailDraft}
+          hasProfileChanges={hasProfileChanges}
+          savingProfile={savingProfile}
+          onBack={handleBack}
+          onProfilePhoto={handleProfilePhotoClick}
+          onProfileNameChange={setProfileNameDraft}
+          onProfileEmailChange={setProfileEmailDraft}
+          onSaveProfile={handleSaveProfile}
+          onSignOut={handleSignOut}
+          onDeleteAccount={handleDeleteAccount}
+        />
+      );
+    }
+
+    if (viewKey === 'family') {
+      return (
+        <FamilySubscreen
+          s={s}
+          Card={Card}
+          colors={colors}
+          activeTheme={activeTheme}
+          kids={kids}
+          kidId={kidId}
+          members={members}
+          familyInfo={familyInfo}
+          familyNameDraft={familyNameDraft}
+          familyOwnerUid={familyOwnerUid}
+          currentUser={currentUser}
+          isFamilyOwner={isFamilyOwner}
+          savingFamilyName={savingFamilyName}
+          onBack={handleBack}
+          onFamilyNameChange={setFamilyNameDraft}
+          onSaveFamilyName={handleSaveFamilyName}
+          onOpenKid={handleOpenKidSubpage}
+          onOpenAddChild={openAddChildSheet}
+          onRemoveMember={handleRemoveMember}
+          onInvitePartner={() => onInvitePartner?.()}
+          formatAgeFromDate={formatAgeFromDate}
+          formatMonthDay={formatMonthDay}
+        />
+      );
+    }
+
+    if (viewKey === 'kid') {
+      return (
+        <KidSubscreen
+          s={s}
+          Card={Card}
+          colors={colors}
+          activeTheme={activeTheme}
+          selectedKidName={selectedKidName}
+          selectedKidLoading={selectedKidLoading}
+          babyPhotoUrl={babyPhotoUrl}
+          selectedKidData={selectedKidData}
+          selectedKidSettings={selectedKidSettings}
+          tempBabyName={tempBabyName}
+          tempWeight={tempWeight}
+          formatAgeFromDate={formatAgeFromDate}
+          onBack={handleBack}
+          onPhotoClick={handlePhotoClick}
+          onBabyNameChange={handleBabyNameChange}
+          onBabyNameFocus={() => setEditingName(true)}
+          onBabyNameBlur={handleUpdateBabyName}
+          onWeightChange={handleWeightChange}
+          onWeightFocus={() => setEditingWeight(true)}
+          onWeightBlur={handleUpdateWeight}
+          onOpenFeedingUnit={openFeedingUnitSheet}
+          onOpenDaySleep={openDaySleepSheet}
+          onOpenActivityVisibility={handleOpenActivityVisibility}
+          onDeleteKid={handleRequestDeleteKid}
+        />
+      );
+    }
+
+    return (
+      <FamilyHubSubscreen
+        s={s}
+        Card={Card}
+        colors={colors}
+        activeTheme={activeTheme}
+        currentUser={currentUser}
+        familyInfo={familyInfo}
+        members={members}
+        showDevSetupToggle={showDevSetupToggle}
+        forceSetupPreview={forceSetupPreview}
+        forceLoginPreview={forceLoginPreview}
+        onToggleForceSetupPreview={onToggleForceSetupPreview}
+        onToggleForceLoginPreview={onToggleForceLoginPreview}
+        onOpenProfile={handleOpenProfile}
+        onOpenAppearance={openAppearanceSheet}
+        onOpenFamily={handleOpenFamily}
+        onOpenAddFamily={openAddFamilySheet}
+      />
+    );
+  }, [
+    activeTheme,
+    babyPhotoUrl,
+    colors,
+    currentUser,
+    familyInfo,
+    familyNameDraft,
+    familyOwnerUid,
+    forceLoginPreview,
+    forceSetupPreview,
+    formatAgeFromDate,
+    formatMonthDay,
+    handleBack,
+    handleBabyNameChange,
+    handleDeleteAccount,
+    handleOpenFamily,
+    handleOpenActivityVisibility,
+    handleOpenKidSubpage,
+    handleOpenProfile,
+    handlePhotoClick,
+    handleProfilePhotoClick,
+    handleRemoveMember,
+    handleRequestDeleteKid,
+    handleSaveFamilyName,
+    handleSaveProfile,
+    handleSignOut,
+    handleUpdateBabyName,
+    handleUpdateWeight,
+    handleWeightChange,
+    isFamilyOwner,
+    kidId,
+    kids,
+    members,
+    onInvitePartner,
+    onToggleForceLoginPreview,
+    onToggleForceSetupPreview,
+    openAddChildSheet,
+    openAddFamilySheet,
+    openAppearanceSheet,
+    openDaySleepSheet,
+    openFeedingUnitSheet,
+    profileEmailDraft,
+    profileNameDraft,
+    profilePhotoUrl,
+    savingFamilyName,
+    savingProfile,
+    selectedKidData,
+    selectedKidLoading,
+    selectedKidName,
+    selectedKidSettings,
+    setFamilyNameDraft,
+    setProfileEmailDraft,
+    setProfileNameDraft,
+    showDevSetupToggle,
+    tempBabyName,
+    tempWeight,
+  ]);
 
   // ── Loading ──
   if (loading) {
@@ -1107,751 +1367,40 @@ export default function FamilyScreen({
     <>
     <View style={s.flowContainer}>
     <Animated.View
-      pointerEvents={transition ? 'none' : 'auto'}
+      pointerEvents={hasStackedSubpage ? 'none' : 'auto'}
       style={[
         s.flowLayer,
-        transition
-          ? (transition.direction === 'push' ? overlayLayerStyle : baseLayerStyle)
-          : null,
+        hasStackedSubpage ? baseLayerStyle : null,
       ]}
     >
-    <ScrollView
-      ref={screenScrollRef}
-      style={[s.scroll, { backgroundColor: colors.appBg }]}
-      contentContainerStyle={s.scrollContent}
-      showsVerticalScrollIndicator={false}
-      keyboardShouldPersistTaps="handled"
-    >
-      {currentView === 'profile' ? (
-        <>
-          <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
-            <View style={s.profileHeaderCol}>
-              <Pressable onPress={handleBack} hitSlop={8} style={s.profileBackButton}>
-                <ChevronLeftIcon size={20} color={colors.textSecondary} />
-                <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
-                  Back
-                </Text>
-              </Pressable>
-            </View>
-            <View style={[s.profileHeaderCol, s.profileHeaderCenter, s.familyHeaderTitleSlot]}>
-              <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Profile</Text>
-            </View>
-            <View style={[s.profileHeaderCol, s.profileHeaderRight]} />
-          </View>
-
-          <Card style={s.profileMainCard}>
-            <View style={s.profileAvatarUpload}>
-              <Pressable onPress={handleProfilePhotoClick} style={s.photoWrap}>
-                <View style={[s.photoCircle, { backgroundColor: colors.inputBg }]}>
-                  {profilePhotoUrl ? (
-                    <Image source={{ uri: profilePhotoUrl }} style={s.photoImage} />
-                  ) : (
-                    <View style={[s.photoPlaceholder, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
-                      <Text style={[s.profileInitial, { color: activeTheme?.bottle?.primary || colors.textPrimary }]}>
-                        {(profileNameDraft || currentUser.displayName || currentUser.email || '?').charAt(0).toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-                <View
-                  style={[
-                    s.cameraBadge,
-                    {
-                      backgroundColor: activeTheme?.bottle?.primary || colors.primaryBrand,
-                      borderColor: colors.cardBg,
-                    },
-                  ]}
-                >
-                  <CameraIcon size={16} color="#ffffff" />
-                </View>
-              </Pressable>
-              <Text style={[s.profileAvatarHint, { color: colors.textSecondary }]}>Tap to change photo</Text>
-            </View>
-            <View style={s.profileFieldsWrap}>
-              <TTInputRow
-                label="Name"
-                type="text"
-                icon={EditIcon}
-                value={profileNameDraft}
-                placeholder="Your name"
-                onChange={setProfileNameDraft}
-              />
-              <TTInputRow
-                label="Email"
-                type="text"
-                icon={EditIcon}
-                value={profileEmailDraft}
-                placeholder="name@example.com"
-                onChange={setProfileEmailDraft}
-              />
-            </View>
-          </Card>
-
-          {hasProfileChanges ? (
-            <Pressable
-              onPress={handleSaveProfile}
-              disabled={savingProfile}
-              style={({ pressed }) => [
-                s.profileSaveButton,
-                { backgroundColor: colors.primaryActionBg, opacity: savingProfile ? 0.6 : 1 },
-                pressed && !savingProfile && { opacity: 0.8 },
-              ]}
-            >
-              <Text style={[s.accountBtnText, { color: colors.primaryActionText }]}>
-                {savingProfile ? 'Saving...' : 'Save Changes'}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          <Text style={[s.profileSectionLabel, s.profileAccountLabel, { color: colors.textTertiary }]}>ACCOUNT</Text>
-
-          <Card>
-            <View style={s.accountBody}>
-              <Pressable
-                onPress={handleSignOut}
-                style={({ pressed }) => [
-                  s.accountBtn,
-                  { backgroundColor: colors.errorSoft },
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Text style={[s.accountBtnText, { color: colors.error }]}>Sign Out</Text>
-              </Pressable>
-              <Pressable
-                onPress={handleDeleteAccount}
-                style={({ pressed }) => [
-                  s.deleteAccountBtn,
-                  pressed && { opacity: 0.65 },
-                ]}
-              >
-                <Text style={[s.deleteAccountBtnText, { color: colors.textSecondary }]}>Delete My Account</Text>
-              </Pressable>
-            </View>
-          </Card>
-
-          <View style={{ height: 40 }} />
-        </>
-      ) : currentView === 'family' ? (
-        <>
-          <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
-            <View style={s.profileHeaderCol}>
-              <Pressable onPress={handleBack} hitSlop={8} style={s.profileBackButton}>
-                <ChevronLeftIcon size={20} color={colors.textSecondary} />
-                <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
-                  Back
-                </Text>
-              </Pressable>
-            </View>
-            <View style={[s.profileHeaderCol, s.profileHeaderCenter, s.familyHeaderTitleSlot]}>
-              <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Family</Text>
-            </View>
-            <View style={[s.profileHeaderCol, s.profileHeaderRight]} />
-          </View>
-
-          <View style={s.familyNameBlock}>
-            {isFamilyOwner ? (
-              <TTInputRow
-                label="Family Name"
-                type="text"
-                icon={EditIcon}
-                value={familyNameDraft}
-                placeholder="Family"
-                onChange={setFamilyNameDraft}
-              />
-            ) : (
-              <View style={[s.familyNameReadOnlyCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder || colors.borderSubtle }]}>
-                <Text style={[s.familyNameReadOnlyLabel, { color: colors.textSecondary }]}>Family Name</Text>
-                <Text style={[s.familyNameReadOnlyValue, { color: colors.textPrimary }]}>
-                  {familyInfo?.name || 'Family'}
-                </Text>
-              </View>
-            )}
-          </View>
-          {isFamilyOwner && String(familyNameDraft || '').trim() && String(familyNameDraft || '').trim() !== String(familyInfo?.name || '').trim() ? (
-            <Pressable
-              onPress={handleSaveFamilyName}
-              disabled={savingFamilyName}
-              style={({ pressed }) => [
-                s.profileSaveButton,
-                { backgroundColor: colors.primaryActionBg, opacity: savingFamilyName ? 0.6 : 1 },
-                pressed && !savingFamilyName && { opacity: 0.8 },
-              ]}
-            >
-              <Text style={[s.accountBtnText, { color: colors.primaryActionText }]}>
-                {savingFamilyName ? 'Saving...' : 'Save Family Name'}
-              </Text>
-            </Pressable>
-          ) : null}
-
-          <View style={s.familyHubHeader}>
-            <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Your Kids</Text>
-          </View>
-
-          {Array.isArray(kids) && kids.length > 0 && (
-            <View style={s.hubKidCards}>
-              {kids.map((k) => {
-                const isCurrent = k.id === kidId;
-                const ageLabel = formatAgeFromDate(k.birthDate);
-                const weightVal = Number(k?.babyWeight || k?.currentWeight || k?.weight || 0);
-                const weightLabel = Number.isFinite(weightVal) && weightVal > 0 ? `${Math.round(weightVal * 10) / 10} lbs` : null;
-                const birthLabel = formatMonthDay(k.birthDate);
-                const subtitle = [ageLabel, weightLabel, birthLabel].filter(Boolean).join(' • ');
-                return (
-                  <Card key={`family-kid-${k.id}`}>
-                    <Pressable
-                      onPress={() => handleOpenKidSubpage(k)}
-                      style={({ pressed }) => [
-                        s.hubKidRow,
-                        pressed && { opacity: 0.75 },
-                      ]}
-                    >
-                      <View style={s.hubKidLeft}>
-                        <View style={[s.hubKidAvatarRing, { borderColor: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
-                          {k.photoURL ? (
-                            <Image source={{ uri: k.photoURL }} style={s.hubKidAvatarImage} />
-                          ) : (
-                            <View style={[s.hubKidAvatarFallback, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
-                              <Text style={s.hubKidAvatarEmoji}>👶</Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={s.hubKidTextWrap}>
-                          <Text style={[s.hubKidTitle, { color: colors.textPrimary }]} numberOfLines={1}>
-                            {k.name || 'Baby'}
-                          </Text>
-                          <Text style={[s.hubKidSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
-                            {subtitle || 'Tap to open profile'}
-                          </Text>
-                        </View>
-                      </View>
-                      <View style={s.hubKidRight}>
-                        {isCurrent ? (
-                          <View style={s.hubKidActiveBadge}>
-                            <Text style={s.hubKidActiveBadgeText}>Active</Text>
-                          </View>
-                        ) : null}
-                        <ChevronRightIcon size={16} color={colors.textSecondary} />
-                      </View>
-                    </Pressable>
-                  </Card>
-                );
-              })}
-            </View>
-          )}
-
-          <Card style={s.cardGap}>
-            <Pressable
-              onPress={openAddChildSheet}
-              style={({ pressed }) => [
-                s.appearanceEntryRow,
-                pressed && { opacity: 0.75 },
-              ]}
-            >
-              <View style={s.appearanceEntryLeft}>
-                <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
-                  <PlusIcon size={20} color={colors.textPrimary} />
-                </View>
-                <View>
-                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Add Child</Text>
-                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
-                    Track another little one
-                  </Text>
-                </View>
-              </View>
-              <View style={s.appearanceEntryRight}>
-                <ChevronRightIcon size={16} color={colors.textSecondary} />
-              </View>
-            </Pressable>
-          </Card>
-
-          <View style={s.familyHubHeader}>
-            <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Family Members</Text>
-          </View>
-          <View style={s.membersCardsList}>
-            {members.map((member) => {
-              const memberUid = member?.uid || null;
-              const isOwner = Boolean(memberUid && familyOwnerUid && memberUid === familyOwnerUid);
-              return (
-                <Card key={member.uid}>
-                  <View style={s.memberCardRow}>
-                    <View style={s.memberAvatarWrap}>
-                      {member.photoURL ? (
-                        <Image
-                          source={{ uri: member.photoURL }}
-                          style={s.memberAvatar}
-                        />
-                      ) : (
-                        <View
-                          style={[
-                            s.memberAvatarFallback,
-                            { backgroundColor: colors.subtleSurface },
-                          ]}
-                        >
-                          <Text style={[s.memberInitial, { color: colors.textPrimary }]}>
-                            {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={s.memberInfo}>
-                      <View style={s.memberNameRow}>
-                        <Text
-                          style={[s.memberName, { color: colors.textPrimary }]}
-                          numberOfLines={1}
-                        >
-                          {member.displayName || member.email || 'Member'}
-                        </Text>
-                        {isOwner ? (
-                          <View
-                            style={[
-                              s.ownerBadge,
-                              {
-                                backgroundColor: colors.segTrack || colors.track,
-                                borderColor: colors.cardBorder || colors.borderSubtle,
-                              },
-                            ]}
-                          >
-                            <Text style={[s.ownerBadgeText, { color: colors.textSecondary }]}>
-                              Owner
-                            </Text>
-                          </View>
-                        ) : null}
-                      </View>
-                      <Text
-                        style={[s.memberEmail, { color: colors.textSecondary }]}
-                        numberOfLines={1}
-                      >
-                        {member.email}
-                      </Text>
-                    </View>
-                    {member.uid !== currentUser.uid && (
-                      <Pressable
-                        onPress={() => handleRemoveMember(member.uid)}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Remove ${member.displayName || member.email || 'member'}`}
-                        style={({ pressed }) => [
-                          s.memberRemoveIconButton,
-                          {
-                            backgroundColor: colors.segTrack || colors.track,
-                            borderColor: colors.cardBorder,
-                          },
-                          pressed && s.memberRemoveIconButtonPressed,
-                        ]}
-                      >
-                        <TrashIcon size={20} color={colors.error} />
-                      </Pressable>
-                    )}
-                  </View>
-                </Card>
-              );
-            })}
-          </View>
-
-          <Card style={s.cardGap}>
-            <View style={s.familyInviteCard}>
-              <Text style={[s.familyInviteText, { color: colors.textSecondary }]}>
-                Share a link to invite someone. They'll need a Tiny account if they don't have one yet.
-              </Text>
-              <Pressable
-                onPress={() => onInvitePartner?.()}
-                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-              >
-                <Text style={[s.familyInviteLink, { color: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
-                  Copy invite link ↗
-                </Text>
-              </Pressable>
-            </View>
-          </Card>
-
-          <View style={{ height: 40 }} />
-        </>
-      ) : currentView === 'kid' ? (
-        <>
-          <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
-            <View style={s.profileHeaderCol}>
-              <Pressable onPress={handleBack} hitSlop={8} style={s.profileBackButton}>
-                <ChevronLeftIcon size={20} color={colors.textSecondary} />
-                <Text style={[s.profileBackText, { color: colors.textSecondary }]}>
-                  Back
-                </Text>
-              </Pressable>
-            </View>
-            <View style={[s.profileHeaderCol, s.profileHeaderCenter, s.familyHeaderTitleSlot]}>
-              <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>{selectedKidName}</Text>
-            </View>
-            <View style={[s.profileHeaderCol, s.profileHeaderRight]} />
-          </View>
-          {selectedKidLoading ? (
-            <View style={s.loadingContainer}>
-              <ActivityIndicator color={colors.textSecondary} />
-            </View>
-          ) : (
-            <Card style={s.profileMainCard}>
-              <View style={s.profileAvatarUpload}>
-                <Pressable onPress={handlePhotoClick} style={s.photoWrap}>
-                  <View style={[s.photoCircle, { backgroundColor: colors.inputBg }]}>
-                    {babyPhotoUrl ? (
-                      <Image
-                        source={{ uri: babyPhotoUrl }}
-                        style={s.photoImage}
-                      />
-                    ) : (
-                      <View style={[s.photoPlaceholder, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
-                        <BabyIcon size={48} color={activeTheme?.bottle?.primary || colors.textTertiary} />
-                      </View>
-                    )}
-                  </View>
-                  <View
-                    style={[
-                      s.cameraBadge,
-                      {
-                        backgroundColor: activeTheme?.bottle?.primary || colors.primaryBrand,
-                        borderColor: colors.cardBg,
-                      },
-                    ]}
-                  >
-                    <CameraIcon size={16} color="#ffffff" />
-                  </View>
-                </Pressable>
-                <Text style={[s.profileAvatarHint, { color: colors.textSecondary }]}>Tap to change photo</Text>
-              </View>
-
-              <View style={s.profileFieldsWrap}>
-                <TTInputRow
-                  label="Name"
-                  type="text"
-                  icon={EditIcon}
-                  value={tempBabyName !== null ? tempBabyName : (selectedKidData?.name || '')}
-                  placeholder="Baby"
-                  onChange={handleBabyNameChange}
-                  onFocus={() => setEditingName(true)}
-                  onBlur={handleUpdateBabyName}
-                />
-                <TTInputRow
-                  label="Birth date"
-                  type="datetime"
-                  icon={EditIcon}
-                  rawValue={selectedKidData?.birthDate ? new Date(selectedKidData.birthDate).toISOString() : null}
-                  placeholder={
-                    selectedKidData?.birthDate
-                      ? `${new Date(selectedKidData.birthDate).toLocaleDateString()} \u2022 ${formatAgeFromDate(selectedKidData.birthDate)}`
-                      : 'Not set'
-                  }
-                  formatDateTime={(iso) => {
-                    const d = new Date(iso);
-                    const dateLabel = d.toLocaleDateString();
-                    const ageLabel = formatAgeFromDate(d);
-                    return ageLabel ? `${dateLabel} \u2022 ${ageLabel}` : dateLabel;
-                  }}
-                />
-                <TTInputRow
-                  label="Current weight (lbs)"
-                  type="text"
-                  icon={EditIcon}
-                  value={tempWeight !== null ? tempWeight : (selectedKidSettings.babyWeight?.toString() || '')}
-                  placeholder="Not set"
-                  onChange={handleWeightChange}
-                  onFocus={() => setEditingWeight(true)}
-                  onBlur={handleUpdateWeight}
-                />
-              </View>
-
-            </Card>
-          )}
-
-          <Card style={s.cardGap}>
-            <Pressable
-              onPress={openFeedingUnitSheet}
-              style={({ pressed }) => [
-                s.appearanceEntryRow,
-                pressed && { opacity: 0.75 },
-              ]}
-            >
-              <View style={s.appearanceEntryLeft}>
-                <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
-                  <Text style={s.appearanceEntryIconLabel}>🍼</Text>
-                </View>
-                <View>
-                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Feeding Unit</Text>
-                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>This child's unit</Text>
-                </View>
-              </View>
-              <View style={s.appearanceEntryRight}>
-                <Text style={[s.feedUnitValue, { color: colors.textSecondary }]}>
-                  {selectedKidSettings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}
-                </Text>
-                <ChevronRightIcon size={16} color={colors.textSecondary} />
-              </View>
-            </Pressable>
-          </Card>
-
-          <Card style={s.cardGap}>
-            <Pressable
-              onPress={openDaySleepSheet}
-              style={({ pressed }) => [
-                s.appearanceEntryRow,
-                pressed && { opacity: 0.75 },
-              ]}
-            >
-              <View style={s.appearanceEntryLeft}>
-                <View style={s.appearanceEntryIcon}>
-                  <DaySleepWindowIcon size={24} color={colors.textPrimary} />
-                </View>
-                <View>
-                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Day Sleep Window</Text>
-                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
-                    Set day vs night sleep timing
-                  </Text>
-                </View>
-              </View>
-              <View style={s.appearanceEntryRight}>
-                <ChevronRightIcon size={16} color={colors.textSecondary} />
-              </View>
-            </Pressable>
-          </Card>
-
-          <Card style={s.cardGap}>
-            <Pressable
-              onPress={handleOpenActivityVisibility}
-              style={({ pressed }) => [
-                s.appearanceEntryRow,
-                pressed && { opacity: 0.75 },
-              ]}
-            >
-              <View style={s.appearanceEntryLeft}>
-                <View style={s.appearanceEntryIcon}>
-                  <SettingsIcon size={24} color={colors.textPrimary} />
-                </View>
-                <View>
-                  <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Activity Visibility</Text>
-                  <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
-                    Show & hide tracker activities
-                  </Text>
-                </View>
-              </View>
-              <View style={s.appearanceEntryRight}>
-                <ChevronRightIcon size={16} color={colors.textSecondary} />
-              </View>
-            </Pressable>
-          </Card>
-
-          <Card style={s.cardGap}>
-            <Pressable
-              onPress={handleRequestDeleteKid}
-              style={({ pressed }) => [
-                s.accountBtn,
-                { backgroundColor: colors.errorSoft },
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={[s.accountBtnText, { color: colors.error }]}>Delete Kid</Text>
-            </Pressable>
-            <Text style={[s.deleteKidWarning, { color: colors.textSecondary }]}>
-              This removes the child and their data from Tiny Tracker. It cannot be undone.
-            </Text>
-          </Card>
-
-          <View style={{ height: 40 }} />
-        </>
-      ) : (
-        <>
-      <View style={s.familyHubHeader}>
-        <View style={s.familyHubHeaderRow}>
-          <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Account & Appearance</Text>
-          {showDevSetupToggle ? (
-            <View style={s.devToggleRow}>
-              <Pressable
-                onPress={() => onToggleForceSetupPreview?.(!forceSetupPreview)}
-                style={({ pressed }) => [
-                  s.devSetupToggle,
-                  {
-                    borderColor: forceSetupPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
-                    backgroundColor: forceSetupPreview ? colors.subtleSurface : colors.cardBg,
-                  },
-                  pressed && s.devSetupTogglePressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    s.devSetupToggleText,
-                    { color: forceSetupPreview ? colors.brandIcon : colors.textTertiary },
-                  ]}
-                >
-                  OB
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => onToggleForceLoginPreview?.(!forceLoginPreview)}
-                style={({ pressed }) => [
-                  s.devSetupToggle,
-                  {
-                    borderColor: forceLoginPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
-                    backgroundColor: forceLoginPreview ? colors.subtleSurface : colors.cardBg,
-                  },
-                  pressed && s.devSetupTogglePressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    s.devSetupToggleText,
-                    { color: forceLoginPreview ? colors.brandIcon : colors.textTertiary },
-                  ]}
-                >
-                  LG
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
-        </View>
-      </View>
-      {/* ── Account Card ── */}
-      {/* Hub entrypoint for Profile subpage */}
-      <Card>
-        <Pressable
-          onPress={handleOpenProfile}
-          style={({ pressed }) => [
-            s.appearanceEntryRow,
-            pressed && { opacity: 0.75 },
-          ]}
-        >
-          <View style={s.appearanceEntryLeft}>
-            {currentUser.photoURL ? (
-              <Image source={{ uri: currentUser.photoURL }} style={s.appearanceAccountAvatar} />
-            ) : (
-              <View style={[s.appearanceAccountAvatarFallback, { backgroundColor: colors.subtleSurface }]}>
-                <Text style={[s.appearanceAccountAvatarInitial, { color: colors.textPrimary }]}>
-                  {(currentUser.displayName || currentUser.email || '?').charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>
-                {currentUser.displayName || 'User'}
-              </Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
-                {currentUser.email}
-              </Text>
-            </View>
-          </View>
-          <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
-          </View>
-        </Pressable>
-      </Card>
-      {/* ── 1. Appearance Card ── */}
-      <Card style={s.cardGap}>
-        <Pressable
-          onPress={openAppearanceSheet}
-          style={({ pressed }) => [
-            s.appearanceEntryRow,
-            pressed && { opacity: 0.75 },
-          ]}
-        >
-          <View style={s.appearanceEntryLeft}>
-            <View style={s.appearanceEntryIcon}>
-              <PaletteIcon size={24} color={colors.textPrimary} />
-            </View>
-            <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Appearance</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Theme & dark mode</Text>
-            </View>
-          </View>
-          <View style={s.appearanceEntryRight}>
-            <View style={s.appearancePreviewDots}>
-              {['bottle', 'nursing', 'sleep'].map((cardKey) => (
-                <View
-                  key={`preview-${cardKey}`}
-                  style={[
-                    s.appearancePreviewDot,
-                    { backgroundColor: activeTheme?.[cardKey]?.primary || colors.textTertiary },
-                  ]}
-                />
-              ))}
-            </View>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
-          </View>
-        </Pressable>
-      </Card>
-
-      <View style={s.familyHubHeader}>
-        <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Families</Text>
-      </View>
-
-      {/* ── 4. Family Card ── */}
-      <Card>
-        <Pressable
-          onPress={handleOpenFamily}
-          style={({ pressed }) => [
-            s.appearanceEntryRow,
-            pressed && { opacity: 0.75 },
-          ]}
-        >
-          <View style={s.appearanceEntryLeft}>
-            <View style={s.appearanceEntryIcon}>
-              <FamilyIcon size={24} color={colors.textPrimary} />
-            </View>
-            <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>
-                {String(familyInfo?.name || '').trim() || 'Family'}
-              </Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
-                {`${members.length} ${members.length === 1 ? 'person' : 'people'} with access`}
-              </Text>
-            </View>
-          </View>
-          <View style={s.appearanceEntryRight}>
-            <View style={s.familyAvatarStack}>
-              {members.slice(0, 4).map((member, index) => (
-                <View
-                  key={`fam-preview-${member.uid}`}
-                  style={[
-                    s.familyAvatarBubble,
-                    index === 0 && s.familyAvatarBubbleFirst,
-                    { backgroundColor: colors.inputBg, borderColor: colors.cardBg },
-                  ]}
-                >
-                  <Text style={[s.familyAvatarBubbleText, { color: colors.textPrimary }]}>
-                    {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
-          </View>
-        </Pressable>
-      </Card>
-
-      <Card style={s.cardGap}>
-        <Pressable
-          onPress={openAddFamilySheet}
-          style={({ pressed }) => [
-            s.appearanceEntryRow,
-            pressed && { opacity: 0.75 },
-          ]}
-        >
-          <View style={s.appearanceEntryLeft}>
-            <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
-              <PlusIcon size={20} color={colors.textPrimary} />
-            </View>
-            <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Add Family</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Create another family</Text>
-            </View>
-          </View>
-          <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
-          </View>
-        </Pressable>
-      </Card>
-
-      {/* Bottom spacing */}
-      <View style={{ height: 40 }} />
-        </>
-      )}
-    </ScrollView>
+      <ScrollView
+        ref={!hasStackedSubpage ? screenScrollRef : null}
+        style={[s.scroll, { backgroundColor: colors.appBg }]}
+        contentContainerStyle={s.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {renderSubpageContent(baseViewKey)}
+      </ScrollView>
     </Animated.View>
-    {transition ? (
-      <Animated.View pointerEvents="none" style={[s.flowScrim, scrimStyle]} />
+    {detailViewKey ? (
+      <>
+        <Animated.View pointerEvents="none" style={[s.flowScrim, flowScrimStyle]} />
+        <Animated.View
+          pointerEvents={transition ? 'none' : 'auto'}
+          style={[s.flowDetailLayer, detailLayerStyle]}
+        >
+          <ScrollView
+            ref={screenScrollRef}
+            style={[s.scroll, { backgroundColor: colors.appBg }]}
+            contentContainerStyle={s.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {renderSubpageContent(detailViewKey)}
+          </ScrollView>
+        </Animated.View>
+      </>
     ) : null}
     {canGoBack ? (
       <View pointerEvents="box-none" style={s.gestureOverlayContainer}>
@@ -1861,374 +1410,80 @@ export default function FamilyScreen({
       </View>
     ) : null}
     </View>
-    <HalfSheet
+    <FeedingUnitHalfSheet
       sheetRef={feedingUnitSheetRef}
-      title="Feeding Unit"
-      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
-      snapPoints={['92%']}
-      enableDynamicSizing
-      scrollable
-    >
-      <Text style={[s.feedUnitSheetDescription, { color: colors.textSecondary }]}>
-        Choose how to log bottles for this child.
-      </Text>
-      <SegmentedToggle
-        value={(currentView === 'kid' ? selectedKidSettings.preferredVolumeUnit : settings.preferredVolumeUnit) === 'ml' ? 'ml' : 'oz'}
-        options={[
-          { value: 'oz', label: 'oz' },
-          { value: 'ml', label: 'ml' },
-        ]}
-        onChange={handleVolumeUnitChange}
-        variant="body"
-        size="medium"
-        trackColor={segmentedTrackColor}
-      />
-      <View style={s.feedUnitSheetSpacer} />
-    </HalfSheet>
-    <HalfSheet
+      s={s}
+      colors={colors}
+      activeTheme={activeTheme}
+      segmentedTrackColor={segmentedTrackColor}
+      value={(currentView === 'kid' ? selectedKidSettings.preferredVolumeUnit : settings.preferredVolumeUnit) === 'ml' ? 'ml' : 'oz'}
+      onChange={handleVolumeUnitChange}
+    />
+    <DaySleepWindowHalfSheet
       sheetRef={daySleepSheetRef}
-      title="Day Sleep Window"
-      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
-      snapPoints={['92%']}
-      enableDynamicSizing
-      scrollable
-    >
-      <Text style={[s.sleepDescription, { color: colors.textSecondary }]}>
-        Sleep that starts between these times counts as{' '}
-        <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Day Sleep</Text>
-        {' '}(naps). Everything else counts as{' '}
-        <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Night Sleep</Text>.
-      </Text>
-
-      <View style={s.sleepInputRow}>
-        <View style={s.sleepInputHalf}>
-          <TTInputRow
-            label="Start"
-            type="datetime"
-            icon={EditIcon}
-            rawValue={null}
-            placeholder={minutesToLabel(dayStart)}
-            formatDateTime={() => minutesToLabel(dayStart)}
-          />
-        </View>
-        <View style={s.sleepInputHalf}>
-          <TTInputRow
-            label="End"
-            type="datetime"
-            icon={EditIcon}
-            rawValue={null}
-            placeholder={minutesToLabel(dayEnd)}
-            formatDateTime={() => minutesToLabel(dayEnd)}
-          />
-        </View>
-      </View>
-
-      <View style={s.sliderContainer}>
-        <View
-          style={[
-            s.sliderTrack,
-            {
-              backgroundColor: colors.inputBg,
-              borderColor: colors.cardBorder || colors.borderSubtle,
-            },
-          ]}
-        >
-          <View
-            style={[
-              s.sliderRange,
-              {
-                left: `${(Math.min(dayStart, dayEnd) / 1440) * 100}%`,
-                width: `${(Math.abs(dayEnd - dayStart) / 1440) * 100}%`,
-                backgroundColor: activeTheme?.sleep?.soft || colors.highlightSoft,
-              },
-            ]}
-          />
-          <View
-            style={[
-              s.sliderHandle,
-              {
-                left: `${(dayStart / 1440) * 100}%`,
-                backgroundColor: colors.cardBg,
-                borderColor: colors.cardBorder || colors.borderSubtle,
-              },
-            ]}
-          />
-          <View
-            style={[
-              s.sliderHandle,
-              {
-                left: `${(dayEnd / 1440) * 100}%`,
-                backgroundColor: colors.cardBg,
-                borderColor: colors.cardBorder || colors.borderSubtle,
-              },
-            ]}
-          />
-        </View>
-        <View style={s.sliderLabels}>
-          {['6AM', '9AM', '12PM', '3PM', '6PM', '9PM'].map((label) => (
-            <Text key={label} style={[s.sliderLabel, { color: colors.textTertiary }]}>
-              {label}
-            </Text>
-          ))}
-        </View>
-      </View>
-      <View style={s.feedUnitSheetSpacer} />
-    </HalfSheet>
-    <HalfSheet
+      s={s}
+      colors={colors}
+      activeTheme={activeTheme}
+      dayStart={dayStart}
+      dayEnd={dayEnd}
+      minutesToLabel={minutesToLabel}
+    />
+    <AppearanceHalfSheet
       sheetRef={appearanceSheetRef}
-      title="Appearance"
-      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
-      snapPoints={['92%']}
-      enableDynamicSizing
-      scrollable
-    >
-      <View style={s.sectionBody}>
-        <View>
-          <Text style={[s.fieldLabel, { color: colors.textSecondary, marginBottom: 8 }]}>Dark Mode</Text>
-          <SegmentedToggle
-            value={isDark ? 'dark' : 'light'}
-            options={[
-              { value: 'light', label: 'Light' },
-              { value: 'dark', label: 'Dark' },
-            ]}
-            onChange={handleDarkModeChange}
-            variant="body"
-            size="medium"
-            trackColor={segmentedTrackColor}
-          />
-        </View>
-
-        <View style={[s.themeSection, s.appearanceThemeSection]}>
-          <Text style={[s.fieldLabel, { color: colors.textSecondary, marginBottom: 8 }]}>
-            Color Theme
-          </Text>
-          <View style={s.themeGrid}>
-            {colorThemeOrder.map((key) => {
-              const t = resolveTheme(key);
-              if (!t) return null;
-              const isSelected = activeThemeKey === key;
-              const swatchOrder = ['bottle', 'nursing', 'sleep', 'diaper', 'solids'];
-              return (
-                <Pressable
-                  key={key}
-                  onPress={() => handleThemeChange(key)}
-                  style={[
-                    s.themeButton,
-                    {
-                      backgroundColor: isSelected ? colors.subtleSurface : colors.cardBg,
-                      borderColor: isSelected ? colors.outlineStrong : (colors.cardBorder || colors.borderSubtle),
-                    },
-                  ]}
-                >
-                  <Text style={[s.themeName, { color: colors.textPrimary }]}>
-                    {t.name || key}
-                  </Text>
-                  <View style={s.swatchRow}>
-                    {swatchOrder.map((cardKey) => {
-                      const accent = t[cardKey]?.primary || 'transparent';
-                      return (
-                        <View
-                          key={`${key}-${cardKey}`}
-                          style={[
-                            s.swatch,
-                            {
-                              backgroundColor: accent,
-                              borderColor: colors.cardBorder || colors.borderSubtle,
-                            },
-                          ]}
-                        />
-                      );
-                    })}
-                  </View>
-                </Pressable>
-              );
-            })}
-          </View>
-        </View>
-        <View style={s.appearanceSheetSpacer} />
-      </View>
-    </HalfSheet>
-    <HalfSheet
+      s={s}
+      colors={colors}
+      activeTheme={activeTheme}
+      isDark={isDark}
+      segmentedTrackColor={segmentedTrackColor}
+      colorThemeOrder={colorThemeOrder}
+      activeThemeKey={activeThemeKey}
+      resolveTheme={resolveTheme}
+      onThemeChange={handleThemeChange}
+      onDarkModeChange={handleDarkModeChange}
+    />
+    <AddChildHalfSheet
       sheetRef={addChildSheetRef}
-      title="Add Child"
-      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
+      s={s}
+      colors={colors}
+      activeTheme={activeTheme}
+      savingChild={savingChild}
+      newBabyName={newBabyName}
+      newBabyBirthDate={newBabyBirthDate}
+      newBabyWeight={newBabyWeight}
+      newChildPhotoUris={newChildPhotoUris}
       onClose={() => {
         if (!savingChild) resetAddChildForm();
       }}
-      snapPoints={['76%']}
-      initialSnapIndex={0}
-      enableDynamicSizing={false}
-      scrollable
-      useFullWindowOverlay={false}
-      footer={(
-        <View style={s.addChildFooter}>
-          <Pressable
-            onPress={handleCreateChild}
-            disabled={savingChild}
-            style={({ pressed }) => [
-              s.addChildSubmit,
-              {
-                backgroundColor: colors.primaryActionBg,
-                opacity: savingChild ? 0.5 : (pressed ? 0.85 : 1),
-              },
-            ]}
-          >
-            <Text style={[s.addChildSubmitText, { color: colors.primaryActionText }]}>
-              {savingChild ? 'Saving...' : 'Add Child'}
-            </Text>
-          </Pressable>
-        </View>
-      )}
-    >
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow
-        label="Child's Name"
-        type="text"
-        value={newBabyName}
-        onChange={setNewBabyName}
-        placeholder="Emma"
-        showIcon={false}
-        showChevron={false}
-        enableTapAnimation
-        showLabel
-      />
-      </View>
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow
-        label="Birth date"
-        type="text"
-        value={newBabyBirthDate}
-        onChange={setNewBabyBirthDate}
-        placeholder="Add..."
-        showIcon={false}
-        showChevron={false}
-        enableTapAnimation
-        showLabel
-      />
-      </View>
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow
-        label="Current weight (lbs)"
-        type="text"
-        value={newBabyWeight}
-        onChange={setNewBabyWeight}
-        placeholder="Add..."
-        showIcon={false}
-        showChevron={false}
-        enableTapAnimation
-        showLabel
-      />
-      </View>
-      <TTPhotoRow
-        expanded
-        showTitle
-        title="Add a photo"
-        existingPhotos={[]}
-        newPhotos={newChildPhotoUris}
-        onAddPhoto={handleAddChildPhoto}
-        onRemovePhoto={handleRemoveChildPhoto}
-        onPreviewPhoto={() => {}}
-        containerStyle={s.addChildPhotoSection}
-      />
-      <View style={s.addChildPhotoToCtaSpacer} />
-    </HalfSheet>
-    <HalfSheet
+      onCreate={handleCreateChild}
+      onNameChange={setNewBabyName}
+      onBirthDateChange={setNewBabyBirthDate}
+      onWeightChange={setNewBabyWeight}
+      onAddPhoto={handleAddChildPhoto}
+      onRemovePhoto={handleRemoveChildPhoto}
+    />
+    <AddFamilyHalfSheet
       sheetRef={addFamilySheetRef}
-      title="Add Family"
-      accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
+      s={s}
+      colors={colors}
+      activeTheme={activeTheme}
+      savingFamily={savingFamily}
+      authLoading={authLoading}
+      newFamilyName={newFamilyName}
+      newFamilyBabyName={newFamilyBabyName}
+      newFamilyBirthDate={newFamilyBirthDate}
+      newFamilyWeight={newFamilyWeight}
+      newFamilyPhotoUris={newFamilyPhotoUris}
       onClose={() => {
         if (!savingFamily) resetAddFamilyForm();
       }}
-      snapPoints={['76%']}
-      initialSnapIndex={0}
-      enableDynamicSizing={false}
-      scrollable
-      useFullWindowOverlay={false}
-      footer={(
-        <View style={s.addChildFooter}>
-          <Pressable
-            onPress={handleCreateFamilyFromSheet}
-            disabled={savingFamily || authLoading}
-            style={({ pressed }) => [
-              s.addChildSubmit,
-              {
-                backgroundColor: colors.primaryActionBg,
-                opacity: (savingFamily || authLoading) ? 0.5 : (pressed ? 0.85 : 1),
-              },
-            ]}
-          >
-            <Text style={[s.addChildSubmitText, { color: colors.primaryActionText }]}>
-              {savingFamily ? 'Saving...' : 'Add Family'}
-            </Text>
-          </Pressable>
-        </View>
-      )}
-    >
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow
-          label="Family Name"
-          type="text"
-          value={newFamilyName}
-          onChange={setNewFamilyName}
-          placeholder="Our Family"
-          showIcon={false}
-          showChevron={false}
-          enableTapAnimation
-          showLabel
-        />
-      </View>
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow
-          label="Child's Name"
-          type="text"
-          value={newFamilyBabyName}
-          onChange={setNewFamilyBabyName}
-          placeholder="Emma"
-          showIcon={false}
-          showChevron={false}
-          enableTapAnimation
-          showLabel
-        />
-      </View>
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow
-          label="Birth date"
-          type="text"
-          value={newFamilyBirthDate}
-          onChange={setNewFamilyBirthDate}
-          placeholder="Add..."
-          showIcon={false}
-          showChevron={false}
-          enableTapAnimation
-          showLabel
-        />
-      </View>
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow
-          label="Current weight (lbs)"
-          type="text"
-          value={newFamilyWeight}
-          onChange={setNewFamilyWeight}
-          placeholder="Add..."
-          showIcon={false}
-          showChevron={false}
-          enableTapAnimation
-          showLabel
-        />
-      </View>
-      <TTPhotoRow
-        expanded
-        showTitle
-        title="Add a photo"
-        existingPhotos={[]}
-        newPhotos={newFamilyPhotoUris}
-        onAddPhoto={handleAddFamilyPhoto}
-        onRemovePhoto={handleRemoveFamilyPhoto}
-        onPreviewPhoto={() => {}}
-        containerStyle={s.addChildPhotoSection}
-      />
-      <View style={s.addChildPhotoToCtaSpacer} />
-    </HalfSheet>
+      onCreate={handleCreateFamilyFromSheet}
+      onFamilyNameChange={setNewFamilyName}
+      onBabyNameChange={setNewFamilyBabyName}
+      onBirthDateChange={setNewFamilyBirthDate}
+      onWeightChange={setNewFamilyWeight}
+      onAddPhoto={handleAddFamilyPhoto}
+      onRemovePhoto={handleRemoveFamilyPhoto}
+    />
     {kidPendingDelete ? (
       <Modal
         visible
@@ -2288,13 +1543,22 @@ const s = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000',
   },
+  flowDetailLayer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'transparent',
+    shadowColor: '#000',
+    shadowRadius: 20,
+    shadowOffset: { width: -8, height: 0 },
+    elevation: 18,
+  },
   gestureOverlayContainer: {
     ...StyleSheet.absoluteFillObject,
   },
   edgeSwipeZone: {
     position: 'absolute',
     left: 0,
-    top: 0,
+    // Keep edge-swipe from overlapping the in-subpage Back button area.
+    top: 72,
     bottom: 0,
     width: 32,
   },

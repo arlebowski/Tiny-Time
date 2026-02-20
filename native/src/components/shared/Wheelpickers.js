@@ -1193,6 +1193,7 @@ const styles = StyleSheet.create({
   },
   nativePicker: {
     width: '96%',
+    transform: [{ scale: 1 }],
   },
   nativePickerContent: {
     flexGrow: 1,

@@ -15,12 +15,24 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
 
-// Spring config: snappier pill response (higher stiffness = faster)
-const PILL_SPRING = { stiffness: 450, damping: 40, mass: 0.8 };
+// Separate springs keep motion snappy while avoiding size overshoot deformation.
+const PILL_POSITION_SPRING = {
+  stiffness: 900,
+  damping: 70,
+  mass: 0.45,
+  overshootClamping: true,
+};
+const PILL_SIZE_SPRING = {
+  stiffness: 800,
+  damping: 75,
+  mass: 0.5,
+  overshootClamping: true,
+};
 
 // Web itemVariants: hidden { opacity: 0, scale: 0.5, y: 20 } → show with staggerChildren: 0.08
-const DATE_ENTER_SPRING = { stiffness: 600, damping: 25 };
-const STAGGER_MS = 80;
+const DATE_ENTER_SPRING = { stiffness: 420, damping: 48, mass: 0.8 };
+const STAGGER_MS = 55;
+const INITIAL_PILL_REVEAL_MS = STAGGER_MS * 6 + 220;
 
 const createDateEntering = (index) => {
   const delay = index * STAGGER_MS;
@@ -29,7 +41,7 @@ const createDateEntering = (index) => {
     return {
       initialValues: {
         opacity: 0,
-        transform: [{ scale: 0.5 }, { translateY: 20 }],
+        transform: [{ scale: 0.94 }, { translateY: 8 }],
       },
       animations: {
         opacity: withDelay(delay, withSpring(1, DATE_ENTER_SPRING)),
@@ -44,7 +56,10 @@ const createDateEntering = (index) => {
 
 // Layout transition when selection changes: selected expands, others compact
 
-const DATE_LAYOUT = LinearTransition.springify().damping(40).stiffness(450);
+const DATE_LAYOUT = LinearTransition.springify()
+  .damping(62)
+  .stiffness(520)
+  .mass(0.7);
 
 // ── Date helpers (web HorizontalCalendarCompact.js:24-47) ──
 
@@ -102,12 +117,11 @@ export default function HorizontalCalendar({
   // Set pill position — immediate on first layout, spring on subsequent
   const setPillPosition = useCallback(
     (layout, animate) => {
-      setPillReady(true);
       if (animate) {
-        pillX.value = withSpring(layout.x, PILL_SPRING);
-        pillY.value = withSpring(layout.y, PILL_SPRING);
-        pillWidth.value = withSpring(layout.width, PILL_SPRING);
-        pillHeight.value = withSpring(layout.height, PILL_SPRING);
+        pillX.value = withSpring(layout.x, PILL_POSITION_SPRING);
+        pillY.value = withSpring(layout.y, PILL_POSITION_SPRING);
+        pillWidth.value = withSpring(layout.width, PILL_SIZE_SPRING);
+        pillHeight.value = withSpring(layout.height, PILL_SIZE_SPRING);
       } else {
         pillX.value = layout.x;
         pillY.value = layout.y;
@@ -117,6 +131,14 @@ export default function HorizontalCalendar({
     },
     [pillX, pillY, pillWidth, pillHeight]
   );
+
+  // Keep pill hidden until the initial date stagger-in animation completes.
+  React.useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setPillReady(true);
+    }, INITIAL_PILL_REVEAL_MS);
+    return () => clearTimeout(timeoutId);
+  }, []);
 
   // Compute 7 days for the current week view
   const days = useMemo(() => {

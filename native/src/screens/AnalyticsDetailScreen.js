@@ -369,7 +369,7 @@ export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
     <View style={[styles.screen, { backgroundColor: colors.appBg }]}>
       <View style={[styles.header, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
         <View style={styles.headerCol}>
-          <Pressable style={styles.backBtn} onPress={onBack}>
+          <Pressable style={styles.backBtn} onPressIn={onBack}>
             <ChevronLeftIcon size={20} color={colors.textSecondary} />
             <Text style={[styles.backText, { color: colors.textSecondary }]}>Back</Text>
           </Pressable>

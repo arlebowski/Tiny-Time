@@ -11,21 +11,28 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import { colorMix } from '../../utils/colorBlend';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, TTPickerTray } from '../shared';
 import AmountStepper from './AmountStepper';
+import TimelineSwipeRow from '../Timeline/TimelineSwipeRow';
 import {
   BottleIcon,
   NursingIcon,
   SolidsIcon,
+  PrepRawIcon,
+  PrepMashedIcon,
+  PrepSteamedIcon,
+  PrepPureedIcon,
+  PrepBoiledIcon,
   PlayIcon,
   PauseIcon,
   SearchIcon,
   ChevronRightIcon,
-  XIcon,
 } from '../icons';
 import { COMMON_FOODS } from '../../constants/foods';
 import { resolveFoodIconAsset } from '../../constants/foodIcons';
@@ -69,6 +76,109 @@ const FEED_TYPES = [
   { id: 'nursing', label: 'Nursing', Icon: NursingIcon, accent: 'nursing' },
   { id: 'solids', label: 'Solids', Icon: SolidsIcon, accent: 'solids' },
 ];
+const SOLIDS_PREP_METHODS = ['Raw', 'Mashed', 'Steamed', 'Pureed', 'Boiled'];
+const SOLIDS_AMOUNTS = ['All', 'Most', 'Some', 'A little', 'None'];
+const SOLIDS_REACTIONS = [
+  { label: 'Loved', emoji: '😍' },
+  { label: 'Liked', emoji: '😊' },
+  { label: 'Neutral', emoji: '😐' },
+  { label: 'Disliked', emoji: '😖' },
+];
+const PREP_ICON_BY_LABEL = {
+  Raw: PrepRawIcon,
+  Mashed: PrepMashedIcon,
+  Steamed: PrepSteamedIcon,
+  Pureed: PrepPureedIcon,
+  Boiled: PrepBoiledIcon,
+};
+const AmountNoneIcon = ({ size = 28, color = 'currentColor' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" fill="none" />
+  </Svg>
+);
+const AmountSomeIcon = ({ size = 28, color = 'currentColor' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" fill="none" />
+    <Path d="M 12,3 A 9,9 0 0,1 21,12 L 12,12 Z" fill={color} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+const AmountMostIcon = ({ size = 28, color = 'currentColor' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="9" stroke={color} strokeWidth="1.5" fill="none" />
+    <Path d="M 12,3 A 9,9 0 1,1 3,12 L 12,12 Z" fill={color} strokeLinecap="round" strokeLinejoin="round" />
+  </Svg>
+);
+const AmountAllIcon = ({ size = 28, color = 'currentColor' }) => (
+  <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+    <Circle cx="12" cy="12" r="9" fill={color} />
+  </Svg>
+);
+const AMOUNT_ICON_BY_LABEL = {
+  'A little': AmountNoneIcon,
+  Some: AmountSomeIcon,
+  Most: AmountMostIcon,
+  All: AmountAllIcon,
+};
+const normalizeSolidsToken = (value) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
+const resolveSolidsPrep = (value) => {
+  const token = normalizeSolidsToken(value);
+  const labelByToken = {
+    raw: 'Raw',
+    mashed: 'Mashed',
+    steamed: 'Steamed',
+    pureed: 'Pureed',
+    'puréed': 'Pureed',
+    boiled: 'Boiled',
+  };
+  const label = labelByToken[token] || String(value || '').trim();
+  const Icon = PREP_ICON_BY_LABEL[label] || null;
+  if (!label) return null;
+  return { key: `prep-${token || label}`, label, icon: Icon };
+};
+const resolveSolidsAmount = (value) => {
+  const token = normalizeSolidsToken(value);
+  const byToken = {
+    all: '● All',
+    most: '◕ Most',
+    some: '◑ Some',
+    'a-little': '◔ A little',
+    little: '◔ A little',
+    none: '○ None',
+  };
+  const label = byToken[token] || (value ? `◌ ${value}` : '');
+  return label ? { key: `amount-${token || label}`, label } : null;
+};
+const resolveSolidsReaction = (value) => {
+  const token = normalizeSolidsToken(value);
+  const byToken = {
+    loved: '😍 Loved',
+    liked: '😊 Liked',
+    neutral: '😐 Neutral',
+    disliked: '😖 Disliked',
+  };
+  const label = byToken[token] || (value ? `🙂 ${value}` : '');
+  return label ? { key: `reaction-${token || label}`, label } : null;
+};
+const buildSolidsMetaParts = (food) => {
+  const parts = [];
+  if (food?.preparation) {
+    const prep = resolveSolidsPrep(food.preparation);
+    if (prep) parts.push(prep);
+  }
+  if (food?.amount) {
+    const amount = resolveSolidsAmount(food.amount);
+    if (amount) parts.push(amount);
+  }
+  if (food?.reaction) {
+    const reaction = resolveSolidsReaction(food.reaction);
+    if (reaction) parts.push(reaction);
+  }
+  return parts.filter(Boolean);
+};
 const FUTURE_TOLERANCE_MS = 60 * 1000;
 const TIME_TRACE = true;
 const timeTrace = (...args) => {
@@ -86,6 +196,11 @@ const FREEZE_DEBUG = false;
 const debugLog = (...args) => {
   if (FREEZE_DEBUG) console.log('[FreezeDebug][FeedSheet]', ...args);
 };
+const SOLIDS_HEIGHT_DEBUG = __DEV__;
+const solidsHeightLog = (event, payload = {}) => {
+  if (!SOLIDS_HEIGHT_DEBUG) return;
+  console.log('[SolidsHeight][FeedSheet]', event, { t: Date.now(), ...payload });
+};
 
 export default function FeedSheet({
   sheetRef,
@@ -101,6 +216,7 @@ export default function FeedSheet({
   storage = null,
 }) {
   const { colors, bottle, nursing, solids, isDark } = useTheme();
+  const insets = useSafeAreaInsets();
   const isInputVariant = !entry;
 
   const visibleTypes = [
@@ -152,6 +268,12 @@ export default function FeedSheet({
   const [addedFoods, setAddedFoods] = useState([]);
   const [solidsSearch, setSolidsSearch] = useState('');
   const [solidsStep, setSolidsStep] = useState(1); // 1: entry, 2: browse, 3: review
+  const [detailFoodId, setDetailFoodId] = useState(null);
+  const [openSwipeFoodId, setOpenSwipeFoodId] = useState(null);
+  const [solidsStepOneHeight, setSolidsStepOneHeight] = useState(0);
+  const [solidsStepOneContentHeight, setSolidsStepOneContentHeight] = useState(0);
+  const [solidsLockedContentBaseHeight, setSolidsLockedContentBaseHeight] = useState(0);
+  const [solidsCtaHeight, setSolidsCtaHeight] = useState(0);
   const [recentFoods, setRecentFoods] = useState([]);
   const [customFoods, setCustomFoods] = useState([]);
   const [modeHeights, setModeHeights] = useState({ bottle: 0, nursing: 0, solids: 0 });
@@ -187,6 +309,7 @@ export default function FeedSheet({
       setExistingPhotoURLs(normalizedExisting);
       setNotesExpanded(Boolean(String(entry.notes || '').trim()));
       setPhotosExpanded(normalizedExisting.length > 0);
+      setSolidsLockedContentBaseHeight(0);
     } else {
       setFeedType(getInitialType());
       setDateTime(new Date().toISOString());
@@ -203,6 +326,7 @@ export default function FeedSheet({
       setAddedFoods([]);
       setNotesExpanded(false);
       setPhotosExpanded(false);
+      setSolidsLockedContentBaseHeight(0);
     }
 
     if (!entry) setSolidsStep(1);
@@ -383,6 +507,8 @@ export default function FeedSheet({
     dateTimeTouchedRef.current = false;
     userEditedAmountRef.current = false;
     userEditedUnitRef.current = false;
+    setDetailFoodId(null);
+    setOpenSwipeFoodId(null);
     if (onClose) onClose();
   }, [onClose, stopActiveSide]);
 
@@ -809,6 +935,19 @@ export default function FeedSheet({
   const removeFoodById = useCallback((foodId) => {
     if (!foodId) return;
     setAddedFoods((prev) => prev.filter((f) => f.id !== foodId));
+    setOpenSwipeFoodId((prev) => (String(prev || '') === String(foodId) ? null : prev));
+    setDetailFoodId((prev) => (String(prev || '') === String(foodId) ? null : prev));
+  }, []);
+
+  const updateFoodDetail = useCallback((foodId, field, value) => {
+    if (!foodId || !field) return;
+    setAddedFoods((prev) =>
+      prev.map((f) => {
+        if (String(f.id) !== String(foodId)) return f;
+        const current = f[field];
+        return { ...f, [field]: current === value ? null : value };
+      })
+    );
   }, []);
 
   const isFoodSelected = useCallback((foodId) => addedFoods.some((f) => f.id === foodId), [addedFoods]);
@@ -910,6 +1049,35 @@ export default function FeedSheet({
 
   const solidsCanSave = !!dateTime && addedFoods.length > 0;
   const solidsCanNext = addedFoods.length > 0;
+  const detailFood = detailFoodId ? addedFoods.find((f) => String(f.id) === String(detailFoodId)) || null : null;
+  const solidsMeasuredContentBaseHeight = Math.ceil(
+    solidsStepOneContentHeight ||
+      solidsStepOneHeight ||
+      modeHeights.solids ||
+      lockedModeHeight ||
+      0
+  );
+  const solidsContentBaseHeight = Math.ceil(solidsLockedContentBaseHeight || solidsMeasuredContentBaseHeight || 0);
+  const solidsFooterReserve = Math.ceil((solidsCtaHeight || 48) + 12 + (insets?.bottom || 0) + 50);
+  const solidsStepTwoHeight = Math.ceil(solidsContentBaseHeight + solidsFooterReserve);
+  const lockSolidsContentBaseHeight = useCallback(() => {
+    setSolidsLockedContentBaseHeight((prev) => {
+      if (prev > 0) return prev;
+      const preferred = Math.ceil(Number(solidsStepOneContentHeight) || 0);
+      const measured = Math.ceil(Number(solidsMeasuredContentBaseHeight) || 0);
+      const next = preferred > 0 ? preferred : measured > 0 ? measured : prev;
+      solidsHeightLog('lock:content-base', { prev, preferred, measured, next });
+      return next;
+    });
+  }, [solidsMeasuredContentBaseHeight, solidsStepOneContentHeight]);
+
+  const goFromStepOneTo = useCallback(
+    (nextStep) => {
+      lockSolidsContentBaseHeight();
+      setSolidsStep(nextStep);
+    },
+    [lockSolidsContentBaseHeight]
+  );
 
   const updateModeHeight = useCallback((mode, nextHeightRaw) => {
     const nextHeight = Math.ceil(Number(nextHeightRaw) || 0);
@@ -928,11 +1096,24 @@ export default function FeedSheet({
     setLockedModeHeight((prev) => (prev === maxHeight ? prev : maxHeight));
   }, [visibleTypes, modeHeights]);
 
+  useEffect(() => {
+    if (feedType !== 'solids' || solidsStep !== 3) {
+      setDetailFoodId(null);
+      setOpenSwipeFoodId(null);
+    }
+  }, [feedType, solidsStep]);
+
   const getSolidsFooter = () => {
     if (feedType !== 'solids') return null;
-    if (solidsStep === 2) return null; // browse: no footer
+    if (solidsStep === 2) return null;
     if (solidsStep === 3) return { label: saving ? 'Saving...' : entry ? 'Save' : 'Add', onClick: handleSave, disabled: saving || !solidsCanSave };
-    return { label: 'Next', onClick: () => setSolidsStep(3), disabled: !solidsCanNext };
+    return {
+      label: 'Next',
+      onClick: () => {
+        goFromStepOneTo(3);
+      },
+      disabled: !solidsCanNext,
+    };
   };
 
   const solidsFooter = feedType === 'solids' ? getSolidsFooter() : null;
@@ -945,6 +1126,12 @@ export default function FeedSheet({
           { backgroundColor: saving ? solids.dark || accent : accent },
           pressed && !solidsFooter.disabled && { opacity: 0.9 },
         ]}
+        onLayout={(e) => {
+          if (feedType !== 'solids' || solidsStep === 2) return;
+          const next = Math.ceil(Number(e?.nativeEvent?.layout?.height) || 0);
+          if (!next) return;
+          setSolidsCtaHeight((prev) => (Math.abs(prev - next) < 1 ? prev : next));
+        }}
         onPress={() => {
           timeTrace('cta:press', {
             feedType,
@@ -1017,10 +1204,50 @@ export default function FeedSheet({
       setPhotosExpanded(false);
       setSolidsStep(1);
       setSolidsSearch('');
+      setSolidsStepOneHeight(0);
+      setSolidsStepOneContentHeight(0);
+      setSolidsLockedContentBaseHeight(0);
+      setSolidsCtaHeight(0);
     }
   }, [defaultType, feedTypeRef, entry, initialBottleAmount, preferredVolumeUnit]);
 
   const scrollable = feedType === 'solids' && solidsStep === 2;
+
+  useEffect(() => {
+    if (feedType !== 'solids') return;
+    solidsHeightLog('state', {
+      step: solidsStep,
+      stepOnePanel: solidsStepOneHeight,
+      stepOneContent: solidsStepOneContentHeight,
+      measuredBase: solidsMeasuredContentBaseHeight,
+      lockedBase: solidsLockedContentBaseHeight,
+      contentBase: solidsContentBaseHeight,
+      footerReserve: solidsFooterReserve,
+      stepTwoHeight: solidsStepTwoHeight,
+      lockedModeHeight,
+      solidsModeHeight: modeHeights.solids || 0,
+      foods: addedFoods.length,
+      notesExpanded,
+      photosExpanded,
+      scrollable,
+    });
+  }, [
+    feedType,
+    solidsStep,
+    solidsStepOneHeight,
+    solidsStepOneContentHeight,
+    solidsMeasuredContentBaseHeight,
+    solidsLockedContentBaseHeight,
+    solidsContentBaseHeight,
+    solidsFooterReserve,
+    solidsStepTwoHeight,
+    lockedModeHeight,
+    modeHeights.solids,
+    addedFoods.length,
+    notesExpanded,
+    photosExpanded,
+    scrollable,
+  ]);
 
   const renderNotesPhotosBlock = () => (
     <View style={styles.addonsBlock}>
@@ -1083,16 +1310,39 @@ export default function FeedSheet({
         scrollable={scrollable}
         footer={footer}
         useFullWindowOverlay={false}
-        onHeaderBackPress={feedType === 'solids' && solidsStep >= 2 ? () => setSolidsStep(1) : undefined}
+        onHeaderBackPress={
+          feedType === 'solids' && solidsStep >= 2
+            ? () => {
+                solidsHeightLog('nav:back-to-step1', { fromStep: solidsStep });
+                setSolidsStep(1);
+              }
+            : undefined
+        }
         headerRight={
           feedType === 'solids' && solidsStep === 2 && addedFoods.length > 0 ? (
-            <Pressable onPress={() => setSolidsStep(3)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+            <Pressable
+              onPress={() => {
+                solidsHeightLog('nav:step2-done-to-step3', { fromStep: solidsStep });
+                lockSolidsContentBaseHeight();
+                setSolidsStep(3);
+              }}
+              style={({ pressed }) => pressed && { opacity: 0.7 }}
+            >
               <Text style={styles.headerDoneText}>Done</Text>
             </Pressable>
           ) : null
         }
       >
-        <View style={styles.feedContent}>
+        <View
+          style={styles.feedContent}
+          onLayout={(e) => {
+            if (feedType !== 'solids' || solidsStep !== 1) return;
+            const next = Math.ceil(Number(e?.nativeEvent?.layout?.height) || 0);
+            if (!next) return;
+            solidsHeightLog('layout:feed-content-step1', { height: next });
+            setSolidsStepOneContentHeight((prev) => (Math.abs(prev - next) < 1 ? prev : next));
+          }}
+        >
           {/* Mode switcher (only when creating, multiple visible types, not in solids browse/review stack) */}
           {isInputVariant && visibleTypes.length > 1 && !(feedType === 'solids' && solidsStep >= 2) && (
             <View style={styles.feedTypePicker}>
@@ -1242,12 +1492,21 @@ export default function FeedSheet({
                     dateTime={dateTime}
                     formatDateTime={formatDateTime}
                     onOpenPicker={() => setShowDateTimeTray(true)}
+                    onContentLayout={(height) => {
+                      const next = Math.ceil(Number(height) || 0);
+                      if (!next) return;
+                      solidsHeightLog('layout:step1-panel', { height: next });
+                      setSolidsStepOneHeight((prev) => (Math.abs(prev - next) < 1 ? prev : next));
+                    }}
                     solidsTileLabel={addedFoods.length === 0 ? 'Add foods' : `${addedFoods.length} food${addedFoods.length !== 1 ? 's' : ''} added`}
                     solidsTileFoods={solidsTileFoods}
                     isFoodSelected={isFoodSelected}
                     addFoodToList={addFoodToList}
                     removeFoodById={removeFoodById}
-                    onBrowsePress={() => setSolidsStep(2)}
+                    onBrowsePress={() => {
+                      solidsHeightLog('nav:step1-browse-to-step2', { fromStep: solidsStep });
+                      goFromStepOneTo(2);
+                    }}
                     colors={colors}
                     solids={solids}
                   />
@@ -1257,7 +1516,19 @@ export default function FeedSheet({
           )}
 
           {feedType === 'solids' && solidsStep === 2 && (
-            <View style={lockedModeHeight > 0 ? { minHeight: lockedModeHeight } : null}>
+            <View
+              onLayout={(e) => {
+                const h = Math.ceil(Number(e?.nativeEvent?.layout?.height) || 0);
+                solidsHeightLog('layout:step2-wrapper', { height: h });
+              }}
+              style={
+                solidsStepTwoHeight > 0
+                  ? { height: solidsStepTwoHeight, maxHeight: solidsStepTwoHeight }
+                  : lockedModeHeight > 0
+                    ? { height: lockedModeHeight + solidsFooterReserve, maxHeight: lockedModeHeight + solidsFooterReserve }
+                    : null
+              }
+            >
               <SolidsStepTwo
                 solidsSearch={solidsSearch}
                 setSolidsSearch={setSolidsSearch}
@@ -1272,8 +1543,25 @@ export default function FeedSheet({
           )}
 
           {feedType === 'solids' && solidsStep === 3 && (
-            <View style={lockedModeHeight > 0 ? { minHeight: lockedModeHeight } : null}>
-              <SolidsStepThree addedFoods={addedFoods} removeFoodById={removeFoodById} colors={colors} solids={solids} />
+            <View
+              onLayout={(e) => {
+                const h = Math.ceil(Number(e?.nativeEvent?.layout?.height) || 0);
+                solidsHeightLog('layout:step3-wrapper', { height: h });
+              }}
+              style={solidsContentBaseHeight > 0 ? { minHeight: solidsContentBaseHeight } : lockedModeHeight > 0 ? { minHeight: lockedModeHeight } : null}
+            >
+              <SolidsStepThree
+                addedFoods={addedFoods}
+                removeFoodById={removeFoodById}
+                onOpenDetail={(foodId) => {
+                  setOpenSwipeFoodId(null);
+                  setDetailFoodId(foodId);
+                }}
+                openSwipeFoodId={openSwipeFoodId}
+                setOpenSwipeFoodId={setOpenSwipeFoodId}
+                colors={colors}
+                solids={solids}
+              />
               {renderNotesPhotosBlock()}
             </View>
           )}
@@ -1287,6 +1575,105 @@ export default function FeedSheet({
         onChange={handleDateTimeChange}
         title="Time"
       />
+      <TTPickerTray
+        isOpen={!!detailFood}
+        onClose={() => {
+          setDetailFoodId(null);
+          setOpenSwipeFoodId(null);
+        }}
+        height="52%"
+        scrollEnabled={false}
+        header={
+          detailFood
+            ? (
+                <View style={styles.detailTrayHeader}>
+                  <View style={styles.detailTrayHeaderLeft}>
+                    <View style={[styles.detailTrayFoodIcon, { backgroundColor: colorMix(solids.primary, colors.inputBg || '#F5F5F7', 16) }]}>
+                      {resolveFoodIconAsset(detailFood.icon) ? (
+                        <Image source={resolveFoodIconAsset(detailFood.icon)} style={styles.detailTrayFoodIconImage} resizeMode="contain" />
+                      ) : detailFood.emoji ? (
+                        <Text style={styles.detailTrayFoodEmoji}>{detailFood.emoji}</Text>
+                      ) : (
+                        <SolidsIcon size={16} color={solids.primary} />
+                      )}
+                    </View>
+                    <Text style={[styles.detailTrayHeaderTitle, { color: colors.textPrimary }]} numberOfLines={1}>
+                      {detailFood.name}
+                    </Text>
+                  </View>
+                  <View />
+                  <Pressable
+                    onPress={() => {
+                      setDetailFoodId(null);
+                      setOpenSwipeFoodId(null);
+                    }}
+                    style={({ pressed }) => pressed && { opacity: 0.6 }}
+                  >
+                    <Text style={[styles.detailTrayDoneText, { color: solids.primary }]}>Done</Text>
+                  </Pressable>
+                </View>
+              )
+            : null
+        }
+      >
+        {detailFood ? (
+          <View style={styles.detailTrayBody}>
+            <View>
+              <Text style={[styles.detailSectionLabel, { color: colors.textSecondary }]}>Preparation</Text>
+              <View style={styles.detailChipsRow}>
+                {SOLIDS_PREP_METHODS.map((method) => (
+                  <SolidsDetailChip
+                    key={method}
+                    label={method}
+                    icon={PREP_ICON_BY_LABEL[method] || null}
+                    selected={detailFood.preparation === method}
+                    dim={!!detailFood.preparation && detailFood.preparation !== method}
+                    onPress={() => updateFoodDetail(detailFood.id, 'preparation', method)}
+                    colors={colors}
+                    solids={solids}
+                  />
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.detailSection}>
+              <Text style={[styles.detailSectionLabel, { color: colors.textSecondary }]}>Amount</Text>
+              <View style={styles.detailChipsRow}>
+                {SOLIDS_AMOUNTS.map((amount) => (
+                  <SolidsDetailChip
+                    key={amount}
+                    label={amount}
+                    icon={AMOUNT_ICON_BY_LABEL[amount] || AmountNoneIcon}
+                    iconOnly
+                    selected={detailFood.amount === amount}
+                    dim={!!detailFood.amount && detailFood.amount !== amount}
+                    onPress={() => updateFoodDetail(detailFood.id, 'amount', amount)}
+                    colors={colors}
+                    solids={solids}
+                  />
+                ))}
+              </View>
+            </View>
+
+            <View style={styles.detailSection}>
+              <Text style={[styles.detailSectionLabel, { color: colors.textSecondary }]}>Reaction</Text>
+              <View style={styles.detailChipsRow}>
+                {SOLIDS_REACTIONS.map((reaction) => (
+                  <SolidsReactionChip
+                    key={reaction.label}
+                    reaction={reaction}
+                    selected={detailFood.reaction === reaction.label}
+                    dim={!!detailFood.reaction && detailFood.reaction !== reaction.label}
+                    onPress={() => updateFoodDetail(detailFood.id, 'reaction', reaction.label)}
+                    colors={colors}
+                    solids={solids}
+                  />
+                ))}
+              </View>
+            </View>
+          </View>
+        ) : null}
+      </TTPickerTray>
     </>
   );
 }
@@ -1322,6 +1709,7 @@ function SolidsStepOne({
   dateTime,
   formatDateTime,
   onOpenPicker,
+  onContentLayout,
   solidsTileLabel,
   solidsTileFoods,
   isFoodSelected,
@@ -1332,7 +1720,12 @@ function SolidsStepOne({
   solids,
 }) {
   return (
-    <View style={styles.solidsStepOne}>
+    <View
+      style={styles.solidsStepOne}
+      onLayout={(e) => {
+        onContentLayout?.(e?.nativeEvent?.layout?.height || 0);
+      }}
+    >
       <TTInputRow label="Start time" rawValue={dateTime} type="datetime" formatDateTime={formatDateTime} onOpenPicker={onOpenPicker} />
       <View style={styles.solidsTilesSection}>
         <Text style={[styles.solidsTileLabel, { color: colors.textSecondary }]}>{solidsTileLabel}</Text>
@@ -1423,19 +1816,26 @@ function SolidsStepTwo({ solidsSearch, setSolidsSearch, solidsFilteredFoods, isF
   );
 }
 
-function SolidsStepThree({ addedFoods, removeFoodById, colors, solids }) {
+function SolidsStepThree({ addedFoods, removeFoodById, onOpenDetail, openSwipeFoodId, setOpenSwipeFoodId, colors, solids }) {
   return (
     <View style={styles.solidsStepThree}>
       <View style={styles.solidsReviewList}>
         {addedFoods.map((food) => {
+          const rowId = String(food.id);
           const iconAsset = resolveFoodIconAsset(food.icon);
+          const summaryParts = buildSolidsMetaParts(food);
           return (
-            <Pressable
-              key={food.id}
-              style={({ pressed }) => [styles.solidsReviewRow, { backgroundColor: colors.inputBg }, pressed && { opacity: 0.7 }]}
-              onPress={() => {}}
+            <TimelineSwipeRow
+              key={rowId}
+              card={{ id: rowId }}
+              isSwipeEnabled
+              onEdit={() => onOpenDetail?.(rowId)}
+              onDelete={() => removeFoodById(food.id)}
+              onRowPress={() => onOpenDetail?.(rowId)}
+              openSwipeId={openSwipeFoodId}
+              setOpenSwipeId={setOpenSwipeFoodId}
             >
-              <View style={styles.solidsReviewRowInner}>
+              <View style={[styles.solidsReviewRowInner, { backgroundColor: colors.inputBg }]}>
                 <View style={[styles.solidsReviewIcon, { backgroundColor: colorMix(solids.primary, colors.inputBg || '#F5F5F7', 20) }]}>
                   {iconAsset ? (
                     <Image source={iconAsset} style={styles.solidsReviewIconImage} resizeMode="contain" />
@@ -1448,17 +1848,79 @@ function SolidsStepThree({ addedFoods, removeFoodById, colors, solids }) {
 
                 <View style={styles.solidsReviewContent}>
                   <Text style={[styles.solidsReviewName, { color: colors.textPrimary }]}>{food.name}</Text>
+                  {summaryParts.length > 0 && (
+                    <View style={styles.solidsReviewMetaRow}>
+                      {summaryParts.map((part, idx) => {
+                        const MetaIcon = part.icon || null;
+                        return (
+                          <View key={part.key || `${rowId}-meta-${idx}`} style={styles.solidsReviewMetaItem}>
+                            {idx > 0 ? <Text style={[styles.solidsReviewMetaDot, { color: colors.textTertiary }]}>•</Text> : null}
+                            <View style={styles.solidsReviewMetaInner}>
+                              {MetaIcon ? <MetaIcon size={14} color={colors.textTertiary} /> : null}
+                              <Text style={[styles.solidsReviewMetaText, { color: colors.textTertiary }]}>{part.label}</Text>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
                 </View>
 
-                <Pressable onPress={() => removeFoodById(food.id)} style={({ pressed }) => pressed && { opacity: 0.7 }}>
-                  <XIcon size={18} color={colors.textTertiary} />
-                </Pressable>
+                <ChevronRightIcon size={20} color={colors.textTertiary} />
               </View>
-            </Pressable>
+            </TimelineSwipeRow>
           );
         })}
       </View>
     </View>
+  );
+}
+
+function SolidsDetailChip({ label, icon: Icon, selected, dim, onPress, colors, solids, iconOnly = false }) {
+  const bg = selected
+    ? iconOnly
+      ? colorMix(colors.inputBg || '#F5F5F7', colors.textPrimary || '#1f2937', 30)
+      : solids.primary
+    : colors.inputBg || '#F5F5F7';
+  const color = selected
+    ? iconOnly
+      ? colors.textPrimary
+      : colors.textOnAccent || '#fff'
+    : colors.textSecondary;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        iconOnly ? styles.detailChipIconOnly : styles.detailChip,
+        { backgroundColor: bg, opacity: dim ? 0.35 : 1 },
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      <View style={styles.detailChipIconWrap}>
+        {Icon ? <Icon size={iconOnly ? 28 : 24} color={color} /> : null}
+      </View>
+      {!iconOnly && <Text style={[styles.detailChipText, { color }]}>{label}</Text>}
+    </Pressable>
+  );
+}
+
+function SolidsReactionChip({ reaction, selected, dim, onPress, colors, solids }) {
+  const bg = selected
+    ? colorMix(colors.inputBg || '#F5F5F7', colors.textPrimary || '#1f2937', 30)
+    : colors.inputBg || '#F5F5F7';
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.detailChipIconOnly,
+        { backgroundColor: bg, opacity: dim ? 0.35 : 1 },
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      <Text style={styles.detailReactionEmoji} allowFontScaling={false}>
+        {reaction.emoji}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -1746,7 +2208,7 @@ const styles = StyleSheet.create({
 
   solidsReviewList: {
     flexDirection: 'column',
-    gap: 8,
+    gap: 0,
   },
 
   solidsReviewRow: {
@@ -1789,7 +2251,120 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
   },
+  solidsReviewMetaRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+  },
+  solidsReviewMetaItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  solidsReviewMetaDot: {
+    paddingHorizontal: 6,
+    fontSize: 12,
+    lineHeight: 12,
+  },
+  solidsReviewMetaInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  solidsReviewMetaText: {
+    fontSize: 12,
+  },
 
+  detailTrayHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  detailTrayHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  detailTrayFoodIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailTrayFoodIconImage: {
+    width: 16,
+    height: 16,
+    transform: [{ scale: 1.65 }],
+  },
+  detailTrayFoodEmoji: {
+    fontSize: 16,
+    lineHeight: 16,
+  },
+  detailTrayHeaderTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
+  detailTrayDoneText: {
+    fontSize: 17,
+    fontWeight: '600',
+  },
+  detailTrayBody: {
+    paddingHorizontal: 16,
+  },
+  detailSection: {
+    marginTop: 24,
+  },
+  detailSectionLabel: {
+    fontSize: 12,
+    marginBottom: 12,
+  },
+  detailChipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 5,
+    paddingBottom: 4,
+  },
+  detailChip: {
+    borderRadius: 12,
+    minWidth: 64,
+    minHeight: 58,
+    paddingHorizontal: 8,
+    paddingVertical: 12,
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  detailChipIconOnly: {
+    borderRadius: 12,
+    minWidth: 52,
+    minHeight: 52,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  detailChipIconWrap: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  detailChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    textAlign: 'center',
+    lineHeight: 13,
+  },
+  detailReactionEmoji: {
+    fontSize: 32,
+    lineHeight: 34,
+    includeFontPadding: false,
+  },
   // Add row
   addonsBlock: {
     marginTop: 12,

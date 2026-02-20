@@ -153,8 +153,13 @@ export default function SegmentedToggle({
           <Pressable
             key={opt.value}
             onLayout={(e) => handleOptionLayout(opt.value, e)}
+            onPressIn={() => {
+              const layout = optionLayouts.current[opt.value];
+              if (!layout) return;
+              setPillPosition(layout, true);
+            }}
             onPress={() => onChange?.(opt.value)}
-            style={({ pressed }) => [
+            style={[
               styles.option,
               {
                 paddingHorizontal: tokens.buttonPaddingH,
@@ -162,7 +167,6 @@ export default function SegmentedToggle({
                 borderRadius: pillRadius,
               },
               fullWidth && styles.optionFull,
-              pressed && { opacity: 0.7 },
             ]}
             accessibilityRole="button"
             accessibilityState={{ selected: isActive }}
