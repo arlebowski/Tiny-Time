@@ -6,10 +6,11 @@ import AnalyticsDetailScreen from '../../screens/AnalyticsDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
-function AnalyticsRoute({ navigation }) {
+function AnalyticsRoute({ navigation, activityVisibility }) {
   return (
     <AnalyticsScreen
       onCardTap={(type) => navigation.navigate('AnalyticsDetail', { type })}
+      activityVisibility={activityVisibility}
     />
   );
 }
@@ -26,11 +27,17 @@ function DetailRoute({ route, navigation }) {
 export default function AnalyticsStack({
   navigationRef,
   onDetailOpenChange,
+  activityVisibility,
 }) {
   const handleStateChange = useCallback((state) => {
     const isDetailOpen = (state?.routes?.length ?? 1) > 1;
     onDetailOpenChange?.(isDetailOpen);
   }, [onDetailOpenChange]);
+
+  const analyticsScreen = useCallback(
+    (props) => <AnalyticsRoute {...props} activityVisibility={activityVisibility} />,
+    [activityVisibility]
+  );
 
   return (
     <NavigationContainer
@@ -45,7 +52,7 @@ export default function AnalyticsStack({
           gestureEnabled: true,
         }}
       >
-        <Stack.Screen name="Analytics" component={AnalyticsRoute} />
+        <Stack.Screen name="Analytics" component={analyticsScreen} />
         <Stack.Screen name="AnalyticsDetail" component={DetailRoute} />
       </Stack.Navigator>
     </NavigationContainer>

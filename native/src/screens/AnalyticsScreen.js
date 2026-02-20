@@ -16,6 +16,10 @@ import {
   SleepChart,
   SimpleBarChart,
 } from '../components/shared/analyticsCharts';
+import {
+  normalizeActivityVisibility,
+  hasAtLeastOneActivityEnabled,
+} from '../constants/activityVisibility';
 
 
 const parseDateKeyToDate = (key) => {
@@ -38,7 +42,7 @@ const getLastNDaysKeys = (n) => {
   return keys;
 };
 
-export default function AnalyticsScreen({ onCardTap }) {
+export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -50,6 +54,11 @@ export default function AnalyticsScreen({ onCardTap }) {
     sleep: false,
     diaper: false,
   });
+
+  const visibility = useMemo(
+    () => normalizeActivityVisibility(activityVisibility),
+    [activityVisibility]
+  );
 
   const {
     feedings: rawFeedings,
@@ -261,8 +270,15 @@ export default function AnalyticsScreen({ onCardTap }) {
             No analytics data yet. Start logging activities to see analytics!
           </Text>
         </View>
+      ) : !hasAtLeastOneActivityEnabled(visibility) ? (
+        <View style={[styles.emptyCard, { backgroundColor: colors.cardBg }]}>
+          <Text style={[styles.emptyText, { color: colors.textTertiary }]}>
+            No activities visible. Enable activities in settings to see analytics.
+          </Text>
+        </View>
       ) : (
         <>
+          {visibility.bottle && (
           <View onLayout={(e) => setCardLayout('bottle', e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
             <HighlightCard
               icon={<BottleIcon size={20} color={bottle.primary} style={{ transform: [{ rotate: '20deg' }] }} />}
@@ -284,7 +300,9 @@ export default function AnalyticsScreen({ onCardTap }) {
               />
             </HighlightCard>
           </View>
+          )}
 
+          {visibility.nursing && (
           <View onLayout={(e) => setCardLayout('nursing', e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
             <HighlightCard
               icon={<NursingIcon size={20} color={nursing.primary} />}
@@ -307,7 +325,9 @@ export default function AnalyticsScreen({ onCardTap }) {
               />
             </HighlightCard>
           </View>
+          )}
 
+          {visibility.solids && (
           <View onLayout={(e) => setCardLayout('solids', e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
             <HighlightCard
               icon={<SolidsIcon size={20} color={solids.primary} />}
@@ -330,7 +350,9 @@ export default function AnalyticsScreen({ onCardTap }) {
               />
             </HighlightCard>
           </View>
+          )}
 
+          {visibility.sleep && (
           <View onLayout={(e) => setCardLayout('sleep', e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
             <HighlightCard
               icon={<SleepIcon size={20} color={sleep.primary} />}
@@ -351,7 +373,9 @@ export default function AnalyticsScreen({ onCardTap }) {
               />
             </HighlightCard>
           </View>
+          )}
 
+          {visibility.diaper && (
           <View onLayout={(e) => setCardLayout('diaper', e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
             <HighlightCard
               icon={<DiaperIcon size={20} color={diaper.primary} />}
@@ -373,6 +397,7 @@ export default function AnalyticsScreen({ onCardTap }) {
               />
             </HighlightCard>
           </View>
+          )}
         </>
       )}
     </ScrollView>

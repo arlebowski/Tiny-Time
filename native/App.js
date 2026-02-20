@@ -801,6 +801,7 @@ function AppShell({
             <AnalyticsStack
               navigationRef={analyticsNavRef}
               onDetailOpenChange={setAnalyticsDetailOpen}
+              activityVisibility={activityVisibility}
             />
           )}
           {activeTab === 'family' && (
