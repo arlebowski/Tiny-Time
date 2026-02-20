@@ -1230,6 +1230,11 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
       {ready ? (
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
+          {/* Preload header logos so they decode during splash — avoids lag when header first appears */}
+          <View style={preloadStyles.hidden} pointerEvents="none">
+            <Image source={require('./assets/brandlogo-dark.png')} style={preloadStyles.img} />
+            <Image source={require('./assets/brandlogo-lt.png')} style={preloadStyles.img} />
+          </View>
           <SafeAreaProvider initialMetrics={initialWindowMetrics}>
             <AuthProvider>
               <AuthGatedApp
@@ -1261,6 +1266,11 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+
+const preloadStyles = StyleSheet.create({
+  hidden: { position: 'absolute', left: -9999, opacity: 0.01, width: 40, height: 40 },
+  img: { width: 40, height: 40 },
+});
 
 const appStyles = StyleSheet.create({
   safe: {
