@@ -41,7 +41,6 @@ import {
 // Icons (1:1 from web/components/shared/icons.js)
 // Web uses HomeIcon (not HouseIcon) for header
 import {
-  BrandLogo,
   ChevronDownIcon,
   ShareIcon,
   HomeIcon,
@@ -103,7 +102,7 @@ function AppHeader({
   onCloseKidMenu,
   shareButtonRef,
 }) {
-  const { colors, bottle } = useTheme();
+  const { colors, bottle, isDark } = useTheme();
   const { kidId, selectedKidSnapshot } = useAuth();
   const { kidData, kids } = useData();
 
@@ -193,7 +192,11 @@ function AppHeader({
       </View>
       {/* Brand logo — rendered separately, centered on screen, aligned with header row (like plus btn) */}
       <View style={headerStyles.logoOverlay} pointerEvents="box-none">
-        <BrandLogo size={26.4} color={colors.brandIcon} />
+        <Image
+          source={isDark ? require('./assets/brandlogo-dark.png') : require('./assets/brandlogo-lt.png')}
+          style={headerStyles.brandLogoImage}
+          resizeMode="contain"
+        />
       </View>
     </View>
   );
@@ -245,12 +248,16 @@ const headerStyles = StyleSheet.create({
   logoOverlay: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -13.2,     // half of icon size 26.4 (matches plus: marginLeft -32 for 64px)
+    marginLeft: -20,       // half of brand logo width (40px)
     top: 0,
     bottom: 0,
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ translateY: -6 }], // align with content row (padding 16 top vs 24 bottom)
+  },
+  brandLogoImage: {
+    width: 34,
+    height: 34,
   },
   // Web: flex items-center justify-end gap-0.5
   rightButtons: {

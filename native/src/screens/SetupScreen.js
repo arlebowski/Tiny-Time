@@ -12,16 +12,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   Animated,
+  Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import TTInputRow from '../components/shared/TTInputRow';
 import TTPhotoRow from '../components/shared/TTPhotoRow';
-import { BrandLogo } from '../components/icons';
+
+const lockupLt = require('../../assets/lockup-lt.png');
+const lockupDk = require('../../assets/lockup-dk.png');
 
 export default function SetupScreen({ onDevExitPreview = null }) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, isDark } = useTheme();
   const { createFamily, acceptInvite, loading } = useAuth();
   const [onboardingMode, setOnboardingMode] = useState('create');
   const [familyName, setFamilyName] = useState('');
@@ -155,10 +158,11 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     >
       <View style={styles.content}>
         <View style={styles.setupHeader}>
-          <View style={styles.logoPill}>
-            <BrandLogo size={40} color={colors.brandIcon} />
-          </View>
-          <Text style={[styles.setupTitle, { color: colors.textPrimary }]}>Welcome to Tiny Tracker!</Text>
+          <Image
+            source={isDark ? lockupDk : lockupLt}
+            style={styles.lockup}
+            resizeMode="contain"
+          />
           <Text style={[styles.setupSubtitle, { color: colors.textSecondary }]}>
             {onboardingMode === 'create'
               ? "Let's set up your baby's profile"
@@ -346,23 +350,14 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  logoPill: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 10,
-  },
-  setupTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    textAlign: 'center',
-    marginBottom: 8,
+  lockup: {
+    width: 234,
+    height: 59,
   },
   setupSubtitle: {
     fontSize: 16,
     textAlign: 'center',
+    marginTop: 4,
   },
   modeToggle: {
     flexDirection: 'row',
