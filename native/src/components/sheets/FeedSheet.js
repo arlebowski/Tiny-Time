@@ -13,6 +13,7 @@ import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image, S
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import { colorMix } from '../../utils/colorBlend';
@@ -1280,16 +1281,28 @@ export default function FeedSheet({
     <View style={styles.addonsBlock}>
       {!notesExpanded && !photosExpanded && (
         <View style={styles.addRow}>
-          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+            setNotesExpanded(true);
+          }}>
             <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
           </Pressable>
-          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+            setPhotosExpanded(true);
+          }}>
             <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
           </Pressable>
         </View>
       )}
 
-      {notesExpanded && <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />}
+      {notesExpanded && (
+        <TTInputRow
+          label="Notes"
+          value={notes}
+          onChange={setNotes}
+          type="text"
+          placeholder="Add a note..."
+        />
+      )}
 
       {photosExpanded && (
         <TTPhotoRow
@@ -1307,13 +1320,17 @@ export default function FeedSheet({
       )}
 
       {photosExpanded && !notesExpanded && (
-        <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+        <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+          setNotesExpanded(true);
+        }}>
           <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
         </Pressable>
       )}
 
       {notesExpanded && !photosExpanded && (
-        <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+        <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+          setPhotosExpanded(true);
+        }}>
           <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
         </Pressable>
       )}
@@ -2001,6 +2018,7 @@ function SideTimer({ side, displayMs, isActive, isLast, onPress, accent, accentS
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   // Content
   feedContent: {},
@@ -2039,7 +2057,7 @@ const styles = StyleSheet.create({
 
   feedTypeLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
 
   nursingTotal: {
@@ -2048,7 +2066,7 @@ const styles = StyleSheet.create({
 
   durationText: {
     fontSize: 40,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     lineHeight: 40,
     includeFontPadding: false,
     fontVariant: ['tabular-nums'],
@@ -2056,7 +2074,7 @@ const styles = StyleSheet.create({
 
   unit: {
     fontSize: 30,
-    fontWeight: '300',
+    fontWeight: FW.light,
     lineHeight: 30,
     includeFontPadding: false,
   },
@@ -2087,7 +2105,7 @@ const styles = StyleSheet.create({
 
   lastText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
 
   sideTimer: {
@@ -2103,7 +2121,7 @@ const styles = StyleSheet.create({
 
   sideTime: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontVariant: ['tabular-nums'],
   },
 
@@ -2137,7 +2155,7 @@ const styles = StyleSheet.create({
 
   foodTileLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     textAlign: 'center',
     maxWidth: '90%',
   },
@@ -2182,7 +2200,7 @@ const styles = StyleSheet.create({
 
   browseButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: FW.medium,
   },
 
   solidsStepTwo: {
@@ -2271,7 +2289,7 @@ const styles = StyleSheet.create({
 
   solidsReviewName: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: FW.medium,
   },
   solidsReviewMetaRow: {
     marginTop: 4,
@@ -2327,12 +2345,12 @@ const styles = StyleSheet.create({
   },
   detailTrayHeaderTitle: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     flexShrink: 1,
   },
   detailTrayDoneText: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   detailTrayBody: {
     paddingHorizontal: 16,
@@ -2378,7 +2396,7 @@ const styles = StyleSheet.create({
   },
   detailChipText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     textAlign: 'center',
     lineHeight: 13,
   },
@@ -2413,13 +2431,13 @@ const styles = StyleSheet.create({
 
   ctaText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#fff',
   },
 
   headerDoneText: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#fff',
   },
 });

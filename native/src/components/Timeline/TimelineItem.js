@@ -17,6 +17,7 @@ import Animated, {
   Extrapolation,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { colorMix } from '../../utils/colorBlend';
 import { resolveFoodIconAsset } from '../../constants/foodIcons';
 import {
@@ -568,7 +569,7 @@ export default function TimelineItem({
                       : isLogged
                         ? colors.textPrimary
                         : colors.textTertiary,
-                    fontWeight: isLogged ? '600' : '400',
+                    fontWeight: isLogged ? FW.semibold : FW.normal,
                   },
                 ]}
                 numberOfLines={1}
@@ -683,6 +684,7 @@ export default function TimelineItem({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   row: {
     minHeight: 72,
@@ -719,7 +721,7 @@ const styles = StyleSheet.create({
   check: {
     fontSize: 10,
     color: '#34C759',
-    fontWeight: '700',
+    fontWeight: FW.bold,
   },
   clock: {
     fontSize: 10,
@@ -745,7 +747,7 @@ const styles = StyleSheet.create({
   },
   zzz: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: FW.bold,
   },
   metaRow: {
     flexDirection: 'row',
@@ -767,7 +769,7 @@ const styles = StyleSheet.create({
   },
   openTimerText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#fff',
   },
   details: {
@@ -806,7 +808,7 @@ const styles = StyleSheet.create({
   },
   foodName: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: FW.medium,
   },
   foodMeta: {
     fontSize: 12,

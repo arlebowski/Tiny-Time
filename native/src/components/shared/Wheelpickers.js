@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Premium spring: responsive, slight overshoot for tactile feel
@@ -103,7 +104,7 @@ export const wheelStyles = {
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     margin: 0,
   },
   timePicker: {
@@ -115,7 +116,7 @@ export const wheelStyles = {
   },
   timeColon: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   pickerContainer: {
     flexDirection: 'column',
@@ -124,7 +125,7 @@ export const wheelStyles = {
   },
   label: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     textAlign: 'center',
@@ -1067,6 +1068,7 @@ export function TimePickerTray({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
@@ -1096,7 +1098,7 @@ const styles = StyleSheet.create({
   },
   itemText: {
     fontSize: 18,
-    fontWeight: '400',
+    fontWeight: FW.normal,
     fontFamily: 'SF-Pro',
   },
   backdrop: {
@@ -1131,12 +1133,12 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   headerDone: {
     fontSize: 17,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   trayContent: {

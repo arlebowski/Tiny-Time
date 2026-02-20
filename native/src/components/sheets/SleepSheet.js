@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { useData } from '../../context/DataContext';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
@@ -735,29 +736,43 @@ export default function SleepSheet({
 
           {!notesExpanded && !photosExpanded && (
             <View style={styles.addRow}>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setNotesExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setPhotosExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
               </Pressable>
             </View>
           )}
 
           {photosExpanded && !notesExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setNotesExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
             </Pressable>
           )}
 
           {notesExpanded && !photosExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setPhotosExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
           )}
 
           {notesExpanded && (
-            <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+            <TTInputRow
+              label="Notes"
+              value={notes}
+              onChange={setNotes}
+              type="text"
+              placeholder="Add a note..."
+            />
           )}
 
           {photosExpanded && (
@@ -795,19 +810,20 @@ export default function SleepSheet({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   durationBlock: {
     alignItems: 'center',
   },
   durationText: {
     fontSize: 40,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     lineHeight: 40,
     includeFontPadding: false,
   },
   unit: {
     fontSize: 30,
-    fontWeight: '300',
+    fontWeight: FW.light,
     lineHeight: 30,
     includeFontPadding: false,
   },
@@ -866,7 +882,7 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#fff',
   },
 });

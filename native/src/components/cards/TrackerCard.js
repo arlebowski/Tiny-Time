@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { ChevronRightIcon } from '../icons';
 
 const SHOW_COMPARISON_ALIGNMENT_GUIDE = false;
@@ -139,6 +140,7 @@ const TrackerCard = ({
   );
 };
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   // Web: rounded-2xl p-5 shadow-sm
   card: {
@@ -183,7 +185,7 @@ const styles = StyleSheet.create({
   },
   headerLabel: {
     fontSize: 18,                     // text-[18px]
-    fontWeight: '600',                // font-semibold
+    fontWeight: FW.semibold,                // font-semibold
   },
 
   // Web: inline-flex items-center gap-2
@@ -195,7 +197,7 @@ const styles = StyleSheet.create({
   // Web: text-[15px] font-normal leading-none
   statusText: {
     fontSize: 15,                     // text-[15px]
-    fontWeight: '400',                // font-normal
+    fontWeight: FW.normal,                // font-normal
   },
   chevronWrap: {
     marginRight: CHEVRON_RIGHT_NUDGE,
@@ -247,7 +249,7 @@ const styles = StyleSheet.create({
   // Web: text-[48px] leading-none font-bold
   value: {
     fontSize: 48,                     // text-[48px]
-    fontWeight: '700',                // font-bold
+    fontWeight: FW.bold,                // font-bold
     lineHeight: 48,                   // leading-none
     includeFontPadding: false,
   },
@@ -255,7 +257,7 @@ const styles = StyleSheet.create({
   // Web: text-[28px] leading-none font-normal
   unit: {
     fontSize: 28,                     // text-[28px]
-    fontWeight: '400',                // font-normal
+    fontWeight: FW.normal,                // font-normal
     lineHeight: 28,                   // leading-none
     includeFontPadding: false,
   },

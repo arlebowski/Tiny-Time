@@ -14,6 +14,7 @@ import {
   Image,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 
 const lockupLt = require('../../assets/lockup-lt.png');
@@ -178,6 +179,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -217,12 +219,12 @@ const styles = StyleSheet.create({
   },
   googleGlyph: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     color: '#4285F4',
   },
   googleButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   dividerRow: {
     flexDirection: 'row',
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: FW.bold,
   },
   toggleText: {
     fontSize: 14,

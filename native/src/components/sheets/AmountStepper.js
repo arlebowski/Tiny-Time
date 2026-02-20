@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { formatOz, formatMl, ozToMl, mlToOz } from '../../utils/amountStepper';
 import { MinusIcon, PlusIcon } from '../icons';
 import SegmentedToggle from '../shared/SegmentedToggle';
@@ -81,6 +82,7 @@ export default function AmountStepper({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   // Web: rounded-2xl mb-2
   container: {
@@ -123,13 +125,13 @@ const styles = StyleSheet.create({
   // Web: text-[40px] font-bold
   value: {
     fontSize: 40,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     fontFamily: 'SF-Pro',
   },
   // Web: text-base font-light ml-2
   unit: {
     fontSize: 16,
-    fontWeight: '300',
+    fontWeight: FW.light,
     fontFamily: 'SF-Pro',
   },
 });

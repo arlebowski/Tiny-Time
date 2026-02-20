@@ -342,6 +342,7 @@ export const THEME_TOKENS = {
       '5xl': 48,
     },
     fontWeight: {
+      light: '300',
       normal: '400',
       medium: '500',
       semibold: '600',

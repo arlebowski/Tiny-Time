@@ -23,6 +23,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import TimelineItem from './TimelineItem';
 import TimelineSwipeRow from './TimelineSwipeRow';
 import SegmentedToggle from '../shared/SegmentedToggle';
@@ -518,6 +519,7 @@ export default function Timeline({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -537,7 +539,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   headerRight: {
     flexDirection: 'row',
@@ -564,7 +566,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -588,7 +590,7 @@ const styles = StyleSheet.create({
   },
   deleteTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     marginBottom: 8,
   },
   deleteMessage: {
@@ -609,7 +611,7 @@ const styles = StyleSheet.create({
   confirmBtn: {},
   deleteBtnText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   photoModalOverlay: {
     flex: 1,
@@ -636,7 +638,7 @@ const styles = StyleSheet.create({
   },
   photoModalBtnText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#fff',
   },
 });

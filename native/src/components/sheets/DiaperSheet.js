@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { formatDateTime } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
@@ -355,17 +356,27 @@ export default function DiaperSheet({
 
           {!notesExpanded && !photosExpanded && (
             <View style={styles.addRow}>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setNotesExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setPhotosExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
               </Pressable>
             </View>
           )}
 
           {notesExpanded && (
-            <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+            <TTInputRow
+              label="Notes"
+              value={notes}
+              onChange={setNotes}
+              type="text"
+              placeholder="Add a note..."
+            />
           )}
 
           {photosExpanded && (
@@ -384,13 +395,17 @@ export default function DiaperSheet({
           )}
 
           {photosExpanded && !notesExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setNotesExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
             </Pressable>
           )}
 
           {notesExpanded && !photosExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setPhotosExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
           )}
@@ -411,6 +426,7 @@ export default function DiaperSheet({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   typePicker: {
     flexDirection: 'row',
@@ -427,7 +443,7 @@ const styles = StyleSheet.create({
   },
   typeLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   addRow: {
     flexDirection: 'row',
@@ -473,7 +489,7 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#fff',
   },
 });

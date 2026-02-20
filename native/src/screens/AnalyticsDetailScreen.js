@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useData } from '../context/DataContext';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import { DetailHistoryBars } from '../components/shared/analyticsCharts';
@@ -520,6 +521,7 @@ export default function AnalyticsDetailScreen({ type, onBack }) {
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   header: {
@@ -542,9 +544,9 @@ const styles = StyleSheet.create({
     gap: 4,
     borderRadius: 8,
   },
-  backText: { fontSize: 15, fontWeight: '500' },
+  backText: { fontSize: 15, fontWeight: FW.medium },
   titleWrap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  title: { fontSize: 18, fontWeight: '600', lineHeight: 24 },
+  title: { fontSize: 18, fontWeight: FW.semibold, lineHeight: 24 },
   toggleWrap: { paddingTop: 12, paddingBottom: 8, paddingHorizontal: 16 },
   content: { paddingHorizontal: 16, paddingBottom: 50 },
   grid: { flexDirection: 'row', gap: 16 },
@@ -560,22 +562,22 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  statTitle: { fontSize: 15, fontWeight: '600' },
+  statTitle: { fontSize: 15, fontWeight: FW.semibold },
   statValue: {
     fontSize: 30,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     lineHeight: 30,
     marginBottom: -8,
     includeFontPadding: false,
   },
   inlineUnit: {
     fontSize: 20,
-    fontWeight: '400',
+    fontWeight: FW.normal,
     lineHeight: 20,
     marginLeft: 4,
     includeFontPadding: false,
   },
-  statSub: { fontSize: 12, fontWeight: '400', lineHeight: 12 },
+  statSub: { fontSize: 12, fontWeight: FW.normal, lineHeight: 12 },
   historyCard: {
     marginTop: 16,
     borderRadius: 16,
@@ -586,7 +588,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
-  historyTitle: { fontSize: 15, fontWeight: '600', marginBottom: 6, textAlign: 'center' },
+  historyTitle: { fontSize: 15, fontWeight: FW.semibold, marginBottom: 6, textAlign: 'center' },
   historyRow: {
     flexDirection: 'row',
     gap: 16,
@@ -611,9 +613,9 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: 8,
   },
-  historyValue: { color: '#fff', fontWeight: '600', fontSize: 12 },
+  historyValue: { color: '#fff', fontWeight: FW.semibold, fontSize: 12 },
   historyValueSuffix: { fontSize: 10, opacity: 0.7, marginLeft: 2 },
-  historyDate: { fontSize: 12, fontWeight: '500' },
+  historyDate: { fontSize: 12, fontWeight: FW.medium },
   historyMeta: { fontSize: 12 },
   noData: { textAlign: 'center', paddingVertical: 32 },
 });

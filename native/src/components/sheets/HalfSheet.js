@@ -6,8 +6,8 @@
  * - No double bottom insets
  */
 
-import React, { useRef, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
+import React, { useRef, useCallback, useEffect, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, Platform, Keyboard } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import {
   BottomSheetModal,
@@ -23,6 +23,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { ChevronDownIcon, ChevronLeftIcon } from '../icons';
 
 function HeaderHandle({
@@ -107,15 +108,45 @@ export default function HalfSheet({
   const insets = useSafeAreaInsets();
   const { colors, radius } = useTheme();
   const prevIndexRef = useRef(-1);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const headerBg = accentColor || colors.primaryBrand;
   const topRadius = radius?.['3xl'] ?? 20;
 
   // Footer starts hidden, fades in when sheet opens so it appears
   // to enter as part of the sheet rather than as a separate overlay.
   const footerOpacity = useSharedValue(0);
+  const footerKeyboardProgress = useSharedValue(1);
   const footerAnimatedStyle = useAnimatedStyle(() => ({
-    opacity: footerOpacity.value,
+    opacity: footerOpacity.value * footerKeyboardProgress.value,
+    transform: [{ translateY: (1 - footerKeyboardProgress.value) * 80 }],
   }));
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const fallbackSnapPoint = Array.isArray(snapPoints) && snapPoints.length > 0 ? snapPoints[0] : '85%';
+    const onShow = () => {
+      setKeyboardVisible(true);
+      footerKeyboardProgress.value = withTiming(0, { duration: 180 });
+    };
+    const onHide = () => {
+      setKeyboardVisible(false);
+      footerKeyboardProgress.value = withTiming(1, { duration: 220 });
+      requestAnimationFrame(() => {
+        if (prevIndexRef.current < 0) return;
+        if (!sheetRef?.current?.snapToPosition) return;
+        try {
+          sheetRef.current.snapToPosition(fallbackSnapPoint);
+        } catch (_) {}
+      });
+    };
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [footerKeyboardProgress, sheetRef, snapPoints]);
 
   const handleComponent = useCallback(
     (props) => (
@@ -164,12 +195,13 @@ export default function HalfSheet({
               },
               footerAnimatedStyle,
             ]}
+            pointerEvents={keyboardVisible ? 'none' : 'auto'}
           >
             {footer}
           </Animated.View>
         </BottomSheetFooter>
       ) : null,
-    [footer, colors.halfsheetBg, colors.cardBg, insets.bottom, footerBottomOffset, footerAnimatedStyle]
+    [footer, colors.halfsheetBg, colors.cardBg, insets.bottom, footerBottomOffset, footerTopOffset, footerAnimatedStyle, keyboardVisible]
   );
 
   return (
@@ -181,10 +213,16 @@ export default function HalfSheet({
       enablePanDownToClose={enablePanDownToClose}
       enableContentPanningGesture={enableContentPanningGesture}
       enableHandlePanningGesture={enableHandlePanningGesture}
+      keyboardBehavior="interactive"
+      keyboardBlurBehavior="restore"
+      enableBlurKeyboardOnGesture
+      android_keyboardInputMode="adjustResize"
       enableOverDrag
       onClose={() => {
         prevIndexRef.current = -1;
         footerOpacity.value = 0;
+        footerKeyboardProgress.value = 1;
+        setKeyboardVisible(false);
         onClose?.();
       }}
       onAnimate={(fromIndex, toIndex) => {
@@ -238,6 +276,7 @@ export default function HalfSheet({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   modal: {
     overflow: 'hidden',
@@ -267,7 +306,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginHorizontal: 12,
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#fff',
   },
 

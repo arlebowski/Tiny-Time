@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 
 export default function SettingsScreen() {
   return (
@@ -9,6 +10,7 @@ export default function SettingsScreen() {
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -18,7 +20,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 24,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#212121',
   },
 });

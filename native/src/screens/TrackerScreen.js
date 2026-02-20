@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useData } from '../context/DataContext';
 import { SettingsIcon } from '../components/icons';
 import BottleCard from '../components/cards/BottleCard';
@@ -377,6 +378,7 @@ export default function TrackerScreen({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -401,13 +403,13 @@ const styles = StyleSheet.create({
   // Web: text-[15.4px] font-normal, color var(--tt-text-secondary)
   dateLabel: {
     fontSize: 15.4,
-    fontWeight: '400',     // font-normal
+    fontWeight: FW.normal,     // font-normal
     fontFamily: 'SF-Pro',
   },
   // Web: text-[24px] font-semibold, color var(--tt-text-primary), marginBottom 0
   greeting: {
     fontSize: 24,
-    fontWeight: '600',     // font-semibold
+    fontWeight: FW.semibold,     // font-semibold
     fontFamily: 'SF-Pro',
   },
   // Web TrackerTab.js:1977-1988 — w-10 h-10 rounded-xl border, active:scale-95

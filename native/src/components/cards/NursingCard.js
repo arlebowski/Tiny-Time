@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import TrackerCard from './TrackerCard';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { NursingIcon } from '../icons';
 import { formatRelativeTime, formatElapsedHmsTT, formatV2Number, ComparisonChicklet } from './cardUtils';
 
@@ -40,6 +41,7 @@ const NursingValueDisplay = ({ totalMs, accentColor, unitColor }) => {
   );
 };
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const valueStyles = StyleSheet.create({
   // Web: flex items-baseline gap-[4px]
   container: {
@@ -49,13 +51,13 @@ const valueStyles = StyleSheet.create({
   // Web: text-[48px] leading-none font-bold
   number: {
     fontSize: 48,                     // text-[48px]
-    fontWeight: '700',                // font-bold
+    fontWeight: FW.bold,                // font-bold
     lineHeight: 48,                   // leading-none
   },
   // Web: text-[28px] leading-none font-normal, var(--tt-text-tertiary)
   unit: {
     fontSize: 28,                     // text-[28px]
-    fontWeight: '400',                // font-normal
+    fontWeight: FW.normal,                // font-normal
   },
   // Web: ml-2 between h/m/s groups
   spacer: {

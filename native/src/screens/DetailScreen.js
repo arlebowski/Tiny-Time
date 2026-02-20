@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 import HorizontalCalendar from '../components/shared/HorizontalCalendar';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import Timeline from '../components/Timeline/Timeline';
@@ -644,6 +645,7 @@ export default function DetailSheet({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -666,7 +668,7 @@ const styles = StyleSheet.create({
   },
   refreshIndicatorText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: FW.medium,
   },
   toggleWrap: {
     marginTop: 0,
@@ -680,7 +682,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   // Summary cards — horizontal scroll for 'all' mode
@@ -753,12 +755,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   summaryValue: {
-    fontWeight: '700',
+    fontWeight: FW.bold,
     lineHeight: undefined,
     fontFamily: 'SF-Pro',
   },
   summaryUnit: {
-    fontWeight: '400',
+    fontWeight: FW.normal,
     fontFamily: 'SF-Pro',
   },
   summaryIconPlaceholder: {
@@ -778,12 +780,12 @@ const styles = StyleSheet.create({
   },
   summaryComparisonArrow: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   summaryComparisonValue: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontVariant: ['tabular-nums'],
     fontFamily: 'SF-Pro',
   },
@@ -792,7 +794,7 @@ const styles = StyleSheet.create({
   },
   summaryPaceText: {
     fontSize: 12,
-    fontWeight: '400',
+    fontWeight: FW.normal,
     fontFamily: 'SF-Pro',
   },
   // Diaper tally subline
@@ -809,7 +811,7 @@ const styles = StyleSheet.create({
   },
   diaperTallyText: {
     fontSize: 12,
-    fontWeight: '400',
+    fontWeight: FW.normal,
     fontVariant: ['tabular-nums'],
     fontFamily: 'SF-Pro',
   },

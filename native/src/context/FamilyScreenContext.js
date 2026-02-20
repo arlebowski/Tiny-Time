@@ -106,6 +106,7 @@ function Card({ children, style, onPress, disabled = false }) {
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const cardStyles = StyleSheet.create({
   card: {
     padding: 20,
@@ -1139,12 +1140,12 @@ const s = StyleSheet.create({
   },
   profileBackText: {
     fontSize: 15,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   profileHeaderMonthLabel: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
 
@@ -1184,7 +1185,7 @@ const s = StyleSheet.create({
   },
   devSetupToggleText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     lineHeight: 12,
     fontFamily: 'SF-Pro',
   },
@@ -1226,12 +1227,12 @@ const s = StyleSheet.create({
   },
   appearanceAccountAvatarInitial: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     fontFamily: 'SF-Pro',
   },
   appearanceEntryTitle: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   appearanceEntrySubtitle: {
@@ -1272,7 +1273,7 @@ const s = StyleSheet.create({
   },
   familyAvatarBubbleText: {
     fontSize: 9,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     fontFamily: 'SF-Pro',
   },
   familyInviteCard: {
@@ -1295,7 +1296,7 @@ const s = StyleSheet.create({
   },
   familyNameReadOnlyValue: {
     fontSize: 16,
-    fontWeight: '400',
+    fontWeight: FW.normal,
     fontFamily: 'SF-Pro',
   },
   familyInviteText: {
@@ -1306,7 +1307,7 @@ const s = StyleSheet.create({
   familyInviteLink: {
     marginTop: 10,
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   appearanceSheetSpacer: {
@@ -1336,7 +1337,7 @@ const s = StyleSheet.create({
   },
   themeName: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   swatchRow: {
@@ -1398,7 +1399,7 @@ const s = StyleSheet.create({
   },
   hubKidTitle: {
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     fontFamily: 'Fraunces',
     fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
@@ -1421,7 +1422,7 @@ const s = StyleSheet.create({
   },
   hubKidActiveBadgeText: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     color: '#34C759',
     fontVariant: ['tabular-nums'],
     fontFamily: 'SF-Pro',
@@ -1436,19 +1437,19 @@ const s = StyleSheet.create({
   },
   addChildBtn: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   kidName: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     flex: 1,
     fontFamily: 'Fraunces',
     fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
   kidActive: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   kidsHint: {
@@ -1479,7 +1480,7 @@ const s = StyleSheet.create({
   },
   profileInitial: {
     fontSize: 36,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     fontFamily: 'SF-Pro',
   },
   profileAvatarUpload: {
@@ -1513,7 +1514,7 @@ const s = StyleSheet.create({
     marginTop: 14,
     marginBottom: 8,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     letterSpacing: 0.9,
     fontFamily: 'SF-Pro',
   },
@@ -1534,13 +1535,13 @@ const s = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     marginBottom: 8,
     fontFamily: 'SF-Pro',
   },
   feedUnitValue: {
     fontSize: 15,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   feedUnitSheetDescription: {
@@ -1618,7 +1619,7 @@ const s = StyleSheet.create({
   },
   activityVisTitle: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   activityVisHint: {
@@ -1648,7 +1649,7 @@ const s = StyleSheet.create({
   },
   memberInitial: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   memberInfo: {
@@ -1662,7 +1663,7 @@ const s = StyleSheet.create({
   },
   memberName: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   ownerBadge: {
@@ -1674,7 +1675,7 @@ const s = StyleSheet.create({
   },
   ownerBadgeText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   memberEmail: {
@@ -1711,7 +1712,7 @@ const s = StyleSheet.create({
   },
   userName: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   userEmail: {
@@ -1733,7 +1734,7 @@ const s = StyleSheet.create({
   },
   userAvatarInitial: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: FW.bold,
     fontFamily: 'SF-Pro',
   },
   accountBtn: {
@@ -1744,7 +1745,7 @@ const s = StyleSheet.create({
   },
   accountBtnText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   deleteAccountBtn: {
@@ -1754,7 +1755,7 @@ const s = StyleSheet.create({
   },
   deleteAccountBtnText: {
     fontSize: 13,
-    fontWeight: '500',
+    fontWeight: FW.medium,
     fontFamily: 'SF-Pro',
   },
   deleteKidWarning: {
@@ -1777,7 +1778,7 @@ const s = StyleSheet.create({
   },
   addChildSubmitText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   addChildSectionSpacer: {
@@ -1805,7 +1806,7 @@ const s = StyleSheet.create({
   },
   deleteTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     marginBottom: 8,
     fontFamily: 'SF-Pro',
   },
@@ -1828,7 +1829,7 @@ const s = StyleSheet.create({
   confirmBtn: {},
   deleteBtnText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
 });

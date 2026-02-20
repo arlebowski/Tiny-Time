@@ -7,6 +7,7 @@ import {
   formatV2Number,
   formatElapsedHmsTT,
 } from '../../../../shared/utils/formatters';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 
 // Re-export formatters from shared (for components that import from cardUtils)
 export { formatRelativeTime, formatRelativeTimeNoAgo, formatVolume, formatV2Number, formatElapsedHmsTT };
@@ -70,6 +71,7 @@ export const ComparisonChicklet = ({ comparison, volumeUnit, evenTextColor, even
   );
 };
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const chipStyles = StyleSheet.create({
   // Web: inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg
   chip: {
@@ -84,12 +86,12 @@ const chipStyles = StyleSheet.create({
   // Web: UpArrowIcon/DownArrowIcon w-4 h-4
   arrow: {
     fontSize: 14,                 // w-4 h-4
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   // Web: text-[13px] font-semibold tabular-nums
   label: {
     fontSize: 13,                 // text-[13px]
-    fontWeight: '600',            // font-semibold
+    fontWeight: FW.semibold,            // font-semibold
     fontVariant: ['tabular-nums'],
   },
 });

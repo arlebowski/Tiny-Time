@@ -8,6 +8,7 @@ import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { BottleIcon, NursingIcon, SleepIcon, DiaperIcon } from '../icons';
 import { PlusIcon } from '../icons';
 
@@ -196,6 +197,7 @@ export default function FloatingTrackerMenu({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
@@ -265,6 +267,6 @@ const styles = StyleSheet.create({
   },
   splitLabel: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
 });

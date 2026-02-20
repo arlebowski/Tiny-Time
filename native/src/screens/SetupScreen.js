@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import TTInputRow from '../components/shared/TTInputRow';
 import TTPhotoRow from '../components/shared/TTPhotoRow';
@@ -331,6 +332,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
@@ -381,7 +383,7 @@ const styles = StyleSheet.create({
   },
   modeToggleText: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: FW.bold,
   },
   error: { color: '#EF4444', fontSize: 14, textAlign: 'center', marginBottom: 8 },
   photoSection: {
@@ -395,6 +397,6 @@ const styles = StyleSheet.create({
     height: 40,
   },
   button: { height: 48, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: FW.bold },
   toggleText: { fontSize: 14, textAlign: 'center', paddingTop: 4 },
 });

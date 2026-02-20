@@ -193,7 +193,7 @@ function AppHeader({
       {/* Brand logo — rendered separately, centered on screen, aligned with header row (like plus btn) */}
       <View style={headerStyles.logoOverlay} pointerEvents="box-none">
         <Image
-          source={isDark ? require('./assets/brandlogo-dark.png') : require('./assets/brandlogo-lt.png')}
+          source={isDark ? require('./assets/brandlogo-dark-68.png') : require('./assets/brandlogo-lt-68.png')}
           style={headerStyles.brandLogoImage}
           resizeMode="contain"
         />
@@ -248,7 +248,7 @@ const headerStyles = StyleSheet.create({
   logoOverlay: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -20,       // half of brand logo width (40px)
+    marginLeft: -17,       // half of brand logo width (34px)
     top: 0,
     bottom: 0,
     alignItems: 'center',
@@ -1232,8 +1232,8 @@ export default function App() {
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
           {/* Preload header logos so they decode during splash — avoids lag when header first appears */}
           <View style={preloadStyles.hidden} pointerEvents="none">
-            <Image source={require('./assets/brandlogo-dark.png')} style={preloadStyles.img} />
-            <Image source={require('./assets/brandlogo-lt.png')} style={preloadStyles.img} />
+            <Image source={require('./assets/brandlogo-dark-68.png')} style={preloadStyles.img} />
+            <Image source={require('./assets/brandlogo-lt-68.png')} style={preloadStyles.img} />
           </View>
           <SafeAreaProvider initialMetrics={initialWindowMetrics}>
             <AuthProvider>
@@ -1268,8 +1268,8 @@ export default function App() {
 }
 
 const preloadStyles = StyleSheet.create({
-  hidden: { position: 'absolute', left: -9999, opacity: 0.01, width: 40, height: 40 },
-  img: { width: 40, height: 40 },
+  hidden: { position: 'absolute', left: -9999, opacity: 0.01, width: 34, height: 34 },
+  img: { width: 34, height: 34 },
 });
 
 const appStyles = StyleSheet.create({

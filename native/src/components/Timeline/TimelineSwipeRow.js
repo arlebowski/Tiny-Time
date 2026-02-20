@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { EditIcon } from '../icons';
 
 const SPRING = { stiffness: 900, damping: 80 };
@@ -297,6 +298,7 @@ export default function TimelineSwipeRow({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   row: {
     minHeight: 72,
@@ -336,7 +338,7 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
   },
   content: {
     zIndex: 10,

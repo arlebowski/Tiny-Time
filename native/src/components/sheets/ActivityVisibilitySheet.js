@@ -18,6 +18,7 @@ import {
   DiaperIcon,
 } from '../icons';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
@@ -235,6 +236,7 @@ export default function ActivityVisibilitySheet({
   );
 }
 
+const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   listWrap: {
     minHeight: (DEFAULT_ROW_HEIGHT + 8) * 5,
@@ -280,7 +282,7 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   hint: {
@@ -297,7 +299,7 @@ const styles = StyleSheet.create({
   },
   doneText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: FW.semibold,
     fontFamily: 'SF-Pro',
   },
   toggleLabelPad: {
