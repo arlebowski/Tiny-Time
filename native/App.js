@@ -17,8 +17,8 @@ LogBox.ignoreLogs([
 ]);
 
 // Screens
-import AnalyticsScreen from './src/screens/AnalyticsScreen';
-import FamilyScreen from './src/screens/FamilyScreen';
+import AnalyticsStack from './src/components/navigation/AnalyticsStack';
+import FamilyStack from './src/components/navigation/FamilyStack';
 import LoginScreen from './src/screens/LoginScreen';
 import SetupScreen from './src/screens/SetupScreen';
 
@@ -28,7 +28,8 @@ import SleepSheet from './src/components/sheets/SleepSheet';
 import FeedSheet from './src/components/sheets/FeedSheet';
 import ActivityVisibilitySheet from './src/components/sheets/ActivityVisibilitySheet';
 import BottomNavigationShell from './src/components/navigation/BottomNavigationShell';
-import TrackerDetailFlow from './src/components/navigation/TrackerDetailFlow';
+import { StackActions } from '@react-navigation/native';
+import TrackerStack from './src/components/navigation/TrackerStack';
 import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
@@ -361,7 +362,9 @@ function AppShell({
   const sleepRef = useRef(null);
   const feedRef = useRef(null);
   const activityVisibilityRef = useRef(null);
-  const trackerDetailFlowRef = useRef(null);
+  const trackerNavRef = useRef(null);
+  const familyNavRef = useRef(null);
+  const analyticsNavRef = useRef(null);
 
   const feedTypeRef = useRef('bottle');
   const [lastFeedVariant, setLastFeedVariant] = useState('bottle');
@@ -369,7 +372,6 @@ function AppShell({
   const timelineRefreshRef = useRef(null);
   const [isTrackerDetailOpen, setIsTrackerDetailOpen] = useState(false);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
-  const [analyticsResetSignal, setAnalyticsResetSignal] = useState(0);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [shareAnchor, setShareAnchor] = useState(null);
   const shareButtonRef = useRef(null);
@@ -573,12 +575,11 @@ function AppShell({
     setShowKidMenu(false);
     setKidAnchor(null);
     if (nextTab === 'tracker' && activeTab === 'tracker' && isTrackerDetailOpen) {
-      trackerDetailFlowRef.current?.closeDetail?.();
+      trackerNavRef.current?.dispatch(StackActions.popToTop());
       return;
     }
     if (nextTab === activeTab && nextTab === 'trends') {
-      setAnalyticsResetSignal((s) => s + 1);
-      setAnalyticsDetailOpen(false);
+      analyticsNavRef.current?.dispatch(StackActions.popToTop());
       return;
     }
     if (nextTab !== activeTab) {
@@ -773,8 +774,8 @@ function AppShell({
         {showGlobalHeader ? trackerHeader : null}
         <View style={appStyles.content}>
           {activeTab === 'tracker' && trackerUiReady ? (
-            <TrackerDetailFlow
-              ref={trackerDetailFlowRef}
+            <TrackerStack
+              navigationRef={trackerNavRef}
               header={trackerHeader}
               onOpenSheet={handleTrackerSelect}
               onRequestToggleActivitySheet={handleToggleActivitySheet}
@@ -791,13 +792,14 @@ function AppShell({
             <View style={{ flex: 1, backgroundColor: appBg }} />
           ) : null}
           {activeTab === 'trends' && (
-            <AnalyticsScreen
+            <AnalyticsStack
+              navigationRef={analyticsNavRef}
               onDetailOpenChange={setAnalyticsDetailOpen}
-              resetSignal={analyticsResetSignal}
             />
           )}
           {activeTab === 'family' && (
-            <FamilyScreen
+            <FamilyStack
+              navigationRef={familyNavRef}
               header={trackerHeader}
               user={familyUser}
               kidId={kidId}

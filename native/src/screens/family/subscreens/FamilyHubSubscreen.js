@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, Image } from 'react-native';
-import { ChevronRightIcon, PlusIcon, PaletteIcon, FamilyIcon } from '../../../components/icons';
+import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
+import { PlusIcon, PaletteIcon, FamilyIcon } from '../../../components/icons';
 
 export default function FamilyHubSubscreen({
   s,
@@ -58,8 +59,8 @@ export default function FamilyHubSubscreen({
         </View>
       </View>
 
-      <Card>
-        <Pressable onPress={onOpenProfile} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card onPress={onOpenProfile}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             {currentUser.photoURL ? (
               <Image source={{ uri: currentUser.photoURL }} style={s.appearanceAccountAvatar} />
@@ -76,13 +77,13 @@ export default function FamilyHubSubscreen({
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
-      <Card style={s.cardGap}>
-        <Pressable onPress={onOpenAppearance} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card style={s.cardGap} onPress={onOpenAppearance}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={s.appearanceEntryIcon}>
               <PaletteIcon size={24} color={colors.textPrimary} />
@@ -101,17 +102,17 @@ export default function FamilyHubSubscreen({
                 />
               ))}
             </View>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
       <View style={s.familyHubHeader}>
         <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Families</Text>
       </View>
 
-      <Card>
-        <Pressable onPress={onOpenFamily} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card onPress={onOpenFamily}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={s.appearanceEntryIcon}>
               <FamilyIcon size={24} color={colors.textPrimary} />
@@ -140,13 +141,13 @@ export default function FamilyHubSubscreen({
                 </View>
               ))}
             </View>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
-      <Card style={s.cardGap}>
-        <Pressable onPress={onOpenAddFamily} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card style={s.cardGap} onPress={onOpenAddFamily}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
               <PlusIcon size={20} color={colors.textPrimary} />
@@ -157,9 +158,9 @@ export default function FamilyHubSubscreen({
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
       <View style={{ height: 40 }} />

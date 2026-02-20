@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, Pressable, Image } from 'react-native';
 import TTInputRow from '../../../components/shared/TTInputRow';
-import { ChevronLeftIcon, ChevronRightIcon, EditIcon, PlusIcon, TrashIcon } from '../../../components/icons';
+import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
+import { ChevronLeftIcon, EditIcon, PlusIcon, TrashIcon } from '../../../components/icons';
 
 export default function FamilySubscreen({
   s,
@@ -88,8 +89,8 @@ export default function FamilySubscreen({
             const birthLabel = formatMonthDay(k.birthDate);
             const subtitle = [ageLabel, weightLabel, birthLabel].filter(Boolean).join(' • ');
             return (
-              <Card key={`family-kid-${k.id}`}>
-                <Pressable onPress={() => onOpenKid(k)} style={({ pressed }) => [s.hubKidRow, pressed && { opacity: 0.75 }]}>
+              <Card key={`family-kid-${k.id}`} onPress={() => onOpenKid(k)}>
+                <View style={s.hubKidRow}>
                   <View style={s.hubKidLeft}>
                     <View style={[s.hubKidAvatarRing, { borderColor: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
                       {k.photoURL ? (
@@ -111,17 +112,17 @@ export default function FamilySubscreen({
                         <Text style={s.hubKidActiveBadgeText}>Active</Text>
                       </View>
                     ) : null}
-                    <ChevronRightIcon size={16} color={colors.textSecondary} />
+                    <ChevronRightIcon size={20} color={colors.textTertiary} />
                   </View>
-                </Pressable>
+                </View>
               </Card>
             );
           })}
         </View>
       )}
 
-      <Card style={s.cardGap}>
-        <Pressable onPress={onOpenAddChild} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card style={s.cardGap} onPress={onOpenAddChild}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
               <PlusIcon size={20} color={colors.textPrimary} />
@@ -132,9 +133,9 @@ export default function FamilySubscreen({
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
       <View style={s.familyHubHeader}>

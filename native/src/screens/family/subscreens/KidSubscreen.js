@@ -1,9 +1,9 @@
 import React from 'react';
 import { View, Text, Pressable, Image, ActivityIndicator } from 'react-native';
 import TTInputRow from '../../../components/shared/TTInputRow';
+import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
 import {
   ChevronLeftIcon,
-  ChevronRightIcon,
   EditIcon,
   BabyIcon,
   CameraIcon,
@@ -118,8 +118,8 @@ export default function KidSubscreen({
         </Card>
       )}
 
-      <Card style={s.cardGap}>
-        <Pressable onPress={onOpenFeedingUnit} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card style={s.cardGap} onPress={onOpenFeedingUnit}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={[s.appearanceEntryIcon, { backgroundColor: colors.inputBg }]}>
               <Text style={s.appearanceEntryIconLabel}>🍼</Text>
@@ -131,13 +131,13 @@ export default function KidSubscreen({
           </View>
           <View style={s.appearanceEntryRight}>
             <Text style={[s.feedUnitValue, { color: colors.textSecondary }]}>{selectedKidSettings.preferredVolumeUnit === 'ml' ? 'ml' : 'oz'}</Text>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
-      <Card style={s.cardGap}>
-        <Pressable onPress={onOpenDaySleep} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card style={s.cardGap} onPress={onOpenDaySleep}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={s.appearanceEntryIcon}>
               <DaySleepWindowIcon size={24} color={colors.textPrimary} />
@@ -148,13 +148,13 @@ export default function KidSubscreen({
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
-      <Card style={s.cardGap}>
-        <Pressable onPress={onOpenActivityVisibility} style={({ pressed }) => [s.appearanceEntryRow, pressed && { opacity: 0.75 }]}>
+      <Card style={s.cardGap} onPress={onOpenActivityVisibility}>
+        <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={s.appearanceEntryIcon}>
               <SettingsIcon size={24} color={colors.textPrimary} />
@@ -165,9 +165,9 @@ export default function KidSubscreen({
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
-            <ChevronRightIcon size={16} color={colors.textSecondary} />
+            <ChevronRightIcon size={20} color={colors.textTertiary} />
           </View>
-        </Pressable>
+        </View>
       </Card>
 
       <Card style={s.cardGap}>

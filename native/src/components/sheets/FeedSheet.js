@@ -45,6 +45,7 @@ const slugifyFoodId = (value) =>
     .replace(/(^-|-$)+/g, '');
 
 const FOOD_MAP = Object.fromEntries(COMMON_FOODS.map((f) => [f.id, f]));
+const FOOD_MAP_BY_NAME = Object.fromEntries(COMMON_FOODS.map((f) => [String(f.name || '').toLowerCase(), f]));
 const normalizePhotoUrls = (input) => {
   if (!input) return [];
   const items = Array.isArray(input) ? input : [input];
@@ -293,7 +294,23 @@ export default function FeedSheet({
         setLastSide(entry.lastSide || null);
         setOunces('');
       } else if (t === 'solids' && entry.foods) {
-        setAddedFoods(entry.foods.map((f) => ({ id: f.id || f.name, name: f.name || f })));
+        setAddedFoods(
+          entry.foods.map((f) => {
+            const name = String(f?.name || f || '').trim();
+            const id = String(f?.id || slugifyFoodId(name));
+            const def = FOOD_MAP[id] || FOOD_MAP_BY_NAME[name.toLowerCase()] || null;
+            return {
+              id,
+              name,
+              category: f?.category || def?.category || 'Custom',
+              icon: f?.icon || def?.icon || null,
+              emoji: f?.emoji || def?.emoji || null,
+              preparation: f?.preparation || null,
+              amount: f?.amount || null,
+              reaction: f?.reaction || null,
+            };
+          })
+        );
         setOunces(entry.ounces ? String(entry.ounces) : '');
       } else if (t === 'bottle') {
         setOunces(entry.ounces ? String(entry.ounces) : '');
@@ -913,6 +930,7 @@ export default function FeedSheet({
     if (!name) return;
     const id = food.id || slugifyFoodId(name);
     if (!id) return;
+    const def = FOOD_MAP[id] || FOOD_MAP_BY_NAME[String(name).toLowerCase()] || null;
 
     setAddedFoods((prev) => {
       if (prev.some((f) => f.id === id)) return prev;
@@ -921,9 +939,9 @@ export default function FeedSheet({
         {
           id,
           name,
-          category: food.category || 'Custom',
-          icon: food.icon || null,
-          emoji: food.emoji || null,
+          category: food.category || def?.category || 'Custom',
+          icon: food.icon || def?.icon || null,
+          emoji: food.emoji || def?.emoji || null,
           preparation: food.preparation || null,
           amount: food.amount || null,
           reaction: food.reaction || null,
@@ -1891,16 +1909,8 @@ function SolidsStepThree({ addedFoods, removeFoodById, onOpenDetail, openSwipeFo
 }
 
 function SolidsDetailChip({ label, icon: Icon, selected, dim, onPress, colors, solids, iconOnly = false }) {
-  const bg = selected
-    ? iconOnly
-      ? colorMix(colors.inputBg || '#F5F5F7', colors.textPrimary || '#1f2937', 30)
-      : solids.primary
-    : colors.inputBg || '#F5F5F7';
-  const color = selected
-    ? iconOnly
-      ? colors.textPrimary
-      : colors.textOnAccent || '#fff'
-    : colors.textSecondary;
+  const bg = selected ? solids.primary : colors.inputBg || '#F5F5F7';
+  const color = selected ? colors.textOnAccent || '#fff' : colors.textSecondary;
   return (
     <Pressable
       onPress={onPress}
@@ -1919,9 +1929,7 @@ function SolidsDetailChip({ label, icon: Icon, selected, dim, onPress, colors, s
 }
 
 function SolidsReactionChip({ reaction, selected, dim, onPress, colors, solids }) {
-  const bg = selected
-    ? colorMix(colors.inputBg || '#F5F5F7', colors.textPrimary || '#1f2937', 30)
-    : colors.inputBg || '#F5F5F7';
+  const bg = selected ? solids.primary : colors.inputBg || '#F5F5F7';
   return (
     <Pressable
       onPress={onPress}

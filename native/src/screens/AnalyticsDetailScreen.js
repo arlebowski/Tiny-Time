@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useData } from '../context/DataContext';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import { DetailHistoryBars } from '../components/shared/analyticsCharts';
 import {
@@ -79,10 +80,53 @@ function StatCard({ title, valueNode, subLabel, bgColor, titleColor, valueColor,
   );
 }
 
-export default function AnalyticsDetailScreen({ type, sourceData, onBack }) {
+export default function AnalyticsDetailScreen({ type, onBack }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
+  const {
+    feedings: rawFeedings,
+    nursingSessions: rawNursing,
+    solidsSessions: rawSolids,
+    diaperChanges: rawDiapers,
+    sleepSessions: rawSleep,
+    kidSettings,
+  } = useData();
+  const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
+
+  const sourceData = useMemo(() => {
+    const allFeedings = (rawFeedings || []).map((f) => ({
+      timestamp: f.timestamp,
+      ounces: Number(f.ounces || 0),
+    }));
+    const allNursingSessions = (rawNursing || []).map((s) => ({
+      timestamp: s.timestamp || s.startTime,
+      leftDurationSec: Number(s.leftDurationSec || 0),
+      rightDurationSec: Number(s.rightDurationSec || 0),
+    }));
+    const allSolidsSessions = (rawSolids || []).map((s) => ({
+      timestamp: s.timestamp,
+      foods: s.foods || [],
+    }));
+    const allDiaperChanges = (rawDiapers || []).map((c) => ({
+      timestamp: c.timestamp,
+      isWet: !!c.isWet,
+      isPoo: !!c.isPoo,
+    }));
+    const sleepSessions = (rawSleep || [])
+      .filter((s) => s.startTime && s.endTime)
+      .map((s) => ({ startTime: s.startTime, endTime: s.endTime }));
+
+    return {
+      allFeedings,
+      allNursingSessions,
+      allSolidsSessions,
+      allDiaperChanges,
+      sleepSessions,
+      sleepSettings: { sleepDayStart: 7 * 60, sleepDayEnd: 19 * 60 },
+      preferredVolumeUnit,
+    };
+  }, [rawFeedings, rawNursing, rawSolids, rawDiapers, rawSleep, preferredVolumeUnit]);
+
   const [timeframe, setTimeframe] = useState('week');
-  const preferredVolumeUnit = sourceData?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
   const formatFeedValue = (oz, digits = 1) => {
     const valueOz = Number(oz || 0);
     if (!Number.isFinite(valueOz)) return (0).toFixed(digits);
