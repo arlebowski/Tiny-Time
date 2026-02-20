@@ -28,6 +28,15 @@ export default function FamilySubscreen({
   formatAgeFromDate,
   formatMonthDay,
 }) {
+  const familyFieldShadowStyle = {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 3,
+    elevation: 2,
+    borderRadius: 16,
+  };
+
   return (
     <>
       <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
@@ -44,17 +53,22 @@ export default function FamilySubscreen({
       </View>
 
       <View style={s.familyNameBlock}>
+        <View style={s.familyHubHeader}>
+          <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Family Name</Text>
+        </View>
         {isFamilyOwner ? (
-          <TTInputRow
-            label="Family Name"
-            type="text"
-            icon={EditIcon}
-            value={familyNameDraft}
-            placeholder="Family"
-            onChange={onFamilyNameChange}
-          />
+          <View style={[familyFieldShadowStyle, { backgroundColor: colors.inputBg }]}>
+            <TTInputRow
+              label="Family Name"
+              type="text"
+              icon={EditIcon}
+              value={familyNameDraft}
+              placeholder="Family"
+              onChange={onFamilyNameChange}
+            />
+          </View>
         ) : (
-          <View style={[s.familyNameReadOnlyCard, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder || colors.borderSubtle }]}>
+          <View style={[s.familyNameReadOnlyCard, familyFieldShadowStyle, { backgroundColor: colors.inputBg, borderColor: colors.cardBorder || colors.borderSubtle }]}>
             <Text style={[s.familyNameReadOnlyLabel, { color: colors.textSecondary }]}>Family Name</Text>
             <Text style={[s.familyNameReadOnlyValue, { color: colors.textPrimary }]}>{familyInfo?.name || 'Family'}</Text>
           </View>
