@@ -45,6 +45,7 @@ export function ThemeProvider({ themeKey = 'theme1', isDark = false, children })
       diaper,
       solids,
       spacing: THEME_TOKENS.SPACING,
+      sheetLayout: THEME_TOKENS.SHEET_LAYOUT,
       typography: THEME_TOKENS.TYPOGRAPHY,
       radius: THEME_TOKENS.RADIUS,
       shadows,

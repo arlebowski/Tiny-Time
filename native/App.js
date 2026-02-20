@@ -82,7 +82,6 @@ const NAV_FADE_HEIGHT = 50;
 // NAV_FADE_BOTTOM_OFFSET moves gradient anchor relative to nav top line.
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
-const LAUNCH_SPLASH_ICON_BG_ENABLED = false;
 const LAUNCH_SPLASH_MIN_MS = 900;
 const APP_SHARE_BASE_URL = 'https://tinytracker.app';
 const APP_INSTALL_URL_PLACEHOLDER = '[APP STORE URL]';
@@ -1073,8 +1072,12 @@ function LaunchSplashOverlay({
   logoOpacity,
   logoScale,
   logoFloat,
+  isDark,
 }) {
   const { colors } = useTheme();
+  const lockupSource = isDark
+    ? require('./assets/lockup-dk.png')
+    : require('./assets/lockup-lt.png');
   return (
     <Animated.View
       pointerEvents="none"
@@ -1095,19 +1098,11 @@ function LaunchSplashOverlay({
           },
         ]}
       >
-        <View
-          style={[
-            appStyles.launchLogoPill,
-            !LAUNCH_SPLASH_ICON_BG_ENABLED
-              ? { width: 52, height: 52, borderRadius: 0 }
-              : null,
-            { marginBottom: LAUNCH_SPLASH_ICON_BG_ENABLED ? 14 : 6 },
-            LAUNCH_SPLASH_ICON_BG_ENABLED ? { backgroundColor: colors.inputBg } : null,
-          ]}
-        >
-          <BrandLogo size={52} color={colors.brandIcon} />
-        </View>
-        <Text style={[appStyles.launchTitle, { color: colors.textPrimary }]}>Tiny Tracker</Text>
+        <Image
+          source={lockupSource}
+          style={appStyles.launchLockup}
+          resizeMode="contain"
+        />
       </Animated.View>
     </Animated.View>
   );
@@ -1243,6 +1238,7 @@ export default function App() {
                 logoOpacity={launchLogoOpacity}
                 logoScale={launchLogoScale}
                 logoFloat={launchLogoFloat}
+                isDark={isDark}
               />
             ) : null}
           </SafeAreaProvider>
@@ -1276,17 +1272,8 @@ const appStyles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
-  launchLogoPill: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-  },
-  launchTitle: {
-    fontSize: 32,
-    fontWeight: '800',
-    letterSpacing: 0.2,
+  launchLockup: {
+    width: 260,
+    height: 65,
   },
 });

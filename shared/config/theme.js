@@ -300,6 +300,12 @@ export const THEME_TOKENS = {
     red: '#EA4335',
   },
 
+  // ── Sheet layout tokens (vertical gaps between content sections) ──
+  SHEET_LAYOUT: {
+    sectionGap: 16,   // between major content blocks (time, amount, type picker, notes)
+    fieldGap: 8,      // between adjacent form fields (TTInputRow → AmountStepper)
+  },
+
   // ── Spacing scale (Tailwind-inspired, px values) ──
   SPACING: {
     0: 0,

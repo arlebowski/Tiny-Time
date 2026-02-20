@@ -86,7 +86,6 @@ const styles = StyleSheet.create({
   container: {
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 8,
   },
   // Web: px-4 pt-3
   header: {

@@ -89,7 +89,7 @@ export default function SleepSheet({
   onAdd = null,
   storage = null,
 }) {
-  const { colors, sleep } = useTheme();
+  const { colors, sleep, sheetLayout } = useTheme();
   const { activeSleep, sleepSessions } = useData();
   const isInputVariant = !entry;
   const activeSleepId = activeSleep?.id || null;
@@ -685,94 +685,96 @@ export default function SleepSheet({
         contentPaddingTop={16}
         useFullWindowOverlay={false}
       >
-        <View style={styles.durationBlock}>
-          <Text style={[styles.durationText, { color: colors.textPrimary }]}>
-            {tParts.showH && (
-              <>
-                <Text>{tParts.hStr}</Text>
-                <Text>{'\u200A'}</Text>
-                <Text style={[styles.unit, { color: colors.textSecondary }]}>h</Text>
-                <Text>{'  '}</Text>
-              </>
-            )}
-            {tParts.showM && (
-              <>
-                <Text>{tParts.mStr}</Text>
-                <Text>{'\u200A'}</Text>
-                <Text style={[styles.unit, { color: colors.textSecondary }]}>m</Text>
-                <Text>{'  '}</Text>
-              </>
-            )}
-            <Text>{tParts.sStr}</Text>
-            <Text>{'\u200A'}</Text>
-            <Text style={[styles.unit, { color: colors.textSecondary }]}>s</Text>
-          </Text>
-        </View>
-
-        <View style={styles.inputRow}>
-          <View style={styles.inputCol}>
-            <TTInputRow
-              label="Start time"
-              rawValue={startTime}
-              type="datetime"
-              formatDateTime={formatDateTime}
-              onOpenPicker={() => setShowStartTray(true)}
-              placeholder="Add..."
-            />
+        <View style={{ gap: sheetLayout.sectionGap }}>
+          <View style={styles.durationBlock}>
+            <Text style={[styles.durationText, { color: colors.textPrimary }]}>
+              {tParts.showH && (
+                <>
+                  <Text>{tParts.hStr}</Text>
+                  <Text>{'\u200A'}</Text>
+                  <Text style={[styles.unit, { color: colors.textSecondary }]}>h</Text>
+                  <Text>{'  '}</Text>
+                </>
+              )}
+              {tParts.showM && (
+                <>
+                  <Text>{tParts.mStr}</Text>
+                  <Text>{'\u200A'}</Text>
+                  <Text style={[styles.unit, { color: colors.textSecondary }]}>m</Text>
+                  <Text>{'  '}</Text>
+                </>
+              )}
+              <Text>{tParts.sStr}</Text>
+              <Text>{'\u200A'}</Text>
+              <Text style={[styles.unit, { color: colors.textSecondary }]}>s</Text>
+            </Text>
           </View>
-          <View style={styles.inputCol}>
-            <TTInputRow
-              label="End time"
-              rawValue={endTime}
-              type="datetime"
-              formatDateTime={formatDateTime}
-              onOpenPicker={() => setShowEndTray(true)}
-              placeholder="Add..."
-            />
-          </View>
-        </View>
 
-        {!notesExpanded && !photosExpanded && (
-          <View style={styles.addRow}>
+          <View style={styles.inputRow}>
+            <View style={styles.inputCol}>
+              <TTInputRow
+                label="Start time"
+                rawValue={startTime}
+                type="datetime"
+                formatDateTime={formatDateTime}
+                onOpenPicker={() => setShowStartTray(true)}
+                placeholder="Add..."
+              />
+            </View>
+            <View style={styles.inputCol}>
+              <TTInputRow
+                label="End time"
+                rawValue={endTime}
+                type="datetime"
+                formatDateTime={formatDateTime}
+                onOpenPicker={() => setShowEndTray(true)}
+                placeholder="Add..."
+              />
+            </View>
+          </View>
+
+          {!notesExpanded && !photosExpanded && (
+            <View style={styles.addRow}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+                <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
+              </Pressable>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+                <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {photosExpanded && !notesExpanded && (
             <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
             </Pressable>
+          )}
+
+          {notesExpanded && !photosExpanded && (
             <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
-          </View>
-        )}
+          )}
 
-        {photosExpanded && !notesExpanded && (
-          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
-            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
-          </Pressable>
-        )}
+          {notesExpanded && (
+            <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+          )}
 
-        {notesExpanded && !photosExpanded && (
-          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
-            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
-          </Pressable>
-        )}
-
-        {notesExpanded && (
-          <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
-        )}
-
-        {photosExpanded && (
-          <TTPhotoRow
-            expanded={photosExpanded}
-            onExpand={() => setPhotosExpanded(true)}
-            title="Photos"
-            showTitle={true}
-            existingPhotos={existingPhotoURLs}
-            newPhotos={photos}
-            onAddPhoto={handleAddPhoto}
-            onRemovePhoto={handleRemovePhoto}
-            onPreviewPhoto={() => {}}
-            addLabel="+ Add photos"
-          />
-        )}
+          {photosExpanded && (
+            <TTPhotoRow
+              expanded={photosExpanded}
+              onExpand={() => setPhotosExpanded(true)}
+              title="Photos"
+              showTitle={true}
+              existingPhotos={existingPhotoURLs}
+              newPhotos={photos}
+              onAddPhoto={handleAddPhoto}
+              onRemovePhoto={handleRemovePhoto}
+              onPreviewPhoto={() => {}}
+              addLabel="+ Add photos"
+            />
+          )}
+        </View>
       </HalfSheet>
 
       <DateTimePickerTray
@@ -796,7 +798,6 @@ export default function SleepSheet({
 const styles = StyleSheet.create({
   durationBlock: {
     alignItems: 'center',
-    marginBottom: 16,
   },
   durationText: {
     fontSize: 40,
@@ -820,11 +821,9 @@ const styles = StyleSheet.create({
   addRow: {
     flexDirection: 'row',
     gap: 12,
-    paddingVertical: 12,
   },
   addItem: {
     flex: 1,
-    paddingVertical: 12,
   },
   addText: {
     fontSize: 16,

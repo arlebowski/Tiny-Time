@@ -8,18 +8,10 @@ import {
   Platform,
   RefreshControl,
 } from 'react-native';
-import Animated, {
-  FadeInDown,
-  useSharedValue,
-  useAnimatedStyle,
-  withRepeat,
-  withTiming,
-  cancelAnimation,
-  Easing,
-} from 'react-native-reanimated';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
-import { SettingsIcon, SpinnerIcon } from '../components/icons';
+import { SettingsIcon } from '../components/icons';
 import BottleCard from '../components/cards/BottleCard';
 import NursingCard from '../components/cards/NursingCard';
 import SolidsCard from '../components/cards/SolidsCard';
@@ -103,7 +95,6 @@ export default function TrackerScreen({
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
   const [now, setNow] = useState(new Date());
   const [refreshing, setRefreshing] = useState(false);
-  const spinnerRotation = useSharedValue(0);
 
   // Web HorizontalCalendar.js:199-201 — refresh greeting every 60s
   useEffect(() => {
@@ -305,23 +296,6 @@ export default function TrackerScreen({
       setRefreshing(false);
     }
   }, [refresh, refreshing]);
-  useEffect(() => {
-    if (refreshing) {
-      spinnerRotation.value = 0;
-      spinnerRotation.value = withRepeat(
-        withTiming(360, { duration: 850, easing: Easing.linear }),
-        -1,
-        false
-      );
-      return;
-    }
-    cancelAnimation(spinnerRotation);
-    spinnerRotation.value = 0;
-  }, [refreshing, spinnerRotation]);
-  const spinnerStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${spinnerRotation.value}deg` }],
-  }));
-
   return (
     <View style={styles.root}>
       <ScrollView
@@ -399,13 +373,6 @@ export default function TrackerScreen({
           );
         })}
       </ScrollView>
-      {refreshing ? (
-        <View style={styles.spinnerOverlay} pointerEvents="none">
-          <Animated.View style={spinnerStyle}>
-            <SpinnerIcon size={24} color={colors.brandIcon} />
-          </Animated.View>
-        </View>
-      ) : null}
     </View>
   );
 }
@@ -423,12 +390,6 @@ const styles = StyleSheet.create({
     paddingBottom: 20,     // pb-5
     paddingTop: 4,
     gap: 12,
-  },
-  spinnerOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 20,
   },
   // Web HorizontalCalendar.js:424-428 — header mb-1, flex, align flex-end, justify space-between
   greetingHeader: {

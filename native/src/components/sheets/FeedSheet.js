@@ -216,7 +216,7 @@ export default function FeedSheet({
   feedTypeRef = null,
   storage = null,
 }) {
-  const { colors, bottle, nursing, solids, isDark } = useTheme();
+  const { colors, bottle, nursing, solids, isDark, sheetLayout } = useTheme();
   const insets = useSafeAreaInsets();
   const isInputVariant = !entry;
 
@@ -1331,7 +1331,7 @@ export default function FeedSheet({
         // Deterministic sizing model:
         // - CONTENT_HEIGHT (fit content)
         // - 90% (expanded ceiling)
-        snapPoints={['85%', '90%']}
+        snapPoints={['70%', '90%']}
         enableDynamicSizing={true}
         maxDynamicContentSize={undefined}
         scrollable={scrollable}
@@ -1361,7 +1361,7 @@ export default function FeedSheet({
         }
       >
         <View
-          style={styles.feedContent}
+          style={[styles.feedContent, { gap: sheetLayout.sectionGap }]}
           onLayout={(e) => {
             if (feedType !== 'solids' || solidsStep !== 1) return;
             const next = Math.ceil(Number(e?.nativeEvent?.layout?.height) || 0);
@@ -1395,6 +1395,7 @@ export default function FeedSheet({
                   collapsable={false}
                   style={[
                     styles.modePanel,
+                    { gap: sheetLayout.fieldGap },
                     feedType !== 'bottle' && styles.modePanelHidden,
                     lockedModeHeight > 0 && { minHeight: lockedModeHeight },
                   ]}
@@ -1437,6 +1438,7 @@ export default function FeedSheet({
                   collapsable={false}
                   style={[
                     styles.modePanel,
+                    { gap: sheetLayout.fieldGap },
                     feedType !== 'nursing' && styles.modePanelHidden,
                     lockedModeHeight > 0 && { minHeight: lockedModeHeight },
                   ]}
@@ -1509,6 +1511,7 @@ export default function FeedSheet({
                   collapsable={false}
                   style={[
                     styles.modePanel,
+                    { gap: sheetLayout.fieldGap },
                     feedType !== 'solids' && styles.modePanelHidden,
                     lockedModeHeight > 0 && { minHeight: lockedModeHeight },
                   ]}
@@ -2000,9 +2003,7 @@ function SideTimer({ side, displayMs, isActive, isLast, onPress, accent, accentS
 
 const styles = StyleSheet.create({
   // Content
-  feedContent: {
-    gap: 0,
-  },
+  feedContent: {},
 
   modePanels: {
     position: 'relative',
@@ -2024,7 +2025,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'nowrap',
     gap: 12,
-    paddingBottom: 8,
   },
 
   feedTypeButton: {
@@ -2044,9 +2044,6 @@ const styles = StyleSheet.create({
 
   nursingTotal: {
     alignItems: 'center',
-    paddingTop: 8,
-    paddingBottom: 4,
-    marginBottom: 4,
   },
 
   durationText: {
@@ -2069,9 +2066,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 56,
-    paddingTop: 0,
-    paddingBottom: 4,
-    marginBottom: 0,
   },
 
   sideTimerWrap: {
@@ -2394,21 +2388,15 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   // Add row
-  addonsBlock: {
-    marginTop: 12,
-    paddingBottom: 6,
-  },
+  addonsBlock: {},
 
   addRow: {
     flexDirection: 'row',
     gap: 12,
-    paddingTop: 0,
-    paddingBottom: 0,
   },
 
   addItem: {
     flex: 1,
-    paddingVertical: 12,
   },
 
   addText: {

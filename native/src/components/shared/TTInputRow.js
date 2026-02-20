@@ -239,7 +239,6 @@ export default function TTInputRow({
 const styles = StyleSheet.create({
   container: {
     borderRadius: 16,
-    marginBottom: 8,
     overflow: 'hidden',
   },
   tapable: {},

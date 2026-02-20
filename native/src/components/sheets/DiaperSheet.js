@@ -83,7 +83,7 @@ export default function DiaperSheet({
   onSave = null,
   storage = null,
 }) {
-  const { colors, diaper } = useTheme();
+  const { colors, diaper, sheetLayout } = useTheme();
   const [dateTime, setDateTime] = useState(() => new Date().toISOString());
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState([]);
@@ -335,64 +335,66 @@ export default function DiaperSheet({
         contentPaddingTop={16}
         useFullWindowOverlay={false}
       >
-        <TTInputRow
-          label="Time"
-          rawValue={dateTime}
-          type="datetime"
-          formatDateTime={formatDateTime}
-          onOpenPicker={() => {
-            timeTrace('tray:openRequest');
-            setShowDateTimeTray(true);
-          }}
-        />
+        <View style={{ gap: sheetLayout.sectionGap }}>
+          <TTInputRow
+            label="Time"
+            rawValue={dateTime}
+            type="datetime"
+            formatDateTime={formatDateTime}
+            onOpenPicker={() => {
+              timeTrace('tray:openRequest');
+              setShowDateTimeTray(true);
+            }}
+          />
 
-        <View style={styles.typePicker}>
-          <TypeButton label="Dry" icon={DiaperDryIcon} selected={isDry} dim={isWet || isPoo} onPress={handleToggleDry} />
-          <TypeButton label="Wet" icon={DiaperWetIcon} selected={isWet} dim={isDry} onPress={handleToggleWet} />
-          <TypeButton label="Poop" icon={DiaperPooIcon} selected={isPoo} dim={isDry} onPress={handleTogglePoo} />
-        </View>
+          <View style={styles.typePicker}>
+            <TypeButton label="Dry" icon={DiaperDryIcon} selected={isDry} dim={isWet || isPoo} onPress={handleToggleDry} />
+            <TypeButton label="Wet" icon={DiaperWetIcon} selected={isWet} dim={isDry} onPress={handleToggleWet} />
+            <TypeButton label="Poop" icon={DiaperPooIcon} selected={isPoo} dim={isDry} onPress={handleTogglePoo} />
+          </View>
 
-        {!notesExpanded && !photosExpanded && (
-          <View style={styles.addRow}>
+          {!notesExpanded && !photosExpanded && (
+            <View style={styles.addRow}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+                <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
+              </Pressable>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+                <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
+              </Pressable>
+            </View>
+          )}
+
+          {notesExpanded && (
+            <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+          )}
+
+          {photosExpanded && (
+            <TTPhotoRow
+              expanded={photosExpanded}
+              onExpand={() => setPhotosExpanded(true)}
+              title="Photos"
+              showTitle={true}
+              existingPhotos={existingPhotoURLs}
+              newPhotos={photos}
+              onAddPhoto={handleAddPhoto}
+              onRemovePhoto={handleRemovePhoto}
+              onPreviewPhoto={() => {}}
+              addLabel="+ Add photos"
+            />
+          )}
+
+          {photosExpanded && !notesExpanded && (
             <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
             </Pressable>
+          )}
+
+          {notesExpanded && !photosExpanded && (
             <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
-          </View>
-        )}
-
-        {notesExpanded && (
-          <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
-        )}
-
-        {photosExpanded && (
-          <TTPhotoRow
-            expanded={photosExpanded}
-            onExpand={() => setPhotosExpanded(true)}
-            title="Photos"
-            showTitle={true}
-            existingPhotos={existingPhotoURLs}
-            newPhotos={photos}
-            onAddPhoto={handleAddPhoto}
-            onRemovePhoto={handleRemovePhoto}
-            onPreviewPhoto={() => {}}
-            addLabel="+ Add photos"
-          />
-        )}
-
-        {photosExpanded && !notesExpanded && (
-          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
-            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
-          </Pressable>
-        )}
-
-        {notesExpanded && !photosExpanded && (
-          <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
-            <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
-          </Pressable>
-        )}
+          )}
+        </View>
       </HalfSheet>
 
       <DateTimePickerTray
@@ -413,7 +415,6 @@ const styles = StyleSheet.create({
   typePicker: {
     flexDirection: 'row',
     gap: 12,
-marginBottom: 16,
   },
   typeButton: {
     flex: 1,
@@ -431,11 +432,9 @@ marginBottom: 16,
   addRow: {
     flexDirection: 'row',
     gap: 12,
-    paddingVertical: 12,
   },
   addItem: {
     flex: 1,
-    paddingVertical: 12,
   },
   addText: {
     fontSize: 16,
