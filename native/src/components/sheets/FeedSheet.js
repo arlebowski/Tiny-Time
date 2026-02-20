@@ -2208,7 +2208,7 @@ const styles = StyleSheet.create({
   solidsSearchInput: {
     flex: 1,
     fontSize: 14,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 
   solidsBrowseGrid: {

@@ -326,6 +326,9 @@ export const THEME_TOKENS = {
 
   // ── Typography scale ──
   TYPOGRAPHY: {
+    fontFamily: 'SF-Pro',
+    fontFamilyKidName: 'Fraunces',
+    fontVariationSettingsKidName: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
     fontSize: {
       xs: 12,
       sm: 13,

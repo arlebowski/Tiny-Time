@@ -99,12 +99,12 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   value: {
     flex: 1,
     fontSize: 16,
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

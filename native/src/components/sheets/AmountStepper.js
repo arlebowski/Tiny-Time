@@ -124,12 +124,12 @@ const styles = StyleSheet.create({
   value: {
     fontSize: 40,
     fontWeight: '700',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   // Web: text-base font-light ml-2
   unit: {
     fontSize: 16,
     fontWeight: '300',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

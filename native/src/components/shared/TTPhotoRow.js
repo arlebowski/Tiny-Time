@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   },
   addLabel: {
     fontSize: 16,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   expanded: {
     paddingVertical: 12,
@@ -130,7 +130,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 12,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   photoList: {
     flexDirection: 'row',
@@ -180,6 +180,6 @@ const styles = StyleSheet.create({
   },
   addHint: {
     fontSize: 11,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

@@ -200,7 +200,7 @@ const styles = StyleSheet.create({
     // borderRadius set per-option via pillRadius (radius.lg = 8)
     justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   optionFull: {
     flex: 1,

@@ -1097,7 +1097,7 @@ const styles = StyleSheet.create({
   itemText: {
     fontSize: 18,
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1127,17 +1127,17 @@ const styles = StyleSheet.create({
   },
   headerBtn: {
     fontSize: 17,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   headerDone: {
     fontSize: 17,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   trayContent: {
     flex: 1,

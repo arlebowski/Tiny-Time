@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance, Animated, Easing, LogBox } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
@@ -147,7 +148,9 @@ function AppHeader({
               <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
             )}
           </View>
-          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]}>{kidName}</Text>
+          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
+            {kidName}
+          </Text>
           <Animated.View style={{ transform: [{ rotate: kidChevronRotate }] }}>
             <ChevronDownIcon size={20} color={colors.textTertiary} />
           </Animated.View>
@@ -212,14 +215,16 @@ const headerStyles = StyleSheet.create({
   },
   // Web: flex items-center gap-[10px]
   kidPicker: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,               // gap-[10px]
+    minWidth: 0,           // allow text to shrink and truncate before center logo
   },
   // Web: w-[36px] h-[36px] rounded-full overflow-hidden, outer bg var(--tt-input-bg)
   avatar: {
-    width: 36,
-    height: 36,
+    width: 30,
+    height: 30,
     borderRadius: 18,
     overflow: 'hidden',
   },
@@ -230,11 +235,11 @@ const headerStyles = StyleSheet.create({
   },
   // Web: text-2xl font-extrabold leading-none, color var(--tt-text-primary)
   kidName: {
+    flexShrink: 1,         // allow truncation when space is tight (before center logo)
     fontSize: 24,          // text-2xl
-    fontWeight: '800',     // font-extrabold
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontWeight: '700',
+    fontFamily: 'Fraunces',
+    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
   // Brand logo overlay — same centering logic as plus btn: left 50% + offset
   logoOverlay: {
@@ -281,9 +286,7 @@ const headerStyles = StyleSheet.create({
   },
   shareMenuText: {
     fontSize: 14,          // text-sm
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontFamily: 'SF-Pro',
   },
   kidMenuItem: {
     height: 44,            // h-11
@@ -296,10 +299,9 @@ const headerStyles = StyleSheet.create({
   kidMenuLabel: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '500',
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontWeight: '700',
+    fontFamily: 'Fraunces',
+    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
   kidMenuAddItem: {
     height: 44,            // h-11
@@ -310,9 +312,7 @@ const headerStyles = StyleSheet.create({
   kidMenuAddText: {
     fontSize: 14,
     fontWeight: '500',
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontFamily: 'SF-Pro',
   },
 });
 
@@ -1110,6 +1110,10 @@ function LaunchSplashOverlay({
 
 // ── App Root ──
 export default function App() {
+  const [fontsLoaded] = Font.useFonts({
+    'SF-Pro': require('./assets/fonts/SF-Pro.ttf'),
+    Fraunces: require('./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf'),
+  });
   const [themeKey, setThemeKey] = useState('theme1');
   const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');
   const [forceSetupPreview, setForceSetupPreview] = useState(false);
@@ -1212,9 +1216,11 @@ export default function App() {
     AsyncStorage.setItem('tt_dark_mode', String(nextIsDark)).catch(() => {});
   }, []);
 
+  const ready = fontsLoaded && appearanceHydrated;
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
-      {appearanceHydrated ? (
+      {ready ? (
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
           <SafeAreaProvider initialMetrics={initialWindowMetrics}>
             <AuthProvider>

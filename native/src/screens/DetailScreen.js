@@ -681,7 +681,7 @@ const styles = StyleSheet.create({
   backText: {
     fontSize: 15,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   // Summary cards — horizontal scroll for 'all' mode
   summaryScrollWrap: {
@@ -755,11 +755,11 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontWeight: '700',
     lineHeight: undefined,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryUnit: {
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryIconPlaceholder: {
     borderRadius: 16,
@@ -779,13 +779,13 @@ const styles = StyleSheet.create({
   summaryComparisonArrow: {
     fontSize: 14,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryComparisonValue: {
     fontSize: 12,
     fontWeight: '600',
     fontVariant: ['tabular-nums'],
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   summaryComparisonCompact: {
     flexDirection: 'column',
@@ -793,7 +793,7 @@ const styles = StyleSheet.create({
   summaryPaceText: {
     fontSize: 12,
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   // Diaper tally subline
   diaperTally: {
@@ -811,6 +811,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     fontVariant: ['tabular-nums'],
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

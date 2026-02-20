@@ -1140,12 +1140,12 @@ const s = StyleSheet.create({
   profileBackText: {
     fontSize: 15,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   profileHeaderMonthLabel: {
     fontSize: 18,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 
   cardGap: { marginTop: 16 },
@@ -1186,7 +1186,7 @@ const s = StyleSheet.create({
     fontSize: 10,
     fontWeight: '700',
     lineHeight: 12,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 
   appearanceEntryRow: {
@@ -1227,17 +1227,17 @@ const s = StyleSheet.create({
   appearanceAccountAvatarInitial: {
     fontSize: 14,
     fontWeight: '700',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   appearanceEntryTitle: {
     fontSize: 16,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   appearanceEntrySubtitle: {
     fontSize: 12,
     marginTop: 2,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   appearanceEntryRight: {
     flexDirection: 'row',
@@ -1273,7 +1273,7 @@ const s = StyleSheet.create({
   familyAvatarBubbleText: {
     fontSize: 9,
     fontWeight: '700',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   familyInviteCard: {
     padding: 0,
@@ -1291,23 +1291,23 @@ const s = StyleSheet.create({
   familyNameReadOnlyLabel: {
     fontSize: 12,
     marginBottom: 4,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   familyNameReadOnlyValue: {
     fontSize: 16,
     fontWeight: '400',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   familyInviteText: {
     fontSize: 14,
     lineHeight: 22,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   familyInviteLink: {
     marginTop: 10,
     fontSize: 14,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   appearanceSheetSpacer: {
     height: 108,
@@ -1316,7 +1316,7 @@ const s = StyleSheet.create({
   fieldLabel: {
     fontSize: 12,
     marginBottom: 4,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   themeSection: { marginTop: 0 },
   appearanceThemeSection: {
@@ -1337,7 +1337,7 @@ const s = StyleSheet.create({
   themeName: {
     fontSize: 14,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   swatchRow: {
     flexDirection: 'row',
@@ -1398,13 +1398,14 @@ const s = StyleSheet.create({
   },
   hubKidTitle: {
     fontSize: 16,
-    fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontWeight: '700',
+    fontFamily: 'Fraunces',
+    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
   hubKidSubtitle: {
     marginTop: 2,
     fontSize: 12,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   hubKidRight: {
     flexDirection: 'row',
@@ -1423,7 +1424,7 @@ const s = StyleSheet.create({
     fontWeight: '600',
     color: '#34C759',
     fontVariant: ['tabular-nums'],
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   addChildIconWrap: {
     width: 40,
@@ -1436,23 +1437,24 @@ const s = StyleSheet.create({
   addChildBtn: {
     fontSize: 14,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   kidName: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '700',
     flex: 1,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'Fraunces',
+    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
   },
   kidActive: {
     fontSize: 12,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   kidsHint: {
     marginTop: 12,
     fontSize: 12,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 
   photoWrap: {
@@ -1478,7 +1480,7 @@ const s = StyleSheet.create({
   profileInitial: {
     fontSize: 36,
     fontWeight: '700',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   profileAvatarUpload: {
     alignItems: 'center',
@@ -1491,7 +1493,7 @@ const s = StyleSheet.create({
   },
   profileAvatarHint: {
     fontSize: 13,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   profileFieldsWrap: {
     marginTop: 12,
@@ -1513,7 +1515,7 @@ const s = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.9,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   profileAccountLabel: {
     marginTop: 16,
@@ -1534,18 +1536,18 @@ const s = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   feedUnitValue: {
     fontSize: 15,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   feedUnitSheetDescription: {
     fontSize: 14,
     lineHeight: 22,
     marginBottom: 16,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   feedUnitSheetSpacer: {
     height: 120,
@@ -1555,7 +1557,7 @@ const s = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
     lineHeight: 18,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   sleepInputRow: {
     flexDirection: 'row',
@@ -1604,7 +1606,7 @@ const s = StyleSheet.create({
   },
   sliderLabel: {
     fontSize: 12,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 
   activityVisBtn: {
@@ -1617,12 +1619,12 @@ const s = StyleSheet.create({
   activityVisTitle: {
     fontSize: 14,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   activityVisHint: {
     fontSize: 12,
     marginTop: 2,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 
   membersCardsList: { gap: 16 },
@@ -1647,7 +1649,7 @@ const s = StyleSheet.create({
   memberInitial: {
     fontSize: 16,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   memberInfo: {
     flex: 1,
@@ -1661,7 +1663,7 @@ const s = StyleSheet.create({
   memberName: {
     fontSize: 14,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   ownerBadge: {
     borderWidth: 1,
@@ -1673,12 +1675,12 @@ const s = StyleSheet.create({
   ownerBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   memberEmail: {
     fontSize: 12,
     marginTop: 2,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   memberRemoveIconButton: {
     width: 40,
@@ -1710,12 +1712,12 @@ const s = StyleSheet.create({
   userName: {
     fontSize: 14,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   userEmail: {
     fontSize: 12,
     marginTop: 2,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   userAvatar: {
     width: 40,
@@ -1732,7 +1734,7 @@ const s = StyleSheet.create({
   userAvatarInitial: {
     fontSize: 14,
     fontWeight: '700',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   accountBtn: {
     paddingVertical: 12,
@@ -1743,7 +1745,7 @@ const s = StyleSheet.create({
   accountBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   deleteAccountBtn: {
     alignItems: 'center',
@@ -1753,14 +1755,14 @@ const s = StyleSheet.create({
   deleteAccountBtnText: {
     fontSize: 13,
     fontWeight: '500',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   deleteKidWarning: {
     fontSize: 12,
     lineHeight: 18,
     marginTop: 10,
     textAlign: 'center',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 
   addChildFooter: {
@@ -1776,7 +1778,7 @@ const s = StyleSheet.create({
   addChildSubmitText: {
     fontSize: 16,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   addChildSectionSpacer: {
     marginBottom: 4,
@@ -1805,12 +1807,12 @@ const s = StyleSheet.create({
     fontSize: 20,
     fontWeight: '600',
     marginBottom: 8,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   deleteMessage: {
     fontSize: 16,
     marginBottom: 24,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   deleteActions: {
     flexDirection: 'row',
@@ -1827,6 +1829,6 @@ const s = StyleSheet.create({
   deleteBtnText: {
     fontSize: 16,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

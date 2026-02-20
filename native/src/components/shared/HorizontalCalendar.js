@@ -349,7 +349,7 @@ const styles = StyleSheet.create({
   monthLabel: {
     fontSize: 18,
     fontWeight: '600',
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   monthLabelCenter: {
     textAlign: 'center',
@@ -381,18 +381,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     marginBottom: 4,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   dayNumber: {
     fontSize: 14,
     fontWeight: '500',
     lineHeight: 14,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
   dayNumberSelected: {
     fontSize: 17.6,
     fontWeight: '700',
     lineHeight: 18,
-    ...Platform.select({ ios: { fontFamily: 'System' } }),
+    fontFamily: 'SF-Pro',
   },
 });

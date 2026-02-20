@@ -402,17 +402,13 @@ const styles = StyleSheet.create({
   dateLabel: {
     fontSize: 15.4,
     fontWeight: '400',     // font-normal
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontFamily: 'SF-Pro',
   },
   // Web: text-[24px] font-semibold, color var(--tt-text-primary), marginBottom 0
   greeting: {
     fontSize: 24,
     fontWeight: '600',     // font-semibold
-    ...Platform.select({
-      ios: { fontFamily: 'System' },
-    }),
+    fontFamily: 'SF-Pro',
   },
   // Web TrackerTab.js:1977-1988 — w-10 h-10 rounded-xl border, active:scale-95
   gearButton: {
