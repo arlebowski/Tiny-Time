@@ -176,7 +176,7 @@ export default function TimelineItem({
   iconWrapSize = 40,
   allowItemExpand = true,
 }) {
-  const { colors, bottle, nursing, sleep, solids, diaper } = useTheme();
+  const { colors, radius, bottle, nursing, sleep, solids, diaper } = useTheme();
 
   const isScheduled = card?.variant === 'scheduled';
   const isScheduledGray = isScheduled;
@@ -494,6 +494,7 @@ export default function TimelineItem({
       style={[
         styles.row,
         {
+          borderRadius: radius?.xl ?? 16,
           backgroundColor: isActiveSleep
             ? activeSleepBg
             : isLogged
@@ -514,6 +515,7 @@ export default function TimelineItem({
           style={[
             styles.iconWrap,
             {
+              borderRadius: radius?.icon ?? 20,
               width: iconWrapSize,
               height: iconWrapSize,
               backgroundColor: iconBg,
@@ -540,12 +542,12 @@ export default function TimelineItem({
             />
           </View>
           {/* Status badge with pulse for active sleep */}
-          <View style={[styles.badge, { backgroundColor: colors.timelineItemBg || colors.card }]}>
+          <View style={[styles.badge, { backgroundColor: colors.timelineItemBg || colors.card, borderRadius: radius?.lg ?? 8 }]}>
             {isActiveSleep ? (
               <Animated.View
                 style={[
                   styles.dot,
-                  { backgroundColor: sleep.primary },
+                  { backgroundColor: sleep.primary, borderRadius: radius?.sm ?? 4 },
                   badgeStyle,
                 ]}
               />
@@ -615,7 +617,7 @@ export default function TimelineItem({
                 <Pressable
                   style={({ p }) => [
                     styles.openTimerBtn,
-                    { backgroundColor: sleep.primary },
+                    { backgroundColor: sleep.primary, borderRadius: radius?.full ?? 9999 },
                     p && { opacity: 0.9 },
                   ]}
                   onPress={() => onActiveSleepClick(card)}
@@ -669,7 +671,7 @@ export default function TimelineItem({
                         >
                           <Image
                             source={{ uri: url }}
-                            style={styles.photoThumb}
+                            style={[styles.photoThumb, { borderRadius: radius?.thumb ?? 12 }]}
                           />
                         </Pressable>
                       ))}
@@ -688,7 +690,6 @@ const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   row: {
     minHeight: 72,
-    borderRadius: 16,
     borderWidth: 1,
     padding: 16,
     overflow: 'hidden',
@@ -699,7 +700,6 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   iconWrap: {
-    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -709,14 +709,12 @@ const styles = StyleSheet.create({
     right: -4,
     width: 14,
     height: 14,
-    borderRadius: 7,
     alignItems: 'center',
     justifyContent: 'center',
   },
   dot: {
     width: 8,
     height: 8,
-    borderRadius: 4,
   },
   check: {
     fontSize: 10,
@@ -765,7 +763,6 @@ const styles = StyleSheet.create({
   openTimerBtn: {
     paddingHorizontal: 12,
     paddingVertical: 4,
-    borderRadius: 999,
   },
   openTimerText: {
     fontSize: 12,
@@ -831,7 +828,6 @@ const styles = StyleSheet.create({
   photoThumb: {
     width: 80,
     height: 80,
-    borderRadius: 12,
     backgroundColor: '#F5F5F7',
   },
 });

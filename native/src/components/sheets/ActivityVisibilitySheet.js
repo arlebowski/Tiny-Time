@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path } from 'react-native-svg';
 import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 import HalfSheet from './HalfSheet';
@@ -50,7 +51,8 @@ export default function ActivityVisibilitySheet({
   order,
   onChange,
 }) {
-  const { colors, bottle, nursing, solids, sleep, diaper, isDark } = useTheme();
+  const { colors, bottle, nursing, solids, sleep, diaper, isDark, sheetLayout } = useTheme();
+  const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(() => normalizeActivityVisibility(visibility));
   const [draftOrder, setDraftOrder] = useState(() => normalizeActivityOrder(order));
   const [isSheetOpen, setIsSheetOpen] = useState(false);
@@ -178,6 +180,21 @@ export default function ActivityVisibilitySheet({
     handleToggle,
   ]);
 
+  const cta = (
+    <Pressable
+      onPress={handleDone}
+      style={({ pressed }) => [
+        styles.doneBtn,
+        { backgroundColor: colors.primaryActionBg || colors.primaryBrand },
+        pressed && { opacity: 0.8 },
+      ]}
+    >
+      <Text style={[styles.doneText, { color: colors.primaryActionText || colors.textOnAccent || '#fff' }]}>
+        Done
+      </Text>
+    </Pressable>
+  );
+
   return (
     <HalfSheet
       sheetRef={sheetRef}
@@ -199,39 +216,33 @@ export default function ActivityVisibilitySheet({
       enableContentPanningGesture={false}
       enableHandlePanningGesture={true}
       scrollable={false}
-      footer={(
-        <Pressable
-          onPress={handleDone}
-          style={({ pressed }) => [
-            styles.doneBtn,
-            { backgroundColor: colors.primaryActionBg || colors.primaryBrand },
-            pressed && { opacity: 0.8 },
-          ]}
-        >
-          <Text style={[styles.doneText, { color: colors.primaryActionText || colors.textOnAccent || '#fff' }]}>
-            Done
-          </Text>
-        </Pressable>
-      )}
+      contentPaddingTop={16}
+      useFullWindowOverlay={false}
     >
-      <View style={styles.listWrap}>
-        <DraggableFlatList
-          data={listData}
-          keyExtractor={(item) => item.key}
-          renderItem={renderItem}
-          onDragEnd={({ data }) => setDraftOrder(data.map((item) => item.key))}
-          activationDistance={0}
-          autoscrollThreshold={24}
-          autoscrollSpeed={60}
-          scrollEnabled={false}
-          contentContainerStyle={styles.rows}
-          containerStyle={styles.rowsContainer}
-        />
-      </View>
+      <View style={{ gap: sheetLayout?.sectionGap ?? 16 }}>
+        <View style={styles.listWrap}>
+          <DraggableFlatList
+            data={listData}
+            keyExtractor={(item) => item.key}
+            renderItem={renderItem}
+            onDragEnd={({ data }) => setDraftOrder(data.map((item) => item.key))}
+            activationDistance={0}
+            autoscrollThreshold={24}
+            autoscrollSpeed={60}
+            scrollEnabled={false}
+            contentContainerStyle={styles.rows}
+            containerStyle={styles.rowsContainer}
+          />
+        </View>
 
-      <Text style={[styles.hint, { color: colors.textTertiary }]}>
-        At least one activity must stay on.
-      </Text>
+        <Text style={[styles.hint, { color: colors.textTertiary }]}>
+          At least one activity must stay on.
+        </Text>
+
+        <View style={[styles.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 30 }]}>
+          {cta}
+        </View>
+      </View>
     </HalfSheet>
   );
 }
@@ -289,10 +300,13 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     fontFamily: FWB.normal,
   },
+  inlineCtaWrap: {
+    paddingTop: 20,
+  },
   doneBtn: {
     width: '100%',
     borderRadius: 16,
-    paddingVertical: 12,
+    paddingVertical: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },

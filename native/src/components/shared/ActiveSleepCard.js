@@ -33,7 +33,7 @@ export default function ActiveSleepCard({
   onWakeUp = () => {},
   style = null,
 }) {
-  const { colors, sleep } = useTheme();
+  const { colors, radius, sleep } = useTheme();
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const enterOpacity = useRef(new Animated.Value(0)).current;
@@ -136,7 +136,7 @@ export default function ActiveSleepCard({
     <Animated.View
       style={[
         styles.root,
-        { backgroundColor: sleepColor },
+        { backgroundColor: sleepColor, borderRadius: radius?.xl ?? 16 },
         style,
         {
           opacity: enterOpacity,
@@ -147,7 +147,7 @@ export default function ActiveSleepCard({
       <View style={styles.content}>
         <View style={styles.row}>
           <View style={styles.durationRow}>
-            <View style={styles.sleepIconWrap}>
+            <View style={[styles.sleepIconWrap, { borderRadius: radius?.full ?? 9999 }]}>
               <SleepIcon
                 size={24}
                 color={textOnAccent}
@@ -165,7 +165,7 @@ export default function ActiveSleepCard({
             </View>
           </View>
           <Pressable
-            style={({ pressed }) => [styles.cta, { backgroundColor: textOnAccent }, pressed && styles.ctaPressed]}
+            style={({ pressed }) => [styles.cta, { backgroundColor: textOnAccent, borderRadius: radius?.full ?? 9999 }, pressed && styles.ctaPressed]}
             onPress={onWakeUp}
             accessibilityLabel="Wake Up"
           >
@@ -180,7 +180,6 @@ export default function ActiveSleepCard({
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   root: {
-    borderRadius: 16,
     padding: 20,
   },
   content: {
@@ -203,7 +202,6 @@ const styles = StyleSheet.create({
   sleepIconWrap: {
     width: 24,
     height: 24,
-    borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ translateY: -1 }],
@@ -224,7 +222,6 @@ const styles = StyleSheet.create({
     minHeight: 24,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 9999,
     justifyContent: 'center',
     transform: [{ translateY: -1 }],
   },

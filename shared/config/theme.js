@@ -372,9 +372,11 @@ export const THEME_TOKENS = {
     sm: 4,
     md: 6,
     lg: 8,
-    xl: 12,
-    '2xl': 16,
+    xl: 16,
+    '2xl': 18,
     '3xl': 24,
+    icon: 20,
+    thumb: 12,
     full: 9999,
   },
 

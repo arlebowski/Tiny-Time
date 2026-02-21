@@ -20,7 +20,9 @@ export default function FamilyHubSubscreen({
   onOpenAppearance,
   onOpenFamily,
   onOpenAddFamily,
+  radius,
 }) {
+  const cardRadius = radius?.xl ?? 12;
   return (
     <>
       <View style={s.familyHubHeader}>
@@ -59,7 +61,7 @@ export default function FamilyHubSubscreen({
         </View>
       </View>
 
-      <Card onPress={onOpenProfile}>
+      <Card onPress={onOpenProfile} style={{ borderRadius: cardRadius }}>
         <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             {currentUser.photoURL ? (
@@ -82,7 +84,7 @@ export default function FamilyHubSubscreen({
         </View>
       </Card>
 
-      <Card style={s.cardGap} onPress={onOpenAppearance}>
+      <Card style={[s.cardGap, { borderRadius: cardRadius }]} onPress={onOpenAppearance}>
         <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={s.appearanceEntryIcon}>
@@ -111,7 +113,7 @@ export default function FamilyHubSubscreen({
         <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Families</Text>
       </View>
 
-      <Card onPress={onOpenFamily}>
+      <Card onPress={onOpenFamily} style={{ borderRadius: cardRadius }}>
         <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={s.appearanceEntryIcon}>
@@ -146,7 +148,7 @@ export default function FamilyHubSubscreen({
         </View>
       </Card>
 
-      <Card style={s.cardGap} onPress={onOpenAddFamily}>
+      <Card style={[s.cardGap, { borderRadius: cardRadius }]} onPress={onOpenAddFamily}>
         <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             <View style={[s.addChildIconWrap, { backgroundColor: colors.inputBg }]}>
