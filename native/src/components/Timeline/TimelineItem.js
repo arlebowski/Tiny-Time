@@ -591,16 +591,18 @@ export default function TimelineItem({
                   {hasPhotos && <PhotoIcon size={16} color={colors.textTertiary} />}
                 </View>
               )}
-              <Text
-                style={[
-                  styles.time,
-                  {
-                    color: isLogged || isScheduled ? colors.textSecondary : colors.textTertiary,
-                  },
-                ]}
-              >
-                {timeText}
-              </Text>
+              {!isActiveSleep && (
+                <Text
+                  style={[
+                    styles.time,
+                    {
+                      color: isLogged || isScheduled ? colors.textSecondary : colors.textTertiary,
+                    },
+                  ]}
+                >
+                  {timeText}
+                </Text>
+              )}
               {showChevron && (
                 <Pressable
                   onPress={onChevronPress}

@@ -362,6 +362,15 @@ function AppShell({
   } = useData();
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
+  // Keep avatar decoded in GPU memory so hidden-tab headers don't flash on first reveal
+  const avatarPreloadUri = useMemo(() => {
+    if (Array.isArray(kids) && kids.length && kidId) {
+      const kid = kids.find((k) => k?.id === kidId);
+      if (kid?.photoURL) return kid.photoURL;
+    }
+    return kidData?.photoURL || null;
+  }, [kids, kidId, kidData?.photoURL]);
+
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
   const diaperRef = useRef(null);
@@ -801,7 +810,15 @@ function AppShell({
         edges={['left', 'right']}
       >
         <View style={appStyles.content}>
-          <View style={{ flex: 1, display: activeTab === 'tracker' ? 'flex' : 'none' }}>
+          {/* Preload avatar so it stays decoded — prevents flash when hidden tabs first appear */}
+          {avatarPreloadUri ? (
+            <View style={preloadStyles.hidden} pointerEvents="none">
+              <Image source={{ uri: avatarPreloadUri }} style={preloadStyles.img} />
+            </View>
+          ) : null}
+          {/* Stack all tabs so headers (and avatar) stay mounted and preloaded — prevents flash on first tab switch */}
+          <View style={appStyles.tabStack}>
+            <View style={[appStyles.tabPane, activeTab === 'tracker' && appStyles.tabPaneActive]}>
             {trackerUiReady ? (
               <TrackerStack
                 navigationRef={trackerNavRef}
@@ -820,8 +837,8 @@ function AppShell({
             ) : (
               <View style={{ flex: 1, backgroundColor: appBg }} />
             )}
-          </View>
-          <View style={{ flex: 1, display: activeTab === 'trends' ? 'flex' : 'none' }}>
+            </View>
+            <View style={[appStyles.tabPane, activeTab === 'trends' && appStyles.tabPaneActive]}>
             <AnalyticsStack
               navigationRef={analyticsNavRef}
               topInset={topInset}
@@ -829,8 +846,8 @@ function AppShell({
               onDetailOpenChange={setAnalyticsDetailOpen}
               activityVisibility={activityVisibility}
             />
-          </View>
-          <View style={{ flex: 1, display: activeTab === 'family' ? 'flex' : 'none' }}>
+            </View>
+            <View style={[appStyles.tabPane, activeTab === 'family' && appStyles.tabPaneActive]}>
             <FamilyStack
               navigationRef={familyNavRef}
               topInset={topInset}
@@ -856,6 +873,7 @@ function AppShell({
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
             />
+            </View>
           </View>
 
           {/* Gradient fade above nav (web script.js:4352-4366) */}
@@ -1307,6 +1325,21 @@ const appStyles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  tabStack: {
+    flex: 1,
+    position: 'relative',
+  },
+  tabPane: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0,
+    zIndex: 0,
+    pointerEvents: 'none',
+  },
+  tabPaneActive: {
+    opacity: 1,
+    zIndex: 1,
+    pointerEvents: 'auto',
   },
   // Visual fade above the nav; thickness is controlled by NAV_FADE_HEIGHT.
   fadeGradient: {
