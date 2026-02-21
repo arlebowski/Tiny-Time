@@ -187,7 +187,7 @@ export default function FloatingTrackerMenu({
                 ]}
                 onPress={handleToggle}
               >
-                <PlusIcon size={21.6} color={colors.plusFg} />
+                <PlusIcon size={22} color={colors.plusFg} />
               </Pressable>
             </View>
           </View>
