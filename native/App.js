@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
@@ -686,9 +686,19 @@ function AppShell({
     setKidAnchor(null);
 
     const node = shareButtonRef.current;
+    const POPOVER_WIDTH = 224;
+    const PADDING = 16;
+    const screenWidth = Dimensions.get('window').width;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        setShareAnchor({ x, y, width, height });
+        const headerBottom = y + height;
+        // Right edge touches right internal padding; same y as kid picker
+        setShareAnchor({
+          x: screenWidth - PADDING - POPOVER_WIDTH,
+          y: headerBottom - height,
+          width: POPOVER_WIDTH,
+          height,
+        });
         setShowShareMenu(true);
       });
       return;
@@ -708,9 +718,18 @@ function AppShell({
     setShareAnchor(null);
 
     const node = kidButtonRef.current;
+    const POPOVER_WIDTH = 224;
+    const PADDING = 16;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        setKidAnchor({ x, y, width, height });
+        const headerBottom = y + height;
+        // Left edge touches left internal padding; same y as share menu
+        setKidAnchor({
+          x: PADDING,
+          y: headerBottom - height,
+          width: POPOVER_WIDTH,
+          height,
+        });
         setShowKidMenu(true);
       });
       return;
@@ -769,7 +788,7 @@ function AppShell({
   const showGlobalHeader =
     activeTab !== 'tracker'
     && activeTab !== 'family'
-    && !(activeTab === 'trends' && analyticsDetailOpen);
+    && activeTab !== 'trends';
 
   return (
     <>
@@ -802,6 +821,7 @@ function AppShell({
               navigationRef={analyticsNavRef}
               onDetailOpenChange={setAnalyticsDetailOpen}
               activityVisibility={activityVisibility}
+              header={trackerHeader}
             />
           )}
           {activeTab === 'family' && (
@@ -849,7 +869,7 @@ function AppShell({
           setKidAnchor(null);
         }}
         placement="bottom"
-        verticalOffset={6}
+        offset={6}
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
@@ -910,7 +930,7 @@ function AppShell({
           setShareAnchor(null);
         }}
         placement="bottom"
-        verticalOffset={6}
+        offset={6}
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
