@@ -197,7 +197,7 @@ export default function FloatingTrackerMenu({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     position: 'absolute',
@@ -267,6 +267,6 @@ const styles = StyleSheet.create({
   },
   splitLabel: {
     fontSize: 14,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
 });

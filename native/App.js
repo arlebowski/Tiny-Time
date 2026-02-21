@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance, Animated, Easing, LogBox } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
@@ -48,6 +48,7 @@ import {
   PersonAddIcon,
   KidSelectorOnIcon,
   KidSelectorOffIcon,
+  SpinnerIcon,
 } from './src/components/icons';
 
 // Bottom nav tuning:
@@ -293,7 +294,7 @@ const headerStyles = StyleSheet.create({
   },
   shareMenuText: {
     fontSize: 14,          // text-sm
-    fontFamily: 'SF-Pro',
+    fontFamily: 'SF-Pro-Text-Regular',
   },
   kidMenuItem: {
     height: 44,            // h-11
@@ -318,8 +319,7 @@ const headerStyles = StyleSheet.create({
   },
   kidMenuAddText: {
     fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'SF-Pro',
+    fontFamily: 'SF-Pro-Text-Medium',
   },
 });
 
@@ -1021,9 +1021,10 @@ function AuthGatedApp({
   const [activeTab, setActiveTab] = useState('tracker');
 
   if (loading) {
+    const brandColor = colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79');
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
-        <ActivityIndicator size="large" color={colors.brandIcon} />
+        <SpinnerIcon size={48} color={brandColor} />
       </View>
     );
   }
@@ -1119,7 +1120,13 @@ function LaunchSplashOverlay({
 // ── App Root ──
 export default function App() {
   const [fontsLoaded] = Font.useFonts({
-    'SF-Pro': require('./assets/fonts/SF-Pro.ttf'),
+    // SF-Pro-Text weights (fontWeight has no effect with custom fonts in RN)
+    'SF-Pro': require('./assets/fonts/SF-Pro-Text-Regular.otf'),
+    'SF-Pro-Text-Light': require('./assets/fonts/SF-Pro-Text-Light.otf'),
+    'SF-Pro-Text-Regular': require('./assets/fonts/SF-Pro-Text-Regular.otf'),
+    'SF-Pro-Text-Medium': require('./assets/fonts/SF-Pro-Text-Medium.otf'),
+    'SF-Pro-Text-Semibold': require('./assets/fonts/SF-Pro-Text-Semibold.otf'),
+    'SF-Pro-Text-Bold': require('./assets/fonts/SF-Pro-Text-Bold.otf'),
     Fraunces: require('./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf'),
   });
   const [themeKey, setThemeKey] = useState('theme1');

@@ -307,7 +307,8 @@ export default function TrackerScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={colors.textPrimary}
+            tintColor={colors.brandIcon}
+            colors={Platform.OS === 'android' ? [colors.brandIcon] : undefined}
             title="Refreshing..."
             titleColor={colors.textSecondary}
             progressViewOffset={Platform.OS === 'ios' ? PTR_IOS_OFFSET : 0}
@@ -327,7 +328,7 @@ export default function TrackerScreen({
             {dateLabel}
           </Text>
           {/* Web: text-[24px] font-semibold, color var(--tt-text-primary), marginBottom 0 */}
-          <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+          <Text style={[styles.greeting, { color: colors.textPrimary, fontFamily: FWB.bold }]}>
             {greeting}
           </Text>
         </View>
@@ -378,7 +379,7 @@ export default function TrackerScreen({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -403,14 +404,12 @@ const styles = StyleSheet.create({
   // Web: text-[15.4px] font-normal, color var(--tt-text-secondary)
   dateLabel: {
     fontSize: 15.4,
-    fontWeight: FW.normal,     // font-normal
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   // Web: text-[24px] font-semibold, color var(--tt-text-primary), marginBottom 0
   greeting: {
     fontSize: 24,
-    fontWeight: FW.semibold,     // font-semibold
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   // Web TrackerTab.js:1977-1988 — w-10 h-10 rounded-xl border, active:scale-95
   gearButton: {

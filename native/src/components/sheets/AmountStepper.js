@@ -82,7 +82,7 @@ export default function AmountStepper({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   // Web: rounded-2xl mb-2
   container: {
@@ -125,13 +125,11 @@ const styles = StyleSheet.create({
   // Web: text-[40px] font-bold
   value: {
     fontSize: 40,
-    fontWeight: FW.bold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.bold,
   },
   // Web: text-base font-light ml-2
   unit: {
     fontSize: 16,
-    fontWeight: FW.light,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.light,
   },
 });

@@ -111,7 +111,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color={colors.textPrimary} />
+              <ActivityIndicator color={colors.brandIcon} />
             ) : (
               <>
                 <Text style={styles.googleGlyph}>G</Text>
@@ -155,7 +155,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
             disabled={loading}
           >
             {loading ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color={colors.brandIcon} />
             ) : (
               <Text style={styles.buttonText}>
                 {isSignUp ? 'Create Account' : 'Sign In'}
@@ -179,7 +179,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -219,12 +219,12 @@ const styles = StyleSheet.create({
   },
   googleGlyph: {
     fontSize: 18,
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
     color: '#4285F4',
   },
   googleButtonText: {
     fontSize: 16,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   dividerRow: {
     flexDirection: 'row',
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
   },
   toggleText: {
     fontSize: 14,

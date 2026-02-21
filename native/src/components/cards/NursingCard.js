@@ -41,7 +41,7 @@ const NursingValueDisplay = ({ totalMs, accentColor, unitColor }) => {
   );
 };
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const valueStyles = StyleSheet.create({
   // Web: flex items-baseline gap-[4px]
   container: {
@@ -51,13 +51,13 @@ const valueStyles = StyleSheet.create({
   // Web: text-[48px] leading-none font-bold
   number: {
     fontSize: 48,                     // text-[48px]
-    fontWeight: FW.bold,                // font-bold
+    fontFamily: FWB.bold,                // font-bold
     lineHeight: 48,                   // leading-none
   },
   // Web: text-[28px] leading-none font-normal, var(--tt-text-tertiary)
   unit: {
     fontSize: 28,                     // text-[28px]
-    fontWeight: FW.normal,                // font-normal
+    fontFamily: FWB.normal,                // font-normal
   },
   // Web: ml-2 between h/m/s groups
   spacer: {

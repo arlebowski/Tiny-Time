@@ -88,6 +88,8 @@ const formatDateDisplay = (isoString) => {
   return `${dayName} ${day}`;
 };
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
+
 export const wheelStyles = {
   section: {
     paddingVertical: 8,
@@ -104,7 +106,7 @@ export const wheelStyles = {
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     margin: 0,
   },
   timePicker: {
@@ -116,7 +118,7 @@ export const wheelStyles = {
   },
   timeColon: {
     fontSize: 18,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   pickerContainer: {
     flexDirection: 'column',
@@ -125,7 +127,7 @@ export const wheelStyles = {
   },
   label: {
     fontSize: 14,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     textAlign: 'center',
@@ -1068,7 +1070,6 @@ export function TimePickerTray({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
@@ -1098,8 +1099,7 @@ const styles = StyleSheet.create({
   },
   itemText: {
     fontSize: 18,
-    fontWeight: FW.normal,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
@@ -1129,17 +1129,15 @@ const styles = StyleSheet.create({
   },
   headerBtn: {
     fontSize: 17,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   headerTitle: {
     fontSize: 17,
-    fontWeight: FW.semibold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   headerDone: {
     fontSize: 17,
-    fontWeight: FW.semibold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   trayContent: {
     flex: 1,

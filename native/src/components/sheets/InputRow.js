@@ -75,7 +75,7 @@ export default function InputRow({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   // Web: rounded-2xl mb-2
   container: {
@@ -100,13 +100,13 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    fontWeight: FW.normal,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
+    fontFamily: FWB.normal,
   },
   value: {
     flex: 1,
     fontSize: 16,
-    fontWeight: FW.normal,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
+    fontFamily: FWB.normal,
   },
 });

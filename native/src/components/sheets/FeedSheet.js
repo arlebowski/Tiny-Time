@@ -2,14 +2,14 @@
  * FeedSheet — refactored for deterministic HalfSheet sizing behavior.
  * - No forced minHeight
  * - No BottomSheetScrollView inside content by default
- * - Footer/CTA provided via HalfSheet footer (sticky), not in content
+ * - CTA rendered in-sheet (not HalfSheet footer)
  * - Scroll enabled only for Solids Browse (step 2)
  *
  * Based on the FeedSheet you provided. :contentReference[oaicite:1]{index=1}
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image, ScrollView } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image, ScrollView, Dimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
@@ -521,6 +521,8 @@ export default function FeedSheet({
   const handleClose = useCallback(() => {
     stopActiveSide();
     setIsSheetOpen(false);
+    setNotesExpanded(false);
+    setPhotosExpanded(false);
     didInitOpenRef.current = false;
     dateTimeTouchedRef.current = false;
     userEditedAmountRef.current = false;
@@ -1137,7 +1139,7 @@ export default function FeedSheet({
 
   const solidsFooter = feedType === 'solids' ? getSolidsFooter() : null;
 
-  const footer =
+  const cta =
     solidsFooter ? (
       <Pressable
         style={({ pressed }) => [
@@ -1239,7 +1241,10 @@ export default function FeedSheet({
     }
   }, [defaultType, feedTypeRef, entry, initialBottleAmount, preferredVolumeUnit]);
 
-  const scrollable = false;
+  // Only solids step 2 (browse list) needs scrolling.  Everything else uses
+  // BottomSheetView so enableDynamicSizing can re-measure when content
+  // changes (e.g. notes / photos expand).
+  const scrollable = feedType === 'solids' && solidsStep === 2;
 
   useEffect(() => {
     if (feedType !== 'solids') return;
@@ -1295,7 +1300,7 @@ export default function FeedSheet({
       )}
 
       {notesExpanded && (
-        <TTInputRow
+        <TTInputRow insideBottomSheet
           label="Notes"
           value={notes}
           onChange={setNotes}
@@ -1345,14 +1350,13 @@ export default function FeedSheet({
         accentColor={accent}
         onClose={handleClose}
         onOpen={handleSheetOpen}
-        // Deterministic sizing model:
-        // - CONTENT_HEIGHT (fit content)
-        // - 90% (expanded ceiling)
-        snapPoints={['70%', '90%']}
+        // Content-driven sizing: empty snapPoints + enableDynamicSizing lets gorhom
+        // add only the dynamic detent (content height), so sheet fits content without
+        // over-expanding. maxDynamicContentSize caps at 90% of screen.
+        snapPoints={[]}
         enableDynamicSizing={true}
-        maxDynamicContentSize={undefined}
+        maxDynamicContentSize={Dimensions.get('window').height * 0.9}
         scrollable={scrollable}
-        footer={footer}
         useFullWindowOverlay={false}
         onHeaderBackPress={
           feedType === 'solids' && solidsStep >= 2
@@ -1407,46 +1411,64 @@ export default function FeedSheet({
 
           {!(feedType === 'solids' && solidsStep >= 2) && (
             <View style={styles.modePanels}>
-              {visibleTypes.includes('bottle') && (
+              {/* Bottle: flat structure (like SleepSheet) so BottomSheetView measures correctly when notes/photos expand */}
+              {visibleTypes.includes('bottle') && feedType === 'bottle' && (
+                <View
+                  style={{ gap: sheetLayout.fieldGap }}
+                  onLayout={(e) => updateModeHeight('bottle', e.nativeEvent.layout.height)}
+                >
+                  <TTInputRow insideBottomSheet
+                    label="Time"
+                    rawValue={dateTime}
+                    type="datetime"
+                    formatDateTime={formatDateTime}
+                    onOpenPicker={() => setShowDateTimeTray(true)}
+                  />
+                  <AmountStepper
+                    valueOz={parseFloat(ounces) || 0}
+                    unit={amountDisplayUnit}
+                    onChangeUnit={async (unit) => {
+                      const normalized = unit === 'ml' ? 'ml' : 'oz';
+                      userEditedUnitRef.current = true;
+                      setAmountDisplayUnit(normalized);
+                      if (typeof onPreferredVolumeUnitChange === 'function') {
+                        try {
+                          await onPreferredVolumeUnitChange(normalized);
+                        } catch (_) {}
+                      }
+                    }}
+                    onChangeOz={(oz) => {
+                      userEditedAmountRef.current = true;
+                      setOunces(String(oz));
+                    }}
+                  />
+                  {renderNotesPhotosBlock()}
+                </View>
+              )}
+              {visibleTypes.includes('bottle') && feedType !== 'bottle' && (
                 <View
                   collapsable={false}
                   style={[
                     styles.modePanel,
                     { gap: sheetLayout.fieldGap },
-                    feedType !== 'bottle' && styles.modePanelHidden,
-                    lockedModeHeight > 0 && { minHeight: lockedModeHeight },
+                    styles.modePanelHidden,
                   ]}
-                  pointerEvents={feedType === 'bottle' ? 'auto' : 'none'}
+                  pointerEvents="none"
                   onLayout={(e) => updateModeHeight('bottle', e.nativeEvent.layout.height)}
                 >
-                  <>
-                    <TTInputRow
-                      label="Time"
-                      rawValue={dateTime}
-                      type="datetime"
-                      formatDateTime={formatDateTime}
-                      onOpenPicker={() => setShowDateTimeTray(true)}
-                    />
-                    <AmountStepper
-                      valueOz={parseFloat(ounces) || 0}
-                      unit={amountDisplayUnit}
-                      onChangeUnit={async (unit) => {
-                        const normalized = unit === 'ml' ? 'ml' : 'oz';
-                        userEditedUnitRef.current = true;
-                        setAmountDisplayUnit(normalized);
-                        if (typeof onPreferredVolumeUnitChange === 'function') {
-                          try {
-                            await onPreferredVolumeUnitChange(normalized);
-                          } catch (_) {}
-                        }
-                      }}
-                      onChangeOz={(oz) => {
-                        userEditedAmountRef.current = true;
-                        setOunces(String(oz));
-                      }}
-                    />
-                    {feedType === 'bottle' && renderNotesPhotosBlock()}
-                  </>
+                  <TTInputRow insideBottomSheet
+                    label="Time"
+                    rawValue={dateTime}
+                    type="datetime"
+                    formatDateTime={formatDateTime}
+                    onOpenPicker={() => setShowDateTimeTray(true)}
+                  />
+                  <AmountStepper
+                    valueOz={parseFloat(ounces) || 0}
+                    unit={amountDisplayUnit}
+                    onChangeUnit={async () => {}}
+                    onChangeOz={() => {}}
+                  />
                 </View>
               )}
 
@@ -1457,13 +1479,12 @@ export default function FeedSheet({
                     styles.modePanel,
                     { gap: sheetLayout.fieldGap },
                     feedType !== 'nursing' && styles.modePanelHidden,
-                    lockedModeHeight > 0 && { minHeight: lockedModeHeight },
                   ]}
                   pointerEvents={feedType === 'nursing' ? 'auto' : 'none'}
                   onLayout={(e) => updateModeHeight('nursing', e.nativeEvent.layout.height)}
                 >
                   <>
-                    <TTInputRow
+                    <TTInputRow insideBottomSheet
                       label="Start time"
                       rawValue={dateTime}
                       type="datetime"
@@ -1530,7 +1551,6 @@ export default function FeedSheet({
                     styles.modePanel,
                     { gap: sheetLayout.fieldGap },
                     feedType !== 'solids' && styles.modePanelHidden,
-                    lockedModeHeight > 0 && { minHeight: lockedModeHeight },
                   ]}
                   pointerEvents={feedType === 'solids' ? 'auto' : 'none'}
                   onLayout={(e) => updateModeHeight('solids', e.nativeEvent.layout.height)}
@@ -1595,7 +1615,7 @@ export default function FeedSheet({
                 const h = Math.ceil(Number(e?.nativeEvent?.layout?.height) || 0);
                 solidsHeightLog('layout:step3-wrapper', { height: h });
               }}
-              style={solidsContentBaseHeight > 0 ? { minHeight: solidsContentBaseHeight } : lockedModeHeight > 0 ? { minHeight: lockedModeHeight } : null}
+              style={solidsContentBaseHeight > 0 ? { minHeight: solidsContentBaseHeight } : null}
             >
               <SolidsStepThree
                 addedFoods={addedFoods}
@@ -1612,6 +1632,12 @@ export default function FeedSheet({
               {renderNotesPhotosBlock()}
             </View>
           )}
+
+          {cta ? (
+            <View style={[styles.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 30 }]}>
+              {cta}
+            </View>
+          ) : null}
         </View>
       </HalfSheet>
 
@@ -1773,7 +1799,7 @@ function SolidsStepOne({
         onContentLayout?.(e?.nativeEvent?.layout?.height || 0);
       }}
     >
-      <TTInputRow label="Start time" rawValue={dateTime} type="datetime" formatDateTime={formatDateTime} onOpenPicker={onOpenPicker} />
+      <TTInputRow insideBottomSheet label="Start time" rawValue={dateTime} type="datetime" formatDateTime={formatDateTime} onOpenPicker={onOpenPicker} />
       <View style={styles.solidsTilesSection}>
         <Text style={[styles.solidsTileLabel, { color: colors.textSecondary }]}>{solidsTileLabel}</Text>
         <View style={styles.solidsTilesGrid}>
@@ -2018,7 +2044,7 @@ function SideTimer({ side, displayMs, isActive, isLast, onPress, accent, accentS
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   // Content
   feedContent: {},
@@ -2057,7 +2083,7 @@ const styles = StyleSheet.create({
 
   feedTypeLabel: {
     fontSize: 13,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
 
   nursingTotal: {
@@ -2066,7 +2092,7 @@ const styles = StyleSheet.create({
 
   durationText: {
     fontSize: 40,
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
     lineHeight: 40,
     includeFontPadding: false,
     fontVariant: ['tabular-nums'],
@@ -2074,7 +2100,7 @@ const styles = StyleSheet.create({
 
   unit: {
     fontSize: 30,
-    fontWeight: FW.light,
+    fontFamily: FWB.light,
     lineHeight: 30,
     includeFontPadding: false,
   },
@@ -2105,7 +2131,7 @@ const styles = StyleSheet.create({
 
   lastText: {
     fontSize: 13,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
 
   sideTimer: {
@@ -2121,7 +2147,7 @@ const styles = StyleSheet.create({
 
   sideTime: {
     fontSize: 18,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     fontVariant: ['tabular-nums'],
   },
 
@@ -2155,14 +2181,13 @@ const styles = StyleSheet.create({
 
   foodTileLabel: {
     fontSize: 13,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     textAlign: 'center',
     maxWidth: '90%',
   },
 
   solidsStepOne: {
     flexDirection: 'column',
-    gap: 10,
   },
 
   solidsTilesSection: {
@@ -2171,7 +2196,7 @@ const styles = StyleSheet.create({
 
   solidsTileLabel: {
     fontSize: 12,
-    marginBottom: 10,
+    marginBottom: 5,
   },
 
   solidsTilesGrid: {
@@ -2200,7 +2225,7 @@ const styles = StyleSheet.create({
 
   browseButtonText: {
     fontSize: 16,
-    fontWeight: FW.medium,
+    fontFamily: FWB.medium,
   },
 
   solidsStepTwo: {
@@ -2226,7 +2251,7 @@ const styles = StyleSheet.create({
   solidsSearchInput: {
     flex: 1,
     fontSize: 14,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
 
   solidsBrowseGrid: {
@@ -2289,7 +2314,7 @@ const styles = StyleSheet.create({
 
   solidsReviewName: {
     fontSize: 16,
-    fontWeight: FW.medium,
+    fontFamily: FWB.medium,
   },
   solidsReviewMetaRow: {
     marginTop: 4,
@@ -2345,12 +2370,12 @@ const styles = StyleSheet.create({
   },
   detailTrayHeaderTitle: {
     fontSize: 17,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     flexShrink: 1,
   },
   detailTrayDoneText: {
     fontSize: 17,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   detailTrayBody: {
     paddingHorizontal: 16,
@@ -2396,7 +2421,7 @@ const styles = StyleSheet.create({
   },
   detailChipText: {
     fontSize: 13,
-    fontWeight: FW.medium,
+    fontFamily: FWB.medium,
     textAlign: 'center',
     lineHeight: 13,
   },
@@ -2406,7 +2431,13 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   // Add row
-  addonsBlock: {},
+  addonsBlock: {
+    gap: 14,
+  },
+
+  inlineCtaWrap: {
+    paddingTop: 20,
+  },
 
   addRow: {
     flexDirection: 'row',
@@ -2431,13 +2462,13 @@ const styles = StyleSheet.create({
 
   ctaText: {
     fontSize: 16,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 
   headerDoneText: {
     fontSize: 14,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 });

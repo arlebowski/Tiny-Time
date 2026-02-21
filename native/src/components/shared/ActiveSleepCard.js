@@ -177,7 +177,7 @@ export default function ActiveSleepCard({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   root: {
     borderRadius: 16,
@@ -213,11 +213,11 @@ const styles = StyleSheet.create({
   },
   duration: {
     fontSize: 30,
-    fontWeight: FW.light,
+    fontFamily: FWB.light,
     lineHeight: 30,
     fontVariant: ['tabular-nums'],
     includeFontPadding: false,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   cta: {
     alignSelf: 'center',
@@ -233,11 +233,11 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 12,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     lineHeight: 14,
     includeFontPadding: false,
     textAlignVertical: 'center',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   zzz: {
     flexDirection: 'row',
@@ -248,6 +248,6 @@ const styles = StyleSheet.create({
     fontSize: 17.6,
     lineHeight: 18,
     includeFontPadding: false,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
 });

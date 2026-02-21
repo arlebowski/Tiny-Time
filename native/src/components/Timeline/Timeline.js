@@ -426,7 +426,8 @@ export default function Timeline({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={colors.textPrimary}
+              tintColor={colors.brandIcon}
+              colors={Platform.OS === 'android' ? [colors.brandIcon] : undefined}
               title="Refreshing..."
               titleColor={colors.textSecondary}
               progressViewOffset={refreshProgressOffset}
@@ -519,7 +520,7 @@ export default function Timeline({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -539,7 +540,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   headerRight: {
     flexDirection: 'row',
@@ -566,7 +567,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -590,7 +591,7 @@ const styles = StyleSheet.create({
   },
   deleteTitle: {
     fontSize: 20,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     marginBottom: 8,
   },
   deleteMessage: {
@@ -611,7 +612,7 @@ const styles = StyleSheet.create({
   confirmBtn: {},
   deleteBtnText: {
     fontSize: 16,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   photoModalOverlay: {
     flex: 1,
@@ -638,7 +639,7 @@ const styles = StyleSheet.create({
   },
   photoModalBtnText: {
     fontSize: 16,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 });

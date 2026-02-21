@@ -38,7 +38,10 @@ export function ThemeProvider({ themeKey = 'theme1', isDark = false, children })
     return {
       themeKey,
       isDark,
-      colors: base,
+      colors: {
+        ...base,
+        brandIcon: base.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79'),
+      },
       bottle,
       nursing,
       sleep,

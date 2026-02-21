@@ -314,7 +314,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             onPress={handleSubmit}
             disabled={loading || !canSubmit}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : (
+            {loading ? <ActivityIndicator color={colors.brandIcon} /> : (
               <Text style={styles.buttonText}>
                 {onboardingMode === 'create' ? 'Get Started' : 'Join Family'}
               </Text>
@@ -332,7 +332,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: { flex: 1 },
   content: {
@@ -383,7 +383,7 @@ const styles = StyleSheet.create({
   },
   modeToggleText: {
     fontSize: 13,
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
   },
   error: { color: '#EF4444', fontSize: 14, textAlign: 'center', marginBottom: 8 },
   photoSection: {
@@ -397,6 +397,6 @@ const styles = StyleSheet.create({
     height: 40,
   },
   button: { height: 48, alignItems: 'center', justifyContent: 'center' },
-  buttonText: { color: '#fff', fontSize: 16, fontWeight: FW.bold },
+  buttonText: { color: '#fff', fontSize: 16, fontFamily: FWB.bold },
   toggleText: { fontSize: 14, textAlign: 'center', paddingTop: 4 },
 });

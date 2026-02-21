@@ -8,6 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { formatDateTime } from '../../utils/dateTime';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
@@ -85,6 +86,7 @@ export default function DiaperSheet({
   storage = null,
 }) {
   const { colors, diaper, sheetLayout } = useTheme();
+  const insets = useSafeAreaInsets();
   const [dateTime, setDateTime] = useState(() => new Date().toISOString());
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState([]);
@@ -134,6 +136,8 @@ export default function DiaperSheet({
   }, [hydrateFromEntry]);
 
   const handleClose = useCallback(() => {
+    setNotesExpanded(false);
+    setPhotosExpanded(false);
     if (onClose) onClose();
   }, [onClose]);
 
@@ -304,7 +308,7 @@ export default function DiaperSheet({
 
   const ctaLabel = saving ? 'Saving...' : (entry && entry.id ? 'Save' : 'Add');
 
-  const footer = (
+  const cta = (
     <Pressable
       style={({ pressed }) => [
         styles.cta,
@@ -332,12 +336,11 @@ export default function DiaperSheet({
         accentColor={diaper.primary}
         onClose={handleClose}
         onOpen={handleSheetOpen}
-        footer={footer}
         contentPaddingTop={16}
         useFullWindowOverlay={false}
       >
         <View style={{ gap: sheetLayout.sectionGap }}>
-          <TTInputRow
+          <TTInputRow insideBottomSheet
             label="Time"
             rawValue={dateTime}
             type="datetime"
@@ -370,7 +373,7 @@ export default function DiaperSheet({
           )}
 
           {notesExpanded && (
-            <TTInputRow
+            <TTInputRow insideBottomSheet
               label="Notes"
               value={notes}
               onChange={setNotes}
@@ -409,6 +412,10 @@ export default function DiaperSheet({
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
           )}
+
+          <View style={[styles.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 30 }]}>
+            {cta}
+          </View>
         </View>
       </HalfSheet>
 
@@ -426,7 +433,7 @@ export default function DiaperSheet({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   typePicker: {
     flexDirection: 'row',
@@ -443,7 +450,7 @@ const styles = StyleSheet.create({
   },
   typeLabel: {
     fontSize: 13,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   addRow: {
     flexDirection: 'row',
@@ -481,6 +488,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  inlineCtaWrap: {
+    paddingTop: 20,
+  },
   cta: {
     paddingVertical: 14,
     borderRadius: 16,
@@ -489,7 +499,7 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 16,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 });

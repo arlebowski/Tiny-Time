@@ -121,7 +121,7 @@ export default function BottomNavigationShell({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   bottomSafe: {
     overflow: 'visible',
@@ -147,6 +147,6 @@ const styles = StyleSheet.create({
   },
   tabLabel: {
     fontSize: 12,
-    fontWeight: FW.light,
+    fontFamily: FWB.light,
   },
 });

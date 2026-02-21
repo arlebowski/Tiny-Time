@@ -298,7 +298,7 @@ export default function TimelineSwipeRow({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   row: {
     minHeight: 72,
@@ -338,7 +338,7 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     fontSize: 12,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   content: {
     zIndex: 10,

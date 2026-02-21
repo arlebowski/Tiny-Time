@@ -140,7 +140,7 @@ const TrackerCard = ({
   );
 };
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   // Web: rounded-2xl p-5 shadow-sm
   card: {
@@ -185,7 +185,7 @@ const styles = StyleSheet.create({
   },
   headerLabel: {
     fontSize: 18,                     // text-[18px]
-    fontWeight: FW.semibold,                // font-semibold
+    fontFamily: FWB.semibold,                // font-semibold
   },
 
   // Web: inline-flex items-center gap-2
@@ -197,7 +197,7 @@ const styles = StyleSheet.create({
   // Web: text-[15px] font-normal leading-none
   statusText: {
     fontSize: 15,                     // text-[15px]
-    fontWeight: FW.normal,                // font-normal
+    fontFamily: FWB.normal,                // font-normal
   },
   chevronWrap: {
     marginRight: CHEVRON_RIGHT_NUDGE,
@@ -249,7 +249,7 @@ const styles = StyleSheet.create({
   // Web: text-[48px] leading-none font-bold
   value: {
     fontSize: 48,                     // text-[48px]
-    fontWeight: FW.bold,                // font-bold
+    fontFamily: FWB.bold,                // font-bold
     lineHeight: 48,                   // leading-none
     includeFontPadding: false,
   },
@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   // Web: text-[28px] leading-none font-normal
   unit: {
     fontSize: 28,                     // text-[28px]
-    fontWeight: FW.normal,                // font-normal
+    fontFamily: FWB.normal,                // font-normal
     lineHeight: 28,                   // leading-none
     includeFontPadding: false,
   },

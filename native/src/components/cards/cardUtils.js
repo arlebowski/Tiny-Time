@@ -71,7 +71,7 @@ export const ComparisonChicklet = ({ comparison, volumeUnit, evenTextColor, even
   );
 };
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const chipStyles = StyleSheet.create({
   // Web: inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg
   chip: {
@@ -86,12 +86,12 @@ const chipStyles = StyleSheet.create({
   // Web: UpArrowIcon/DownArrowIcon w-4 h-4
   arrow: {
     fontSize: 14,                 // w-4 h-4
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   // Web: text-[13px] font-semibold tabular-nums
   label: {
     fontSize: 13,                 // text-[13px]
-    fontWeight: FW.semibold,            // font-semibold
+    fontFamily: FWB.semibold,            // font-semibold
     fontVariant: ['tabular-nums'],
   },
 });

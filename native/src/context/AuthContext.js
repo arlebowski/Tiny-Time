@@ -15,6 +15,7 @@ import {
   signUpWithEmail,
   acceptInvite,
 } from '../services/authService';
+import { messagingService } from '../services/messagingService';
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
@@ -171,6 +172,7 @@ export function AuthProvider({ children }) {
             return;
           }
           await ensureUserProfile(firebaseUser);
+          messagingService.registerTokenForCurrentUser().catch(() => {});
           const family = await loadUserFamily(firebaseUser.uid);
           if (family) {
             setFamilyId(family.familyId);
@@ -210,6 +212,15 @@ export function AuthProvider({ children }) {
     });
   }, [user?.uid, pendingInviteCode, applyInviteForUser]);
 
+  // FCM token refresh — save new token when it changes
+  useEffect(() => {
+    if (!user?.uid || !messagingService.isAvailable) return;
+    const unsub = messagingService.onTokenRefresh(() => {
+      messagingService.registerTokenForCurrentUser().catch(() => {});
+    });
+    return unsub;
+  }, [user?.uid]);
+
   const handleSignIn = useCallback(async (email, password) => {
     if (!isFirebaseAuthAvailable) return;
     setLoading(true);
@@ -242,6 +253,7 @@ export function AuthProvider({ children }) {
 
   const handleSignOut = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
+    messagingService.unregisterToken().catch(() => {});
     await signOutUser();
   }, []);
 

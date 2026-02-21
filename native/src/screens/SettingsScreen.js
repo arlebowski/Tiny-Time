@@ -10,7 +10,7 @@ export default function SettingsScreen() {
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -20,7 +20,7 @@ const styles = StyleSheet.create({
   },
   text: {
     fontSize: 24,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     color: '#212121',
   },
 });

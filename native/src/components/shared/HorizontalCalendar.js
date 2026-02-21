@@ -321,7 +321,7 @@ export default function HorizontalCalendar({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     width: '100%',
@@ -350,8 +350,7 @@ const styles = StyleSheet.create({
   },
   monthLabel: {
     fontSize: 18,
-    fontWeight: FW.semibold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   monthLabelCenter: {
     textAlign: 'center',
@@ -381,20 +380,17 @@ const styles = StyleSheet.create({
   },
   dayName: {
     fontSize: 12,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     marginBottom: 4,
-    fontFamily: 'SF-Pro',
   },
   dayNumber: {
     fontSize: 14,
-    fontWeight: FW.medium,
+    fontFamily: FWB.medium,
     lineHeight: 14,
-    fontFamily: 'SF-Pro',
   },
   dayNumberSelected: {
     fontSize: 17.6,
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
     lineHeight: 18,
-    fontFamily: 'SF-Pro',
   },
 });

@@ -569,7 +569,7 @@ export default function TimelineItem({
                       : isLogged
                         ? colors.textPrimary
                         : colors.textTertiary,
-                    fontWeight: isLogged ? FW.semibold : FW.normal,
+                    fontFamily: isLogged ? FWB.semibold : FWB.normal,
                   },
                 ]}
                 numberOfLines={1}
@@ -684,7 +684,7 @@ export default function TimelineItem({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   row: {
     minHeight: 72,
@@ -721,7 +721,7 @@ const styles = StyleSheet.create({
   check: {
     fontSize: 10,
     color: '#34C759',
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
   },
   clock: {
     fontSize: 10,
@@ -747,7 +747,7 @@ const styles = StyleSheet.create({
   },
   zzz: {
     fontSize: 16,
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
   },
   metaRow: {
     flexDirection: 'row',
@@ -769,7 +769,7 @@ const styles = StyleSheet.create({
   },
   openTimerText: {
     fontSize: 12,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
   details: {
@@ -808,7 +808,7 @@ const styles = StyleSheet.create({
   },
   foodName: {
     fontSize: 14,
-    fontWeight: FW.medium,
+    fontFamily: FWB.medium,
   },
   foodMeta: {
     fontSize: 12,

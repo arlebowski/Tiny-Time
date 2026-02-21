@@ -236,7 +236,7 @@ export default function ActivityVisibilitySheet({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   listWrap: {
     minHeight: (DEFAULT_ROW_HEIGHT + 8) * 5,
@@ -282,13 +282,12 @@ const styles = StyleSheet.create({
   },
   rowLabel: {
     fontSize: 18,
-    fontWeight: FW.semibold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   hint: {
     fontSize: 12,
     paddingTop: 4,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   doneBtn: {
     width: '100%',
@@ -299,8 +298,7 @@ const styles = StyleSheet.create({
   },
   doneText: {
     fontSize: 16,
-    fontWeight: FW.semibold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   toggleLabelPad: {
     minWidth: 26,

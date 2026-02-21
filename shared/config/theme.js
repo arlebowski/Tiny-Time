@@ -226,7 +226,7 @@ export const THEME_TOKENS = {
     primaryBrandStrong: '#FFFFFF',
     plusBg: '#ffffff',
     plusFg: '#000000',
-    brandIcon: '#FF4D79',
+    brandIcon: '#FF99AA',
 
     // System colors
     recoveryBg: '#0F0F10',
@@ -302,7 +302,7 @@ export const THEME_TOKENS = {
 
   // ── Sheet layout tokens (vertical gaps between content sections) ──
   SHEET_LAYOUT: {
-    sectionGap: 16,   // between major content blocks (time, amount, type picker, notes)
+    sectionGap: 14,   // between major content blocks (time, amount, type picker, notes)
     fieldGap: 8,      // between adjacent form fields (TTInputRow → AmountStepper)
   },
 
@@ -347,6 +347,14 @@ export const THEME_TOKENS = {
       medium: '500',
       semibold: '600',
       bold: '700',
+    },
+    // RN ignores fontWeight with custom fonts; use fontFamilyByWeight instead
+    fontFamilyByWeight: {
+      light: 'SF-Pro-Text-Light',
+      normal: 'SF-Pro-Text-Regular',
+      medium: 'SF-Pro-Text-Medium',
+      semibold: 'SF-Pro-Text-Semibold',
+      bold: 'SF-Pro-Text-Bold',
     },
     lineHeight: {
       none: 1,

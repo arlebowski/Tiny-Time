@@ -72,6 +72,7 @@ function SummaryCard({
   comparison,
   subline,
   rotateIcon = false,
+  iconAdjustments,
   colors,
 }) {
   const valueAnim = React.useRef(new Animated.Value(1)).current;
@@ -189,7 +190,10 @@ function SummaryCard({
             <IconComponent
               size={iconSize}
               color={color}
-              style={rotateIcon ? styles.summaryIconRotate : styles.summaryIconBase}
+              style={[
+                rotateIcon ? styles.summaryIconRotate : styles.summaryIconBase,
+                iconAdjustments,
+              ]}
             />
           ) : (
             <View style={[styles.summaryIconPlaceholder, { width: iconSize, height: iconSize, backgroundColor: colors.segTrack }]} />
@@ -452,6 +456,7 @@ export default function DetailSheet({
             fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={feedComparison}
             rotateIcon
+            iconAdjustments={{ marginTop: -1, marginRight: -2 }}
             colors={colors}
           />
         </View>
@@ -568,7 +573,7 @@ export default function DetailSheet({
       <View style={styles.listHeader}>
         {refreshing ? (
           <View style={[styles.refreshIndicator, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
-            <ActivityIndicator size="small" color={colors.textPrimary} />
+            <ActivityIndicator size="small" color={colors.brandIcon} />
             <Text style={[styles.refreshIndicatorText, { color: colors.textSecondary }]}>Refreshing...</Text>
           </View>
         ) : null}
@@ -645,7 +650,7 @@ export default function DetailSheet({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -668,7 +673,7 @@ const styles = StyleSheet.create({
   },
   refreshIndicatorText: {
     fontSize: 14,
-    fontWeight: FW.medium,
+    fontFamily: FWB.medium,
   },
   toggleWrap: {
     marginTop: 0,
@@ -682,8 +687,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 15,
-    fontWeight: FW.medium,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.medium,
   },
   // Summary cards — horizontal scroll for 'all' mode
   summaryScrollWrap: {
@@ -755,13 +759,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   summaryValue: {
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
     lineHeight: undefined,
-    fontFamily: 'SF-Pro',
   },
   summaryUnit: {
-    fontWeight: FW.normal,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   summaryIconPlaceholder: {
     borderRadius: 16,
@@ -780,22 +782,19 @@ const styles = StyleSheet.create({
   },
   summaryComparisonArrow: {
     fontSize: 14,
-    fontWeight: FW.semibold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   summaryComparisonValue: {
     fontSize: 12,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     fontVariant: ['tabular-nums'],
-    fontFamily: 'SF-Pro',
   },
   summaryComparisonCompact: {
     flexDirection: 'column',
   },
   summaryPaceText: {
     fontSize: 12,
-    fontWeight: FW.normal,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   // Diaper tally subline
   diaperTally: {
@@ -811,8 +810,7 @@ const styles = StyleSheet.create({
   },
   diaperTallyText: {
     fontSize: 12,
-    fontWeight: FW.normal,
+    fontFamily: FWB.normal,
     fontVariant: ['tabular-nums'],
-    fontFamily: 'SF-Pro',
   },
 });

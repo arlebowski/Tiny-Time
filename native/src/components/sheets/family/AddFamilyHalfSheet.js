@@ -52,16 +52,16 @@ export default function AddFamilyHalfSheet({
       )}
     >
       <View style={s.addChildSectionSpacer}>
-        <TTInputRow label="Family Name" type="text" value={newFamilyName} onChange={onFamilyNameChange} placeholder="Our Family" showIcon={false} showChevron={false} enableTapAnimation showLabel />
+        <TTInputRow insideBottomSheet label="Family Name" type="text" value={newFamilyName} onChange={onFamilyNameChange} placeholder="Our Family" showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>
       <View style={s.addChildSectionSpacer}>
-        <TTInputRow label="Child's Name" type="text" value={newFamilyBabyName} onChange={onBabyNameChange} placeholder="Emma" showIcon={false} showChevron={false} enableTapAnimation showLabel />
+        <TTInputRow insideBottomSheet label="Child's Name" type="text" value={newFamilyBabyName} onChange={onBabyNameChange} placeholder="Emma" showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>
       <View style={s.addChildSectionSpacer}>
-        <TTInputRow label="Birth date" type="text" value={newFamilyBirthDate} onChange={onBirthDateChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
+        <TTInputRow insideBottomSheet label="Birth date" type="text" value={newFamilyBirthDate} onChange={onBirthDateChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>
       <View style={s.addChildSectionSpacer}>
-        <TTInputRow label="Current weight (lbs)" type="text" value={newFamilyWeight} onChange={onWeightChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
+        <TTInputRow insideBottomSheet label="Current weight (lbs)" type="text" value={newFamilyWeight} onChange={onWeightChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>
       <TTPhotoRow
         expanded

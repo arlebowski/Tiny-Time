@@ -97,16 +97,18 @@ export default function HalfSheet({
   headerRight,
   headerTitleColor,
   headerIconColor,
-  contentPaddingTop = 16,
+  contentPaddingTop,
   scrollable = false,
   enableDynamicSizing = true,
+  maxDynamicContentSize,
   initialSnapIndex = 0,
   useFullWindowOverlay = true,
   footerBottomOffset = 30,
   footerTopOffset = 20,
 }) {
   const insets = useSafeAreaInsets();
-  const { colors, radius } = useTheme();
+  const { colors, radius, sheetLayout } = useTheme();
+  const topGap = contentPaddingTop ?? sheetLayout?.sectionGap ?? 16;
   const prevIndexRef = useRef(-1);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const headerBg = accentColor || colors.primaryBrand;
@@ -124,7 +126,6 @@ export default function HalfSheet({
   useEffect(() => {
     const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const fallbackSnapPoint = Array.isArray(snapPoints) && snapPoints.length > 0 ? snapPoints[0] : '85%';
     const onShow = () => {
       setKeyboardVisible(true);
       footerKeyboardProgress.value = withTiming(0, { duration: 180 });
@@ -132,13 +133,10 @@ export default function HalfSheet({
     const onHide = () => {
       setKeyboardVisible(false);
       footerKeyboardProgress.value = withTiming(1, { duration: 220 });
-      requestAnimationFrame(() => {
-        if (prevIndexRef.current < 0) return;
-        if (!sheetRef?.current?.snapToPosition) return;
-        try {
-          sheetRef.current.snapToPosition(fallbackSnapPoint);
-        } catch (_) {}
-      });
+      // Let keyboardBlurBehavior="restore" handle snapping back to the
+      // previous position.  The old manual snapToPosition(fallbackSnapPoint)
+      // fought with dynamic sizing and often left the sheet taller than it
+      // was before the keyboard opened.
     };
     const showSub = Keyboard.addListener(showEvent, onShow);
     const hideSub = Keyboard.addListener(hideEvent, onHide);
@@ -146,7 +144,7 @@ export default function HalfSheet({
       showSub.remove();
       hideSub.remove();
     };
-  }, [footerKeyboardProgress, sheetRef, snapPoints]);
+  }, [footerKeyboardProgress]);
 
   const handleComponent = useCallback(
     (props) => (
@@ -210,6 +208,7 @@ export default function HalfSheet({
       index={initialSnapIndex}
       snapPoints={snapPoints}
       enableDynamicSizing={enableDynamicSizing}
+      maxDynamicContentSize={maxDynamicContentSize}
       enablePanDownToClose={enablePanDownToClose}
       enableContentPanningGesture={enableContentPanningGesture}
       enableHandlePanningGesture={enableHandlePanningGesture}
@@ -218,7 +217,7 @@ export default function HalfSheet({
       enableBlurKeyboardOnGesture
       android_keyboardInputMode="adjustResize"
       enableOverDrag
-      onClose={() => {
+      onDismiss={() => {
         prevIndexRef.current = -1;
         footerOpacity.value = 0;
         footerKeyboardProgress.value = 1;
@@ -227,11 +226,18 @@ export default function HalfSheet({
       }}
       onAnimate={(fromIndex, toIndex) => {
         if (fromIndex === -1 && toIndex >= 0) {
-          // Sheet is presenting — delay footer fade-in to sync with slide
           footerOpacity.value = withDelay(150, withTiming(1, { duration: 200 }));
+          // Fire onOpen as early as possible so sheets can reset transient
+          // state (notes/photos expanded) before the first visible frame.
+          if (prevIndexRef.current < 0 && onOpen) {
+            prevIndexRef.current = toIndex;
+            onOpen();
+          }
         }
       }}
       onChange={(index) => {
+        // Fallback: if onAnimate didn't fire (can happen with BottomSheetModal),
+        // ensure onOpen still runs when transitioning from closed to open.
         const prev = prevIndexRef.current;
         prevIndexRef.current = index;
         if (prev < 0 && index >= 0 && onOpen) onOpen();
@@ -253,7 +259,7 @@ export default function HalfSheet({
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: contentPaddingTop },
+            { paddingTop: topGap },
           ]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
@@ -261,22 +267,25 @@ export default function HalfSheet({
           {children}
         </BottomSheetScrollView>
       ) : (
-        <BottomSheetView style={styles.scroll} enableFooterMarginAdjustment={!!footer}>
-          <View
-            style={[
-              styles.scrollContent,
-              { paddingTop: contentPaddingTop },
-            ]}
-          >
-            {children}
-          </View>
+        <BottomSheetView
+          style={[styles.scroll, styles.scrollContent]}
+          enableFooterMarginAdjustment={!!footer}
+        >
+          {topGap > 0 ? (
+            <>
+              <View style={{ height: topGap }} />
+              {children}
+            </>
+          ) : (
+            children
+          )}
         </BottomSheetView>
       )}
     </BottomSheetModal>
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   modal: {
     overflow: 'hidden',
@@ -306,7 +315,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginHorizontal: 12,
     fontSize: 16,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 

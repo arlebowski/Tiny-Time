@@ -188,7 +188,7 @@ export default function SegmentedToggle({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
@@ -202,12 +202,12 @@ const styles = StyleSheet.create({
     // borderRadius set per-option via pillRadius (radius.lg = 8)
     justifyContent: 'center',
     alignItems: 'center',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   optionFull: {
     flex: 1,
   },
   optionText: {
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
 });

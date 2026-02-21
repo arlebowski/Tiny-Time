@@ -2,7 +2,7 @@
 // Web: rounded-2xl (16), p-4 (16px), label text-xs mb-1, value text-base (16px) font-normal
 
 import React, { useRef, useState } from 'react';
-import { View, Text, Pressable, InputAccessoryView, StyleSheet, Platform, Keyboard } from 'react-native';
+import { View, Text, TextInput, Pressable, InputAccessoryView, StyleSheet, Platform, Keyboard } from 'react-native';
 import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
@@ -36,6 +36,7 @@ export default function TTInputRow({
   suffix = null,
   suffixClassName = '',
   inlineSuffix = false,
+  insideBottomSheet = false,
 }) {
   const { colors } = useTheme();
   const inputRef = useRef(null);
@@ -152,6 +153,7 @@ export default function TTInputRow({
               </View>
             ) : (
               <View style={[styles.valueRow, suffix && styles.flexRow]}>
+                {insideBottomSheet ? (
                 <BottomSheetTextInput
                   ref={inputRef}
                   value={displayValue || ''}
@@ -185,6 +187,41 @@ export default function TTInputRow({
                   ]}
                   editable={true}
                 />
+                ) : (
+                <TextInput
+                  ref={inputRef}
+                  value={displayValue || ''}
+                  onChangeText={(text) => {
+                    if (onChange) {
+                      onChange(text);
+                    }
+                  }}
+                  onContentSizeChange={(e) => {
+                    const next = Math.ceil(Number(e?.nativeEvent?.contentSize?.height) || 0);
+                    if (!next) return;
+                    setInputHeight((prev) => (Math.abs(prev - next) < 1 ? prev : next));
+                  }}
+                  onBlur={onBlur}
+                  onFocus={onFocus}
+                  placeholder={placeholder}
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={handleDone}
+                  inputAccessoryViewID={accessoryId}
+                  style={[
+                    styles.textInput,
+                    {
+                      minHeight: minInputHeight,
+                      height: resolvedInputHeight,
+                    },
+                    { fontSize: valueSize, color: invalid ? colors.error : colors.textPrimary },
+                    suffix ? styles.flex1 : styles.fullWidth,
+                  ]}
+                  editable={true}
+                />
+                )}
                 {suffix && <Text style={[styles.suffix, { color: colors.textSecondary }]}>{suffix}</Text>}
               </View>
             )}
@@ -273,7 +310,7 @@ export default function TTInputRow({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     borderRadius: 16,
@@ -294,7 +331,7 @@ const styles = StyleSheet.create({
   },
   label: {
     marginBottom: 4,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   valueRow: {
     flexDirection: 'row',
@@ -311,8 +348,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   value: {
-    fontWeight: FW.normal,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
+    fontFamily: FWB.normal,
   },
   fullWidth: {
     flex: 1,
@@ -320,12 +357,12 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     padding: 0,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
     textAlignVertical: 'top',
   },
   suffix: {
     fontSize: 12,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   iconBtn: {
     marginLeft: 17,
@@ -348,7 +385,7 @@ const styles = StyleSheet.create({
   },
   keyboardDoneText: {
     fontSize: 17,
-    fontWeight: FW.semibold,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
+    fontFamily: FWB.normal,
   },
 });

@@ -150,7 +150,7 @@ function BaseBarChart({
                 textAnchor="middle"
                 fill={tertiaryText}
                 fontSize={12}
-                fontWeight={FW.medium}
+                fontFamily={FWB.medium}
               >
                 {bar.day}
               </SvgText>
@@ -373,7 +373,7 @@ export function DetailHistoryBars({
   );
 }
 
-const FW = THEME_TOKENS.TYPOGRAPHY.fontWeight;
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
@@ -404,7 +404,7 @@ const styles = StyleSheet.create({
   headerLabel: {
     fontSize: 17.6,
     lineHeight: 24,
-    fontWeight: FW.semibold,
+    fontFamily: FWB.semibold,
   },
   chartContainer: {
     height: 240,
@@ -418,7 +418,7 @@ const styles = StyleSheet.create({
   },
   metricTitle: {
     fontSize: 12,
-    fontWeight: FW.medium,
+    fontFamily: FWB.medium,
     letterSpacing: 0.8,
     marginBottom: 4,
   },
@@ -430,14 +430,14 @@ const styles = StyleSheet.create({
   metricValue: {
     fontSize: 40,
     lineHeight: 40,
-    fontWeight: FW.bold,
+    fontFamily: FWB.bold,
     includeFontPadding: false,
   },
   metricUnit: {
     transform: [{ translateY: -1 }],
     fontSize: 17.6,
     lineHeight: 17.6,
-    fontWeight: FW.normal,
+    fontFamily: FWB.normal,
     includeFontPadding: false,
   },
   svgWrap: {
@@ -472,8 +472,8 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingTop: 8,
   },
-  detailHistoryValue: { color: '#fff', fontWeight: FW.semibold, fontSize: 12 },
+  detailHistoryValue: { color: '#fff', fontFamily: FWB.semibold, fontSize: 12 },
   detailHistoryValueSuffix: { fontSize: 10, opacity: 0.7, marginLeft: 2 },
-  detailHistoryDate: { fontSize: 12, fontWeight: FW.medium },
+  detailHistoryDate: { fontSize: 12, fontFamily: FWB.medium },
   detailHistoryMeta: { fontSize: 12 },
 });

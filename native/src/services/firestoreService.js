@@ -172,9 +172,11 @@ const firestoreService = {
 
   async addFeeding({ ounces, timestamp, notes = null, photoURLs = null }) {
     const nowMs = Date.now();
+    const uid = auth?.()?.currentUser?.uid || null;
     const data = { ounces, timestamp: clampFutureTimestamp(timestamp, nowMs) };
     if (notes) data.notes = notes;
     if (Array.isArray(photoURLs) && photoURLs.length > 0) data.photoURLs = photoURLs;
+    if (uid) data.createdByUid = uid;
 
     const ref = await this._kidRef().collection(COLLECTIONS.feedings).add(data);
     const item = { id: ref.id, ...data };
@@ -261,6 +263,7 @@ const firestoreService = {
 
   async addNursingSession({ startTime, leftDurationSec, rightDurationSec, lastSide = null, notes = null, photoURLs = null }) {
     const timestamp = Number.isFinite(startTime) ? startTime : Date.now();
+    const uid = auth?.()?.currentUser?.uid || null;
     const data = {
       startTime: timestamp,
       timestamp,
@@ -270,6 +273,7 @@ const firestoreService = {
     if (lastSide) data.lastSide = lastSide;
     if (notes) data.notes = notes;
     if (Array.isArray(photoURLs) && photoURLs.length > 0) data.photoURLs = photoURLs;
+    if (uid) data.createdByUid = uid;
 
     const ref = await this._kidRef().collection(COLLECTIONS.nursingSessions).add(data);
     const item = { id: ref.id, ...data };
@@ -336,12 +340,14 @@ const firestoreService = {
   // ─── SOLIDS SESSIONS ───
 
   async addSolidsSession({ timestamp, foods, notes = null, photoURLs = null }) {
+    const uid = auth?.()?.currentUser?.uid || null;
     const data = {
       timestamp: typeof timestamp === 'number' ? timestamp : Date.now(),
       foods: Array.isArray(foods) ? foods : [],
     };
     if (notes) data.notes = notes;
     if (Array.isArray(photoURLs) && photoURLs.length > 0) data.photoURLs = photoURLs;
+    if (uid) data.createdByUid = uid;
 
     const ref = await this._kidRef().collection(COLLECTIONS.solidsSessions).add(data);
     const item = { id: ref.id, ...data };
@@ -430,6 +436,7 @@ const firestoreService = {
       hasNotes: !!notes,
     });
     const nowMs = Date.now();
+    const uid = auth?.()?.currentUser?.uid || null;
     const data = {
       timestamp: clampFutureTimestamp(timestamp, nowMs),
       isWet: !!isWet,
@@ -439,6 +446,7 @@ const firestoreService = {
     };
     if (notes) data.notes = notes;
     if (Array.isArray(photoURLs) && photoURLs.length > 0) data.photoURLs = photoURLs;
+    if (uid) data.createdByUid = uid;
 
     const ref = await withTimeout(
       this._kidRef().collection(COLLECTIONS.diaperChanges).add(data),
@@ -630,6 +638,7 @@ const firestoreService = {
   /** Add a completed sleep session (with both start and end) */
   async addSleepSession({ startTime, endTime, notes = null, photoURLs = null, sleepType = null }) {
     const nowMs = Date.now();
+    const uid = auth?.()?.currentUser?.uid || null;
     const safeStartTime = clampFutureTimestamp(startTime, nowMs);
     const safeEndTime = endTime == null ? null : clampFutureTimestamp(endTime, nowMs);
     const data = {
@@ -641,6 +650,7 @@ const firestoreService = {
     };
     if (notes) data.notes = notes;
     if (Array.isArray(photoURLs) && photoURLs.length > 0) data.photoURLs = photoURLs;
+    if (uid) data.createdByUid = uid;
 
     const ref = await this._kidRef().collection(COLLECTIONS.sleepSessions).add(data);
     const item = { id: ref.id, ...data };
