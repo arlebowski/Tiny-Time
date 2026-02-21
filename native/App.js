@@ -116,6 +116,7 @@ function AppHeader({
   }, [kids, kidData, kidId, selectedKidSnapshot]);
   const kidName = selectedKid?.name || 'Baby';
   const kidPhotoURL = selectedKid?.photoURL || null;
+  const avatarSource = useMemo(() => kidPhotoURL ? { uri: kidPhotoURL } : null, [kidPhotoURL]);
   const kidChevronProgress = useRef(new Animated.Value(showKidMenu ? 1 : 0)).current;
 
   useEffect(() => {
@@ -142,8 +143,8 @@ function AppHeader({
           style={headerStyles.kidPicker}
         >
           <View style={[headerStyles.avatar, { backgroundColor: colors.inputBg }]}>
-            {kidPhotoURL ? (
-              <Image source={{ uri: kidPhotoURL }} style={headerStyles.avatarInner} />
+            {avatarSource ? (
+              <Image source={avatarSource} style={headerStyles.avatarInner} />
             ) : (
               <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
             )}
@@ -764,46 +765,48 @@ function AppShell({
     }
   }, []);
 
-  const trackerHeader = (
+  const handleFamilyPress = useCallback(() => handleTabChange('family'), [handleTabChange]);
+  const handleCloseShareMenu = useCallback(() => {
+    setShowShareMenu(false);
+    setShareAnchor(null);
+  }, []);
+  const handleCloseKidMenu = useCallback(() => {
+    setShowKidMenu(false);
+    setKidAnchor(null);
+  }, []);
+
+  const trackerHeader = useMemo(() => (
     <AppHeader
-      onFamilyPress={() => handleTabChange('family')}
+      onFamilyPress={handleFamilyPress}
       activeTab={activeTab}
       showKidMenu={showKidMenu}
       onToggleKidMenu={handleToggleKidMenu}
       kidButtonRef={kidButtonRef}
       showShareMenu={showShareMenu}
       onToggleShareMenu={handleToggleShareMenu}
-      onCloseShareMenu={() => {
-        setShowShareMenu(false);
-        setShareAnchor(null);
-      }}
-      onCloseKidMenu={() => {
-        setShowKidMenu(false);
-        setKidAnchor(null);
-      }}
+      onCloseShareMenu={handleCloseShareMenu}
+      onCloseKidMenu={handleCloseKidMenu}
       shareButtonRef={shareButtonRef}
     />
-  );
-
-  // Render header once at top level so Popover refs always point to visible header
-  // (fixes dropdown positioning on Analytics/Family when header was inside hidden stacks)
-  const showHeader =
-    (activeTab === 'tracker' && !isTrackerDetailOpen)
-    || (activeTab === 'trends' && !analyticsDetailOpen)
-    || (activeTab === 'family' && !familyDetailOpen);
+  ), [
+    handleFamilyPress, activeTab, showKidMenu, handleToggleKidMenu,
+    kidButtonRef, showShareMenu, handleToggleShareMenu,
+    handleCloseShareMenu, handleCloseKidMenu, shareButtonRef,
+  ]);
 
   return (
     <>
       <SafeAreaView
-        style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
+        style={[appStyles.safe, { backgroundColor: appBg }]}
         edges={['left', 'right']}
       >
-        {showHeader ? trackerHeader : null}
         <View style={appStyles.content}>
           <View style={{ flex: 1, display: activeTab === 'tracker' ? 'flex' : 'none' }}>
             {trackerUiReady ? (
               <TrackerStack
                 navigationRef={trackerNavRef}
+                topInset={topInset}
+                header={trackerHeader}
                 onOpenSheet={handleTrackerSelect}
                 onRequestToggleActivitySheet={handleToggleActivitySheet}
                 activityVisibility={activityVisibility}
@@ -821,6 +824,8 @@ function AppShell({
           <View style={{ flex: 1, display: activeTab === 'trends' ? 'flex' : 'none' }}>
             <AnalyticsStack
               navigationRef={analyticsNavRef}
+              topInset={topInset}
+              header={trackerHeader}
               onDetailOpenChange={setAnalyticsDetailOpen}
               activityVisibility={activityVisibility}
             />
@@ -828,6 +833,8 @@ function AppShell({
           <View style={{ flex: 1, display: activeTab === 'family' ? 'flex' : 'none' }}>
             <FamilyStack
               navigationRef={familyNavRef}
+              topInset={topInset}
+              header={trackerHeader}
               onDetailOpenChange={setFamilyDetailOpen}
               user={familyUser}
               kidId={kidId}

@@ -1,8 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { createContext, useCallback, useContext } from 'react';
 import { View, Text, Pressable, Modal } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { FamilyScreenProvider, useFamilyScreen } from '../../context/FamilyScreenContext';
+import { useTheme } from '../../context/ThemeContext';
 import FamilyHubScreen from '../../screens/family/FamilyHubScreen';
 import ProfileScreen from '../../screens/family/ProfileScreen';
 import FamilyMembersScreen from '../../screens/family/FamilyMembersScreen';
@@ -14,6 +15,33 @@ import AddChildHalfSheet from '../../components/sheets/family/AddChildHalfSheet'
 import AddFamilyHalfSheet from '../../components/sheets/family/AddFamilyHalfSheet';
 
 const Stack = createNativeStackNavigator();
+
+const FamilyNavContext = createContext({ topInset: 0, header: null });
+
+function FamilyHubRoute() {
+  const { topInset, header } = useContext(FamilyNavContext);
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, paddingTop: topInset, backgroundColor: colors.appBg }}>
+      {header}
+      <FamilyHubScreen />
+    </View>
+  );
+}
+
+function SubRoute({ Component }) {
+  const { topInset } = useContext(FamilyNavContext);
+  const { colors } = useTheme();
+  return (
+    <View style={{ flex: 1, paddingTop: topInset, backgroundColor: colors.appBg }}>
+      <Component />
+    </View>
+  );
+}
+
+function ProfileRoute() { return <SubRoute Component={ProfileScreen} />; }
+function FamilyMembersRoute() { return <SubRoute Component={FamilyMembersScreen} />; }
+function KidRoute() { return <SubRoute Component={KidScreen} />; }
 
 // Sheets + delete modal rendered outside the navigator but inside the provider
 function FamilySheets() {
@@ -139,36 +167,41 @@ function FamilySheets() {
   );
 }
 
-function FamilyStackNavigator({ navigationRef, onDetailOpenChange }) {
+function FamilyStackNavigator({ navigationRef, topInset, header, onDetailOpenChange }) {
+  const navContextValue = React.useMemo(() => ({ topInset, header }), [topInset, header]);
   const handleStateChange = useCallback((state) => {
     const isDetailOpen = (state?.routes?.length ?? 1) > 1;
     onDetailOpenChange?.(isDetailOpen);
   }, [onDetailOpenChange]);
 
   return (
-    <NavigationContainer
-      independent
-      ref={navigationRef}
-      onStateChange={handleStateChange}
-    >
-      <Stack.Navigator
-        screenOptions={{
-          headerShown: false,
-          animation: 'default',
-          gestureEnabled: true,
-        }}
+    <FamilyNavContext.Provider value={navContextValue}>
+      <NavigationContainer
+        independent
+        ref={navigationRef}
+        onStateChange={handleStateChange}
       >
-        <Stack.Screen name="FamilyHub" component={FamilyHubScreen} />
-        <Stack.Screen name="Profile" component={ProfileScreen} />
-        <Stack.Screen name="FamilyMembers" component={FamilyMembersScreen} />
-        <Stack.Screen name="Kid" component={KidScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+        <Stack.Navigator
+          screenOptions={{
+            headerShown: false,
+            animation: 'default',
+            gestureEnabled: true,
+          }}
+        >
+          <Stack.Screen name="FamilyHub" component={FamilyHubRoute} />
+          <Stack.Screen name="Profile" component={ProfileRoute} />
+          <Stack.Screen name="FamilyMembers" component={FamilyMembersRoute} />
+          <Stack.Screen name="Kid" component={KidRoute} />
+        </Stack.Navigator>
+      </NavigationContainer>
+    </FamilyNavContext.Provider>
   );
 }
 
 export default function FamilyStack({
   navigationRef,
+  topInset,
+  header,
   user,
   kidId,
   familyId,
@@ -215,6 +248,8 @@ export default function FamilyStack({
     >
       <FamilyStackNavigator
         navigationRef={navigationRef}
+        topInset={topInset}
+        header={header}
         onDetailOpenChange={onDetailOpenChange}
       />
       <FamilySheets />
