@@ -79,7 +79,7 @@ export default function TrackerScreen({
   activityVisibility,
   activityOrder,
 }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const {
     getDaySummary,
     feedings,
@@ -307,8 +307,9 @@ export default function TrackerScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={colors.brandIcon}
-            colors={Platform.OS === 'android' ? [colors.brandIcon] : undefined}
+            tintColor={colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')}
+            colors={Platform.OS === 'android' ? [colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')] : undefined}
+            progressBackgroundColor={Platform.OS === 'android' ? colors.appBg : undefined}
             title="Refreshing..."
             titleColor={colors.textSecondary}
             progressViewOffset={Platform.OS === 'ios' ? PTR_IOS_OFFSET : 0}

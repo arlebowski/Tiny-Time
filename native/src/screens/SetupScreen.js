@@ -8,7 +8,6 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Animated,
@@ -16,6 +15,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
+import { SpinnerIcon } from '../components/icons';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import TTInputRow from '../components/shared/TTInputRow';
@@ -314,7 +314,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             onPress={handleSubmit}
             disabled={loading || !canSubmit}
           >
-            {loading ? <ActivityIndicator color={colors.brandIcon} /> : (
+            {loading ? <SpinnerIcon size={22} color={colors.textOnAccent} /> : (
               <Text style={styles.buttonText}>
                 {onboardingMode === 'create' ? 'Get Started' : 'Join Family'}
               </Text>

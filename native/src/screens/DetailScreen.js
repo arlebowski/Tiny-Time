@@ -6,7 +6,6 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +16,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
+import { SpinnerIcon } from '../components/icons';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import HorizontalCalendar from '../components/shared/HorizontalCalendar';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
@@ -573,7 +573,7 @@ export default function DetailSheet({
       <View style={styles.listHeader}>
         {refreshing ? (
           <View style={[styles.refreshIndicator, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
-            <ActivityIndicator size="small" color={colors.brandIcon} />
+            <SpinnerIcon size={20} color={colors.brandIcon ?? (colors.isDark ? '#FF99AA' : '#FF4D79')} />
             <Text style={[styles.refreshIndicatorText, { color: colors.textSecondary }]}>Refreshing...</Text>
           </View>
         ) : null}
