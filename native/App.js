@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, ActivityIndicator, Image, Appearance, Animated, Easing, LogBox } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
@@ -48,6 +48,7 @@ import {
   PersonAddIcon,
   KidSelectorOnIcon,
   KidSelectorOffIcon,
+  SpinnerIcon,
 } from './src/components/icons';
 
 // Bottom nav tuning:
@@ -193,7 +194,7 @@ function AppHeader({
       {/* Brand logo — rendered separately, centered on screen, aligned with header row (like plus btn) */}
       <View style={headerStyles.logoOverlay} pointerEvents="box-none">
         <Image
-          source={isDark ? require('./assets/brandlogo-dark.png') : require('./assets/brandlogo-lt.png')}
+          source={isDark ? require('./assets/brandlogo-dark-68.png') : require('./assets/brandlogo-lt-68.png')}
           style={headerStyles.brandLogoImage}
           resizeMode="contain"
         />
@@ -248,7 +249,7 @@ const headerStyles = StyleSheet.create({
   logoOverlay: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -20,       // half of brand logo width (40px)
+    marginLeft: -17,       // half of brand logo width (34px)
     top: 0,
     bottom: 0,
     alignItems: 'center',
@@ -293,7 +294,7 @@ const headerStyles = StyleSheet.create({
   },
   shareMenuText: {
     fontSize: 14,          // text-sm
-    fontFamily: 'SF-Pro',
+    fontFamily: 'SF-Pro-Text-Regular',
   },
   kidMenuItem: {
     height: 44,            // h-11
@@ -318,8 +319,7 @@ const headerStyles = StyleSheet.create({
   },
   kidMenuAddText: {
     fontSize: 14,
-    fontWeight: '500',
-    fontFamily: 'SF-Pro',
+    fontFamily: 'SF-Pro-Text-Medium',
   },
 });
 
@@ -686,9 +686,19 @@ function AppShell({
     setKidAnchor(null);
 
     const node = shareButtonRef.current;
+    const POPOVER_WIDTH = 224;
+    const PADDING = 16;
+    const screenWidth = Dimensions.get('window').width;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        setShareAnchor({ x, y, width, height });
+        const headerBottom = y + height;
+        // Right edge touches right internal padding; same y as kid picker
+        setShareAnchor({
+          x: screenWidth - PADDING - POPOVER_WIDTH,
+          y: headerBottom - height,
+          width: POPOVER_WIDTH,
+          height,
+        });
         setShowShareMenu(true);
       });
       return;
@@ -708,9 +718,18 @@ function AppShell({
     setShareAnchor(null);
 
     const node = kidButtonRef.current;
+    const POPOVER_WIDTH = 224;
+    const PADDING = 16;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        setKidAnchor({ x, y, width, height });
+        const headerBottom = y + height;
+        // Left edge touches left internal padding; same y as share menu
+        setKidAnchor({
+          x: PADDING,
+          y: headerBottom - height,
+          width: POPOVER_WIDTH,
+          height,
+        });
         setShowKidMenu(true);
       });
       return;
@@ -769,7 +788,7 @@ function AppShell({
   const showGlobalHeader =
     activeTab !== 'tracker'
     && activeTab !== 'family'
-    && !(activeTab === 'trends' && analyticsDetailOpen);
+    && activeTab !== 'trends';
 
   return (
     <>
@@ -801,6 +820,8 @@ function AppShell({
             <AnalyticsStack
               navigationRef={analyticsNavRef}
               onDetailOpenChange={setAnalyticsDetailOpen}
+              activityVisibility={activityVisibility}
+              header={trackerHeader}
             />
           )}
           {activeTab === 'family' && (
@@ -848,7 +869,7 @@ function AppShell({
           setKidAnchor(null);
         }}
         placement="bottom"
-        verticalOffset={6}
+        offset={6}
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
@@ -909,7 +930,7 @@ function AppShell({
           setShareAnchor(null);
         }}
         placement="bottom"
-        verticalOffset={6}
+        offset={6}
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
@@ -1020,9 +1041,10 @@ function AuthGatedApp({
   const [activeTab, setActiveTab] = useState('tracker');
 
   if (loading) {
+    const brandColor = colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79');
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
-        <ActivityIndicator size="large" color={colors.brandIcon} />
+        <SpinnerIcon size={48} color={brandColor} />
       </View>
     );
   }
@@ -1118,7 +1140,13 @@ function LaunchSplashOverlay({
 // ── App Root ──
 export default function App() {
   const [fontsLoaded] = Font.useFonts({
-    'SF-Pro': require('./assets/fonts/SF-Pro.ttf'),
+    // SF-Pro-Text weights (fontWeight has no effect with custom fonts in RN)
+    'SF-Pro': require('./assets/fonts/SF-Pro-Text-Regular.otf'),
+    'SF-Pro-Text-Light': require('./assets/fonts/SF-Pro-Text-Light.otf'),
+    'SF-Pro-Text-Regular': require('./assets/fonts/SF-Pro-Text-Regular.otf'),
+    'SF-Pro-Text-Medium': require('./assets/fonts/SF-Pro-Text-Medium.otf'),
+    'SF-Pro-Text-Semibold': require('./assets/fonts/SF-Pro-Text-Semibold.otf'),
+    'SF-Pro-Text-Bold': require('./assets/fonts/SF-Pro-Text-Bold.otf'),
     Fraunces: require('./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf'),
   });
   const [themeKey, setThemeKey] = useState('theme1');
@@ -1229,6 +1257,11 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
       {ready ? (
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
+          {/* Preload header logos so they decode during splash — avoids lag when header first appears */}
+          <View style={preloadStyles.hidden} pointerEvents="none">
+            <Image source={require('./assets/brandlogo-dark-68.png')} style={preloadStyles.img} />
+            <Image source={require('./assets/brandlogo-lt-68.png')} style={preloadStyles.img} />
+          </View>
           <SafeAreaProvider initialMetrics={initialWindowMetrics}>
             <AuthProvider>
               <AuthGatedApp
@@ -1260,6 +1293,11 @@ export default function App() {
     </GestureHandlerRootView>
   );
 }
+
+const preloadStyles = StyleSheet.create({
+  hidden: { position: 'absolute', left: -9999, opacity: 0.01, width: 34, height: 34 },
+  img: { width: 34, height: 34 },
+});
 
 const appStyles = StyleSheet.create({
   safe: {

@@ -1,9 +1,11 @@
 // TTInputRow — 1:1 from web/components/shared/TTInputRow.js
 // Web: rounded-2xl (16), p-4 (16px), label text-xs mb-1, value text-base (16px) font-normal
 
-import React, { useRef } from 'react';
-import { View, Text, Pressable, TextInput, StyleSheet, Platform } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, TextInput, Pressable, InputAccessoryView, StyleSheet, Platform, Keyboard } from 'react-native';
+import { BottomSheetTextInput } from '@gorhom/bottom-sheet';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { EditIcon, ChevronRightIcon, ChevronDownIcon } from '../icons';
 
 export default function TTInputRow({
@@ -34,9 +36,12 @@ export default function TTInputRow({
   suffix = null,
   suffixClassName = '',
   inlineSuffix = false,
+  insideBottomSheet = false,
 }) {
   const { colors } = useTheme();
   const inputRef = useRef(null);
+  const accessoryIdRef = useRef(`tt-input-row-${Math.random().toString(36).slice(2)}`);
+  const [inputHeight, setInputHeight] = useState(0);
 
   const formatValue = (v) => {
     if (typeof formatDateTime === 'function') return formatDateTime(v);
@@ -112,11 +117,21 @@ export default function TTInputRow({
   const showTrailingSuffix = !!(suffix && !inlineSuffix);
 
   if (type === 'text') {
+    const minInputHeight = Math.max(22, Math.round(valueSize * 1.35));
+    const resolvedInputHeight = Math.max(minInputHeight, inputHeight || 0);
+    const hasAccessory = Platform.OS === 'ios';
+    const accessoryId = hasAccessory ? accessoryIdRef.current : undefined;
+    const handleDone = () => {
+      inputRef.current?.blur?.();
+      Keyboard.dismiss();
+    };
+
     return (
-      <View style={[styles.container, enableTapAnimation && styles.tapable]}>
+      <View style={[styles.container, enableTapAnimation && styles.tapable]} collapsable={false}>
         <Pressable
           style={[
             styles.row,
+            styles.rowText,
             {
               backgroundColor: colors.inputBg,
               paddingHorizontal: paddingH,
@@ -138,6 +153,41 @@ export default function TTInputRow({
               </View>
             ) : (
               <View style={[styles.valueRow, suffix && styles.flexRow]}>
+                {insideBottomSheet ? (
+                <BottomSheetTextInput
+                  ref={inputRef}
+                  value={displayValue || ''}
+                  onChangeText={(text) => {
+                    if (onChange) {
+                      onChange(text);
+                    }
+                  }}
+                  onContentSizeChange={(e) => {
+                    const next = Math.ceil(Number(e?.nativeEvent?.contentSize?.height) || 0);
+                    if (!next) return;
+                    setInputHeight((prev) => (Math.abs(prev - next) < 1 ? prev : next));
+                  }}
+                  onBlur={onBlur}
+                  onFocus={onFocus}
+                  placeholder={placeholder}
+                  placeholderTextColor={colors.textTertiary}
+                  multiline
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={handleDone}
+                  inputAccessoryViewID={accessoryId}
+                  style={[
+                    styles.textInput,
+                    {
+                      minHeight: minInputHeight,
+                      height: resolvedInputHeight,
+                    },
+                    { fontSize: valueSize, color: invalid ? colors.error : colors.textPrimary },
+                    suffix ? styles.flex1 : styles.fullWidth,
+                  ]}
+                  editable={true}
+                />
+                ) : (
                 <TextInput
                   ref={inputRef}
                   value={displayValue || ''}
@@ -146,18 +196,32 @@ export default function TTInputRow({
                       onChange(text);
                     }
                   }}
+                  onContentSizeChange={(e) => {
+                    const next = Math.ceil(Number(e?.nativeEvent?.contentSize?.height) || 0);
+                    if (!next) return;
+                    setInputHeight((prev) => (Math.abs(prev - next) < 1 ? prev : next));
+                  }}
                   onBlur={onBlur}
                   onFocus={onFocus}
                   placeholder={placeholder}
                   placeholderTextColor={colors.textTertiary}
                   multiline
+                  returnKeyType="done"
+                  blurOnSubmit
+                  onSubmitEditing={handleDone}
+                  inputAccessoryViewID={accessoryId}
                   style={[
                     styles.textInput,
+                    {
+                      minHeight: minInputHeight,
+                      height: resolvedInputHeight,
+                    },
                     { fontSize: valueSize, color: invalid ? colors.error : colors.textPrimary },
                     suffix ? styles.flex1 : styles.fullWidth,
                   ]}
                   editable={true}
                 />
+                )}
                 {suffix && <Text style={[styles.suffix, { color: colors.textSecondary }]}>{suffix}</Text>}
               </View>
             )}
@@ -174,6 +238,16 @@ export default function TTInputRow({
             </View>
           )}
         </Pressable>
+        {hasAccessory && (
+          <InputAccessoryView nativeID={accessoryId}>
+            <View style={[styles.keyboardAccessory, { backgroundColor: colors.cardBg, borderTopColor: colors.borderSubtle || colors.cardBorder }]}>
+              <View />
+              <Pressable onPress={handleDone} style={({ pressed }) => [styles.keyboardDoneBtn, pressed && { opacity: 0.7 }]}>
+                <Text style={[styles.keyboardDoneText, { color: colors.primaryBrand }]}>Done</Text>
+              </Pressable>
+            </View>
+          </InputAccessoryView>
+        )}
       </View>
     );
   }
@@ -236,6 +310,7 @@ export default function TTInputRow({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     borderRadius: 16,
@@ -247,13 +322,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  rowText: {
+    alignItems: 'flex-start',
+  },
   flex1: {
     flex: 1,
     minWidth: 0,
   },
   label: {
     marginBottom: 4,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   valueRow: {
     flexDirection: 'row',
@@ -270,8 +348,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   value: {
-    fontWeight: '400',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
+    fontFamily: FWB.normal,
   },
   fullWidth: {
     flex: 1,
@@ -279,11 +357,12 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     padding: 0,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
+    textAlignVertical: 'top',
   },
   suffix: {
     fontSize: 12,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   iconBtn: {
     marginLeft: 17,
@@ -291,5 +370,22 @@ const styles = StyleSheet.create({
   },
   chevronWrap: {
     marginLeft: 8,
+  },
+  keyboardAccessory: {
+    height: 44,
+    borderTopWidth: 1,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  keyboardDoneBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  keyboardDoneText: {
+    fontSize: 17,
+    fontFamily: FWB.semibold,
+    fontFamily: FWB.normal,
   },
 });

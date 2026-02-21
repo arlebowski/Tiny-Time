@@ -6,7 +6,6 @@ import React, { useState, useCallback, useMemo, useEffect } from 'react';
 import {
   View,
   Text,
-  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +16,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
+import { SpinnerIcon } from '../components/icons';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 import HorizontalCalendar from '../components/shared/HorizontalCalendar';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
 import Timeline from '../components/Timeline/Timeline';
@@ -71,6 +72,7 @@ function SummaryCard({
   comparison,
   subline,
   rotateIcon = false,
+  iconAdjustments,
   colors,
 }) {
   const valueAnim = React.useRef(new Animated.Value(1)).current;
@@ -188,7 +190,10 @@ function SummaryCard({
             <IconComponent
               size={iconSize}
               color={color}
-              style={rotateIcon ? styles.summaryIconRotate : styles.summaryIconBase}
+              style={[
+                rotateIcon ? styles.summaryIconRotate : styles.summaryIconBase,
+                iconAdjustments,
+              ]}
             />
           ) : (
             <View style={[styles.summaryIconPlaceholder, { width: iconSize, height: iconSize, backgroundColor: colors.segTrack }]} />
@@ -451,6 +456,7 @@ export default function DetailSheet({
             fillHeight={isHorizontalScrollMode || isFeedTwoColMode}
             comparison={feedComparison}
             rotateIcon
+            iconAdjustments={{ marginTop: -1, marginRight: -2 }}
             colors={colors}
           />
         </View>
@@ -567,7 +573,7 @@ export default function DetailSheet({
       <View style={styles.listHeader}>
         {refreshing ? (
           <View style={[styles.refreshIndicator, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
-            <ActivityIndicator size="small" color={colors.textPrimary} />
+            <SpinnerIcon size={20} color={colors.brandIcon ?? (colors.isDark ? '#FF99AA' : '#FF4D79')} />
             <Text style={[styles.refreshIndicatorText, { color: colors.textSecondary }]}>Refreshing...</Text>
           </View>
         ) : null}
@@ -644,6 +650,7 @@ export default function DetailSheet({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -666,7 +673,7 @@ const styles = StyleSheet.create({
   },
   refreshIndicatorText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: FWB.medium,
   },
   toggleWrap: {
     marginTop: 0,
@@ -680,8 +687,7 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 15,
-    fontWeight: '500',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.medium,
   },
   // Summary cards — horizontal scroll for 'all' mode
   summaryScrollWrap: {
@@ -753,13 +759,11 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   summaryValue: {
-    fontWeight: '700',
+    fontFamily: FWB.bold,
     lineHeight: undefined,
-    fontFamily: 'SF-Pro',
   },
   summaryUnit: {
-    fontWeight: '400',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   summaryIconPlaceholder: {
     borderRadius: 16,
@@ -778,22 +782,19 @@ const styles = StyleSheet.create({
   },
   summaryComparisonArrow: {
     fontSize: 14,
-    fontWeight: '600',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   summaryComparisonValue: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     fontVariant: ['tabular-nums'],
-    fontFamily: 'SF-Pro',
   },
   summaryComparisonCompact: {
     flexDirection: 'column',
   },
   summaryPaceText: {
     fontSize: 12,
-    fontWeight: '400',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   // Diaper tally subline
   diaperTally: {
@@ -809,8 +810,7 @@ const styles = StyleSheet.create({
   },
   diaperTallyText: {
     fontSize: 12,
-    fontWeight: '400',
+    fontFamily: FWB.normal,
     fontVariant: ['tabular-nums'],
-    fontFamily: 'SF-Pro',
   },
 });

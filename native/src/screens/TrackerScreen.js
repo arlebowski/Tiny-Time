@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
+import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useData } from '../context/DataContext';
 import { SettingsIcon } from '../components/icons';
 import BottleCard from '../components/cards/BottleCard';
@@ -78,7 +79,7 @@ export default function TrackerScreen({
   activityVisibility,
   activityOrder,
 }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const {
     getDaySummary,
     feedings,
@@ -306,7 +307,9 @@ export default function TrackerScreen({
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={colors.textPrimary}
+            tintColor={colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')}
+            colors={Platform.OS === 'android' ? [colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')] : undefined}
+            progressBackgroundColor={Platform.OS === 'android' ? colors.appBg : undefined}
             title="Refreshing..."
             titleColor={colors.textSecondary}
             progressViewOffset={Platform.OS === 'ios' ? PTR_IOS_OFFSET : 0}
@@ -326,7 +329,7 @@ export default function TrackerScreen({
             {dateLabel}
           </Text>
           {/* Web: text-[24px] font-semibold, color var(--tt-text-primary), marginBottom 0 */}
-          <Text style={[styles.greeting, { color: colors.textPrimary }]}>
+          <Text style={[styles.greeting, { color: colors.textPrimary, fontFamily: FWB.bold }]}>
             {greeting}
           </Text>
         </View>
@@ -377,6 +380,7 @@ export default function TrackerScreen({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -401,14 +405,12 @@ const styles = StyleSheet.create({
   // Web: text-[15.4px] font-normal, color var(--tt-text-secondary)
   dateLabel: {
     fontSize: 15.4,
-    fontWeight: '400',     // font-normal
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   // Web: text-[24px] font-semibold, color var(--tt-text-primary), marginBottom 0
   greeting: {
     fontSize: 24,
-    fontWeight: '600',     // font-semibold
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   // Web TrackerTab.js:1977-1988 — w-10 h-10 rounded-xl border, active:scale-95
   gearButton: {

@@ -14,6 +14,7 @@ import Animated, {
   LinearTransition,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 
 // Separate springs keep motion snappy while avoiding size overshoot deformation.
 const PILL_POSITION_SPRING = {
@@ -320,6 +321,7 @@ export default function HorizontalCalendar({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     width: '100%',
@@ -348,8 +350,7 @@ const styles = StyleSheet.create({
   },
   monthLabel: {
     fontSize: 18,
-    fontWeight: '600',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.semibold,
   },
   monthLabelCenter: {
     textAlign: 'center',
@@ -379,20 +380,17 @@ const styles = StyleSheet.create({
   },
   dayName: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     marginBottom: 4,
-    fontFamily: 'SF-Pro',
   },
   dayNumber: {
     fontSize: 14,
-    fontWeight: '500',
+    fontFamily: FWB.medium,
     lineHeight: 14,
-    fontFamily: 'SF-Pro',
   },
   dayNumberSelected: {
     fontSize: 17.6,
-    fontWeight: '700',
+    fontFamily: FWB.bold,
     lineHeight: 18,
-    fontFamily: 'SF-Pro',
   },
 });

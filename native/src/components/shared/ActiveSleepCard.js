@@ -4,6 +4,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { SleepIcon } from '../icons';
 
 const __ttNextUpToDate = (value) => {
@@ -32,7 +33,7 @@ export default function ActiveSleepCard({
   onWakeUp = () => {},
   style = null,
 }) {
-  const { colors, sleep } = useTheme();
+  const { colors, radius, sleep } = useTheme();
   const [nowMs, setNowMs] = useState(() => Date.now());
 
   const enterOpacity = useRef(new Animated.Value(0)).current;
@@ -135,7 +136,7 @@ export default function ActiveSleepCard({
     <Animated.View
       style={[
         styles.root,
-        { backgroundColor: sleepColor },
+        { backgroundColor: sleepColor, borderRadius: radius?.xl ?? 16 },
         style,
         {
           opacity: enterOpacity,
@@ -146,7 +147,7 @@ export default function ActiveSleepCard({
       <View style={styles.content}>
         <View style={styles.row}>
           <View style={styles.durationRow}>
-            <View style={styles.sleepIconWrap}>
+            <View style={[styles.sleepIconWrap, { borderRadius: radius?.full ?? 9999 }]}>
               <SleepIcon
                 size={24}
                 color={textOnAccent}
@@ -164,7 +165,7 @@ export default function ActiveSleepCard({
             </View>
           </View>
           <Pressable
-            style={({ pressed }) => [styles.cta, { backgroundColor: textOnAccent }, pressed && styles.ctaPressed]}
+            style={({ pressed }) => [styles.cta, { backgroundColor: textOnAccent, borderRadius: radius?.full ?? 9999 }, pressed && styles.ctaPressed]}
             onPress={onWakeUp}
             accessibilityLabel="Wake Up"
           >
@@ -176,9 +177,9 @@ export default function ActiveSleepCard({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   root: {
-    borderRadius: 16,
     padding: 20,
   },
   content: {
@@ -201,7 +202,6 @@ const styles = StyleSheet.create({
   sleepIconWrap: {
     width: 24,
     height: 24,
-    borderRadius: 9999,
     alignItems: 'center',
     justifyContent: 'center',
     transform: [{ translateY: -1 }],
@@ -211,18 +211,17 @@ const styles = StyleSheet.create({
   },
   duration: {
     fontSize: 30,
-    fontWeight: '300',
+    fontFamily: FWB.light,
     lineHeight: 30,
     fontVariant: ['tabular-nums'],
     includeFontPadding: false,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   cta: {
     alignSelf: 'center',
     minHeight: 24,
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 9999,
     justifyContent: 'center',
     transform: [{ translateY: -1 }],
   },
@@ -231,11 +230,11 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     lineHeight: 14,
     includeFontPadding: false,
     textAlignVertical: 'center',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   zzz: {
     flexDirection: 'row',
@@ -246,6 +245,6 @@ const styles = StyleSheet.create({
     fontSize: 17.6,
     lineHeight: 18,
     includeFontPadding: false,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
 });

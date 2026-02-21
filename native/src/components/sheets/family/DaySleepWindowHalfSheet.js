@@ -3,6 +3,9 @@ import { View, Text } from 'react-native';
 import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import { EditIcon } from '../../icons';
+import { THEME_TOKENS } from '../../../../../shared/config/theme';
+
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 
 export default function DaySleepWindowHalfSheet({
   sheetRef,
@@ -22,11 +25,11 @@ export default function DaySleepWindowHalfSheet({
       enableDynamicSizing
       scrollable
     >
-      <Text style={[s.sleepDescription, { color: colors.textSecondary }]}>Sleep that starts between these times counts as <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Day Sleep</Text> (naps). Everything else counts as <Text style={{ fontWeight: '500', color: colors.textPrimary }}>Night Sleep</Text>.</Text>
+      <Text style={[s.sleepDescription, { color: colors.textSecondary }]}>Sleep that starts between these times counts as <Text style={{ fontFamily: FWB.medium, color: colors.textPrimary }}>Day Sleep</Text> (naps). Everything else counts as <Text style={{ fontFamily: FWB.medium, color: colors.textPrimary }}>Night Sleep</Text>.</Text>
 
       <View style={s.sleepInputRow}>
         <View style={s.sleepInputHalf}>
-          <TTInputRow
+          <TTInputRow insideBottomSheet
             label="Start"
             type="datetime"
             icon={EditIcon}
@@ -36,7 +39,7 @@ export default function DaySleepWindowHalfSheet({
           />
         </View>
         <View style={s.sleepInputHalf}>
-          <TTInputRow
+          <TTInputRow insideBottomSheet
             label="End"
             type="datetime"
             icon={EditIcon}

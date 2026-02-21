@@ -54,7 +54,7 @@ export default function KidSubscreen({
 
       {selectedKidLoading ? (
         <View style={s.loadingContainer}>
-          <ActivityIndicator color={colors.textSecondary} />
+          <ActivityIndicator color={colors.brandIcon} />
         </View>
       ) : (
         <Card style={s.profileMainCard}>

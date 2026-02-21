@@ -3,6 +3,7 @@
 import React from 'react';
 import { View, Text, Pressable, Image, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { XIcon, PlusIcon } from '../icons';
 
 export default function TTPhotoRow({
@@ -114,13 +115,14 @@ export default function TTPhotoRow({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   collapsed: {
     paddingVertical: 12,
   },
   addLabel: {
     fontSize: 16,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   expanded: {
     paddingVertical: 12,
@@ -130,7 +132,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 12,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   photoList: {
     flexDirection: 'row',
@@ -180,6 +182,6 @@ const styles = StyleSheet.create({
   },
   addHint: {
     fontSize: 11,
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
 });

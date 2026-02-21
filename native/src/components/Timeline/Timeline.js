@@ -23,6 +23,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import TimelineItem from './TimelineItem';
 import TimelineSwipeRow from './TimelineSwipeRow';
 import SegmentedToggle from '../shared/SegmentedToggle';
@@ -139,7 +140,7 @@ export default function Timeline({
   hideFilter = false,
   suppressEmptyState = false,
 }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   const [filter, setFilter] = useState(initialFilter || 'all');
   const [sortOrder, setSortOrder] = useState(initialSortOrder || 'desc');
 
@@ -425,7 +426,9 @@ export default function Timeline({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={colors.textPrimary}
+              tintColor={colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')}
+              colors={Platform.OS === 'android' ? [colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')] : undefined}
+              progressBackgroundColor={Platform.OS === 'android' ? colors.appBg : undefined}
               title="Refreshing..."
               titleColor={colors.textSecondary}
               progressViewOffset={refreshProgressOffset}
@@ -518,6 +521,7 @@ export default function Timeline({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -537,7 +541,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
   },
   headerRight: {
     flexDirection: 'row',
@@ -564,7 +568,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     textAlign: 'center',
     marginBottom: 8,
   },
@@ -588,7 +592,7 @@ const styles = StyleSheet.create({
   },
   deleteTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     marginBottom: 8,
   },
   deleteMessage: {
@@ -609,7 +613,7 @@ const styles = StyleSheet.create({
   confirmBtn: {},
   deleteBtnText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
   },
   photoModalOverlay: {
     flex: 1,
@@ -636,7 +640,7 @@ const styles = StyleSheet.create({
   },
   photoModalBtnText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 });

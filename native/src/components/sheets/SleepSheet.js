@@ -6,7 +6,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { useData } from '../../context/DataContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
@@ -90,6 +92,7 @@ export default function SleepSheet({
   storage = null,
 }) {
   const { colors, sleep, sheetLayout } = useTheme();
+  const insets = useSafeAreaInsets();
   const { activeSleep, sleepSessions } = useData();
   const isInputVariant = !entry;
   const activeSleepId = activeSleep?.id || null;
@@ -209,6 +212,8 @@ export default function SleepSheet({
   }, [isInputVariant, sleepState, startTime]);
 
   const handleClose = useCallback(() => {
+    setNotesExpanded(false);
+    setPhotosExpanded(false);
     if (onClose) onClose();
   }, [onClose]);
 
@@ -641,34 +646,32 @@ export default function SleepSheet({
     ctaDisabled = !isValid;
   }
 
-  const footer = (
-    <View style={styles.footerRow}>
-      <Pressable
-        style={({ pressed }) => [
-          styles.cta,
-          { backgroundColor: saving ? sleep.dark : sleep.primary, opacity: ctaDisabled ? 0.7 : 1 },
-          pressed && !saving && !ctaDisabled && { opacity: 0.9 },
-        ]}
-        onPress={() => {
-          timeTrace('cta:press', {
-            label: ctaLabel,
-            disabled: !!ctaDisabled,
-            sleepState,
-            endTimeManuallyEdited,
-          });
-          debugLog('cta:tap', {
-            label: ctaLabel,
-            disabled: !!ctaDisabled,
-            sleepState,
-            endTimeManuallyEdited,
-          });
-          ctaOnPress();
-        }}
-        disabled={ctaDisabled}
-      >
-        <Text style={styles.ctaText}>{ctaLabel}</Text>
-      </Pressable>
-    </View>
+  const cta = (
+    <Pressable
+      style={({ pressed }) => [
+        styles.cta,
+        { backgroundColor: saving ? sleep.dark : sleep.primary, opacity: ctaDisabled ? 0.7 : 1 },
+        pressed && !saving && !ctaDisabled && { opacity: 0.9 },
+      ]}
+      onPress={() => {
+        timeTrace('cta:press', {
+          label: ctaLabel,
+          disabled: !!ctaDisabled,
+          sleepState,
+          endTimeManuallyEdited,
+        });
+        debugLog('cta:tap', {
+          label: ctaLabel,
+          disabled: !!ctaDisabled,
+          sleepState,
+          endTimeManuallyEdited,
+        });
+        ctaOnPress();
+      }}
+      disabled={ctaDisabled}
+    >
+      <Text style={styles.ctaText}>{ctaLabel}</Text>
+    </Pressable>
   );
 
   return (
@@ -681,7 +684,6 @@ export default function SleepSheet({
         accentColor={sleep.primary}
         onClose={handleClose}
         onOpen={handleSheetOpen}
-        footer={footer}
         contentPaddingTop={16}
         useFullWindowOverlay={false}
       >
@@ -712,7 +714,7 @@ export default function SleepSheet({
 
           <View style={styles.inputRow}>
             <View style={styles.inputCol}>
-              <TTInputRow
+              <TTInputRow insideBottomSheet
                 label="Start time"
                 rawValue={startTime}
                 type="datetime"
@@ -722,7 +724,7 @@ export default function SleepSheet({
               />
             </View>
             <View style={styles.inputCol}>
-              <TTInputRow
+              <TTInputRow insideBottomSheet
                 label="End time"
                 rawValue={endTime}
                 type="datetime"
@@ -735,29 +737,43 @@ export default function SleepSheet({
 
           {!notesExpanded && !photosExpanded && (
             <View style={styles.addRow}>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setNotesExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setPhotosExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
               </Pressable>
             </View>
           )}
 
           {photosExpanded && !notesExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setNotesExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
             </Pressable>
           )}
 
           {notesExpanded && !photosExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setPhotosExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
           )}
 
           {notesExpanded && (
-            <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+            <TTInputRow insideBottomSheet
+              label="Notes"
+              value={notes}
+              onChange={setNotes}
+              type="text"
+              placeholder="Add a note..."
+            />
           )}
 
           {photosExpanded && (
@@ -774,6 +790,10 @@ export default function SleepSheet({
               addLabel="+ Add photos"
             />
           )}
+
+          <View style={[styles.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 30 }]}>
+            {cta}
+          </View>
         </View>
       </HalfSheet>
 
@@ -795,19 +815,20 @@ export default function SleepSheet({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   durationBlock: {
     alignItems: 'center',
   },
   durationText: {
     fontSize: 40,
-    fontWeight: '700',
+    fontFamily: FWB.bold,
     lineHeight: 40,
     includeFontPadding: false,
   },
   unit: {
     fontSize: 30,
-    fontWeight: '300',
+    fontFamily: FWB.light,
     lineHeight: 30,
     includeFontPadding: false,
   },
@@ -855,8 +876,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  footerRow: {
-    width: '100%',
+  inlineCtaWrap: {
+    paddingTop: 20,
   },
   cta: {
     paddingVertical: 14,
@@ -866,7 +887,7 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 });

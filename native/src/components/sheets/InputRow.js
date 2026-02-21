@@ -5,6 +5,7 @@
 import React from 'react';
 import { View, Text, Pressable, TextInput, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { EditIcon } from '../icons';
 
 export default function InputRow({
@@ -74,6 +75,7 @@ export default function InputRow({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   // Web: rounded-2xl mb-2
   container: {
@@ -98,13 +100,13 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '400',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
+    fontFamily: FWB.normal,
   },
   value: {
     flex: 1,
     fontSize: 16,
-    fontWeight: '400',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
+    fontFamily: FWB.normal,
   },
 });

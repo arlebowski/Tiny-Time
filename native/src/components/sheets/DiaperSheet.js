@@ -6,7 +6,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { formatDateTime } from '../../utils/dateTime';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from './HalfSheet';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
@@ -84,6 +86,7 @@ export default function DiaperSheet({
   storage = null,
 }) {
   const { colors, diaper, sheetLayout } = useTheme();
+  const insets = useSafeAreaInsets();
   const [dateTime, setDateTime] = useState(() => new Date().toISOString());
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState([]);
@@ -133,6 +136,8 @@ export default function DiaperSheet({
   }, [hydrateFromEntry]);
 
   const handleClose = useCallback(() => {
+    setNotesExpanded(false);
+    setPhotosExpanded(false);
     if (onClose) onClose();
   }, [onClose]);
 
@@ -303,7 +308,7 @@ export default function DiaperSheet({
 
   const ctaLabel = saving ? 'Saving...' : (entry && entry.id ? 'Save' : 'Add');
 
-  const footer = (
+  const cta = (
     <Pressable
       style={({ pressed }) => [
         styles.cta,
@@ -331,12 +336,11 @@ export default function DiaperSheet({
         accentColor={diaper.primary}
         onClose={handleClose}
         onOpen={handleSheetOpen}
-        footer={footer}
         contentPaddingTop={16}
         useFullWindowOverlay={false}
       >
         <View style={{ gap: sheetLayout.sectionGap }}>
-          <TTInputRow
+          <TTInputRow insideBottomSheet
             label="Time"
             rawValue={dateTime}
             type="datetime"
@@ -355,17 +359,27 @@ export default function DiaperSheet({
 
           {!notesExpanded && !photosExpanded && (
             <View style={styles.addRow}>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setNotesExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
               </Pressable>
-              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+              <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+                setPhotosExpanded(true);
+              }}>
                 <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
               </Pressable>
             </View>
           )}
 
           {notesExpanded && (
-            <TTInputRow label="Notes" value={notes} onChange={setNotes} type="text" placeholder="Add a note..." />
+            <TTInputRow insideBottomSheet
+              label="Notes"
+              value={notes}
+              onChange={setNotes}
+              type="text"
+              placeholder="Add a note..."
+            />
           )}
 
           {photosExpanded && (
@@ -384,16 +398,24 @@ export default function DiaperSheet({
           )}
 
           {photosExpanded && !notesExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setNotesExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setNotesExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add notes</Text>
             </Pressable>
           )}
 
           {notesExpanded && !photosExpanded && (
-            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => setPhotosExpanded(true)}>
+            <Pressable style={({ pressed }) => [styles.addItem, pressed && { opacity: 0.7 }]} onPress={() => {
+              setPhotosExpanded(true);
+            }}>
               <Text style={[styles.addText, { color: colors.textTertiary }]}>+ Add photos</Text>
             </Pressable>
           )}
+
+          <View style={[styles.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 30 }]}>
+            {cta}
+          </View>
         </View>
       </HalfSheet>
 
@@ -411,6 +433,7 @@ export default function DiaperSheet({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   typePicker: {
     flexDirection: 'row',
@@ -427,7 +450,7 @@ const styles = StyleSheet.create({
   },
   typeLabel: {
     fontSize: 13,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
   },
   addRow: {
     flexDirection: 'row',
@@ -465,6 +488,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  inlineCtaWrap: {
+    paddingTop: 20,
+  },
   cta: {
     paddingVertical: 14,
     borderRadius: 16,
@@ -473,7 +499,7 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
     color: '#fff',
   },
 });

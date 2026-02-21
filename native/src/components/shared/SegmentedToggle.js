@@ -12,6 +12,7 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
+import { THEME_TOKENS } from '../../../../shared/config/theme';
 
 // Web: transition: { type: "spring", stiffness: 320, damping: 30 }
 // Framer Motion default mass=1; Reanimated default mass=4 — use 1 for exact match
@@ -187,6 +188,7 @@ export default function SegmentedToggle({
   );
 }
 
+const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
@@ -200,12 +202,12 @@ const styles = StyleSheet.create({
     // borderRadius set per-option via pillRadius (radius.lg = 8)
     justifyContent: 'center',
     alignItems: 'center',
-    fontFamily: 'SF-Pro',
+    fontFamily: FWB.normal,
   },
   optionFull: {
     flex: 1,
   },
   optionText: {
-    fontWeight: '600',
+    fontFamily: FWB.semibold,
   },
 });

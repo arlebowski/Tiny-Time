@@ -7,7 +7,7 @@ import FamilyHubSubscreen from './subscreens/FamilyHubSubscreen';
 
 export default function FamilyHubScreen() {
   const navigation = useNavigation();
-  const { colors } = useTheme();
+  const { colors, radius } = useTheme();
   const ctx = useFamilyScreen();
 
   return (
@@ -23,6 +23,7 @@ export default function FamilyHubScreen() {
           s={ctx.s}
           Card={ctx.Card}
           colors={colors}
+          radius={radius}
           activeTheme={ctx.activeTheme}
           currentUser={ctx.currentUser}
           familyInfo={ctx.familyInfo}
