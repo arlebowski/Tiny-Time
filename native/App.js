@@ -277,11 +277,10 @@ const headerStyles = StyleSheet.create({
   shareMenu: {
     width: 224,            // w-56
     borderRadius: 16,      // rounded-2xl
-    borderWidth: 1,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
     shadowRadius: 16,
     elevation: 10,
   },
@@ -378,6 +377,7 @@ function AppShell({
   const timelineRefreshRef = useRef(null);
   const [isTrackerDetailOpen, setIsTrackerDetailOpen] = useState(false);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
+  const [familyDetailOpen, setFamilyDetailOpen] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [shareAnchor, setShareAnchor] = useState(null);
   const shareButtonRef = useRef(null);
@@ -717,13 +717,13 @@ function AppShell({
     setShowShareMenu(false);
     setShareAnchor(null);
 
-    const node = kidButtonRef.current;
+    // Use share button as canonical so both dropdowns align at same top
+    const node = shareButtonRef.current;
     const POPOVER_WIDTH = 224;
     const PADDING = 16;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
         const headerBottom = y + height;
-        // Left edge touches left internal padding; same y as share menu
         setKidAnchor({
           x: PADDING,
           y: headerBottom - height,
@@ -785,10 +785,12 @@ function AppShell({
     />
   );
 
-  const showGlobalHeader =
-    activeTab !== 'tracker'
-    && activeTab !== 'family'
-    && activeTab !== 'trends';
+  // Render header once at top level so Popover refs always point to visible header
+  // (fixes dropdown positioning on Analytics/Family when header was inside hidden stacks)
+  const showHeader =
+    (activeTab === 'tracker' && !isTrackerDetailOpen)
+    || (activeTab === 'trends' && !analyticsDetailOpen)
+    || (activeTab === 'family' && !familyDetailOpen);
 
   return (
     <>
@@ -796,38 +798,37 @@ function AppShell({
         style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
         edges={['left', 'right']}
       >
-        {showGlobalHeader ? trackerHeader : null}
+        {showHeader ? trackerHeader : null}
         <View style={appStyles.content}>
-          {activeTab === 'tracker' && trackerUiReady ? (
-            <TrackerStack
-              navigationRef={trackerNavRef}
-              header={trackerHeader}
-              onOpenSheet={handleTrackerSelect}
-              onRequestToggleActivitySheet={handleToggleActivitySheet}
-              activityVisibility={activityVisibility}
-              activityOrder={activityOrder}
-              onEditCard={handleEditCard}
-              onDeleteCard={handleDeleteCard}
-              timelineRefreshRef={timelineRefreshRef}
-              onDetailOpenChange={handleTrackerDetailOpenChange}
-              entranceSeed={trackerEntranceSeed}
-            />
-          ) : null}
-          {activeTab === 'tracker' && !trackerUiReady ? (
-            <View style={{ flex: 1, backgroundColor: appBg }} />
-          ) : null}
-          {activeTab === 'trends' && (
+          <View style={{ flex: 1, display: activeTab === 'tracker' ? 'flex' : 'none' }}>
+            {trackerUiReady ? (
+              <TrackerStack
+                navigationRef={trackerNavRef}
+                onOpenSheet={handleTrackerSelect}
+                onRequestToggleActivitySheet={handleToggleActivitySheet}
+                activityVisibility={activityVisibility}
+                activityOrder={activityOrder}
+                onEditCard={handleEditCard}
+                onDeleteCard={handleDeleteCard}
+                timelineRefreshRef={timelineRefreshRef}
+                onDetailOpenChange={handleTrackerDetailOpenChange}
+                entranceSeed={trackerEntranceSeed}
+              />
+            ) : (
+              <View style={{ flex: 1, backgroundColor: appBg }} />
+            )}
+          </View>
+          <View style={{ flex: 1, display: activeTab === 'trends' ? 'flex' : 'none' }}>
             <AnalyticsStack
               navigationRef={analyticsNavRef}
               onDetailOpenChange={setAnalyticsDetailOpen}
               activityVisibility={activityVisibility}
-              header={trackerHeader}
             />
-          )}
-          {activeTab === 'family' && (
+          </View>
+          <View style={{ flex: 1, display: activeTab === 'family' ? 'flex' : 'none' }}>
             <FamilyStack
               navigationRef={familyNavRef}
-              header={trackerHeader}
+              onDetailOpenChange={setFamilyDetailOpen}
               user={familyUser}
               kidId={kidId}
               familyId={familyId}
@@ -848,7 +849,7 @@ function AppShell({
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
             />
-          )}
+          </View>
 
           {/* Gradient fade above nav (web script.js:4352-4366) */}
           <LinearGradient
@@ -873,10 +874,7 @@ function AppShell({
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
-          {
-            backgroundColor: colors.cardBg,
-            borderColor: colors.cardBorder,
-          },
+          { backgroundColor: colors.cardBg },
         ]}
         backgroundStyle={{ backgroundColor: 'transparent' }}
       >
@@ -934,10 +932,7 @@ function AppShell({
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
-          {
-            backgroundColor: colors.cardBg,
-            borderColor: colors.cardBorder,
-          },
+          { backgroundColor: colors.cardBg },
         ]}
         backgroundStyle={{ backgroundColor: 'transparent' }}
       >

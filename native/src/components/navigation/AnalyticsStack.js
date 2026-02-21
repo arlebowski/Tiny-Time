@@ -14,7 +14,6 @@ function AnalyticsRoute({ navigation }) {
   const ctx = useAnalyticsStack();
   return (
     <View style={{ flex: 1 }}>
-      {ctx.header}
       <AnalyticsScreen
         onCardTap={(type) => navigation.navigate('AnalyticsDetail', { type })}
         activityVisibility={ctx.activityVisibility}
@@ -36,7 +35,6 @@ export default function AnalyticsStack({
   navigationRef,
   onDetailOpenChange,
   activityVisibility,
-  header,
 }) {
   const handleStateChange = useCallback((state) => {
     const isDetailOpen = (state?.routes?.length ?? 1) > 1;
@@ -44,9 +42,8 @@ export default function AnalyticsStack({
   }, [onDetailOpenChange]);
 
   const contextValue = useMemo(() => ({
-    header,
     activityVisibility,
-  }), [header, activityVisibility]);
+  }), [activityVisibility]);
 
   return (
     <AnalyticsStackContext.Provider value={contextValue}>

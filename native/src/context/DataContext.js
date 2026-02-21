@@ -973,7 +973,7 @@ export function DataProvider({ children }) {
     return Number.isFinite(oz) && oz > 0 ? oz : null;
   }, [feedings]);
 
-  const value = {
+  const value = useMemo(() => ({
     feedings,
     nursingSessions,
     solidsSessions,
@@ -994,7 +994,27 @@ export function DataProvider({ children }) {
     getTimelineItems,
     getDaySummary,
     firestoreService,
-  };
+  }), [
+    feedings,
+    nursingSessions,
+    solidsSessions,
+    sleepSessions,
+    diaperChanges,
+    activeSleep,
+    kidData,
+    kids,
+    kidSettings,
+    familyMembers,
+    dataLoading,
+    trackerBootstrapReady,
+    trackerSnapshot,
+    lastBottleAmountOz,
+    refresh,
+    applyOptimisticEntry,
+    updateKidSettings,
+    getTimelineItems,
+    getDaySummary,
+  ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

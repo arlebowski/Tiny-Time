@@ -27,6 +27,14 @@ export function bucketIndexCeilFromMs(ts) {
   return bucketIndexCeilFromMinutes(d.getHours() * 60 + d.getMinutes());
 }
 
+/** Bucket index for "now" — uses floor so we compare same time slot, not 15 min ahead. */
+export function bucketIndexFloorFromMs(ts) {
+  const d = new Date(ts);
+  const mins = d.getHours() * 60 + d.getMinutes();
+  const bucket = Math.floor(mins / TT_AVG_BUCKET_MINUTES);
+  return Math.min(TT_AVG_BUCKETS - 1, Math.max(0, bucket));
+}
+
 export function normalizeSleepIntervalForAvg(startMs, endMs, nowMs = Date.now()) {
   let sMs = Number(startMs);
   let eMs = Number(endMs);

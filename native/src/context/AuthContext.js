@@ -1,7 +1,7 @@
 /**
  * AuthContext — provides auth state + family/kid selection to the entire app.
  */
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -297,7 +297,7 @@ export function AuthProvider({ children }) {
     }
   }, [user, hydrateKidSnapshot]);
 
-  const value = {
+  const value = useMemo(() => ({
     user,
     familyId,
     kidId,
@@ -311,7 +311,21 @@ export function AuthProvider({ children }) {
     createFamily: handleCreateFamily,
     acceptInvite: handleAcceptInvite,
     setKidId,
-  };
+  }), [
+    user,
+    familyId,
+    kidId,
+    selectedKidSnapshot,
+    loading,
+    needsSetup,
+    handleSignIn,
+    handleGoogleSignIn,
+    handleSignUp,
+    handleSignOut,
+    handleCreateFamily,
+    handleAcceptInvite,
+    setKidId,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

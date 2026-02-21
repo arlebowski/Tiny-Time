@@ -12,7 +12,6 @@ export default function FamilyHubScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      {ctx.header}
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.appBg }}
         contentContainerStyle={{ paddingHorizontal: 16 }}

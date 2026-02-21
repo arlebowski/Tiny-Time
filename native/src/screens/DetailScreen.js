@@ -27,7 +27,7 @@ import { useData } from '../context/DataContext';
 import {
   TT_AVG_EVEN_EPSILON,
   startOfDayMsLocal,
-  bucketIndexCeilFromMs,
+  bucketIndexFloorFromMs,
   buildFeedAvgBuckets,
   buildNursingAvgBuckets,
   buildSolidsAvgBuckets,
@@ -332,7 +332,7 @@ export default function DetailSheet({
   const diaperUnit = summaryLayoutMode === 'all' ? '' : 'changes';
 
   const nowMs = Date.now();
-  const nowBucketIndex = bucketIndexCeilFromMs(nowMs);
+  const nowBucketIndex = bucketIndexFloorFromMs(nowMs);
   const avgTodayStartMs = startOfDayMsLocal(nowMs);
   const avgTodayEndMs = avgTodayStartMs + 86400000;
   const selectedStartMs = startOfDayMsLocal(selectedDate.getTime());
@@ -382,9 +382,14 @@ export default function DetailSheet({
   const solidsComparison = isViewingToday && Number.isFinite(solidsAvgValue) && (solidsAvg?.daysUsed || 0) > 0
     ? { delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
-  const sleepComparison = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
+  const sleepComparisonRaw = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
     ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
+  // If kid has slept all day (started at/before midnight, still sleeping), never show "behind"
+  const sleepComparison =
+    sleepComparisonRaw?.delta < 0 && activeSleep?.startTime != null && activeSleep.startTime <= avgTodayStartMs
+      ? { ...sleepComparisonRaw, delta: 0 }
+      : sleepComparisonRaw;
   const diaperComparison = null;
 
   const activityVisibilitySafe = useMemo(() => {

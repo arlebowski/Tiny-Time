@@ -774,6 +774,13 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
     return Math.min(AVG_BUCKETS - 1, Math.floor(clamped / AVG_BUCKET_MINUTES));
   };
 
+  const bucketIndexFloorFromMs = (ts) => {
+    const d = new Date(ts);
+    const mins = d.getHours() * 60 + d.getMinutes();
+    const bucket = Math.floor(mins / AVG_BUCKET_MINUTES);
+    return Math.min(AVG_BUCKETS - 1, Math.max(0, bucket));
+  };
+
   const buildFeedAvgBuckets = (all) => {
     if (!Array.isArray(all) || all.length === 0) return null;
     const todayStartMs = startOfDayMsLocal(Date.now());
@@ -957,7 +964,7 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
 
   const nowMs = Date.now();
   const startOfDay = trackerComparisons?.startOfDayMsLocal || startOfDayMsLocal;
-  const bucketAtNow = trackerComparisons?.bucketIndexCeilFromMs || bucketIndexCeilFromMs;
+  const bucketAtNow = trackerComparisons?.bucketIndexFloorFromMs || bucketIndexFloorFromMs;
   const buildFeedAvg = trackerComparisons?.buildFeedAvgBuckets || buildFeedAvgBuckets;
   const buildNursingAvg = trackerComparisons?.buildNursingAvgBuckets || buildNursingAvgBuckets;
   const buildSolidsAvg = trackerComparisons?.buildSolidsAvgBuckets || buildSolidsAvgBuckets;
@@ -1002,9 +1009,14 @@ const TrackerDetailTab = ({ user, kidId, familyId, setActiveTab, activeTab = nul
   const solidsComparison = isViewingToday && Number.isFinite(solidsAvgValue) && (solidsAvg?.daysUsed || 0) > 0
     ? buildAvgComparison({ delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: 0.05 })
     : null;
-  const sleepComparison = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
+  const sleepComparisonRaw = isViewingToday && Number.isFinite(sleepAvgValue) && (sleepAvg?.daysUsed || 0) > 0
     ? buildAvgComparison({ delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: 0.05 })
     : null;
+  const activeSleepSession = allSleepSessions.find((s) => s?.isActive || !s?.endTime) || null;
+  const sleptAllDay = activeSleepSession?.startTime != null && activeSleepSession.startTime <= avgTodayStartMs;
+  const sleepComparison = sleepComparisonRaw?.delta < 0 && sleptAllDay
+    ? { ...sleepComparisonRaw, delta: 0 }
+    : sleepComparisonRaw;
   const diaperComparison = null;
 
   const Timeline = window.TT?.shared?.Timeline || null;

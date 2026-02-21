@@ -26,7 +26,7 @@ import {
 import {
   TT_AVG_EVEN_EPSILON,
   startOfDayMsLocal,
-  bucketIndexCeilFromMs,
+  bucketIndexFloorFromMs,
   buildFeedAvgBuckets,
   buildNursingAvgBuckets,
   buildSolidsAvgBuckets,
@@ -131,7 +131,7 @@ export default function TrackerScreen({
   const nowMs = now.getTime();
   const todayStartMs = useMemo(() => startOfDayMsLocal(nowMs), [nowMs]);
   const todayEndMs = useMemo(() => todayStartMs + 86400000, [todayStartMs]);
-  const nowBucketIndex = useMemo(() => bucketIndexCeilFromMs(nowMs), [nowMs]);
+  const nowBucketIndex = useMemo(() => bucketIndexFloorFromMs(nowMs), [nowMs]);
   const avgByTime = useMemo(() => ({
     feed: buildFeedAvgBuckets(feedings, todayStartMs),
     nursing: buildNursingAvgBuckets(nursingSessions, todayStartMs),
@@ -174,12 +174,18 @@ export default function TrackerScreen({
       : NURSING_NO_AVG_COMPARISON),
     [nursingAvgValue, nursingDaysUsed, todayNursingValue]
   );
-  const sleepComparison = useMemo(
+  const sleepComparisonRaw = useMemo(
     () => (Number.isFinite(sleepAvgValue) && sleepDaysUsed > 0
       ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
       : null),
     [sleepAvgValue, sleepDaysUsed, todaySleepValue]
   );
+  // If kid has slept all day (started at/before midnight, still sleeping), never show "behind"
+  const sleepComparison = useMemo(() => {
+    if (!sleepComparisonRaw || sleepComparisonRaw.delta >= 0) return sleepComparisonRaw;
+    const sleptAllDay = activeSleepForUi?.startTime != null && activeSleepForUi.startTime <= todayStartMs;
+    return sleptAllDay ? { ...sleepComparisonRaw, delta: 0 } : sleepComparisonRaw;
+  }, [sleepComparisonRaw, activeSleepForUi?.startTime, todayStartMs]);
   const solidsComparison = useMemo(
     () => (Number.isFinite(solidsAvgValue) && solidsDaysUsed > 0
       ? { delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }

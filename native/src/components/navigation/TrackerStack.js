@@ -17,7 +17,6 @@ function TrackerRoute({ navigation }) {
   const ctx = useTrackerStack();
   return (
     <View style={{ flex: 1 }}>
-      {ctx.header}
       <TrackerScreen
         entranceToken={ctx.entranceToken}
         onOpenSheet={ctx.onOpenSheet}
@@ -49,7 +48,6 @@ function DetailRoute({ route, navigation }) {
 
 export default function TrackerStack({
   navigationRef,
-  header,
   onOpenSheet,
   onRequestToggleActivitySheet,
   activityVisibility,
@@ -61,7 +59,6 @@ export default function TrackerStack({
   entranceSeed = 0,
 }) {
   const contextValue = React.useMemo(() => ({
-    header,
     onOpenSheet,
     onRequestToggleActivitySheet,
     activityVisibility,
@@ -71,7 +68,6 @@ export default function TrackerStack({
     timelineRefreshRef,
     entranceToken: entranceSeed,
   }), [
-    header,
     onOpenSheet,
     onRequestToggleActivitySheet,
     activityVisibility,

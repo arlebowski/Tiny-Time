@@ -169,7 +169,6 @@ function FamilyStackNavigator({ navigationRef, onDetailOpenChange }) {
 
 export default function FamilyStack({
   navigationRef,
-  header,
   user,
   kidId,
   familyId,
@@ -193,7 +192,6 @@ export default function FamilyStack({
 }) {
   return (
     <FamilyScreenProvider
-      header={header}
       user={user}
       kidId={kidId}
       familyId={familyId}
