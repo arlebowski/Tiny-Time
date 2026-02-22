@@ -1,3 +1,6 @@
+// Silence React Native Firebase v22 modular API deprecation warnings (must be set before Firebase initializes)
+globalThis.RNFB_SILENCE_MODULAR_DEPRECATION_WARNINGS = true;
+
 import { registerRootComponent } from 'expo';
 
 import App from './App';

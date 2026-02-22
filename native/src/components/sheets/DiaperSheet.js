@@ -275,6 +275,11 @@ export default function DiaperSheet({
         photoURLs: mergedPhotos,
       };
 
+      const isNewEntry = !(entry && entry.id);
+      if (typeof onSave === 'function' && isNewEntry) {
+        onSave({ type: 'diaper', ...payload });
+      }
+
       if (entry && entry.id) {
         logStep('write:update:start');
         await logAwait('write:update', () => storage.updateDiaperChange(entry.id, payload));
@@ -286,14 +291,6 @@ export default function DiaperSheet({
         logStep('write:add:done');
       }
 
-      if (typeof onSave === 'function') {
-        const isNewEntry = !(entry && entry.id);
-        logStep('onSave:start');
-        await logAwait('onSave', () =>
-          onSave(isNewEntry ? { type: 'diaper', ...payload } : undefined)
-        );
-        logStep('onSave:done');
-      }
       logStep('close:start');
       dismissSheet();
       logStep('close:done');

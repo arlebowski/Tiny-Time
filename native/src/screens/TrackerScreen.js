@@ -192,6 +192,7 @@ export default function TrackerScreen({
       : null),
     [solidsAvgValue, solidsDaysUsed, todaySolidsValue]
   );
+
   const todayDiaperTimelineItems = useMemo(() => {
     if (!Array.isArray(diaperChanges) || diaperChanges.length === 0) return [];
     const start = new Date(now);

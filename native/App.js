@@ -13,10 +13,6 @@ import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
 
-LogBox.ignoreLogs([
-  'This method is deprecated (as well as all React Native Firebase namespaced API)',
-]);
-
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
 import FamilyStack from './src/components/navigation/FamilyStack';
@@ -1348,6 +1344,7 @@ const appStyles = StyleSheet.create({
     left: 0,
     right: 0,
     height: NAV_FADE_HEIGHT,
+    zIndex: 2,
   },
   launchSplash: {
     ...StyleSheet.absoluteFillObject,

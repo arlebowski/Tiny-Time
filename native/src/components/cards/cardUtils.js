@@ -8,33 +8,25 @@ import {
   formatElapsedHmsTT,
 } from '../../../../shared/utils/formatters';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
+import { useTheme } from '../../context/ThemeContext';
 
 // Re-export formatters from shared (for components that import from cardUtils)
 export { formatRelativeTime, formatRelativeTimeNoAgo, formatVolume, formatV2Number, formatElapsedHmsTT };
 
-// ── Comparison chicklet colors ──
-// From web/theme/tokens.js LIGHT_MODE_TOKENS (lines 198-203)
-export const CHICKLET_COLORS = {
-  positive: '#34C759',
-  positiveSoft: 'rgba(52, 199, 89, 0.15)',
-  negative: '#FF2D55',
-  negativeSoft: 'rgba(255, 45, 85, 0.15)',
-};
-
 /**
  * ComparisonChicklet — exact port of web TrackerCard.js:503-543.
+ * Uses canonical theme tokens: positive/positiveSoft, negative/negativeSoft.
  *
  * Web layout: inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg
  *             text-[13px] font-semibold tabular-nums flex-shrink-0
- * Web colors: positive (#34C759) / positiveSoft for positive delta
- *             negative (#FF2D55) / negativeSoft for negative delta
- *             textTertiary / subtle for even
  */
 export const ComparisonChicklet = ({ comparison, volumeUnit, evenTextColor, evenBgColor, formatValue }) => {
+  const { colors, radius } = useTheme();
+  const chipRadius = radius?.lg ?? 8;
   if (comparison?.state === 'no_comparison_yet') {
     const label = comparison?.label || 'No avg';
     return (
-      <View style={[chipStyles.chip, { backgroundColor: evenBgColor }]}>
+      <View style={[chipStyles.chip, { backgroundColor: evenBgColor, borderRadius: chipRadius }]}>
         <Text style={[chipStyles.label, { color: evenTextColor }]}>{label}</Text>
       </View>
     );
@@ -55,14 +47,14 @@ export const ComparisonChicklet = ({ comparison, volumeUnit, evenTextColor, even
 
   const chipColor = isEven
     ? evenTextColor
-    : (rawDelta >= 0 ? CHICKLET_COLORS.positive : CHICKLET_COLORS.negative);
+    : (rawDelta >= 0 ? colors.positive : colors.negative);
   const chipBg = isEven
     ? evenBgColor
-    : (rawDelta >= 0 ? CHICKLET_COLORS.positiveSoft : CHICKLET_COLORS.negativeSoft);
+    : (rawDelta >= 0 ? colors.positiveSoftBg : colors.negativeSoftBg);
   const arrow = rawDelta >= 0 ? '↑' : '↓';
 
   return (
-    <View style={[chipStyles.chip, { backgroundColor: chipBg }]}>
+    <View style={[chipStyles.chip, { backgroundColor: chipBg, borderRadius: chipRadius }]}>
       {!isEven ? (
         <Text style={[chipStyles.arrow, { color: chipColor }]}>{arrow}</Text>
       ) : null}
@@ -73,14 +65,13 @@ export const ComparisonChicklet = ({ comparison, volumeUnit, evenTextColor, even
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const chipStyles = StyleSheet.create({
-  // Web: inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg
+  // Web: inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg (py-1.5 for taller bg)
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,                       // gap-1.5
     paddingHorizontal: 10,        // px-2.5
-    paddingVertical: 4,           // py-1
-    borderRadius: 8,              // rounded-lg
+    paddingVertical: 6,           // py-1.5 — slightly taller to match web bg
     flexShrink: 0,                // flex-shrink-0
   },
   // Web: UpArrowIcon/DownArrowIcon w-4 h-4

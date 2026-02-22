@@ -3,6 +3,7 @@
  */
 
 export const TT_AVG_BUCKET_MINUTES = 15;
+
 export const TT_AVG_BUCKET_MS = TT_AVG_BUCKET_MINUTES * 60000;
 export const TT_AVG_BUCKETS = 96;
 export const TT_AVG_DAYS = 7;
