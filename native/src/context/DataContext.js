@@ -3,6 +3,7 @@
  * replacing all mock data sources.
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestoreService from '../services/firestoreService';
 import { useAuth } from './AuthContext';
@@ -686,6 +687,20 @@ export function DataProvider({ children }) {
       console.warn('Data refresh failed:', e);
     }
   }, [familyId, kidId, usingMockData]);
+
+  // Refresh data when app returns to foreground so stale sleep timers
+  // and other logs are caught up after the listeners were paused in background.
+  useEffect(() => {
+    if (usingMockData || !familyId || !kidId) return;
+    const appStateRef = { current: AppState.currentState };
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appStateRef.current !== 'active' && nextState === 'active') {
+        refresh();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, [usingMockData, familyId, kidId, refresh]);
 
   const updateKidSettings = useCallback(async (settings) => {
     const nextSettings = (settings && typeof settings === 'object') ? settings : {};

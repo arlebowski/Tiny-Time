@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Pressable, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import TTPhotoRow from '../../shared/TTPhotoRow';
@@ -22,6 +23,7 @@ export default function AddChildHalfSheet({
   onAddPhoto,
   onRemovePhoto,
 }) {
+  const insets = useSafeAreaInsets();
   return (
     <HalfSheet
       sheetRef={sheetRef}
@@ -33,20 +35,6 @@ export default function AddChildHalfSheet({
       enableDynamicSizing={false}
       scrollable
       useFullWindowOverlay={false}
-      footer={(
-        <View style={s.addChildFooter}>
-          <Pressable
-            onPress={onCreate}
-            disabled={savingChild}
-            style={({ pressed }) => [
-              s.addChildSubmit,
-              { backgroundColor: colors.primaryActionBg, opacity: savingChild ? 0.5 : (pressed ? 0.85 : 1) },
-            ]}
-          >
-            <Text style={[s.addChildSubmitText, { color: colors.primaryActionText }]}>{savingChild ? 'Saving...' : 'Add Child'}</Text>
-          </Pressable>
-        </View>
-      )}
     >
       <View style={s.addChildSectionSpacer}>
         <TTInputRow insideBottomSheet label="Child's Name" type="text" value={newBabyName} onChange={onNameChange} placeholder="Emma" showIcon={false} showChevron={false} enableTapAnimation showLabel />
@@ -68,7 +56,26 @@ export default function AddChildHalfSheet({
         onPreviewPhoto={() => {}}
         containerStyle={s.addChildPhotoSection}
       />
-      <View style={s.addChildPhotoToCtaSpacer} />
+      <View style={[s.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 12 }]}>
+        <Pressable
+          onPress={onCreate}
+          disabled={savingChild}
+          style={({ pressed }) => [
+            s.addChildSubmit,
+            {
+              backgroundColor: savingChild
+                ? (activeTheme?.bottle?.dark || colors.primaryActionBg)
+                : (activeTheme?.bottle?.primary || colors.primaryBrand),
+              opacity: savingChild ? 0.7 : 1,
+            },
+            pressed && !savingChild && { opacity: 0.9 },
+          ]}
+        >
+          <Text style={[s.addChildSubmitText, !activeTheme?.bottle && { color: colors.primaryActionText }]}>
+            {savingChild ? 'Saving...' : 'Add Child'}
+          </Text>
+        </Pressable>
+      </View>
     </HalfSheet>
   );
 }

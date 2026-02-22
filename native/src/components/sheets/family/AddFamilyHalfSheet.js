@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Pressable, Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import TTPhotoRow from '../../shared/TTPhotoRow';
@@ -25,6 +26,8 @@ export default function AddFamilyHalfSheet({
   onAddPhoto,
   onRemovePhoto,
 }) {
+  const insets = useSafeAreaInsets();
+  const ctaDisabled = savingFamily || authLoading;
   return (
     <HalfSheet
       sheetRef={sheetRef}
@@ -36,20 +39,6 @@ export default function AddFamilyHalfSheet({
       enableDynamicSizing={false}
       scrollable
       useFullWindowOverlay={false}
-      footer={(
-        <View style={s.addChildFooter}>
-          <Pressable
-            onPress={onCreate}
-            disabled={savingFamily || authLoading}
-            style={({ pressed }) => [
-              s.addChildSubmit,
-              { backgroundColor: colors.primaryActionBg, opacity: (savingFamily || authLoading) ? 0.5 : (pressed ? 0.85 : 1) },
-            ]}
-          >
-            <Text style={[s.addChildSubmitText, { color: colors.primaryActionText }]}>{savingFamily ? 'Saving...' : 'Add Family'}</Text>
-          </Pressable>
-        </View>
-      )}
     >
       <View style={s.addChildSectionSpacer}>
         <TTInputRow insideBottomSheet label="Family Name" type="text" value={newFamilyName} onChange={onFamilyNameChange} placeholder="Our Family" showIcon={false} showChevron={false} enableTapAnimation showLabel />
@@ -74,7 +63,26 @@ export default function AddFamilyHalfSheet({
         onPreviewPhoto={() => {}}
         containerStyle={s.addChildPhotoSection}
       />
-      <View style={s.addChildPhotoToCtaSpacer} />
+      <View style={[s.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 12 }]}>
+        <Pressable
+          onPress={onCreate}
+          disabled={ctaDisabled}
+          style={({ pressed }) => [
+            s.addChildSubmit,
+            {
+              backgroundColor: ctaDisabled
+                ? (activeTheme?.bottle?.dark || colors.primaryActionBg)
+                : (activeTheme?.bottle?.primary || colors.primaryBrand),
+              opacity: ctaDisabled ? 0.7 : 1,
+            },
+            pressed && !ctaDisabled && { opacity: 0.9 },
+          ]}
+        >
+          <Text style={[s.addChildSubmitText, !activeTheme?.bottle && { color: colors.primaryActionText }]}>
+            {savingFamily ? 'Saving...' : 'Add Family'}
+          </Text>
+        </Pressable>
+      </View>
     </HalfSheet>
   );
 }

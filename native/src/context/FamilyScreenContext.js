@@ -1744,19 +1744,17 @@ const s = StyleSheet.create({
     fontFamily: FWB.normal,
   },
 
-  addChildFooter: {
-    width: '100%',
-  },
   addChildSubmit: {
-    height: 48,
     width: '100%',
-    borderRadius: 12,
+    paddingVertical: 14,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addChildSubmitText: {
     fontSize: 16,
     fontFamily: FWB.semibold,
+    color: '#fff',
   },
   addChildSectionSpacer: {
     marginBottom: 4,
@@ -1767,6 +1765,9 @@ const s = StyleSheet.create({
   },
   addChildPhotoToCtaSpacer: {
     height: 40,
+  },
+  inlineCtaWrap: {
+    paddingTop: 28,
   },
   modalOverlay: {
     flex: 1,
