@@ -140,7 +140,7 @@ export default function Timeline({
   hideFilter = false,
   suppressEmptyState = false,
 }) {
-  const { colors, isDark } = useTheme();
+  const { colors } = useTheme();
   const [filter, setFilter] = useState(initialFilter || 'all');
   const [sortOrder, setSortOrder] = useState(initialSortOrder || 'desc');
 
@@ -426,11 +426,6 @@ export default function Timeline({
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              tintColor={colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')}
-              colors={Platform.OS === 'android' ? [colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')] : undefined}
-              progressBackgroundColor={Platform.OS === 'android' ? colors.appBg : undefined}
-              title="Refreshing..."
-              titleColor={colors.textSecondary}
               progressViewOffset={refreshProgressOffset}
             />
           ) : undefined

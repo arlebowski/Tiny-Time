@@ -16,7 +16,6 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../context/ThemeContext';
-import { SpinnerIcon } from '../components/icons';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import HorizontalCalendar from '../components/shared/HorizontalCalendar';
 import SegmentedToggle from '../components/shared/SegmentedToggle';
@@ -576,12 +575,6 @@ export default function DetailSheet({
   const listHeader = useMemo(
     () => (
       <View style={styles.listHeader}>
-        {refreshing ? (
-          <View style={[styles.refreshIndicator, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}>
-            <SpinnerIcon size={20} color={colors.brandIcon ?? (colors.isDark ? '#FF99AA' : '#FF4D79')} />
-            <Text style={[styles.refreshIndicatorText, { color: colors.textSecondary }]}>Refreshing...</Text>
-          </View>
-        ) : null}
         <HorizontalCalendar
           onDateSelect={handleDateSelect}
           headerLeft={calendarHeaderLeft}
@@ -630,7 +623,7 @@ export default function DetailSheet({
     [
       handleDateSelect, calendarHeaderLeft, summaryLayoutMode,
       handleSummaryToggleChange, isHorizontalScrollMode, feedSummaryCount, appBgTransparent,
-      summaryCards, refreshing, colors.appBg, colors.cardBg, colors.cardBorder, colors.textPrimary, colors.textSecondary,
+      summaryCards, colors.appBg, colors.textPrimary, colors.textSecondary,
     ]
   );
 
@@ -665,20 +658,6 @@ const styles = StyleSheet.create({
     paddingTop: 4,
     gap: DETAIL_SECTION_GAP,
     marginBottom: DETAIL_SECTION_GAP,
-  },
-  refreshIndicator: {
-    minHeight: 36,
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  refreshIndicatorText: {
-    fontSize: 14,
-    fontFamily: FWB.medium,
   },
   toggleWrap: {
     marginTop: 0,

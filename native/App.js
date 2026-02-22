@@ -1269,6 +1269,12 @@ export default function App() {
 
   const ready = fontsLoaded && appearanceHydrated;
 
+  // Sync native UI (RefreshControl, alerts, etc.) to app's dark mode
+  useEffect(() => {
+    if (!ready) return;
+    Appearance.setColorScheme(isDark ? 'dark' : 'light');
+  }, [isDark, ready]);
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
       {ready ? (
