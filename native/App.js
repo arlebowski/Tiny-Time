@@ -594,6 +594,9 @@ function AppShell({
       analyticsNavRef.current?.dispatch(StackActions.popToTop());
       return;
     }
+    if (nextTab !== 'family' && activeTab === 'family') {
+      familyNavRef.current?.dispatch(StackActions.popToTop());
+    }
     if (nextTab !== activeTab) {
       onTabChange(nextTab);
       if (nextTab !== 'trends') {
