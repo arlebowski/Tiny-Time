@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, View, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { InteractionManager, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import {
   BottleIcon,
@@ -44,6 +44,8 @@ const getLastNDaysKeys = (n) => {
 
 export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabActive = false }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
+  const scrollRef = useRef(null);
+  const prevTabActiveRef = useRef(isTabActive);
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [cardLayouts, setCardLayouts] = useState({});
@@ -232,6 +234,15 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
   }, []);
 
   useEffect(() => {
+    if (isTabActive && !prevTabActiveRef.current) {
+      InteractionManager.runAfterInteractions(() => {
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+      });
+    }
+    prevTabActiveRef.current = isTabActive;
+  }, [isTabActive]);
+
+  useEffect(() => {
     if (!viewportHeight) return;
     setVisibleCards((prev) => {
       let changed = false;
@@ -257,6 +268,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={[styles.container, { backgroundColor: colors.appBg }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
