@@ -140,6 +140,8 @@ export function FamilyScreenProvider({
   user,
   kidId,
   familyId,
+  families = [],
+  setFamilyId,
   onKidChange,
   kids: propKids = [],
   requestAddChild = false,
@@ -178,6 +180,8 @@ export function FamilyScreenProvider({
   const [editingWeight, setEditingWeight] = useState(false);
   const [tempBabyName, setTempBabyName] = useState(null);
   const [tempWeight, setTempWeight] = useState(null);
+  const [savingKidName, setSavingKidName] = useState(false);
+  const [savingKidWeight, setSavingKidWeight] = useState(false);
 
   // Add Child / Family
   const appearanceSheetRef = useRef(null);
@@ -200,6 +204,7 @@ export function FamilyScreenProvider({
   const [profileEmailDraft, setProfileEmailDraft] = useState(currentUser.email || '');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(currentUser.photoURL || null);
   const [savingProfile, setSavingProfile] = useState(false);
+  const [profileJustSaved, setProfileJustSaved] = useState(false);
   const [familyInfo, setFamilyInfo] = useState(null);
   const [familyNameDraft, setFamilyNameDraft] = useState('');
   const [savingFamilyName, setSavingFamilyName] = useState(false);
@@ -312,6 +317,10 @@ export function FamilyScreenProvider({
     setProfileEmailDraft(currentUser.email || '');
     setProfilePhotoUrl(currentUser.photoURL || null);
   }, [currentUser.displayName, currentUser.email, currentUser.photoURL]);
+
+  useEffect(() => {
+    if (!hasProfileChanges) setProfileJustSaved(false);
+  }, [hasProfileChanges]);
 
   useEffect(() => {
     let cancelled = false;
@@ -441,6 +450,8 @@ export function FamilyScreenProvider({
       setEditingName(false);
       return;
     }
+    const saveStartedAt = Date.now();
+    setSavingKidName(true);
     setSelectedKidData((prev) => (prev ? { ...prev, name: raw } : prev));
     setSelectedKidForSubpage((prev) => (prev ? { ...prev, name: raw } : prev));
     setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, name: raw } : k)));
@@ -450,13 +461,19 @@ export function FamilyScreenProvider({
     try {
       if (targetKidId) {
         await firestoreService?.updateKidDataById?.(targetKidId, { name: raw });
+        await refresh?.();
       }
     } catch (error) {
       console.error('Failed to update kid name:', error);
+    } finally {
+      const minMs = 400;
+      const elapsed = Date.now() - saveStartedAt;
+      if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
+      setTempBabyName(null);
+      setEditingName(false);
+      setSavingKidName(false);
     }
-    setTempBabyName(null);
-    setEditingName(false);
-  }, [selectedKidForSubpage?.id, tempBabyName, selectedKidData?.name, kidId, firestoreService]);
+  }, [selectedKidForSubpage?.id, tempBabyName, selectedKidData?.name, kidId, firestoreService, refresh]);
 
   const handleWeightChange = useCallback((nextValue) => {
     if (!editingWeight) setEditingWeight(true);
@@ -481,6 +498,8 @@ export function FamilyScreenProvider({
       setEditingWeight(false);
       return;
     }
+    const saveStartedAt = Date.now();
+    setSavingKidWeight(true);
     setSelectedKidSettings((prev) => ({ ...prev, babyWeight: weight }));
     setSelectedKidData((prev) => (prev ? { ...prev, babyWeight: weight } : prev));
     setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, babyWeight: weight } : k)));
@@ -493,10 +512,59 @@ export function FamilyScreenProvider({
       }
     } catch (error) {
       console.error('Failed to update kid weight:', error);
+    } finally {
+      const minMs = 400;
+      const elapsed = Date.now() - saveStartedAt;
+      if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
+      setTempWeight(null);
+      setEditingWeight(false);
+      setSavingKidWeight(false);
     }
-    setTempWeight(null);
-    setEditingWeight(false);
   }, [selectedKidForSubpage?.id, tempWeight, selectedKidSettings.babyWeight, kidId, firestoreService]);
+
+  const handleDaySleepWindowChange = useCallback(async (startMin, endMin) => {
+    const startVal = Math.max(0, Math.min(1439, Number(startMin)));
+    const endVal = Math.max(0, Math.min(1439, Number(endMin)));
+    setDaySleepStartMin(startVal);
+    setDaySleepEndMin(endVal);
+    const targetKidId = selectedKidForSubpage?.id || kidId;
+    try {
+      if (targetKidId === kidId) {
+        await updateKidSettings?.({ sleepDayStart: startVal, sleepDayEnd: endVal });
+      } else if (firestoreService?.isAvailable && familyId && targetKidId) {
+        const firestoreModule = require('@react-native-firebase/firestore').default;
+        await firestoreModule()
+          .collection('families')
+          .doc(familyId)
+          .collection('kids')
+          .doc(targetKidId)
+          .collection('settings')
+          .doc('default')
+          .set({ sleepDayStart: startVal, sleepDayEnd: endVal }, { merge: true });
+      }
+    } catch (error) {
+      console.error('Failed to update day sleep window:', error);
+    }
+  }, [selectedKidForSubpage?.id, kidId, updateKidSettings, firestoreService, familyId]);
+
+  const handleBirthDateChange = useCallback(async (isoString) => {
+    const targetKidId = selectedKidForSubpage?.id;
+    if (!targetKidId || !isoString?.trim()) return;
+    const parsed = new Date(isoString.trim());
+    if (Number.isNaN(parsed.getTime())) return;
+    const birthTimestamp = parsed.getTime();
+    setSelectedKidData((prev) => (prev ? { ...prev, birthDate: birthTimestamp } : prev));
+    setSelectedKidForSubpage((prev) => (prev ? { ...prev, birthDate: birthTimestamp } : prev));
+    setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, birthDate: birthTimestamp } : k)));
+    if (targetKidId === kidId) {
+      setKidData((prev) => (prev ? { ...prev, birthDate: birthTimestamp } : prev));
+    }
+    try {
+      await firestoreService?.updateKidDataById?.(targetKidId, { birthDate: birthTimestamp });
+    } catch (error) {
+      console.error('Failed to update birth date:', error);
+    }
+  }, [selectedKidForSubpage?.id, kidId, firestoreService]);
 
   const handleVolumeUnitChange = useCallback(async (nextUnit) => {
     const targetKidId = selectedKidForSubpage?.id || kidId;
@@ -589,6 +657,7 @@ export function FamilyScreenProvider({
       return;
     }
 
+    const saveStartedAt = Date.now();
     setSavingProfile(true);
     try {
       let nextPhotoUrl = profilePhotoUrl || null;
@@ -603,11 +672,16 @@ export function FamilyScreenProvider({
       });
       await refresh?.();
       setProfilePhotoUrl(nextPhotoUrl);
-      Alert.alert('Saved', 'Profile updated.');
+      setProfileNameDraft(nextName || '');
+      setProfileEmailDraft(nextEmail || '');
+      setProfileJustSaved(true);
     } catch (error) {
       console.error('Failed to save profile:', error);
       Alert.alert('Error', 'Unable to save profile. You may need to sign in again to update your email.');
     } finally {
+      const minMs = 400;
+      const elapsed = Date.now() - saveStartedAt;
+      if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
       setSavingProfile(false);
     }
   }, [currentUser?.uid, familyId, profileNameDraft, profileEmailDraft, profilePhotoUrl, refresh]);
@@ -635,6 +709,7 @@ export function FamilyScreenProvider({
     if (!isFamilyOwner) return;
     const nextName = String(familyNameDraft || '').trim();
     if (!nextName) return;
+    const saveStartedAt = Date.now();
     setSavingFamilyName(true);
     try {
       await firestoreService?.updateFamilyData?.({ name: nextName });
@@ -644,6 +719,9 @@ export function FamilyScreenProvider({
       console.error('Failed to save family name:', error);
       Alert.alert('Error', 'Unable to save family name.');
     } finally {
+      const minMs = 400;
+      const elapsed = Date.now() - saveStartedAt;
+      if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
       setSavingFamilyName(false);
     }
   }, [isFamilyOwner, familyNameDraft, firestoreService, refresh]);
@@ -910,6 +988,8 @@ export function FamilyScreenProvider({
     currentUser,
     kidId,
     familyId,
+    families,
+    setFamilyId,
     onKidChange,
     showDevSetupToggle,
     forceSetupPreview,
@@ -949,6 +1029,8 @@ export function FamilyScreenProvider({
     babyPhotoUrl,
     tempBabyName,
     tempWeight,
+    savingKidName,
+    savingKidWeight,
     dayStart,
     dayEnd,
 
@@ -958,6 +1040,7 @@ export function FamilyScreenProvider({
     profilePhotoUrl,
     savingProfile,
     hasProfileChanges,
+    profileJustSaved,
 
     // Family
     familyNameDraft,
@@ -1013,6 +1096,8 @@ export function FamilyScreenProvider({
     handleUpdateBabyName,
     handleWeightChange,
     handleUpdateWeight,
+    handleBirthDateChange,
+    handleDaySleepWindowChange,
     handleVolumeUnitChange,
     handlePhotoClick,
     handleProfilePhotoClick,
@@ -1050,16 +1135,16 @@ export function FamilyScreenProvider({
     formatMonthDay,
     minutesToLabel,
   }), [
-    header, currentUser, kidId, familyId, onKidChange,
+    header, currentUser, kidId, familyId, families, setFamilyId, onKidChange,
     showDevSetupToggle, forceSetupPreview, forceLoginPreview,
     onToggleForceSetupPreview, onToggleForceLoginPreview, onInvitePartner,
     colors, activeTheme, activeThemeKey, isDark, segmentedTrackColor,
     colorThemeOrder, kids, kidData, members, settings, familyInfo,
     loading, authLoading,
     selectedKidForSubpage, selectedKidData, selectedKidSettings,
-    selectedKidLoading, selectedKidName, babyPhotoUrl, tempBabyName, tempWeight,
+    selectedKidLoading, selectedKidName, babyPhotoUrl, tempBabyName, tempWeight, savingKidName, savingKidWeight,
     dayStart, dayEnd,
-    profileNameDraft, profileEmailDraft, profilePhotoUrl, savingProfile, hasProfileChanges,
+    profileNameDraft, profileEmailDraft, profilePhotoUrl, savingProfile, hasProfileChanges, profileJustSaved,
     familyNameDraft, familyOwnerUid, isFamilyOwner, savingFamilyName,
     savingChild, newBabyName, newBabyBirthDate, newBabyWeight, newChildPhotoUris,
     savingFamily, newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyWeight, newFamilyPhotoUris,
@@ -1068,6 +1153,8 @@ export function FamilyScreenProvider({
     handleThemeChange, handleDarkModeChange,
     handleBabyNameChange, handleUpdateBabyName,
     handleWeightChange, handleUpdateWeight,
+    handleBirthDateChange,
+    handleDaySleepWindowChange,
     handleVolumeUnitChange, handlePhotoClick, handleProfilePhotoClick,
     handleSaveProfile, handleSaveFamilyName, handleRemoveMember,
     handleSignOut, handleDeleteAccount,
@@ -1515,6 +1602,18 @@ const s = StyleSheet.create({
     paddingVertical: 15,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  profileSaveCtaSubtle: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+  },
+  profileSaveCtaSubtleText: {
+    fontSize: 13,
+    fontFamily: FWB.medium,
   },
   dividerSection: {
     marginTop: 16,

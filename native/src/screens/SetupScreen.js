@@ -12,14 +12,15 @@ import {
   Platform,
   Animated,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../context/ThemeContext';
-import { SpinnerIcon } from '../components/icons';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import TTInputRow from '../components/shared/TTInputRow';
 import TTPhotoRow from '../components/shared/TTPhotoRow';
+import { DatePickerTray } from '../components/shared/Wheelpickers';
 
 const lockupLt = require('../../assets/lockup-lt.png');
 const lockupDk = require('../../assets/lockup-dk.png');
@@ -36,6 +37,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const [photoExpanded, setPhotoExpanded] = useState(true);
   const [newPhotos, setNewPhotos] = useState([]);
   const [error, setError] = useState(null);
+  const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
   const modeProgress = useRef(new Animated.Value(1)).current;
   const normalizedInviteCode = String(inviteCode || '').trim().toUpperCase();
   const canSubmit = onboardingMode === 'create'
@@ -234,16 +236,32 @@ export default function SetupScreen({ onDevExitPreview = null }) {
               <View style={styles.sectionSpacer}>
                 <TTInputRow
                   label="Birth Date"
+                  type="datetime"
+                  rawValue={birthDate || null}
                   value={birthDate}
-                  onChange={setBirthDate}
-                  placeholder="Add..."
+                  onChange={(iso) => setBirthDate(iso || '')}
+                  placeholder="Tap to select"
                   showIcon={false}
                   showChevron={false}
                   enableTapAnimation
                   showLabel
-                  type="text"
+                  formatDateTime={(iso) => {
+                    if (!iso) return '';
+                    const d = new Date(iso);
+                    return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                  }}
+                  onOpenPicker={() => setBirthDatePickerOpen(true)}
                 />
               </View>
+              <DatePickerTray
+                isOpen={birthDatePickerOpen}
+                onClose={() => setBirthDatePickerOpen(false)}
+                value={birthDate || undefined}
+                onChange={(iso) => setBirthDate(iso || '')}
+                title="Birth Date"
+                minYear={new Date().getFullYear() - 6}
+                maxYear={new Date().getFullYear()}
+              />
 
               <View style={styles.sectionSpacer}>
                 <TTInputRow
@@ -314,7 +332,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             onPress={handleSubmit}
             disabled={loading || !canSubmit}
           >
-            {loading ? <SpinnerIcon size={22} color={colors.textOnAccent} /> : (
+            {loading ? <ActivityIndicator size="small" /> : (
               <Text style={styles.buttonText}>
                 {onboardingMode === 'create' ? 'Get Started' : 'Join Family'}
               </Text>

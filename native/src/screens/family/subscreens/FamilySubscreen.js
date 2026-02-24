@@ -65,6 +65,26 @@ export default function FamilySubscreen({
               value={familyNameDraft}
               placeholder="Family"
               onChange={onFamilyNameChange}
+              trailingAction={
+                String(familyNameDraft || '').trim() && String(familyNameDraft || '').trim() !== String(familyInfo?.name || '').trim() ? (
+                  <Pressable
+                    onPress={onSaveFamilyName}
+                    disabled={savingFamilyName}
+                    style={({ pressed }) => [
+                      s.profileSaveCtaSubtle,
+                      {
+                        borderColor: colors.primaryActionBg,
+                        backgroundColor: savingFamilyName ? colors.subtleSurface : 'transparent',
+                        opacity: savingFamilyName ? 0.8 : pressed ? 0.85 : 1,
+                      },
+                    ]}
+                  >
+                    <Text style={[s.profileSaveCtaSubtleText, { color: colors.primaryActionBg }]}>
+                      {savingFamilyName ? 'Saving…' : 'Save'}
+                    </Text>
+                  </Pressable>
+                ) : undefined
+              }
             />
           </View>
         ) : (
@@ -74,20 +94,6 @@ export default function FamilySubscreen({
           </View>
         )}
       </View>
-
-      {isFamilyOwner && String(familyNameDraft || '').trim() && String(familyNameDraft || '').trim() !== String(familyInfo?.name || '').trim() ? (
-        <Pressable
-          onPress={onSaveFamilyName}
-          disabled={savingFamilyName}
-          style={({ pressed }) => [
-            s.profileSaveButton,
-            { backgroundColor: colors.primaryActionBg, opacity: savingFamilyName ? 0.6 : 1 },
-            pressed && !savingFamilyName && { opacity: 0.8 },
-          ]}
-        >
-          <Text style={[s.accountBtnText, { color: colors.primaryActionText }]}>{savingFamilyName ? 'Saving...' : 'Save Family Name'}</Text>
-        </Pressable>
-      ) : null}
 
       <View style={s.familyHubHeader}>
         <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>Your Kids</Text>

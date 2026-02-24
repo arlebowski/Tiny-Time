@@ -11,9 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
-import { SpinnerIcon } from '../components/icons';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 
@@ -111,7 +111,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
             disabled={loading}
           >
             {loading ? (
-              <SpinnerIcon size={22} color={colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79')} />
+              <ActivityIndicator size="small" />
             ) : (
               <>
                 <Text style={styles.googleGlyph}>G</Text>
@@ -155,7 +155,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
             disabled={loading}
           >
             {loading ? (
-              <SpinnerIcon size={22} color={colors.textOnAccent} />
+              <ActivityIndicator size="small" />
             ) : (
               <Text style={styles.buttonText}>
                 {isSignUp ? 'Create Account' : 'Sign In'}

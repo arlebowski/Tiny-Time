@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Pressable, Text } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import TTPhotoRow from '../../shared/TTPhotoRow';
+import { DatePickerTray } from '../../shared/Wheelpickers';
 
 export default function AddFamilyHalfSheet({
   sheetRef,
@@ -27,7 +28,14 @@ export default function AddFamilyHalfSheet({
   onRemovePhoto,
 }) {
   const insets = useSafeAreaInsets();
+  const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
   const ctaDisabled = savingFamily || authLoading;
+
+  const birthDateValue = (() => {
+    if (!newFamilyBirthDate?.trim()) return null;
+    const d = new Date(newFamilyBirthDate.trim());
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  })();
   return (
     <HalfSheet
       sheetRef={sheetRef}
@@ -47,8 +55,35 @@ export default function AddFamilyHalfSheet({
         <TTInputRow insideBottomSheet label="Child's Name" type="text" value={newFamilyBabyName} onChange={onBabyNameChange} placeholder="Emma" showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>
       <View style={s.addChildSectionSpacer}>
-        <TTInputRow insideBottomSheet label="Birth date" type="text" value={newFamilyBirthDate} onChange={onBirthDateChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
+        <TTInputRow
+          insideBottomSheet
+          label="Birth date"
+          type="datetime"
+          rawValue={birthDateValue}
+          value={newFamilyBirthDate}
+          onChange={(iso) => onBirthDateChange(iso || '')}
+          placeholder="Tap to select"
+          showIcon={false}
+          showChevron={false}
+          enableTapAnimation
+          showLabel
+          formatDateTime={(iso) => {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+          }}
+          onOpenPicker={() => setBirthDatePickerOpen(true)}
+        />
       </View>
+      <DatePickerTray
+        isOpen={birthDatePickerOpen}
+        onClose={() => setBirthDatePickerOpen(false)}
+        value={birthDateValue || undefined}
+        onChange={(iso) => onBirthDateChange(iso || '')}
+        title="Birth Date"
+        minYear={new Date().getFullYear() - 6}
+        maxYear={new Date().getFullYear()}
+      />
       <View style={s.addChildSectionSpacer}>
         <TTInputRow insideBottomSheet label="Current weight (lbs)" type="text" value={newFamilyWeight} onChange={onWeightChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>

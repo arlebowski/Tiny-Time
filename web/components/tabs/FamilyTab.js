@@ -40,7 +40,6 @@ const FamilyTab = ({
   const TTCardHeader = window.TT?.shared?.TTCardHeader || window.TTCardHeader;
   const TTInputRow = window.TT?.shared?.TTInputRow || window.TTInputRow;
   const DatePickerTray = window.TT?.shared?.pickers?.DatePickerTray || null;
-  const TimePickerTray = window.TT?.shared?.pickers?.TimePickerTray || null;
   const TTEditIcon = window.TT?.shared?.icons?.Edit2 || window.Edit2;
   const BabyIcon = window.TT?.shared?.icons?.BabyIcon || null;
   const ChevronRightIcon = window.TT?.shared?.icons?.ChevronRightIcon || window.ChevronRightIcon || null;
@@ -71,8 +70,6 @@ const FamilyTab = ({
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
   const [savingChild, setSavingChild] = useState(false);
   const [showBirthDatePicker, setShowBirthDatePicker] = useState(false);
-  const [showDayStartPicker, setShowDayStartPicker] = useState(false);
-  const [showDayEndPicker, setShowDayEndPicker] = useState(false);
   const handleOpenActivityVisibility = () => {
     if (typeof onRequestToggleActivitySheet === 'function') {
       onRequestToggleActivitySheet();
@@ -1123,16 +1120,16 @@ const FamilyTab = ({
             if (!iso) return minutesToLabel(dayStart);
             return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
           },
-          useWheelPickers: () => true,
-          pickerMode: 'time',
-          onOpenPicker: () => {
+          useWheelPickers: () => false,
+          openAnchoredTimePicker: window.TT?.ui?.openAnchoredTimePicker || null,
+          onChange: (iso) => {
+            const mins = isoToMinutes(iso);
+            if (mins == null) return;
+            setTempDayStartInput(minutesToTimeValue(mins));
             setEditingDayStart(true);
-            if (!tempDayStartInput) {
-              setTempDayStartInput(minutesToTimeValue(dayStart));
-            }
-            setShowDayStartPicker(true);
-          },
-          onChange: () => {}
+            setDaySleepStartMin(mins);
+            saveDaySleepWindow(mins, daySleepEndMin);
+          }
         })
       ),
       React.createElement(
@@ -1148,16 +1145,16 @@ const FamilyTab = ({
             if (!iso) return minutesToLabel(dayEnd);
             return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
           },
-          useWheelPickers: () => true,
-          pickerMode: 'time',
-          onOpenPicker: () => {
+          useWheelPickers: () => false,
+          openAnchoredTimePicker: window.TT?.ui?.openAnchoredTimePicker || null,
+          onChange: (iso) => {
+            const mins = isoToMinutes(iso);
+            if (mins == null) return;
+            setTempDayEndInput(minutesToTimeValue(mins));
             setEditingDayEnd(true);
-            if (!tempDayEndInput) {
-              setTempDayEndInput(minutesToTimeValue(dayEnd));
-            }
-            setShowDayEndPicker(true);
-          },
-          onChange: () => {}
+            setDaySleepEndMin(mins);
+            saveDaySleepWindow(daySleepStartMin, mins);
+          }
         })
       )
     ),
@@ -1554,41 +1551,6 @@ const FamilyTab = ({
         saveBirthDateFromIso(iso);
       }
     }),
-    TimePickerTray && React.createElement(TimePickerTray, {
-      isOpen: showDayStartPicker,
-      onClose: () => {
-        setShowDayStartPicker(false);
-        setEditingDayStart(false);
-      },
-      title: 'Start time',
-      value: timeValueToIso(tempDayStartInput || minutesToTimeValue(dayStart)),
-      onChange: (iso) => {
-        const mins = isoToMinutes(iso);
-        if (mins == null) return;
-        setTempDayStartInput(minutesToTimeValue(mins));
-        setEditingDayStart(true);
-        setDaySleepStartMin(mins);
-        saveDaySleepWindow(mins, daySleepEndMin);
-      }
-    }),
-    TimePickerTray && React.createElement(TimePickerTray, {
-      isOpen: showDayEndPicker,
-      onClose: () => {
-        setShowDayEndPicker(false);
-        setEditingDayEnd(false);
-      },
-      title: 'End time',
-      value: timeValueToIso(tempDayEndInput || minutesToTimeValue(dayEnd)),
-      onChange: (iso) => {
-        const mins = isoToMinutes(iso);
-        if (mins == null) return;
-        setTempDayEndInput(minutesToTimeValue(mins));
-        setEditingDayEnd(true);
-        setDaySleepEndMin(mins);
-        saveDaySleepWindow(daySleepStartMin, mins);
-      }
-    }),
-
     // Add Child Modal
     showAddChild &&
       React.createElement(

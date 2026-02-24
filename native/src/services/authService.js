@@ -156,39 +156,61 @@ export async function updateCurrentUserProfile(patch = {}) {
 /**
  * Load the user's familyId and kidId from their families.
  * Returns { familyId, kidId } or null if none found.
+ * Prefers preferredFamilyId if provided and user is a member.
  */
-export async function loadUserFamily(uid) {
+export async function loadUserFamily(uid, preferredFamilyId = null) {
   assertFirebase();
   if (!uid) return null;
 
-  // Find families where user is a member
+  const families = await loadUserFamilies(uid);
+  if (!families || families.length === 0) return null;
+
+  if (preferredFamilyId) {
+    const match = families.find((f) => f.familyId === preferredFamilyId);
+    if (match) return { familyId: match.familyId, kidId: match.kidId };
+  }
+
+  return { familyId: families[0].familyId, kidId: families[0].kidId };
+}
+
+/**
+ * Load all families where the user is a member.
+ * Returns [{ familyId, kidId, name }] or [].
+ */
+export async function loadUserFamilies(uid) {
+  assertFirebase();
+  if (!uid) return [];
+
   const famSnap = await firestore()
     .collection('families')
     .where('members', 'array-contains', uid)
-    .limit(1)
     .get();
 
-  if (famSnap.empty) return null;
+  if (famSnap.empty) return [];
 
-  const famDoc = famSnap.docs[0];
-  const familyId = famDoc.id;
-  const famData = famDoc.data();
+  const result = [];
+  for (const famDoc of famSnap.docs) {
+    const familyId = famDoc.id;
+    const famData = famDoc.data() || {};
+    const name = famData.name || 'Family';
 
-  // Get the primary kid or first kid
-  let kidId = famData.primaryKidId || null;
-  if (!kidId) {
-    const kidsSnap = await firestore()
-      .collection('families')
-      .doc(familyId)
-      .collection('kids')
-      .limit(1)
-      .get();
-    if (!kidsSnap.empty) {
-      kidId = kidsSnap.docs[0].id;
+    let kidId = famData.primaryKidId || null;
+    if (!kidId) {
+      const kidsSnap = await firestore()
+        .collection('families')
+        .doc(familyId)
+        .collection('kids')
+        .limit(1)
+        .get();
+      if (!kidsSnap.empty) {
+        kidId = kidsSnap.docs[0].id;
+      }
     }
+
+    result.push({ familyId, kidId, name });
   }
 
-  return { familyId, kidId };
+  return result;
 }
 
 /** Create a new family + kid for a first-time user */

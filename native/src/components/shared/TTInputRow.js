@@ -37,6 +37,7 @@ export default function TTInputRow({
   suffixClassName = '',
   inlineSuffix = false,
   insideBottomSheet = false,
+  trailingAction = null,
 }) {
   const { colors } = useTheme();
   const inputRef = useRef(null);
@@ -227,11 +228,13 @@ export default function TTInputRow({
             )}
           </View>
           {showTrailingSuffix && <Text style={[styles.suffix, { color: colors.textSecondary }]}>{suffix}</Text>}
-          {showIcon && IconComponent && (
+          {trailingAction != null ? (
+            <View style={styles.iconBtn}>{trailingAction}</View>
+          ) : showIcon && IconComponent ? (
             <Pressable onPress={handleIconPress} style={styles.iconBtn}>
               <IconComponent size={16} color={colors.textSecondary} />
             </Pressable>
-          )}
+          ) : null}
           {showChevron && ChevronIcon && (
             <View style={styles.chevronWrap}>
               <ChevronIcon size={16} color={colors.textSecondary} />

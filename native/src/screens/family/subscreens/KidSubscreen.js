@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, Pressable, Image, ActivityIndicator } from 'react-native';
 import TTInputRow from '../../../components/shared/TTInputRow';
 import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
@@ -10,6 +10,7 @@ import {
   SettingsIcon,
   DaySleepWindowIcon,
 } from '../../../components/icons';
+import { DatePickerTray } from '../../../components/shared/Wheelpickers';
 
 export default function KidSubscreen({
   s,
@@ -23,6 +24,8 @@ export default function KidSubscreen({
   selectedKidSettings,
   tempBabyName,
   tempWeight,
+  savingKidName,
+  savingKidWeight,
   formatAgeFromDate,
   onBack,
   onPhotoClick,
@@ -36,7 +39,16 @@ export default function KidSubscreen({
   onOpenDaySleep,
   onOpenActivityVisibility,
   onDeleteKid,
+  onBirthDateChange = null,
 }) {
+  const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
+
+  const birthDateValue = selectedKidData?.birthDate
+    ? (() => {
+        const d = new Date(selectedKidData.birthDate);
+        return Number.isNaN(d.getTime()) ? null : d.toISOString();
+      })()
+    : null;
   return (
     <>
       <View style={[s.profileHeader, { borderBottomColor: colors.cardBorder || 'transparent' }]}>
@@ -86,23 +98,60 @@ export default function KidSubscreen({
               onChange={onBabyNameChange}
               onFocus={onBabyNameFocus}
               onBlur={onBabyNameBlur}
+              trailingAction={
+                tempBabyName !== null &&
+                String(tempBabyName || '').trim() !== String(selectedKidData?.name || '').trim() ? (
+                  <Pressable
+                    onPress={onBabyNameBlur}
+                    disabled={savingKidName}
+                    style={({ pressed }) => [
+                      s.profileSaveCtaSubtle,
+                      {
+                        borderColor: colors.primaryActionBg,
+                        backgroundColor: savingKidName ? colors.subtleSurface : 'transparent',
+                        opacity: savingKidName ? 0.8 : pressed ? 0.85 : 1,
+                      },
+                    ]}
+                  >
+                    <Text style={[s.profileSaveCtaSubtleText, { color: colors.primaryActionBg }]}>
+                      {savingKidName ? 'Saving…' : 'Save'}
+                    </Text>
+                  </Pressable>
+                ) : undefined
+              }
             />
             <TTInputRow
               label="Birth date"
               type="datetime"
               icon={EditIcon}
-              rawValue={selectedKidData?.birthDate ? new Date(selectedKidData.birthDate).toISOString() : null}
+              rawValue={birthDateValue}
               placeholder={
                 selectedKidData?.birthDate
                   ? `${new Date(selectedKidData.birthDate).toLocaleDateString()} \u2022 ${formatAgeFromDate(selectedKidData.birthDate)}`
                   : 'Not set'
               }
               formatDateTime={(iso) => {
+                if (!iso) return '';
                 const d = new Date(iso);
-                const dateLabel = d.toLocaleDateString();
+                const dateLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
                 const ageLabel = formatAgeFromDate(d);
                 return ageLabel ? `${dateLabel} \u2022 ${ageLabel}` : dateLabel;
               }}
+              onOpenPicker={() => setBirthDatePickerOpen(true)}
+              onChange={(iso) => {
+                if (typeof onBirthDateChange === 'function') onBirthDateChange(iso);
+              }}
+            />
+            <DatePickerTray
+              isOpen={birthDatePickerOpen}
+              onClose={() => setBirthDatePickerOpen(false)}
+              value={birthDateValue || undefined}
+              onChange={(iso) => {
+                if (typeof onBirthDateChange === 'function') onBirthDateChange(iso);
+              }}
+              title="Birth Date"
+              minYear={new Date().getFullYear() - 6}
+              maxYear={new Date().getFullYear()}
             />
             <TTInputRow
               label="Current weight (lbs)"
@@ -113,6 +162,27 @@ export default function KidSubscreen({
               onChange={onWeightChange}
               onFocus={onWeightFocus}
               onBlur={onWeightBlur}
+              trailingAction={
+                tempWeight !== null &&
+                String(tempWeight || '').trim() !== String(selectedKidSettings?.babyWeight ?? '').toString() ? (
+                  <Pressable
+                    onPress={onWeightBlur}
+                    disabled={savingKidWeight}
+                    style={({ pressed }) => [
+                      s.profileSaveCtaSubtle,
+                      {
+                        borderColor: colors.primaryActionBg,
+                        backgroundColor: savingKidWeight ? colors.subtleSurface : 'transparent',
+                        opacity: savingKidWeight ? 0.8 : pressed ? 0.85 : 1,
+                      },
+                    ]}
+                  >
+                    <Text style={[s.profileSaveCtaSubtleText, { color: colors.primaryActionBg }]}>
+                      {savingKidWeight ? 'Saving…' : 'Save'}
+                    </Text>
+                  </Pressable>
+                ) : undefined
+              }
             />
           </View>
         </Card>

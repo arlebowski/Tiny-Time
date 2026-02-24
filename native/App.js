@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
@@ -44,7 +44,6 @@ import {
   PersonAddIcon,
   KidSelectorOnIcon,
   KidSelectorOffIcon,
-  SpinnerIcon,
 } from './src/components/icons';
 
 // Bottom nav tuning:
@@ -112,6 +111,14 @@ function AppHeader({
   }, [kids, kidData, kidId, selectedKidSnapshot]);
   const kidName = selectedKid?.name || 'Baby';
   const kidPhotoURL = selectedKid?.photoURL || null;
+  // Available width before center logo: (screenWidth/2 - 17) - 56 - 5 - 20 = screenWidth/2 - 98.
+  // Fraunces bold ~13px/char at 24px. Scale down so name + gap + chevron never collide.
+  const screenWidth = Dimensions.get('window').width;
+  const kidNameMaxWidth = screenWidth / 2 - 98;
+  const FRAUNCES_CHAR_WIDTH_RATIO = 13 / 24; // px per char at 24px
+  const kidNameFontSize = kidName.length > 0
+    ? Math.min(24, Math.max(16, Math.floor(kidNameMaxWidth / (kidName.length * FRAUNCES_CHAR_WIDTH_RATIO))))
+    : 24;
   const avatarSource = useMemo(() => kidPhotoURL ? { uri: kidPhotoURL } : null, [kidPhotoURL]);
   const kidChevronProgress = useRef(new Animated.Value(showKidMenu ? 1 : 0)).current;
 
@@ -145,12 +152,14 @@ function AppHeader({
               <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
             )}
           </View>
-          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
-            {kidName}
-          </Text>
-          <Animated.View style={{ transform: [{ rotate: kidChevronRotate }] }}>
-            <ChevronDownIcon size={20} color={colors.textTertiary} />
-          </Animated.View>
+          <View style={headerStyles.kidNameChevronRow}>
+            <Text style={[headerStyles.kidName, { color: colors.textPrimary, fontSize: kidNameFontSize, maxWidth: kidNameMaxWidth }]} numberOfLines={1} ellipsizeMode="tail">
+              {kidName}
+            </Text>
+            <Animated.View style={{ transform: [{ rotate: kidChevronRotate }] }}>
+              <ChevronDownIcon size={20} color={colors.textTertiary} />
+            </Animated.View>
+          </View>
         </Pressable>
 
         {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
@@ -219,8 +228,15 @@ const headerStyles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,               // gap-[10px]
+    gap: 8,               // gap-[10px] (avatar–name)
     minWidth: 0,           // allow text to shrink and truncate before center logo
+  },
+  kidNameChevronRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,                // tightened 50% from 10 (name–chevron only)
+    minWidth: 0,
   },
   // Web: w-[36px] h-[36px] rounded-full overflow-hidden, outer bg var(--tt-input-bg)
   avatar: {
@@ -343,7 +359,7 @@ function AppShell({
     return Math.max(0, Constants.statusBarHeight || 0);
   }, [insets.top]);
   const appBg = colors.appBg;
-  const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
+  const { user, familyId, kidId, families, setKidId, setFamilyId, signOut: authSignOut } = useAuth();
   const {
     kidData,
     familyMembers,
@@ -855,6 +871,8 @@ function AppShell({
               user={familyUser}
               kidId={kidId}
               familyId={familyId}
+              families={families}
+              setFamilyId={setFamilyId}
               kids={kids}
               onKidChange={setKidId}
               requestAddChild={headerRequestedAddChild}
@@ -1060,10 +1078,9 @@ function AuthGatedApp({
   const [activeTab, setActiveTab] = useState('tracker');
 
   if (loading) {
-    const brandColor = colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79');
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
-        <SpinnerIcon size={48} color={brandColor} />
+        <ActivityIndicator size="large" />
       </View>
     );
   }

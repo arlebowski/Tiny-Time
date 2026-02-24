@@ -67,6 +67,7 @@ function FamilySheets() {
         dayStart={ctx.dayStart}
         dayEnd={ctx.dayEnd}
         minutesToLabel={ctx.minutesToLabel}
+        onDaySleepWindowChange={ctx.handleDaySleepWindowChange}
       />
       <AppearanceHalfSheet
         sheetRef={ctx.appearanceSheetRef}
@@ -205,6 +206,8 @@ export default function FamilyStack({
   user,
   kidId,
   familyId,
+  families = [],
+  setFamilyId,
   kids,
   onKidChange,
   requestAddChild,
@@ -228,6 +231,8 @@ export default function FamilyStack({
       user={user}
       kidId={kidId}
       familyId={familyId}
+      families={families}
+      setFamilyId={setFamilyId}
       kids={kids}
       onKidChange={onKidChange}
       requestAddChild={requestAddChild}

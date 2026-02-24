@@ -199,6 +199,8 @@ export function WheelPicker({
   min = 0,
   max = 32,
   step = 0.25,
+  minYear = null,
+  maxYear = null,
   label = '',
   unit = 'oz',
   compact = false,
@@ -246,9 +248,12 @@ export function WheelPicker({
     }
     if (type === 'year') {
       const currentYear = new Date().getFullYear();
-      return Array.from({ length: 11 }, (_, i) => ({
-        display: (currentYear - 5 + i).toString(),
-        value: currentYear - 5 + i,
+      const from = minYear != null ? minYear : currentYear - 5;
+      const to = maxYear != null ? maxYear : currentYear + 5;
+      const count = Math.max(1, to - from + 1);
+      return Array.from({ length: count }, (_, i) => ({
+        display: (from + i).toString(),
+        value: from + i,
       }));
     }
     const options = [];
@@ -257,7 +262,7 @@ export function WheelPicker({
       options.push({ display: `${displayValue} ${unit}`, value: i });
     }
     return options;
-  }, [type, min, max, step, unit]);
+  }, [type, min, max, step, unit, minYear, maxYear]);
 
   const shouldLoop = type === 'hour' || type === 'minute' || type === 'month';
   const baseOptions = useMemo(() => generateOptions(), [generateOptions]);
@@ -483,6 +488,8 @@ export function DatePickerSection({
   title = 'Date',
   showHeader = true,
   contentStyle = null,
+  minYear = null,
+  maxYear = null,
 }) {
   const { colors } = useTheme();
   const initialDate = (() => {
@@ -562,6 +569,8 @@ export function DatePickerSection({
             setYear(val);
             emitChange(month, day, val);
           }}
+          minYear={minYear}
+          maxYear={maxYear}
           compact
           dateCompact
           showSelection={false}
@@ -811,15 +820,24 @@ export function TTPickerTray({
   );
 }
 
-// DatePickerTray
+// DatePickerTray — uses native date picker on iOS (date only), wheel pickers on Android
 export function DatePickerTray({
   isOpen = false,
   onClose = null,
   value,
   onChange,
   title = 'Date',
+  minYear = null,
+  maxYear = null,
 }) {
-  const { colors, sleep } = useTheme();
+  const { colors, sleep, bottle, isDark } = useTheme();
+  const nativePickerDate = useMemo(() => {
+    const parsed = value ? new Date(value) : new Date();
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, [value]);
+
+  const minimumDate = minYear != null ? new Date(minYear, 0, 1) : undefined;
+  const maximumDate = maxYear != null ? new Date(maxYear, 11, 31) : undefined;
 
   const header = (close) => (
     <View style={styles.trayHeaderGrid}>
@@ -833,10 +851,44 @@ export function DatePickerTray({
     </View>
   );
 
+  if (Platform.OS === 'ios') {
+    return (
+      <TTPickerTray
+        isOpen={isOpen}
+        onClose={onClose}
+        header={header}
+        height="44%"
+        scrollEnabled={false}
+        contentContainerStyle={styles.nativePickerContent}
+      >
+        <View style={styles.nativePickerWrap}>
+          <DateTimePicker
+            value={nativePickerDate}
+            mode="date"
+            display="spinner"
+            minimumDate={minimumDate}
+            maximumDate={maximumDate}
+            onChange={(event, selectedDate) => {
+              if (event?.type === 'dismissed') return;
+              if (!selectedDate || Number.isNaN(selectedDate.getTime())) return;
+              const d = new Date(selectedDate);
+              d.setHours(0, 0, 0, 0);
+              if (typeof onChange === 'function') onChange(d.toISOString());
+            }}
+            style={styles.nativePicker}
+            textColor={colors.textPrimary}
+            accentColor={bottle?.primary || colors.textPrimary}
+            themeVariant={isDark ? 'dark' : 'light'}
+          />
+        </View>
+      </TTPickerTray>
+    );
+  }
+
   return (
     <TTPickerTray isOpen={isOpen} onClose={onClose} header={header}>
       <View style={{ marginTop: -16 }}>
-        <DatePickerSection value={value} onChange={onChange} title={title} showHeader={false} />
+        <DatePickerSection value={value} onChange={onChange} title={title} showHeader={false} minYear={minYear} maxYear={maxYear} />
       </View>
     </TTPickerTray>
   );
@@ -1039,7 +1091,7 @@ export function DateTimePickerTray({
   );
 }
 
-// TimePickerTray
+// TimePickerTray — uses native time picker on iOS, wheel pickers on Android
 export function TimePickerTray({
   isOpen = false,
   onClose = null,
@@ -1047,7 +1099,11 @@ export function TimePickerTray({
   onChange,
   title = 'Time',
 }) {
-  const { colors, sleep } = useTheme();
+  const { colors, sleep, bottle, isDark } = useTheme();
+  const nativePickerDate = useMemo(() => {
+    const parsed = value ? new Date(value) : new Date();
+    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  }, [value]);
 
   const header = (close) => (
     <View style={styles.trayHeaderGrid}>
@@ -1060,6 +1116,36 @@ export function TimePickerTray({
       </Pressable>
     </View>
   );
+
+  if (Platform.OS === 'ios') {
+    return (
+      <TTPickerTray
+        isOpen={isOpen}
+        onClose={onClose}
+        header={header}
+        height="44%"
+        scrollEnabled={false}
+        contentContainerStyle={styles.nativePickerContent}
+      >
+        <View style={styles.nativePickerWrap}>
+          <DateTimePicker
+            value={nativePickerDate}
+            mode="time"
+            display="spinner"
+            onChange={(event, selectedDate) => {
+              if (event?.type === 'dismissed') return;
+              if (!selectedDate || Number.isNaN(selectedDate.getTime())) return;
+              if (typeof onChange === 'function') onChange(selectedDate.toISOString());
+            }}
+            style={styles.nativePicker}
+            textColor={colors.textPrimary}
+            accentColor={bottle?.primary || colors.textPrimary}
+            themeVariant={isDark ? 'dark' : 'light'}
+          />
+        </View>
+      </TTPickerTray>
+    );
+  }
 
   return (
     <TTPickerTray isOpen={isOpen} onClose={onClose} header={header}>
