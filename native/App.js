@@ -606,11 +606,11 @@ function AppShell({
       trackerNavRef.current?.dispatch(StackActions.popToTop());
       return;
     }
-    if (nextTab === activeTab && nextTab === 'trends') {
+    if (nextTab === activeTab && nextTab === 'trends' && analyticsDetailOpen) {
       analyticsNavRef.current?.dispatch(StackActions.popToTop());
       return;
     }
-    if (nextTab !== 'family' && activeTab === 'family') {
+    if (nextTab !== 'family' && activeTab === 'family' && familyDetailOpen) {
       familyNavRef.current?.dispatch(StackActions.popToTop());
     }
     if (nextTab !== activeTab) {
@@ -619,7 +619,7 @@ function AppShell({
         setAnalyticsDetailOpen(false);
       }
     }
-  }, [activeTab, isTrackerDetailOpen, onTabChange]);
+  }, [activeTab, isTrackerDetailOpen, analyticsDetailOpen, familyDetailOpen, onTabChange]);
 
   const handleGlobalShareApp = useCallback(async () => {
     const url = APP_SHARE_BASE_URL;
