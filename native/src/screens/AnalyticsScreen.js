@@ -42,7 +42,7 @@ const getLastNDaysKeys = (n) => {
   return keys;
 };
 
-export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
+export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabActive = false }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
@@ -296,7 +296,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 mutedBarColor={colors.subtleSurface || colors.subtle}
                 tertiaryText={colors.textTertiary}
                 secondaryText={colors.textSecondary}
-                isVisible={visibleCards.bottle}
+                isVisible={visibleCards.bottle && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -321,7 +321,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 secondaryText={colors.textSecondary}
                 unit="hrs"
                 title="Average nursing"
-                isVisible={visibleCards.nursing}
+                isVisible={visibleCards.nursing && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -346,7 +346,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 secondaryText={colors.textSecondary}
                 unit="foods"
                 title="Average solids"
-                isVisible={visibleCards.solids}
+                isVisible={visibleCards.solids && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -369,7 +369,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 mutedBarColor={colors.subtleSurface || colors.subtle}
                 tertiaryText={colors.textTertiary}
                 secondaryText={colors.textSecondary}
-                isVisible={visibleCards.sleep}
+                isVisible={visibleCards.sleep && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -393,7 +393,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 tertiaryText={colors.textTertiary}
                 secondaryText={colors.textSecondary}
                 title="Average diapers"
-                isVisible={visibleCards.diaper}
+                isVisible={visibleCards.diaper && isTabActive}
               />
             </HighlightCard>
           </View>

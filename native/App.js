@@ -860,6 +860,7 @@ function AppShell({
               header={trackerHeader}
               onDetailOpenChange={setAnalyticsDetailOpen}
               activityVisibility={activityVisibility}
+              isTabActive={activeTab === 'trends'}
             />
             </View>
             <View style={[appStyles.tabPane, activeTab === 'family' && appStyles.tabPaneActive]}>

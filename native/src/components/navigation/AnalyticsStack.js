@@ -20,6 +20,7 @@ function AnalyticsRoute({ navigation }) {
       <AnalyticsScreen
         onCardTap={(type) => navigation.navigate('AnalyticsDetail', { type })}
         activityVisibility={ctx.activityVisibility}
+        isTabActive={ctx.isTabActive}
       />
     </View>
   );
@@ -44,6 +45,7 @@ export default function AnalyticsStack({
   header,
   onDetailOpenChange,
   activityVisibility,
+  isTabActive = false,
 }) {
   const handleStateChange = useCallback((state) => {
     const isDetailOpen = (state?.routes?.length ?? 1) > 1;
@@ -54,7 +56,8 @@ export default function AnalyticsStack({
     topInset,
     header,
     activityVisibility,
-  }), [topInset, header, activityVisibility]);
+    isTabActive,
+  }), [topInset, header, activityVisibility, isTabActive]);
 
   return (
     <AnalyticsStackContext.Provider value={contextValue}>
