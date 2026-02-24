@@ -235,12 +235,31 @@ export default function SleepSheet({
       setPhotosExpanded(normalizedExisting.length > 0);
       return;
     }
+    // Add variant: reset form when opening. If there's an active sleep, show it; otherwise fresh state.
+    if (activeSleep?.startTime) {
+      setStartTime(new Date(activeSleep.startTime).toISOString());
+      setEndTime(null);
+      setSleepState('running');
+      setActiveSleepSessionId(activeSleep.id);
+      const normalizedStart = normalizeSleepStartMs(activeSleep.startTime);
+      setSleepElapsedMs(normalizedStart ? Math.max(0, Date.now() - normalizedStart) : 0);
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
+    } else {
+      setStartTime(null);
+      setEndTime(null);
+      setSleepState('idle');
+      setSleepElapsedMs(0);
+      setActiveSleepSessionId(null);
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
+    }
     setNotes('');
     setExistingPhotoURLs([]);
     setPhotos([]);
     setNotesExpanded(false);
     setPhotosExpanded(false);
-  }, [entry]);
+  }, [entry, activeSleep]);
 
   const handleStartTimeChange = (isoString) => {
     const clamped = clampStartIsoToNow(isoString);
