@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Pressable, Text } from 'react-native';
+import { View, Pressable, Text, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
@@ -39,9 +39,9 @@ export default function AddChildHalfSheet({
       title="Add Child"
       accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
       onClose={onClose}
-      snapPoints={['76%']}
-      initialSnapIndex={0}
-      enableDynamicSizing={false}
+      snapPoints={[]}
+      enableDynamicSizing
+      maxDynamicContentSize={Dimensions.get('window').height * 0.9}
       scrollable
       useFullWindowOverlay={false}
     >
