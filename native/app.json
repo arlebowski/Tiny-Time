@@ -35,7 +35,20 @@
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/SF-Pro-Text-Light.otf",
+            "./assets/fonts/SF-Pro-Text-Regular.otf",
+            "./assets/fonts/SF-Pro-Text-Medium.otf",
+            "./assets/fonts/SF-Pro-Text-Semibold.otf",
+            "./assets/fonts/SF-Pro-Text-Bold.otf",
+            "./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf"
+          ]
+        }
+      ]
     ],
     "extra": {
       "eas": {

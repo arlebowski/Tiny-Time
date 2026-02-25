@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image, ScrollView, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, TextInput, Image, ScrollView, Dimensions } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
@@ -2102,10 +2102,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     zIndex: 1,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-      android: { elevation: 2 },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
 
   lastText: {

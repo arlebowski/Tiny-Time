@@ -355,8 +355,7 @@ function AppShell({
   const insets = useSafeAreaInsets();
   const topInset = useMemo(() => {
     if (insets.top > 0) return insets.top;
-    if (Platform.OS === 'ios') return Math.max(20, Constants.statusBarHeight || 0);
-    return Math.max(0, Constants.statusBarHeight || 0);
+    return Math.max(20, Constants.statusBarHeight || 0);
   }, [insets.top]);
   const appBg = colors.appBg;
   const { user, familyId, kidId, families, setKidId, setFamilyId, signOut: authSignOut } = useAuth();

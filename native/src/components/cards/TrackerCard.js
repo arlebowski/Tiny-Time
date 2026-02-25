@@ -90,7 +90,13 @@ const TrackerCard = ({
               <View style={[styles.headerIconWrap, shouldRotateBottleIcon && styles.bottleIconRotate]}>{icon}</View>
             )
           ) : null}
-          <Text style={[styles.headerLabel, { color: accentColor }]}>{title}</Text>
+          <Text
+            style={[styles.headerLabel, { color: accentColor }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {title}
+          </Text>
         </View>
         {statusText ? (
           <View style={styles.headerRight}>
@@ -170,6 +176,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,                           // gap-[5px]
+    flexShrink: 1,
+    minWidth: 0,
   },
   headerIcon: {
     fontSize: 22,                     // w-[22px] h-[22px] — emoji stand-in
@@ -186,6 +194,9 @@ const styles = StyleSheet.create({
   headerLabel: {
     fontSize: 18,                     // text-[18px]
     fontFamily: FWB.semibold,                // font-semibold
+    flexShrink: 1,
+    minWidth: 0,
+    includeFontPadding: false,
   },
 
   // Web: inline-flex items-center gap-2

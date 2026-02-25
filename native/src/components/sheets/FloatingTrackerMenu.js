@@ -268,5 +268,6 @@ const styles = StyleSheet.create({
   splitLabel: {
     fontSize: 14,
     fontFamily: FWB.semibold,
+    includeFontPadding: false,
   },
 });
