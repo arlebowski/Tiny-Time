@@ -1423,6 +1423,13 @@ const TrackerTab = ({
     return _bucketIndexCeilFromMinutes(mins);
   };
 
+  const _bucketIndexFloorFromMs = (ts) => {
+    const d = new Date(ts);
+    const mins = d.getHours() * 60 + d.getMinutes();
+    const bucket = Math.floor(mins / TT_AVG_BUCKET_MINUTES);
+    return Math.min(TT_AVG_BUCKETS - 1, Math.max(0, bucket));
+  };
+
   const _avgCacheEqual = (a, b) => {
     if (!a && !b) return true;
     if (!a || !b) return false;
@@ -1765,7 +1772,7 @@ const TrackerTab = ({
     }
   }, [avgCacheKey, allFeedings, allNursingSessions, allSolidsSessions, allSleepSessions, hasLoadedOnce, trackerComparisons]);
 
-  const nowBucketIndex = (trackerComparisons?.bucketIndexCeilFromMs || _bucketIndexCeilFromMs)(Date.now());
+  const nowBucketIndex = (trackerComparisons?.bucketIndexFloorFromMs || _bucketIndexFloorFromMs)(Date.now());
   const comparisonTodayStartMs = (trackerComparisons?.startOfDayMsLocal || _startOfDayMsLocal)(Date.now());
   const comparisonTodayEndMs = comparisonTodayStartMs + 86400000;
   const feedAvgValue = avgByTimeCache?.feed?.buckets?.[nowBucketIndex];
@@ -1810,9 +1817,13 @@ const TrackerTab = ({
   const solidsComparison = isToday() && Number.isFinite(solidsAvgValue) && solidsDaysUsed > 0
     ? { delta: todaySolidsValue - solidsAvgValue, unit: 'foods', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
-  const sleepComparison = isToday() && Number.isFinite(sleepAvgValue) && sleepDaysUsed > 0
+  const sleepComparisonRaw = isToday() && Number.isFinite(sleepAvgValue) && sleepDaysUsed > 0
     ? { delta: todaySleepValue - sleepAvgValue, unit: 'hrs', evenEpsilon: TT_AVG_EVEN_EPSILON }
     : null;
+  const sleptAllDay = activeSleep?.startTime != null && activeSleep.startTime <= comparisonTodayStartMs;
+  const sleepComparison = sleepComparisonRaw?.delta < 0 && sleptAllDay
+    ? { ...sleepComparisonRaw, delta: 0 }
+    : sleepComparisonRaw;
 
   React.useEffect(() => {
     if (typeof window === 'undefined') return;

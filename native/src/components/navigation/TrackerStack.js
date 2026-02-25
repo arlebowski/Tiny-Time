@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import TrackerScreen from '../../screens/TrackerScreen';
 import DetailScreen from '../../screens/DetailScreen';
+import { useTheme } from '../../context/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -15,8 +16,9 @@ const useTrackerStack = () => useContext(TrackerStackContext);
 
 function TrackerRoute({ navigation }) {
   const ctx = useTrackerStack();
+  const { colors } = useTheme();
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, paddingTop: ctx.topInset, backgroundColor: colors.appBg }}>
       {ctx.header}
       <TrackerScreen
         entranceToken={ctx.entranceToken}
@@ -34,21 +36,25 @@ function TrackerRoute({ navigation }) {
 
 function DetailRoute({ route, navigation }) {
   const ctx = useTrackerStack();
+  const { colors } = useTheme();
   return (
-    <DetailScreen
-      initialFilter={route.params?.initialFilter || 'all'}
-      onBack={() => navigation.goBack()}
-      onOpenSheet={ctx.onOpenSheet}
-      onEditCard={ctx.onEditCard}
-      onDeleteCard={ctx.onDeleteCard}
-      timelineRefreshRef={ctx.timelineRefreshRef}
-      activityVisibility={ctx.activityVisibility}
-    />
+    <View style={{ flex: 1, paddingTop: ctx.topInset, backgroundColor: colors.appBg }}>
+      <DetailScreen
+        initialFilter={route.params?.initialFilter || 'all'}
+        onBack={() => navigation.goBack()}
+        onOpenSheet={ctx.onOpenSheet}
+        onEditCard={ctx.onEditCard}
+        onDeleteCard={ctx.onDeleteCard}
+        timelineRefreshRef={ctx.timelineRefreshRef}
+        activityVisibility={ctx.activityVisibility}
+      />
+    </View>
   );
 }
 
 export default function TrackerStack({
   navigationRef,
+  topInset,
   header,
   onOpenSheet,
   onRequestToggleActivitySheet,
@@ -61,6 +67,7 @@ export default function TrackerStack({
   entranceSeed = 0,
 }) {
   const contextValue = React.useMemo(() => ({
+    topInset,
     header,
     onOpenSheet,
     onRequestToggleActivitySheet,
@@ -71,6 +78,7 @@ export default function TrackerStack({
     timelineRefreshRef,
     entranceToken: entranceSeed,
   }), [
+    topInset,
     header,
     onOpenSheet,
     onRequestToggleActivitySheet,

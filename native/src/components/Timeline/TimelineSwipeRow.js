@@ -270,20 +270,20 @@ export default function TimelineSwipeRow({
             progress={progress}
             width={width}
             primary={false}
-            bgColor={colors.positiveAlt || '#00BE68'}
-            icon={<EditIcon size={24} color={colors.textPrimary} />}
+            bgColor={colors.positiveBg}
+            icon={<EditIcon size={24} color={colors.textOnAccent} />}
             label="Edit"
-            textColor={colors.textPrimary}
+            textColor={colors.textOnAccent}
             onPress={handleEdit}
           />
           <ActionColumn
             progress={progress}
             width={width}
             primary
-            bgColor={colors.negativeWarm || '#FF6037'}
-            icon={<DeleteIconSvg size={24} color={colors.textPrimary} />}
+            bgColor={colors.negativeBg}
+            icon={<DeleteIconSvg size={24} color={colors.textOnAccent} />}
             label="Delete"
-            textColor={colors.textPrimary}
+            textColor={colors.textOnAccent}
             onPress={handleDelete}
           />
         </Animated.View>

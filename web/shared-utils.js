@@ -279,6 +279,12 @@
       const d = new Date(ts);
       return trackerComparisons.bucketIndexCeilFromMinutes(d.getHours() * 60 + d.getMinutes());
     },
+    bucketIndexFloorFromMs: (ts) => {
+      const d = new Date(ts);
+      const mins = d.getHours() * 60 + d.getMinutes();
+      const bucket = Math.floor(mins / 15);
+      return Math.min(95, Math.max(0, bucket));
+    },
     normalizeSleepIntervalForAvg: (startMs, endMs, nowMs = Date.now()) => {
       let sMs = Number(startMs);
       let eMs = Number(endMs);

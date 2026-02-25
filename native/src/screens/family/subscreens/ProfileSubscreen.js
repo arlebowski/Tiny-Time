@@ -14,6 +14,7 @@ export default function ProfileSubscreen({
   profileEmailDraft,
   hasProfileChanges,
   savingProfile,
+  profileJustSaved,
   onBack,
   onProfilePhoto,
   onProfileNameChange,
@@ -73,6 +74,28 @@ export default function ProfileSubscreen({
             value={profileNameDraft}
             placeholder="Your name"
             onChange={onProfileNameChange}
+            trailingAction={
+              !profileJustSaved &&
+              (String(profileNameDraft || '').trim() !== String(currentUser.displayName || '').trim() ||
+                (hasProfileChanges && String(profileNameDraft || '').trim() === String(currentUser.displayName || '').trim() && String(profileEmailDraft || '').trim().toLowerCase() === String(currentUser.email || '').trim().toLowerCase())) ? (
+                <Pressable
+                  onPress={onSaveProfile}
+                  disabled={savingProfile}
+                  style={({ pressed }) => [
+                    s.profileSaveCtaSubtle,
+                    {
+                      borderColor: colors.primaryActionBg,
+                      backgroundColor: savingProfile ? colors.subtleSurface : 'transparent',
+                      opacity: savingProfile ? 0.8 : pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={[s.profileSaveCtaSubtleText, { color: colors.primaryActionBg }]}>
+                    {savingProfile ? 'Saving…' : 'Save'}
+                  </Text>
+                </Pressable>
+              ) : undefined
+            }
           />
           <TTInputRow
             label="Email"
@@ -81,25 +104,30 @@ export default function ProfileSubscreen({
             value={profileEmailDraft}
             placeholder="name@example.com"
             onChange={onProfileEmailChange}
+            trailingAction={
+              !profileJustSaved &&
+              String(profileEmailDraft || '').trim().toLowerCase() !== String(currentUser.email || '').trim().toLowerCase() ? (
+                <Pressable
+                  onPress={onSaveProfile}
+                  disabled={savingProfile}
+                  style={({ pressed }) => [
+                    s.profileSaveCtaSubtle,
+                    {
+                      borderColor: colors.primaryActionBg,
+                      backgroundColor: savingProfile ? colors.subtleSurface : 'transparent',
+                      opacity: savingProfile ? 0.8 : pressed ? 0.85 : 1,
+                    },
+                  ]}
+                >
+                  <Text style={[s.profileSaveCtaSubtleText, { color: colors.primaryActionBg }]}>
+                    {savingProfile ? 'Saving…' : 'Save'}
+                  </Text>
+                </Pressable>
+              ) : undefined
+            }
           />
         </View>
       </Card>
-
-      {hasProfileChanges ? (
-        <Pressable
-          onPress={onSaveProfile}
-          disabled={savingProfile}
-          style={({ pressed }) => [
-            s.profileSaveButton,
-            { backgroundColor: colors.primaryActionBg, opacity: savingProfile ? 0.6 : 1 },
-            pressed && !savingProfile && { opacity: 0.8 },
-          ]}
-        >
-          <Text style={[s.accountBtnText, { color: colors.primaryActionText }]}>
-            {savingProfile ? 'Saving...' : 'Save Changes'}
-          </Text>
-        </Pressable>
-      ) : null}
 
       <Text style={[s.profileSectionLabel, s.profileAccountLabel, { color: colors.textTertiary }]}>ACCOUNT</Text>
 

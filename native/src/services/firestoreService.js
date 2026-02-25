@@ -573,8 +573,10 @@ const firestoreService = {
     const doc = await withTimeout(ref.get(), FIRESTORE_QUERY_TIMEOUT_MS, 'startSleep:get');
     const item = { id: doc.id, ...doc.data() };
     if (this._cache.sleepSessions) {
-      this._cache.sleepSessions = sortAsc([...this._cache.sleepSessions, item], 'startTime');
-      await this._saveCache(['sleepSessions']);
+      if (!this._cache.sleepSessions.some((s) => s?.id === item?.id)) {
+        this._cache.sleepSessions = sortAsc([...this._cache.sleepSessions, item], 'startTime');
+        await this._saveCache(['sleepSessions']);
+      }
     }
     debugLog('startSleep:done', { ms: Date.now() - start, id: item?.id || null });
     return item;
@@ -655,8 +657,10 @@ const firestoreService = {
     const ref = await this._kidRef().collection(COLLECTIONS.sleepSessions).add(data);
     const item = { id: ref.id, ...data };
     if (this._cache.sleepSessions) {
-      this._cache.sleepSessions = sortAsc([...this._cache.sleepSessions, item], 'startTime');
-      await this._saveCache(['sleepSessions']);
+      if (!this._cache.sleepSessions.some((s) => s?.id === item?.id)) {
+        this._cache.sleepSessions = sortAsc([...this._cache.sleepSessions, item], 'startTime');
+        await this._saveCache(['sleepSessions']);
+      }
     }
     return item;
   },

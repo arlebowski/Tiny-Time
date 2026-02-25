@@ -12,7 +12,6 @@ export default function FamilyHubScreen() {
 
   return (
     <View style={{ flex: 1 }}>
-      {ctx.header}
       <ScrollView
         style={{ flex: 1, backgroundColor: colors.appBg }}
         contentContainerStyle={{ paddingHorizontal: 16 }}
@@ -28,6 +27,9 @@ export default function FamilyHubScreen() {
           currentUser={ctx.currentUser}
           familyInfo={ctx.familyInfo}
           members={ctx.members}
+          families={ctx.families}
+          familyId={ctx.familyId}
+          setFamilyId={ctx.setFamilyId}
           showDevSetupToggle={ctx.showDevSetupToggle}
           forceSetupPreview={ctx.forceSetupPreview}
           forceLoginPreview={ctx.forceLoginPreview}

@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ScrollView, Text, View, StyleSheet } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { InteractionManager, ScrollView, Text, View, StyleSheet } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import {
   BottleIcon,
@@ -42,8 +42,10 @@ const getLastNDaysKeys = (n) => {
   return keys;
 };
 
-export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
+export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabActive = false }) {
   const { colors, bottle, nursing, solids, sleep, diaper } = useTheme();
+  const scrollRef = useRef(null);
+  const prevTabActiveRef = useRef(isTabActive);
   const [scrollY, setScrollY] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const [cardLayouts, setCardLayouts] = useState({});
@@ -232,6 +234,15 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
   }, []);
 
   useEffect(() => {
+    if (isTabActive && !prevTabActiveRef.current) {
+      InteractionManager.runAfterInteractions(() => {
+        scrollRef.current?.scrollTo({ y: 0, animated: false });
+      });
+    }
+    prevTabActiveRef.current = isTabActive;
+  }, [isTabActive]);
+
+  useEffect(() => {
     if (!viewportHeight) return;
     setVisibleCards((prev) => {
       let changed = false;
@@ -257,6 +268,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
 
   return (
     <ScrollView
+      ref={scrollRef}
       style={[styles.container, { backgroundColor: colors.appBg }]}
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
@@ -296,7 +308,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 mutedBarColor={colors.subtleSurface || colors.subtle}
                 tertiaryText={colors.textTertiary}
                 secondaryText={colors.textSecondary}
-                isVisible={visibleCards.bottle}
+                isVisible={visibleCards.bottle && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -321,7 +333,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 secondaryText={colors.textSecondary}
                 unit="hrs"
                 title="Average nursing"
-                isVisible={visibleCards.nursing}
+                isVisible={visibleCards.nursing && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -346,7 +358,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 secondaryText={colors.textSecondary}
                 unit="foods"
                 title="Average solids"
-                isVisible={visibleCards.solids}
+                isVisible={visibleCards.solids && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -369,7 +381,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 mutedBarColor={colors.subtleSurface || colors.subtle}
                 tertiaryText={colors.textTertiary}
                 secondaryText={colors.textSecondary}
-                isVisible={visibleCards.sleep}
+                isVisible={visibleCards.sleep && isTabActive}
               />
             </HighlightCard>
           </View>
@@ -393,7 +405,7 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility }) {
                 tertiaryText={colors.textTertiary}
                 secondaryText={colors.textSecondary}
                 title="Average diapers"
-                isVisible={visibleCards.diaper}
+                isVisible={visibleCards.diaper && isTabActive}
               />
             </HighlightCard>
           </View>

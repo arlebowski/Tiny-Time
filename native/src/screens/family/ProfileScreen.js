@@ -28,6 +28,7 @@ export default function ProfileScreen() {
         profileEmailDraft={ctx.profileEmailDraft}
         hasProfileChanges={ctx.hasProfileChanges}
         savingProfile={ctx.savingProfile}
+        profileJustSaved={ctx.profileJustSaved}
         onBack={() => navigation.goBack()}
         onProfilePhoto={ctx.handleProfilePhotoClick}
         onProfileNameChange={ctx.setProfileNameDraft}

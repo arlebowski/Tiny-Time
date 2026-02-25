@@ -3,6 +3,7 @@
  * replacing all mock data sources.
  */
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import firestoreService from '../services/firestoreService';
 import { useAuth } from './AuthContext';
@@ -687,6 +688,20 @@ export function DataProvider({ children }) {
     }
   }, [familyId, kidId, usingMockData]);
 
+  // Refresh data when app returns to foreground so stale sleep timers
+  // and other logs are caught up after the listeners were paused in background.
+  useEffect(() => {
+    if (usingMockData || !familyId || !kidId) return;
+    const appStateRef = { current: AppState.currentState };
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (appStateRef.current !== 'active' && nextState === 'active') {
+        refresh();
+      }
+      appStateRef.current = nextState;
+    });
+    return () => sub.remove();
+  }, [usingMockData, familyId, kidId, refresh]);
+
   const updateKidSettings = useCallback(async (settings) => {
     const nextSettings = (settings && typeof settings === 'object') ? settings : {};
     setKidSettings((prev) => ({ ...(prev || {}), ...nextSettings }));
@@ -973,7 +988,7 @@ export function DataProvider({ children }) {
     return Number.isFinite(oz) && oz > 0 ? oz : null;
   }, [feedings]);
 
-  const value = {
+  const value = useMemo(() => ({
     feedings,
     nursingSessions,
     solidsSessions,
@@ -994,7 +1009,27 @@ export function DataProvider({ children }) {
     getTimelineItems,
     getDaySummary,
     firestoreService,
-  };
+  }), [
+    feedings,
+    nursingSessions,
+    solidsSessions,
+    sleepSessions,
+    diaperChanges,
+    activeSleep,
+    kidData,
+    kids,
+    kidSettings,
+    familyMembers,
+    dataLoading,
+    trackerBootstrapReady,
+    trackerSnapshot,
+    lastBottleAmountOz,
+    refresh,
+    applyOptimisticEntry,
+    updateKidSettings,
+    getTimelineItems,
+    getDaySummary,
+  ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }

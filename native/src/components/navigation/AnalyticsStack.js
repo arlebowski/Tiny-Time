@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AnalyticsScreen from '../../screens/AnalyticsScreen';
 import AnalyticsDetailScreen from '../../screens/AnalyticsDetailScreen';
+import { useTheme } from '../../context/ThemeContext';
 
 const Stack = createNativeStackNavigator();
 
@@ -12,31 +13,39 @@ const useAnalyticsStack = () => useContext(AnalyticsStackContext);
 
 function AnalyticsRoute({ navigation }) {
   const ctx = useAnalyticsStack();
+  const { colors } = useTheme();
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, paddingTop: ctx.topInset, backgroundColor: colors.appBg }}>
       {ctx.header}
       <AnalyticsScreen
         onCardTap={(type) => navigation.navigate('AnalyticsDetail', { type })}
         activityVisibility={ctx.activityVisibility}
+        isTabActive={ctx.isTabActive}
       />
     </View>
   );
 }
 
 function DetailRoute({ route, navigation }) {
+  const ctx = useAnalyticsStack();
+  const { colors } = useTheme();
   return (
-    <AnalyticsDetailScreen
-      type={route.params?.type || 'bottle'}
-      onBack={() => navigation.goBack()}
-    />
+    <View style={{ flex: 1, paddingTop: ctx.topInset, backgroundColor: colors.appBg }}>
+      <AnalyticsDetailScreen
+        type={route.params?.type || 'bottle'}
+        onBack={() => navigation.goBack()}
+      />
+    </View>
   );
 }
 
 export default function AnalyticsStack({
   navigationRef,
+  topInset,
+  header,
   onDetailOpenChange,
   activityVisibility,
-  header,
+  isTabActive = false,
 }) {
   const handleStateChange = useCallback((state) => {
     const isDetailOpen = (state?.routes?.length ?? 1) > 1;
@@ -44,9 +53,11 @@ export default function AnalyticsStack({
   }, [onDetailOpenChange]);
 
   const contextValue = useMemo(() => ({
+    topInset,
     header,
     activityVisibility,
-  }), [header, activityVisibility]);
+    isTabActive,
+  }), [topInset, header, activityVisibility, isTabActive]);
 
   return (
     <AnalyticsStackContext.Provider value={contextValue}>

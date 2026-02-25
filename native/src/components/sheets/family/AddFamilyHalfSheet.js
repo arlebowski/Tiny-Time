@@ -1,8 +1,10 @@
-import React from 'react';
-import { View, Pressable, Text } from 'react-native';
+import React, { useState } from 'react';
+import { View, Pressable, Text, Dimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import TTPhotoRow from '../../shared/TTPhotoRow';
+import { DatePickerTray } from '../../shared/Wheelpickers';
 
 export default function AddFamilyHalfSheet({
   sheetRef,
@@ -25,31 +27,26 @@ export default function AddFamilyHalfSheet({
   onAddPhoto,
   onRemovePhoto,
 }) {
+  const insets = useSafeAreaInsets();
+  const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
+  const ctaDisabled = savingFamily || authLoading;
+
+  const birthDateValue = (() => {
+    if (!newFamilyBirthDate?.trim()) return null;
+    const d = new Date(newFamilyBirthDate.trim());
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  })();
   return (
     <HalfSheet
       sheetRef={sheetRef}
       title="Add Family"
       accentColor={activeTheme?.bottle?.primary || colors.primaryBrand}
       onClose={onClose}
-      snapPoints={['76%']}
-      initialSnapIndex={0}
-      enableDynamicSizing={false}
+      snapPoints={[]}
+      enableDynamicSizing
+      maxDynamicContentSize={Dimensions.get('window').height * 0.9}
       scrollable
       useFullWindowOverlay={false}
-      footer={(
-        <View style={s.addChildFooter}>
-          <Pressable
-            onPress={onCreate}
-            disabled={savingFamily || authLoading}
-            style={({ pressed }) => [
-              s.addChildSubmit,
-              { backgroundColor: colors.primaryActionBg, opacity: (savingFamily || authLoading) ? 0.5 : (pressed ? 0.85 : 1) },
-            ]}
-          >
-            <Text style={[s.addChildSubmitText, { color: colors.primaryActionText }]}>{savingFamily ? 'Saving...' : 'Add Family'}</Text>
-          </Pressable>
-        </View>
-      )}
     >
       <View style={s.addChildSectionSpacer}>
         <TTInputRow insideBottomSheet label="Family Name" type="text" value={newFamilyName} onChange={onFamilyNameChange} placeholder="Our Family" showIcon={false} showChevron={false} enableTapAnimation showLabel />
@@ -58,8 +55,35 @@ export default function AddFamilyHalfSheet({
         <TTInputRow insideBottomSheet label="Child's Name" type="text" value={newFamilyBabyName} onChange={onBabyNameChange} placeholder="Emma" showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>
       <View style={s.addChildSectionSpacer}>
-        <TTInputRow insideBottomSheet label="Birth date" type="text" value={newFamilyBirthDate} onChange={onBirthDateChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
+        <TTInputRow
+          insideBottomSheet
+          label="Birth date"
+          type="datetime"
+          rawValue={birthDateValue}
+          value={newFamilyBirthDate}
+          onChange={(iso) => onBirthDateChange(iso || '')}
+          placeholder="Tap to select"
+          showIcon={false}
+          showChevron={false}
+          enableTapAnimation
+          showLabel
+          formatDateTime={(iso) => {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+          }}
+          onOpenPicker={() => setBirthDatePickerOpen(true)}
+        />
       </View>
+      <DatePickerTray
+        isOpen={birthDatePickerOpen}
+        onClose={() => setBirthDatePickerOpen(false)}
+        value={birthDateValue || undefined}
+        onChange={(iso) => onBirthDateChange(iso || '')}
+        title="Birth Date"
+        minYear={new Date().getFullYear() - 6}
+        maxYear={new Date().getFullYear()}
+      />
       <View style={s.addChildSectionSpacer}>
         <TTInputRow insideBottomSheet label="Current weight (lbs)" type="text" value={newFamilyWeight} onChange={onWeightChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
       </View>
@@ -74,7 +98,26 @@ export default function AddFamilyHalfSheet({
         onPreviewPhoto={() => {}}
         containerStyle={s.addChildPhotoSection}
       />
-      <View style={s.addChildPhotoToCtaSpacer} />
+      <View style={[s.inlineCtaWrap, { paddingBottom: (insets?.bottom || 0) + 12 }]}>
+        <Pressable
+          onPress={onCreate}
+          disabled={ctaDisabled}
+          style={({ pressed }) => [
+            s.addChildSubmit,
+            {
+              backgroundColor: ctaDisabled
+                ? (activeTheme?.bottle?.dark || colors.primaryActionBg)
+                : (activeTheme?.bottle?.primary || colors.primaryBrand),
+              opacity: ctaDisabled ? 0.7 : 1,
+            },
+            pressed && !ctaDisabled && { opacity: 0.9 },
+          ]}
+        >
+          <Text style={[s.addChildSubmitText, !activeTheme?.bottle && { color: colors.primaryActionText }]}>
+            {savingFamily ? 'Saving...' : 'Add Family'}
+          </Text>
+        </Pressable>
+      </View>
     </HalfSheet>
   );
 }

@@ -11,6 +11,9 @@ export default function FamilyHubSubscreen({
   currentUser,
   familyInfo,
   members,
+  families = [],
+  familyId,
+  setFamilyId,
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
@@ -113,40 +116,72 @@ export default function FamilyHubSubscreen({
         <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Families</Text>
       </View>
 
-      <Card onPress={onOpenFamily} style={{ borderRadius: cardRadius }}>
-        <View style={s.appearanceEntryRow}>
-          <View style={s.appearanceEntryLeft}>
-            <View style={s.appearanceEntryIcon}>
-              <FamilyIcon size={24} color={colors.textPrimary} />
-            </View>
-            <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>{String(familyInfo?.name || '').trim() || 'Family'}</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
-                {`${members.length} ${members.length === 1 ? 'person' : 'people'} with access`}
-              </Text>
-            </View>
-          </View>
-          <View style={s.appearanceEntryRight}>
-            <View style={s.familyAvatarStack}>
-              {members.slice(0, 4).map((member, index) => (
-                <View
-                  key={`fam-preview-${member.uid}`}
-                  style={[
-                    s.familyAvatarBubble,
-                    index === 0 && s.familyAvatarBubbleFirst,
-                    { backgroundColor: colors.inputBg, borderColor: colors.cardBg },
-                  ]}
-                >
-                  <Text style={[s.familyAvatarBubbleText, { color: colors.textPrimary }]}>
-                    {(member.displayName || member.email || '?').charAt(0).toUpperCase()}
-                  </Text>
+      {families.length > 0 ? (
+        families.map((fam, index) => {
+          const isCurrent = fam.familyId === familyId;
+          const displayName = String(fam.name || '').trim() || 'Family';
+          return (
+            <Card
+              key={fam.familyId}
+              style={[index > 0 && s.cardGap, { borderRadius: cardRadius }]}
+              onPress={isCurrent
+                ? () => onOpenFamily?.()
+                : async () => { if (typeof setFamilyId === 'function') await setFamilyId(fam.familyId); }
+              }
+            >
+              <View style={s.appearanceEntryRow}>
+                <View style={s.appearanceEntryLeft}>
+                  <View style={s.appearanceEntryIcon}>
+                    <FamilyIcon size={24} color={colors.textPrimary} />
+                  </View>
+                  <View>
+                    <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>{displayName}</Text>
+                    <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                      {isCurrent
+                        ? `${members.length} ${members.length === 1 ? 'person' : 'people'} with access`
+                        : 'Tap to switch'}
+                    </Text>
+                  </View>
                 </View>
-              ))}
+                <View style={s.appearanceEntryRight}>
+                  {isCurrent ? (
+                    <>
+                      <View style={s.hubKidActiveBadge}>
+                        <Text style={s.hubKidActiveBadgeText}>Active</Text>
+                      </View>
+                      <ChevronRightIcon size={20} color={colors.textTertiary} />
+                    </>
+                  ) : (
+                    <View style={{ width: 20, height: 20, borderRadius: 10, borderWidth: 1.5, borderColor: colors.textTertiary }} />
+                  )}
+                </View>
+              </View>
+            </Card>
+          );
+        })
+      ) : (
+        <Card onPress={onOpenFamily} style={{ borderRadius: cardRadius }}>
+          <View style={s.appearanceEntryRow}>
+            <View style={s.appearanceEntryLeft}>
+              <View style={s.appearanceEntryIcon}>
+                <FamilyIcon size={24} color={colors.textPrimary} />
+              </View>
+              <View>
+                <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>{String(familyInfo?.name || '').trim() || 'Family'}</Text>
+                <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                  {`${members.length} ${members.length === 1 ? 'person' : 'people'} with access`}
+                </Text>
+              </View>
             </View>
-            <ChevronRightIcon size={20} color={colors.textTertiary} />
+            <View style={s.appearanceEntryRight}>
+              <View style={s.hubKidActiveBadge}>
+                <Text style={s.hubKidActiveBadgeText}>Active</Text>
+              </View>
+              <ChevronRightIcon size={20} color={colors.textTertiary} />
+            </View>
           </View>
-        </View>
-      </Card>
+        </Card>
+      )}
 
       <Card style={[s.cardGap, { borderRadius: cardRadius }]} onPress={onOpenAddFamily}>
         <View style={s.appearanceEntryRow}>

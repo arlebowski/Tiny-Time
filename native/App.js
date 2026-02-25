@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
@@ -12,10 +12,6 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
-
-LogBox.ignoreLogs([
-  'This method is deprecated (as well as all React Native Firebase namespaced API)',
-]);
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -48,7 +44,6 @@ import {
   PersonAddIcon,
   KidSelectorOnIcon,
   KidSelectorOffIcon,
-  SpinnerIcon,
 } from './src/components/icons';
 
 // Bottom nav tuning:
@@ -116,6 +111,15 @@ function AppHeader({
   }, [kids, kidData, kidId, selectedKidSnapshot]);
   const kidName = selectedKid?.name || 'Baby';
   const kidPhotoURL = selectedKid?.photoURL || null;
+  // Available width before center logo: (screenWidth/2 - 17) - 56 - 5 - 20 = screenWidth/2 - 98.
+  // Fraunces bold ~13px/char at 24px. Scale down so name + gap + chevron never collide.
+  const screenWidth = Dimensions.get('window').width;
+  const kidNameMaxWidth = screenWidth / 2 - 98;
+  const FRAUNCES_CHAR_WIDTH_RATIO = 13 / 24; // px per char at 24px
+  const kidNameFontSize = kidName.length > 0
+    ? Math.min(24, Math.max(16, Math.floor(kidNameMaxWidth / (kidName.length * FRAUNCES_CHAR_WIDTH_RATIO))))
+    : 24;
+  const avatarSource = useMemo(() => kidPhotoURL ? { uri: kidPhotoURL } : null, [kidPhotoURL]);
   const kidChevronProgress = useRef(new Animated.Value(showKidMenu ? 1 : 0)).current;
 
   useEffect(() => {
@@ -142,18 +146,20 @@ function AppHeader({
           style={headerStyles.kidPicker}
         >
           <View style={[headerStyles.avatar, { backgroundColor: colors.inputBg }]}>
-            {kidPhotoURL ? (
-              <Image source={{ uri: kidPhotoURL }} style={headerStyles.avatarInner} />
+            {avatarSource ? (
+              <Image source={avatarSource} style={headerStyles.avatarInner} />
             ) : (
               <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
             )}
           </View>
-          <Text style={[headerStyles.kidName, { color: colors.textPrimary }]} numberOfLines={1} ellipsizeMode="tail">
-            {kidName}
-          </Text>
-          <Animated.View style={{ transform: [{ rotate: kidChevronRotate }] }}>
-            <ChevronDownIcon size={20} color={colors.textTertiary} />
-          </Animated.View>
+          <View style={headerStyles.kidNameChevronRow}>
+            <Text style={[headerStyles.kidName, { color: colors.textPrimary, fontSize: kidNameFontSize, maxWidth: kidNameMaxWidth }]} numberOfLines={1} ellipsizeMode="tail">
+              {kidName}
+            </Text>
+            <Animated.View style={{ transform: [{ rotate: kidChevronRotate }] }}>
+              <ChevronDownIcon size={20} color={colors.textTertiary} />
+            </Animated.View>
+          </View>
         </Pressable>
 
         {/* RIGHT: Share + Home/Family (web lines 4102-4147) */}
@@ -222,8 +228,15 @@ const headerStyles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,               // gap-[10px]
+    gap: 8,               // gap-[10px] (avatar–name)
     minWidth: 0,           // allow text to shrink and truncate before center logo
+  },
+  kidNameChevronRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,                // tightened 50% from 10 (name–chevron only)
+    minWidth: 0,
   },
   // Web: w-[36px] h-[36px] rounded-full overflow-hidden, outer bg var(--tt-input-bg)
   avatar: {
@@ -277,11 +290,10 @@ const headerStyles = StyleSheet.create({
   shareMenu: {
     width: 224,            // w-56
     borderRadius: 16,      // rounded-2xl
-    borderWidth: 1,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
     shadowRadius: 16,
     elevation: 10,
   },
@@ -347,7 +359,7 @@ function AppShell({
     return Math.max(0, Constants.statusBarHeight || 0);
   }, [insets.top]);
   const appBg = colors.appBg;
-  const { user, familyId, kidId, setKidId, signOut: authSignOut } = useAuth();
+  const { user, familyId, kidId, families, setKidId, setFamilyId, signOut: authSignOut } = useAuth();
   const {
     kidData,
     familyMembers,
@@ -361,6 +373,15 @@ function AppShell({
     updateKidSettings,
   } = useData();
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
+
+  // Keep avatar decoded in GPU memory so hidden-tab headers don't flash on first reveal
+  const avatarPreloadUri = useMemo(() => {
+    if (Array.isArray(kids) && kids.length && kidId) {
+      const kid = kids.find((k) => k?.id === kidId);
+      if (kid?.photoURL) return kid.photoURL;
+    }
+    return kidData?.photoURL || null;
+  }, [kids, kidId, kidData?.photoURL]);
 
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
 
@@ -378,6 +399,7 @@ function AppShell({
   const timelineRefreshRef = useRef(null);
   const [isTrackerDetailOpen, setIsTrackerDetailOpen] = useState(false);
   const [analyticsDetailOpen, setAnalyticsDetailOpen] = useState(false);
+  const [familyDetailOpen, setFamilyDetailOpen] = useState(false);
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [shareAnchor, setShareAnchor] = useState(null);
   const shareButtonRef = useRef(null);
@@ -584,9 +606,12 @@ function AppShell({
       trackerNavRef.current?.dispatch(StackActions.popToTop());
       return;
     }
-    if (nextTab === activeTab && nextTab === 'trends') {
+    if (nextTab === activeTab && nextTab === 'trends' && analyticsDetailOpen) {
       analyticsNavRef.current?.dispatch(StackActions.popToTop());
       return;
+    }
+    if (nextTab !== 'family' && activeTab === 'family' && familyDetailOpen) {
+      familyNavRef.current?.dispatch(StackActions.popToTop());
     }
     if (nextTab !== activeTab) {
       onTabChange(nextTab);
@@ -594,7 +619,7 @@ function AppShell({
         setAnalyticsDetailOpen(false);
       }
     }
-  }, [activeTab, isTrackerDetailOpen, onTabChange]);
+  }, [activeTab, isTrackerDetailOpen, analyticsDetailOpen, familyDetailOpen, onTabChange]);
 
   const handleGlobalShareApp = useCallback(async () => {
     const url = APP_SHARE_BASE_URL;
@@ -717,13 +742,13 @@ function AppShell({
     setShowShareMenu(false);
     setShareAnchor(null);
 
-    const node = kidButtonRef.current;
+    // Use share button as canonical so both dropdowns align at same top
+    const node = shareButtonRef.current;
     const POPOVER_WIDTH = 224;
     const PADDING = 16;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
         const headerBottom = y + height;
-        // Left edge touches left internal padding; same y as share menu
         setKidAnchor({
           x: PADDING,
           y: headerBottom - height,
@@ -764,73 +789,91 @@ function AppShell({
     }
   }, []);
 
-  const trackerHeader = (
+  const handleFamilyPress = useCallback(() => handleTabChange('family'), [handleTabChange]);
+  const handleCloseShareMenu = useCallback(() => {
+    setShowShareMenu(false);
+    setShareAnchor(null);
+  }, []);
+  const handleCloseKidMenu = useCallback(() => {
+    setShowKidMenu(false);
+    setKidAnchor(null);
+  }, []);
+
+  const trackerHeader = useMemo(() => (
     <AppHeader
-      onFamilyPress={() => handleTabChange('family')}
+      onFamilyPress={handleFamilyPress}
       activeTab={activeTab}
       showKidMenu={showKidMenu}
       onToggleKidMenu={handleToggleKidMenu}
       kidButtonRef={kidButtonRef}
       showShareMenu={showShareMenu}
       onToggleShareMenu={handleToggleShareMenu}
-      onCloseShareMenu={() => {
-        setShowShareMenu(false);
-        setShareAnchor(null);
-      }}
-      onCloseKidMenu={() => {
-        setShowKidMenu(false);
-        setKidAnchor(null);
-      }}
+      onCloseShareMenu={handleCloseShareMenu}
+      onCloseKidMenu={handleCloseKidMenu}
       shareButtonRef={shareButtonRef}
     />
-  );
-
-  const showGlobalHeader =
-    activeTab !== 'tracker'
-    && activeTab !== 'family'
-    && activeTab !== 'trends';
+  ), [
+    handleFamilyPress, activeTab, showKidMenu, handleToggleKidMenu,
+    kidButtonRef, showShareMenu, handleToggleShareMenu,
+    handleCloseShareMenu, handleCloseKidMenu, shareButtonRef,
+  ]);
 
   return (
     <>
       <SafeAreaView
-        style={[appStyles.safe, { backgroundColor: appBg, paddingTop: topInset }]}
+        style={[appStyles.safe, { backgroundColor: appBg }]}
         edges={['left', 'right']}
       >
-        {showGlobalHeader ? trackerHeader : null}
         <View style={appStyles.content}>
-          {activeTab === 'tracker' && trackerUiReady ? (
-            <TrackerStack
-              navigationRef={trackerNavRef}
-              header={trackerHeader}
-              onOpenSheet={handleTrackerSelect}
-              onRequestToggleActivitySheet={handleToggleActivitySheet}
-              activityVisibility={activityVisibility}
-              activityOrder={activityOrder}
-              onEditCard={handleEditCard}
-              onDeleteCard={handleDeleteCard}
-              timelineRefreshRef={timelineRefreshRef}
-              onDetailOpenChange={handleTrackerDetailOpenChange}
-              entranceSeed={trackerEntranceSeed}
-            />
+          {/* Preload avatar so it stays decoded — prevents flash when hidden tabs first appear */}
+          {avatarPreloadUri ? (
+            <View style={preloadStyles.hidden} pointerEvents="none">
+              <Image source={{ uri: avatarPreloadUri }} style={preloadStyles.img} />
+            </View>
           ) : null}
-          {activeTab === 'tracker' && !trackerUiReady ? (
-            <View style={{ flex: 1, backgroundColor: appBg }} />
-          ) : null}
-          {activeTab === 'trends' && (
+          {/* Stack all tabs so headers (and avatar) stay mounted and preloaded — prevents flash on first tab switch */}
+          <View style={appStyles.tabStack}>
+            <View style={[appStyles.tabPane, activeTab === 'tracker' && appStyles.tabPaneActive]}>
+            {trackerUiReady ? (
+              <TrackerStack
+                navigationRef={trackerNavRef}
+                topInset={topInset}
+                header={trackerHeader}
+                onOpenSheet={handleTrackerSelect}
+                onRequestToggleActivitySheet={handleToggleActivitySheet}
+                activityVisibility={activityVisibility}
+                activityOrder={activityOrder}
+                onEditCard={handleEditCard}
+                onDeleteCard={handleDeleteCard}
+                timelineRefreshRef={timelineRefreshRef}
+                onDetailOpenChange={handleTrackerDetailOpenChange}
+                entranceSeed={trackerEntranceSeed}
+              />
+            ) : (
+              <View style={{ flex: 1, backgroundColor: appBg }} />
+            )}
+            </View>
+            <View style={[appStyles.tabPane, activeTab === 'trends' && appStyles.tabPaneActive]}>
             <AnalyticsStack
               navigationRef={analyticsNavRef}
+              topInset={topInset}
+              header={trackerHeader}
               onDetailOpenChange={setAnalyticsDetailOpen}
               activityVisibility={activityVisibility}
-              header={trackerHeader}
+              isTabActive={activeTab === 'trends'}
             />
-          )}
-          {activeTab === 'family' && (
+            </View>
+            <View style={[appStyles.tabPane, activeTab === 'family' && appStyles.tabPaneActive]}>
             <FamilyStack
               navigationRef={familyNavRef}
+              topInset={topInset}
               header={trackerHeader}
+              onDetailOpenChange={setFamilyDetailOpen}
               user={familyUser}
               kidId={kidId}
               familyId={familyId}
+              families={families}
+              setFamilyId={setFamilyId}
               kids={kids}
               onKidChange={setKidId}
               requestAddChild={headerRequestedAddChild}
@@ -848,7 +891,8 @@ function AppShell({
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
             />
-          )}
+            </View>
+          </View>
 
           {/* Gradient fade above nav (web script.js:4352-4366) */}
           <LinearGradient
@@ -873,10 +917,7 @@ function AppShell({
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
-          {
-            backgroundColor: colors.cardBg,
-            borderColor: colors.cardBorder,
-          },
+          { backgroundColor: colors.cardBg },
         ]}
         backgroundStyle={{ backgroundColor: 'transparent' }}
       >
@@ -934,10 +975,7 @@ function AppShell({
         arrowSize={{ width: 0, height: 0 }}
         popoverStyle={[
           headerStyles.shareMenu,
-          {
-            backgroundColor: colors.cardBg,
-            borderColor: colors.cardBorder,
-          },
+          { backgroundColor: colors.cardBg },
         ]}
         backgroundStyle={{ backgroundColor: 'transparent' }}
       >
@@ -1041,10 +1079,9 @@ function AuthGatedApp({
   const [activeTab, setActiveTab] = useState('tracker');
 
   if (loading) {
-    const brandColor = colors.brandIcon ?? (isDark ? '#FF99AA' : '#FF4D79');
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
-        <SpinnerIcon size={48} color={brandColor} />
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -1253,6 +1290,12 @@ export default function App() {
 
   const ready = fontsLoaded && appearanceHydrated;
 
+  // Sync native UI (RefreshControl, alerts, etc.) to app's dark mode
+  useEffect(() => {
+    if (!ready) return;
+    Appearance.setColorScheme(isDark ? 'dark' : 'light');
+  }, [isDark, ready]);
+
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
       {ready ? (
@@ -1306,6 +1349,21 @@ const appStyles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  tabStack: {
+    flex: 1,
+    position: 'relative',
+  },
+  tabPane: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0,
+    zIndex: 0,
+    pointerEvents: 'none',
+  },
+  tabPaneActive: {
+    opacity: 1,
+    zIndex: 1,
+    pointerEvents: 'auto',
+  },
   // Visual fade above the nav; thickness is controlled by NAV_FADE_HEIGHT.
   fadeGradient: {
     position: 'absolute',
@@ -1313,6 +1371,7 @@ const appStyles = StyleSheet.create({
     left: 0,
     right: 0,
     height: NAV_FADE_HEIGHT,
+    zIndex: 2,
   },
   launchSplash: {
     ...StyleSheet.absoluteFillObject,

@@ -1,11 +1,32 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text } from 'react-native';
 import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import { EditIcon } from '../../icons';
+import { TimePickerTray } from '../../shared/Wheelpickers';
 import { THEME_TOKENS } from '../../../../../shared/config/theme';
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
+
+function minutesToIso(mins) {
+  const m = ((Number(mins) % 1440) + 1440) % 1440;
+  const h = Math.floor(m / 60);
+  const min = m % 60;
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setHours(h, min, 0, 0);
+  return d.toISOString();
+}
+
+function isoToMinutes(iso) {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    return d.getHours() * 60 + d.getMinutes();
+  } catch {
+    return null;
+  }
+}
 
 export default function DaySleepWindowHalfSheet({
   sheetRef,
@@ -15,7 +36,13 @@ export default function DaySleepWindowHalfSheet({
   dayStart,
   dayEnd,
   minutesToLabel,
+  onDaySleepWindowChange = null,
 }) {
+  const [startPickerOpen, setStartPickerOpen] = useState(false);
+  const [endPickerOpen, setEndPickerOpen] = useState(false);
+
+  const startValueIso = minutesToIso(dayStart);
+  const endValueIso = minutesToIso(dayEnd);
   return (
     <HalfSheet
       sheetRef={sheetRef}
@@ -33,9 +60,24 @@ export default function DaySleepWindowHalfSheet({
             label="Start"
             type="datetime"
             icon={EditIcon}
-            rawValue={null}
+            rawValue={startValueIso}
             placeholder={minutesToLabel(dayStart)}
-            formatDateTime={() => minutesToLabel(dayStart)}
+            formatDateTime={(iso) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : minutesToLabel(dayStart))}
+            onOpenPicker={() => setStartPickerOpen(true)}
+            onChange={(iso) => {
+              const mins = isoToMinutes(iso);
+              if (mins != null && typeof onDaySleepWindowChange === 'function') onDaySleepWindowChange(mins, dayEnd);
+            }}
+          />
+          <TimePickerTray
+            isOpen={startPickerOpen}
+            onClose={() => setStartPickerOpen(false)}
+            value={startValueIso}
+            onChange={(iso) => {
+              const mins = isoToMinutes(iso);
+              if (mins != null && typeof onDaySleepWindowChange === 'function') onDaySleepWindowChange(mins, dayEnd);
+            }}
+            title="Start time"
           />
         </View>
         <View style={s.sleepInputHalf}>
@@ -43,9 +85,24 @@ export default function DaySleepWindowHalfSheet({
             label="End"
             type="datetime"
             icon={EditIcon}
-            rawValue={null}
+            rawValue={endValueIso}
             placeholder={minutesToLabel(dayEnd)}
-            formatDateTime={() => minutesToLabel(dayEnd)}
+            formatDateTime={(iso) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : minutesToLabel(dayEnd))}
+            onOpenPicker={() => setEndPickerOpen(true)}
+            onChange={(iso) => {
+              const mins = isoToMinutes(iso);
+              if (mins != null && typeof onDaySleepWindowChange === 'function') onDaySleepWindowChange(dayStart, mins);
+            }}
+          />
+          <TimePickerTray
+            isOpen={endPickerOpen}
+            onClose={() => setEndPickerOpen(false)}
+            value={endValueIso}
+            onChange={(iso) => {
+              const mins = isoToMinutes(iso);
+              if (mins != null && typeof onDaySleepWindowChange === 'function') onDaySleepWindowChange(dayStart, mins);
+            }}
+            title="End time"
           />
         </View>
       </View>

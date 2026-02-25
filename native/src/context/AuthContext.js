@@ -1,13 +1,14 @@
 /**
  * AuthContext — provides auth state + family/kid selection to the entire app.
  */
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Linking } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   isFirebaseAuthAvailable,
   ensureUserProfile,
   loadUserFamily,
+  loadUserFamilies,
   createFamilyWithKid,
   signOutUser,
   signInWithEmail,
@@ -19,7 +20,13 @@ import { messagingService } from '../services/messagingService';
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
+const FAMILY_SELECTION_KEY_PREFIX = 'tt_selected_family';
 const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v1';
+
+function getFamilySelectionKey(uid) {
+  if (!uid) return null;
+  return `${FAMILY_SELECTION_KEY_PREFIX}:${uid}`;
+}
 
 function getKidSelectionKey(uid, familyId) {
   if (!uid || !familyId) return null;
@@ -50,8 +57,9 @@ function extractInviteCodeFromUrl(url) {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [familyId, setFamilyId] = useState(null);
+  const [familyId, setFamilyIdState] = useState(null);
   const [kidId, setKidIdState] = useState(null);
+  const [families, setFamilies] = useState([]);
   const [selectedKidSnapshot, setSelectedKidSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -97,7 +105,7 @@ export function AuthProvider({ children }) {
       handledInviteCodesRef.current.add(code);
       setPendingInviteCode(null);
       if (result?.familyId && result?.kidId) {
-        setFamilyId(result.familyId);
+        setFamilyIdState(result.familyId);
         setKidIdState(result.kidId);
         setNeedsSetup(false);
         await hydrateKidSnapshot(result.familyId, result.kidId);
@@ -173,16 +181,24 @@ export function AuthProvider({ children }) {
           }
           await ensureUserProfile(firebaseUser);
           messagingService.registerTokenForCurrentUser().catch(() => {});
-          const family = await loadUserFamily(firebaseUser.uid);
-          if (family) {
-            setFamilyId(family.familyId);
+          const allFamilies = await loadUserFamilies(firebaseUser.uid);
+          const familySelectionKey = getFamilySelectionKey(firebaseUser.uid);
+          const cachedFamilyId = familySelectionKey ? await AsyncStorage.getItem(familySelectionKey) : null;
+          const family = await loadUserFamily(firebaseUser.uid, cachedFamilyId || undefined);
+
+          if (family && allFamilies.length > 0) {
+            setFamilies(allFamilies);
+            setFamilyIdState(family.familyId);
             const cachedKidKey = getKidSelectionKey(firebaseUser.uid, family.familyId);
             const cachedKidId = cachedKidKey ? await AsyncStorage.getItem(cachedKidKey) : null;
             const resolvedKidId = cachedKidId || family.kidId;
             setKidIdState(resolvedKidId);
             await hydrateKidSnapshot(family.familyId, resolvedKidId);
+            if (familySelectionKey) {
+              AsyncStorage.setItem(familySelectionKey, family.familyId).catch(() => {});
+            }
             setNeedsSetup(false);
-          } else {
+          } else if (allFamilies.length === 0) {
             // User has no family yet — needs onboarding
             setSelectedKidSnapshot(null);
             setNeedsSetup(true);
@@ -193,8 +209,9 @@ export function AuthProvider({ children }) {
         }
       } else {
         setUser(null);
-        setFamilyId(null);
+        setFamilyIdState(null);
         setKidIdState(null);
+        setFamilies([]);
         setSelectedKidSnapshot(null);
         setNeedsSetup(false);
       }
@@ -257,21 +274,25 @@ export function AuthProvider({ children }) {
     await signOutUser();
   }, []);
 
-  /** Create family + kid for first-time user */
+  /** Create family + kid — adds new family and switches to it (keeps existing families) */
   const handleCreateFamily = useCallback(async (babyName, options = {}) => {
     if (!isFirebaseAuthAvailable) return;
     if (!user) return;
     setLoading(true);
     try {
       const result = await createFamilyWithKid(user.uid, babyName, options);
-      setFamilyId(result.familyId);
+      const familyName = options?.familyName?.trim() || `${babyName}'s family`;
+
+      setFamilyIdState(result.familyId);
       setKidIdState(result.kidId);
+      setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
       await hydrateKidSnapshot(result.familyId, result.kidId);
       setNeedsSetup(false);
-      const key = getKidSelectionKey(user.uid, result.familyId);
-      if (key) {
-        AsyncStorage.setItem(key, result.kidId).catch(() => {});
-      }
+
+      const familyKey = getFamilySelectionKey(user.uid);
+      const kidKey = getKidSelectionKey(user.uid, result.familyId);
+      if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
+      if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
     } finally {
       setLoading(false);
     }
@@ -284,23 +305,42 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const result = await acceptInvite(code, user.uid);
-      setFamilyId(result.familyId);
+      setFamilyIdState(result.familyId);
       setKidIdState(result.kidId);
+      const allFamilies = await loadUserFamilies(user.uid);
+      setFamilies(allFamilies);
       await hydrateKidSnapshot(result.familyId, result.kidId);
       setNeedsSetup(false);
-      const key = getKidSelectionKey(user.uid, result.familyId);
-      if (key) {
-        AsyncStorage.setItem(key, result.kidId).catch(() => {});
-      }
+      const familyKey = getFamilySelectionKey(user.uid);
+      const kidKey = getKidSelectionKey(user.uid, result.familyId);
+      if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
+      if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
     } finally {
       setLoading(false);
     }
   }, [user, hydrateKidSnapshot]);
 
-  const value = {
+  /** Switch to a different family (user must be a member) */
+  const setFamilyId = useCallback(async (nextFamilyId) => {
+    if (!nextFamilyId || nextFamilyId === familyId) return;
+    const match = families.find((f) => f.familyId === nextFamilyId);
+    if (!match) return;
+
+    setFamilyIdState(nextFamilyId);
+    setKidIdState(match.kidId);
+    await hydrateKidSnapshot(nextFamilyId, match.kidId);
+
+    const familyKey = getFamilySelectionKey(user?.uid);
+    const kidKey = getKidSelectionKey(user?.uid, nextFamilyId);
+    if (familyKey) AsyncStorage.setItem(familyKey, nextFamilyId).catch(() => {});
+    if (kidKey) AsyncStorage.setItem(kidKey, match.kidId).catch(() => {});
+  }, [familyId, families, user?.uid, hydrateKidSnapshot]);
+
+  const value = useMemo(() => ({
     user,
     familyId,
     kidId,
+    families,
     selectedKidSnapshot,
     loading,
     needsSetup,
@@ -311,7 +351,24 @@ export function AuthProvider({ children }) {
     createFamily: handleCreateFamily,
     acceptInvite: handleAcceptInvite,
     setKidId,
-  };
+    setFamilyId,
+  }), [
+    user,
+    familyId,
+    kidId,
+    families,
+    selectedKidSnapshot,
+    loading,
+    needsSetup,
+    handleSignIn,
+    handleGoogleSignIn,
+    handleSignUp,
+    handleSignOut,
+    handleCreateFamily,
+    handleAcceptInvite,
+    setKidId,
+    setFamilyId,
+  ]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

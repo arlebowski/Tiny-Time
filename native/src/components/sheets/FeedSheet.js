@@ -621,6 +621,9 @@ export default function FeedSheet({
           setSaving(false);
           return;
         }
+        if (onAdd && !entry) {
+          onAdd({ type: 'bottle', ounces: oz, timestamp, notes: notes || null, photoURLs: allPhotos });
+        }
         if (storage) {
           logStep('bottle:write:start');
           if (entry?.id) {
@@ -674,18 +677,6 @@ export default function FeedSheet({
             logStep('bottle:message:done');
           }
         } catch (_) {}
-        if (onAdd && !entry) {
-          logStep('bottle:onAdd:start');
-          await onAdd({
-            id: createdEntry?.id || null,
-            type: 'bottle',
-            ounces: oz,
-            timestamp,
-            notes: notes || null,
-            photoURLs: allPhotos,
-          });
-          logStep('bottle:onAdd:done');
-        }
       } else if (feedType === 'nursing') {
         const leftSec = Math.round(leftElapsedMs / 1000);
         const rightSec = Math.round(rightElapsedMs / 1000);
@@ -694,6 +685,17 @@ export default function FeedSheet({
           Alert.alert('Track duration', 'Please track at least one side before saving.');
           setSaving(false);
           return;
+        }
+        if (onAdd && !entry) {
+          onAdd({
+            type: 'nursing',
+            startTime: timestamp,
+            leftDurationSec: leftSec,
+            rightDurationSec: rightSec,
+            lastSide: lastSide,
+            notes: notes || null,
+            photoURLs: allPhotos,
+          });
         }
         if (storage) {
           logStep('nursing:write:start');
@@ -765,20 +767,6 @@ export default function FeedSheet({
             logStep('nursing:message:done');
           }
         } catch (_) {}
-        if (onAdd && !entry) {
-          logStep('nursing:onAdd:start');
-          await onAdd({
-            id: createdEntry?.id || null,
-            type: 'nursing',
-            startTime: timestamp,
-            leftDurationSec: leftSec,
-            rightDurationSec: rightSec,
-            lastSide: lastSide,
-            notes: notes || null,
-            photoURLs: allPhotos,
-          });
-          logStep('nursing:onAdd:done');
-        }
       } else if (feedType === 'solids') {
         let createdEntry = null;
         if (addedFoods.length === 0) {
@@ -797,6 +785,9 @@ export default function FeedSheet({
           preparation: f.preparation || null,
           notes: f.notes || null,
         }));
+        if (onAdd && !entry) {
+          onAdd({ type: 'solids', timestamp, foods, notes: notes || null, photoURLs: allPhotos });
+        }
         if (storage) {
           logStep('solids:write:start');
           if (entry?.id) {
@@ -880,18 +871,6 @@ export default function FeedSheet({
             logStep('solids:message:done');
           }
         } catch (_) {}
-        if (onAdd && !entry) {
-          logStep('solids:onAdd:start');
-          await onAdd({
-            id: createdEntry?.id || null,
-            type: 'solids',
-            timestamp,
-            foods,
-            notes: notes || null,
-            photoURLs: allPhotos,
-          });
-          logStep('solids:onAdd:done');
-        }
       }
 
       logStep('dismiss:start');

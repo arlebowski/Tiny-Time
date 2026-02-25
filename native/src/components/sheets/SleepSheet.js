@@ -235,12 +235,31 @@ export default function SleepSheet({
       setPhotosExpanded(normalizedExisting.length > 0);
       return;
     }
+    // Add variant: reset form when opening. If there's an active sleep, show it; otherwise fresh state.
+    if (activeSleep?.startTime) {
+      setStartTime(new Date(activeSleep.startTime).toISOString());
+      setEndTime(null);
+      setSleepState('running');
+      setActiveSleepSessionId(activeSleep.id);
+      const normalizedStart = normalizeSleepStartMs(activeSleep.startTime);
+      setSleepElapsedMs(normalizedStart ? Math.max(0, Date.now() - normalizedStart) : 0);
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
+    } else {
+      setStartTime(null);
+      setEndTime(null);
+      setSleepState('idle');
+      setSleepElapsedMs(0);
+      setActiveSleepSessionId(null);
+      setEndTimeManuallyEdited(false);
+      endTimeManuallyEditedRef.current = false;
+    }
     setNotes('');
     setExistingPhotoURLs([]);
     setPhotos([]);
     setNotesExpanded(false);
     setPhotosExpanded(false);
-  }, [entry]);
+  }, [entry, activeSleep]);
 
   const handleStartTimeChange = (isoString) => {
     const clamped = clampStartIsoToNow(isoString);
@@ -407,20 +426,24 @@ export default function SleepSheet({
       setEndTime(nowIso);
 
       const sessionId = activeSleepSessionId || activeSleepId;
+      let uploadedURLs = [];
+      if (sessionId && storage?.uploadSleepPhoto && photos.length > 0) {
+        for (let i = 0; i < photos.length; i += 1) {
+          const p = photos[i];
+          try {
+            const url = await logAwait(`upload:item:${i}`, () => storage.uploadSleepPhoto(p));
+            uploadedURLs.push(url);
+          } catch (e) {}
+        }
+      }
+      const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
+      const startMs = startTime ? new Date(startTime).getTime() : null;
+      if (onAdd && startMs && endMs) {
+        onAdd({ id: sessionId || null, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos });
+      }
       if (sessionId && storage && storage.endSleep) {
         await logAwait('storage:endSleep', () => storage.endSleep(sessionId, endMs));
-        if (notes || photos.length > 0) {
-          let uploadedURLs = [];
-          if (storage.uploadSleepPhoto && photos.length > 0) {
-            for (let i = 0; i < photos.length; i += 1) {
-              const p = photos[i];
-              try {
-                const url = await logAwait(`upload:item:${i}`, () => storage.uploadSleepPhoto(p));
-                uploadedURLs.push(url);
-              } catch (e) {}
-            }
-          }
-          const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
+        if (notes || allPhotos.length > 0) {
           if (storage.updateSleepSession) {
             await logAwait('storage:updateSleepSession', () =>
               storage.updateSleepSession(sessionId, {
@@ -443,17 +466,6 @@ export default function SleepSheet({
       endTimeManuallyEditedRef.current = false;
 
       dismissSheet();
-      if (onAdd) {
-        const startMs = startTime ? new Date(startTime).getTime() : null;
-        await logAwait('onAdd', () =>
-          onAdd(startMs && endMs ? {
-            id: sessionId || null,
-            type: 'sleep',
-            startTime: startMs,
-            endTime: endMs,
-          } : undefined)
-        );
-      }
     } catch (e) {
       console.error('[SleepSheet] End sleep failed:', e);
       Alert.alert('Error', 'Failed to end sleep.');
@@ -532,6 +544,9 @@ export default function SleepSheet({
 
       const sessionId = activeSleepSessionId || activeSleepId;
       let resolvedSessionId = sessionId || null;
+      if (onAdd) {
+        onAdd({ id: resolvedSessionId, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
+      }
       if (sessionId && storage?.endSleep) {
         logStep('sleep:end:start');
         await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs));
@@ -579,20 +594,6 @@ export default function SleepSheet({
       logStep('dismiss:start');
       dismissSheet();
       logStep('dismiss:done');
-      if (onAdd) {
-        logStep('onAdd:start');
-        await logAwait('onAdd', () =>
-          onAdd({
-            id: resolvedSessionId,
-            type: 'sleep',
-            startTime: startMs,
-            endTime: endMs,
-            notes: notes || null,
-            photoURLs: allPhotos || [],
-          })
-        );
-        logStep('onAdd:done');
-      }
     } catch (e) {
       console.error('[SleepSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save sleep session.');
