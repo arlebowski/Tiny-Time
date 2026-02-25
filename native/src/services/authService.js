@@ -70,6 +70,13 @@ export async function signInWithGoogle() {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   }
 
+  // Clear any cached account/token state before sign-in. Fixes stale-token issues
+  // when one specific account fails (e.g. after revoke, re-add, or corrupted cache).
+  try {
+    await GoogleSignin.signOut();
+    await GoogleSignin.revokeAccess();
+  } catch {}
+
   const signInResult = await GoogleSignin.signIn();
   const idToken = signInResult?.idToken || signInResult?.data?.idToken;
   if (!idToken) {
@@ -86,6 +93,13 @@ export async function signInWithGoogle() {
 export async function signOutUser() {
   assertFirebase();
   await auth().signOut();
+  // Clear Google Sign-In cached account so it doesn't cause stale-token issues
+  if (GoogleSignin) {
+    try {
+      await GoogleSignin.signOut();
+      await GoogleSignin.revokeAccess();
+    } catch {}
+  }
 }
 
 /**
