@@ -643,6 +643,7 @@ export default function DetailSheet({
         hideFilter
         suppressEmptyState={dataLoading}
         ListHeaderComponent={listHeader}
+        disableItemLayoutAnimation={Platform.OS === 'android'}
       />
     </View>
   );

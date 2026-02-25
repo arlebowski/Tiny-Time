@@ -11,6 +11,7 @@ import Animated, {
   withRepeat,
   withSequence,
   withTiming,
+  withDelay,
   Easing,
   Layout,
   interpolate,
@@ -339,8 +340,9 @@ export default function TimelineItem({
   // Animations
   const chevronRotate = useSharedValue(isExpanded ? 180 : 0);
   const detailsProgress = useSharedValue(isExpanded ? 1 : 0);
-  const zzzY = useSharedValue(0);
-  const zzzOpacity = useSharedValue(1);
+  const z1 = useSharedValue(0);
+  const z2 = useSharedValue(0);
+  const z3 = useSharedValue(0);
   const badgeScale = useSharedValue(1);
   const badgeOpacity = useSharedValue(0.8);
 
@@ -381,32 +383,41 @@ export default function TimelineItem({
 
   useEffect(() => {
     if (isActiveSleep) {
-      zzzY.value = withRepeat(
-        withSequence(
-          withTiming(-4, { duration: 1000, easing: Easing.inOut(Easing.ease) }),
-          withTiming(0, { duration: 1000, easing: Easing.inOut(Easing.ease) })
-        ),
+      const zzzLoop = withRepeat(
+        withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
         -1,
-        true
+        false
       );
-      zzzOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0.7, { duration: 1000 }),
-          withTiming(1, { duration: 1000 })
-        ),
-        -1,
-        true
-      );
+      z1.value = withDelay(0, zzzLoop);
+      z2.value = withDelay(300, zzzLoop);
+      z3.value = withDelay(600, zzzLoop);
     }
-  }, [isActiveSleep, zzzY, zzzOpacity]);
+  }, [isActiveSleep, z1, z2, z3]);
 
   const chevronStyle = useAnimatedStyle(() => ({
     transform: [{ rotate: `${chevronRotate.value}deg` }],
   }));
 
-  const zzzStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: zzzY.value }],
-    opacity: zzzOpacity.value,
+  const z1Style = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: interpolate(z1.value, [0, 0.5, 1], [0, -4, -8]) },
+      { scale: interpolate(z1.value, [0, 0.5, 1], [1, 1.1, 1]) },
+    ],
+    opacity: interpolate(z1.value, [0, 0.5, 1], [1, 0.7, 0]),
+  }));
+  const z2Style = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: interpolate(z2.value, [0, 0.5, 1], [0, -4, -8]) },
+      { scale: interpolate(z2.value, [0, 0.5, 1], [1, 1.1, 1]) },
+    ],
+    opacity: interpolate(z2.value, [0, 0.5, 1], [1, 0.7, 0]),
+  }));
+  const z3Style = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: interpolate(z3.value, [0, 0.5, 1], [0, -4, -8]) },
+      { scale: interpolate(z3.value, [0, 0.5, 1], [1, 1.1, 1]) },
+    ],
+    opacity: interpolate(z3.value, [0, 0.5, 1], [1, 0.7, 0]),
   }));
 
   const badgeStyle = useAnimatedStyle(() => ({
@@ -579,9 +590,11 @@ export default function TimelineItem({
                 {labelText}
               </Text>
               {isActiveSleep && (
-                <Animated.Text style={[styles.zzz, { color: sleep.primary }, zzzStyle]}>
-                  z Z z
-                </Animated.Text>
+                <View style={styles.zzzRow}>
+                  <Animated.Text style={[styles.zzzText, { color: sleep.primary }, z1Style]}>z</Animated.Text>
+                  <Animated.Text style={[styles.zzzText, { color: sleep.primary }, z2Style]}>Z</Animated.Text>
+                  <Animated.Text style={[styles.zzzText, { color: sleep.primary }, z3Style]}>z</Animated.Text>
+                </View>
               )}
             </View>
             <View style={styles.metaRow}>
@@ -745,7 +758,11 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 16,
   },
-  zzz: {
+  zzzRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  zzzText: {
     fontSize: 16,
     fontFamily: FWB.bold,
   },

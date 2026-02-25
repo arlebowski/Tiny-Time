@@ -139,6 +139,7 @@ export default function Timeline({
   sleepSettings = null,
   hideFilter = false,
   suppressEmptyState = false,
+  disableItemLayoutAnimation = false,
 }) {
   const { colors } = useTheme();
   const [filter, setFilter] = useState(initialFilter || 'all');
@@ -411,7 +412,7 @@ export default function Timeline({
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         itemLayoutAnimation={
-          swipingCardId || hiddenItemIds.size > 0
+          disableItemLayoutAnimation || swipingCardId || hiddenItemIds.size > 0
             ? undefined
             : LinearTransition.duration(300).easing(TIMELINE_EASE)
         }
