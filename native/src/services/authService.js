@@ -70,17 +70,22 @@ export async function signInWithGoogle() {
     await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
   }
 
-  // Clear any cached account/token state before sign-in. Fixes stale-token issues
-  // when one specific account fails (e.g. after revoke, re-add, or corrupted cache).
-  try {
-    await GoogleSignin.signOut();
-    await GoogleSignin.revokeAccess();
-  } catch {}
-
   const signInResult = await GoogleSignin.signIn();
-  const idToken = signInResult?.idToken || signInResult?.data?.idToken;
+  let idToken = signInResult?.idToken || signInResult?.data?.idToken;
+
+  // On Android, idToken is sometimes null in the signIn response; fetch via getTokens()
+  if (!idToken && typeof GoogleSignin.getTokens === 'function') {
+    try {
+      const tokens = await GoogleSignin.getTokens();
+      idToken = tokens?.idToken || null;
+    } catch (e) {
+      console.warn('[authService] getTokens fallback failed:', e);
+    }
+  }
+
   if (!idToken) {
-    throw new Error('Google sign-in failed to return an ID token');
+    console.warn('[authService] signIn result:', JSON.stringify(signInResult, null, 2));
+    throw new Error('Google sign-in failed to return an ID token. Check that webClientId matches your Firebase web client.');
   }
 
   const credential = auth.GoogleAuthProvider.credential(idToken);
@@ -93,13 +98,6 @@ export async function signInWithGoogle() {
 export async function signOutUser() {
   assertFirebase();
   await auth().signOut();
-  // Clear Google Sign-In cached account so it doesn't cause stale-token issues
-  if (GoogleSignin) {
-    try {
-      await GoogleSignin.signOut();
-      await GoogleSignin.revokeAccess();
-    } catch {}
-  }
 }
 
 /**

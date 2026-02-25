@@ -12,6 +12,7 @@ import {
   Platform,
   Image,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
@@ -62,16 +63,25 @@ export default function LoginScreen({ onDevExitPreview = null }) {
     try {
       await signInWithGoogle();
     } catch (e) {
-      const code = String(e?.code || '');
-      const msg = String(e?.message || 'Google sign-in failed. Please try again.');
+      const code = String(e?.code ?? '');
+      const msg = String(e?.message ?? 'Google sign-in failed. Please try again.');
+      // Log full error for debugging (check Metro/console)
+      console.error('[Google Sign-In]', { code, message: msg, fullError: e });
+      if (__DEV__ && Platform.OS === 'android') {
+        Alert.alert('Google Sign-In Error', `${msg}\n\nCode: ${code || 'none'}`);
+      }
 
-      if (code.includes('SIGN_IN_CANCELLED')) return;
+      if (code.includes('SIGN_IN_CANCELLED') || code === '12501') return;
       if (code.includes('IN_PROGRESS')) {
         setError('Google sign-in is already in progress.');
         return;
       }
       if (code.includes('PLAY_SERVICES_NOT_AVAILABLE')) {
         setError('Google Play Services is unavailable on this device.');
+        return;
+      }
+      if (code === '10' || code.includes('DEVELOPER_ERROR')) {
+        setError('Configuration error (Code 10). Add your app SHA-1 to Firebase Console → Project Settings → Your Android app.');
         return;
       }
       setError(msg);
