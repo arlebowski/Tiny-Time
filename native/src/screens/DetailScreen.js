@@ -66,6 +66,7 @@ function SummaryCard({
   color,
   value,
   unit,
+  unitStyle,
   isCompact,
   fillHeight = false,
   comparison,
@@ -212,7 +213,7 @@ function SummaryCard({
         {value}
       </Text>
       {unit ? (
-        <Text style={[styles.summaryUnit, { color: colors.textTertiary, fontSize: unitSize }]}>
+        <Text style={[styles.summaryUnit, { color: colors.textTertiary, fontSize: unitSize }, unitStyle]}>
           {unit}
         </Text>
       ) : null}
@@ -434,21 +435,22 @@ export default function DetailSheet({
   const diaperSubline = useMemo(() => {
     const wet = summary.diaperWetCount || 0;
     const poo = summary.diaperPooCount || 0;
+    const diaperTallyIconSize = Platform.OS === 'android' ? 16 : 14;
     if (wet === 0 && poo === 0) return null;
     return (
       <View style={styles.diaperTally}>
         {wet > 0 && (
           <View style={styles.diaperTallyItem}>
-            <DiaperWetIcon size={14} color={diaper.dark || diaper.primary} />
-            <Text style={[styles.diaperTallyText, { color: colors.textTertiary }]}>
+            <DiaperWetIcon size={diaperTallyIconSize} color={diaper.dark || diaper.primary} />
+            <Text style={[styles.diaperTallyText, Platform.OS === 'android' ? styles.diaperTallyTextAndroid : null, { color: colors.textTertiary }]}>
               x{wet}
             </Text>
           </View>
         )}
         {poo > 0 && (
           <View style={styles.diaperTallyItem}>
-            <DiaperPooIcon size={14} color={diaper.primary} />
-            <Text style={[styles.diaperTallyText, { color: colors.textTertiary }]}>
+            <DiaperPooIcon size={diaperTallyIconSize} color={diaper.primary} />
+            <Text style={[styles.diaperTallyText, Platform.OS === 'android' ? styles.diaperTallyTextAndroid : null, { color: colors.textTertiary }]}>
               x{poo}
             </Text>
           </View>
@@ -568,6 +570,7 @@ export default function DetailSheet({
             color={diaper.primary}
             value={diaperDisplay}
             unit={diaperUnit}
+            unitStyle={Platform.OS === 'android' ? styles.diaperUnitAndroid : null}
             isCompact={isAllCompactMode}
             fillHeight={isHorizontalScrollMode}
             comparison={diaperComparison}
@@ -828,5 +831,11 @@ const styles = StyleSheet.create({
     fontFamily: FWB.normal,
     fontVariant: ['tabular-nums'],
     includeFontPadding: false,
+  },
+  diaperTallyTextAndroid: {
+    fontSize: 13.5,
+  },
+  diaperUnitAndroid: {
+    fontSize: 19,
   },
 });

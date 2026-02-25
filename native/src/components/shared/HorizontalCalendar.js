@@ -29,6 +29,7 @@ const PILL_SIZE_SPRING = {
   mass: 0.5,
   overshootClamping: true,
 };
+const IS_ANDROID = Platform.OS === 'android';
 
 // Web itemVariants: hidden { opacity: 0, scale: 0.5, y: 20 } → show with staggerChildren: 0.08
 const DATE_ENTER_SPRING = { stiffness: 420, damping: 48, mass: 0.8 };
@@ -58,9 +59,9 @@ const createDateEntering = (index) => {
 // Layout transition when selection changes: selected expands, others compact
 
 const DATE_LAYOUT = LinearTransition.springify()
-  .damping(62)
-  .stiffness(520)
-  .mass(0.7);
+  .damping(IS_ANDROID ? 68 : 62)
+  .stiffness(IS_ANDROID ? 460 : 520)
+  .mass(IS_ANDROID ? 0.8 : 0.7);
 
 // ── Date helpers (web HorizontalCalendarCompact.js:24-47) ──
 
@@ -172,6 +173,7 @@ export default function HorizontalCalendar({
   );
 
   useLayoutEffect(() => {
+    if (IS_ANDROID) return;
     updatePill(selectedDate.toISOString());
   }, [selectedDate, updatePill]);
 
@@ -191,7 +193,9 @@ export default function HorizontalCalendar({
   const handleDayPress = useCallback(
     (date) => {
       setSelectedDate(date);
-      updatePill(date.toISOString());
+      if (!IS_ANDROID) {
+        updatePill(date.toISOString());
+      }
       if (typeof onDateSelect === 'function') {
         onDateSelect({ date, feedOz: 0, sleepMs: 0, diaperCount: 0, feedPct: 0, sleepPct: 0 });
       }
@@ -207,6 +211,7 @@ export default function HorizontalCalendar({
     width: pillWidth.value,
     height: pillHeight.value,
     borderRadius: 12,
+    overflow: 'hidden',
     backgroundColor: colors.selectedSurface ?? colors.segTrack,
   }));
 
@@ -263,7 +268,11 @@ export default function HorizontalCalendar({
         <View style={styles.daysRow}>
           {/* Selection pill */}
           {pillReady && (
-            <Animated.View style={pillAnimatedStyle} pointerEvents="none" />
+            <Animated.View
+              style={pillAnimatedStyle}
+              pointerEvents="none"
+              renderToHardwareTextureAndroid={IS_ANDROID}
+            />
           )}
 
           {days.map((date, index) => {
@@ -274,6 +283,7 @@ export default function HorizontalCalendar({
                 entering={createDateEntering(index)}
                 layout={DATE_LAYOUT}
                 onLayout={(e) => handleDayLayout(date, e)}
+                collapsable={IS_ANDROID ? false : undefined}
                 style={[
                   styles.dayCellWrapper,
                   { flex: isSelected ? 1.3 : 0.9 },
@@ -281,6 +291,7 @@ export default function HorizontalCalendar({
               >
                 <Pressable
                   onPress={() => handleDayPress(date)}
+                  collapsable={IS_ANDROID ? false : undefined}
                   style={[
                     styles.dayCell,
                     isSelected && styles.dayCellSelected,
@@ -382,15 +393,18 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FWB.semibold,
     marginBottom: 4,
+    ...(IS_ANDROID ? { includeFontPadding: false } : null),
   },
   dayNumber: {
     fontSize: 14,
     fontFamily: FWB.medium,
     lineHeight: 14,
+    ...(IS_ANDROID ? { includeFontPadding: false } : null),
   },
   dayNumberSelected: {
     fontSize: 17.6,
     fontFamily: FWB.bold,
     lineHeight: 18,
+    ...(IS_ANDROID ? { includeFontPadding: false } : null),
   },
 });

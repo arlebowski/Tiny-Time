@@ -107,6 +107,11 @@ function Card({ children, style, onPress, disabled = false }) {
 }
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
+const KID_DISPLAY_FONT_FAMILY = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
+const KID_DISPLAY_FONT_IOS_VARIATION = Platform.select({
+  ios: { fontWeight: '700', fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63' },
+  default: {},
+});
 const cardStyles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
@@ -1478,9 +1483,8 @@ const s = StyleSheet.create({
   },
   hubKidTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   hubKidSubtitle: {
     marginTop: 2,
@@ -1519,10 +1523,9 @@ const s = StyleSheet.create({
   },
   kidName: {
     fontSize: 14,
-    fontWeight: '700',
     flex: 1,
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   kidActive: {
     fontSize: 12,

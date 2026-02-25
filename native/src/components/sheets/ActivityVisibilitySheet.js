@@ -307,6 +307,7 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 16,
     paddingVertical: 14,
+    ...(Platform.OS === 'android' ? { minHeight: 56 } : null),
     alignItems: 'center',
     justifyContent: 'center',
   },

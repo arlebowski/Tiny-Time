@@ -83,6 +83,11 @@ const APP_SHARE_BASE_URL = 'https://tinytracker.app';
 const APP_INSTALL_URL_PLACEHOLDER = '[APP STORE URL]';
 const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
 const CHEVRON_ROTATE_MS = 260;
+const KID_DISPLAY_FONT_FAMILY = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
+const KID_DISPLAY_FONT_IOS_VARIATION = Platform.select({
+  ios: { fontWeight: '700', fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63' },
+  default: {},
+});
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
@@ -254,9 +259,8 @@ const headerStyles = StyleSheet.create({
   kidName: {
     flexShrink: 1,         // allow truncation when space is tight (before center logo)
     fontSize: 24,          // text-2xl
-    fontWeight: '700',
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   // Brand logo overlay — same centering logic as plus btn: left 50% + offset
   logoOverlay: {
@@ -319,9 +323,8 @@ const headerStyles = StyleSheet.create({
   kidMenuLabel: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '700',
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   kidMenuAddItem: {
     height: 44,            // h-11
@@ -1184,6 +1187,7 @@ export default function App() {
     'SF-Pro-Text-Semibold': require('./assets/fonts/SF-Pro-Text-Semibold.otf'),
     'SF-Pro-Text-Bold': require('./assets/fonts/SF-Pro-Text-Bold.otf'),
     Fraunces: require('./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf'),
+    'Fraunces-Soft-Bold': require('./assets/fonts/Fraunces_72pt_Soft-Bold.ttf'),
   });
   const [themeKey, setThemeKey] = useState('theme1');
   const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');

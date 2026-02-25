@@ -882,6 +882,7 @@ const styles = StyleSheet.create({
   },
   cta: {
     paddingVertical: 14,
+    ...(Platform.OS === 'android' ? { minHeight: 56 } : null),
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',

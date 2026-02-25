@@ -8,6 +8,8 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/lockup-lt.png",
+      "resizeMode": "contain",
       "backgroundColor": "#FAF6EB"
     },
     "ios": {
@@ -20,6 +22,11 @@
       }
     },
     "android": {
+      "splash": {
+        "image": "./assets/lockup-lt.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FAF6EB"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"

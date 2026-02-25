@@ -408,11 +408,20 @@ const styles = StyleSheet.create({
   dateLabel: {
     fontSize: 15.4,
     fontFamily: FWB.normal,
+    ...(Platform.OS === 'android' ? {
+      lineHeight: 16,
+      includeFontPadding: false,
+      marginBottom: 2,
+    } : null),
   },
   // Web: text-[24px] font-semibold, color var(--tt-text-primary), marginBottom 0
   greeting: {
     fontSize: 24,
     fontFamily: FWB.semibold,
+    ...(Platform.OS === 'android' ? {
+      lineHeight: 26,
+      includeFontPadding: false,
+    } : null),
   },
   // Web TrackerTab.js:1977-1988 — w-10 h-10 rounded-xl border, active:scale-95
   gearButton: {

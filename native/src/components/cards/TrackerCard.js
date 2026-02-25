@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { ChevronRightIcon } from '../icons';
@@ -135,7 +135,7 @@ const TrackerCard = ({
             {rightElement}
           </View>
         ) : comparisonElement ? (
-          <View style={styles.comparisonWrap}>
+          <View style={[styles.comparisonWrap, styles.comparisonWrapPill]}>
             {comparisonElement}
           </View>
         ) : null}
@@ -209,9 +209,17 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 15,                     // text-[15px]
     fontFamily: FWB.normal,                // font-normal
+    ...(Platform.OS === 'android' ? {
+      lineHeight: 16,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    } : null),
   },
   chevronWrap: {
     marginRight: CHEVRON_RIGHT_NUDGE,
+    ...(Platform.OS === 'android' ? {
+      transform: [{ translateY: -0.5 }],
+    } : null),
   },
   // Big-number row base: flex
   valueRow: {
@@ -247,6 +255,11 @@ const styles = StyleSheet.create({
   comparisonWrap: {
     // Chicklet visual baseline tuning knob.
     marginBottom: CHICKLET_BASELINE_OFFSET,
+  },
+  comparisonWrapPill: {
+    ...(Platform.OS === 'android' ? {
+      transform: [{ translateY: BIG_VALUE_TRANSLATE_Y }],
+    } : null),
   },
   comparisonGuideLine: {
     position: 'absolute',
