@@ -11,14 +11,11 @@ import {
   Modal,
   Image,
   StyleSheet,
-  Platform,
   Share,
   Alert,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
-  FadeInDown,
-  FadeOut,
   LinearTransition,
   Easing,
 } from 'react-native-reanimated';
@@ -317,14 +314,7 @@ export default function Timeline({
         />
       );
       return (
-        <Animated.View
-          entering={FadeInDown
-            .duration(90)
-            .easing(Easing.out(Easing.cubic))}
-          exiting={FadeOut
-            .duration(180)
-            .easing(Easing.in(Easing.cubic))}
-        >
+        <View>
           <TimelineSwipeRow
             card={item}
             isSwipeEnabled={isLogged}
@@ -338,7 +328,7 @@ export default function Timeline({
           >
             {cardContent}
           </TimelineSwipeRow>
-        </Animated.View>
+        </View>
       );
     },
     [
