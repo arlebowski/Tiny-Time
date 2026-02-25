@@ -718,7 +718,8 @@ function AppShell({
     const screenWidth = Dimensions.get('window').width;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        const headerBottom = y + height;
+        const normalizedY = Platform.OS === 'android' ? y + topInset : y;
+        const headerBottom = normalizedY + height;
         // Right edge touches right internal padding; same y as kid picker
         setShareAnchor({
           x: screenWidth - PADDING - POPOVER_WIDTH,
@@ -733,7 +734,7 @@ function AppShell({
 
     setShareAnchor(null);
     setShowShareMenu(true);
-  }, [showShareMenu]);
+  }, [showShareMenu, topInset]);
 
   const handleToggleKidMenu = useCallback(() => {
     if (showKidMenu) {
@@ -750,7 +751,8 @@ function AppShell({
     const PADDING = 16;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        const headerBottom = y + height;
+        const normalizedY = Platform.OS === 'android' ? y + topInset : y;
+        const headerBottom = normalizedY + height;
         setKidAnchor({
           x: PADDING,
           y: headerBottom - height,
@@ -764,7 +766,7 @@ function AppShell({
 
     setKidAnchor(null);
     setShowKidMenu(true);
-  }, [showKidMenu]);
+  }, [showKidMenu, topInset]);
 
   const handleSelectKidFromMenu = useCallback((nextKidId) => {
     if (nextKidId && nextKidId !== kidId) {

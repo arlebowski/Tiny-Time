@@ -8,7 +8,11 @@ import {
   Platform,
   RefreshControl,
 } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import Animated, {
+  FadeInDown,
+  withDelay,
+  withTiming,
+} from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useData } from '../context/DataContext';
@@ -40,6 +44,26 @@ import {
 const NURSING_NO_AVG_COMPARISON = { state: 'no_comparison_yet', label: 'No avg' };
 const PTR_MIN_VISIBLE_MS = 600;
 const PTR_IOS_OFFSET = 88;
+const IS_ANDROID = Platform.OS === 'android';
+const ENTRANCE_DURATION_MS = 220;
+const ANDROID_ENTRANCE_OFFSET = 25;
+
+const createAndroidEntrance = (delayMs) => () => {
+  'worklet';
+  return {
+    initialValues: {
+      transform: [{ translateY: ANDROID_ENTRANCE_OFFSET }],
+    },
+    animations: {
+      transform: [{
+        translateY: withDelay(
+          delayMs,
+          withTiming(0, { duration: ENTRANCE_DURATION_MS })
+        ),
+      }],
+    },
+  };
+};
 
 // ── Date formatting (web: __ttHorizontalFormat(selectedDate, "EEEE, MMM d")) ──
 function formatDateLabel(date) {
@@ -289,6 +313,14 @@ export default function TrackerScreen({
   const showNextUp = Boolean(allowSleepCard && activeSleepForUi?.startTime);
   const CARD_BASE_DELAY_MS = 130;
   const CARD_STAGGER_MS = 75;
+  const getEntranceAnimation = React.useCallback(
+    (delayMs) => (
+      IS_ANDROID
+        ? createAndroidEntrance(delayMs)
+        : FadeInDown.duration(ENTRANCE_DURATION_MS).delay(delayMs)
+    ),
+    []
+  );
   const handleRefresh = React.useCallback(async () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -323,7 +355,9 @@ export default function TrackerScreen({
       <Animated.View
         key={`greeting-${entranceToken}`}
         style={styles.greetingHeader}
-        entering={FadeInDown.duration(220).delay(0)}
+        entering={getEntranceAnimation(0)}
+        renderToHardwareTextureAndroid={IS_ANDROID}
+        collapsable={IS_ANDROID ? false : undefined}
       >
         <View>
           {/* Web: text-[15.4px] font-normal, color var(--tt-text-secondary) */}
@@ -354,7 +388,9 @@ export default function TrackerScreen({
       {showNextUp ? (
         <Animated.View
           key={`nextup-${entranceToken}`}
-          entering={FadeInDown.duration(220).delay(CARD_BASE_DELAY_MS)}
+          entering={getEntranceAnimation(CARD_BASE_DELAY_MS)}
+          renderToHardwareTextureAndroid={IS_ANDROID}
+          collapsable={IS_ANDROID ? false : undefined}
         >
           <ActiveSleepCard
             sleepStartTime={nextUpSleepStart}
@@ -369,9 +405,11 @@ export default function TrackerScreen({
           return (
             <Animated.View
               key={`${card.key}-${entranceToken}`}
-              entering={FadeInDown
-                .duration(220)
-                .delay(CARD_BASE_DELAY_MS + sequenceIndex * CARD_STAGGER_MS)}
+              entering={getEntranceAnimation(
+                CARD_BASE_DELAY_MS + sequenceIndex * CARD_STAGGER_MS
+              )}
+              renderToHardwareTextureAndroid={IS_ANDROID}
+              collapsable={IS_ANDROID ? false : undefined}
             >
               {card.element}
             </Animated.View>

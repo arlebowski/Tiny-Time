@@ -560,7 +560,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 1,
   },
   statTitle: { fontSize: 15, fontFamily: FWB.semibold },
   statValue: {
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 1,
   },
   historyTitle: { fontSize: 15, fontFamily: FWB.semibold, marginBottom: 6, textAlign: 'center' },
   historyRow: {
