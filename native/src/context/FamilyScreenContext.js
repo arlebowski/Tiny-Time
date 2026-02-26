@@ -167,7 +167,7 @@ export function FamilyScreenProvider({
   onDeleteAccount,
 }) {
   const { colors, radius } = useTheme();
-  const { createFamily, loading: authLoading } = useAuth();
+  const { createFamily, acceptInvite, loading: authLoading } = useAuth();
   const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
 
   // ── State ──
@@ -204,7 +204,10 @@ export function FamilyScreenProvider({
   const [newFamilyBirthDate, setNewFamilyBirthDate] = useState('');
   const [newFamilyWeight, setNewFamilyWeight] = useState('');
   const [newFamilyPhotoUris, setNewFamilyPhotoUris] = useState([]);
+  const [addFamilyMode, setAddFamilyMode] = useState('create');
+  const [familyInviteCode, setFamilyInviteCode] = useState('');
   const [savingFamily, setSavingFamily] = useState(false);
+  const [joiningFamily, setJoiningFamily] = useState(false);
   const [profileNameDraft, setProfileNameDraft] = useState(currentUser.displayName || '');
   const [profileEmailDraft, setProfileEmailDraft] = useState(currentUser.email || '');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(currentUser.photoURL || null);
@@ -262,6 +265,8 @@ export function FamilyScreenProvider({
     setNewFamilyBirthDate('');
     setNewFamilyWeight('');
     setNewFamilyPhotoUris([]);
+    setAddFamilyMode('create');
+    setFamilyInviteCode('');
   }, []);
 
   const openAddChildSheet = useCallback(() => {
@@ -269,8 +274,9 @@ export function FamilyScreenProvider({
   }, []);
 
   const openAddFamilySheet = useCallback(() => {
+    resetAddFamilyForm();
     addFamilySheetRef.current?.present?.();
-  }, []);
+  }, [resetAddFamilyForm]);
 
   const openAppearanceSheet = useCallback(() => {
     appearanceSheetRef.current?.present?.();
@@ -976,6 +982,37 @@ export function FamilyScreenProvider({
     createFamily, closeAddFamilySheet, resetAddFamilyForm,
   ]);
 
+  const handleJoinFamilyFromSheet = useCallback(async () => {
+    const normalizedInviteCode = String(familyInviteCode || '').trim().toUpperCase();
+    if (!normalizedInviteCode) {
+      Alert.alert('Error', 'Please enter an invite code');
+      return;
+    }
+    if (typeof acceptInvite !== 'function') {
+      Alert.alert('Error', 'Joining a family is unavailable right now.');
+      return;
+    }
+
+    setJoiningFamily(true);
+    let joinedFamily = false;
+    try {
+      await acceptInvite(normalizedInviteCode);
+      joinedFamily = true;
+      closeAddFamilySheet();
+      resetAddFamilyForm();
+    } catch (error) {
+      console.error('Error joining family:', error);
+      Alert.alert('Error', error?.message || 'Failed to join family. Please try again.');
+    } finally {
+      setJoiningFamily(false);
+    }
+    if (joinedFamily) {
+      refresh?.().catch(() => {});
+    }
+  }, [familyInviteCode, acceptInvite, closeAddFamilySheet, resetAddFamilyForm, refresh]);
+
+  const addFamilyBusy = savingFamily || joiningFamily || authLoading;
+
   const handleOpenActivityVisibility = useCallback(() => {
     if (typeof onRequestToggleActivitySheet === 'function') {
       onRequestToggleActivitySheet();
@@ -1062,11 +1099,15 @@ export function FamilyScreenProvider({
 
     // Add family
     savingFamily,
+    joiningFamily,
+    addFamilyBusy,
     newFamilyName,
     newFamilyBabyName,
     newFamilyBirthDate,
     newFamilyWeight,
     newFamilyPhotoUris,
+    addFamilyMode,
+    familyInviteCode,
 
     // Delete kid
     kidPendingDelete,
@@ -1119,6 +1160,7 @@ export function FamilyScreenProvider({
     handleRemoveFamilyPhoto,
     handleCreateChild,
     handleCreateFamilyFromSheet,
+    handleJoinFamilyFromSheet,
     handleOpenActivityVisibility,
 
     // State setters needed by screens
@@ -1134,6 +1176,8 @@ export function FamilyScreenProvider({
     setNewFamilyBabyName,
     setNewFamilyBirthDate,
     setNewFamilyWeight,
+    setAddFamilyMode,
+    setFamilyInviteCode,
 
     // Utility functions
     formatAgeFromDate,
@@ -1152,7 +1196,8 @@ export function FamilyScreenProvider({
     profileNameDraft, profileEmailDraft, profilePhotoUrl, savingProfile, hasProfileChanges, profileJustSaved,
     familyNameDraft, familyOwnerUid, isFamilyOwner, savingFamilyName,
     savingChild, newBabyName, newBabyBirthDate, newBabyWeight, newChildPhotoUris,
-    savingFamily, newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyWeight, newFamilyPhotoUris,
+    savingFamily, joiningFamily, addFamilyBusy, newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyWeight, newFamilyPhotoUris,
+    addFamilyMode, familyInviteCode,
     kidPendingDelete,
     prepareKidSubpage, loadSelectedKidData,
     handleThemeChange, handleDarkModeChange,
@@ -1166,7 +1211,7 @@ export function FamilyScreenProvider({
     handleRequestDeleteKid, handleConfirmDeleteKid,
     handleAddChildPhoto, handleRemoveChildPhoto,
     handleAddFamilyPhoto, handleRemoveFamilyPhoto,
-    handleCreateChild, handleCreateFamilyFromSheet,
+    handleCreateChild, handleCreateFamilyFromSheet, handleJoinFamilyFromSheet,
     handleOpenActivityVisibility,
     openAddChildSheet, openAddFamilySheet, openAppearanceSheet,
     openFeedingUnitSheet, openDaySleepSheet,

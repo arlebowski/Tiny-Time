@@ -43,6 +43,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const canSubmit = onboardingMode === 'create'
     ? !!babyName.trim() && !!birthDate && !!newPhotos?.[0]
     : !!normalizedInviteCode;
+  const ctaBackgroundColor = canSubmit ? colors.brandIcon : '#1A1A1A';
   const createOpacity = modeProgress;
   const joinOpacity = modeProgress.interpolate({
     inputRange: [0, 1],
@@ -324,7 +325,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             style={[
               styles.button,
               {
-                backgroundColor: '#1A1A1A',
+                backgroundColor: ctaBackgroundColor,
                 borderRadius: radius?.lg ?? 12,
                 opacity: loading || !canSubmit ? 0.5 : 1,
               },

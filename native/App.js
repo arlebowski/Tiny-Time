@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import * as Font from 'expo-font';
@@ -311,26 +311,6 @@ const headerStyles = StyleSheet.create({
     fontSize: 14,          // text-sm
     fontFamily: 'SF-Pro-Text-Regular',
   },
-  shareMessagesSection: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    gap: 4,
-  },
-  shareMessageLabel: {
-    fontSize: 11,
-    fontFamily: 'SF-Pro-Text-Medium',
-    marginTop: 6,
-  },
-  shareMessageLabelFirst: {
-    marginTop: 0,
-  },
-  shareMessageText: {
-    fontSize: 12,
-    fontFamily: 'SF-Pro-Text-Regular',
-    lineHeight: 16,
-  },
   kidMenuItem: {
     height: 44,            // h-11
     paddingHorizontal: 12, // px-3
@@ -427,6 +407,7 @@ function AppShell({
   const [showKidMenu, setShowKidMenu] = useState(false);
   const [kidAnchor, setKidAnchor] = useState(null);
   const kidButtonRef = useRef(null);
+  const shareFlowInFlightRef = useRef(false);
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
   const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
   const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
@@ -647,23 +628,6 @@ function AppShell({
     return `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
   }, []);
 
-  const invitePartnerMessage = useMemo(() => {
-    const resolvedKidId = kidId || (kids?.length ? kids[0]?.id : null);
-    const resolvedKid = (
-      (Array.isArray(kids) && resolvedKidId ? kids.find((kid) => kid?.id === resolvedKidId) : null)
-      || (kidData?.id === resolvedKidId ? kidData : null)
-      || null
-    );
-    const rawKidName = String(resolvedKid?.name || '').trim();
-    const possessiveKidName = rawKidName
-      ? (rawKidName.toLowerCase().endsWith('s') ? `${rawKidName}'` : `${rawKidName}'s`)
-      : 'your';
-    const headerLine = rawKidName
-      ? `Join ${possessiveKidName} family on Tiny Tracker.`
-      : 'Join your family on Tiny Tracker.';
-    return `${headerLine}\nInstall app: ${APP_SHARE_BASE_URL}\nInvite code: [code]`;
-  }, [kidId, kids, kidData]);
-
   const handleGlobalShareApp = useCallback(async () => {
     const url = APP_SHARE_BASE_URL;
     const text = shareAppMessage;
@@ -732,16 +696,40 @@ function AppShell({
     Alert.alert('Copy this invite info:', message);
   }, [familyId, kidId, kids, kidData, firestoreService]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && shareFlowInFlightRef.current) {
+        setShowShareMenu(false);
+        setShareAnchor(null);
+        shareFlowInFlightRef.current = false;
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   const handleShareAppFromMenu = useCallback(async () => {
-    await handleGlobalShareApp();
-    setShowShareMenu(false);
-    setShareAnchor(null);
+    shareFlowInFlightRef.current = true;
+    try {
+      await handleGlobalShareApp();
+    } finally {
+      setShowShareMenu(false);
+      setShareAnchor(null);
+      shareFlowInFlightRef.current = false;
+    }
   }, [handleGlobalShareApp]);
 
   const handleInvitePartnerFromMenu = useCallback(async () => {
-    await handleGlobalInvitePartner();
-    setShowShareMenu(false);
-    setShareAnchor(null);
+    shareFlowInFlightRef.current = true;
+    try {
+      await handleGlobalInvitePartner();
+    } finally {
+      setShowShareMenu(false);
+      setShareAnchor(null);
+      shareFlowInFlightRef.current = false;
+    }
   }, [handleGlobalInvitePartner]);
 
   const handleToggleShareMenu = useCallback(() => {
@@ -1044,12 +1032,6 @@ function AppShell({
           <PersonAddIcon size={16} color={colors.textPrimary} />
           <Text style={[headerStyles.shareMenuText, { color: colors.textPrimary }]}>Invite partner</Text>
         </Pressable>
-        <View style={[headerStyles.shareMessagesSection, { borderTopColor: colors.cardBorder }]}>
-          <Text style={[headerStyles.shareMessageLabel, headerStyles.shareMessageLabelFirst, { color: colors.textTertiary }]}>Share app link:</Text>
-          <Text style={[headerStyles.shareMessageText, { color: colors.textSecondary }]} numberOfLines={2} ellipsizeMode="tail">{shareAppMessage}</Text>
-          <Text style={[headerStyles.shareMessageLabel, { color: colors.textTertiary }]}>Invite partner:</Text>
-          <Text style={[headerStyles.shareMessageText, { color: colors.textSecondary }]} numberOfLines={3} ellipsizeMode="tail">{invitePartnerMessage}</Text>
-        </View>
       </Popover>
 
       <BottomNavigationShell

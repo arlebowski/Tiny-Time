@@ -300,14 +300,22 @@ export async function createFamilyWithKid(
 /** Accept an invite code */
 export async function acceptInvite(code, userId) {
   assertFirebase();
-  const inviteRef = firestore().collection('invites').doc(code);
-  const snap = await inviteRef.get();
-  if (!snap.exists) throw new Error('Invalid invite');
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  if (!normalizedCode) throw new Error('Invalid invite');
 
-  const invite = snap.data();
+  const inviteRef = firestore().collection('invites').doc(normalizedCode);
+  const snap = await inviteRef.get();
+  const inviteExists = typeof snap?.exists === 'function' ? snap.exists() : Boolean(snap?.exists);
+  if (!inviteExists) throw new Error('Invalid invite');
+
+  const invite = snap.data?.() || null;
+  if (!invite || !invite.familyId) throw new Error('Invalid invite');
   if (invite.used) throw new Error('Invite already used');
 
   const familyRef = firestore().collection('families').doc(invite.familyId);
+  const familySnap = await familyRef.get();
+  const familyExists = typeof familySnap?.exists === 'function' ? familySnap.exists() : Boolean(familySnap?.exists);
+  if (!familyExists) throw new Error('Invalid invite');
 
   // Add user to family
   await familyRef.update({

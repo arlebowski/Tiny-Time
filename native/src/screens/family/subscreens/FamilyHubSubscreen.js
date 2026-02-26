@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, Image } from 'react-native';
+import { View, Text, Pressable, Image, Platform } from 'react-native';
 import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
 import { PlusIcon, PaletteIcon, FamilyIcon } from '../../../components/icons';
 
@@ -26,6 +26,8 @@ export default function FamilyHubSubscreen({
   radius,
 }) {
   const cardRadius = radius?.xl ?? 12;
+  const androidHubTitleTight = Platform.OS === 'android' ? { includeFontPadding: false } : null;
+  const androidHubSubtitleTight = Platform.OS === 'android' ? { includeFontPadding: false } : null;
   return (
     <>
       <View style={s.familyHubHeader}>
@@ -77,8 +79,8 @@ export default function FamilyHubSubscreen({
               </View>
             )}
             <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>{currentUser.displayName || 'User'}</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>{currentUser.email}</Text>
+              <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>{currentUser.displayName || 'User'}</Text>
+              <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>{currentUser.email}</Text>
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
@@ -94,8 +96,8 @@ export default function FamilyHubSubscreen({
               <PaletteIcon size={24} color={colors.textPrimary} />
             </View>
             <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Appearance</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Theme & dark mode</Text>
+              <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>Appearance</Text>
+              <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>Theme & dark mode</Text>
             </View>
           </View>
           <View style={s.appearanceEntryRight}>
@@ -135,8 +137,8 @@ export default function FamilyHubSubscreen({
                     <FamilyIcon size={24} color={colors.textPrimary} />
                   </View>
                   <View>
-                    <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>{displayName}</Text>
-                    <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                    <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>{displayName}</Text>
+                    <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>
                       {isCurrent
                         ? `${members.length} ${members.length === 1 ? 'person' : 'people'} with access`
                         : 'Tap to switch'}
@@ -167,8 +169,8 @@ export default function FamilyHubSubscreen({
                 <FamilyIcon size={24} color={colors.textPrimary} />
               </View>
               <View>
-                <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>{String(familyInfo?.name || '').trim() || 'Family'}</Text>
-                <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>
+                <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>{String(familyInfo?.name || '').trim() || 'Family'}</Text>
+                <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>
                   {`${members.length} ${members.length === 1 ? 'person' : 'people'} with access`}
                 </Text>
               </View>
@@ -190,8 +192,8 @@ export default function FamilyHubSubscreen({
               <PlusIcon size={20} color={colors.textPrimary} />
             </View>
             <View>
-              <Text style={[s.appearanceEntryTitle, { color: colors.textPrimary }]}>Add Family</Text>
-              <Text style={[s.appearanceEntrySubtitle, { color: colors.textSecondary }]}>Create another family</Text>
+              <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>Add or Join a Family</Text>
+              <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>Create or join another family</Text>
             </View>
           </View>
           <View style={s.appearanceEntryRight}>

@@ -108,16 +108,22 @@ function FamilySheets() {
         colors={colors}
         activeTheme={ctx.activeTheme}
         savingFamily={ctx.savingFamily}
+        joiningFamily={ctx.joiningFamily}
         authLoading={ctx.authLoading}
+        addFamilyMode={ctx.addFamilyMode}
+        familyInviteCode={ctx.familyInviteCode}
         newFamilyName={ctx.newFamilyName}
         newFamilyBabyName={ctx.newFamilyBabyName}
         newFamilyBirthDate={ctx.newFamilyBirthDate}
         newFamilyWeight={ctx.newFamilyWeight}
         newFamilyPhotoUris={ctx.newFamilyPhotoUris}
         onClose={() => {
-          if (!ctx.savingFamily) ctx.resetAddFamilyForm();
+          if (!ctx.addFamilyBusy) ctx.resetAddFamilyForm();
         }}
         onCreate={ctx.handleCreateFamilyFromSheet}
+        onJoin={ctx.handleJoinFamilyFromSheet}
+        onModeChange={ctx.setAddFamilyMode}
+        onInviteCodeChange={ctx.setFamilyInviteCode}
         onFamilyNameChange={ctx.setNewFamilyName}
         onBabyNameChange={ctx.setNewFamilyBabyName}
         onBirthDateChange={ctx.setNewFamilyBirthDate}

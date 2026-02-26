@@ -21,7 +21,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FullWindowOverlay } from 'react-native-screens';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -814,7 +814,9 @@ export function TTPickerTray({
       {Platform.OS === 'ios' ? (
         <FullWindowOverlay>{trayContent}</FullWindowOverlay>
       ) : (
-        trayContent
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          {trayContent}
+        </GestureHandlerRootView>
       )}
     </Modal>
   );
@@ -886,7 +888,7 @@ export function DatePickerTray({
   }
 
   return (
-    <TTPickerTray isOpen={isOpen} onClose={onClose} header={header}>
+    <TTPickerTray isOpen={isOpen} onClose={onClose} header={header} scrollEnabled={false}>
       <View style={{ marginTop: -16 }}>
         <DatePickerSection value={value} onChange={onChange} title={title} showHeader={false} minYear={minYear} maxYear={maxYear} />
       </View>
