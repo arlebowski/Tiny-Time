@@ -79,8 +79,7 @@ const NAV_FADE_HEIGHT = 50;
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
 const LAUNCH_SPLASH_MIN_MS = 900;
-const APP_SHARE_BASE_URL = 'https://tinytracker.app';
-const APP_INSTALL_URL_PLACEHOLDER = '[APP STORE URL]';
+const APP_SHARE_BASE_URL = 'https://bit.ly/tinytracker';
 const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
 const CHEVRON_ROTATE_MS = 260;
 const KID_DISPLAY_FONT_FAMILY = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
@@ -311,6 +310,26 @@ const headerStyles = StyleSheet.create({
   shareMenuText: {
     fontSize: 14,          // text-sm
     fontFamily: 'SF-Pro-Text-Regular',
+  },
+  shareMessagesSection: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    gap: 4,
+  },
+  shareMessageLabel: {
+    fontSize: 11,
+    fontFamily: 'SF-Pro-Text-Medium',
+    marginTop: 6,
+  },
+  shareMessageLabelFirst: {
+    marginTop: 0,
+  },
+  shareMessageText: {
+    fontSize: 12,
+    fontFamily: 'SF-Pro-Text-Regular',
+    lineHeight: 16,
   },
   kidMenuItem: {
     height: 44,            // h-11
@@ -623,9 +642,31 @@ function AppShell({
     }
   }, [activeTab, isTrackerDetailOpen, analyticsDetailOpen, familyDetailOpen, onTabChange]);
 
+  const shareAppMessage = useMemo(() => {
+    const url = APP_SHARE_BASE_URL;
+    return `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
+  }, []);
+
+  const invitePartnerMessage = useMemo(() => {
+    const resolvedKidId = kidId || (kids?.length ? kids[0]?.id : null);
+    const resolvedKid = (
+      (Array.isArray(kids) && resolvedKidId ? kids.find((kid) => kid?.id === resolvedKidId) : null)
+      || (kidData?.id === resolvedKidId ? kidData : null)
+      || null
+    );
+    const rawKidName = String(resolvedKid?.name || '').trim();
+    const possessiveKidName = rawKidName
+      ? (rawKidName.toLowerCase().endsWith('s') ? `${rawKidName}'` : `${rawKidName}'s`)
+      : 'your';
+    const headerLine = rawKidName
+      ? `Join ${possessiveKidName} family on Tiny Tracker.`
+      : 'Join your family on Tiny Tracker.';
+    return `${headerLine}\nInstall app: ${APP_SHARE_BASE_URL}\nInvite code: [code]`;
+  }, [kidId, kids, kidData]);
+
   const handleGlobalShareApp = useCallback(async () => {
     const url = APP_SHARE_BASE_URL;
-    const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
+    const text = shareAppMessage;
 
     if (Share?.share) {
       try {
@@ -641,7 +682,7 @@ function AppShell({
     }
 
     Alert.alert('Copy this link:', url);
-  }, []);
+  }, [shareAppMessage]);
 
   const handleGlobalInvitePartner = useCallback(async () => {
     const resolvedKidId = kidId || (kids?.length ? kids[0]?.id : null);
@@ -674,7 +715,7 @@ function AppShell({
     const headerLine = rawKidName
       ? `Join ${possessiveKidName} family on Tiny Tracker.`
       : 'Join your family on Tiny Tracker.';
-    const message = `${headerLine}\nInstall app: ${APP_INSTALL_URL_PLACEHOLDER}\nInvite code: ${code}`;
+    const message = `${headerLine}\nInstall app: ${APP_SHARE_BASE_URL}\nInvite code: ${code}`;
 
     if (Share?.share) {
       try {
@@ -1003,6 +1044,12 @@ function AppShell({
           <PersonAddIcon size={16} color={colors.textPrimary} />
           <Text style={[headerStyles.shareMenuText, { color: colors.textPrimary }]}>Invite partner</Text>
         </Pressable>
+        <View style={[headerStyles.shareMessagesSection, { borderTopColor: colors.cardBorder }]}>
+          <Text style={[headerStyles.shareMessageLabel, headerStyles.shareMessageLabelFirst, { color: colors.textTertiary }]}>Share app link:</Text>
+          <Text style={[headerStyles.shareMessageText, { color: colors.textSecondary }]} numberOfLines={2} ellipsizeMode="tail">{shareAppMessage}</Text>
+          <Text style={[headerStyles.shareMessageLabel, { color: colors.textTertiary }]}>Invite partner:</Text>
+          <Text style={[headerStyles.shareMessageText, { color: colors.textSecondary }]} numberOfLines={3} ellipsizeMode="tail">{invitePartnerMessage}</Text>
+        </View>
       </Popover>
 
       <BottomNavigationShell

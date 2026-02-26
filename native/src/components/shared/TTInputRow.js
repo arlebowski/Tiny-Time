@@ -419,8 +419,11 @@ const styles = StyleSheet.create({
     fontFamily: FWB.normal,
   },
   iconBtn: {
-    marginLeft: 17,
-    padding: 4,
+    marginLeft: 8,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chevronWrap: {
     marginLeft: 8,
