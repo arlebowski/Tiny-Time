@@ -204,6 +204,7 @@ export function DataProvider({ children }) {
   const unsubSolidsRef = useRef(null);
   const unsubSleepRef = useRef(null);
   const unsubDiapersRef = useRef(null);
+  const unsubFamilyMembersRef = useRef(null);
   const bootstrapWriteTimerRef = useRef(null);
   const didHydrateBootstrapRef = useRef(false);
   const usingMockData = !firestoreService?.isAvailable;
@@ -531,6 +532,7 @@ export function DataProvider({ children }) {
       if (unsubSolidsRef.current) unsubSolidsRef.current();
       if (unsubSleepRef.current) unsubSleepRef.current();
       if (unsubDiapersRef.current) unsubDiapersRef.current();
+      if (unsubFamilyMembersRef.current) unsubFamilyMembersRef.current();
 
       unsubFeedingsRef.current = firestoreService.subscribeFeedings((items) => {
         if (cancelled || !Array.isArray(items)) return;
@@ -553,6 +555,10 @@ export function DataProvider({ children }) {
       unsubDiapersRef.current = firestoreService.subscribeDiaperChanges((items) => {
         if (cancelled || !Array.isArray(items)) return;
         setDiaperChanges(items);
+      });
+      unsubFamilyMembersRef.current = firestoreService.subscribeFamilyMembers((items) => {
+        if (cancelled || !Array.isArray(items)) return;
+        setFamilyMembers(items);
       });
 
       if (!cancelled) setDataLoading(false);
@@ -586,6 +592,10 @@ export function DataProvider({ children }) {
       if (unsubDiapersRef.current) {
         unsubDiapersRef.current();
         unsubDiapersRef.current = null;
+      }
+      if (unsubFamilyMembersRef.current) {
+        unsubFamilyMembersRef.current();
+        unsubFamilyMembersRef.current = null;
       }
       if (bootstrapWriteTimerRef.current) {
         clearTimeout(bootstrapWriteTimerRef.current);

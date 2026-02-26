@@ -781,6 +781,70 @@ const firestoreService = {
     });
   },
 
+  subscribeFamilyMembers(callback) {
+    if (typeof callback !== 'function') throw new Error('Missing callback');
+    if (!this.currentFamilyId) {
+      callback([]);
+      return () => {};
+    }
+
+    let requestToken = 0;
+    try {
+      return firestore()
+        .collection('families')
+        .doc(this.currentFamilyId)
+        .onSnapshot(
+          (famDoc) => {
+            const familyExists = typeof famDoc?.exists === 'function'
+              ? famDoc.exists()
+              : Boolean(famDoc?.exists);
+            if (!familyExists) {
+              callback([]);
+              return;
+            }
+
+            const famData = famDoc.data?.() || {};
+            const memberIds = Array.isArray(famData.members)
+              ? famData.members.filter((uid) => typeof uid === 'string' && uid.trim())
+              : [];
+
+            if (memberIds.length === 0) {
+              callback([]);
+              return;
+            }
+
+            const token = ++requestToken;
+            Promise.all(memberIds.map((uid) => firestore().collection('users').doc(uid).get()))
+              .then((userDocs) => {
+                if (token !== requestToken) return;
+                const members = userDocs.map((doc) => {
+                  const userExists = typeof doc?.exists === 'function'
+                    ? doc.exists()
+                    : Boolean(doc?.exists);
+                  return {
+                    uid: doc.id,
+                    ...(userExists ? (doc.data?.() || {}) : {}),
+                  };
+                });
+                callback(members);
+              })
+              .catch((err) => {
+                console.error('[firestoreService] family members subscription error:', err);
+                callback([]);
+              });
+          },
+          (err) => {
+            console.error('[firestoreService] family subscription error:', err);
+            callback([]);
+          }
+        );
+    } catch (err) {
+      console.warn('[firestoreService] Could not subscribe to family members:', err);
+      callback([]);
+      return () => {};
+    }
+  },
+
   async getSleepSessions() {
     if (this._cache.sleepSessions) {
       this._refreshCache({ force: false });
