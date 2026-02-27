@@ -1111,6 +1111,10 @@ function AuthGatedApp({
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('tracker');
 
+  useEffect(() => {
+    setActiveTab('tracker');
+  }, [user?.uid]);
+
   if (loading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>

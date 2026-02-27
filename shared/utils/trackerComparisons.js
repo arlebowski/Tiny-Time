@@ -239,7 +239,8 @@ export function calcFeedCumulativeAtBucket(entries, bucketIdx, dayStartMs, dayEn
     const oz = Number(f?.ounces || 0);
     if (!Number.isFinite(ts) || ts < dayStartMs || ts >= dayEndMs) return;
     if (!Number.isFinite(oz) || oz <= 0) return;
-    const idx = bucketIndexCeilFromMs(ts);
+    // Keep live cumulative alignment consistent with "now" bucket logic.
+    const idx = bucketIndexFloorFromMs(ts);
     increments[idx] += oz;
   });
   let running = 0;
@@ -259,7 +260,8 @@ export function calcNursingCumulativeAtBucket(entries, bucketIdx, dayStartMs, da
     const right = Number(s?.rightDurationSec || 0);
     const totalSec = Math.max(0, left + right);
     if (totalSec <= 0) return;
-    const idx = bucketIndexCeilFromMs(ts);
+    // Keep live cumulative alignment consistent with "now" bucket logic.
+    const idx = bucketIndexFloorFromMs(ts);
     increments[idx] += totalSec / 3600;
   });
   let running = 0;
@@ -277,7 +279,8 @@ export function calcSolidsCumulativeAtBucket(entries, bucketIdx, dayStartMs, day
     if (!Number.isFinite(ts) || ts < dayStartMs || ts >= dayEndMs) return;
     const foods = Array.isArray(s?.foods) ? s.foods.length : 0;
     if (foods <= 0) return;
-    const idx = bucketIndexCeilFromMs(ts);
+    // Keep live cumulative alignment consistent with "now" bucket logic.
+    const idx = bucketIndexFloorFromMs(ts);
     increments[idx] += foods;
   });
   let running = 0;

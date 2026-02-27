@@ -476,7 +476,7 @@ export default function SleepSheet({
   };
 
   const handleSaveSleep = async () => {
-    if (!isInputVariant || saving) return;
+    if (saving) return;
     if (!isValid) return;
     timeTrace('save:tap', { startTime, endTime, sleepState, endTimeManuallyEdited });
     const startMs = new Date(startTime).getTime();
@@ -516,7 +516,10 @@ export default function SleepSheet({
         logStep(`${name}:done`, { tookMs: Date.now() - started });
         return result;
       };
-      const excludeId = activeSleepSessionId || activeSleepId || null;
+      const isEditingEntry = !!(entry && entry.id);
+      const excludeId = isEditingEntry
+        ? entry.id
+        : (activeSleepSessionId || activeSleepId || null);
       logStep('overlap:start');
       const hasOverlap = await logAwait('overlap:check', () =>
         checkSleepOverlap(startMs, endMs, excludeId)
@@ -542,43 +545,61 @@ export default function SleepSheet({
       }
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
 
-      const sessionId = activeSleepSessionId || activeSleepId;
-      let resolvedSessionId = sessionId || null;
-      if (onAdd) {
-        onAdd({ id: resolvedSessionId, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
-      }
-      if (sessionId && storage?.endSleep) {
-        logStep('sleep:end:start');
-        await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs));
-        logStep('sleep:end:done');
-        if (notes || allPhotos.length > 0) {
+      if (isEditingEntry) {
+        const payload = {
+          startTime: startMs,
+          endTime: endMs,
+          isActive: false,
+          notes: notes || null,
+          photoURLs: allPhotos || [],
+        };
+        if (typeof onSave === 'function') {
+          onSave({ id: entry.id, type: 'sleep', ...payload });
+        }
+        if (storage?.updateSleepSession) {
           logStep('sleep:update:start');
-          await logAwait('sleep:update', () =>
-            storage.updateSleepSession?.(sessionId, {
-              notes: notes || null,
-              photoURLs: allPhotos,
-            })
-          );
+          await logAwait('sleep:update', () => storage.updateSleepSession(entry.id, payload));
           logStep('sleep:update:done');
         }
-        setActiveSleepSessionId(null);
-      } else if (storage?.startSleep) {
-        logStep('sleep:start:start');
-        const session = await logAwait('sleep:start', () => storage.startSleep(startMs));
-        logStep('sleep:start:done');
-        resolvedSessionId = session?.id || null;
-        logStep('sleep:end:start');
-        await logAwait('sleep:end', () => storage.endSleep(session.id, endMs));
-        logStep('sleep:end:done');
-        if (notes || allPhotos.length > 0) {
-          logStep('sleep:update:start');
-          await logAwait('sleep:update', () =>
-            storage.updateSleepSession?.(session.id, {
-              notes: notes || null,
-              photoURLs: allPhotos,
-            })
-          );
-          logStep('sleep:update:done');
+      } else {
+        const sessionId = activeSleepSessionId || activeSleepId;
+        let resolvedSessionId = sessionId || null;
+        if (onAdd) {
+          onAdd({ id: resolvedSessionId, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
+        }
+        if (sessionId && storage?.endSleep) {
+          logStep('sleep:end:start');
+          await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs));
+          logStep('sleep:end:done');
+          if (notes || allPhotos.length > 0) {
+            logStep('sleep:update:start');
+            await logAwait('sleep:update', () =>
+              storage.updateSleepSession?.(sessionId, {
+                notes: notes || null,
+                photoURLs: allPhotos,
+              })
+            );
+            logStep('sleep:update:done');
+          }
+          setActiveSleepSessionId(null);
+        } else if (storage?.startSleep) {
+          logStep('sleep:start:start');
+          const session = await logAwait('sleep:start', () => storage.startSleep(startMs));
+          logStep('sleep:start:done');
+          resolvedSessionId = session?.id || null;
+          logStep('sleep:end:start');
+          await logAwait('sleep:end', () => storage.endSleep(session.id, endMs));
+          logStep('sleep:end:done');
+          if (notes || allPhotos.length > 0) {
+            logStep('sleep:update:start');
+            await logAwait('sleep:update', () =>
+              storage.updateSleepSession?.(session.id, {
+                notes: notes || null,
+                photoURLs: allPhotos,
+              })
+            );
+            logStep('sleep:update:done');
+          }
         }
       }
 
