@@ -14,6 +14,8 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import { OAuthProvider, signInWithCredential, getAuth } from 'firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
@@ -88,6 +90,24 @@ export default function LoginScreen({ onDevExitPreview = null }) {
     }
   };
 
+  async function handleAppleSignIn() {
+    const auth = getAuth();
+    const appleCredential = await AppleAuthentication.signInAsync({
+      requestedScopes: [
+        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+        AppleAuthentication.AppleAuthenticationScope.EMAIL,
+      ],
+    });
+
+    const provider = new OAuthProvider('apple.com');
+
+    const credential = provider.credential({
+      idToken: appleCredential.identityToken,
+    });
+
+    await signInWithCredential(auth, credential);
+  }
+
   return (
     <KeyboardAvoidingView
       style={[styles.container, { backgroundColor: colors.appBg }]}
@@ -129,6 +149,16 @@ export default function LoginScreen({ onDevExitPreview = null }) {
               </>
             )}
           </Pressable>
+
+          {Platform.OS === 'ios' ? (
+            <AppleAuthentication.AppleAuthenticationButton
+              buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+              buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
+              cornerRadius={radius?.lg ?? 12}
+              onPress={handleAppleSignIn}
+              style={styles.appleButton}
+            />
+          ) : null}
 
           <View style={styles.dividerRow}>
             <View style={[styles.dividerLine, { backgroundColor: colors.inputBg }]} />
@@ -220,6 +250,14 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   googleButton: {
+    height: 48,
+    borderWidth: 1.5,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  appleButton: {
     height: 48,
     borderWidth: 1.5,
     flexDirection: 'row',

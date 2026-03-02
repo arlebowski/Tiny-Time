@@ -2,7 +2,7 @@
  * SleepSheet — 1:1 from web/components/halfsheets/SleepSheet.js
  * Start/End time, duration display, Start/End sleep timer, notes, photos
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
@@ -119,6 +119,16 @@ export default function SleepSheet({
   const sleepIntervalRef = useRef(null);
   const endTimeManuallyEditedRef = useRef(false);
   const lastTimeTraceRef = useRef(0);
+
+  // Stable fallback when picker is open and value is null — avoids snap-back from 1s timer
+  const startPickerFallback = useMemo(
+    () => (showStartTray ? new Date().toISOString() : null),
+    [showStartTray]
+  );
+  const endPickerFallback = useMemo(
+    () => (showEndTray ? new Date().toISOString() : null),
+    [showEndTray]
+  );
 
   const durationResultMs = (() => {
     if (!startTime || !endTime) return 0;
@@ -822,14 +832,14 @@ export default function SleepSheet({
       <DateTimePickerTray
         isOpen={showStartTray}
         onClose={() => setShowStartTray(false)}
-        value={startTime || new Date().toISOString()}
+        value={startTime ?? startPickerFallback}
         onChange={handleStartTimeChange}
         title="Start time"
       />
       <DateTimePickerTray
         isOpen={showEndTray}
         onClose={() => setShowEndTray(false)}
-        value={endTime || new Date().toISOString()}
+        value={endTime ?? endPickerFallback}
         onChange={handleEndTimeChange}
         title="End time"
       />
