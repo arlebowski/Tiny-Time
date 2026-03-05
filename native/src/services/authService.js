@@ -94,6 +94,23 @@ export async function signInWithGoogle() {
   return result;
 }
 
+/** Apple sign-in using Apple identity token -> Firebase credential */
+export async function signInWithAppleIdentityToken(identityToken, rawNonce = null) {
+  assertFirebase();
+  if (!identityToken) {
+    throw new Error('Apple sign-in did not return an identity token.');
+  }
+
+  const AppleAuthProvider = auth?.AppleAuthProvider;
+  if (!AppleAuthProvider || typeof AppleAuthProvider.credential !== 'function') {
+    throw new Error('Firebase AppleAuthProvider is unavailable in this runtime');
+  }
+  const credential = AppleAuthProvider.credential(identityToken, rawNonce || undefined);
+  const result = await auth().signInWithCredential(credential);
+  await ensureUserProfile(result.user);
+  return result;
+}
+
 /** Sign out */
 export async function signOutUser() {
   assertFirebase();

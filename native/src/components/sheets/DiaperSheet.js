@@ -10,7 +10,7 @@ import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { formatDateTime } from '../../utils/dateTime';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, PhotoModal } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
 
 const FUTURE_TOLERANCE_MS = 60 * 1000;
@@ -91,6 +91,7 @@ export default function DiaperSheet({
   const [showDateTimeTray, setShowDateTimeTray] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   const [isWet, setIsWet] = useState(false);
   const [isDry, setIsDry] = useState(true);
@@ -328,7 +329,7 @@ export default function DiaperSheet({
               newPhotos={photos}
               onAddPhoto={handleAddPhoto}
               onRemovePhoto={handleRemovePhoto}
-              onPreviewPhoto={() => {}}
+              onPreviewPhoto={(url) => setPreviewPhoto(typeof url === 'string' ? url : url?.uri || url)}
               addLabel="+ Add photos"
             />
           )}
@@ -361,6 +362,12 @@ export default function DiaperSheet({
         value={dateTime}
         onChange={handleDateTimeChange}
         title="Time"
+      />
+
+      <PhotoModal
+        visible={!!previewPhoto}
+        photo={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
       />
     </>
   );

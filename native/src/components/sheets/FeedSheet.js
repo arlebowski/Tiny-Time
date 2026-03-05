@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import { colorMix } from '../../utils/colorBlend';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray, TTPickerTray } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, TTPickerTray, PhotoModal } from '../shared';
 import AmountStepper from './AmountStepper';
 import TimelineSwipeRow from '../Timeline/TimelineSwipeRow';
 import {
@@ -251,6 +251,7 @@ export default function FeedSheet({
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   const dateTimeTouchedRef = useRef(false);
   const lastTimeTraceRef = useRef(0);
@@ -1299,7 +1300,7 @@ export default function FeedSheet({
           newPhotos={photos}
           onAddPhoto={handleAddPhoto}
           onRemovePhoto={handleRemovePhoto}
-          onPreviewPhoto={() => {}}
+          onPreviewPhoto={(url) => setPreviewPhoto(typeof url === 'string' ? url : url?.uri || url)}
           addLabel="+ Add photos"
         />
       )}
@@ -1727,6 +1728,12 @@ export default function FeedSheet({
           </View>
         ) : null}
       </TTPickerTray>
+
+      <PhotoModal
+        visible={!!previewPhoto}
+        photo={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
+      />
     </>
   );
 }

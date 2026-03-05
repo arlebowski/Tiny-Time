@@ -4,6 +4,7 @@ export { default as SegmentedToggle } from './SegmentedToggle';
 export { default as TTInputRow } from './TTInputRow';
 export { default as InputRow } from './TTInputRow'; // Alias for backward compatibility
 export { default as TTPhotoRow } from './TTPhotoRow';
+export { default as PhotoModal } from './PhotoModal';
 export {
   WheelPicker,
   AmountPickerLabSection,

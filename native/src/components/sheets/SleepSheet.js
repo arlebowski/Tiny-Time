@@ -11,7 +11,7 @@ import { useData } from '../../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, PhotoModal } from '../shared';
 
 const FUTURE_TOLERANCE_MS = 60 * 1000;
 
@@ -115,6 +115,7 @@ export default function SleepSheet({
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [activeSleepSessionId, setActiveSleepSessionId] = useState(null);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   const sleepIntervalRef = useRef(null);
   const endTimeManuallyEditedRef = useRef(false);
@@ -818,7 +819,7 @@ export default function SleepSheet({
               newPhotos={photos}
               onAddPhoto={handleAddPhoto}
               onRemovePhoto={handleRemovePhoto}
-              onPreviewPhoto={() => {}}
+              onPreviewPhoto={(url) => setPreviewPhoto(typeof url === 'string' ? url : url?.uri || url)}
               addLabel="+ Add photos"
             />
           )}
@@ -842,6 +843,12 @@ export default function SleepSheet({
         value={endTime ?? endPickerFallback}
         onChange={handleEndTimeChange}
         title="End time"
+      />
+
+      <PhotoModal
+        visible={!!previewPhoto}
+        photo={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
       />
     </>
   );

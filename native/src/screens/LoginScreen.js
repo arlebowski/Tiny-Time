@@ -15,7 +15,6 @@ import {
   Alert,
 } from 'react-native';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { OAuthProvider, signInWithCredential, getAuth } from 'firebase/auth';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +24,7 @@ const lockupDk = require('../../assets/lockup-dk.png');
 
 export default function LoginScreen({ onDevExitPreview = null }) {
   const { colors, radius, isDark } = useTheme();
-  const { signIn, signUp, signInWithGoogle, loading } = useAuth();
+  const { signIn, signUp, signInWithGoogle, signInWithApple, loading } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,21 +90,32 @@ export default function LoginScreen({ onDevExitPreview = null }) {
   };
 
   async function handleAppleSignIn() {
-    const auth = getAuth();
-    const appleCredential = await AppleAuthentication.signInAsync({
-      requestedScopes: [
-        AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-        AppleAuthentication.AppleAuthenticationScope.EMAIL,
-      ],
-    });
+    setError(null);
+    try {
+      const isAvailable = await AppleAuthentication.isAvailableAsync();
+      if (!isAvailable) {
+        setError('Sign in with Apple is not available on this device.');
+        return;
+      }
 
-    const provider = new OAuthProvider('apple.com');
+      const appleCredential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
 
-    const credential = provider.credential({
-      idToken: appleCredential.identityToken,
-    });
-
-    await signInWithCredential(auth, credential);
+      await signInWithApple(
+        appleCredential?.identityToken || null,
+        appleCredential?.nonce || null
+      );
+    } catch (e) {
+      const code = String(e?.code ?? '');
+      const msg = String(e?.message ?? 'Apple sign-in failed. Please try again.');
+      if (code === 'ERR_REQUEST_CANCELED') return;
+      console.error('[Apple Sign-In]', { code, message: msg, fullError: e });
+      setError(msg);
+    }
   }
 
   return (

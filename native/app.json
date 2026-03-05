@@ -16,6 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.tinytracker.mobile",
       "buildNumber": "3",
+      "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false

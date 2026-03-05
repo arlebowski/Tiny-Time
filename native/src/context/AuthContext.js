@@ -13,6 +13,7 @@ import {
   signOutUser,
   signInWithEmail,
   signInWithGoogle,
+  signInWithAppleIdentityToken,
   signUpWithEmail,
   acceptInvite,
 } from '../services/authService';
@@ -268,6 +269,16 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const handleAppleSignIn = useCallback(async (identityToken, rawNonce = null) => {
+    if (!isFirebaseAuthAvailable) return;
+    setLoading(true);
+    try {
+      await signInWithAppleIdentityToken(identityToken, rawNonce);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const handleSignOut = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
     messagingService.unregisterToken().catch(() => {});
@@ -346,6 +357,7 @@ export function AuthProvider({ children }) {
     needsSetup,
     signIn: handleSignIn,
     signInWithGoogle: handleGoogleSignIn,
+    signInWithApple: handleAppleSignIn,
     signUp: handleSignUp,
     signOut: handleSignOut,
     createFamily: handleCreateFamily,
@@ -362,6 +374,7 @@ export function AuthProvider({ children }) {
     needsSetup,
     handleSignIn,
     handleGoogleSignIn,
+    handleAppleSignIn,
     handleSignUp,
     handleSignOut,
     handleCreateFamily,
