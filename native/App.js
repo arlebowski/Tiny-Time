@@ -360,7 +360,16 @@ function AppShell({
     return Math.max(20, Constants.statusBarHeight || 0);
   }, [insets.top]);
   const appBg = colors.appBg;
-  const { user, familyId, kidId, families, setKidId, setFamilyId, signOut: authSignOut } = useAuth();
+  const {
+    user,
+    familyId,
+    kidId,
+    families,
+    setKidId,
+    setFamilyId,
+    signOut: authSignOut,
+    deleteAccount: authDeleteAccount,
+  } = useAuth();
   const {
     kidData,
     familyMembers,
@@ -385,6 +394,7 @@ function AppShell({
   }, [kids, kidId, kidData?.photoURL]);
 
   const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
+  const handleDeleteAccount = useCallback(() => authDeleteAccount(), [authDeleteAccount]);
 
   const diaperRef = useRef(null);
   const sleepRef = useRef(null);
@@ -923,6 +933,7 @@ function AppShell({
               onRequestToggleActivitySheet={handleToggleActivitySheet}
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
+              onDeleteAccount={handleDeleteAccount}
             />
             </View>
           </View>

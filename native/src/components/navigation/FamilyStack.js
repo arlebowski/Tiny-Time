@@ -231,6 +231,7 @@ export default function FamilyStack({
   onDetailOpenChange,
   onInvitePartner,
   onSignOut,
+  onDeleteAccount,
 }) {
   return (
     <FamilyScreenProvider
@@ -256,6 +257,7 @@ export default function FamilyStack({
       onDetailOpenChange={onDetailOpenChange}
       onInvitePartner={onInvitePartner}
       onSignOut={onSignOut}
+      onDeleteAccount={onDeleteAccount}
     >
       <FamilyStackNavigator
         navigationRef={navigationRef}

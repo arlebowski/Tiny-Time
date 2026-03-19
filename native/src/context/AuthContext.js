@@ -16,6 +16,7 @@ import {
   signInWithAppleIdentityToken,
   signUpWithEmail,
   acceptInvite,
+  deleteCurrentUserAccount,
 } from '../services/authService';
 import { messagingService } from '../services/messagingService';
 
@@ -285,6 +286,17 @@ export function AuthProvider({ children }) {
     await signOutUser();
   }, []);
 
+  const handleDeleteAccount = useCallback(async () => {
+    if (!isFirebaseAuthAvailable) return;
+    setLoading(true);
+    try {
+      messagingService.unregisterToken().catch(() => {});
+      await deleteCurrentUserAccount();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   /** Create family + kid — adds new family and switches to it (keeps existing families) */
   const handleCreateFamily = useCallback(async (babyName, options = {}) => {
     if (!isFirebaseAuthAvailable) return;
@@ -360,6 +372,7 @@ export function AuthProvider({ children }) {
     signInWithApple: handleAppleSignIn,
     signUp: handleSignUp,
     signOut: handleSignOut,
+    deleteAccount: handleDeleteAccount,
     createFamily: handleCreateFamily,
     acceptInvite: handleAcceptInvite,
     setKidId,
@@ -377,6 +390,7 @@ export function AuthProvider({ children }) {
     handleAppleSignIn,
     handleSignUp,
     handleSignOut,
+    handleDeleteAccount,
     handleCreateFamily,
     handleAcceptInvite,
     setKidId,

@@ -29,6 +29,23 @@ export default function LoginScreen({ onDevExitPreview = null }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
+  const [appleSignInBusy, setAppleSignInBusy] = useState(false);
+  const [appleAvailable, setAppleAvailable] = useState(Platform.OS === 'ios');
+
+  React.useEffect(() => {
+    let mounted = true;
+    if (Platform.OS !== 'ios') return () => {};
+    AppleAuthentication.isAvailableAsync()
+      .then((available) => {
+        if (mounted) setAppleAvailable(Boolean(available));
+      })
+      .catch(() => {
+        if (mounted) setAppleAvailable(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) {
@@ -66,13 +83,19 @@ export default function LoginScreen({ onDevExitPreview = null }) {
     } catch (e) {
       const code = String(e?.code ?? '');
       const msg = String(e?.message ?? 'Google sign-in failed. Please try again.');
+      const isCancelled =
+        code.includes('SIGN_IN_CANCELLED') ||
+        code === '12501' ||
+        msg.toLowerCase().includes('cancel');
+
+      if (isCancelled) return;
+
       // Log full error for debugging (check Metro/console)
       console.error('[Google Sign-In]', { code, message: msg, fullError: e });
       if (__DEV__ && Platform.OS === 'android') {
         Alert.alert('Google Sign-In Error', `${msg}\n\nCode: ${code || 'none'}`);
       }
 
-      if (code.includes('SIGN_IN_CANCELLED') || code === '12501') return;
       if (code.includes('IN_PROGRESS')) {
         setError('Google sign-in is already in progress.');
         return;
@@ -90,13 +113,18 @@ export default function LoginScreen({ onDevExitPreview = null }) {
   };
 
   async function handleAppleSignIn() {
+    if (appleSignInBusy || loading) return;
     setError(null);
+    setAppleSignInBusy(true);
     try {
       const isAvailable = await AppleAuthentication.isAvailableAsync();
       if (!isAvailable) {
+        setAppleAvailable(false);
         setError('Sign in with Apple is not available on this device.');
+        Alert.alert('Apple Sign-In Unavailable', 'Sign in with Apple is not available on this device.');
         return;
       }
+      setAppleAvailable(true);
 
       const appleCredential = await AppleAuthentication.signInAsync({
         requestedScopes: [
@@ -112,9 +140,15 @@ export default function LoginScreen({ onDevExitPreview = null }) {
     } catch (e) {
       const code = String(e?.code ?? '');
       const msg = String(e?.message ?? 'Apple sign-in failed. Please try again.');
-      if (code === 'ERR_REQUEST_CANCELED') return;
+      if (code === 'ERR_REQUEST_CANCELED') {
+        setError('Apple sign-in was canceled.');
+        return;
+      }
       console.error('[Apple Sign-In]', { code, message: msg, fullError: e });
       setError(msg);
+      Alert.alert('Apple Sign-In Error', msg);
+    } finally {
+      setAppleSignInBusy(false);
     }
   }
 
@@ -166,6 +200,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
               buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.BLACK}
               cornerRadius={radius?.lg ?? 12}
               onPress={handleAppleSignIn}
+              disabled={!appleAvailable || appleSignInBusy || loading}
               style={styles.appleButton}
             />
           ) : null}
