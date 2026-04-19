@@ -245,8 +245,10 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-    } finally {
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
   }, []);
 
@@ -255,8 +257,10 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       await signUpWithEmail(email, password);
-    } finally {
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
   }, []);
 
@@ -265,8 +269,10 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       await signInWithGoogle();
-    } finally {
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
   }, []);
 
@@ -275,8 +281,10 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       await signInWithAppleIdentityToken(identityToken, rawNonce);
-    } finally {
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
   }, []);
 
