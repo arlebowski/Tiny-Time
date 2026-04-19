@@ -59,6 +59,11 @@ target 'native' do
     installer.pods_project.targets.each do |target|
       target.build_configurations.each do |config|
         config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+        # Xcode 26.x + fmt 11 can fail with consteval checks under C++20.
+        # Keep fmt on C++17 until upstream toolchain compatibility settles.
+        if target.name == 'fmt'
+          config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
+        end
       end
     end
   end
