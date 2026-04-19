@@ -144,12 +144,14 @@ const styles = StyleSheet.create({
     height: 80,
     borderRadius: 16,
     borderWidth: 1,
-    overflow: 'hidden',
+    overflow: 'visible',
     position: 'relative',
   },
   photoImageWrap: {
     width: '100%',
     height: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
   },
   photoImage: {
     width: '100%',
