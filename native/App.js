@@ -79,7 +79,7 @@ const NAV_FADE_HEIGHT = 50;
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
 const LAUNCH_SPLASH_MIN_MS = 900;
-const APP_SHARE_BASE_URL = 'https://bit.ly/tinytracker';
+const APP_SHARE_BASE_URL = 'https://tinytracker.io/dl';
 const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
 const CHEVRON_ROTATE_MS = 260;
 const KID_DISPLAY_FONT_FAMILY = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
