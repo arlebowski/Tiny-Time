@@ -12,6 +12,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
+import { initializeAppsFlyer } from './src/services/appsflyerService';
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -1271,6 +1272,10 @@ export default function App() {
     }).finally(() => {
       setAppearanceHydrated(true);
     });
+  }, []);
+
+  useEffect(() => {
+    initializeAppsFlyer();
   }, []);
 
   useEffect(() => {
