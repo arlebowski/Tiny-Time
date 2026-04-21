@@ -12,7 +12,7 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
-import { initializeAppsFlyer } from './src/services/appsflyerService';
+import { initializeAppsFlyer, setAppsFlyerCustomerUserId } from './src/services/appsflyerService';
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -431,6 +431,11 @@ function AppShell({
 
   // Derive user info from real data
   const familyUser = user ? { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL } : null;
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    setAppsFlyerCustomerUserId(user.uid);
+  }, [user?.uid]);
 
   useEffect(() => {
     AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
