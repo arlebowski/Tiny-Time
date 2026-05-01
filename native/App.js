@@ -12,7 +12,14 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
-import { initializeAppsFlyer, setAppsFlyerCustomerUserId } from './src/services/appsflyerService';
+import {
+  initializeAppsFlyer,
+  setAppsFlyerCustomerUserId,
+  trackFirstFeedLogged,
+  trackFirstSleepLogged,
+  trackPartnerInvited,
+  trackRetained7Days,
+} from './src/services/appsflyerService';
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -437,6 +444,30 @@ function AppShell({
     setAppsFlyerCustomerUserId(user.uid);
   }, [user?.uid]);
 
+  const trackAppsFlyerOncePerUser = useCallback(async (flagName, tracker) => {
+    if (!user?.uid || typeof tracker !== 'function') return;
+    const key = `tt_appsflyer_${flagName}:${user.uid}`;
+    const hasTracked = await AsyncStorage.getItem(key);
+    if (hasTracked === '1') return;
+    await tracker();
+    await AsyncStorage.setItem(key, '1');
+  }, [user?.uid]);
+
+  const maybeTrackDay7Retention = useCallback(async () => {
+    if (!user?.uid) return;
+    const creationTimeRaw = user?.metadata?.creationTime || null;
+    if (!creationTimeRaw) return;
+    const createdAtMs = Date.parse(creationTimeRaw);
+    if (!Number.isFinite(createdAtMs)) return;
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    if (Date.now() - createdAtMs < SEVEN_DAYS_MS) return;
+    await trackAppsFlyerOncePerUser('hasTrackedDay7', trackRetained7Days);
+  }, [user?.uid, user?.metadata?.creationTime, trackAppsFlyerOncePerUser]);
+
+  useEffect(() => {
+    maybeTrackDay7Retention().catch(() => {});
+  }, [maybeTrackDay7Retention]);
+
   useEffect(() => {
     AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
       if (stored === 'nursing' || stored === 'bottle') setLastFeedVariant(stored);
@@ -488,13 +519,18 @@ function AppShell({
     if (entry) {
       applyOptimisticEntry(entry);
     }
-  }, [applyOptimisticEntry]);
+    const isFeedEntry = entry?.type === 'feed' || entry?.type === 'bottle' || entry?.type === 'nursing' || entry?.type === 'solids';
+    if (isFeedEntry) {
+      trackAppsFlyerOncePerUser('hasLoggedFirstFeed', trackFirstFeedLogged).catch(() => {});
+    }
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser]);
 
   const handleSleepAdded = useCallback((entry) => {
     if (entry) {
       applyOptimisticEntry(entry);
+      trackAppsFlyerOncePerUser('hasLoggedFirstSleep', trackFirstSleepLogged).catch(() => {});
     }
-  }, [applyOptimisticEntry]);
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser]);
 
   const handleDiaperSaved = useCallback((entry) => {
     if (entry) {
@@ -699,10 +735,13 @@ function AppShell({
 
     if (Share?.share) {
       try {
-        await Share.share({
+        const result = await Share.share({
           title: 'Join me on Tiny Tracker',
           message,
         });
+        if (Platform.OS !== 'ios' || result?.action !== Share.dismissedAction) {
+          trackPartnerInvited().catch(() => {});
+        }
         return;
       } catch {
         return;
@@ -719,12 +758,15 @@ function AppShell({
         setShareAnchor(null);
         shareFlowInFlightRef.current = false;
       }
+      if (nextState === 'active') {
+        maybeTrackDay7Retention().catch(() => {});
+      }
     });
 
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [maybeTrackDay7Retention]);
 
   const handleShareAppFromMenu = useCallback(async () => {
     shareFlowInFlightRef.current = true;

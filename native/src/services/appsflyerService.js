@@ -13,6 +13,18 @@ const getAppsFlyerModule = () => {
   return require('react-native-appsflyer').default;
 };
 
+const logAppsFlyerEvent = async (eventName, values = {}) => {
+  const appsFlyer = getAppsFlyerModule();
+  if (!appsFlyer) return;
+  try {
+    await appsFlyer.logEvent(eventName, values);
+  } catch (error) {
+    if (__DEV__) {
+      console.warn(`[AppsFlyer] logEvent failed for ${eventName}:`, error);
+    }
+  }
+};
+
 export async function initializeAppsFlyer() {
   if (hasInitialized) return;
 
@@ -69,3 +81,38 @@ export async function setAppsFlyerCustomerUserId(customerUserId) {
     }
   }
 }
+
+// 1. Account created (brand new account, first user in a family)
+export const trackAccountCreated = () => {
+  return logAppsFlyerEvent('account_created', {});
+};
+
+// 2. Family joined (user joined via invite link)
+export const trackFamilyJoined = () => {
+  return logAppsFlyerEvent('family_joined', {});
+};
+
+// 3. Onboarding completed (baby profile created)
+export const trackOnboardingCompleted = () => {
+  return logAppsFlyerEvent('af_complete_registration', {});
+};
+
+// 4. First feed logged
+export const trackFirstFeedLogged = () => {
+  return logAppsFlyerEvent('first_feed_logged', {});
+};
+
+// 5. First sleep logged
+export const trackFirstSleepLogged = () => {
+  return logAppsFlyerEvent('first_sleep_logged', {});
+};
+
+// 6. Partner invited
+export const trackPartnerInvited = () => {
+  return logAppsFlyerEvent('partner_invited', {});
+};
+
+// 7. Day 7 retention
+export const trackRetained7Days = () => {
+  return logAppsFlyerEvent('user_retained_7d', {});
+};

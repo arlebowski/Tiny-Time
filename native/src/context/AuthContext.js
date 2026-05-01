@@ -19,6 +19,11 @@ import {
   deleteCurrentUserAccount,
 } from '../services/authService';
 import { messagingService } from '../services/messagingService';
+import {
+  trackAccountCreated,
+  trackFamilyJoined,
+  trackOnboardingCompleted,
+} from '../services/appsflyerService';
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
@@ -107,6 +112,7 @@ export function AuthProvider({ children }) {
       handledInviteCodesRef.current.add(code);
       setPendingInviteCode(null);
       if (result?.familyId && result?.kidId) {
+        trackFamilyJoined().catch(() => {});
         setFamilyIdState(result.familyId);
         setKidIdState(result.kidId);
         setNeedsSetup(false);
@@ -311,8 +317,14 @@ export function AuthProvider({ children }) {
     if (!user) return;
     setLoading(true);
     try {
+      const isInitialSetup = needsSetup || families.length === 0;
       const result = await createFamilyWithKid(user.uid, babyName, options);
       const familyName = options?.familyName?.trim() || `${babyName}'s family`;
+
+      if (isInitialSetup) {
+        trackAccountCreated().catch(() => {});
+        trackOnboardingCompleted().catch(() => {});
+      }
 
       setFamilyIdState(result.familyId);
       setKidIdState(result.kidId);
@@ -327,7 +339,7 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  }, [user, hydrateKidSnapshot]);
+  }, [user, hydrateKidSnapshot, needsSetup, families.length]);
 
   /** Accept an invite code and join that family */
   const handleAcceptInvite = useCallback(async (code) => {
@@ -336,6 +348,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const result = await acceptInvite(code, user.uid);
+      trackFamilyJoined().catch(() => {});
       setFamilyIdState(result.familyId);
       setKidIdState(result.kidId);
       const allFamilies = await loadUserFamilies(user.uid);
