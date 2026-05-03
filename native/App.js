@@ -19,6 +19,7 @@ import {
   trackFirstSleepLogged,
   trackPartnerInvited,
   trackRetained7Days,
+  trackAppOpen,
 } from './src/services/appsflyerService';
 
 // Screens
@@ -466,6 +467,7 @@ function AppShell({
 
   useEffect(() => {
     maybeTrackDay7Retention().catch(() => {});
+    trackAppOpen().catch(() => {});
   }, [maybeTrackDay7Retention]);
 
   useEffect(() => {
@@ -760,6 +762,7 @@ function AppShell({
       }
       if (nextState === 'active') {
         maybeTrackDay7Retention().catch(() => {});
+        trackAppOpen().catch(() => {});
       }
     });
 

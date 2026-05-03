@@ -2,6 +2,8 @@ import { NativeModules, Platform } from 'react-native';
 
 let hasInitialized = false;
 let lastCustomerUserId = null;
+const APPSFLYER_DEV_KEY_FALLBACK = 'bC2Rii2ThnbfWgTeGgHN6X';
+const APPSFLYER_IOS_APP_ID_FALLBACK = '6759471392';
 
 const getStringEnv = (name) => {
   const value = process.env[name];
@@ -30,19 +32,19 @@ export async function initializeAppsFlyer() {
 
   // In Expo Go / stale dev clients the native bridge may be missing.
   if (!getAppsFlyerModule()) {
-    if (__DEV__) {
-      console.warn('[AppsFlyer] RNAppsFlyer native module not found; skipping initialization.');
-    }
+    const message = '[AppsFlyer] RNAppsFlyer native module not found; initialization skipped.';
+    if (__DEV__) console.warn(message);
+    else console.error(message);
     return;
   }
 
-  const devKey = getStringEnv('EXPO_PUBLIC_APPSFLYER_DEV_KEY');
-  const appId = getStringEnv('EXPO_PUBLIC_APPSFLYER_APP_ID');
+  const devKey = getStringEnv('EXPO_PUBLIC_APPSFLYER_DEV_KEY') || APPSFLYER_DEV_KEY_FALLBACK;
+  const appId = getStringEnv('EXPO_PUBLIC_APPSFLYER_APP_ID') || APPSFLYER_IOS_APP_ID_FALLBACK;
 
   if (!devKey) {
-    if (__DEV__) {
-      console.warn('[AppsFlyer] Missing EXPO_PUBLIC_APPSFLYER_DEV_KEY; skipping initialization.');
-    }
+    const message = '[AppsFlyer] Missing dev key; initialization skipped.';
+    if (__DEV__) console.warn(message);
+    else console.error(message);
     return;
   }
 
@@ -115,4 +117,9 @@ export const trackPartnerInvited = () => {
 // 7. Day 7 retention
 export const trackRetained7Days = () => {
   return logAppsFlyerEvent('user_retained_7d', {});
+};
+
+// 8. App open (manual visibility event)
+export const trackAppOpen = () => {
+  return logAppsFlyerEvent('app_open', {});
 };
