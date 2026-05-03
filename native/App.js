@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1326,15 +1327,11 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      // Expo Go and old binaries don't include the ATT native module — lazy require
-      // prevents a crash at load time; the try/catch handles missing native module gracefully.
-      if (Platform.OS === 'ios') {
-        try {
-          const { requestTrackingPermissionsAsync } = require('expo-tracking-transparency');
-          await requestTrackingPermissionsAsync();
-        } catch (e) {
-          if (__DEV__) console.warn('[ATT] skipped:', e?.message ?? e);
-        }
+      // requireOptionalNativeModule returns null instead of throwing when the native
+      // module isn't present (Expo Go, simulator without module, old binaries).
+      if (Platform.OS === 'ios' && requireOptionalNativeModule('ExpoTrackingTransparency')) {
+        const { requestTrackingPermissionsAsync } = require('expo-tracking-transparency');
+        await requestTrackingPermissionsAsync();
       }
       initializeAppsFlyer();
     })();
