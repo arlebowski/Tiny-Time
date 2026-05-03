@@ -36,4 +36,9 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
+# Build artifacts
+*.ipa
+*.apk
+*.aab
+
 # generated native folders
