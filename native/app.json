@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tiny Tracker",
     "slug": "native",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,11 +15,12 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tinytracker.mobile",
-      "buildNumber": "29",
+      "buildNumber": "38",
       "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "Helps us understand how you discovered Tiny Tracker so we can reach more parents like you."
       }
     },
     "android": {
@@ -34,12 +35,14 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.tinytracker.mobile",
+      "versionCode": 38,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-tracking-transparency",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",

@@ -1,9 +1,13 @@
 import { NativeModules, Platform } from 'react-native';
 
-let hasInitialized = false;
 let lastCustomerUserId = null;
 const APPSFLYER_DEV_KEY_FALLBACK = 'bC2Rii2ThnbfWgTeGgHN6X';
 const APPSFLYER_IOS_APP_ID_FALLBACK = '6759471392';
+
+// Resolved once initSdk succeeds; null if the native module is unavailable.
+// All callers await this before calling SDK methods to avoid a race condition
+// between initSdk completing and the first logEvent / setCustomerUserId call.
+let initPromise = null;
 
 const getStringEnv = (name) => {
   const value = process.env[name];
@@ -15,56 +19,52 @@ const getAppsFlyerModule = () => {
   return require('react-native-appsflyer').default;
 };
 
+const waitForInit = () => initPromise ?? Promise.resolve();
+
 const logAppsFlyerEvent = async (eventName, values = {}) => {
   const appsFlyer = getAppsFlyerModule();
   if (!appsFlyer) return;
+  await waitForInit();
   try {
     await appsFlyer.logEvent(eventName, values);
   } catch (error) {
-    if (__DEV__) {
-      console.warn(`[AppsFlyer] logEvent failed for ${eventName}:`, error);
-    }
+    console.warn(`[AppsFlyer] logEvent failed for ${eventName}:`, error);
   }
 };
 
-export async function initializeAppsFlyer() {
-  if (hasInitialized) return;
+export function initializeAppsFlyer() {
+  if (initPromise) return initPromise;
 
   // In Expo Go / stale dev clients the native bridge may be missing.
   if (!getAppsFlyerModule()) {
-    const message = '[AppsFlyer] RNAppsFlyer native module not found; initialization skipped.';
-    if (__DEV__) console.warn(message);
-    else console.error(message);
-    return;
+    console.warn('[AppsFlyer] RNAppsFlyer native module not found; initialization skipped.');
+    return Promise.resolve();
   }
 
   const devKey = getStringEnv('EXPO_PUBLIC_APPSFLYER_DEV_KEY') || APPSFLYER_DEV_KEY_FALLBACK;
   const appId = getStringEnv('EXPO_PUBLIC_APPSFLYER_APP_ID') || APPSFLYER_IOS_APP_ID_FALLBACK;
 
   if (!devKey) {
-    const message = '[AppsFlyer] Missing dev key; initialization skipped.';
-    if (__DEV__) console.warn(message);
-    else console.error(message);
-    return;
+    console.error('[AppsFlyer] Missing dev key; initialization skipped.');
+    return Promise.resolve();
   }
 
-  try {
-    const appsFlyer = getAppsFlyerModule();
-    if (!appsFlyer) return;
-    await appsFlyer.initSdk({
-      devKey,
-      appId: Platform.OS === 'ios' ? appId || undefined : undefined,
-      isDebug: __DEV__,
-      onInstallConversionDataListener: true,
-      onDeepLinkListener: true,
-      timeToWaitForATTUserAuthorization: 10,
-    });
-    hasInitialized = true;
-  } catch (error) {
-    if (__DEV__) {
-      console.warn('[AppsFlyer] initSdk failed:', error);
-    }
-  }
+  const appsFlyer = getAppsFlyerModule();
+
+  initPromise = appsFlyer.initSdk({
+    devKey,
+    appId: Platform.OS === 'ios' ? appId || undefined : undefined,
+    isDebug: __DEV__,
+    onInstallConversionDataListener: true,
+    onDeepLinkListener: true,
+    timeToWaitForATTUserAuthorization: 60,
+  }).catch((error) => {
+    console.error('[AppsFlyer] initSdk failed:', error);
+    // Reset so a retry is possible if the caller invokes initializeAppsFlyer again.
+    initPromise = null;
+  });
+
+  return initPromise;
 }
 
 export async function setAppsFlyerCustomerUserId(customerUserId) {
@@ -74,13 +74,13 @@ export async function setAppsFlyerCustomerUserId(customerUserId) {
   const appsFlyer = getAppsFlyerModule();
   if (!appsFlyer) return;
 
+  await waitForInit();
+
   try {
     await appsFlyer.setCustomerUserId(normalizedId);
     lastCustomerUserId = normalizedId;
   } catch (error) {
-    if (__DEV__) {
-      console.warn('[AppsFlyer] setCustomerUserId failed:', error);
-    }
+    console.warn('[AppsFlyer] setCustomerUserId failed:', error);
   }
 }
 

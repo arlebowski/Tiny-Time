@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { requestTrackingPermissionsAsync } from 'expo-tracking-transparency';
 import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -1325,7 +1326,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    initializeAppsFlyer();
+    (async () => {
+      if (Platform.OS === 'ios') {
+        await requestTrackingPermissionsAsync();
+      }
+      initializeAppsFlyer();
+    })();
   }, []);
 
   useEffect(() => {
