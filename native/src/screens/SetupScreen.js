@@ -2,7 +2,7 @@
  * SetupScreen — shown when a user is signed in but has no family/kid.
  * Allows creating a new baby or entering an invite code.
  */
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { usePostHog } from 'posthog-react-native';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
@@ -25,9 +26,14 @@ import { DatePickerTray } from '../components/shared/Wheelpickers';
 const lockupLt = require('../../assets/lockup-lt.png');
 const lockupDk = require('../../assets/lockup-dk.png');
 
-export default function SetupScreen({ onDevExitPreview = null }) {
+export default function SetupScreen({ onDevExitPreview = null, newVariant = false }) {
   const { colors, radius, isDark } = useTheme();
   const { createFamily, acceptInvite, loading } = useAuth();
+  const posthog = usePostHog();
+
+  useEffect(() => {
+    posthog.capture('onboarding_viewed', { variant: newVariant ? 'new' : 'control' });
+  }, []);
   const [onboardingMode, setOnboardingMode] = useState('create');
   const [familyName, setFamilyName] = useState('');
   const [babyName, setBabyName] = useState('');
@@ -128,6 +134,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
         preferredVolumeUnit: 'oz',
         babyWeight: parsedWeight,
       });
+      posthog.capture('onboarding_family_created', { variant: newVariant ? 'new' : 'control' });
     } catch (e) {
       setError(e.message || 'Failed to create family');
     }
@@ -141,6 +148,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     setError(null);
     try {
       await acceptInvite(normalizedInviteCode);
+      posthog.capture('onboarding_invite_accepted');
     } catch (e) {
       setError(e?.message || 'Failed to join family');
     }

@@ -8,9 +8,13 @@ import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
 import Popover from 'react-native-popover-view';
+import { PostHogProvider } from 'posthog-react-native';
+import { POSTHOG_API_KEY, POSTHOG_OPTIONS } from './src/services/posthog';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
+import { useFeatureFlag } from 'posthog-react-native';
+import { FLAGS } from './src/services/posthog';
 import { createStorageAdapter } from './src/services/storageAdapter';
 
 // Screens
@@ -1076,6 +1080,7 @@ function AuthGatedApp({
 }) {
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
+  const newOnboardingEnabled = useFeatureFlag(FLAGS.NEW_ONBOARDING);
   const [activeTab, setActiveTab] = useState('tracker');
 
   if (loading) {
@@ -1107,7 +1112,7 @@ function AuthGatedApp({
   }
 
   if (needsSetup || !familyId || !kidId) {
-    return <SetupScreen />;
+    return <SetupScreen newVariant={!!newOnboardingEnabled} />;
   }
 
   return (
@@ -1298,6 +1303,7 @@ export default function App() {
 
   return (
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
+      <PostHogProvider apiKey={POSTHOG_API_KEY} options={POSTHOG_OPTIONS}>
       {ready ? (
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
           {/* Preload header logos so they decode during splash — avoids lag when header first appears */}
@@ -1333,6 +1339,7 @@ export default function App() {
           </SafeAreaProvider>
         </ThemeProvider>
       ) : null}
+      </PostHogProvider>
     </GestureHandlerRootView>
   );
 }
