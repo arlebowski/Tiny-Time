@@ -182,11 +182,8 @@ export function FamilyScreenProvider({
 
   // Edit states
   const [editingName, setEditingName] = useState(false);
-  const [editingWeight, setEditingWeight] = useState(false);
   const [tempBabyName, setTempBabyName] = useState(null);
-  const [tempWeight, setTempWeight] = useState(null);
   const [savingKidName, setSavingKidName] = useState(false);
-  const [savingKidWeight, setSavingKidWeight] = useState(false);
 
   // Add Child / Family
   const appearanceSheetRef = useRef(null);
@@ -196,13 +193,11 @@ export function FamilyScreenProvider({
   const addFamilySheetRef = useRef(null);
   const [newBabyName, setNewBabyName] = useState('');
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
-  const [newBabyWeight, setNewBabyWeight] = useState('');
   const [newChildPhotoUris, setNewChildPhotoUris] = useState([]);
   const [savingChild, setSavingChild] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
   const [newFamilyBabyName, setNewFamilyBabyName] = useState('');
   const [newFamilyBirthDate, setNewFamilyBirthDate] = useState('');
-  const [newFamilyWeight, setNewFamilyWeight] = useState('');
   const [newFamilyPhotoUris, setNewFamilyPhotoUris] = useState([]);
   const [addFamilyMode, setAddFamilyMode] = useState('create');
   const [familyInviteCode, setFamilyInviteCode] = useState('');
@@ -255,7 +250,6 @@ export function FamilyScreenProvider({
   const resetAddChildForm = useCallback(() => {
     setNewBabyName('');
     setNewBabyBirthDate('');
-    setNewBabyWeight('');
     setNewChildPhotoUris([]);
   }, []);
 
@@ -263,7 +257,6 @@ export function FamilyScreenProvider({
     setNewFamilyName('');
     setNewFamilyBabyName('');
     setNewFamilyBirthDate('');
-    setNewFamilyWeight('');
     setNewFamilyPhotoUris([]);
     setAddFamilyMode('create');
     setFamilyInviteCode('');
@@ -357,9 +350,7 @@ export function FamilyScreenProvider({
   const loadSelectedKidData = useCallback(async (kidCandidate) => {
     if (!kidCandidate?.id) return;
     setTempBabyName(null);
-    setTempWeight(null);
     setEditingName(false);
-    setEditingWeight(false);
 
     const fallbackKidData = kidCandidate.id === kidId && ctxKidData ? { ...ctxKidData } : { ...kidCandidate };
     const fallbackSettings = kidCandidate.id === kidId && ctxSettings
@@ -426,9 +417,7 @@ export function FamilyScreenProvider({
 
   const prepareKidSubpage = useCallback((kid) => {
     setTempBabyName(null);
-    setTempWeight(null);
     setEditingName(false);
-    setEditingWeight(false);
     setSelectedKidForSubpage(kid || null);
     loadSelectedKidData(kid);
   }, [loadSelectedKidData]);
@@ -485,53 +474,6 @@ export function FamilyScreenProvider({
       setSavingKidName(false);
     }
   }, [selectedKidForSubpage?.id, tempBabyName, selectedKidData?.name, kidId, firestoreService, refresh]);
-
-  const handleWeightChange = useCallback((nextValue) => {
-    if (!editingWeight) setEditingWeight(true);
-    setTempWeight(nextValue);
-  }, [editingWeight]);
-
-  const handleUpdateWeight = useCallback(async () => {
-    const targetKidId = selectedKidForSubpage?.id;
-    if (tempWeight === null) {
-      setEditingWeight(false);
-      return;
-    }
-    const raw = String(tempWeight).trim();
-    if (!raw) {
-      setTempWeight(null);
-      setEditingWeight(false);
-      return;
-    }
-    const weight = parseFloat(raw);
-    if (!weight || weight <= 0) {
-      setTempWeight(selectedKidSettings.babyWeight?.toString() || null);
-      setEditingWeight(false);
-      return;
-    }
-    const saveStartedAt = Date.now();
-    setSavingKidWeight(true);
-    setSelectedKidSettings((prev) => ({ ...prev, babyWeight: weight }));
-    setSelectedKidData((prev) => (prev ? { ...prev, babyWeight: weight } : prev));
-    setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, babyWeight: weight } : k)));
-    if (targetKidId === kidId) {
-      setSettings((prev) => ({ ...prev, babyWeight: weight }));
-    }
-    try {
-      if (targetKidId) {
-        await firestoreService?.updateKidDataById?.(targetKidId, { babyWeight: weight });
-      }
-    } catch (error) {
-      console.error('Failed to update kid weight:', error);
-    } finally {
-      const minMs = 400;
-      const elapsed = Date.now() - saveStartedAt;
-      if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
-      setTempWeight(null);
-      setEditingWeight(false);
-      setSavingKidWeight(false);
-    }
-  }, [selectedKidForSubpage?.id, tempWeight, selectedKidSettings.babyWeight, kidId, firestoreService]);
 
   const handleDaySleepWindowChange = useCallback(async (startMin, endMin) => {
     const startVal = Math.max(0, Math.min(1439, Number(startMin)));
@@ -886,20 +828,11 @@ export function FamilyScreenProvider({
       Alert.alert('Error', 'Please enter a valid birth date');
       return;
     }
-    const parsedWeight = String(newBabyWeight || '').trim()
-      ? Number.parseFloat(String(newBabyWeight).trim())
-      : null;
-    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
-      Alert.alert('Error', 'Please enter a valid weight');
-      return;
-    }
-
     setSavingChild(true);
     try {
       const newKidId = await firestoreService.createChild({
         name: newBabyName.trim(),
         birthDate: parsedDate.getTime(),
-        babyWeight: parsedWeight,
         ownerId: user?.uid || null,
         photoURL: null,
         preferredVolumeUnit: 'oz',
@@ -922,7 +855,7 @@ export function FamilyScreenProvider({
       setSavingChild(false);
     }
   }, [
-    newBabyName, newBabyBirthDate, newBabyWeight, newChildPhotoUris,
+    newBabyName, newBabyBirthDate, newChildPhotoUris,
     familyId, user?.uid, activeThemeKey, defaultThemeKey,
     firestoreService, closeAddChildSheet, resetAddChildForm, onKidChange, refresh,
   ]);
@@ -947,14 +880,6 @@ export function FamilyScreenProvider({
       return;
     }
 
-    const parsedWeight = String(newFamilyWeight || '').trim()
-      ? Number.parseFloat(String(newFamilyWeight).trim())
-      : null;
-    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
-      Alert.alert('Error', 'Please enter a valid weight');
-      return;
-    }
-
     if (typeof createFamily !== 'function') {
       Alert.alert('Error', 'Family creation is unavailable right now.');
       return;
@@ -967,7 +892,6 @@ export function FamilyScreenProvider({
         birthDate: newFamilyBirthDate.trim(),
         photoUri: newFamilyPhotoUris[0] || null,
         preferredVolumeUnit: 'oz',
-        babyWeight: parsedWeight,
       });
       closeAddFamilySheet();
       resetAddFamilyForm();
@@ -978,7 +902,7 @@ export function FamilyScreenProvider({
       setSavingFamily(false);
     }
   }, [
-    newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyWeight, newFamilyPhotoUris,
+    newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyPhotoUris,
     createFamily, closeAddFamilySheet, resetAddFamilyForm,
   ]);
 
@@ -1070,9 +994,7 @@ export function FamilyScreenProvider({
     selectedKidName,
     babyPhotoUrl,
     tempBabyName,
-    tempWeight,
     savingKidName,
-    savingKidWeight,
     dayStart,
     dayEnd,
 
@@ -1094,7 +1016,6 @@ export function FamilyScreenProvider({
     savingChild,
     newBabyName,
     newBabyBirthDate,
-    newBabyWeight,
     newChildPhotoUris,
 
     // Add family
@@ -1104,7 +1025,6 @@ export function FamilyScreenProvider({
     newFamilyName,
     newFamilyBabyName,
     newFamilyBirthDate,
-    newFamilyWeight,
     newFamilyPhotoUris,
     addFamilyMode,
     familyInviteCode,
@@ -1140,8 +1060,6 @@ export function FamilyScreenProvider({
     handleDarkModeChange,
     handleBabyNameChange,
     handleUpdateBabyName,
-    handleWeightChange,
-    handleUpdateWeight,
     handleBirthDateChange,
     handleDaySleepWindowChange,
     handleVolumeUnitChange,
@@ -1168,14 +1086,11 @@ export function FamilyScreenProvider({
     setProfileEmailDraft,
     setFamilyNameDraft,
     setEditingName,
-    setEditingWeight,
     setNewBabyName,
     setNewBabyBirthDate,
-    setNewBabyWeight,
     setNewFamilyName,
     setNewFamilyBabyName,
     setNewFamilyBirthDate,
-    setNewFamilyWeight,
     setAddFamilyMode,
     setFamilyInviteCode,
 
@@ -1191,18 +1106,17 @@ export function FamilyScreenProvider({
     colorThemeOrder, kids, kidData, members, settings, familyInfo,
     loading, authLoading,
     selectedKidForSubpage, selectedKidData, selectedKidSettings,
-    selectedKidLoading, selectedKidName, babyPhotoUrl, tempBabyName, tempWeight, savingKidName, savingKidWeight,
+    selectedKidLoading, selectedKidName, babyPhotoUrl, tempBabyName, savingKidName,
     dayStart, dayEnd,
     profileNameDraft, profileEmailDraft, profilePhotoUrl, savingProfile, hasProfileChanges, profileJustSaved,
     familyNameDraft, familyOwnerUid, isFamilyOwner, savingFamilyName,
-    savingChild, newBabyName, newBabyBirthDate, newBabyWeight, newChildPhotoUris,
-    savingFamily, joiningFamily, addFamilyBusy, newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyWeight, newFamilyPhotoUris,
+    savingChild, newBabyName, newBabyBirthDate, newChildPhotoUris,
+    savingFamily, joiningFamily, addFamilyBusy, newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyPhotoUris,
     addFamilyMode, familyInviteCode,
     kidPendingDelete,
     prepareKidSubpage, loadSelectedKidData,
     handleThemeChange, handleDarkModeChange,
     handleBabyNameChange, handleUpdateBabyName,
-    handleWeightChange, handleUpdateWeight,
     handleBirthDateChange,
     handleDaySleepWindowChange,
     handleVolumeUnitChange, handlePhotoClick, handleProfilePhotoClick,

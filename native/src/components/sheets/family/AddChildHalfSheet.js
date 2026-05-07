@@ -14,13 +14,11 @@ export default function AddChildHalfSheet({
   savingChild,
   newBabyName,
   newBabyBirthDate,
-  newBabyWeight,
   newChildPhotoUris,
   onClose,
   onCreate,
   onNameChange,
   onBirthDateChange,
-  onWeightChange,
   onAddPhoto,
   onRemovePhoto,
 }) {
@@ -78,9 +76,6 @@ export default function AddChildHalfSheet({
         minYear={new Date().getFullYear() - 6}
         maxYear={new Date().getFullYear()}
       />
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow insideBottomSheet label="Current weight (lbs)" type="text" value={newBabyWeight} onChange={onWeightChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
-      </View>
       <TTPhotoRow
         expanded
         showTitle

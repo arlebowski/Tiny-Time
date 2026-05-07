@@ -28,18 +28,13 @@ export default function KidScreen() {
         selectedKidData={ctx.selectedKidData}
         selectedKidSettings={ctx.selectedKidSettings}
         tempBabyName={ctx.tempBabyName}
-        tempWeight={ctx.tempWeight}
         savingKidName={ctx.savingKidName}
-        savingKidWeight={ctx.savingKidWeight}
         formatAgeFromDate={ctx.formatAgeFromDate}
         onBack={() => navigation.goBack()}
         onPhotoClick={ctx.handlePhotoClick}
         onBabyNameChange={ctx.handleBabyNameChange}
         onBabyNameFocus={() => ctx.setEditingName(true)}
         onBabyNameBlur={ctx.handleUpdateBabyName}
-        onWeightChange={ctx.handleWeightChange}
-        onWeightFocus={() => ctx.setEditingWeight(true)}
-        onWeightBlur={ctx.handleUpdateWeight}
         onBirthDateChange={ctx.handleBirthDateChange}
         onOpenFeedingUnit={ctx.openFeedingUnitSheet}
         onOpenDaySleep={ctx.openDaySleepSheet}

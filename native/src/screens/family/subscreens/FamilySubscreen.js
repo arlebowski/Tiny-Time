@@ -104,10 +104,8 @@ export default function FamilySubscreen({
           {kids.map((k) => {
             const isCurrent = k.id === kidId;
             const ageLabel = formatAgeFromDate(k.birthDate);
-            const weightVal = Number(k?.babyWeight || k?.currentWeight || k?.weight || 0);
-            const weightLabel = Number.isFinite(weightVal) && weightVal > 0 ? `${Math.round(weightVal * 10) / 10} lbs` : null;
             const birthLabel = formatMonthDay(k.birthDate);
-            const subtitle = [ageLabel, weightLabel, birthLabel].filter(Boolean).join(' • ');
+            const subtitle = [ageLabel, birthLabel].filter(Boolean).join(' • ');
             return (
               <Card key={`family-kid-${k.id}`} onPress={() => onOpenKid(k)}>
                 <View style={s.hubKidRow}>

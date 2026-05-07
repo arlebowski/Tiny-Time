@@ -32,7 +32,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const [familyName, setFamilyName] = useState('');
   const [babyName, setBabyName] = useState('');
   const [birthDate, setBirthDate] = useState('');
-  const [babyWeight, setBabyWeight] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [photoExpanded, setPhotoExpanded] = useState(true);
   const [newPhotos, setNewPhotos] = useState([]);
@@ -113,13 +112,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
       setError('Please add a photo');
       return;
     }
-    const parsedWeight = String(babyWeight || '').trim()
-      ? Number.parseFloat(String(babyWeight).trim())
-      : null;
-    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
-      setError('Please enter a valid weight');
-      return;
-    }
     setError(null);
     try {
       await createFamily(babyName.trim(), {
@@ -127,7 +119,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
         birthDate,
         photoUri: newPhotos[0],
         preferredVolumeUnit: 'oz',
-        babyWeight: parsedWeight,
       });
     } catch (e) {
       setError(e.message || 'Failed to create family');
@@ -263,20 +254,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                 minYear={new Date().getFullYear() - 6}
                 maxYear={new Date().getFullYear()}
               />
-
-              <View style={styles.sectionSpacer}>
-                <TTInputRow
-                  label="Current Weight (lbs)"
-                  value={babyWeight}
-                  onChange={setBabyWeight}
-                  placeholder="13.0"
-                  showIcon={false}
-                  showChevron={false}
-                  enableTapAnimation
-                  showLabel
-                  type="text"
-                />
-              </View>
 
               <TTPhotoRow
                 expanded={photoExpanded}

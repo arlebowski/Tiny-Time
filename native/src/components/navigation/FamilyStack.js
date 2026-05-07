@@ -90,7 +90,6 @@ function FamilySheets() {
         savingChild={ctx.savingChild}
         newBabyName={ctx.newBabyName}
         newBabyBirthDate={ctx.newBabyBirthDate}
-        newBabyWeight={ctx.newBabyWeight}
         newChildPhotoUris={ctx.newChildPhotoUris}
         onClose={() => {
           if (!ctx.savingChild) ctx.resetAddChildForm();
@@ -98,7 +97,6 @@ function FamilySheets() {
         onCreate={ctx.handleCreateChild}
         onNameChange={ctx.setNewBabyName}
         onBirthDateChange={ctx.setNewBabyBirthDate}
-        onWeightChange={ctx.setNewBabyWeight}
         onAddPhoto={ctx.handleAddChildPhoto}
         onRemovePhoto={ctx.handleRemoveChildPhoto}
       />
@@ -115,7 +113,6 @@ function FamilySheets() {
         newFamilyName={ctx.newFamilyName}
         newFamilyBabyName={ctx.newFamilyBabyName}
         newFamilyBirthDate={ctx.newFamilyBirthDate}
-        newFamilyWeight={ctx.newFamilyWeight}
         newFamilyPhotoUris={ctx.newFamilyPhotoUris}
         onClose={() => {
           if (!ctx.addFamilyBusy) ctx.resetAddFamilyForm();
@@ -127,7 +124,6 @@ function FamilySheets() {
         onFamilyNameChange={ctx.setNewFamilyName}
         onBabyNameChange={ctx.setNewFamilyBabyName}
         onBirthDateChange={ctx.setNewFamilyBirthDate}
-        onWeightChange={ctx.setNewFamilyWeight}
         onAddPhoto={ctx.handleAddFamilyPhoto}
         onRemovePhoto={ctx.handleRemoveFamilyPhoto}
       />
