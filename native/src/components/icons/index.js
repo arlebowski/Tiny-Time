@@ -26,6 +26,7 @@ export { default as SearchIcon } from './SearchIcon';
 export { default as ShareIcon } from './ShareIcon';
 export { default as SettingsIcon } from './SettingsIcon';
 export { default as ChevronLeftIcon } from './ChevronLeftIcon';
+export { default as GoogleGLogo } from './GoogleGLogo';
 export { default as ChevronRightIcon } from './ChevronRightIcon';
 export { default as ChevronDownIcon } from './ChevronDownIcon';
 export { default as ChevronUpIcon } from './ChevronUpIcon';

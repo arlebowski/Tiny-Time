@@ -57,7 +57,8 @@
             "./assets/fonts/SF-Pro-Text-Medium.otf",
             "./assets/fonts/SF-Pro-Text-Semibold.otf",
             "./assets/fonts/SF-Pro-Text-Bold.otf",
-            "./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf"
+            "./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf",
+            "./assets/fonts/Fraunces-Italic-400-Soft30-opsz144.ttf"
           ]
         }
       ]

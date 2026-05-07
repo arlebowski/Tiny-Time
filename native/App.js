@@ -1178,7 +1178,7 @@ function AuthGatedApp({
     setActiveTab('tracker');
   }, [user?.uid]);
 
-  if (loading) {
+  if (loading && !user) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
         <ActivityIndicator size="large" />
@@ -1208,6 +1208,14 @@ function AuthGatedApp({
 
   if (needsSetup || !familyId || !kidId) {
     return <SetupScreen />;
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
   return (
@@ -1285,6 +1293,8 @@ export default function App() {
     'SF-Pro-Text-Semibold': require('./assets/fonts/SF-Pro-Text-Semibold.otf'),
     'SF-Pro-Text-Bold': require('./assets/fonts/SF-Pro-Text-Bold.otf'),
     Fraunces: require('./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf'),
+    /** Static instance: VF defaults wght=900 so RN looked “black”; pinned to 400 + design axes */
+    'Fraunces-Italic': require('./assets/fonts/Fraunces-Italic-400-Soft30-opsz144.ttf'),
     'Fraunces-Soft-Bold': require('./assets/fonts/Fraunces_72pt_Soft-Bold.ttf'),
   });
   const [themeKey, setThemeKey] = useState('theme1');

@@ -4,6 +4,7 @@
  */
 import { uploadKidPhoto } from './storageService';
 import { Platform } from 'react-native';
+import { pingNewSignup } from '../utils/formspree';
 
 let auth = null;
 let firestore = null;
@@ -60,6 +61,41 @@ export async function signInWithEmail(email, password) {
   const result = await auth().signInWithEmailAndPassword(email, password);
   await ensureUserProfile(result.user);
   return result;
+}
+
+/**
+ * Progressive email auth: sign in, or create account if user not found / ambiguous credential.
+ */
+export async function continueWithEmail(email, password) {
+  assertFirebase();
+  try {
+    const result = await auth().signInWithEmailAndPassword(email, password);
+    await ensureUserProfile(result.user);
+    return { isNewUser: false };
+  } catch (e) {
+    const code = e?.code || '';
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      try {
+        const result = await auth().createUserWithEmailAndPassword(email, password);
+        await ensureUserProfile(result.user);
+        return { isNewUser: true };
+      } catch (createErr) {
+        if (createErr?.code === 'auth/email-already-in-use') {
+          const wrong = new Error('Invalid email or password');
+          wrong.code = 'auth/wrong-password';
+          throw wrong;
+        }
+        throw createErr;
+      }
+    }
+    throw e;
+  }
+}
+
+/** Send password reset email */
+export async function sendPasswordReset(email) {
+  assertFirebase();
+  await auth().sendPasswordResetEmail(String(email || '').trim());
 }
 
 /** Google sign-in using native Google SDK -> Firebase credential */
@@ -143,6 +179,7 @@ export async function ensureUserProfile(user) {
 
   if (!snap.exists) {
     await userRef.set({ ...base, createdAt: now }, { merge: true });
+    pingNewSignup(user).catch(() => {});
   } else {
     await userRef.set(base, { merge: true });
   }

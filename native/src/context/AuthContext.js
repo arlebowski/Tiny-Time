@@ -15,6 +15,8 @@ import {
   signInWithGoogle,
   signInWithAppleIdentityToken,
   signUpWithEmail,
+  continueWithEmail,
+  sendPasswordReset,
   acceptInvite,
   deleteCurrentUserAccount,
 } from '../services/authService';
@@ -270,6 +272,25 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const handleContinueWithEmail = useCallback(async (email, password) => {
+    if (!isFirebaseAuthAvailable) return;
+    setLoading(true);
+    try {
+      await continueWithEmail(email, password);
+    } catch (error) {
+      setLoading(false);
+      throw error;
+    }
+  }, []);
+
+  const handleSendPasswordReset = useCallback(async (email) => {
+    await sendPasswordReset(email);
+  }, []);
+
+  const markSetupComplete = useCallback(() => {
+    setNeedsSetup(false);
+  }, []);
+
   const handleGoogleSignIn = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
     setLoading(true);
@@ -330,7 +351,6 @@ export function AuthProvider({ children }) {
       setKidIdState(result.kidId);
       setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
       await hydrateKidSnapshot(result.familyId, result.kidId);
-      setNeedsSetup(false);
 
       const familyKey = getFamilySelectionKey(user.uid);
       const kidKey = getKidSelectionKey(user.uid, result.familyId);
@@ -354,7 +374,6 @@ export function AuthProvider({ children }) {
       const allFamilies = await loadUserFamilies(user.uid);
       setFamilies(allFamilies);
       await hydrateKidSnapshot(result.familyId, result.kidId);
-      setNeedsSetup(false);
       const familyKey = getFamilySelectionKey(user.uid);
       const kidKey = getKidSelectionKey(user.uid, result.familyId);
       if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
@@ -392,6 +411,9 @@ export function AuthProvider({ children }) {
     signInWithGoogle: handleGoogleSignIn,
     signInWithApple: handleAppleSignIn,
     signUp: handleSignUp,
+    continueWithEmail: handleContinueWithEmail,
+    sendPasswordReset: handleSendPasswordReset,
+    markSetupComplete,
     signOut: handleSignOut,
     deleteAccount: handleDeleteAccount,
     createFamily: handleCreateFamily,
@@ -410,6 +432,9 @@ export function AuthProvider({ children }) {
     handleGoogleSignIn,
     handleAppleSignIn,
     handleSignUp,
+    handleContinueWithEmail,
+    handleSendPasswordReset,
+    markSetupComplete,
     handleSignOut,
     handleDeleteAccount,
     handleCreateFamily,
