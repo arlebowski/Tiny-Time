@@ -1174,7 +1174,6 @@ function AppShell({
         bottomInsetPadding={NAV_BOTTOM_INSET_PADDING}
         tabShiftY={NAV_TAB_SHIFT_Y}
         plusBottomOffset={NAV_PLUS_BOTTOM_OFFSET}
-        showDevTooltipToggle={showDevSetupToggle}
         forceTooltipPreview={forceTooltipPreview}
       />
 
@@ -1531,7 +1530,7 @@ export default function App() {
   }, [isDark, ready]);
 
   return (
-    <PostHogProvider client={posthogInstance}>
+    <PostHogProvider client={posthogInstance} autocapture={{ captureScreens: false }}>
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
       {ready ? (
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
