@@ -26,6 +26,7 @@ import {
   trackFamilyJoined,
   trackOnboardingCompleted,
 } from '../services/appsflyerService';
+import { capture, identifyUser, resetUser } from '../services/posthogService';
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
@@ -75,6 +76,7 @@ export function AuthProvider({ children }) {
   const [pendingInviteCode, setPendingInviteCode] = useState(null);
   const inviteInFlightRef = useRef(false);
   const handledInviteCodesRef = useRef(new Set());
+  const authMethodRef = useRef(null);
 
   const hydrateKidSnapshot = useCallback(async (nextFamilyId, nextKidId) => {
     const key = getTrackerBootstrapKey(nextFamilyId, nextKidId);
@@ -196,6 +198,17 @@ export function AuthProvider({ children }) {
           const cachedFamilyId = familySelectionKey ? await AsyncStorage.getItem(familySelectionKey) : null;
           const family = await loadUserFamily(firebaseUser.uid, cachedFamilyId || undefined);
 
+          const isNewUser = allFamilies.length === 0;
+          capture('login_completed', {
+            method: authMethodRef.current || 'unknown',
+            is_new_user: isNewUser,
+          });
+          identifyUser(firebaseUser.uid, {
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+          });
+          authMethodRef.current = null;
+
           if (family && allFamilies.length > 0) {
             setFamilies(allFamilies);
             setFamilyIdState(family.familyId);
@@ -224,6 +237,7 @@ export function AuthProvider({ children }) {
         setFamilies([]);
         setSelectedKidSnapshot(null);
         setNeedsSetup(false);
+        resetUser();
       }
       setLoading(false);
     });
@@ -274,6 +288,7 @@ export function AuthProvider({ children }) {
 
   const handleContinueWithEmail = useCallback(async (email, password) => {
     if (!isFirebaseAuthAvailable) return;
+    authMethodRef.current = 'email';
     setLoading(true);
     try {
       await continueWithEmail(email, password);
@@ -293,6 +308,7 @@ export function AuthProvider({ children }) {
 
   const handleGoogleSignIn = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
+    authMethodRef.current = 'google';
     setLoading(true);
     try {
       await signInWithGoogle();
@@ -305,6 +321,7 @@ export function AuthProvider({ children }) {
 
   const handleAppleSignIn = useCallback(async (identityToken, rawNonce = null) => {
     if (!isFirebaseAuthAvailable) return;
+    authMethodRef.current = 'apple';
     setLoading(true);
     try {
       await signInWithAppleIdentityToken(identityToken, rawNonce);
@@ -345,6 +362,7 @@ export function AuthProvider({ children }) {
       if (isInitialSetup) {
         trackAccountCreated().catch(() => {});
         trackOnboardingCompleted().catch(() => {});
+        AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
       }
 
       setFamilyIdState(result.familyId);
@@ -369,6 +387,8 @@ export function AuthProvider({ children }) {
     try {
       const result = await acceptInvite(code, user.uid);
       trackFamilyJoined().catch(() => {});
+      capture('invite_accepted', { familyId: result.familyId, kidId: result.kidId });
+      AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
       setFamilyIdState(result.familyId);
       setKidIdState(result.kidId);
       const allFamilies = await loadUserFamilies(user.uid);

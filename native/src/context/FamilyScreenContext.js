@@ -30,6 +30,7 @@ import { useAuth } from './AuthContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { updateCurrentUserProfile } from '../services/authService';
 import { uploadKidPhoto, uploadUserPhoto } from '../services/storageService';
+import { capture } from '../services/posthogService';
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -792,6 +793,11 @@ export function FamilyScreenProvider({
   }, []);
 
   const handleAddFamilyPhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Photo access required', 'Please allow photo access in Settings to add a photo.');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -844,6 +850,7 @@ export function FamilyScreenProvider({
         await firestoreService.updateKidDataById(newKidId, { photoURL: uploadedPhotoUrl });
       }
 
+      capture('child_added', { is_first_child: false });
       closeAddChildSheet();
       resetAddChildForm();
       if (typeof onKidChange === 'function') onKidChange(newKidId);

@@ -22,12 +22,21 @@ import {
   trackRetained7Days,
   trackAppOpen,
 } from './src/services/appsflyerService';
+import { PostHogProvider, useFeatureFlag } from 'posthog-react-native';
+import {
+  posthogInstance,
+  capture,
+  identifyUser,
+  captureOnce,
+  captureFirstActivity,
+} from './src/services/posthogService';
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
 import FamilyStack from './src/components/navigation/FamilyStack';
 import LoginScreen from './src/screens/LoginScreen';
 import SetupScreen from './src/screens/SetupScreen';
+import CommunityModal from './src/components/CommunityModal';
 
 // Sheets
 import DiaperSheet from './src/components/sheets/DiaperSheet';
@@ -403,7 +412,10 @@ function AppShell({
     return kidData?.photoURL || null;
   }, [kids, kidId, kidData?.photoURL]);
 
-  const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
+  const handleSignOut = useCallback(() => {
+    capture('sign_out');
+    return authSignOut();
+  }, [authSignOut]);
   const handleDeleteAccount = useCallback(() => authDeleteAccount(), [authDeleteAccount]);
 
   const diaperRef = useRef(null);
@@ -455,21 +467,39 @@ function AppShell({
     await AsyncStorage.setItem(key, '1');
   }, [user?.uid]);
 
-  const maybeTrackDay7Retention = useCallback(async () => {
+  const maybeTrackRetentionMilestones = useCallback(async () => {
     if (!user?.uid) return;
     const creationTimeRaw = user?.metadata?.creationTime || null;
     if (!creationTimeRaw) return;
     const createdAtMs = Date.parse(creationTimeRaw);
     if (!Number.isFinite(createdAtMs)) return;
+    const elapsedMs = Date.now() - createdAtMs;
+
+    // AppsFlyer D7 (existing)
     const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-    if (Date.now() - createdAtMs < SEVEN_DAYS_MS) return;
-    await trackAppsFlyerOncePerUser('hasTrackedDay7', trackRetained7Days);
+    if (elapsedMs >= SEVEN_DAYS_MS) {
+      await trackAppsFlyerOncePerUser('hasTrackedDay7', trackRetained7Days);
+    }
+
+    // PostHog milestones D1/D3/D7/D14/D28
+    const MILESTONES = [
+      { days: 1, key: 'retained_d1', event: 'user_retained_d1' },
+      { days: 3, key: 'retained_d3', event: 'user_retained_d3' },
+      { days: 7, key: 'retained_d7', event: 'user_retained_d7' },
+      { days: 14, key: 'retained_d14', event: 'user_retained_d14' },
+      { days: 28, key: 'retained_d28', event: 'user_retained_d28' },
+    ];
+    for (const milestone of MILESTONES) {
+      if (elapsedMs >= milestone.days * 24 * 60 * 60 * 1000) {
+        await captureOnce(user.uid, milestone.key, milestone.event);
+      }
+    }
   }, [user?.uid, user?.metadata?.creationTime, trackAppsFlyerOncePerUser]);
 
   useEffect(() => {
-    maybeTrackDay7Retention().catch(() => {});
+    maybeTrackRetentionMilestones().catch(() => {});
     trackAppOpen().catch(() => {});
-  }, [maybeTrackDay7Retention]);
+  }, [maybeTrackRetentionMilestones]);
 
   useEffect(() => {
     AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
@@ -525,21 +555,40 @@ function AppShell({
     const isFeedEntry = entry?.type === 'feed' || entry?.type === 'bottle' || entry?.type === 'nursing' || entry?.type === 'solids';
     if (isFeedEntry) {
       trackAppsFlyerOncePerUser('hasLoggedFirstFeed', trackFirstFeedLogged).catch(() => {});
+      const feedType = feedTypeRef.current || entry?.type || 'bottle';
+      capture('activity_logged', {
+        type: 'feed',
+        feed_type: feedType,
+        ...(feedType === 'bottle' && entry?.ounces ? { amount_oz: entry.ounces } : {}),
+      });
+      captureFirstActivity(user?.uid, { type: 'feed', feed_type: feedType }).catch(() => {});
     }
-  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser]);
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid]);
 
   const handleSleepAdded = useCallback((entry) => {
     if (entry) {
       applyOptimisticEntry(entry);
       trackAppsFlyerOncePerUser('hasLoggedFirstSleep', trackFirstSleepLogged).catch(() => {});
+      const hasEndTime = !!entry.endTime;
+      const durationMin = hasEndTime && entry.startTime
+        ? Math.max(0, Math.round((entry.endTime - entry.startTime) / 60000))
+        : null;
+      capture('activity_logged', {
+        type: 'sleep',
+        ...(durationMin !== null ? { duration_min: durationMin } : {}),
+      });
+      if (!hasEndTime) capture('active_sleep_started');
+      captureFirstActivity(user?.uid, { type: 'sleep' }).catch(() => {});
     }
-  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser]);
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid]);
 
   const handleDiaperSaved = useCallback((entry) => {
     if (entry) {
       applyOptimisticEntry(entry);
+      capture('activity_logged', { type: 'diaper' });
+      captureFirstActivity(user?.uid, { type: 'diaper' }).catch(() => {});
     }
-  }, [applyOptimisticEntry]);
+  }, [applyOptimisticEntry, user?.uid]);
 
   const handleToggleActivitySheet = useCallback(() => {
     setShowShareMenu(false);
@@ -671,6 +720,7 @@ function AppShell({
       familyNavRef.current?.dispatch(StackActions.popToTop());
     }
     if (nextTab !== activeTab) {
+      capture('tab_viewed', { tab: nextTab });
       onTabChange(nextTab);
       if (nextTab !== 'trends') {
         setAnalyticsDetailOpen(false);
@@ -744,6 +794,7 @@ function AppShell({
         });
         if (Platform.OS !== 'ios' || result?.action !== Share.dismissedAction) {
           trackPartnerInvited().catch(() => {});
+          capture('partner_invited', { source: 'app' });
         }
         return;
       } catch {
@@ -762,17 +813,19 @@ function AppShell({
         shareFlowInFlightRef.current = false;
       }
       if (nextState === 'active') {
-        maybeTrackDay7Retention().catch(() => {});
+        maybeTrackRetentionMilestones().catch(() => {});
         trackAppOpen().catch(() => {});
+        capture('app_opened', { is_cold_start: false });
       }
     });
 
     return () => {
       subscription.remove();
     };
-  }, [maybeTrackDay7Retention]);
+  }, [maybeTrackRetentionMilestones]);
 
   const handleShareAppFromMenu = useCallback(async () => {
+    capture('app_share_tapped');
     shareFlowInFlightRef.current = true;
     try {
       await handleGlobalShareApp();
@@ -800,6 +853,7 @@ function AppShell({
       setShareAnchor(null);
       return;
     }
+    capture('share_menu_opened');
     setShowKidMenu(false);
     setKidAnchor(null);
 
@@ -1173,10 +1227,40 @@ function AuthGatedApp({
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('tracker');
+  const [showCommunityModal, setShowCommunityModal] = useState(false);
+  const communityScreenEnabled = useFeatureFlag('community-screen');
 
   useEffect(() => {
     setActiveTab('tracker');
   }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user || needsSetup || !familyId) return undefined;
+    if (communityScreenEnabled === false) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [firstDate, seen] = await Promise.all([
+          AsyncStorage.getItem('tt_first_open_date'),
+          AsyncStorage.getItem('tt_community_seen'),
+        ]);
+        const today = new Date().toISOString().slice(0, 10);
+        if (!cancelled && firstDate && today > firstDate && !seen) {
+          setShowCommunityModal(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, needsSetup, familyId, communityScreenEnabled]);
+
+  const dismissCommunityModal = useCallback(async () => {
+    await AsyncStorage.setItem('tt_community_seen', '1').catch(() => {});
+    setShowCommunityModal(false);
+  }, []);
 
   if (loading && !user) {
     return (
@@ -1219,25 +1303,28 @@ function AuthGatedApp({
   }
 
   return (
-    <DataProvider>
-      <BottomSheetModalProvider>
-        <AppShell
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          themeKey={themeKey}
-          isDark={isDark}
-          onThemeChange={onThemeChange}
-          onDarkModeChange={onDarkModeChange}
-          showDevSetupToggle={showDevSetupToggle}
-          forceSetupPreview={forceSetupPreview}
-          forceLoginPreview={forceLoginPreview}
-          onToggleForceSetupPreview={onToggleForceSetupPreview}
-          onToggleForceLoginPreview={onToggleForceLoginPreview}
-          trackerEntranceSeed={trackerEntranceSeed}
-          trackerUiReady={trackerUiReady}
-        />
-      </BottomSheetModalProvider>
-    </DataProvider>
+    <>
+      <DataProvider>
+        <BottomSheetModalProvider>
+          <AppShell
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            themeKey={themeKey}
+            isDark={isDark}
+            onThemeChange={onThemeChange}
+            onDarkModeChange={onDarkModeChange}
+            showDevSetupToggle={showDevSetupToggle}
+            forceSetupPreview={forceSetupPreview}
+            forceLoginPreview={forceLoginPreview}
+            onToggleForceSetupPreview={onToggleForceSetupPreview}
+            onToggleForceLoginPreview={onToggleForceLoginPreview}
+            trackerEntranceSeed={trackerEntranceSeed}
+            trackerUiReady={trackerUiReady}
+          />
+        </BottomSheetModalProvider>
+      </DataProvider>
+      <CommunityModal visible={showCommunityModal} onDismiss={dismissCommunityModal} />
+    </>
   );
 }
 
@@ -1344,6 +1431,15 @@ export default function App() {
         await requestTrackingPermissionsAsync();
       }
       initializeAppsFlyer();
+      capture('app_opened', { is_cold_start: true });
+      try {
+        const existing = await AsyncStorage.getItem('tt_first_open_date');
+        if (!existing) {
+          await AsyncStorage.setItem('tt_first_open_date', new Date().toISOString().slice(0, 10));
+        }
+      } catch {
+        /* ignore */
+      }
     })();
   }, []);
 
@@ -1420,6 +1516,7 @@ export default function App() {
   }, [isDark, ready]);
 
   return (
+    <PostHogProvider client={posthogInstance}>
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
       {ready ? (
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
@@ -1457,6 +1554,7 @@ export default function App() {
         </ThemeProvider>
       ) : null}
     </GestureHandlerRootView>
+    </PostHogProvider>
   );
 }
 

@@ -19,6 +19,7 @@ import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import { GoogleGLogo } from '../components/icons';
+import { capture } from '../services/posthogService';
 
 /** High-res white silhouette for the background decoration (1024px source, no blurring). */
 const lockupDk = require('../../assets/brandlogo-white-1024.png');
@@ -43,6 +44,10 @@ export default function LoginScreen({ onDevExitPreview = null }) {
   const [resetMessage, setResetMessage] = useState(null);
   const [appleSignInBusy, setAppleSignInBusy] = useState(false);
   const [appleAvailable, setAppleAvailable] = useState(Platform.OS === 'ios');
+
+  React.useEffect(() => {
+    capture('login_screen_viewed');
+  }, []);
 
   React.useEffect(() => {
     let mounted = true;
@@ -88,11 +93,19 @@ export default function LoginScreen({ onDevExitPreview = null }) {
     try {
       await continueWithEmail(email.trim(), password);
     } catch (e) {
+      const code = String(e?.code ?? '');
+      let error_type = 'other';
+      if (code.includes('wrong-password') || code.includes('invalid-credential')) error_type = 'invalid_credentials';
+      else if (code.includes('email-already-in-use')) error_type = 'email_in_use';
+      else if (code.includes('weak-password')) error_type = 'weak_password';
+      else if (code.includes('invalid-email')) error_type = 'invalid_email';
+      capture('login_error', { method: 'email', error_type });
       setError(mapEmailError(e));
     }
   };
 
   const handleForgotPassword = async () => {
+    capture('login_forgot_password_tapped');
     setError(null);
     setResetMessage(null);
     if (!email.trim()) {
@@ -108,6 +121,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
   };
 
   const handleGoogleSignIn = async () => {
+    capture('login_method_tapped', { method: 'google' });
     setError(null);
     setResetMessage(null);
     try {
@@ -122,6 +136,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
 
       if (isCancelled) return;
 
+      capture('login_error', { method: 'google', error_type: 'google_error' });
       console.error('[Google Sign-In]', { code, message: msg, fullError: e });
       if (__DEV__ && Platform.OS === 'android') {
         Alert.alert('Google Sign-In Error', `${msg}\n\nCode: ${code || 'none'}`);
@@ -147,6 +162,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
 
   async function handleAppleSignIn() {
     if (appleSignInBusy || loading) return;
+    capture('login_method_tapped', { method: 'apple' });
     setError(null);
     setResetMessage(null);
     setAppleSignInBusy(true);
@@ -178,6 +194,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
         setError('Apple sign-in was canceled.');
         return;
       }
+      capture('login_error', { method: 'apple', error_type: 'apple_error' });
       console.error('[Apple Sign-In]', { code, message: msg, fullError: e });
       setError(msg);
       Alert.alert('Apple Sign-In Error', msg);
@@ -275,6 +292,7 @@ export default function LoginScreen({ onDevExitPreview = null }) {
           {!emailExpanded ? (
             <Pressable
               onPress={() => {
+                capture('login_method_tapped', { method: 'email' });
                 setEmailExpanded(true);
                 setError(null);
                 setResetMessage(null);

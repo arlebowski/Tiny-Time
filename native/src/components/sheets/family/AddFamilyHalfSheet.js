@@ -40,7 +40,7 @@ export default function AddFamilyHalfSheet({
       && String(newFamilyBabyName || '').trim()
       && String(newFamilyBirthDate || '').trim()
   );
-  const canSubmitJoin = Boolean(normalizedInviteCode);
+  const canSubmitJoin = normalizedInviteCode.length >= 6;
   const isBusy = savingFamily || joiningFamily || authLoading;
   const ctaDisabled = isBusy || (mode === 'create' ? !canSubmitCreate : !canSubmitJoin);
   const ctaLabel = mode === 'create'

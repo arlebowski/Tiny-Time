@@ -13,6 +13,8 @@ import {
   Image,
   ActivityIndicator,
   ScrollView,
+  Share,
+  Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,10 +23,13 @@ import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import { DatePickerTray } from '../components/shared/Wheelpickers';
 import { BabyAvatar } from '../utils/avatarUtils';
-import { pingCommunityInterest } from '../utils/formspree';
 import { ChevronLeftIcon } from '../components/icons';
+import { capture } from '../services/posthogService';
+import firestoreService from '../services/firestoreService';
+import { trackPartnerInvited } from '../services/appsflyerService';
 
 const FRAUNCES = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
+const APP_SHARE_BASE_URL = 'https://tinytracker.io/dl';
 
 function todayIso() {
   const d = new Date();
@@ -55,6 +60,8 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     loading: authLoading,
     markSetupComplete,
     selectedKidSnapshot,
+    familyId,
+    kidId,
   } = useAuth();
 
   const [step, setStep] = useState(1);
@@ -63,20 +70,24 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const [birthDate, setBirthDate] = useState(todayIso);
   const [photoUri, setPhotoUri] = useState(null);
   const [inviteCode, setInviteCode] = useState('');
-  const [contactEmail, setContactEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
   const [revealCountdown, setRevealCountdown] = useState(2);
   const revealTimersRef = useRef([]);
 
-  useEffect(() => {
-    const email = user?.email || '';
-    const isAppleRelay = email.endsWith('@privaterelay.appleid.com');
-    setContactEmail(isAppleRelay ? '' : email);
-  }, [user?.email]);
+  // Field first-interaction flags — each fires once per session
+  const babyNameInteractedRef = useRef(false);
+  const birthDateInteractedRef = useRef(false);
+  const photoInteractedRef = useRef(false);
+  const inviteCodeInteractedRef = useRef(false);
 
-  const progressStep = step === 'invite' ? 1 : typeof step === 'number' && step >= 1 && step <= 3 ? step : 1;
+  // Track every step view for funnel analysis
+  useEffect(() => {
+    capture('setup_step_viewed', { step: String(step) });
+  }, [step]);
+
+  const progressStep = step === 'invite' ? 1 : step === 'partner' ? 4 : typeof step === 'number' && step >= 1 && step <= 3 ? step : 1;
 
   const displayName = useMemo(() => {
     const n = babyName.trim();
@@ -119,6 +130,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     const t2 = setTimeout(() => setRevealCountdown(2), 2000);
     const t3 = setTimeout(() => setRevealCountdown(1), 3000);
     const t4 = setTimeout(() => {
+      capture('setup_step_completed', { step: '5', method: 'auto' });
       exitSetup();
     }, 4000);
     revealTimersRef.current = [t1, t2, t3, t4];
@@ -128,13 +140,29 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     };
   }, [step, exitSetup]);
 
+  const onboardingCompletedOnceRef = useRef(false);
+  useEffect(() => {
+    if (step !== 5) return;
+    if (onboardingCompletedOnceRef.current) return;
+    onboardingCompletedOnceRef.current = true;
+    capture('onboarding_completed', {
+      path: isInvitePath ? 'invite' : 'create',
+      had_photo: !!photoUri,
+    });
+  }, [step, isInvitePath, photoUri]);
+
   const finishReveal = () => {
     revealTimersRef.current.forEach(clearTimeout);
     revealTimersRef.current = [];
+    capture('setup_step_completed', { step: '5', method: 'tapped' });
     exitSetup();
   };
 
   const handleAddPhoto = async () => {
+    if (!photoInteractedRef.current) {
+      photoInteractedRef.current = true;
+      capture('setup_field_interacted', { field: 'photo' });
+    }
     try {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (!permission.granted) {
@@ -142,9 +170,11 @@ export default function SetupScreen({ onDevExitPreview = null }) {
         return;
       }
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
         quality: 0.8,
-        allowsEditing: false,
+        ...(Platform.OS === 'ios' ? { presentationStyle: 'fullScreen' } : {}),
       });
       if (result.canceled) return;
       const uri = result?.assets?.[0]?.uri;
@@ -156,63 +186,47 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     }
   };
 
-  const mergeCommunityFirestore = async (optIn) => {
-    try {
-      const firestore = require('@react-native-firebase/firestore').default;
-      const patch = {
-        communityOptIn: optIn,
-        communityOptInAt: firestore.FieldValue.serverTimestamp(),
-        contactEmail: contactEmail.trim() || null,
-      };
-      await firestore().collection('users').doc(user.uid).set(patch, { merge: true });
-    } catch (e) {
-      console.warn('[SetupScreen] community merge failed', e);
-    }
+  const handlePartnerSkip = () => {
+    capture('setup_step_completed', { step: 'partner', skipped: true });
+    setStep(5);
   };
 
-  const handleCommunityYes = async () => {
-    if (!user?.uid) return;
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      if (!isInvitePath) {
-        await createFamily(babyName.trim(), {
-          birthDate,
-          photoUri: photoUri || null,
-          preferredVolumeUnit: 'oz',
-        });
-      }
-      await mergeCommunityFirestore(true);
-      pingCommunityInterest({
-        babyName: displayName,
-        contactEmail: contactEmail.trim(),
-        uid: user.uid,
-      }).catch(() => {});
-      setStep(5);
-    } catch (e) {
-      setError(e?.message || 'Something went wrong');
-    } finally {
-      setIsSubmitting(false);
+  const handlePartnerSendInvite = async () => {
+    const resolvedKidId = kidId;
+    if (!familyId || !resolvedKidId) {
+      Alert.alert('Something went wrong', 'Try again in a moment.');
+      return;
     }
-  };
-
-  const handleCommunitySkip = async () => {
-    if (!user?.uid) return;
-    setIsSubmitting(true);
-    setError(null);
+    let code;
     try {
-      if (!isInvitePath) {
-        await createFamily(babyName.trim(), {
-          birthDate,
-          photoUri: photoUri || null,
-          preferredVolumeUnit: 'oz',
-        });
-      }
-      setStep(5);
+      firestoreService.initialize(familyId, resolvedKidId);
+      code = await firestoreService.createInvite(resolvedKidId);
     } catch (e) {
-      setError(e?.message || 'Something went wrong');
-    } finally {
-      setIsSubmitting(false);
+      console.warn('[SetupScreen] createInvite failed', e);
+      Alert.alert('Failed to create invite.', 'Please try again.');
+      return;
+    }
+    const rawKidName = String(displayName || '').trim();
+    const possessiveKidName = rawKidName
+      ? (rawKidName.toLowerCase().endsWith('s') ? `${rawKidName}'` : `${rawKidName}'s`)
+      : 'your';
+    const headerLine = rawKidName
+      ? `Join ${possessiveKidName} family on Tiny Tracker.`
+      : 'Join your family on Tiny Tracker.';
+    const message = `${headerLine}\nInstall app: ${APP_SHARE_BASE_URL}\nInvite code: ${code}`;
+    try {
+      const result = await Share.share({
+        title: 'Join me on Tiny Tracker',
+        message,
+      });
+      if (Platform.OS !== 'ios' || result?.action !== Share.dismissedAction) {
+        capture('setup_step_completed', { step: 'partner', skipped: false });
+        trackPartnerInvited().catch(() => {});
+        capture('partner_invited', { source: 'onboarding' });
+        setStep(5);
+      }
+    } catch {
+      /* share cancelled */
     }
   };
 
@@ -223,9 +237,11 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     setError(null);
     try {
       await acceptInvite(code);
+      capture('setup_invite_submitted', { success: true });
       setIsInvitePath(true);
-      setStep(4);
+      setStep('partner');
     } catch (e) {
+      capture('setup_invite_submitted', { success: false });
       setError(e?.message || 'Invalid invite code');
     } finally {
       setIsSubmitting(false);
@@ -235,7 +251,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const backBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const renderProgressBar = () => (
     <View style={styles.progressRow}>
-      {[1, 2, 3].map((i) => (
+      {[1, 2, 3, 4].map((i) => (
         <View
           key={i}
           style={{
@@ -267,6 +283,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             if (step === 'invite') setStep(1);
             else if (step === 2) setStep(1);
             else if (step === 3) setStep(2);
+            else if (step === 'partner') setStep(3);
           }}
         >
           <ChevronLeftIcon size={22} color={colors.textPrimary} />
@@ -286,6 +303,62 @@ export default function SetupScreen({ onDevExitPreview = null }) {
       )}
     </View>
   );
+
+  if (step === 'partner') {
+    const userAvatarName =
+      user?.displayName?.trim()
+      || user?.email?.split('@')[0]?.trim()
+      || '?';
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.appBg }]}>
+        {renderTopBar({ showBack: true, showProgress: true, counter: '4/4' })}
+        <View style={styles.partnerInner}>
+          <View style={styles.partnerAvatarRow}>
+            <View style={[styles.partnerAvatarSlot, { left: 0, zIndex: 2 }]}>
+              <BabyAvatar
+                name={userAvatarName}
+                size={60}
+                photoUri={user?.photoURL || null}
+                style={[styles.partnerAvatarRing, { borderColor: colors.appBg }]}
+              />
+            </View>
+            <View
+              style={[
+                styles.partnerPlaceholderAvatar,
+                {
+                  left: 40,
+                  zIndex: 1,
+                  backgroundColor: colors.inputBg,
+                  borderColor: colors.appBg,
+                },
+              ]}
+            >
+              <Text style={[styles.partnerPlaceholderPlus, { color: colors.textSecondary }]}>+</Text>
+            </View>
+          </View>
+          <Text style={[styles.partnerHeadline, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
+            Who else is caring for{' '}
+            <Text style={{ fontStyle: 'italic', color: colors.brandIcon }}>{displayName}</Text>
+            ?
+          </Text>
+          <Text style={[styles.partnerCaption, { color: colors.textSecondary }]}>
+            Invite a partner or caregiver. They&apos;ll get a link and an invite code to join the family.
+          </Text>
+        </View>
+        <View style={[styles.partnerFooter, { paddingBottom: Math.max(insets.bottom, 36) }]}>
+          <Pressable
+            style={[styles.brandCta, { backgroundColor: colors.brandIcon, borderRadius: radius?.xl ?? 16 }]}
+            onPress={handlePartnerSendInvite}
+          >
+            <Text style={styles.brandCtaText}>Send invite</Text>
+          </Pressable>
+          <Pressable onPress={handlePartnerSkip}>
+            <Text style={[styles.partnerSkip, { color: colors.textSecondary }]}>Skip for now</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   if (step === 5) {
     const confetti = [
@@ -349,103 +422,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     );
   }
 
-  if (step === 4) {
-    const watermark = isDark
-      ? require('../../assets/brandlogo-dark.png')
-      : require('../../assets/brandlogo-lt.png');
-    return (
-      <KeyboardAvoidingView
-        style={[styles.flex, { backgroundColor: colors.appBg }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <View style={[styles.flex, { paddingTop: insets.top }]}>
-          <Image
-            source={watermark}
-            style={styles.watermark}
-            resizeMode="contain"
-          />
-          <ScrollView
-            contentContainerStyle={styles.communityScroll}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            <View style={styles.avatarCluster}>
-              {['Priya', 'Marcus', 'Yuki', 'Sara'].map((name, i) => (
-                <View
-                  key={name}
-                  style={[
-                    styles.avatarClusterItem,
-                    {
-                      left: i * 38,
-                      zIndex: 4 - i,
-                      borderColor: colors.appBg,
-                    },
-                  ]}
-                >
-                  <BabyAvatar name={name} size={56} />
-                </View>
-              ))}
-            </View>
-            <Text style={[styles.communityHeadline, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
-              Built with parents,{'\n'}not just{' '}
-              <Text style={{ fontStyle: 'italic', color: colors.brandIcon }}>for</Text> them.
-            </Text>
-            <Text style={[styles.communityBody, { color: colors.textSecondary }]}>
-              Join a small group of parents who share tips, give feedback, and help shape what we build next.
-            </Text>
-            <Text style={[styles.emailLabel, { color: colors.textSecondary }]}>We&apos;ll reach out here</Text>
-            {user?.email?.endsWith('@privaterelay.appleid.com') ? (
-              <Text style={[styles.appleHint, { color: colors.textSecondary }]}>
-                Apple hid your email — enter yours so we can reach you.
-              </Text>
-            ) : null}
-            <TextInput
-              style={[
-                styles.contactInput,
-                {
-                  backgroundColor: colors.inputBg,
-                  color: colors.textPrimary,
-                  borderRadius: radius?.lg ?? 14,
-                },
-              ]}
-              placeholder="your@email.com"
-              placeholderTextColor={colors.textTertiary}
-              value={contactEmail}
-              onChangeText={setContactEmail}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {error ? <Text style={styles.err}>{error}</Text> : null}
-          </ScrollView>
-          <View style={[styles.communityFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-            <Pressable
-              style={[
-                styles.brandCta,
-                {
-                  backgroundColor: colors.brandIcon,
-                  borderRadius: radius?.xl ?? 16,
-                  opacity: isSubmitting ? 0.6 : 1,
-                },
-              ]}
-              disabled={isSubmitting || authLoading}
-              onPress={handleCommunityYes}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.brandCtaText}>Yes, I&apos;m interested</Text>
-              )}
-            </Pressable>
-            <Pressable onPress={handleCommunitySkip} disabled={isSubmitting || authLoading}>
-              <Text style={[styles.maybeLater, { color: colors.textSecondary }]}>Maybe later</Text>
-            </Pressable>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
-    );
-  }
-
   return (
     <KeyboardAvoidingView
       style={[styles.flex, { backgroundColor: colors.appBg }]}
@@ -481,7 +457,13 @@ export default function SetupScreen({ onDevExitPreview = null }) {
               placeholder="A3B7K2"
               placeholderTextColor={colors.textTertiary}
               value={inviteCode}
-              onChangeText={(t) => setInviteCode(String(t || '').toUpperCase())}
+              onChangeText={(t) => {
+                if (!inviteCodeInteractedRef.current && t.length > 0) {
+                  inviteCodeInteractedRef.current = true;
+                  capture('setup_invite_code_entered');
+                }
+                setInviteCode(String(t || '').toUpperCase());
+              }}
               autoCapitalize="characters"
               maxLength={6}
               autoCorrect={false}
@@ -524,10 +506,11 @@ export default function SetupScreen({ onDevExitPreview = null }) {
           {renderTopBar({
             showBack: step !== 1,
             showProgress: true,
-            counter: `${progressStep}/3`,
+            counter: `${progressStep}/4`,
           })}
           <ScrollView
-            contentContainerStyle={[styles.stepScroll, { paddingBottom: Math.max(insets.bottom, 24) }]}
+            style={styles.flex}
+            contentContainerStyle={styles.stepScroll}
             keyboardShouldPersistTaps="handled"
           >
             {step === 1 ? (
@@ -552,10 +535,16 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                   placeholder="Baby's name"
                   placeholderTextColor={colors.textTertiary}
                   value={babyName}
-                  onChangeText={setBabyName}
+                  onChangeText={(t) => {
+                    if (!babyNameInteractedRef.current) {
+                      babyNameInteractedRef.current = true;
+                      capture('setup_field_interacted', { field: 'baby_name' });
+                    }
+                    setBabyName(t);
+                  }}
                   autoFocus
                 />
-                <Pressable onPress={() => setStep('invite')}>
+                <Pressable onPress={() => { capture('setup_invite_path_entered'); setStep('invite'); }}>
                   <Text style={[styles.joinLink, { color: colors.textSecondary }]}>
                     Joining a family? Enter your invite code →
                   </Text>
@@ -582,7 +571,13 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                       borderRadius: radius?.['2xl'] ?? 18,
                     },
                   ]}
-                  onPress={() => setBirthDatePickerOpen(true)}
+                  onPress={() => {
+                    if (!birthDateInteractedRef.current) {
+                      birthDateInteractedRef.current = true;
+                      capture('setup_field_interacted', { field: 'birth_date' });
+                    }
+                    setBirthDatePickerOpen(true);
+                  }}
                 >
                   <Text style={[styles.dateBtnLeft, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
                     {formatBirthIso(birthDate)}
@@ -654,41 +649,69 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             ) : null}
 
             {error ? <Text style={styles.err}>{error}</Text> : null}
+          </ScrollView>
 
-            <Pressable
-              style={[
-                styles.brandCta,
-                {
-                  backgroundColor: colors.brandIcon,
-                  borderRadius: radius?.xl ?? 16,
-                  marginTop: 24,
-                  opacity: step === 1 && !babyName.trim() ? 0.45 : 1,
-                },
-              ]}
-              disabled={(step === 1 && !babyName.trim()) || authLoading}
-              onPress={() => {
-                setError(null);
-                if (step === 1) setStep(2);
-                else if (step === 2) setStep(3);
-                else if (step === 3) {
-                  setIsInvitePath(false);
-                  setStep(4);
-                }
-              }}
-            >
-              <Text style={styles.brandCtaText}>
-                {step === 3 ? (photoUri ? 'Continue' : 'Skip & continue') : 'Continue'}
-              </Text>
-            </Pressable>
-
+          <View style={[styles.stepFooter, { paddingBottom: Math.max(insets.bottom, 36) }]}>
+            {isSubmitting ? (
+              <ActivityIndicator color={colors.brandIcon} style={{ paddingVertical: 18 }} />
+            ) : (
+              <Pressable
+                style={[
+                  styles.brandCta,
+                  {
+                    backgroundColor: colors.brandIcon,
+                    borderRadius: radius?.xl ?? 16,
+                    opacity: step === 1 && !babyName.trim() ? 0.45 : 1,
+                  },
+                ]}
+                disabled={(step === 1 && !babyName.trim()) || authLoading || isSubmitting}
+                onPress={async () => {
+                  setError(null);
+                  if (step === 1) {
+                    capture('setup_step_completed', { step: '1' });
+                    setStep(2);
+                  } else if (step === 2) {
+                    capture('setup_step_completed', {
+                      step: '2',
+                      date_changed: normalizeIsoDate(birthDate) !== todayIso(),
+                    });
+                    setStep(3);
+                  } else if (step === 3) {
+                    capture('setup_step_completed', { step: '3', had_photo: !!photoUri });
+                    setIsInvitePath(false);
+                    if (onDevExitPreview) {
+                      setStep('partner');
+                      return;
+                    }
+                    setIsSubmitting(true);
+                    try {
+                      await createFamily(babyName.trim(), {
+                        birthDate,
+                        photoUri: photoUri || null,
+                        preferredVolumeUnit: 'oz',
+                      });
+                      setStep('partner');
+                    } catch (e) {
+                      setError(e?.message || 'Something went wrong');
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }
+                }}
+              >
+                <Text style={styles.brandCtaText}>
+                  {step === 3 ? (photoUri ? 'Continue' : 'Skip & continue') : 'Continue'}
+                </Text>
+              </Pressable>
+            )}
             {__DEV__ && typeof onDevExitPreview === 'function' && step === 1 ? (
               <Pressable onPress={onDevExitPreview}>
-                <Text style={[styles.linkMuted, { color: colors.textTertiary, marginTop: 16 }]}>
+                <Text style={[styles.linkMuted, { color: colors.textTertiary }]}>
                   Back to app (dev)
                 </Text>
               </Pressable>
             ) : null}
-          </ScrollView>
+          </View>
         </>
       )}
     </KeyboardAvoidingView>
@@ -725,7 +748,13 @@ const styles = StyleSheet.create({
   stepScroll: {
     paddingHorizontal: 24,
     paddingTop: 12,
+    paddingBottom: 16,
     flexGrow: 1,
+  },
+  stepFooter: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 10,
   },
   eyebrow: {
     fontSize: 13,
@@ -856,78 +885,66 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  watermark: {
-    position: 'absolute',
-    bottom: 60,
-    right: -10,
-    width: 220,
-    height: 220,
-    opacity: 0.07,
-  },
-  communityScroll: {
-    paddingHorizontal: 28,
-    paddingTop: 24,
-    alignItems: 'center',
-  },
-  avatarCluster: {
-    height: 64,
-    width: 56 + 3 * 38,
-    position: 'relative',
-    marginBottom: 32,
-    alignSelf: 'center',
-  },
-  avatarClusterItem: {
-    position: 'absolute',
-    borderRadius: 28,
-    borderWidth: 2.5,
-    overflow: 'hidden',
-  },
-  communityHeadline: {
-    fontSize: 32,
-    letterSpacing: -0.8,
-    lineHeight: 36,
-    textAlign: 'center',
-    marginBottom: 18,
-  },
-  communityBody: {
-    fontSize: 16,
-    lineHeight: 25,
-    textAlign: 'center',
-    maxWidth: 300,
-    marginBottom: 28,
-  },
-  emailLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    alignSelf: 'flex-start',
-    width: '100%',
-    maxWidth: 320,
-    marginBottom: 6,
-  },
-  appleHint: {
-    fontSize: 12,
-    alignSelf: 'flex-start',
-    width: '100%',
-    maxWidth: 320,
-    marginBottom: 8,
-  },
-  contactInput: {
-    height: 50,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    width: '100%',
-    maxWidth: 320,
-  },
-  communityFooter: {
+  partnerInner: {
+    flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 32,
+  },
+  partnerAvatarRow: {
+    width: 100,
+    height: 64,
+    position: 'relative',
+    alignSelf: 'center',
+    marginBottom: 32,
+    marginTop: 0,
+  },
+  partnerAvatarSlot: {
+    position: 'absolute',
+    top: 0,
+  },
+  partnerAvatarRing: {
+    borderWidth: 3,
+  },
+  partnerPlaceholderAvatar: {
+    position: 'absolute',
+    top: 0,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  partnerPlaceholderPlus: {
+    fontSize: 26,
+    fontWeight: '300',
+  },
+  partnerHeadline: {
+    fontSize: 34,
+    letterSpacing: -0.8,
+    lineHeight: 38,
+    textAlign: 'center',
+    fontWeight: '700',
+  },
+  partnerCaption: {
+    fontSize: 15,
+    lineHeight: 21,
+    textAlign: 'center',
+    maxWidth: 320,
+    marginTop: 16,
+  },
+  partnerFooter: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
     gap: 10,
   },
-  maybeLater: {
+  partnerSkip: {
     fontSize: 15,
     fontWeight: '500',
     textAlign: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
   },
   revealInner: {
     flex: 1,
