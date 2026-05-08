@@ -98,6 +98,7 @@ const NAV_FADE_HEIGHT = 50;
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
 const LAUNCH_SPLASH_MIN_MS = 900;
+const LAUNCH_SPLASH_MAX_MS = 5000;
 const APP_SHARE_BASE_URL = 'https://tinytracker.io/dl';
 const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
 const CHEVRON_ROTATE_MS = 260;
@@ -1230,12 +1231,17 @@ function AuthGatedApp({
   onToggleForceTooltipPreview,
   trackerEntranceSeed,
   trackerUiReady,
+  onAuthLoadingChange,
 }) {
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('tracker');
   const [showCommunityModal, setShowCommunityModal] = useState(false);
   const communityScreenEnabled = useFeatureFlag('community-screen');
+
+  useEffect(() => {
+    onAuthLoadingChange?.(loading);
+  }, [loading, onAuthLoadingChange]);
 
   useEffect(() => {
     setActiveTab('tracker');
@@ -1400,6 +1406,7 @@ export default function App() {
   const [forceTooltipPreview, setForceTooltipPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [trackerEntranceSeed, setTrackerEntranceSeed] = useState(0);
   const launchSplashOpacity = useRef(new Animated.Value(1)).current;
   const launchLogoOpacity = useRef(new Animated.Value(0)).current;
@@ -1492,24 +1499,36 @@ export default function App() {
     return () => loop.stop();
   }, [launchLogoFloat]);
 
+  const startSplashFade = useCallback(() => {
+    Animated.timing(launchSplashOpacity, {
+      toValue: 0,
+      duration: 280,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setShowLaunchSplash(false);
+        setTrackerEntranceSeed((v) => v + 1);
+      }
+    });
+  }, [launchSplashOpacity]);
+
+  // Normal path: hold splash until both the minimum time has elapsed and auth has resolved.
+  useEffect(() => {
+    if (!appearanceHydrated || !showLaunchSplash || authLoading) return;
+    const elapsed = Date.now() - launchStartedAtRef.current;
+    const waitMs = Math.max(0, LAUNCH_SPLASH_MIN_MS - elapsed);
+    const timeoutId = setTimeout(startSplashFade, waitMs);
+    return () => clearTimeout(timeoutId);
+  }, [appearanceHydrated, showLaunchSplash, authLoading, startSplashFade]);
+
+  // Safety cap: force-dismiss the splash after a hard maximum so a slow network never leaves the user stuck.
   useEffect(() => {
     if (!appearanceHydrated || !showLaunchSplash) return;
     const elapsed = Date.now() - launchStartedAtRef.current;
-    const waitMs = Math.max(0, LAUNCH_SPLASH_MIN_MS - elapsed);
-    const timeoutId = setTimeout(() => {
-      Animated.timing(launchSplashOpacity, {
-        toValue: 0,
-        duration: 280,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) {
-          setShowLaunchSplash(false);
-          setTrackerEntranceSeed((v) => v + 1);
-        }
-      });
-    }, waitMs);
+    const waitMs = Math.max(0, LAUNCH_SPLASH_MAX_MS - elapsed);
+    const timeoutId = setTimeout(startSplashFade, waitMs);
     return () => clearTimeout(timeoutId);
-  }, [appearanceHydrated, showLaunchSplash, launchSplashOpacity]);
+  }, [appearanceHydrated, showLaunchSplash, startSplashFade]);
 
   const handleThemeChange = useCallback((nextKey) => {
     setThemeKey(nextKey);
@@ -1555,6 +1574,7 @@ export default function App() {
                 onToggleForceTooltipPreview={handleToggleForceTooltipPreview}
                 trackerEntranceSeed={trackerEntranceSeed}
                 trackerUiReady={!showLaunchSplash}
+                onAuthLoadingChange={setAuthLoading}
               />
             </AuthProvider>
             {showLaunchSplash ? (
