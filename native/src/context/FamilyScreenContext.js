@@ -159,8 +159,10 @@ export function FamilyScreenProvider({
   showDevSetupToggle = false,
   forceSetupPreview = false,
   forceLoginPreview = false,
+  forceTooltipPreview = false,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   onRequestToggleActivitySheet,
   onDetailOpenChange,
   onInvitePartner,
@@ -967,8 +969,10 @@ export function FamilyScreenProvider({
     showDevSetupToggle,
     forceSetupPreview,
     forceLoginPreview,
+    forceTooltipPreview,
     onToggleForceSetupPreview,
     onToggleForceLoginPreview,
+    onToggleForceTooltipPreview,
     onInvitePartner,
 
     // Components & styles
@@ -1107,8 +1111,8 @@ export function FamilyScreenProvider({
     minutesToLabel,
   }), [
     header, currentUser, kidId, familyId, families, setFamilyId, onKidChange,
-    showDevSetupToggle, forceSetupPreview, forceLoginPreview,
-    onToggleForceSetupPreview, onToggleForceLoginPreview, onInvitePartner,
+    showDevSetupToggle, forceSetupPreview, forceLoginPreview, forceTooltipPreview,
+    onToggleForceSetupPreview, onToggleForceLoginPreview, onToggleForceTooltipPreview, onInvitePartner,
     colors, activeTheme, activeThemeKey, isDark, segmentedTrackColor,
     colorThemeOrder, kids, kidData, members, settings, familyInfo,
     loading, authLoading,

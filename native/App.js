@@ -367,8 +367,10 @@ function AppShell({
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
+  forceTooltipPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   trackerEntranceSeed,
   trackerUiReady,
 }) {
@@ -1034,8 +1036,10 @@ function AppShell({
               showDevSetupToggle={showDevSetupToggle}
               forceSetupPreview={forceSetupPreview}
               forceLoginPreview={forceLoginPreview}
+              forceTooltipPreview={forceTooltipPreview}
               onToggleForceSetupPreview={onToggleForceSetupPreview}
               onToggleForceLoginPreview={onToggleForceLoginPreview}
+              onToggleForceTooltipPreview={onToggleForceTooltipPreview}
               onRequestToggleActivitySheet={handleToggleActivitySheet}
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
@@ -1170,6 +1174,8 @@ function AppShell({
         bottomInsetPadding={NAV_BOTTOM_INSET_PADDING}
         tabShiftY={NAV_TAB_SHIFT_Y}
         plusBottomOffset={NAV_PLUS_BOTTOM_OFFSET}
+        showDevTooltipToggle={showDevSetupToggle}
+        forceTooltipPreview={forceTooltipPreview}
       />
 
       <DiaperSheet
@@ -1219,8 +1225,10 @@ function AuthGatedApp({
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
+  forceTooltipPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   trackerEntranceSeed,
   trackerUiReady,
 }) {
@@ -1316,8 +1324,10 @@ function AuthGatedApp({
             showDevSetupToggle={showDevSetupToggle}
             forceSetupPreview={forceSetupPreview}
             forceLoginPreview={forceLoginPreview}
+            forceTooltipPreview={forceTooltipPreview}
             onToggleForceSetupPreview={onToggleForceSetupPreview}
             onToggleForceLoginPreview={onToggleForceLoginPreview}
+            onToggleForceTooltipPreview={onToggleForceTooltipPreview}
             trackerEntranceSeed={trackerEntranceSeed}
             trackerUiReady={trackerUiReady}
           />
@@ -1388,6 +1398,7 @@ export default function App() {
   const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');
   const [forceSetupPreview, setForceSetupPreview] = useState(false);
   const [forceLoginPreview, setForceLoginPreview] = useState(false);
+  const [forceTooltipPreview, setForceTooltipPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
   const [trackerEntranceSeed, setTrackerEntranceSeed] = useState(0);
@@ -1406,6 +1417,10 @@ export default function App() {
   const handleToggleForceLoginPreview = useCallback((nextValue) => {
     setForceLoginPreview(nextValue);
     if (nextValue) setForceSetupPreview(false);
+  }, []);
+
+  const handleToggleForceTooltipPreview = useCallback((nextValue) => {
+    setForceTooltipPreview(nextValue);
   }, []);
 
   useEffect(() => {
@@ -1535,8 +1550,10 @@ export default function App() {
                 showDevSetupToggle={showDevSetupToggle}
                 forceSetupPreview={forceSetupPreview}
                 forceLoginPreview={forceLoginPreview}
+                forceTooltipPreview={forceTooltipPreview}
                 onToggleForceSetupPreview={handleToggleForceSetupPreview}
                 onToggleForceLoginPreview={handleToggleForceLoginPreview}
+                onToggleForceTooltipPreview={handleToggleForceTooltipPreview}
                 trackerEntranceSeed={trackerEntranceSeed}
                 trackerUiReady={!showLaunchSplash}
               />

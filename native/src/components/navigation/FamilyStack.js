@@ -221,8 +221,10 @@ export default function FamilyStack({
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
+  forceTooltipPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   onRequestToggleActivitySheet,
   onDetailOpenChange,
   onInvitePartner,
@@ -247,8 +249,10 @@ export default function FamilyStack({
       showDevSetupToggle={showDevSetupToggle}
       forceSetupPreview={forceSetupPreview}
       forceLoginPreview={forceLoginPreview}
+      forceTooltipPreview={forceTooltipPreview}
       onToggleForceSetupPreview={onToggleForceSetupPreview}
       onToggleForceLoginPreview={onToggleForceLoginPreview}
+      onToggleForceTooltipPreview={onToggleForceTooltipPreview}
       onRequestToggleActivitySheet={onRequestToggleActivitySheet}
       onDetailOpenChange={onDetailOpenChange}
       onInvitePartner={onInvitePartner}

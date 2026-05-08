@@ -33,8 +33,10 @@ export default function FamilyHubScreen() {
           showDevSetupToggle={ctx.showDevSetupToggle}
           forceSetupPreview={ctx.forceSetupPreview}
           forceLoginPreview={ctx.forceLoginPreview}
+          forceTooltipPreview={ctx.forceTooltipPreview}
           onToggleForceSetupPreview={ctx.onToggleForceSetupPreview}
           onToggleForceLoginPreview={ctx.onToggleForceLoginPreview}
+          onToggleForceTooltipPreview={ctx.onToggleForceTooltipPreview}
           onOpenProfile={() => navigation.navigate('Profile')}
           onOpenAppearance={ctx.openAppearanceSheet}
           onOpenFamily={() => navigation.navigate('FamilyMembers')}

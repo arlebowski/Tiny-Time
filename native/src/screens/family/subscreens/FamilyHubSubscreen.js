@@ -17,8 +17,10 @@ export default function FamilyHubSubscreen({
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
+  forceTooltipPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   onOpenProfile,
   onOpenAppearance,
   onOpenFamily,
@@ -60,6 +62,19 @@ export default function FamilyHubSubscreen({
                 ]}
               >
                 <Text style={[s.devSetupToggleText, { color: forceLoginPreview ? colors.brandIcon : colors.textTertiary }]}>LG</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onToggleForceTooltipPreview?.(!forceTooltipPreview)}
+                style={({ pressed }) => [
+                  s.devSetupToggle,
+                  {
+                    borderColor: forceTooltipPreview ? colors.brandIcon : (colors.cardBorder || colors.borderSubtle),
+                    backgroundColor: forceTooltipPreview ? colors.subtleSurface : colors.cardBg,
+                  },
+                  pressed && s.devSetupTogglePressed,
+                ]}
+              >
+                <Text style={[s.devSetupToggleText, { color: forceTooltipPreview ? colors.brandIcon : colors.textTertiary }]}>TT</Text>
               </Pressable>
             </View>
           ) : null}
