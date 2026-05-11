@@ -151,7 +151,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
       had_photo: !!photoUri,
       photo_step_shown: showPhotoStep,
     });
-  }, [step, isInvitePath, photoUri]);
+  }, [step, isInvitePath, photoUri, showPhotoStep]);
 
   const finishReveal = () => {
     revealTimersRef.current.forEach(clearTimeout);
