@@ -23,7 +23,7 @@ import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import { DatePickerTray } from '../components/shared/Wheelpickers';
 import { BabyAvatar } from '../utils/avatarUtils';
-import { ChevronLeftIcon } from '../components/icons';
+import { CalendarIcon, ChevronLeftIcon } from '../components/icons';
 import { capture } from '../services/posthogService';
 import firestoreService from '../services/firestoreService';
 import { trackPartnerInvited } from '../services/appsflyerService';
@@ -579,9 +579,15 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                     setBirthDatePickerOpen(true);
                   }}
                 >
-                  <Text style={[styles.dateBtnLeft, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
-                    {formatBirthIso(birthDate)}
-                  </Text>
+                  <View style={styles.dateBtnMain}>
+                    <CalendarIcon size={22} color={colors.textSecondary} />
+                    <Text
+                      style={[styles.dateBtnLeft, { fontFamily: FRAUNCES, color: colors.textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {formatBirthIso(birthDate)}
+                    </Text>
+                  </View>
                   {normalizeIsoDate(birthDate) === todayIso() ? (
                     <Text style={[styles.todayLbl, { color: colors.textSecondary }]}>Today</Text>
                   ) : (
@@ -803,7 +809,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginTop: 12,
   },
+  dateBtnMain: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   dateBtnLeft: {
+    flex: 1,
+    minWidth: 0,
     fontSize: 22,
     letterSpacing: -0.3,
   },

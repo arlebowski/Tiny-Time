@@ -1457,6 +1457,7 @@ export default function App() {
         const existing = await AsyncStorage.getItem('tt_first_open_date');
         if (!existing) {
           await AsyncStorage.setItem('tt_first_open_date', new Date().toISOString().slice(0, 10));
+          capture('Application installed');
         }
       } catch {
         /* ignore */

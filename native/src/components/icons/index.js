@@ -56,4 +56,5 @@ export { default as TrashIcon } from './TrashIcon';
 export { default as PaletteIcon } from './PaletteIcon';
 export { default as FamilyIcon } from './FamilyIcon';
 export { default as DaySleepWindowIcon } from './DaySleepWindowIcon';
+export { default as CalendarIcon } from './CalendarIcon';
 export { default as SpinnerIcon } from './spinnericon';
