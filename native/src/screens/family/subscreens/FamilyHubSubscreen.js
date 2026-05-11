@@ -21,6 +21,8 @@ export default function FamilyHubSubscreen({
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
   onToggleForceTooltipPreview,
+  onDevShowCommunityModal,
+  onDevShowPartnerModal,
   onOpenProfile,
   onOpenAppearance,
   onOpenFamily,
@@ -75,6 +77,32 @@ export default function FamilyHubSubscreen({
                 ]}
               >
                 <Text style={[s.devSetupToggleText, { color: forceTooltipPreview ? colors.brandIcon : colors.textTertiary }]}>TT</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onDevShowCommunityModal?.()}
+                style={({ pressed }) => [
+                  s.devSetupToggle,
+                  {
+                    borderColor: colors.cardBorder || colors.borderSubtle,
+                    backgroundColor: colors.cardBg,
+                  },
+                  pressed && s.devSetupTogglePressed,
+                ]}
+              >
+                <Text style={[s.devSetupToggleText, { color: colors.textTertiary }]}>CM</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => onDevShowPartnerModal?.()}
+                style={({ pressed }) => [
+                  s.devSetupToggle,
+                  {
+                    borderColor: colors.cardBorder || colors.borderSubtle,
+                    backgroundColor: colors.cardBg,
+                  },
+                  pressed && s.devSetupTogglePressed,
+                ]}
+              >
+                <Text style={[s.devSetupToggleText, { color: colors.textTertiary }]}>PI</Text>
               </Pressable>
             </View>
           ) : null}

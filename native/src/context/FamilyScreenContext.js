@@ -166,6 +166,8 @@ export function FamilyScreenProvider({
   onRequestToggleActivitySheet,
   onDetailOpenChange,
   onInvitePartner,
+  onDevShowCommunityModal,
+  onDevShowPartnerModal,
   onSignOut,
   onDeleteAccount,
 }) {
@@ -974,6 +976,8 @@ export function FamilyScreenProvider({
     onToggleForceLoginPreview,
     onToggleForceTooltipPreview,
     onInvitePartner,
+    onDevShowCommunityModal,
+    onDevShowPartnerModal,
 
     // Components & styles
     Card,
@@ -1113,6 +1117,7 @@ export function FamilyScreenProvider({
     header, currentUser, kidId, familyId, families, setFamilyId, onKidChange,
     showDevSetupToggle, forceSetupPreview, forceLoginPreview, forceTooltipPreview,
     onToggleForceSetupPreview, onToggleForceLoginPreview, onToggleForceTooltipPreview, onInvitePartner,
+    onDevShowCommunityModal, onDevShowPartnerModal,
     colors, activeTheme, activeThemeKey, isDark, segmentedTrackColor,
     colorThemeOrder, kids, kidData, members, settings, familyInfo,
     loading, authLoading,

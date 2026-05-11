@@ -228,6 +228,8 @@ export default function FamilyStack({
   onRequestToggleActivitySheet,
   onDetailOpenChange,
   onInvitePartner,
+  onDevShowCommunityModal,
+  onDevShowPartnerModal,
   onSignOut,
   onDeleteAccount,
 }) {
@@ -256,6 +258,8 @@ export default function FamilyStack({
       onRequestToggleActivitySheet={onRequestToggleActivitySheet}
       onDetailOpenChange={onDetailOpenChange}
       onInvitePartner={onInvitePartner}
+      onDevShowCommunityModal={onDevShowCommunityModal}
+      onDevShowPartnerModal={onDevShowPartnerModal}
       onSignOut={onSignOut}
       onDeleteAccount={onDeleteAccount}
     >

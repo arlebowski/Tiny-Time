@@ -37,6 +37,8 @@ import FamilyStack from './src/components/navigation/FamilyStack';
 import LoginScreen from './src/screens/LoginScreen';
 import SetupScreen from './src/screens/SetupScreen';
 import CommunityModal from './src/components/CommunityModal';
+import PartnerInviteModal from './src/components/PartnerInviteModal';
+import ConfettiOverlay from './src/components/ConfettiOverlay';
 
 // Sheets
 import DiaperSheet from './src/components/sheets/DiaperSheet';
@@ -374,6 +376,9 @@ function AppShell({
   onToggleForceTooltipPreview,
   trackerEntranceSeed,
   trackerUiReady,
+  onMaybeFirstActivityCelebration,
+  onDevShowCommunityModal,
+  onDevShowPartnerModal,
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -564,9 +569,12 @@ function AppShell({
         feed_type: feedType,
         ...(feedType === 'bottle' && entry?.ounces ? { amount_oz: entry.ounces } : {}),
       });
-      captureFirstActivity(user?.uid, { type: 'feed', feed_type: feedType }).catch(() => {});
+      void (async () => {
+        await onMaybeFirstActivityCelebration?.();
+        await captureFirstActivity(user?.uid, { type: 'feed', feed_type: feedType });
+      })().catch(() => {});
     }
-  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid]);
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid, onMaybeFirstActivityCelebration]);
 
   const handleSleepAdded = useCallback((entry) => {
     if (entry) {
@@ -581,17 +589,23 @@ function AppShell({
         ...(durationMin !== null ? { duration_min: durationMin } : {}),
       });
       if (!hasEndTime) capture('active_sleep_started');
-      captureFirstActivity(user?.uid, { type: 'sleep' }).catch(() => {});
+      void (async () => {
+        await onMaybeFirstActivityCelebration?.();
+        await captureFirstActivity(user?.uid, { type: 'sleep' });
+      })().catch(() => {});
     }
-  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid]);
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid, onMaybeFirstActivityCelebration]);
 
   const handleDiaperSaved = useCallback((entry) => {
     if (entry) {
       applyOptimisticEntry(entry);
       capture('activity_logged', { type: 'diaper' });
-      captureFirstActivity(user?.uid, { type: 'diaper' }).catch(() => {});
+      void (async () => {
+        await onMaybeFirstActivityCelebration?.();
+        await captureFirstActivity(user?.uid, { type: 'diaper' });
+      })().catch(() => {});
     }
-  }, [applyOptimisticEntry, user?.uid]);
+  }, [applyOptimisticEntry, user?.uid, onMaybeFirstActivityCelebration]);
 
   const handleToggleActivitySheet = useCallback(() => {
     setShowShareMenu(false);
@@ -1045,6 +1059,8 @@ function AppShell({
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
               onDeleteAccount={handleDeleteAccount}
+              onDevShowCommunityModal={onDevShowCommunityModal}
+              onDevShowPartnerModal={onDevShowPartnerModal}
             />
             </View>
           </View>
@@ -1237,7 +1253,10 @@ function AuthGatedApp({
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('tracker');
   const [showCommunityModal, setShowCommunityModal] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showPartnerModal, setShowPartnerModal] = useState(false);
   const communityScreenEnabled = useFeatureFlag('community-screen');
+  const partnerInviteEnabled = useFeatureFlag('partner-invite-prompt');
 
   useEffect(() => {
     onAuthLoadingChange?.(loading);
@@ -1273,6 +1292,32 @@ function AuthGatedApp({
   const dismissCommunityModal = useCallback(async () => {
     await AsyncStorage.setItem('tt_community_seen', '1').catch(() => {});
     setShowCommunityModal(false);
+  }, []);
+
+  const maybeShowFirstActivityCelebration = useCallback(async () => {
+    if (partnerInviteEnabled === false) return;
+    if (!user?.uid) return;
+    const flagKey = `tt_ph_first_activity:${user.uid}`;
+    const partnerKey = `tt_partner_prompt_seen:${user.uid}`;
+    const [seen, partnerSeen] = await Promise.all([
+      AsyncStorage.getItem(flagKey),
+      AsyncStorage.getItem(partnerKey),
+    ]);
+    if (seen === '1' || partnerSeen === '1') return;
+    setShowConfetti(true);
+  }, [partnerInviteEnabled, user?.uid]);
+
+  const handleConfettiComplete = useCallback(() => {
+    setShowConfetti(false);
+    setShowPartnerModal(true);
+  }, []);
+
+  const handleDevShowCommunityModal = useCallback(() => {
+    setShowCommunityModal(true);
+  }, []);
+
+  const handleDevShowPartnerModal = useCallback(() => {
+    setShowConfetti(true);
   }, []);
 
   if (loading) {
@@ -1316,30 +1361,38 @@ function AuthGatedApp({
   }
 
   return (
-    <>
-      <DataProvider>
-        <BottomSheetModalProvider>
-          <AppShell
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            themeKey={themeKey}
-            isDark={isDark}
-            onThemeChange={onThemeChange}
-            onDarkModeChange={onDarkModeChange}
-            showDevSetupToggle={showDevSetupToggle}
-            forceSetupPreview={forceSetupPreview}
-            forceLoginPreview={forceLoginPreview}
-            forceTooltipPreview={forceTooltipPreview}
-            onToggleForceSetupPreview={onToggleForceSetupPreview}
-            onToggleForceLoginPreview={onToggleForceLoginPreview}
-            onToggleForceTooltipPreview={onToggleForceTooltipPreview}
-            trackerEntranceSeed={trackerEntranceSeed}
-            trackerUiReady={trackerUiReady}
-          />
-        </BottomSheetModalProvider>
-      </DataProvider>
+    <DataProvider>
+      <BottomSheetModalProvider>
+        <AppShell
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          themeKey={themeKey}
+          isDark={isDark}
+          onThemeChange={onThemeChange}
+          onDarkModeChange={onDarkModeChange}
+          showDevSetupToggle={showDevSetupToggle}
+          forceSetupPreview={forceSetupPreview}
+          forceLoginPreview={forceLoginPreview}
+          forceTooltipPreview={forceTooltipPreview}
+          onToggleForceSetupPreview={onToggleForceSetupPreview}
+          onToggleForceLoginPreview={onToggleForceLoginPreview}
+          onToggleForceTooltipPreview={onToggleForceTooltipPreview}
+          trackerEntranceSeed={trackerEntranceSeed}
+          trackerUiReady={trackerUiReady}
+          onMaybeFirstActivityCelebration={maybeShowFirstActivityCelebration}
+          onDevShowCommunityModal={handleDevShowCommunityModal}
+          onDevShowPartnerModal={handleDevShowPartnerModal}
+        />
+      </BottomSheetModalProvider>
       <CommunityModal visible={showCommunityModal} onDismiss={dismissCommunityModal} />
-    </>
+      <PartnerInviteModal
+        visible={showPartnerModal}
+        onDismiss={() => setShowPartnerModal(false)}
+      />
+      {showConfetti ? (
+        <ConfettiOverlay onComplete={handleConfettiComplete} />
+      ) : null}
+    </DataProvider>
   );
 }
 

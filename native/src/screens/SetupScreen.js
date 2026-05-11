@@ -13,7 +13,6 @@ import {
   Image,
   ActivityIndicator,
   ScrollView,
-  Share,
   Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
@@ -26,10 +25,7 @@ import { BabyAvatar } from '../utils/avatarUtils';
 import { CalendarIcon, ChevronLeftIcon } from '../components/icons';
 import { capture } from '../services/posthogService';
 import firestoreService from '../services/firestoreService';
-import { trackPartnerInvited } from '../services/appsflyerService';
-
 const FRAUNCES = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
-const APP_SHARE_BASE_URL = 'https://tinytracker.io/dl';
 
 function todayIso() {
   const d = new Date();
@@ -87,7 +83,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     capture('setup_step_viewed', { step: String(step) });
   }, [step]);
 
-  const progressStep = step === 'invite' ? 1 : step === 'partner' ? 4 : typeof step === 'number' && step >= 1 && step <= 3 ? step : 1;
+  const progressStep = step === 'invite' ? 1 : typeof step === 'number' && step >= 1 && step <= 3 ? step : 1;
 
   const displayName = useMemo(() => {
     const n = babyName.trim();
@@ -186,50 +182,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     }
   };
 
-  const handlePartnerSkip = () => {
-    capture('setup_step_completed', { step: 'partner', skipped: true });
-    setStep(5);
-  };
-
-  const handlePartnerSendInvite = async () => {
-    const resolvedKidId = kidId;
-    if (!familyId || !resolvedKidId) {
-      Alert.alert('Something went wrong', 'Try again in a moment.');
-      return;
-    }
-    let code;
-    try {
-      firestoreService.initialize(familyId, resolvedKidId);
-      code = await firestoreService.createInvite(resolvedKidId);
-    } catch (e) {
-      console.warn('[SetupScreen] createInvite failed', e);
-      Alert.alert('Failed to create invite.', 'Please try again.');
-      return;
-    }
-    const rawKidName = String(displayName || '').trim();
-    const possessiveKidName = rawKidName
-      ? (rawKidName.toLowerCase().endsWith('s') ? `${rawKidName}'` : `${rawKidName}'s`)
-      : 'your';
-    const headerLine = rawKidName
-      ? `Join ${possessiveKidName} family on Tiny Tracker.`
-      : 'Join your family on Tiny Tracker.';
-    const message = `${headerLine}\nInstall app: ${APP_SHARE_BASE_URL}\nInvite code: ${code}`;
-    try {
-      const result = await Share.share({
-        title: 'Join me on Tiny Tracker',
-        message,
-      });
-      if (Platform.OS !== 'ios' || result?.action !== Share.dismissedAction) {
-        capture('setup_step_completed', { step: 'partner', skipped: false });
-        trackPartnerInvited().catch(() => {});
-        capture('partner_invited', { source: 'onboarding' });
-        setStep(5);
-      }
-    } catch {
-      /* share cancelled */
-    }
-  };
-
   const handleJoinInvite = async () => {
     const code = inviteCode.trim().toUpperCase();
     if (code.length < 4) return;
@@ -239,7 +191,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
       await acceptInvite(code);
       capture('setup_invite_submitted', { success: true });
       setIsInvitePath(true);
-      setStep('partner');
+      setStep(5);
     } catch (e) {
       capture('setup_invite_submitted', { success: false });
       setError(e?.message || 'Invalid invite code');
@@ -283,7 +235,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
             if (step === 'invite') setStep(1);
             else if (step === 2) setStep(1);
             else if (step === 3) setStep(2);
-            else if (step === 'partner') setStep(3);
           }}
         >
           <ChevronLeftIcon size={22} color={colors.textPrimary} />
@@ -303,62 +254,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
       )}
     </View>
   );
-
-  if (step === 'partner') {
-    const userAvatarName =
-      user?.displayName?.trim()
-      || user?.email?.split('@')[0]?.trim()
-      || '?';
-    return (
-      <View style={[styles.flex, { backgroundColor: colors.appBg }]}>
-        {renderTopBar({ showBack: true, showProgress: true, counter: '4/4' })}
-        <View style={styles.partnerInner}>
-          <View style={styles.partnerAvatarRow}>
-            <View style={[styles.partnerAvatarSlot, { left: 0, zIndex: 2 }]}>
-              <BabyAvatar
-                name={userAvatarName}
-                size={60}
-                photoUri={user?.photoURL || null}
-                style={[styles.partnerAvatarRing, { borderColor: colors.appBg }]}
-              />
-            </View>
-            <View
-              style={[
-                styles.partnerPlaceholderAvatar,
-                {
-                  left: 40,
-                  zIndex: 1,
-                  backgroundColor: colors.inputBg,
-                  borderColor: colors.appBg,
-                },
-              ]}
-            >
-              <Text style={[styles.partnerPlaceholderPlus, { color: colors.textSecondary }]}>+</Text>
-            </View>
-          </View>
-          <Text style={[styles.partnerHeadline, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
-            Who else is caring for{' '}
-            <Text style={{ fontStyle: 'italic', color: colors.brandIcon }}>{displayName}</Text>
-            ?
-          </Text>
-          <Text style={[styles.partnerCaption, { color: colors.textSecondary }]}>
-            Invite a partner or caregiver. They&apos;ll get a link and an invite code to join the family.
-          </Text>
-        </View>
-        <View style={[styles.partnerFooter, { paddingBottom: Math.max(insets.bottom, 36) }]}>
-          <Pressable
-            style={[styles.brandCta, { backgroundColor: colors.brandIcon, borderRadius: radius?.xl ?? 16 }]}
-            onPress={handlePartnerSendInvite}
-          >
-            <Text style={styles.brandCtaText}>Send invite</Text>
-          </Pressable>
-          <Pressable onPress={handlePartnerSkip}>
-            <Text style={[styles.partnerSkip, { color: colors.textSecondary }]}>Skip for now</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
 
   if (step === 5) {
     const confetti = [
@@ -686,7 +581,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                     capture('setup_step_completed', { step: '3', had_photo: !!photoUri });
                     setIsInvitePath(false);
                     if (onDevExitPreview) {
-                      setStep('partner');
+                      setStep(5);
                       return;
                     }
                     setIsSubmitting(true);
@@ -696,7 +591,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                         photoUri: photoUri || null,
                         preferredVolumeUnit: 'oz',
                       });
-                      setStep('partner');
+                      setStep(5);
                     } catch (e) {
                       setError(e?.message || 'Something went wrong');
                     } finally {
@@ -899,67 +794,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     marginTop: 8,
-  },
-  partnerInner: {
-    flex: 1,
-    paddingHorizontal: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 32,
-  },
-  partnerAvatarRow: {
-    width: 100,
-    height: 64,
-    position: 'relative',
-    alignSelf: 'center',
-    marginBottom: 32,
-    marginTop: 0,
-  },
-  partnerAvatarSlot: {
-    position: 'absolute',
-    top: 0,
-  },
-  partnerAvatarRing: {
-    borderWidth: 3,
-  },
-  partnerPlaceholderAvatar: {
-    position: 'absolute',
-    top: 0,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    borderWidth: 3,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  partnerPlaceholderPlus: {
-    fontSize: 26,
-    fontWeight: '300',
-  },
-  partnerHeadline: {
-    fontSize: 34,
-    letterSpacing: -0.8,
-    lineHeight: 38,
-    textAlign: 'center',
-    fontWeight: '700',
-  },
-  partnerCaption: {
-    fontSize: 15,
-    lineHeight: 21,
-    textAlign: 'center',
-    maxWidth: 320,
-    marginTop: 16,
-  },
-  partnerFooter: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    gap: 10,
-  },
-  partnerSkip: {
-    fontSize: 15,
-    fontWeight: '500',
-    textAlign: 'center',
-    paddingVertical: 12,
   },
   revealInner: {
     flex: 1,

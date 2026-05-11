@@ -1,5 +1,5 @@
 /**
- * Full-screen community interest prompt (shown D1+ after signup, once).
+ * Centered card — community interest prompt (shown D1+ after signup, once).
  */
 import React, { useEffect, useState } from 'react';
 import {
@@ -22,6 +22,7 @@ import { useAuth } from '../context/AuthContext';
 import { BabyAvatar } from '../utils/avatarUtils';
 import { pingCommunityInterest } from '../utils/formspree';
 import { capture } from '../services/posthogService';
+import { XIcon } from './icons';
 
 const FRAUNCES = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
@@ -94,17 +95,42 @@ export default function CommunityModal({ visible, onDismiss }) {
     : require('../../assets/brandlogo-lt.png');
 
   return (
-    <Modal visible={visible} animationType="fade" presentationStyle="fullScreen" onRequestClose={handleSkip}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={handleSkip}>
       <KeyboardAvoidingView
-        style={[styles.flex, { backgroundColor: colors.appBg }]}
+        style={styles.backdrop}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={[styles.flex, { paddingTop: insets.top }]}>
-          <Image source={watermark} style={styles.watermark} resizeMode="contain" />
+        <Pressable style={StyleSheet.absoluteFill} onPress={handleSkip} accessibilityLabel="Dismiss" />
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: colors.cardBg,
+              borderColor: colors.cardBorder || colors.borderSubtle,
+            },
+          ]}
+          onStartShouldSetResponder={() => true}
+        >
+          <Image source={watermark} style={styles.watermarkInCard} resizeMode="contain" />
+          <View style={styles.cardHeader}>
+            <View style={{ width: 36 }} />
+            <Pressable
+              hitSlop={12}
+              onPress={handleSkip}
+              style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.7 }]}
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              disabled={isSubmitting}
+            >
+              <XIcon size={22} color={colors.textTertiary} />
+            </Pressable>
+          </View>
+
           <ScrollView
-            contentContainerStyle={styles.communityScroll}
+            contentContainerStyle={[styles.communityScroll, { paddingBottom: 8 }]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            style={{ maxHeight: 420 }}
           >
             <View style={styles.avatarCluster}>
               {['Priya', 'Marcus', 'Yuki', 'Sara'].map((name, i) => (
@@ -115,7 +141,7 @@ export default function CommunityModal({ visible, onDismiss }) {
                     {
                       left: i * 38,
                       zIndex: 4 - i,
-                      borderColor: colors.appBg,
+                      borderColor: colors.cardBg,
                     },
                   ]}
                 >
@@ -162,7 +188,7 @@ export default function CommunityModal({ visible, onDismiss }) {
             />
             {error ? <Text style={styles.err}>{error}</Text> : null}
           </ScrollView>
-          <View style={[styles.communityFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
+          <View style={[styles.communityFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
             <Pressable
               style={[
                 styles.brandCta,
@@ -192,25 +218,53 @@ export default function CommunityModal({ visible, onDismiss }) {
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  watermark: {
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: 'hidden',
+    paddingTop: 8,
+  },
+  watermarkInCard: {
     position: 'absolute',
-    bottom: 60,
-    right: -10,
-    width: 220,
-    height: 220,
+    bottom: 40,
+    right: -16,
+    width: 200,
+    height: 200,
     opacity: 0.07,
+    pointerEvents: 'none',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
+    marginBottom: 4,
+  },
+  iconBtn: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   communityScroll: {
-    paddingHorizontal: 28,
-    paddingTop: 24,
+    paddingHorizontal: 22,
+    paddingTop: 8,
     alignItems: 'center',
   },
   avatarCluster: {
     height: 64,
     width: 56 + 3 * 38,
     position: 'relative',
-    marginBottom: 32,
+    marginBottom: 24,
     alignSelf: 'center',
   },
   avatarClusterItem: {
@@ -220,18 +274,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   communityHeadline: {
-    fontSize: 32,
-    letterSpacing: -0.8,
-    lineHeight: 36,
+    fontSize: 26,
+    letterSpacing: -0.6,
+    lineHeight: 30,
     textAlign: 'center',
-    marginBottom: 18,
+    marginBottom: 14,
   },
   communityBody: {
-    fontSize: 16,
-    lineHeight: 25,
+    fontSize: 15,
+    lineHeight: 23,
     textAlign: 'center',
     maxWidth: 300,
-    marginBottom: 28,
+    marginBottom: 20,
   },
   emailLabel: {
     fontSize: 13,
@@ -256,9 +310,9 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   communityFooter: {
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    gap: 10,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    gap: 8,
   },
   maybeLater: {
     fontSize: 15,
@@ -267,7 +321,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   brandCta: {
-    height: 54,
+    height: 52,
     alignItems: 'center',
     justifyContent: 'center',
   },
