@@ -24,6 +24,7 @@ import { DatePickerTray } from '../components/shared/Wheelpickers';
 import { BabyAvatar } from '../utils/avatarUtils';
 import { CalendarIcon, ChevronLeftIcon } from '../components/icons';
 import { capture } from '../services/posthogService';
+import { useFeatureFlag } from 'posthog-react-native';
 import firestoreService from '../services/firestoreService';
 const FRAUNCES = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
 
@@ -60,6 +61,9 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     kidId,
   } = useAuth();
 
+  // undefined = flag not yet loaded; treat as true (show step) to avoid flicker
+  const showPhotoStep = useFeatureFlag('onboarding-photo-step') !== false;
+
   const [step, setStep] = useState(1);
   const [isInvitePath, setIsInvitePath] = useState(false);
   const [babyName, setBabyName] = useState('');
@@ -84,6 +88,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   }, [step]);
 
   const progressStep = step === 'invite' ? 1 : typeof step === 'number' && step >= 1 && step <= 3 ? step : 1;
+  const totalSteps = showPhotoStep ? 4 : 2;
 
   const displayName = useMemo(() => {
     const n = babyName.trim();
@@ -144,6 +149,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     capture('onboarding_completed', {
       path: isInvitePath ? 'invite' : 'create',
       had_photo: !!photoUri,
+      photo_step_shown: showPhotoStep,
     });
   }, [step, isInvitePath, photoUri]);
 
@@ -203,7 +209,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const backBg = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)';
   const renderProgressBar = () => (
     <View style={styles.progressRow}>
-      {[1, 2, 3, 4].map((i) => (
+      {Array.from({ length: totalSteps }, (_, idx) => idx + 1).map((i) => (
         <View
           key={i}
           style={{
@@ -401,7 +407,7 @@ export default function SetupScreen({ onDevExitPreview = null }) {
           {renderTopBar({
             showBack: step !== 1,
             showProgress: true,
-            counter: `${progressStep}/4`,
+            counter: `${progressStep}/${totalSteps}`,
           })}
           <ScrollView
             style={styles.flex}
@@ -576,7 +582,28 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                       step: '2',
                       date_changed: normalizeIsoDate(birthDate) !== todayIso(),
                     });
-                    setStep(3);
+                    if (!showPhotoStep) {
+                      setIsInvitePath(false);
+                      if (onDevExitPreview) {
+                        setStep(5);
+                        return;
+                      }
+                      setIsSubmitting(true);
+                      try {
+                        await createFamily(babyName.trim(), {
+                          birthDate,
+                          photoUri: null,
+                          preferredVolumeUnit: 'oz',
+                        });
+                        setStep(5);
+                      } catch (e) {
+                        setError(e?.message || 'Something went wrong');
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    } else {
+                      setStep(3);
+                    }
                   } else if (step === 3) {
                     capture('setup_step_completed', { step: '3', had_photo: !!photoUri });
                     setIsInvitePath(false);
