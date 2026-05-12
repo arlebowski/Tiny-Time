@@ -1,7 +1,7 @@
 /**
  * Centered card — invite partner after first activity (PostHog flag partner-invite-prompt).
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -36,6 +36,12 @@ export default function PartnerInviteModal({ visible, onDismiss }) {
   const { user, familyId, kidId, selectedKidSnapshot } = useAuth();
   const { kidData } = useData();
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      capture('partner_invite_modal_viewed');
+    }
+  }, [visible]);
 
   const uid = user?.uid || null;
 
