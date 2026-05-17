@@ -230,6 +230,12 @@ export function WheelPicker({
         value: i,
       }));
     }
+    if (type === 'durationMinute') {
+      return Array.from({ length: 100 }, (_, i) => ({
+        display: i.toString(),
+        value: i,
+      }));
+    }
     if (type === 'ampm') {
       return [
         { display: 'AM', value: 'AM' },
@@ -1158,6 +1164,90 @@ export function TimePickerTray({
   );
 }
 
+function parseDurationMs(ms) {
+  const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+  return {
+    minutes: Math.min(99, Math.floor(totalSec / 60)),
+    seconds: totalSec % 60,
+  };
+}
+
+// DurationPickerTray — manual nursing duration entry (minutes + seconds)
+export function DurationPickerTray({
+  isOpen = false,
+  onClose = null,
+  onConfirm = null,
+  initialMs = 0,
+  title = 'Duration',
+  accentColor = null,
+}) {
+  const { colors, nursing } = useTheme();
+  const accent = accentColor || nursing?.primary || colors.textPrimary;
+  const [draftMinutes, setDraftMinutes] = useState(0);
+  const [draftSeconds, setDraftSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const parsed = parseDurationMs(initialMs);
+    setDraftMinutes(parsed.minutes);
+    setDraftSeconds(parsed.seconds);
+  }, [isOpen, initialMs]);
+
+  const header = (close) => (
+    <View style={styles.trayHeaderGrid}>
+      <Pressable
+        onPress={close}
+        hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+        style={({ pressed }) => pressed && { opacity: 0.6 }}
+      >
+        <Text style={[styles.headerBtn, { color: colors.textSecondary }]}>Cancel</Text>
+      </Pressable>
+      <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{title}</Text>
+      <Pressable
+        onPress={() => {
+          const ms = (draftMinutes * 60 + draftSeconds) * 1000;
+          if (typeof onConfirm === 'function') onConfirm(ms);
+          close();
+        }}
+        hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+        style={({ pressed }) => pressed && { opacity: 0.6 }}
+      >
+        <Text style={[styles.headerDone, { color: accent }]}>Done</Text>
+      </Pressable>
+    </View>
+  );
+
+  return (
+    <TTPickerTray isOpen={isOpen} onClose={onClose} header={header} height="40%" scrollEnabled={false}>
+      <View style={[wheelStyles.section, { marginTop: -16, paddingBottom: 4 }]}>
+        <View style={styles.durationPickerRow}>
+          <View style={styles.durationPickerColumn}>
+            <Text style={[wheelStyles.label, { color: colors.textSecondary }]}>min</Text>
+            <WheelPicker
+              type="durationMinute"
+              value={draftMinutes}
+              onChange={setDraftMinutes}
+              compact
+              showSelection={false}
+            />
+          </View>
+          <Text style={[wheelStyles.timeColon, { color: colors.textPrimary, marginTop: 20 }]}>:</Text>
+          <View style={styles.durationPickerColumn}>
+            <Text style={[wheelStyles.label, { color: colors.textSecondary }]}>sec</Text>
+            <WheelPicker
+              type="minute"
+              value={draftSeconds}
+              onChange={setDraftSeconds}
+              compact
+              showSelection={false}
+            />
+          </View>
+        </View>
+      </View>
+    </TTPickerTray>
+  );
+}
+
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
@@ -1288,5 +1378,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 0,
     paddingBottom: 0,
+  },
+  durationPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  durationPickerColumn: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

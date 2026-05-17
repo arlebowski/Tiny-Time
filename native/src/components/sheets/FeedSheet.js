@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import { colorMix } from '../../utils/colorBlend';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray, TTPickerTray, PhotoModal } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, DurationPickerTray, TTPickerTray, PhotoModal } from '../shared';
 import AmountStepper from './AmountStepper';
 import TimelineSwipeRow from '../Timeline/TimelineSwipeRow';
 import {
@@ -34,6 +34,7 @@ import {
   PauseIcon,
   SearchIcon,
   ChevronRightIcon,
+  EditIcon,
 } from '../icons';
 import { COMMON_FOODS } from '../../constants/foods';
 import { resolveFoodIconAsset } from '../../constants/foodIcons';
@@ -267,6 +268,7 @@ export default function FeedSheet({
   const activeSideRef = useRef(null);
   const activeSideStartRef = useRef(null);
   const [timerTick, setTimerTick] = useState(0);
+  const [durationPickerSide, setDurationPickerSide] = useState(null);
 
   // Solids
   const [addedFoods, setAddedFoods] = useState([]);
@@ -520,8 +522,28 @@ export default function FeedSheet({
     [stopActiveSide, dateTime]
   );
 
+  const handleEditDuration = useCallback(
+    (side) => {
+      if (activeSideRef.current === side) {
+        stopActiveSide();
+      }
+      setDurationPickerSide(side);
+    },
+    [stopActiveSide]
+  );
+
+  const handleDurationConfirm = useCallback((ms) => {
+    const nextMs = Math.max(0, Number(ms) || 0);
+    setDurationPickerSide((side) => {
+      if (side === 'left') setLeftElapsedMs(nextMs);
+      else if (side === 'right') setRightElapsedMs(nextMs);
+      return null;
+    });
+  }, []);
+
   const handleClose = useCallback(() => {
     stopActiveSide();
+    setDurationPickerSide(null);
     setIsSheetOpen(false);
     setNotesExpanded(false);
     setPhotosExpanded(false);
@@ -1503,6 +1525,7 @@ export default function FeedSheet({
                         isActive={activeSide === 'left'}
                         isLast={lastSide === 'left'}
                         onPress={handleToggleSide}
+                        onEditDuration={handleEditDuration}
                         accent={nursing.primary}
                         accentSoft={nursing.soft}
                         colors={colors}
@@ -1514,6 +1537,7 @@ export default function FeedSheet({
                         isActive={activeSide === 'right'}
                         isLast={lastSide === 'right'}
                         onPress={handleToggleSide}
+                        onEditDuration={handleEditDuration}
                         accent={nursing.primary}
                         accentSoft={nursing.soft}
                         colors={colors}
@@ -1628,6 +1652,20 @@ export default function FeedSheet({
         value={dateTime}
         onChange={handleDateTimeChange}
         title="Time"
+      />
+      <DurationPickerTray
+        isOpen={durationPickerSide !== null}
+        initialMs={durationPickerSide === 'left' ? leftElapsedMs : rightElapsedMs}
+        onConfirm={handleDurationConfirm}
+        onClose={() => setDurationPickerSide(null)}
+        title={
+          durationPickerSide === 'left'
+            ? 'Left duration'
+            : durationPickerSide === 'right'
+              ? 'Right duration'
+              : 'Duration'
+        }
+        accentColor={nursing.primary}
       />
       <TTPickerTray
         isOpen={!!detailFood}
@@ -2016,7 +2054,7 @@ function FeedTypeButton({ label, icon: Icon, selected, accent, onPress, colors, 
   );
 }
 
-function SideTimer({ side, displayMs, isActive, isLast, onPress, accent, accentSoft, colors, runningSide }) {
+function SideTimer({ side, displayMs, isActive, isLast, onPress, onEditDuration, accent, accentSoft, colors, runningSide }) {
   const parts = formatElapsedHmsTT(displayMs);
   const color = isActive ? accent : runningSide ? colors.textTertiary : colors.textSecondary;
   const bg = isActive ? colorMix(accent, colors.inputBg || '#F5F5F7', 16) : colors.inputBg || '#F5F5F7';
@@ -2039,9 +2077,17 @@ function SideTimer({ side, displayMs, isActive, isLast, onPress, accent, accentS
         </View>
       )}
 
-      <Pressable style={({ pressed }) => [styles.sideTimer, { backgroundColor: bg, borderColor: border }, pressed && { opacity: 0.7 }]} onPress={() => onPress(side)}>
+      <Pressable
+        style={({ pressed }) => [styles.sideTimer, { backgroundColor: bg, borderColor: border }, pressed && { opacity: 0.7 }]}
+        onPress={() => onPress(side)}
+        onLongPress={() => onEditDuration?.(side)}
+        delayLongPress={400}
+      >
         {isActive ? <PauseIcon size={28} color={color} /> : <PlayIcon size={28} color={color} />}
         <Text style={[styles.sideTime, { color }]}>{parts.str}</Text>
+        {!isActive && (
+          <EditIcon size={14} color={colors.textTertiary} />
+        )}
       </Pressable>
     </View>
   );

@@ -13,6 +13,7 @@ export {
   DatePickerTray,
   TimePickerTray,
   DateTimePickerTray,
+  DurationPickerTray,
   TTPickerTray,
   wheelStyles,
 } from './Wheelpickers';
