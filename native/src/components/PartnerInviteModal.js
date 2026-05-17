@@ -97,7 +97,7 @@ export default function PartnerInviteModal({ visible, onDismiss }) {
       });
       if (Platform.OS !== 'ios' || result?.action !== Share.dismissedAction) {
         trackPartnerInvited().catch(() => {});
-        capture('partner_invited', { source: 'first-activity' });
+        capture('partner_invited', { source: 'first-activity', family_id: familyId });
         await markSeen();
         onDismiss?.();
       }

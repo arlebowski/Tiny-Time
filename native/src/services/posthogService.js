@@ -27,15 +27,28 @@ export function capture(event, properties = {}) {
   }
 }
 
-export function identifyUser(uid, { email, name } = {}) {
+export function identifyUser(uid, { email, name, family_id } = {}) {
   if (!uid) return;
   try {
     posthogInstance.identify(uid, {
       ...(email ? { email } : {}),
       ...(name ? { name } : {}),
+      ...(family_id != null ? { family_id } : {}),
     });
   } catch (error) {
     console.warn('[PostHog] identify failed:', error);
+  }
+}
+
+export function groupFamily(familyId, { name, memberCount } = {}) {
+  if (!familyId) return;
+  try {
+    posthogInstance.group('family', familyId, {
+      ...(name ? { name } : {}),
+      ...(memberCount != null ? { member_count: memberCount } : {}),
+    });
+  } catch (error) {
+    console.warn('[PostHog] group failed:', error);
   }
 }
 

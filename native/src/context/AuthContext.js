@@ -26,7 +26,7 @@ import {
   trackFamilyJoined,
   trackOnboardingCompleted,
 } from '../services/appsflyerService';
-import { capture, identifyUser, resetUser } from '../services/posthogService';
+import { capture, identifyUser, resetUser, groupFamily } from '../services/posthogService';
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
@@ -117,6 +117,12 @@ export function AuthProvider({ children }) {
       setPendingInviteCode(null);
       if (result?.familyId && result?.kidId) {
         trackFamilyJoined().catch(() => {});
+        capture('invite_accepted', {
+          familyId: result.familyId,
+          kidId: result.kidId,
+          method: 'deep_link',
+        });
+        groupFamily(result.familyId);
         setFamilyIdState(result.familyId);
         setKidIdState(result.kidId);
         setNeedsSetup(false);
@@ -206,6 +212,7 @@ export function AuthProvider({ children }) {
           identifyUser(firebaseUser.uid, {
             email: firebaseUser.email,
             name: firebaseUser.displayName,
+            family_id: family?.familyId ?? null,
           });
           authMethodRef.current = null;
 
@@ -221,6 +228,11 @@ export function AuthProvider({ children }) {
               AsyncStorage.setItem(familySelectionKey, family.familyId).catch(() => {});
             }
             setNeedsSetup(false);
+            const familyMeta = allFamilies.find((f) => f.familyId === family.familyId);
+            groupFamily(family.familyId, {
+              name: familyMeta?.name,
+              memberCount: familyMeta?.memberCount,
+            });
           } else if (allFamilies.length === 0) {
             // User has no family yet — needs onboarding
             setSelectedKidSnapshot(null);
@@ -367,6 +379,7 @@ export function AuthProvider({ children }) {
 
       setFamilyIdState(result.familyId);
       setKidIdState(result.kidId);
+      groupFamily(result.familyId, { name: familyName, memberCount: 1 });
       setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
       await hydrateKidSnapshot(result.familyId, result.kidId);
 
@@ -387,12 +400,21 @@ export function AuthProvider({ children }) {
     try {
       const result = await acceptInvite(code, user.uid);
       trackFamilyJoined().catch(() => {});
-      capture('invite_accepted', { familyId: result.familyId, kidId: result.kidId });
+      capture('invite_accepted', {
+        familyId: result.familyId,
+        kidId: result.kidId,
+        method: 'manual',
+      });
       AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
       setFamilyIdState(result.familyId);
       setKidIdState(result.kidId);
       const allFamilies = await loadUserFamilies(user.uid);
       setFamilies(allFamilies);
+      const joinedFamilyMeta = allFamilies.find((f) => f.familyId === result.familyId);
+      groupFamily(result.familyId, {
+        name: joinedFamilyMeta?.name,
+        memberCount: joinedFamilyMeta?.memberCount,
+      });
       await hydrateKidSnapshot(result.familyId, result.kidId);
       const familyKey = getFamilySelectionKey(user.uid);
       const kidKey = getKidSelectionKey(user.uid, result.familyId);
@@ -411,6 +433,7 @@ export function AuthProvider({ children }) {
 
     setFamilyIdState(nextFamilyId);
     setKidIdState(match.kidId);
+    groupFamily(nextFamilyId, { name: match?.name, memberCount: match?.memberCount });
     await hydrateKidSnapshot(nextFamilyId, match.kidId);
 
     const familyKey = getFamilySelectionKey(user?.uid);

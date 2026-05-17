@@ -811,7 +811,7 @@ function AppShell({
         });
         if (Platform.OS !== 'ios' || result?.action !== Share.dismissedAction) {
           trackPartnerInvited().catch(() => {});
-          capture('partner_invited', { source: 'app' });
+          capture('partner_invited', { source: 'app', family_id: familyId });
         }
         return;
       } catch {

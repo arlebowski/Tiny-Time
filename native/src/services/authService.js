@@ -280,7 +280,12 @@ export async function loadUserFamilies(uid) {
       }
     }
 
-    result.push({ familyId, kidId, name });
+    result.push({
+      familyId,
+      kidId,
+      name,
+      memberCount: Array.isArray(famData.members) ? famData.members.length : 1,
+    });
   }
 
   return result;
