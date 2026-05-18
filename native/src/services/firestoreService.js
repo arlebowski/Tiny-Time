@@ -1102,12 +1102,28 @@ const firestoreService = {
 
   async getFamilyInfo() {
     if (!this.currentFamilyId) return null;
-    const famDoc = await firestore()
-      .collection('families')
-      .doc(this.currentFamilyId)
-      .get();
+    const famRef = firestore().collection('families').doc(this.currentFamilyId);
+    const famDoc = await famRef.get();
     if (!famDoc.exists) return null;
-    return { id: famDoc.id, ...famDoc.data() };
+    const data = famDoc.data() || {};
+
+    // Backfill ownerId for legacy families that were created before we
+    // started persisting it. Use members[0] as the inferred owner.
+    if (!data.ownerId) {
+      const inferredOwner = data.createdBy
+        || (Array.isArray(data.members) ? data.members[0] : null)
+        || null;
+      if (inferredOwner) {
+        try {
+          await famRef.set({ ownerId: inferredOwner }, { merge: true });
+          data.ownerId = inferredOwner;
+        } catch (error) {
+          console.warn('Failed to backfill family ownerId:', error);
+        }
+      }
+    }
+
+    return { id: famDoc.id, ...data };
   },
 
   async updateFamilyData(patch = {}) {

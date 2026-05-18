@@ -317,6 +317,8 @@ export async function createFamilyWithKid(
   // Create family
   const famRef = await firestore().collection('families').add({
     members: [uid],
+    ownerId: uid,
+    createdBy: uid,
     name: normalizedFamilyName || `${babyName}'s family`,
     createdAt: now,
     primaryKidId: null,

@@ -362,67 +362,61 @@ export function AuthProvider({ children }) {
   }, []);
 
   /** Create family + kid — adds new family and switches to it (keeps existing families) */
+  // Do NOT toggle the global `loading` flag here: App.js unmounts the current screen
+  // (including SetupScreen) while loading is true, which would tear down the caller
+  // mid-await and restart onboarding on remount. Callers own their own busy state.
   const handleCreateFamily = useCallback(async (babyName, options = {}) => {
     if (!isFirebaseAuthAvailable) return;
     if (!user) return;
-    setLoading(true);
-    try {
-      const isInitialSetup = needsSetup || families.length === 0;
-      const result = await createFamilyWithKid(user.uid, babyName, options);
-      const familyName = options?.familyName?.trim() || `${babyName}'s family`;
+    const isInitialSetup = needsSetup || families.length === 0;
+    const result = await createFamilyWithKid(user.uid, babyName, options);
+    const familyName = options?.familyName?.trim() || `${babyName}'s family`;
 
-      if (isInitialSetup) {
-        trackAccountCreated().catch(() => {});
-        trackOnboardingCompleted().catch(() => {});
-        AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
-      }
-
-      setFamilyIdState(result.familyId);
-      setKidIdState(result.kidId);
-      groupFamily(result.familyId, { name: familyName, memberCount: 1 });
-      setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
-      await hydrateKidSnapshot(result.familyId, result.kidId);
-
-      const familyKey = getFamilySelectionKey(user.uid);
-      const kidKey = getKidSelectionKey(user.uid, result.familyId);
-      if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
-      if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
-    } finally {
-      setLoading(false);
+    if (isInitialSetup) {
+      trackAccountCreated().catch(() => {});
+      trackOnboardingCompleted().catch(() => {});
+      AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
     }
+
+    setFamilyIdState(result.familyId);
+    setKidIdState(result.kidId);
+    groupFamily(result.familyId, { name: familyName, memberCount: 1 });
+    setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
+    await hydrateKidSnapshot(result.familyId, result.kidId);
+
+    const familyKey = getFamilySelectionKey(user.uid);
+    const kidKey = getKidSelectionKey(user.uid, result.familyId);
+    if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
+    if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
   }, [user, hydrateKidSnapshot, needsSetup, families.length]);
 
   /** Accept an invite code and join that family */
+  // See handleCreateFamily — do not toggle global `loading` here.
   const handleAcceptInvite = useCallback(async (code) => {
     if (!isFirebaseAuthAvailable) return;
     if (!user) return;
-    setLoading(true);
-    try {
-      const result = await acceptInvite(code, user.uid);
-      trackFamilyJoined().catch(() => {});
-      capture('invite_accepted', {
-        familyId: result.familyId,
-        kidId: result.kidId,
-        method: 'manual',
-      });
-      AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
-      setFamilyIdState(result.familyId);
-      setKidIdState(result.kidId);
-      const allFamilies = await loadUserFamilies(user.uid);
-      setFamilies(allFamilies);
-      const joinedFamilyMeta = allFamilies.find((f) => f.familyId === result.familyId);
-      groupFamily(result.familyId, {
-        name: joinedFamilyMeta?.name,
-        memberCount: joinedFamilyMeta?.memberCount,
-      });
-      await hydrateKidSnapshot(result.familyId, result.kidId);
-      const familyKey = getFamilySelectionKey(user.uid);
-      const kidKey = getKidSelectionKey(user.uid, result.familyId);
-      if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
-      if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
-    } finally {
-      setLoading(false);
-    }
+    const result = await acceptInvite(code, user.uid);
+    trackFamilyJoined().catch(() => {});
+    capture('invite_accepted', {
+      familyId: result.familyId,
+      kidId: result.kidId,
+      method: 'manual',
+    });
+    AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
+    setFamilyIdState(result.familyId);
+    setKidIdState(result.kidId);
+    const allFamilies = await loadUserFamilies(user.uid);
+    setFamilies(allFamilies);
+    const joinedFamilyMeta = allFamilies.find((f) => f.familyId === result.familyId);
+    groupFamily(result.familyId, {
+      name: joinedFamilyMeta?.name,
+      memberCount: joinedFamilyMeta?.memberCount,
+    });
+    await hydrateKidSnapshot(result.familyId, result.kidId);
+    const familyKey = getFamilySelectionKey(user.uid);
+    const kidKey = getKidSelectionKey(user.uid, result.familyId);
+    if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
+    if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
   }, [user, hydrateKidSnapshot]);
 
   /** Switch to a different family (user must be a member) */

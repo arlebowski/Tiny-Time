@@ -664,15 +664,19 @@ export function FamilyScreenProvider({
   );
 
   const handleSaveFamilyName = useCallback(async () => {
-    if (!isFamilyOwner) return;
+    if (!isFamilyOwner) {
+      Alert.alert('Not allowed', 'Only the family owner can rename this family.');
+      return;
+    }
     const nextName = String(familyNameDraft || '').trim();
     if (!nextName) return;
     const saveStartedAt = Date.now();
     setSavingFamilyName(true);
     try {
       await firestoreService?.updateFamilyData?.({ name: nextName });
-      await refresh?.();
       setFamilyInfo((prev) => ({ ...(prev || {}), name: nextName }));
+      setFamilyNameDraft(nextName);
+      await refresh?.();
     } catch (error) {
       console.error('Failed to save family name:', error);
       Alert.alert('Error', 'Unable to save family name.');
