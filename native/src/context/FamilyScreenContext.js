@@ -172,7 +172,7 @@ export function FamilyScreenProvider({
   onDeleteAccount,
 }) {
   const { colors, radius } = useTheme();
-  const { createFamily, acceptInvite, loading: authLoading } = useAuth();
+  const { createFamily, acceptInvite, loading: authLoading, deleteFamily, updateFamilyInList } = useAuth();
   const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
 
   // ── State ──
@@ -676,6 +676,7 @@ export function FamilyScreenProvider({
       await firestoreService?.updateFamilyData?.({ name: nextName });
       setFamilyInfo((prev) => ({ ...(prev || {}), name: nextName }));
       setFamilyNameDraft(nextName);
+      updateFamilyInList?.(familyId, { name: nextName });
       await refresh?.();
     } catch (error) {
       console.error('Failed to save family name:', error);
@@ -686,7 +687,7 @@ export function FamilyScreenProvider({
       if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
       setSavingFamilyName(false);
     }
-  }, [isFamilyOwner, familyNameDraft, firestoreService, refresh]);
+  }, [isFamilyOwner, familyNameDraft, firestoreService, refresh, updateFamilyInList, familyId]);
 
   const hasProfileChanges = useMemo(() => {
     const currentName = String(currentUser.displayName || '').trim();
@@ -781,6 +782,31 @@ export function FamilyScreenProvider({
       Alert.alert('Error', 'Unable to delete this child right now.');
     }
   }, [kidPendingDelete, firestoreService, currentUser?.uid, kids, kidId, onKidChange, refresh]);
+
+  const handleRequestDeleteFamily = useCallback(() => {
+    const kidName = Array.isArray(kids) && kids[0]?.name ? kids[0].name : 'your child';
+    const familyName = familyInfo?.name || 'this family';
+    Alert.alert(
+      `Delete ${familyName}?`,
+      `This will delete ${kidName} and all tracked data. You'll have 30 days to recover it.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await firestoreService?.softDeleteFamily?.(currentUser?.uid || null, familyId);
+              await deleteFamily?.(familyId, familyName);
+            } catch (error) {
+              console.error('Failed to delete family:', error);
+              Alert.alert('Error', 'Unable to delete this family right now.');
+            }
+          },
+        },
+      ]
+    );
+  }, [kids, familyInfo, firestoreService, currentUser?.uid, deleteFamily, familyId]);
 
   const handleAddChildPhoto = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -1091,6 +1117,7 @@ export function FamilyScreenProvider({
     handleDeleteAccount,
     handleRequestDeleteKid,
     handleConfirmDeleteKid,
+    handleRequestDeleteFamily,
     handleAddChildPhoto,
     handleRemoveChildPhoto,
     handleAddFamilyPhoto,
@@ -1142,7 +1169,7 @@ export function FamilyScreenProvider({
     handleVolumeUnitChange, handlePhotoClick, handleProfilePhotoClick,
     handleSaveProfile, handleSaveFamilyName, handleRemoveMember,
     handleSignOut, handleDeleteAccount,
-    handleRequestDeleteKid, handleConfirmDeleteKid,
+    handleRequestDeleteKid, handleConfirmDeleteKid, handleRequestDeleteFamily,
     handleAddChildPhoto, handleRemoveChildPhoto,
     handleAddFamilyPhoto, handleRemoveFamilyPhoto,
     handleCreateChild, handleCreateFamilyFromSheet, handleJoinFamilyFromSheet,
@@ -1729,6 +1756,8 @@ const s = StyleSheet.create({
   memberName: {
     fontSize: 14,
     fontFamily: FWB.medium,
+    flex: 1,
+    flexShrink: 1,
   },
   ownerBadge: {
     borderWidth: 1,

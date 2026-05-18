@@ -1126,6 +1126,33 @@ const firestoreService = {
     return { id: famDoc.id, ...data };
   },
 
+  async softDeleteFamily(uid, familyId) {
+    const targetId = familyId || this.currentFamilyId;
+    if (!targetId) throw new Error('Missing family id');
+    await firestore()
+      .collection('families')
+      .doc(targetId)
+      .set(
+        {
+          isDeleted: true,
+          deletedAt: firestore.FieldValue.serverTimestamp(),
+          deletedBy: uid || auth()?.currentUser?.uid || null,
+        },
+        { merge: true }
+      );
+  },
+
+  async undoDeleteFamily(familyId) {
+    if (!familyId) throw new Error('Missing family id');
+    await firestore()
+      .collection('families')
+      .doc(familyId)
+      .set(
+        { isDeleted: false, deletedAt: null, deletedBy: null },
+        { merge: true }
+      );
+  },
+
   async updateFamilyData(patch = {}) {
     if (!this.currentFamilyId) throw new Error('Missing family id');
     const update = { ...patch };

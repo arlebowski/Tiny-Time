@@ -265,6 +265,7 @@ export async function loadUserFamilies(uid) {
   for (const famDoc of famSnap.docs) {
     const familyId = famDoc.id;
     const famData = famDoc.data() || {};
+    if (famData.isDeleted) continue;
     const name = famData.name || 'Family';
 
     let kidId = famData.primaryKidId || null;

@@ -42,6 +42,7 @@ export default function FamilyMembersScreen() {
         onOpenKid={handleOpenKid}
         onOpenAddChild={ctx.openAddChildSheet}
         onRemoveMember={ctx.handleRemoveMember}
+        onDeleteFamily={ctx.handleRequestDeleteFamily}
         onInvitePartner={() => ctx.onInvitePartner?.()}
         formatAgeFromDate={ctx.formatAgeFromDate}
         formatMonthDay={ctx.formatMonthDay}

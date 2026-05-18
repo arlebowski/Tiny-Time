@@ -24,6 +24,7 @@ export default function FamilySubscreen({
   onOpenKid,
   onOpenAddChild,
   onRemoveMember,
+  onDeleteFamily,
   onInvitePartner,
   formatAgeFromDate,
   formatMonthDay,
@@ -215,6 +216,28 @@ export default function FamilySubscreen({
           </Pressable>
         </View>
       </Card>
+
+      {isFamilyOwner && (
+        <Card style={s.cardGap}>
+          <Pressable
+            onPress={members.length === 1 ? onDeleteFamily : undefined}
+            style={({ pressed }) => [
+              s.accountBtn,
+              {
+                backgroundColor: colors.errorSoft,
+                opacity: members.length > 1 ? 0.4 : pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Text style={[s.accountBtnText, { color: colors.error }]}>Delete Family</Text>
+          </Pressable>
+          <Text style={[s.deleteKidWarning, { color: colors.textSecondary }]}>
+            {members.length > 1
+              ? 'Remove all other members before deleting.'
+              : 'This removes all family data from Tiny Tracker.'}
+          </Text>
+        </Card>
+      )}
 
       <View style={{ height: 40 }} />
     </>

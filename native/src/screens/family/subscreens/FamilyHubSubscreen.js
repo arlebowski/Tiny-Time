@@ -28,6 +28,9 @@ export default function FamilyHubSubscreen({
   onOpenFamily,
   onOpenAddFamily,
   radius,
+  deletedFamilies = [],
+  onUndoDeleteFamily,
+  onDismissDeletedFamily,
 }) {
   const cardRadius = radius?.xl ?? 12;
   const androidHubTitleTight = Platform.OS === 'android' ? { includeFontPadding: false } : null;
@@ -156,6 +159,38 @@ export default function FamilyHubSubscreen({
           </View>
         </View>
       </Card>
+
+      {deletedFamilies.filter((e) => Date.now() - (e.deletedAt || 0) < 30 * 24 * 60 * 60 * 1000).slice(0, 3).map((entry) => (
+        <View
+          key={entry.familyId}
+          style={[s.cardGap, {
+            flexDirection: 'row',
+            alignItems: 'center',
+            backgroundColor: colors.subtleSurface || colors.inputBg,
+            borderRadius: 12,
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+          }]}
+        >
+          <Text style={[{ flex: 1, fontSize: 13 }, { color: colors.textSecondary }]}>
+            <Text style={{ color: colors.textPrimary }}>{entry.name || 'Family'}</Text>
+            {' deleted · '}
+            <Text
+              onPress={() => onUndoDeleteFamily?.(entry.familyId)}
+              style={{ color: colors.primaryBrand || colors.textPrimary, fontWeight: '600' }}
+            >
+              Undo
+            </Text>
+          </Text>
+          <Pressable
+            onPress={() => onDismissDeletedFamily?.(entry.familyId)}
+            style={({ pressed }) => [{ padding: 4, opacity: pressed ? 0.5 : 1 }]}
+            accessibilityLabel="Dismiss"
+          >
+            <Text style={{ fontSize: 16, color: colors.textTertiary }}>✕</Text>
+          </Pressable>
+        </View>
+      ))}
 
       <View style={s.familyHubHeader}>
         <Text style={[s.profileHeaderMonthLabel, { color: colors.textPrimary }]}>My Families</Text>

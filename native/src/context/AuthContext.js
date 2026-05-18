@@ -21,6 +21,7 @@ import {
   deleteCurrentUserAccount,
 } from '../services/authService';
 import { messagingService } from '../services/messagingService';
+import firestoreService from '../services/firestoreService';
 import {
   trackAccountCreated,
   trackFamilyJoined,
@@ -32,6 +33,13 @@ const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
 const FAMILY_SELECTION_KEY_PREFIX = 'tt_selected_family';
 const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v1';
+const DELETED_FAMILIES_KEY_PREFIX = 'tt_deleted_family';
+const DELETED_FAMILY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function getDeletedFamiliesKey(uid) {
+  if (!uid) return null;
+  return `${DELETED_FAMILIES_KEY_PREFIX}:${uid}`;
+}
 
 function getFamilySelectionKey(uid) {
   if (!uid) return null;
@@ -70,6 +78,7 @@ export function AuthProvider({ children }) {
   const [familyId, setFamilyIdState] = useState(null);
   const [kidId, setKidIdState] = useState(null);
   const [families, setFamilies] = useState([]);
+  const [deletedFamilies, setDeletedFamilies] = useState([]);
   const [selectedKidSnapshot, setSelectedKidSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
@@ -216,6 +225,22 @@ export function AuthProvider({ children }) {
           });
           authMethodRef.current = null;
 
+          const deletedFamiliesKey = getDeletedFamiliesKey(firebaseUser.uid);
+          if (deletedFamiliesKey) {
+            try {
+              const raw = await AsyncStorage.getItem(deletedFamiliesKey);
+              const parsed = raw ? JSON.parse(raw) : [];
+              const now = Date.now();
+              const live = parsed.filter((e) => now - (e.deletedAt || 0) < DELETED_FAMILY_TTL_MS);
+              setDeletedFamilies(live);
+              if (live.length !== parsed.length) {
+                AsyncStorage.setItem(deletedFamiliesKey, JSON.stringify(live)).catch(() => {});
+              }
+            } catch {
+              setDeletedFamilies([]);
+            }
+          }
+
           if (family && allFamilies.length > 0) {
             setFamilies(allFamilies);
             setFamilyIdState(family.familyId);
@@ -247,6 +272,7 @@ export function AuthProvider({ children }) {
         setFamilyIdState(null);
         setKidIdState(null);
         setFamilies([]);
+        setDeletedFamilies([]);
         setSelectedKidSnapshot(null);
         setNeedsSetup(false);
         resetUser();
@@ -419,6 +445,92 @@ export function AuthProvider({ children }) {
     if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
   }, [user, hydrateKidSnapshot]);
 
+  /**
+   * Called after Firestore soft-delete is done (by FamilyScreenContext).
+   * Handles state update, routing, and persisting the undo entry.
+   */
+  const handleDeleteFamily = useCallback(async (deletedFamilyId, deletedFamilyName) => {
+    if (!deletedFamilyId) return;
+
+    const nextFamilies = families.filter((f) => f.familyId !== deletedFamilyId);
+    setFamilies(nextFamilies);
+
+    // Persist undo entry — derive next list from current state, write once
+    const entry = { familyId: deletedFamilyId, name: deletedFamilyName || 'Family', deletedAt: Date.now() };
+    setDeletedFamilies((prev) => {
+      const next = [entry, ...prev.filter((e) => e.familyId !== deletedFamilyId)];
+      const key = getDeletedFamiliesKey(user?.uid);
+      if (key) AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+
+    // Route away
+    if (nextFamilies.length > 0) {
+      const next = nextFamilies[0];
+      setFamilyIdState(next.familyId);
+      setKidIdState(next.kidId);
+      await hydrateKidSnapshot(next.familyId, next.kidId).catch(() => {});
+    } else {
+      setFamilyIdState(null);
+      setKidIdState(null);
+      setSelectedKidSnapshot(null);
+      setNeedsSetup(true);
+    }
+  }, [families, user?.uid, hydrateKidSnapshot]);
+
+  /** Undo a soft-deleted family — restores it in Firestore and in state. */
+  const handleUndoDeleteFamily = useCallback(async (targetFamilyId) => {
+    if (!targetFamilyId) return;
+    try {
+      await firestoreService.undoDeleteFamily(targetFamilyId);
+    } catch (error) {
+      console.error('Failed to undo delete family:', error);
+      return;
+    }
+
+    // Remove from deleted list — write derived state in a single operation
+    setDeletedFamilies((prev) => {
+      const next = prev.filter((e) => e.familyId !== targetFamilyId);
+      const key = getDeletedFamiliesKey(user?.uid);
+      if (key) AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+
+    // Reload families and switch to the restored one
+    try {
+      const allFamilies = await loadUserFamilies(user?.uid);
+      setFamilies(allFamilies);
+      const restored = allFamilies.find((f) => f.familyId === targetFamilyId);
+      if (restored) {
+        setFamilyIdState(restored.familyId);
+        setKidIdState(restored.kidId);
+        await hydrateKidSnapshot(restored.familyId, restored.kidId).catch(() => {});
+        setNeedsSetup(false);
+      }
+    } catch (error) {
+      console.warn('Failed to reload families after undo:', error);
+    }
+  }, [user?.uid, hydrateKidSnapshot]);
+
+  /** Dismiss the undo banner without restoring (user explicitly cleared it). */
+  const handleDismissDeletedFamily = useCallback((targetFamilyId) => {
+    if (!targetFamilyId) return;
+    setDeletedFamilies((prev) => {
+      const next = prev.filter((e) => e.familyId !== targetFamilyId);
+      const key = getDeletedFamiliesKey(user?.uid);
+      if (key) AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, [user?.uid]);
+
+  /** Update a family's metadata in the families list (e.g. after rename). */
+  const updateFamilyInList = useCallback((targetFamilyId, patch) => {
+    if (!targetFamilyId) return;
+    setFamilies((prev) =>
+      prev.map((f) => f.familyId === targetFamilyId ? { ...f, ...patch } : f)
+    );
+  }, []);
+
   /** Switch to a different family (user must be a member) */
   const setFamilyId = useCallback(async (nextFamilyId) => {
     if (!nextFamilyId || nextFamilyId === familyId) return;
@@ -441,6 +553,7 @@ export function AuthProvider({ children }) {
     familyId,
     kidId,
     families,
+    deletedFamilies,
     selectedKidSnapshot,
     loading,
     needsSetup,
@@ -455,6 +568,10 @@ export function AuthProvider({ children }) {
     deleteAccount: handleDeleteAccount,
     createFamily: handleCreateFamily,
     acceptInvite: handleAcceptInvite,
+    deleteFamily: handleDeleteFamily,
+    undoDeleteFamily: handleUndoDeleteFamily,
+    dismissDeletedFamily: handleDismissDeletedFamily,
+    updateFamilyInList,
     setKidId,
     setFamilyId,
   }), [
@@ -462,6 +579,7 @@ export function AuthProvider({ children }) {
     familyId,
     kidId,
     families,
+    deletedFamilies,
     selectedKidSnapshot,
     loading,
     needsSetup,
@@ -476,6 +594,10 @@ export function AuthProvider({ children }) {
     handleDeleteAccount,
     handleCreateFamily,
     handleAcceptInvite,
+    handleDeleteFamily,
+    handleUndoDeleteFamily,
+    handleDismissDeletedFamily,
+    updateFamilyInList,
     setKidId,
     setFamilyId,
   ]);
