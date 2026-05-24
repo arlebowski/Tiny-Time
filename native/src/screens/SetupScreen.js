@@ -76,8 +76,8 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     kidId,
   } = useAuth();
 
-  // undefined = flag not yet loaded; treat as true (show step) to avoid flicker
-  const showPhotoStep = useFeatureFlag('onboarding-photo-step') !== false;
+  // undefined = flag not yet loaded; treat as off so 0% rollout is honored immediately
+  const showPhotoStep = useFeatureFlag('onboarding-photo-step') === true;
 
   const [step, setStepRaw] = useState(() => _persistedStep);
   const [isInvitePath, setIsInvitePath] = useState(false);
