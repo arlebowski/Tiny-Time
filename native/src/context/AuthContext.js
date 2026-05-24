@@ -86,6 +86,10 @@ export function AuthProvider({ children }) {
   const inviteInFlightRef = useRef(false);
   const handledInviteCodesRef = useRef(new Set());
   const authMethodRef = useRef(null);
+  const pendingInviteCodeRef = useRef(null);
+  const isAuthenticatedRef = useRef(false);
+  const nullAuthDebounceRef = useRef(null);
+  const setupInProgressRef = useRef(false);
 
   const hydrateKidSnapshot = useCallback(async (nextFamilyId, nextKidId) => {
     const key = getTrackerBootstrapKey(nextFamilyId, nextKidId);
@@ -114,6 +118,7 @@ export function AuthProvider({ children }) {
     const code = typeof inviteCode === 'string' ? inviteCode.trim().toUpperCase() : '';
     if (!code || !userId || !isFirebaseAuthAvailable) return false;
     if (handledInviteCodesRef.current.has(code)) {
+      pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
       return true;
     }
@@ -123,6 +128,7 @@ export function AuthProvider({ children }) {
     try {
       const result = await acceptInvite(code, userId);
       handledInviteCodesRef.current.add(code);
+      pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
       if (result?.familyId && result?.kidId) {
         trackFamilyJoined().catch(() => {});
@@ -144,6 +150,7 @@ export function AuthProvider({ children }) {
       }
       return false;
     } catch (error) {
+      pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
       throw error;
     } finally {
@@ -168,14 +175,20 @@ export function AuthProvider({ children }) {
         const initialUrl = await Linking.getInitialURL();
         if (!mounted) return;
         const inviteCode = extractInviteCodeFromUrl(initialUrl);
-        if (inviteCode) setPendingInviteCode(inviteCode);
+        if (inviteCode) {
+          pendingInviteCodeRef.current = inviteCode;
+          setPendingInviteCode(inviteCode);
+        }
       } catch {}
     };
 
     consumeInitialUrl();
     const subscription = Linking.addEventListener('url', ({ url }) => {
       const inviteCode = extractInviteCodeFromUrl(url);
-      if (inviteCode) setPendingInviteCode(inviteCode);
+      if (inviteCode) {
+        pendingInviteCodeRef.current = inviteCode;
+        setPendingInviteCode(inviteCode);
+      }
     });
 
     return () => {
@@ -199,9 +212,17 @@ export function AuthProvider({ children }) {
     const auth = require('@react-native-firebase/auth').default;
     const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
+        if (nullAuthDebounceRef.current) {
+          clearTimeout(nullAuthDebounceRef.current);
+          nullAuthDebounceRef.current = null;
+        }
+        isAuthenticatedRef.current = true;
         setUser(firebaseUser);
         try {
-          const inviteHandled = await applyInviteForUser(pendingInviteCode, firebaseUser.uid);
+          const inviteHandled = await applyInviteForUser(
+            pendingInviteCodeRef.current,
+            firebaseUser.uid
+          );
           if (inviteHandled) {
             setLoading(false);
             return;
@@ -252,7 +273,9 @@ export function AuthProvider({ children }) {
             if (familySelectionKey) {
               AsyncStorage.setItem(familySelectionKey, family.familyId).catch(() => {});
             }
-            setNeedsSetup(false);
+            if (!setupInProgressRef.current) {
+              setNeedsSetup(false);
+            }
             const familyMeta = allFamilies.find((f) => f.familyId === family.familyId);
             groupFamily(family.familyId, {
               name: familyMeta?.name,
@@ -260,14 +283,34 @@ export function AuthProvider({ children }) {
             });
           } else if (allFamilies.length === 0) {
             // User has no family yet — needs onboarding
+            setupInProgressRef.current = true;
             setSelectedKidSnapshot(null);
             setNeedsSetup(true);
           }
         } catch (e) {
           console.warn('Failed to load user family:', e);
+          setupInProgressRef.current = true;
           setNeedsSetup(true);
         }
       } else {
+        if (isAuthenticatedRef.current) {
+          if (nullAuthDebounceRef.current) clearTimeout(nullAuthDebounceRef.current);
+          nullAuthDebounceRef.current = setTimeout(() => {
+            nullAuthDebounceRef.current = null;
+            isAuthenticatedRef.current = false;
+            setupInProgressRef.current = false;
+            setUser(null);
+            setFamilyIdState(null);
+            setKidIdState(null);
+            setFamilies([]);
+            setDeletedFamilies([]);
+            setSelectedKidSnapshot(null);
+            setNeedsSetup(false);
+            resetUser();
+            setLoading(false);
+          }, 2000);
+          return;
+        }
         setUser(null);
         setFamilyIdState(null);
         setKidIdState(null);
@@ -280,8 +323,11 @@ export function AuthProvider({ children }) {
       setLoading(false);
     });
 
-    return unsubscribe;
-  }, [applyInviteForUser, pendingInviteCode, hydrateKidSnapshot]);
+    return () => {
+      clearTimeout(nullAuthDebounceRef.current);
+      unsubscribe();
+    };
+  }, [applyInviteForUser, hydrateKidSnapshot]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -341,6 +387,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   const markSetupComplete = useCallback(() => {
+    setupInProgressRef.current = false;
     setNeedsSetup(false);
   }, []);
 
@@ -372,12 +419,14 @@ export function AuthProvider({ children }) {
 
   const handleSignOut = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
+    isAuthenticatedRef.current = false;
     messagingService.unregisterToken().catch(() => {});
     await signOutUser();
   }, []);
 
   const handleDeleteAccount = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
+    isAuthenticatedRef.current = false;
     setLoading(true);
     try {
       messagingService.unregisterToken().catch(() => {});

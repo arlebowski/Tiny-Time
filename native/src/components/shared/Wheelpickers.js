@@ -59,6 +59,23 @@ function hexToTransparentRgba(hex) {
 
 const ITEM_HEIGHT = 40;
 
+function parseLocalDate(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toDateOnlyIso(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 // Helper to generate date options (7 days back from today)
 const generateDateOptions = () => {
   const dates = [];
@@ -498,35 +515,23 @@ export function DatePickerSection({
   maxYear = null,
 }) {
   const { colors } = useTheme();
-  const initialDate = (() => {
-    if (!value) return new Date();
-    try {
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return new Date();
-      return d;
-    } catch {
-      return new Date();
-    }
-  })();
+  const initialDate = parseLocalDate(value) || new Date();
 
   const [month, setMonth] = useState(initialDate.getMonth() + 1);
   const [day, setDay] = useState(initialDate.getDate());
   const [year, setYear] = useState(initialDate.getFullYear());
 
   useEffect(() => {
-    if (!value) return;
-    try {
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return;
-      setMonth(d.getMonth() + 1);
-      setDay(d.getDate());
-      setYear(d.getFullYear());
-    } catch {}
+    const d = parseLocalDate(value);
+    if (!d) return;
+    setMonth(d.getMonth() + 1);
+    setDay(d.getDate());
+    setYear(d.getFullYear());
   }, [value]);
 
   const emitChange = (nextMonth, nextDay, nextYear) => {
-    const nextDate = new Date(nextYear, nextMonth - 1, nextDay, 0, 0, 0, 0);
-    if (typeof onChange === 'function') onChange(nextDate.toISOString());
+    const nextDate = new Date(nextYear, nextMonth - 1, nextDay, 12, 0, 0, 0);
+    if (typeof onChange === 'function') onChange(toDateOnlyIso(nextDate));
   };
 
   const { width } = Dimensions.get('window');
@@ -839,10 +844,7 @@ export function DatePickerTray({
   maxYear = null,
 }) {
   const { colors, sleep, bottle, isDark } = useTheme();
-  const nativePickerDate = useMemo(() => {
-    const parsed = value ? new Date(value) : new Date();
-    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-  }, [value]);
+  const nativePickerDate = useMemo(() => parseLocalDate(value) || new Date(), [value]);
 
   const minimumDate = minYear != null ? new Date(minYear, 0, 1) : undefined;
   const maximumDate = maxYear != null ? new Date(maxYear, 11, 31) : undefined;
@@ -879,9 +881,7 @@ export function DatePickerTray({
             onChange={(event, selectedDate) => {
               if (event?.type === 'dismissed') return;
               if (!selectedDate || Number.isNaN(selectedDate.getTime())) return;
-              const d = new Date(selectedDate);
-              d.setHours(0, 0, 0, 0);
-              if (typeof onChange === 'function') onChange(d.toISOString());
+              if (typeof onChange === 'function') onChange(toDateOnlyIso(selectedDate));
             }}
             style={styles.nativePicker}
             textColor={colors.textPrimary}

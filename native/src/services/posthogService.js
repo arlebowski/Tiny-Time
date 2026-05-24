@@ -1,5 +1,7 @@
 import PostHog from 'posthog-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 
 const POSTHOG_API_KEY_FALLBACK = 'phc_qpb8iLUtHKhMmdpirmMAQJUuccNb9drLCvzkrcce63mV';
 const POSTHOG_HOST_FALLBACK = 'https://us.i.posthog.com';
@@ -34,6 +36,9 @@ export function identifyUser(uid, { email, name, family_id } = {}) {
       ...(email ? { email } : {}),
       ...(name ? { name } : {}),
       ...(family_id != null ? { family_id } : {}),
+      $os: Platform.OS,
+      $os_version: String(Platform.Version),
+      $app_version: Constants.expoConfig?.version ?? null,
     });
   } catch (error) {
     console.warn('[PostHog] identify failed:', error);

@@ -33,19 +33,34 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+function parseLocalDate(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 function normalizeIsoDate(iso) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+  const d = parseLocalDate(iso);
+  if (!d) return '';
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function formatBirthIso(iso) {
-  if (!iso) return '';
-  const d = new Date(`${iso}T12:00:00`);
-  if (Number.isNaN(d.getTime())) return '';
+  const d = parseLocalDate(iso);
+  if (!d) return '';
   return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
 }
+
+// Survives component remount within the same JS session; cleared on wizard exit.
+let _persistedStep = 1;
+let _persistedBabyName = '';
+let _persistedBirthDate = '';
 
 export default function SetupScreen({ onDevExitPreview = null }) {
   const insets = useSafeAreaInsets();
@@ -64,10 +79,31 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   // undefined = flag not yet loaded; treat as true (show step) to avoid flicker
   const showPhotoStep = useFeatureFlag('onboarding-photo-step') !== false;
 
-  const [step, setStep] = useState(1);
+  const [step, setStepRaw] = useState(() => _persistedStep);
   const [isInvitePath, setIsInvitePath] = useState(false);
-  const [babyName, setBabyName] = useState('');
-  const [birthDate, setBirthDate] = useState(todayIso);
+  const [babyName, setBabyNameRaw] = useState(() => _persistedBabyName);
+
+  const setStep = useCallback((s) => {
+    const next = typeof s === 'function' ? s(_persistedStep) : s;
+    _persistedStep = next;
+    setStepRaw(next);
+  }, []);
+
+  const setBabyName = useCallback((n) => {
+    _persistedBabyName = n;
+    setBabyNameRaw(n);
+  }, []);
+
+  const [birthDateRaw, setBirthDateRaw] = useState(() => {
+    if (!_persistedBirthDate) _persistedBirthDate = todayIso();
+    return _persistedBirthDate;
+  });
+  const setBirthDate = useCallback((iso) => {
+    const next = normalizeIsoDate(iso) || _persistedBirthDate || todayIso();
+    _persistedBirthDate = next;
+    setBirthDateRaw(next);
+  }, []);
+  const birthDate = birthDateRaw;
   const [photoUri, setPhotoUri] = useState(null);
   const [inviteCode, setInviteCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -81,6 +117,13 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const birthDateInteractedRef = useRef(false);
   const photoInteractedRef = useRef(false);
   const inviteCodeInteractedRef = useRef(false);
+
+  // If the flag resolves off while the user is on step 3 (e.g. raced ahead while loading), drop back.
+  useEffect(() => {
+    if (step === 3 && !showPhotoStep) {
+      setStep(2);
+    }
+  }, [showPhotoStep, step, setStep]);
 
   // Track every step view for funnel analysis
   useEffect(() => {
@@ -116,6 +159,9 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   }, [isInvitePath, birthDate, selectedKidSnapshot?.birthDate]);
 
   const exitSetup = useCallback(() => {
+    _persistedStep = 1;
+    _persistedBabyName = '';
+    _persistedBirthDate = '';
     if (onDevExitPreview) {
       onDevExitPreview();
     } else {
@@ -495,19 +541,10 @@ export default function SetupScreen({ onDevExitPreview = null }) {
                     <View style={{ width: 40 }} />
                   )}
                 </Pressable>
-                <DatePickerTray
-                  isOpen={birthDatePickerOpen}
-                  onClose={() => setBirthDatePickerOpen(false)}
-                  value={birthDate || undefined}
-                  onChange={(iso) => setBirthDate(iso || birthDate)}
-                  title="Birth Date"
-                  minYear={new Date().getFullYear() - 6}
-                  maxYear={new Date().getFullYear()}
-                />
               </>
             ) : null}
 
-            {step === 3 ? (
+            {step === 3 && showPhotoStep ? (
               <>
                 <Text style={[styles.eyebrow, { color: colors.textSecondary }]}>ALMOST THERE</Text>
                 <Text style={[styles.headline, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
@@ -642,6 +679,17 @@ export default function SetupScreen({ onDevExitPreview = null }) {
           </View>
         </>
       )}
+      <DatePickerTray
+        isOpen={birthDatePickerOpen}
+        onClose={() => setBirthDatePickerOpen(false)}
+        value={birthDate || undefined}
+        onChange={(iso) => {
+          if (iso) setBirthDate(iso);
+        }}
+        title="Birth Date"
+        minYear={new Date().getFullYear() - 6}
+        maxYear={new Date().getFullYear()}
+      />
     </KeyboardAvoidingView>
   );
 }
