@@ -32,7 +32,7 @@ import { capture, identifyUser, resetUser, groupFamily } from '../services/posth
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
 const FAMILY_SELECTION_KEY_PREFIX = 'tt_selected_family';
-const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v1';
+const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v2';
 const DELETED_FAMILIES_KEY_PREFIX = 'tt_deleted_family';
 const DELETED_FAMILY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -120,7 +120,7 @@ export function AuthProvider({ children }) {
     if (handledInviteCodesRef.current.has(code)) {
       pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
-      return true;
+      return false;
     }
     if (inviteInFlightRef.current) return false;
 
@@ -146,12 +146,16 @@ export function AuthProvider({ children }) {
         if (key) {
           AsyncStorage.setItem(key, result.kidId).catch(() => {});
         }
-        return true;
+        return { handled: true, familyId: result.familyId, kidId: result.kidId };
       }
       return false;
     } catch (error) {
       pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
+      const message = String(error?.message || '');
+      if (message.includes('already used') || message.includes('Invalid invite')) {
+        return false;
+      }
       throw error;
     } finally {
       inviteInFlightRef.current = false;
@@ -219,11 +223,39 @@ export function AuthProvider({ children }) {
         isAuthenticatedRef.current = true;
         setUser(firebaseUser);
         try {
-          const inviteHandled = await applyInviteForUser(
+          const inviteResult = await applyInviteForUser(
             pendingInviteCodeRef.current,
             firebaseUser.uid
           );
-          if (inviteHandled) {
+          if (inviteResult?.handled) {
+            await ensureUserProfile(firebaseUser);
+            messagingService.registerTokenForCurrentUser().catch(() => {});
+            const allFamilies = await loadUserFamilies(firebaseUser.uid);
+            setFamilies(allFamilies);
+            const joinedFamilyId = inviteResult.familyId;
+            capture('login_completed', {
+              method: authMethodRef.current || 'unknown',
+              is_new_user: false,
+            });
+            identifyUser(firebaseUser.uid, {
+              email: firebaseUser.email,
+              name: firebaseUser.displayName,
+              family_id: joinedFamilyId ?? null,
+            });
+            authMethodRef.current = null;
+            const familySelectionKey = getFamilySelectionKey(firebaseUser.uid);
+            if (familySelectionKey && joinedFamilyId) {
+              AsyncStorage.setItem(familySelectionKey, joinedFamilyId).catch(() => {});
+            }
+            const joinedFamilyMeta = joinedFamilyId
+              ? allFamilies.find((f) => f.familyId === joinedFamilyId)
+              : null;
+            if (joinedFamilyId) {
+              groupFamily(joinedFamilyId, {
+                name: joinedFamilyMeta?.name,
+                memberCount: joinedFamilyMeta?.memberCount,
+              });
+            }
             setLoading(false);
             return;
           }

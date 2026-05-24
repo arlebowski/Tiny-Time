@@ -5,6 +5,7 @@ import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import TTPhotoRow from '../../shared/TTPhotoRow';
 import { DatePickerTray } from '../../shared/Wheelpickers';
+import { localDateToMs } from '../../../utils/dateTime';
 
 export default function AddFamilyHalfSheet({
   sheetRef,
@@ -47,11 +48,7 @@ export default function AddFamilyHalfSheet({
     ? (savingFamily ? 'Saving...' : 'Add Family')
     : (joiningFamily ? 'Joining...' : 'Join Family');
 
-  const birthDateValue = (() => {
-    if (!newFamilyBirthDate?.trim()) return null;
-    const d = new Date(newFamilyBirthDate.trim());
-    return Number.isNaN(d.getTime()) ? null : d.toISOString();
-  })();
+  const birthDateValue = newFamilyBirthDate?.trim() || null;
   return (
     <HalfSheet
       sheetRef={sheetRef}
@@ -111,8 +108,10 @@ export default function AddFamilyHalfSheet({
               showLabel
               formatDateTime={(iso) => {
                 if (!iso) return '';
-                const d = new Date(iso);
-                return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+                const ms = localDateToMs(iso);
+                if (ms == null) return '';
+                const d = new Date(ms);
+                return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
               }}
               onOpenPicker={() => setBirthDatePickerOpen(true)}
             />

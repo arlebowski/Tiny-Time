@@ -11,6 +11,7 @@ import {
   DaySleepWindowIcon,
 } from '../../../components/icons';
 import { DatePickerTray } from '../../../components/shared/Wheelpickers';
+import { localDateToMs, timestampToDateOnlyIso } from '../../../utils/dateTime';
 
 export default function KidSubscreen({
   s,
@@ -39,10 +40,7 @@ export default function KidSubscreen({
   const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
 
   const birthDateValue = selectedKidData?.birthDate
-    ? (() => {
-        const d = new Date(selectedKidData.birthDate);
-        return Number.isNaN(d.getTime()) ? null : d.toISOString();
-      })()
+    ? timestampToDateOnlyIso(selectedKidData.birthDate) || null
     : null;
   return (
     <>
@@ -127,9 +125,11 @@ export default function KidSubscreen({
               }
               formatDateTime={(iso) => {
                 if (!iso) return '';
-                const d = new Date(iso);
+                const ms = localDateToMs(iso);
+                if (ms == null) return '';
+                const d = new Date(ms);
                 const dateLabel = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-                const ageLabel = formatAgeFromDate(d);
+                const ageLabel = formatAgeFromDate(ms);
                 return ageLabel ? `${dateLabel} \u2022 ${ageLabel}` : dateLabel;
               }}
               onOpenPicker={() => setBirthDatePickerOpen(true)}

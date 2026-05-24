@@ -225,6 +225,7 @@ export default function SleepSheet({
   const handleClose = useCallback(() => {
     setNotesExpanded(false);
     setPhotosExpanded(false);
+    setSaving(false);
     if (onClose) onClose();
   }, [onClose]);
 
@@ -421,6 +422,7 @@ export default function SleepSheet({
       hasNotes: !!(notes && String(notes).trim()),
     });
     setSaving(true);
+    let saved = false;
     try {
       const stepStart = Date.now();
       const logStep = (name, extra = null) =>
@@ -477,12 +479,13 @@ export default function SleepSheet({
       endTimeManuallyEditedRef.current = false;
 
       dismissSheet();
+      saved = true;
     } catch (e) {
       console.error('[SleepSheet] End sleep failed:', e);
       Alert.alert('Error', 'Failed to end sleep.');
     } finally {
       debugLog('endSleep:done', { opId, ms: Date.now() - opStart });
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 
@@ -516,6 +519,7 @@ export default function SleepSheet({
       hasActiveSleep: !!(activeSleepSessionId || activeSleepId),
     });
     setSaving(true);
+    let saved = false;
     try {
       const stepStart = Date.now();
       const logStep = (name, extra = null) =>
@@ -625,13 +629,14 @@ export default function SleepSheet({
 
       logStep('dismiss:start');
       dismissSheet();
+      saved = true;
       logStep('dismiss:done');
     } catch (e) {
       console.error('[SleepSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save sleep session.');
     } finally {
       debugLog('save:done', { saveId, ms: Date.now() - saveStart });
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 

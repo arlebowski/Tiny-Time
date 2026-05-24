@@ -5,6 +5,7 @@
 import { uploadKidPhoto } from './storageService';
 import { Platform } from 'react-native';
 import { pingNewSignup } from '../utils/formspree';
+import { localDateToMs } from '../utils/dateTime';
 
 let auth = null;
 let firestore = null;
@@ -306,7 +307,7 @@ export async function createFamilyWithKid(
 ) {
   assertFirebase();
   const now = firestore.FieldValue.serverTimestamp();
-  const birthTimestamp = birthDate ? new Date(birthDate).getTime() : null;
+  const birthTimestamp = birthDate ? localDateToMs(birthDate) : null;
 
   const parsedBabyWeight = Number.parseFloat(String(babyWeight ?? '').trim());
   const normalizedBabyWeight = Number.isFinite(parsedBabyWeight) && parsedBabyWeight > 0
@@ -373,45 +374,66 @@ export async function acceptInvite(code, userId) {
   if (!normalizedCode) throw new Error('Invalid invite');
 
   const inviteRef = firestore().collection('invites').doc(normalizedCode);
-  const snap = await inviteRef.get();
-  const inviteExists = typeof snap?.exists === 'function' ? snap.exists() : Boolean(snap?.exists);
-  if (!inviteExists) throw new Error('Invalid invite');
+  const preInviteSnap = await inviteRef.get();
+  const preInviteExists = typeof preInviteSnap?.exists === 'function'
+    ? preInviteSnap.exists()
+    : Boolean(preInviteSnap?.exists);
+  if (!preInviteExists) throw new Error('Invalid invite');
 
-  const invite = snap.data?.() || null;
-  if (!invite || !invite.familyId) throw new Error('Invalid invite');
-  if (invite.used) throw new Error('Invite already used');
+  const preInvite = preInviteSnap.data?.() || null;
+  if (!preInvite?.familyId) throw new Error('Invalid invite');
 
-  const familyRef = firestore().collection('families').doc(invite.familyId);
-  const familySnap = await familyRef.get();
-  const familyExists = typeof familySnap?.exists === 'function' ? familySnap.exists() : Boolean(familySnap?.exists);
-  if (!familyExists) throw new Error('Invalid invite');
-
-  // Add user to family
-  await familyRef.update({
-    members: firestore.FieldValue.arrayUnion(userId),
-  });
-
-  // Add user to all kids in this family
+  const familyRef = firestore().collection('families').doc(preInvite.familyId);
   const kidsSnap = await familyRef.collection('kids').get();
-  await Promise.all(
-    kidsSnap.docs.map((kidDoc) =>
-      kidDoc.ref.update({
+  const kidRefs = kidsSnap.docs.map((doc) => doc.ref);
+
+  return firestore().runTransaction(async (tx) => {
+    const inviteSnap = await tx.get(inviteRef);
+    const inviteExists = typeof inviteSnap?.exists === 'function'
+      ? inviteSnap.exists()
+      : Boolean(inviteSnap?.exists);
+    if (!inviteExists) throw new Error('Invalid invite');
+
+    const invite = inviteSnap.data?.() || null;
+    if (!invite?.familyId) throw new Error('Invalid invite');
+
+    const familySnap = await tx.get(familyRef);
+    const familyExists = typeof familySnap?.exists === 'function'
+      ? familySnap.exists()
+      : Boolean(familySnap?.exists);
+    if (!familyExists) throw new Error('Invalid invite');
+
+    const famData = familySnap.data?.() || {};
+    const members = Array.isArray(famData.members) ? famData.members : [];
+    let resolvedKidId = invite.kidId || famData.primaryKidId || kidRefs[0]?.id || null;
+
+    if (members.includes(userId)) {
+      return { familyId: invite.familyId, kidId: resolvedKidId };
+    }
+
+    if (invite.used) throw new Error('Invite already used');
+
+    tx.update(familyRef, {
+      members: firestore.FieldValue.arrayUnion(userId),
+    });
+
+    kidRefs.forEach((kidRef) => {
+      tx.update(kidRef, {
         members: firestore.FieldValue.arrayUnion(userId),
-      })
-    )
-  );
+      });
+    });
 
-  // Mark invite used
-  await inviteRef.update({
-    used: true,
-    usedBy: userId,
-    usedAt: firestore.FieldValue.serverTimestamp(),
+    tx.update(inviteRef, {
+      used: true,
+      usedBy: userId,
+      usedAt: firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      familyId: invite.familyId,
+      kidId: resolvedKidId,
+    };
   });
-
-  return {
-    familyId: invite.familyId,
-    kidId: invite.kidId || (kidsSnap.docs[0]?.id || null),
-  };
 }
 
 /** Delete signed-in user account and remove membership references. */

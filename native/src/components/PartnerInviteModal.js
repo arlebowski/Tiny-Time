@@ -74,7 +74,6 @@ export default function PartnerInviteModal({ visible, onDismiss }) {
     setBusy(true);
     let code;
     try {
-      firestoreService.initialize(familyId, resolvedKidId);
       code = await firestoreService.createInvite(resolvedKidId);
     } catch (e) {
       console.warn('[PartnerInviteModal] createInvite failed', e);

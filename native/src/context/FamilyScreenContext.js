@@ -31,6 +31,7 @@ import { THEME_TOKENS } from '../../../shared/config/theme';
 import { updateCurrentUserProfile } from '../services/authService';
 import { uploadKidPhoto, uploadUserPhoto } from '../services/storageService';
 import { capture } from '../services/posthogService';
+import { localDateToMs } from '../utils/dateTime';
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -508,9 +509,8 @@ export function FamilyScreenProvider({
   const handleBirthDateChange = useCallback(async (isoString) => {
     const targetKidId = selectedKidForSubpage?.id;
     if (!targetKidId || !isoString?.trim()) return;
-    const parsed = new Date(isoString.trim());
-    if (Number.isNaN(parsed.getTime())) return;
-    const birthTimestamp = parsed.getTime();
+    const birthTimestamp = localDateToMs(isoString);
+    if (birthTimestamp == null) return;
     setSelectedKidData((prev) => (prev ? { ...prev, birthDate: birthTimestamp } : prev));
     setSelectedKidForSubpage((prev) => (prev ? { ...prev, birthDate: birthTimestamp } : prev));
     setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, birthDate: birthTimestamp } : k)));
@@ -863,8 +863,8 @@ export function FamilyScreenProvider({
       return;
     }
 
-    const parsedDate = new Date(newBabyBirthDate.trim());
-    if (Number.isNaN(parsedDate.getTime())) {
+    const birthTimestamp = localDateToMs(newBabyBirthDate);
+    if (birthTimestamp == null) {
       Alert.alert('Error', 'Please enter a valid birth date');
       return;
     }
@@ -872,7 +872,7 @@ export function FamilyScreenProvider({
     try {
       const newKidId = await firestoreService.createChild({
         name: newBabyName.trim(),
-        birthDate: parsedDate.getTime(),
+        birthDate: birthTimestamp,
         ownerId: user?.uid || null,
         photoURL: null,
         preferredVolumeUnit: 'oz',
@@ -915,8 +915,8 @@ export function FamilyScreenProvider({
       return;
     }
 
-    const parsedDate = new Date(newFamilyBirthDate.trim());
-    if (Number.isNaN(parsedDate.getTime())) {
+    const birthTimestamp = localDateToMs(newFamilyBirthDate);
+    if (birthTimestamp == null) {
       Alert.alert('Error', 'Please enter a valid birth date');
       return;
     }

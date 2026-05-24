@@ -134,6 +134,7 @@ export default function DiaperSheet({
   const handleClose = useCallback(() => {
     setNotesExpanded(false);
     setPhotosExpanded(false);
+    setSaving(false);
     if (onClose) onClose();
   }, [onClose]);
 
@@ -209,6 +210,7 @@ export default function DiaperSheet({
       return;
     }
     setSaving(true);
+    let saved = false;
     try {
       let uploadedURLs = [];
       for (let i = 0; i < photos.length; i++) {
@@ -242,11 +244,12 @@ export default function DiaperSheet({
       }
 
       dismissSheet();
+      saved = true;
     } catch (error) {
       console.error('[DiaperSheet] Save failed:', error);
       Alert.alert('Error', 'Failed to save diaper change. Please try again.');
     } finally {
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 

@@ -105,6 +105,16 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   }, []);
   const birthDate = birthDateRaw;
   const [photoUri, setPhotoUri] = useState(null);
+
+  useEffect(() => {
+    _persistedStep = 1;
+    _persistedBabyName = '';
+    _persistedBirthDate = '';
+    setStepRaw(1);
+    setBabyNameRaw('');
+    setBirthDateRaw(todayIso());
+    setIsInvitePath(false);
+  }, [user?.uid]);
   const [inviteCode, setInviteCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
@@ -754,6 +764,8 @@ const styles = StyleSheet.create({
     height: 54,
     paddingHorizontal: 16,
     fontSize: 17,
+    fontFamily: 'SF-Pro',
+    letterSpacing: 0,
     marginTop: 8,
   },
   joinLink: {

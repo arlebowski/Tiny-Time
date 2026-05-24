@@ -218,6 +218,8 @@ export function WheelPicker({
   step = 0.25,
   minYear = null,
   maxYear = null,
+  dayMonth = null,
+  dayYear = null,
   label = '',
   unit = 'oz',
   compact = false,
@@ -248,7 +250,7 @@ export function WheelPicker({
       }));
     }
     if (type === 'durationMinute') {
-      return Array.from({ length: 100 }, (_, i) => ({
+      return Array.from({ length: 1000 }, (_, i) => ({
         display: i.toString(),
         value: i,
       }));
@@ -267,7 +269,13 @@ export function WheelPicker({
       return monthNames.map((name, i) => ({ display: name, value: i + 1 }));
     }
     if (type === 'day') {
-      return Array.from({ length: 31 }, (_, i) => ({ display: (i + 1).toString(), value: i + 1 }));
+      const m = dayMonth != null ? dayMonth : new Date().getMonth() + 1;
+      const y = dayYear != null ? dayYear : new Date().getFullYear();
+      const daysInMonth = new Date(y, m, 0).getDate();
+      return Array.from({ length: daysInMonth }, (_, i) => ({
+        display: (i + 1).toString(),
+        value: i + 1,
+      }));
     }
     if (type === 'year') {
       const currentYear = new Date().getFullYear();
@@ -285,7 +293,7 @@ export function WheelPicker({
       options.push({ display: `${displayValue} ${unit}`, value: i });
     }
     return options;
-  }, [type, min, max, step, unit, minYear, maxYear]);
+  }, [type, min, max, step, unit, minYear, maxYear, dayMonth, dayYear]);
 
   const shouldLoop = type === 'hour' || type === 'minute' || type === 'month';
   const baseOptions = useMemo(() => generateOptions(), [generateOptions]);
@@ -530,7 +538,10 @@ export function DatePickerSection({
   }, [value]);
 
   const emitChange = (nextMonth, nextDay, nextYear) => {
-    const nextDate = new Date(nextYear, nextMonth - 1, nextDay, 12, 0, 0, 0);
+    const maxDay = new Date(nextYear, nextMonth, 0).getDate();
+    const clampedDay = Math.min(nextDay, maxDay);
+    if (clampedDay !== day) setDay(clampedDay);
+    const nextDate = new Date(nextYear, nextMonth - 1, clampedDay, 12, 0, 0, 0);
     if (typeof onChange === 'function') onChange(toDateOnlyIso(nextDate));
   };
 
@@ -553,7 +564,10 @@ export function DatePickerSection({
             value={month}
             onChange={(val) => {
               setMonth(val);
-              emitChange(val, day, year);
+              const maxDay = new Date(year, val, 0).getDate();
+              const clampedDay = Math.min(day, maxDay);
+              if (clampedDay !== day) setDay(clampedDay);
+              emitChange(val, clampedDay, year);
             }}
             compact
             showSelection={false}
@@ -564,6 +578,8 @@ export function DatePickerSection({
         <WheelPicker
           type="day"
           value={day}
+          dayMonth={month}
+          dayYear={year}
           onChange={(val) => {
             setDay(val);
             emitChange(month, val, year);
@@ -578,7 +594,10 @@ export function DatePickerSection({
           value={year}
           onChange={(val) => {
             setYear(val);
-            emitChange(month, day, val);
+            const maxDay = new Date(val, month, 0).getDate();
+            const clampedDay = Math.min(day, maxDay);
+            if (clampedDay !== day) setDay(clampedDay);
+            emitChange(month, clampedDay, val);
           }}
           minYear={minYear}
           maxYear={maxYear}
@@ -1167,7 +1186,7 @@ export function TimePickerTray({
 function parseDurationMs(ms) {
   const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
   return {
-    minutes: Math.min(99, Math.floor(totalSec / 60)),
+    minutes: Math.min(999, Math.floor(totalSec / 60)),
     seconds: totalSec % 60,
   };
 }

@@ -333,7 +333,7 @@ export default function FeedSheet({
       setPhotosExpanded(normalizedExisting.length > 0);
       setSolidsLockedContentBaseHeight(0);
     } else {
-      setFeedType(getInitialType());
+      setFeedType(defaultType);
       setDateTime(new Date().toISOString());
       dateTimeTouchedRef.current = false;
       userEditedAmountRef.current = false;
@@ -352,7 +352,7 @@ export default function FeedSheet({
     }
 
     if (!entry) setSolidsStep(1);
-  }, [entry, initialBottleAmount]);
+  }, [entry, initialBottleAmount, defaultType]);
 
   // Keep bottle amount primed while closed so first render on open is never empty/0.
   useEffect(() => {
@@ -545,6 +545,7 @@ export default function FeedSheet({
     stopActiveSide();
     setDurationPickerSide(null);
     setIsSheetOpen(false);
+    setSaving(false);
     setNotesExpanded(false);
     setPhotosExpanded(false);
     didInitOpenRef.current = false;
@@ -609,6 +610,7 @@ export default function FeedSheet({
       hasNotes: !!(notes && String(notes).trim()),
     });
     setSaving(true);
+    let saved = false;
 
     try {
       const stepStart = Date.now();
@@ -899,13 +901,14 @@ export default function FeedSheet({
 
       logStep('dismiss:start');
       dismissSheet();
+      saved = true;
       logStep('dismiss:done');
     } catch (e) {
       console.error('[FeedSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save.');
     } finally {
       debugLog('save:done', { saveId, ms: Date.now() - saveStart });
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 
