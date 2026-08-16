@@ -212,6 +212,7 @@ export default function FeedSheet({
   entry = null,
   onSave = null,
   onAdd = null,
+  onPersistSuccess = null,
   preferredVolumeUnit = 'oz',
   onPreferredVolumeUnitChange = null,
   lastBottleAmountOz = null,
@@ -900,6 +901,9 @@ export default function FeedSheet({
       }
 
       logStep('dismiss:start');
+      if (!entry && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'feed', feed_type: feedType });
+      }
       dismissSheet();
       saved = true;
       logStep('dismiss:done');

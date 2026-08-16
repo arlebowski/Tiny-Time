@@ -89,6 +89,7 @@ export default function SleepSheet({
   onDelete = null,
   onSave = null,
   onAdd = null,
+  onPersistSuccess = null,
   storage = null,
 }) {
   const { colors, sleep, sheetLayout } = useTheme();
@@ -454,6 +455,7 @@ export default function SleepSheet({
       if (onAdd && startMs && endMs) {
         onAdd({ id: sessionId || null, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos });
       }
+      let persisted = false;
       if (sessionId && storage && storage.endSleep) {
         await logAwait('storage:endSleep', () => storage.endSleep(sessionId, endMs));
         if (notes || allPhotos.length > 0) {
@@ -467,6 +469,7 @@ export default function SleepSheet({
           }
         }
         setActiveSleepSessionId(null);
+        persisted = true;
       }
 
       setSleepState('idle');
@@ -477,6 +480,10 @@ export default function SleepSheet({
       setSleepElapsedMs(0);
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
+
+      if (persisted && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'sleep' });
+      }
 
       dismissSheet();
       saved = true;
@@ -626,6 +633,10 @@ export default function SleepSheet({
       setSleepElapsedMs(0);
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
+
+      if (!isEditingEntry && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'sleep' });
+      }
 
       logStep('dismiss:start');
       dismissSheet();

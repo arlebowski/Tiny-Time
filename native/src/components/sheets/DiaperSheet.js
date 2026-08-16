@@ -79,6 +79,7 @@ export default function DiaperSheet({
   onClose,
   entry = null,
   onSave = null,
+  onPersistSuccess = null,
   storage = null,
 }) {
   const { colors, diaper, sheetLayout } = useTheme();
@@ -241,6 +242,10 @@ export default function DiaperSheet({
       } else {
         const created = await storage.addDiaperChange(payload);
         payload.id = created?.id || null;
+      }
+
+      if (isNewEntry && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'diaper' });
       }
 
       dismissSheet();

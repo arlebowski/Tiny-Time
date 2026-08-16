@@ -30,6 +30,7 @@ import {
   captureOnce,
   captureFirstActivity,
 } from './src/services/posthogService';
+import { maybeRequestAppReview } from './src/services/reviewPromptService';
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -460,11 +461,26 @@ function AppShell({
 
   // Derive user info from real data
   const familyUser = user ? { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL } : null;
+  const reviewPromptEnabled = useFeatureFlag('app-review-prompt');
 
   useEffect(() => {
     if (!user?.uid) return;
     setAppsFlyerCustomerUserId(user.uid);
   }, [user?.uid]);
+
+  const maybeRequestReviewAfterActivity = useCallback(async (activityType) => {
+    await maybeRequestAppReview({
+      uid: user?.uid,
+      creationTime: user?.metadata?.creationTime,
+      reviewPromptEnabled,
+      activityType,
+    });
+  }, [user?.uid, user?.metadata?.creationTime, reviewPromptEnabled]);
+
+  const handleActivityPersistSuccess = useCallback(({ type, feed_type: feedType }) => {
+    const activityType = type === 'feed' ? (feedType || 'feed') : type;
+    void maybeRequestReviewAfterActivity(activityType).catch(() => {});
+  }, [maybeRequestReviewAfterActivity]);
 
   const trackAppsFlyerOncePerUser = useCallback(async (flagName, tracker) => {
     if (!user?.uid || typeof tracker !== 'function') return;
@@ -1199,6 +1215,7 @@ function AppShell({
         entry={editEntry?.type === 'diaper' ? editEntry : null}
         onClose={handleCloseDiaper}
         onSave={handleDiaperSaved}
+        onPersistSuccess={handleActivityPersistSuccess}
         storage={storage}
       />
       <SleepSheet
@@ -1206,6 +1223,7 @@ function AppShell({
         entry={editEntry?.type === 'sleep' ? editEntry : null}
         onClose={handleCloseSleep}
         onAdd={handleSleepAdded}
+        onPersistSuccess={handleActivityPersistSuccess}
         storage={storage}
       />
       <FeedSheet
@@ -1213,6 +1231,7 @@ function AppShell({
         feedTypeRef={feedTypeRef}
         entry={editEntry?.type === 'feed' ? editEntry : null}
         onAdd={handleFeedAdded}
+        onPersistSuccess={handleActivityPersistSuccess}
         onClose={handleCloseFeed}
         activityVisibility={activityVisibility}
         preferredVolumeUnit={preferredVolumeUnit}
