@@ -1,5 +1,5 @@
 /**
- * Centered card — community interest prompt (shown D1+ after signup, once).
+ * Centered card — community interest prompt (shown D7+ after first activity logged, once).
  */
 import React, { useEffect, useState } from 'react';
 import {

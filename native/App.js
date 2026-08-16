@@ -29,6 +29,8 @@ import {
   identifyUser,
   captureOnce,
   captureFirstActivity,
+  firstActivityFlagKey,
+  firstActivityAtKey,
 } from './src/services/posthogService';
 import { maybeRequestAppReview } from './src/services/reviewPromptService';
 
@@ -1286,17 +1288,30 @@ function AuthGatedApp({
   }, [user?.uid]);
 
   useEffect(() => {
-    if (!user || needsSetup || !familyId) return undefined;
+    if (!user?.uid || needsSetup || !familyId) return undefined;
     if (communityScreenEnabled === false) return undefined;
     let cancelled = false;
     (async () => {
       try {
-        const [firstDate, seen] = await Promise.all([
-          AsyncStorage.getItem('tt_first_open_date'),
+        const uid = user.uid;
+        const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+        const [firstActivityAt, legacyFirstActivity, seen] = await Promise.all([
+          AsyncStorage.getItem(firstActivityAtKey(uid)),
+          AsyncStorage.getItem(firstActivityFlagKey(uid)),
           AsyncStorage.getItem('tt_community_seen'),
         ]);
-        const today = new Date().toISOString().slice(0, 10);
-        if (!cancelled && firstDate && today > firstDate && !seen) {
+        if (cancelled || seen === '1') return;
+
+        const firstAtMs = parseInt(firstActivityAt, 10);
+        let eligible = false;
+        if (Number.isFinite(firstAtMs)) {
+          eligible = Date.now() - firstAtMs >= SEVEN_DAYS_MS;
+        } else if (legacyFirstActivity === '1') {
+          // Logged first activity before timestamp was stored — eligible on next open.
+          eligible = true;
+        }
+
+        if (eligible) {
           setShowCommunityModal(true);
         }
       } catch {
@@ -1306,7 +1321,7 @@ function AuthGatedApp({
     return () => {
       cancelled = true;
     };
-  }, [user, needsSetup, familyId, communityScreenEnabled]);
+  }, [user?.uid, needsSetup, familyId, communityScreenEnabled]);
 
   const dismissCommunityModal = useCallback(async () => {
     await AsyncStorage.setItem('tt_community_seen', '1').catch(() => {});
@@ -1316,7 +1331,7 @@ function AuthGatedApp({
   const maybeShowFirstActivityCelebration = useCallback(async () => {
     if (partnerInviteEnabled === false) return;
     if (!user?.uid) return;
-    const flagKey = `tt_ph_first_activity:${user.uid}`;
+    const flagKey = firstActivityFlagKey(user.uid);
     const partnerKey = `tt_partner_prompt_seen:${user.uid}`;
     const [seen, partnerSeen] = await Promise.all([
       AsyncStorage.getItem(flagKey),

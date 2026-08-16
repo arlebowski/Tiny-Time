@@ -79,11 +79,20 @@ export async function captureOnce(uid, flagName, event, properties = {}) {
   }
 }
 
+export function firstActivityFlagKey(uid) {
+  return uid ? `tt_ph_first_activity:${uid}` : null;
+}
+
+export function firstActivityAtKey(uid) {
+  return uid ? `tt_first_activity_at:${uid}` : null;
+}
+
 // Fires first_activity_logged once per user, including time-since-setup.
 // Setup timestamp is written to AsyncStorage by AuthContext when onboarding completes.
 export async function captureFirstActivity(uid, properties = {}) {
   if (!uid) return;
-  const flagKey = `tt_ph_first_activity:${uid}`;
+  const flagKey = firstActivityFlagKey(uid);
+  const atKey = firstActivityAtKey(uid);
   try {
     const hasTracked = await AsyncStorage.getItem(flagKey);
     if (hasTracked === '1') return;
@@ -95,10 +104,12 @@ export async function captureFirstActivity(uid, properties = {}) {
         minutesSinceSetup = Math.max(0, Math.round(ms / 60000));
       }
     } catch {}
+    const nowMs = Date.now();
     capture('first_activity_logged', {
       ...properties,
       ...(minutesSinceSetup !== null ? { minutes_since_setup: minutesSinceSetup } : {}),
     });
     await AsyncStorage.setItem(flagKey, '1');
+    await AsyncStorage.setItem(atKey, String(nowMs));
   } catch {}
 }
