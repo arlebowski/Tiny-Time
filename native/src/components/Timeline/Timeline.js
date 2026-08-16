@@ -11,18 +11,17 @@ import {
   Modal,
   Image,
   StyleSheet,
-  Platform,
   Share,
   Alert,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
-  FadeInDown,
-  FadeOut,
   LinearTransition,
   Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../../context/ThemeContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import TimelineItem from './TimelineItem';
 import TimelineSwipeRow from './TimelineSwipeRow';
@@ -139,8 +138,10 @@ export default function Timeline({
   sleepSettings = null,
   hideFilter = false,
   suppressEmptyState = false,
+  disableItemLayoutAnimation = false,
 }) {
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const [filter, setFilter] = useState(initialFilter || 'all');
   const [sortOrder, setSortOrder] = useState(initialSortOrder || 'desc');
 
@@ -316,14 +317,7 @@ export default function Timeline({
         />
       );
       return (
-        <Animated.View
-          entering={FadeInDown
-            .duration(90)
-            .easing(Easing.out(Easing.cubic))}
-          exiting={FadeOut
-            .duration(180)
-            .easing(Easing.in(Easing.cubic))}
-        >
+        <View>
           <TimelineSwipeRow
             card={item}
             isSwipeEnabled={isLogged}
@@ -337,7 +331,7 @@ export default function Timeline({
           >
             {cardContent}
           </TimelineSwipeRow>
-        </Animated.View>
+        </View>
       );
     },
     [
@@ -411,7 +405,7 @@ export default function Timeline({
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         itemLayoutAnimation={
-          swipingCardId || hiddenItemIds.size > 0
+          disableItemLayoutAnimation || swipingCardId || hiddenItemIds.size > 0
             ? undefined
             : LinearTransition.duration(300).easing(TIMELINE_EASE)
         }
@@ -482,20 +476,25 @@ export default function Timeline({
           visible={!!fullSizePhoto}
           transparent
           animationType="fade"
+          statusBarTranslucent
           onRequestClose={() => setFullSizePhoto(null)}
         >
+          <StatusBar style="light" />
           <Pressable
             style={styles.photoModalOverlay}
             onPress={() => setFullSizePhoto(null)}
           >
-            <Pressable onPress={(e) => e.stopPropagation()}>
+            <Pressable
+              style={styles.photoModalImageWrap}
+              onPress={(e) => e.stopPropagation()}
+            >
               <Image
                 source={{ uri: fullSizePhoto }}
                 style={styles.photoModalImage}
                 resizeMode="contain"
               />
             </Pressable>
-            <View style={styles.photoModalActions}>
+            <View style={[styles.photoModalActions, { paddingBottom: Math.max(insets.bottom, 16) }]}>
               <Pressable
                 style={styles.photoModalBtn}
                 onPress={handleSharePhoto}
@@ -612,20 +611,29 @@ const styles = StyleSheet.create({
   },
   photoModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.75)',
+    backgroundColor: '#000',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 16,
+  },
+  photoModalImageWrap: {
+    flex: 1,
+    alignSelf: 'stretch',
   },
   photoModalImage: {
+    flex: 1,
     width: '100%',
-    height: 400,
-    borderRadius: 12,
   },
   photoModalActions: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: 'row',
     gap: 16,
-    marginTop: 24,
+    justifyContent: 'center',
+    paddingTop: 16,
+    paddingHorizontal: 24,
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   photoModalBtn: {
     paddingHorizontal: 24,

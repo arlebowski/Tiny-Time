@@ -30,6 +30,8 @@ import { useAuth } from './AuthContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { updateCurrentUserProfile } from '../services/authService';
 import { uploadKidPhoto, uploadUserPhoto } from '../services/storageService';
+import { capture } from '../services/posthogService';
+import { localDateToMs } from '../utils/dateTime';
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -107,6 +109,11 @@ function Card({ children, style, onPress, disabled = false }) {
 }
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
+const KID_DISPLAY_FONT_FAMILY = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
+const KID_DISPLAY_FONT_IOS_VARIATION = Platform.select({
+  ios: { fontWeight: '700', fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63' },
+  default: {},
+});
 const cardStyles = StyleSheet.create({
   card: {
     alignSelf: 'stretch',
@@ -115,7 +122,7 @@ const cardStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 1,
   },
   cardPressed: {
     opacity: 0.96,
@@ -153,16 +160,20 @@ export function FamilyScreenProvider({
   showDevSetupToggle = false,
   forceSetupPreview = false,
   forceLoginPreview = false,
+  forceTooltipPreview = false,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   onRequestToggleActivitySheet,
   onDetailOpenChange,
   onInvitePartner,
+  onDevShowCommunityModal,
+  onDevShowPartnerModal,
   onSignOut,
   onDeleteAccount,
 }) {
   const { colors, radius } = useTheme();
-  const { createFamily, loading: authLoading } = useAuth();
+  const { createFamily, acceptInvite, loading: authLoading, deleteFamily, updateFamilyInList } = useAuth();
   const currentUser = user || { uid: '1', displayName: 'Adam', email: 'adam@example.com', photoURL: null };
 
   // ── State ──
@@ -177,11 +188,8 @@ export function FamilyScreenProvider({
 
   // Edit states
   const [editingName, setEditingName] = useState(false);
-  const [editingWeight, setEditingWeight] = useState(false);
   const [tempBabyName, setTempBabyName] = useState(null);
-  const [tempWeight, setTempWeight] = useState(null);
   const [savingKidName, setSavingKidName] = useState(false);
-  const [savingKidWeight, setSavingKidWeight] = useState(false);
 
   // Add Child / Family
   const appearanceSheetRef = useRef(null);
@@ -191,15 +199,16 @@ export function FamilyScreenProvider({
   const addFamilySheetRef = useRef(null);
   const [newBabyName, setNewBabyName] = useState('');
   const [newBabyBirthDate, setNewBabyBirthDate] = useState('');
-  const [newBabyWeight, setNewBabyWeight] = useState('');
   const [newChildPhotoUris, setNewChildPhotoUris] = useState([]);
   const [savingChild, setSavingChild] = useState(false);
   const [newFamilyName, setNewFamilyName] = useState('');
   const [newFamilyBabyName, setNewFamilyBabyName] = useState('');
   const [newFamilyBirthDate, setNewFamilyBirthDate] = useState('');
-  const [newFamilyWeight, setNewFamilyWeight] = useState('');
   const [newFamilyPhotoUris, setNewFamilyPhotoUris] = useState([]);
+  const [addFamilyMode, setAddFamilyMode] = useState('create');
+  const [familyInviteCode, setFamilyInviteCode] = useState('');
   const [savingFamily, setSavingFamily] = useState(false);
+  const [joiningFamily, setJoiningFamily] = useState(false);
   const [profileNameDraft, setProfileNameDraft] = useState(currentUser.displayName || '');
   const [profileEmailDraft, setProfileEmailDraft] = useState(currentUser.email || '');
   const [profilePhotoUrl, setProfilePhotoUrl] = useState(currentUser.photoURL || null);
@@ -247,7 +256,6 @@ export function FamilyScreenProvider({
   const resetAddChildForm = useCallback(() => {
     setNewBabyName('');
     setNewBabyBirthDate('');
-    setNewBabyWeight('');
     setNewChildPhotoUris([]);
   }, []);
 
@@ -255,8 +263,9 @@ export function FamilyScreenProvider({
     setNewFamilyName('');
     setNewFamilyBabyName('');
     setNewFamilyBirthDate('');
-    setNewFamilyWeight('');
     setNewFamilyPhotoUris([]);
+    setAddFamilyMode('create');
+    setFamilyInviteCode('');
   }, []);
 
   const openAddChildSheet = useCallback(() => {
@@ -264,8 +273,9 @@ export function FamilyScreenProvider({
   }, []);
 
   const openAddFamilySheet = useCallback(() => {
+    resetAddFamilyForm();
     addFamilySheetRef.current?.present?.();
-  }, []);
+  }, [resetAddFamilyForm]);
 
   const openAppearanceSheet = useCallback(() => {
     appearanceSheetRef.current?.present?.();
@@ -346,9 +356,7 @@ export function FamilyScreenProvider({
   const loadSelectedKidData = useCallback(async (kidCandidate) => {
     if (!kidCandidate?.id) return;
     setTempBabyName(null);
-    setTempWeight(null);
     setEditingName(false);
-    setEditingWeight(false);
 
     const fallbackKidData = kidCandidate.id === kidId && ctxKidData ? { ...ctxKidData } : { ...kidCandidate };
     const fallbackSettings = kidCandidate.id === kidId && ctxSettings
@@ -415,9 +423,7 @@ export function FamilyScreenProvider({
 
   const prepareKidSubpage = useCallback((kid) => {
     setTempBabyName(null);
-    setTempWeight(null);
     setEditingName(false);
-    setEditingWeight(false);
     setSelectedKidForSubpage(kid || null);
     loadSelectedKidData(kid);
   }, [loadSelectedKidData]);
@@ -475,53 +481,6 @@ export function FamilyScreenProvider({
     }
   }, [selectedKidForSubpage?.id, tempBabyName, selectedKidData?.name, kidId, firestoreService, refresh]);
 
-  const handleWeightChange = useCallback((nextValue) => {
-    if (!editingWeight) setEditingWeight(true);
-    setTempWeight(nextValue);
-  }, [editingWeight]);
-
-  const handleUpdateWeight = useCallback(async () => {
-    const targetKidId = selectedKidForSubpage?.id;
-    if (tempWeight === null) {
-      setEditingWeight(false);
-      return;
-    }
-    const raw = String(tempWeight).trim();
-    if (!raw) {
-      setTempWeight(null);
-      setEditingWeight(false);
-      return;
-    }
-    const weight = parseFloat(raw);
-    if (!weight || weight <= 0) {
-      setTempWeight(selectedKidSettings.babyWeight?.toString() || null);
-      setEditingWeight(false);
-      return;
-    }
-    const saveStartedAt = Date.now();
-    setSavingKidWeight(true);
-    setSelectedKidSettings((prev) => ({ ...prev, babyWeight: weight }));
-    setSelectedKidData((prev) => (prev ? { ...prev, babyWeight: weight } : prev));
-    setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, babyWeight: weight } : k)));
-    if (targetKidId === kidId) {
-      setSettings((prev) => ({ ...prev, babyWeight: weight }));
-    }
-    try {
-      if (targetKidId) {
-        await firestoreService?.updateKidDataById?.(targetKidId, { babyWeight: weight });
-      }
-    } catch (error) {
-      console.error('Failed to update kid weight:', error);
-    } finally {
-      const minMs = 400;
-      const elapsed = Date.now() - saveStartedAt;
-      if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
-      setTempWeight(null);
-      setEditingWeight(false);
-      setSavingKidWeight(false);
-    }
-  }, [selectedKidForSubpage?.id, tempWeight, selectedKidSettings.babyWeight, kidId, firestoreService]);
-
   const handleDaySleepWindowChange = useCallback(async (startMin, endMin) => {
     const startVal = Math.max(0, Math.min(1439, Number(startMin)));
     const endVal = Math.max(0, Math.min(1439, Number(endMin)));
@@ -550,9 +509,8 @@ export function FamilyScreenProvider({
   const handleBirthDateChange = useCallback(async (isoString) => {
     const targetKidId = selectedKidForSubpage?.id;
     if (!targetKidId || !isoString?.trim()) return;
-    const parsed = new Date(isoString.trim());
-    if (Number.isNaN(parsed.getTime())) return;
-    const birthTimestamp = parsed.getTime();
+    const birthTimestamp = localDateToMs(isoString);
+    if (birthTimestamp == null) return;
     setSelectedKidData((prev) => (prev ? { ...prev, birthDate: birthTimestamp } : prev));
     setSelectedKidForSubpage((prev) => (prev ? { ...prev, birthDate: birthTimestamp } : prev));
     setKids((prev) => prev.map((k) => (k.id === targetKidId ? { ...k, birthDate: birthTimestamp } : k)));
@@ -706,15 +664,20 @@ export function FamilyScreenProvider({
   );
 
   const handleSaveFamilyName = useCallback(async () => {
-    if (!isFamilyOwner) return;
+    if (!isFamilyOwner) {
+      Alert.alert('Not allowed', 'Only the family owner can rename this family.');
+      return;
+    }
     const nextName = String(familyNameDraft || '').trim();
     if (!nextName) return;
     const saveStartedAt = Date.now();
     setSavingFamilyName(true);
     try {
       await firestoreService?.updateFamilyData?.({ name: nextName });
-      await refresh?.();
       setFamilyInfo((prev) => ({ ...(prev || {}), name: nextName }));
+      setFamilyNameDraft(nextName);
+      updateFamilyInList?.(familyId, { name: nextName });
+      await refresh?.();
     } catch (error) {
       console.error('Failed to save family name:', error);
       Alert.alert('Error', 'Unable to save family name.');
@@ -724,7 +687,7 @@ export function FamilyScreenProvider({
       if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
       setSavingFamilyName(false);
     }
-  }, [isFamilyOwner, familyNameDraft, firestoreService, refresh]);
+  }, [isFamilyOwner, familyNameDraft, firestoreService, refresh, updateFamilyInList, familyId]);
 
   const hasProfileChanges = useMemo(() => {
     const currentName = String(currentUser.displayName || '').trim();
@@ -820,6 +783,31 @@ export function FamilyScreenProvider({
     }
   }, [kidPendingDelete, firestoreService, currentUser?.uid, kids, kidId, onKidChange, refresh]);
 
+  const handleRequestDeleteFamily = useCallback(() => {
+    const kidName = Array.isArray(kids) && kids[0]?.name ? kids[0].name : 'your child';
+    const familyName = familyInfo?.name || 'this family';
+    Alert.alert(
+      `Delete ${familyName}?`,
+      `This will delete ${kidName} and all tracked data. You'll have 30 days to recover it.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await firestoreService?.softDeleteFamily?.(currentUser?.uid || null, familyId);
+              await deleteFamily?.(familyId, familyName);
+            } catch (error) {
+              console.error('Failed to delete family:', error);
+              Alert.alert('Error', 'Unable to delete this family right now.');
+            }
+          },
+        },
+      ]
+    );
+  }, [kids, familyInfo, firestoreService, currentUser?.uid, deleteFamily, familyId]);
+
   const handleAddChildPhoto = useCallback(async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
@@ -839,6 +827,11 @@ export function FamilyScreenProvider({
   }, []);
 
   const handleAddFamilyPhoto = useCallback(async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Photo access required', 'Please allow photo access in Settings to add a photo.');
+      return;
+    }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
@@ -870,25 +863,16 @@ export function FamilyScreenProvider({
       return;
     }
 
-    const parsedDate = new Date(newBabyBirthDate.trim());
-    if (Number.isNaN(parsedDate.getTime())) {
+    const birthTimestamp = localDateToMs(newBabyBirthDate);
+    if (birthTimestamp == null) {
       Alert.alert('Error', 'Please enter a valid birth date');
       return;
     }
-    const parsedWeight = String(newBabyWeight || '').trim()
-      ? Number.parseFloat(String(newBabyWeight).trim())
-      : null;
-    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
-      Alert.alert('Error', 'Please enter a valid weight');
-      return;
-    }
-
     setSavingChild(true);
     try {
       const newKidId = await firestoreService.createChild({
         name: newBabyName.trim(),
-        birthDate: parsedDate.getTime(),
-        babyWeight: parsedWeight,
+        birthDate: birthTimestamp,
         ownerId: user?.uid || null,
         photoURL: null,
         preferredVolumeUnit: 'oz',
@@ -900,6 +884,7 @@ export function FamilyScreenProvider({
         await firestoreService.updateKidDataById(newKidId, { photoURL: uploadedPhotoUrl });
       }
 
+      capture('child_added', { is_first_child: false });
       closeAddChildSheet();
       resetAddChildForm();
       if (typeof onKidChange === 'function') onKidChange(newKidId);
@@ -911,7 +896,7 @@ export function FamilyScreenProvider({
       setSavingChild(false);
     }
   }, [
-    newBabyName, newBabyBirthDate, newBabyWeight, newChildPhotoUris,
+    newBabyName, newBabyBirthDate, newChildPhotoUris,
     familyId, user?.uid, activeThemeKey, defaultThemeKey,
     firestoreService, closeAddChildSheet, resetAddChildForm, onKidChange, refresh,
   ]);
@@ -930,17 +915,9 @@ export function FamilyScreenProvider({
       return;
     }
 
-    const parsedDate = new Date(newFamilyBirthDate.trim());
-    if (Number.isNaN(parsedDate.getTime())) {
+    const birthTimestamp = localDateToMs(newFamilyBirthDate);
+    if (birthTimestamp == null) {
       Alert.alert('Error', 'Please enter a valid birth date');
-      return;
-    }
-
-    const parsedWeight = String(newFamilyWeight || '').trim()
-      ? Number.parseFloat(String(newFamilyWeight).trim())
-      : null;
-    if (parsedWeight !== null && (!Number.isFinite(parsedWeight) || parsedWeight <= 0)) {
-      Alert.alert('Error', 'Please enter a valid weight');
       return;
     }
 
@@ -956,7 +933,6 @@ export function FamilyScreenProvider({
         birthDate: newFamilyBirthDate.trim(),
         photoUri: newFamilyPhotoUris[0] || null,
         preferredVolumeUnit: 'oz',
-        babyWeight: parsedWeight,
       });
       closeAddFamilySheet();
       resetAddFamilyForm();
@@ -967,9 +943,40 @@ export function FamilyScreenProvider({
       setSavingFamily(false);
     }
   }, [
-    newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyWeight, newFamilyPhotoUris,
+    newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyPhotoUris,
     createFamily, closeAddFamilySheet, resetAddFamilyForm,
   ]);
+
+  const handleJoinFamilyFromSheet = useCallback(async () => {
+    const normalizedInviteCode = String(familyInviteCode || '').trim().toUpperCase();
+    if (!normalizedInviteCode) {
+      Alert.alert('Error', 'Please enter an invite code');
+      return;
+    }
+    if (typeof acceptInvite !== 'function') {
+      Alert.alert('Error', 'Joining a family is unavailable right now.');
+      return;
+    }
+
+    setJoiningFamily(true);
+    let joinedFamily = false;
+    try {
+      await acceptInvite(normalizedInviteCode);
+      joinedFamily = true;
+      closeAddFamilySheet();
+      resetAddFamilyForm();
+    } catch (error) {
+      console.error('Error joining family:', error);
+      Alert.alert('Error', error?.message || 'Failed to join family. Please try again.');
+    } finally {
+      setJoiningFamily(false);
+    }
+    if (joinedFamily) {
+      refresh?.().catch(() => {});
+    }
+  }, [familyInviteCode, acceptInvite, closeAddFamilySheet, resetAddFamilyForm, refresh]);
+
+  const addFamilyBusy = savingFamily || joiningFamily || authLoading;
 
   const handleOpenActivityVisibility = useCallback(() => {
     if (typeof onRequestToggleActivitySheet === 'function') {
@@ -994,9 +1001,13 @@ export function FamilyScreenProvider({
     showDevSetupToggle,
     forceSetupPreview,
     forceLoginPreview,
+    forceTooltipPreview,
     onToggleForceSetupPreview,
     onToggleForceLoginPreview,
+    onToggleForceTooltipPreview,
     onInvitePartner,
+    onDevShowCommunityModal,
+    onDevShowPartnerModal,
 
     // Components & styles
     Card,
@@ -1028,9 +1039,7 @@ export function FamilyScreenProvider({
     selectedKidName,
     babyPhotoUrl,
     tempBabyName,
-    tempWeight,
     savingKidName,
-    savingKidWeight,
     dayStart,
     dayEnd,
 
@@ -1052,16 +1061,18 @@ export function FamilyScreenProvider({
     savingChild,
     newBabyName,
     newBabyBirthDate,
-    newBabyWeight,
     newChildPhotoUris,
 
     // Add family
     savingFamily,
+    joiningFamily,
+    addFamilyBusy,
     newFamilyName,
     newFamilyBabyName,
     newFamilyBirthDate,
-    newFamilyWeight,
     newFamilyPhotoUris,
+    addFamilyMode,
+    familyInviteCode,
 
     // Delete kid
     kidPendingDelete,
@@ -1094,8 +1105,6 @@ export function FamilyScreenProvider({
     handleDarkModeChange,
     handleBabyNameChange,
     handleUpdateBabyName,
-    handleWeightChange,
-    handleUpdateWeight,
     handleBirthDateChange,
     handleDaySleepWindowChange,
     handleVolumeUnitChange,
@@ -1108,12 +1117,14 @@ export function FamilyScreenProvider({
     handleDeleteAccount,
     handleRequestDeleteKid,
     handleConfirmDeleteKid,
+    handleRequestDeleteFamily,
     handleAddChildPhoto,
     handleRemoveChildPhoto,
     handleAddFamilyPhoto,
     handleRemoveFamilyPhoto,
     handleCreateChild,
     handleCreateFamilyFromSheet,
+    handleJoinFamilyFromSheet,
     handleOpenActivityVisibility,
 
     // State setters needed by screens
@@ -1121,14 +1132,13 @@ export function FamilyScreenProvider({
     setProfileEmailDraft,
     setFamilyNameDraft,
     setEditingName,
-    setEditingWeight,
     setNewBabyName,
     setNewBabyBirthDate,
-    setNewBabyWeight,
     setNewFamilyName,
     setNewFamilyBabyName,
     setNewFamilyBirthDate,
-    setNewFamilyWeight,
+    setAddFamilyMode,
+    setFamilyInviteCode,
 
     // Utility functions
     formatAgeFromDate,
@@ -1136,32 +1146,33 @@ export function FamilyScreenProvider({
     minutesToLabel,
   }), [
     header, currentUser, kidId, familyId, families, setFamilyId, onKidChange,
-    showDevSetupToggle, forceSetupPreview, forceLoginPreview,
-    onToggleForceSetupPreview, onToggleForceLoginPreview, onInvitePartner,
+    showDevSetupToggle, forceSetupPreview, forceLoginPreview, forceTooltipPreview,
+    onToggleForceSetupPreview, onToggleForceLoginPreview, onToggleForceTooltipPreview, onInvitePartner,
+    onDevShowCommunityModal, onDevShowPartnerModal,
     colors, activeTheme, activeThemeKey, isDark, segmentedTrackColor,
     colorThemeOrder, kids, kidData, members, settings, familyInfo,
     loading, authLoading,
     selectedKidForSubpage, selectedKidData, selectedKidSettings,
-    selectedKidLoading, selectedKidName, babyPhotoUrl, tempBabyName, tempWeight, savingKidName, savingKidWeight,
+    selectedKidLoading, selectedKidName, babyPhotoUrl, tempBabyName, savingKidName,
     dayStart, dayEnd,
     profileNameDraft, profileEmailDraft, profilePhotoUrl, savingProfile, hasProfileChanges, profileJustSaved,
     familyNameDraft, familyOwnerUid, isFamilyOwner, savingFamilyName,
-    savingChild, newBabyName, newBabyBirthDate, newBabyWeight, newChildPhotoUris,
-    savingFamily, newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyWeight, newFamilyPhotoUris,
+    savingChild, newBabyName, newBabyBirthDate, newChildPhotoUris,
+    savingFamily, joiningFamily, addFamilyBusy, newFamilyName, newFamilyBabyName, newFamilyBirthDate, newFamilyPhotoUris,
+    addFamilyMode, familyInviteCode,
     kidPendingDelete,
     prepareKidSubpage, loadSelectedKidData,
     handleThemeChange, handleDarkModeChange,
     handleBabyNameChange, handleUpdateBabyName,
-    handleWeightChange, handleUpdateWeight,
     handleBirthDateChange,
     handleDaySleepWindowChange,
     handleVolumeUnitChange, handlePhotoClick, handleProfilePhotoClick,
     handleSaveProfile, handleSaveFamilyName, handleRemoveMember,
     handleSignOut, handleDeleteAccount,
-    handleRequestDeleteKid, handleConfirmDeleteKid,
+    handleRequestDeleteKid, handleConfirmDeleteKid, handleRequestDeleteFamily,
     handleAddChildPhoto, handleRemoveChildPhoto,
     handleAddFamilyPhoto, handleRemoveFamilyPhoto,
-    handleCreateChild, handleCreateFamilyFromSheet,
+    handleCreateChild, handleCreateFamilyFromSheet, handleJoinFamilyFromSheet,
     handleOpenActivityVisibility,
     openAddChildSheet, openAddFamilySheet, openAppearanceSheet,
     openFeedingUnitSheet, openDaySleepSheet,
@@ -1478,9 +1489,8 @@ const s = StyleSheet.create({
   },
   hubKidTitle: {
     fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   hubKidSubtitle: {
     marginTop: 2,
@@ -1519,10 +1529,9 @@ const s = StyleSheet.create({
   },
   kidName: {
     fontSize: 14,
-    fontWeight: '700',
     flex: 1,
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   kidActive: {
     fontSize: 12,
@@ -1747,6 +1756,8 @@ const s = StyleSheet.create({
   memberName: {
     fontSize: 14,
     fontFamily: FWB.medium,
+    flex: 1,
+    flexShrink: 1,
   },
   ownerBadge: {
     borderWidth: 1,

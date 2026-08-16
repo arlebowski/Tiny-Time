@@ -13,15 +13,33 @@ import {
   signOutUser,
   signInWithEmail,
   signInWithGoogle,
+  signInWithAppleIdentityToken,
   signUpWithEmail,
+  continueWithEmail,
+  sendPasswordReset,
   acceptInvite,
+  deleteCurrentUserAccount,
 } from '../services/authService';
 import { messagingService } from '../services/messagingService';
+import firestoreService from '../services/firestoreService';
+import {
+  trackAccountCreated,
+  trackFamilyJoined,
+  trackOnboardingCompleted,
+} from '../services/appsflyerService';
+import { capture, identifyUser, resetUser, groupFamily } from '../services/posthogService';
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
 const FAMILY_SELECTION_KEY_PREFIX = 'tt_selected_family';
-const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v1';
+const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v2';
+const DELETED_FAMILIES_KEY_PREFIX = 'tt_deleted_family';
+const DELETED_FAMILY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function getDeletedFamiliesKey(uid) {
+  if (!uid) return null;
+  return `${DELETED_FAMILIES_KEY_PREFIX}:${uid}`;
+}
 
 function getFamilySelectionKey(uid) {
   if (!uid) return null;
@@ -60,12 +78,18 @@ export function AuthProvider({ children }) {
   const [familyId, setFamilyIdState] = useState(null);
   const [kidId, setKidIdState] = useState(null);
   const [families, setFamilies] = useState([]);
+  const [deletedFamilies, setDeletedFamilies] = useState([]);
   const [selectedKidSnapshot, setSelectedKidSnapshot] = useState(null);
   const [loading, setLoading] = useState(true);
   const [needsSetup, setNeedsSetup] = useState(false);
   const [pendingInviteCode, setPendingInviteCode] = useState(null);
   const inviteInFlightRef = useRef(false);
   const handledInviteCodesRef = useRef(new Set());
+  const authMethodRef = useRef(null);
+  const pendingInviteCodeRef = useRef(null);
+  const isAuthenticatedRef = useRef(false);
+  const nullAuthDebounceRef = useRef(null);
+  const setupInProgressRef = useRef(false);
 
   const hydrateKidSnapshot = useCallback(async (nextFamilyId, nextKidId) => {
     const key = getTrackerBootstrapKey(nextFamilyId, nextKidId);
@@ -94,8 +118,9 @@ export function AuthProvider({ children }) {
     const code = typeof inviteCode === 'string' ? inviteCode.trim().toUpperCase() : '';
     if (!code || !userId || !isFirebaseAuthAvailable) return false;
     if (handledInviteCodesRef.current.has(code)) {
+      pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
-      return true;
+      return false;
     }
     if (inviteInFlightRef.current) return false;
 
@@ -103,8 +128,16 @@ export function AuthProvider({ children }) {
     try {
       const result = await acceptInvite(code, userId);
       handledInviteCodesRef.current.add(code);
+      pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
       if (result?.familyId && result?.kidId) {
+        trackFamilyJoined().catch(() => {});
+        capture('invite_accepted', {
+          familyId: result.familyId,
+          kidId: result.kidId,
+          method: 'deep_link',
+        });
+        groupFamily(result.familyId);
         setFamilyIdState(result.familyId);
         setKidIdState(result.kidId);
         setNeedsSetup(false);
@@ -113,11 +146,16 @@ export function AuthProvider({ children }) {
         if (key) {
           AsyncStorage.setItem(key, result.kidId).catch(() => {});
         }
-        return true;
+        return { handled: true, familyId: result.familyId, kidId: result.kidId };
       }
       return false;
     } catch (error) {
+      pendingInviteCodeRef.current = null;
       setPendingInviteCode(null);
+      const message = String(error?.message || '');
+      if (message.includes('already used') || message.includes('Invalid invite')) {
+        return false;
+      }
       throw error;
     } finally {
       inviteInFlightRef.current = false;
@@ -141,14 +179,20 @@ export function AuthProvider({ children }) {
         const initialUrl = await Linking.getInitialURL();
         if (!mounted) return;
         const inviteCode = extractInviteCodeFromUrl(initialUrl);
-        if (inviteCode) setPendingInviteCode(inviteCode);
+        if (inviteCode) {
+          pendingInviteCodeRef.current = inviteCode;
+          setPendingInviteCode(inviteCode);
+        }
       } catch {}
     };
 
     consumeInitialUrl();
     const subscription = Linking.addEventListener('url', ({ url }) => {
       const inviteCode = extractInviteCodeFromUrl(url);
-      if (inviteCode) setPendingInviteCode(inviteCode);
+      if (inviteCode) {
+        pendingInviteCodeRef.current = inviteCode;
+        setPendingInviteCode(inviteCode);
+      }
     });
 
     return () => {
@@ -172,10 +216,46 @@ export function AuthProvider({ children }) {
     const auth = require('@react-native-firebase/auth').default;
     const unsubscribe = auth().onAuthStateChanged(async (firebaseUser) => {
       if (firebaseUser) {
+        if (nullAuthDebounceRef.current) {
+          clearTimeout(nullAuthDebounceRef.current);
+          nullAuthDebounceRef.current = null;
+        }
+        isAuthenticatedRef.current = true;
         setUser(firebaseUser);
         try {
-          const inviteHandled = await applyInviteForUser(pendingInviteCode, firebaseUser.uid);
-          if (inviteHandled) {
+          const inviteResult = await applyInviteForUser(
+            pendingInviteCodeRef.current,
+            firebaseUser.uid
+          );
+          if (inviteResult?.handled) {
+            await ensureUserProfile(firebaseUser);
+            messagingService.registerTokenForCurrentUser().catch(() => {});
+            const allFamilies = await loadUserFamilies(firebaseUser.uid);
+            setFamilies(allFamilies);
+            const joinedFamilyId = inviteResult.familyId;
+            capture('login_completed', {
+              method: authMethodRef.current || 'unknown',
+              is_new_user: false,
+            });
+            identifyUser(firebaseUser.uid, {
+              email: firebaseUser.email,
+              name: firebaseUser.displayName,
+              family_id: joinedFamilyId ?? null,
+            });
+            authMethodRef.current = null;
+            const familySelectionKey = getFamilySelectionKey(firebaseUser.uid);
+            if (familySelectionKey && joinedFamilyId) {
+              AsyncStorage.setItem(familySelectionKey, joinedFamilyId).catch(() => {});
+            }
+            const joinedFamilyMeta = joinedFamilyId
+              ? allFamilies.find((f) => f.familyId === joinedFamilyId)
+              : null;
+            if (joinedFamilyId) {
+              groupFamily(joinedFamilyId, {
+                name: joinedFamilyMeta?.name,
+                memberCount: joinedFamilyMeta?.memberCount,
+              });
+            }
             setLoading(false);
             return;
           }
@@ -185,6 +265,34 @@ export function AuthProvider({ children }) {
           const familySelectionKey = getFamilySelectionKey(firebaseUser.uid);
           const cachedFamilyId = familySelectionKey ? await AsyncStorage.getItem(familySelectionKey) : null;
           const family = await loadUserFamily(firebaseUser.uid, cachedFamilyId || undefined);
+
+          const isNewUser = allFamilies.length === 0;
+          capture('login_completed', {
+            method: authMethodRef.current || 'unknown',
+            is_new_user: isNewUser,
+          });
+          identifyUser(firebaseUser.uid, {
+            email: firebaseUser.email,
+            name: firebaseUser.displayName,
+            family_id: family?.familyId ?? null,
+          });
+          authMethodRef.current = null;
+
+          const deletedFamiliesKey = getDeletedFamiliesKey(firebaseUser.uid);
+          if (deletedFamiliesKey) {
+            try {
+              const raw = await AsyncStorage.getItem(deletedFamiliesKey);
+              const parsed = raw ? JSON.parse(raw) : [];
+              const now = Date.now();
+              const live = parsed.filter((e) => now - (e.deletedAt || 0) < DELETED_FAMILY_TTL_MS);
+              setDeletedFamilies(live);
+              if (live.length !== parsed.length) {
+                AsyncStorage.setItem(deletedFamiliesKey, JSON.stringify(live)).catch(() => {});
+              }
+            } catch {
+              setDeletedFamilies([]);
+            }
+          }
 
           if (family && allFamilies.length > 0) {
             setFamilies(allFamilies);
@@ -197,29 +305,61 @@ export function AuthProvider({ children }) {
             if (familySelectionKey) {
               AsyncStorage.setItem(familySelectionKey, family.familyId).catch(() => {});
             }
-            setNeedsSetup(false);
+            if (!setupInProgressRef.current) {
+              setNeedsSetup(false);
+            }
+            const familyMeta = allFamilies.find((f) => f.familyId === family.familyId);
+            groupFamily(family.familyId, {
+              name: familyMeta?.name,
+              memberCount: familyMeta?.memberCount,
+            });
           } else if (allFamilies.length === 0) {
             // User has no family yet — needs onboarding
+            setupInProgressRef.current = true;
             setSelectedKidSnapshot(null);
             setNeedsSetup(true);
           }
         } catch (e) {
           console.warn('Failed to load user family:', e);
+          setupInProgressRef.current = true;
           setNeedsSetup(true);
         }
       } else {
+        if (isAuthenticatedRef.current) {
+          if (nullAuthDebounceRef.current) clearTimeout(nullAuthDebounceRef.current);
+          nullAuthDebounceRef.current = setTimeout(() => {
+            nullAuthDebounceRef.current = null;
+            isAuthenticatedRef.current = false;
+            setupInProgressRef.current = false;
+            setUser(null);
+            setFamilyIdState(null);
+            setKidIdState(null);
+            setFamilies([]);
+            setDeletedFamilies([]);
+            setSelectedKidSnapshot(null);
+            setNeedsSetup(false);
+            resetUser();
+            setLoading(false);
+          }, 2000);
+          return;
+        }
         setUser(null);
         setFamilyIdState(null);
         setKidIdState(null);
         setFamilies([]);
+        setDeletedFamilies([]);
         setSelectedKidSnapshot(null);
         setNeedsSetup(false);
+        resetUser();
       }
       setLoading(false);
     });
 
-    return unsubscribe;
-  }, [applyInviteForUser, pendingInviteCode, hydrateKidSnapshot]);
+    return () => {
+      clearTimeout(nullAuthDebounceRef.current);
+      unsubscribe();
+    };
+  }, [applyInviteForUser, hydrateKidSnapshot]);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -243,8 +383,10 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       await signInWithEmail(email, password);
-    } finally {
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
   }, []);
 
@@ -253,72 +395,222 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       await signUpWithEmail(email, password);
-    } finally {
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
       setLoading(false);
+      throw error;
     }
+  }, []);
+
+  const handleContinueWithEmail = useCallback(async (email, password) => {
+    if (!isFirebaseAuthAvailable) return;
+    authMethodRef.current = 'email';
+    setLoading(true);
+    try {
+      await continueWithEmail(email, password);
+    } catch (error) {
+      setLoading(false);
+      throw error;
+    }
+  }, []);
+
+  const handleSendPasswordReset = useCallback(async (email) => {
+    await sendPasswordReset(email);
+  }, []);
+
+  const markSetupComplete = useCallback(() => {
+    setupInProgressRef.current = false;
+    setNeedsSetup(false);
   }, []);
 
   const handleGoogleSignIn = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
+    authMethodRef.current = 'google';
     setLoading(true);
     try {
       await signInWithGoogle();
-    } finally {
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
       setLoading(false);
+      throw error;
+    }
+  }, []);
+
+  const handleAppleSignIn = useCallback(async (identityToken, rawNonce = null) => {
+    if (!isFirebaseAuthAvailable) return;
+    authMethodRef.current = 'apple';
+    setLoading(true);
+    try {
+      await signInWithAppleIdentityToken(identityToken, rawNonce);
+      // Keep loading true here; onAuthStateChanged clears it after bootstrap.
+    } catch (error) {
+      setLoading(false);
+      throw error;
     }
   }, []);
 
   const handleSignOut = useCallback(async () => {
     if (!isFirebaseAuthAvailable) return;
+    isAuthenticatedRef.current = false;
     messagingService.unregisterToken().catch(() => {});
     await signOutUser();
   }, []);
 
+  const handleDeleteAccount = useCallback(async () => {
+    if (!isFirebaseAuthAvailable) return;
+    isAuthenticatedRef.current = false;
+    setLoading(true);
+    try {
+      messagingService.unregisterToken().catch(() => {});
+      await deleteCurrentUserAccount();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   /** Create family + kid — adds new family and switches to it (keeps existing families) */
+  // Do NOT toggle the global `loading` flag here: App.js unmounts the current screen
+  // (including SetupScreen) while loading is true, which would tear down the caller
+  // mid-await and restart onboarding on remount. Callers own their own busy state.
   const handleCreateFamily = useCallback(async (babyName, options = {}) => {
     if (!isFirebaseAuthAvailable) return;
     if (!user) return;
-    setLoading(true);
-    try {
-      const result = await createFamilyWithKid(user.uid, babyName, options);
-      const familyName = options?.familyName?.trim() || `${babyName}'s family`;
+    const isInitialSetup = needsSetup || families.length === 0;
+    const result = await createFamilyWithKid(user.uid, babyName, options);
+    const familyName = options?.familyName?.trim() || `${babyName}'s family`;
 
-      setFamilyIdState(result.familyId);
-      setKidIdState(result.kidId);
-      setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
-      await hydrateKidSnapshot(result.familyId, result.kidId);
-      setNeedsSetup(false);
-
-      const familyKey = getFamilySelectionKey(user.uid);
-      const kidKey = getKidSelectionKey(user.uid, result.familyId);
-      if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
-      if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
-    } finally {
-      setLoading(false);
+    if (isInitialSetup) {
+      trackAccountCreated().catch(() => {});
+      trackOnboardingCompleted().catch(() => {});
+      AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
     }
-  }, [user, hydrateKidSnapshot]);
+
+    setFamilyIdState(result.familyId);
+    setKidIdState(result.kidId);
+    groupFamily(result.familyId, { name: familyName, memberCount: 1 });
+    setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
+    await hydrateKidSnapshot(result.familyId, result.kidId);
+
+    const familyKey = getFamilySelectionKey(user.uid);
+    const kidKey = getKidSelectionKey(user.uid, result.familyId);
+    if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
+    if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
+  }, [user, hydrateKidSnapshot, needsSetup, families.length]);
 
   /** Accept an invite code and join that family */
+  // See handleCreateFamily — do not toggle global `loading` here.
   const handleAcceptInvite = useCallback(async (code) => {
     if (!isFirebaseAuthAvailable) return;
     if (!user) return;
-    setLoading(true);
-    try {
-      const result = await acceptInvite(code, user.uid);
-      setFamilyIdState(result.familyId);
-      setKidIdState(result.kidId);
-      const allFamilies = await loadUserFamilies(user.uid);
-      setFamilies(allFamilies);
-      await hydrateKidSnapshot(result.familyId, result.kidId);
-      setNeedsSetup(false);
-      const familyKey = getFamilySelectionKey(user.uid);
-      const kidKey = getKidSelectionKey(user.uid, result.familyId);
-      if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
-      if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
-    } finally {
-      setLoading(false);
-    }
+    const result = await acceptInvite(code, user.uid);
+    trackFamilyJoined().catch(() => {});
+    capture('invite_accepted', {
+      familyId: result.familyId,
+      kidId: result.kidId,
+      method: 'manual',
+    });
+    AsyncStorage.setItem('tt_setup_completed_at', String(Date.now())).catch(() => {});
+    setFamilyIdState(result.familyId);
+    setKidIdState(result.kidId);
+    const allFamilies = await loadUserFamilies(user.uid);
+    setFamilies(allFamilies);
+    const joinedFamilyMeta = allFamilies.find((f) => f.familyId === result.familyId);
+    groupFamily(result.familyId, {
+      name: joinedFamilyMeta?.name,
+      memberCount: joinedFamilyMeta?.memberCount,
+    });
+    await hydrateKidSnapshot(result.familyId, result.kidId);
+    const familyKey = getFamilySelectionKey(user.uid);
+    const kidKey = getKidSelectionKey(user.uid, result.familyId);
+    if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
+    if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
   }, [user, hydrateKidSnapshot]);
+
+  /**
+   * Called after Firestore soft-delete is done (by FamilyScreenContext).
+   * Handles state update, routing, and persisting the undo entry.
+   */
+  const handleDeleteFamily = useCallback(async (deletedFamilyId, deletedFamilyName) => {
+    if (!deletedFamilyId) return;
+
+    const nextFamilies = families.filter((f) => f.familyId !== deletedFamilyId);
+    setFamilies(nextFamilies);
+
+    // Persist undo entry — derive next list from current state, write once
+    const entry = { familyId: deletedFamilyId, name: deletedFamilyName || 'Family', deletedAt: Date.now() };
+    setDeletedFamilies((prev) => {
+      const next = [entry, ...prev.filter((e) => e.familyId !== deletedFamilyId)];
+      const key = getDeletedFamiliesKey(user?.uid);
+      if (key) AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+
+    // Route away
+    if (nextFamilies.length > 0) {
+      const next = nextFamilies[0];
+      setFamilyIdState(next.familyId);
+      setKidIdState(next.kidId);
+      await hydrateKidSnapshot(next.familyId, next.kidId).catch(() => {});
+    } else {
+      setFamilyIdState(null);
+      setKidIdState(null);
+      setSelectedKidSnapshot(null);
+      setNeedsSetup(true);
+    }
+  }, [families, user?.uid, hydrateKidSnapshot]);
+
+  /** Undo a soft-deleted family — restores it in Firestore and in state. */
+  const handleUndoDeleteFamily = useCallback(async (targetFamilyId) => {
+    if (!targetFamilyId) return;
+    try {
+      await firestoreService.undoDeleteFamily(targetFamilyId);
+    } catch (error) {
+      console.error('Failed to undo delete family:', error);
+      return;
+    }
+
+    // Remove from deleted list — write derived state in a single operation
+    setDeletedFamilies((prev) => {
+      const next = prev.filter((e) => e.familyId !== targetFamilyId);
+      const key = getDeletedFamiliesKey(user?.uid);
+      if (key) AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+
+    // Reload families and switch to the restored one
+    try {
+      const allFamilies = await loadUserFamilies(user?.uid);
+      setFamilies(allFamilies);
+      const restored = allFamilies.find((f) => f.familyId === targetFamilyId);
+      if (restored) {
+        setFamilyIdState(restored.familyId);
+        setKidIdState(restored.kidId);
+        await hydrateKidSnapshot(restored.familyId, restored.kidId).catch(() => {});
+        setNeedsSetup(false);
+      }
+    } catch (error) {
+      console.warn('Failed to reload families after undo:', error);
+    }
+  }, [user?.uid, hydrateKidSnapshot]);
+
+  /** Dismiss the undo banner without restoring (user explicitly cleared it). */
+  const handleDismissDeletedFamily = useCallback((targetFamilyId) => {
+    if (!targetFamilyId) return;
+    setDeletedFamilies((prev) => {
+      const next = prev.filter((e) => e.familyId !== targetFamilyId);
+      const key = getDeletedFamiliesKey(user?.uid);
+      if (key) AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  }, [user?.uid]);
+
+  /** Update a family's metadata in the families list (e.g. after rename). */
+  const updateFamilyInList = useCallback((targetFamilyId, patch) => {
+    if (!targetFamilyId) return;
+    setFamilies((prev) =>
+      prev.map((f) => f.familyId === targetFamilyId ? { ...f, ...patch } : f)
+    );
+  }, []);
 
   /** Switch to a different family (user must be a member) */
   const setFamilyId = useCallback(async (nextFamilyId) => {
@@ -328,6 +620,7 @@ export function AuthProvider({ children }) {
 
     setFamilyIdState(nextFamilyId);
     setKidIdState(match.kidId);
+    groupFamily(nextFamilyId, { name: match?.name, memberCount: match?.memberCount });
     await hydrateKidSnapshot(nextFamilyId, match.kidId);
 
     const familyKey = getFamilySelectionKey(user?.uid);
@@ -341,15 +634,25 @@ export function AuthProvider({ children }) {
     familyId,
     kidId,
     families,
+    deletedFamilies,
     selectedKidSnapshot,
     loading,
     needsSetup,
     signIn: handleSignIn,
     signInWithGoogle: handleGoogleSignIn,
+    signInWithApple: handleAppleSignIn,
     signUp: handleSignUp,
+    continueWithEmail: handleContinueWithEmail,
+    sendPasswordReset: handleSendPasswordReset,
+    markSetupComplete,
     signOut: handleSignOut,
+    deleteAccount: handleDeleteAccount,
     createFamily: handleCreateFamily,
     acceptInvite: handleAcceptInvite,
+    deleteFamily: handleDeleteFamily,
+    undoDeleteFamily: handleUndoDeleteFamily,
+    dismissDeletedFamily: handleDismissDeletedFamily,
+    updateFamilyInList,
     setKidId,
     setFamilyId,
   }), [
@@ -357,15 +660,25 @@ export function AuthProvider({ children }) {
     familyId,
     kidId,
     families,
+    deletedFamilies,
     selectedKidSnapshot,
     loading,
     needsSetup,
     handleSignIn,
     handleGoogleSignIn,
+    handleAppleSignIn,
     handleSignUp,
+    handleContinueWithEmail,
+    handleSendPasswordReset,
+    markSetupComplete,
     handleSignOut,
+    handleDeleteAccount,
     handleCreateFamily,
     handleAcceptInvite,
+    handleDeleteFamily,
+    handleUndoDeleteFamily,
+    handleDismissDeletedFamily,
+    updateFamilyInList,
     setKidId,
     setFamilyId,
   ]);

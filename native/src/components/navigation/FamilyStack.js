@@ -90,7 +90,6 @@ function FamilySheets() {
         savingChild={ctx.savingChild}
         newBabyName={ctx.newBabyName}
         newBabyBirthDate={ctx.newBabyBirthDate}
-        newBabyWeight={ctx.newBabyWeight}
         newChildPhotoUris={ctx.newChildPhotoUris}
         onClose={() => {
           if (!ctx.savingChild) ctx.resetAddChildForm();
@@ -98,7 +97,6 @@ function FamilySheets() {
         onCreate={ctx.handleCreateChild}
         onNameChange={ctx.setNewBabyName}
         onBirthDateChange={ctx.setNewBabyBirthDate}
-        onWeightChange={ctx.setNewBabyWeight}
         onAddPhoto={ctx.handleAddChildPhoto}
         onRemovePhoto={ctx.handleRemoveChildPhoto}
       />
@@ -108,20 +106,24 @@ function FamilySheets() {
         colors={colors}
         activeTheme={ctx.activeTheme}
         savingFamily={ctx.savingFamily}
+        joiningFamily={ctx.joiningFamily}
         authLoading={ctx.authLoading}
+        addFamilyMode={ctx.addFamilyMode}
+        familyInviteCode={ctx.familyInviteCode}
         newFamilyName={ctx.newFamilyName}
         newFamilyBabyName={ctx.newFamilyBabyName}
         newFamilyBirthDate={ctx.newFamilyBirthDate}
-        newFamilyWeight={ctx.newFamilyWeight}
         newFamilyPhotoUris={ctx.newFamilyPhotoUris}
         onClose={() => {
-          if (!ctx.savingFamily) ctx.resetAddFamilyForm();
+          if (!ctx.addFamilyBusy) ctx.resetAddFamilyForm();
         }}
         onCreate={ctx.handleCreateFamilyFromSheet}
+        onJoin={ctx.handleJoinFamilyFromSheet}
+        onModeChange={ctx.setAddFamilyMode}
+        onInviteCodeChange={ctx.setFamilyInviteCode}
         onFamilyNameChange={ctx.setNewFamilyName}
         onBabyNameChange={ctx.setNewFamilyBabyName}
         onBirthDateChange={ctx.setNewFamilyBirthDate}
-        onWeightChange={ctx.setNewFamilyWeight}
         onAddPhoto={ctx.handleAddFamilyPhoto}
         onRemovePhoto={ctx.handleRemoveFamilyPhoto}
       />
@@ -219,12 +221,17 @@ export default function FamilyStack({
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
+  forceTooltipPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   onRequestToggleActivitySheet,
   onDetailOpenChange,
   onInvitePartner,
+  onDevShowCommunityModal,
+  onDevShowPartnerModal,
   onSignOut,
+  onDeleteAccount,
 }) {
   return (
     <FamilyScreenProvider
@@ -244,12 +251,17 @@ export default function FamilyStack({
       showDevSetupToggle={showDevSetupToggle}
       forceSetupPreview={forceSetupPreview}
       forceLoginPreview={forceLoginPreview}
+      forceTooltipPreview={forceTooltipPreview}
       onToggleForceSetupPreview={onToggleForceSetupPreview}
       onToggleForceLoginPreview={onToggleForceLoginPreview}
+      onToggleForceTooltipPreview={onToggleForceTooltipPreview}
       onRequestToggleActivitySheet={onRequestToggleActivitySheet}
       onDetailOpenChange={onDetailOpenChange}
       onInvitePartner={onInvitePartner}
+      onDevShowCommunityModal={onDevShowCommunityModal}
+      onDevShowPartnerModal={onDevShowPartnerModal}
       onSignOut={onSignOut}
+      onDeleteAccount={onDeleteAccount}
     >
       <FamilyStackNavigator
         navigationRef={navigationRef}

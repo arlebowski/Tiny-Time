@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Platform } from 'react-native';
 import {
   formatRelativeTime,
   formatRelativeTimeNoAgo,
@@ -73,16 +73,29 @@ const chipStyles = StyleSheet.create({
     paddingHorizontal: 10,        // px-2.5
     paddingVertical: 6,           // py-1.5 — slightly taller to match web bg
     flexShrink: 0,                // flex-shrink-0
+    ...(Platform.OS === 'android' ? {
+      paddingVertical: 7,
+      minHeight: 32,
+    } : null),
   },
   // Web: UpArrowIcon/DownArrowIcon w-4 h-4
   arrow: {
     fontSize: 14,                 // w-4 h-4
     fontFamily: FWB.semibold,
+    ...(Platform.OS === 'android' ? {
+      lineHeight: 14,
+      includeFontPadding: false,
+    } : null),
   },
   // Web: text-[13px] font-semibold tabular-nums
   label: {
     fontSize: 13,                 // text-[13px]
     fontFamily: FWB.semibold,            // font-semibold
     fontVariant: ['tabular-nums'],
+    ...(Platform.OS === 'android' ? {
+      lineHeight: 14,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    } : null),
   },
 });

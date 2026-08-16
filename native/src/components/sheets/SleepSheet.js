@@ -2,7 +2,7 @@
  * SleepSheet — 1:1 from web/components/halfsheets/SleepSheet.js
  * Start/End time, duration display, Start/End sleep timer, notes, photos
  */
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
@@ -11,7 +11,7 @@ import { useData } from '../../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, PhotoModal } from '../shared';
 
 const FUTURE_TOLERANCE_MS = 60 * 1000;
 
@@ -89,6 +89,7 @@ export default function SleepSheet({
   onDelete = null,
   onSave = null,
   onAdd = null,
+  onPersistSuccess = null,
   storage = null,
 }) {
   const { colors, sleep, sheetLayout } = useTheme();
@@ -115,10 +116,21 @@ export default function SleepSheet({
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [activeSleepSessionId, setActiveSleepSessionId] = useState(null);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   const sleepIntervalRef = useRef(null);
   const endTimeManuallyEditedRef = useRef(false);
   const lastTimeTraceRef = useRef(0);
+
+  // Stable fallback when picker is open and value is null — avoids snap-back from 1s timer
+  const startPickerFallback = useMemo(
+    () => (showStartTray ? new Date().toISOString() : null),
+    [showStartTray]
+  );
+  const endPickerFallback = useMemo(
+    () => (showEndTray ? new Date().toISOString() : null),
+    [showEndTray]
+  );
 
   const durationResultMs = (() => {
     if (!startTime || !endTime) return 0;
@@ -214,6 +226,7 @@ export default function SleepSheet({
   const handleClose = useCallback(() => {
     setNotesExpanded(false);
     setPhotosExpanded(false);
+    setSaving(false);
     if (onClose) onClose();
   }, [onClose]);
 
@@ -410,6 +423,7 @@ export default function SleepSheet({
       hasNotes: !!(notes && String(notes).trim()),
     });
     setSaving(true);
+    let saved = false;
     try {
       const stepStart = Date.now();
       const logStep = (name, extra = null) =>
@@ -441,6 +455,7 @@ export default function SleepSheet({
       if (onAdd && startMs && endMs) {
         onAdd({ id: sessionId || null, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos });
       }
+      let persisted = false;
       if (sessionId && storage && storage.endSleep) {
         await logAwait('storage:endSleep', () => storage.endSleep(sessionId, endMs));
         if (notes || allPhotos.length > 0) {
@@ -454,6 +469,7 @@ export default function SleepSheet({
           }
         }
         setActiveSleepSessionId(null);
+        persisted = true;
       }
 
       setSleepState('idle');
@@ -465,18 +481,23 @@ export default function SleepSheet({
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
 
+      if (persisted && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'sleep' });
+      }
+
       dismissSheet();
+      saved = true;
     } catch (e) {
       console.error('[SleepSheet] End sleep failed:', e);
       Alert.alert('Error', 'Failed to end sleep.');
     } finally {
       debugLog('endSleep:done', { opId, ms: Date.now() - opStart });
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 
   const handleSaveSleep = async () => {
-    if (!isInputVariant || saving) return;
+    if (saving) return;
     if (!isValid) return;
     timeTrace('save:tap', { startTime, endTime, sleepState, endTimeManuallyEdited });
     const startMs = new Date(startTime).getTime();
@@ -505,6 +526,7 @@ export default function SleepSheet({
       hasActiveSleep: !!(activeSleepSessionId || activeSleepId),
     });
     setSaving(true);
+    let saved = false;
     try {
       const stepStart = Date.now();
       const logStep = (name, extra = null) =>
@@ -516,7 +538,10 @@ export default function SleepSheet({
         logStep(`${name}:done`, { tookMs: Date.now() - started });
         return result;
       };
-      const excludeId = activeSleepSessionId || activeSleepId || null;
+      const isEditingEntry = !!(entry && entry.id);
+      const excludeId = isEditingEntry
+        ? entry.id
+        : (activeSleepSessionId || activeSleepId || null);
       logStep('overlap:start');
       const hasOverlap = await logAwait('overlap:check', () =>
         checkSleepOverlap(startMs, endMs, excludeId)
@@ -542,43 +567,61 @@ export default function SleepSheet({
       }
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
 
-      const sessionId = activeSleepSessionId || activeSleepId;
-      let resolvedSessionId = sessionId || null;
-      if (onAdd) {
-        onAdd({ id: resolvedSessionId, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
-      }
-      if (sessionId && storage?.endSleep) {
-        logStep('sleep:end:start');
-        await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs));
-        logStep('sleep:end:done');
-        if (notes || allPhotos.length > 0) {
+      if (isEditingEntry) {
+        const payload = {
+          startTime: startMs,
+          endTime: endMs,
+          isActive: false,
+          notes: notes || null,
+          photoURLs: allPhotos || [],
+        };
+        if (typeof onSave === 'function') {
+          onSave({ id: entry.id, type: 'sleep', ...payload });
+        }
+        if (storage?.updateSleepSession) {
           logStep('sleep:update:start');
-          await logAwait('sleep:update', () =>
-            storage.updateSleepSession?.(sessionId, {
-              notes: notes || null,
-              photoURLs: allPhotos,
-            })
-          );
+          await logAwait('sleep:update', () => storage.updateSleepSession(entry.id, payload));
           logStep('sleep:update:done');
         }
-        setActiveSleepSessionId(null);
-      } else if (storage?.startSleep) {
-        logStep('sleep:start:start');
-        const session = await logAwait('sleep:start', () => storage.startSleep(startMs));
-        logStep('sleep:start:done');
-        resolvedSessionId = session?.id || null;
-        logStep('sleep:end:start');
-        await logAwait('sleep:end', () => storage.endSleep(session.id, endMs));
-        logStep('sleep:end:done');
-        if (notes || allPhotos.length > 0) {
-          logStep('sleep:update:start');
-          await logAwait('sleep:update', () =>
-            storage.updateSleepSession?.(session.id, {
-              notes: notes || null,
-              photoURLs: allPhotos,
-            })
-          );
-          logStep('sleep:update:done');
+      } else {
+        const sessionId = activeSleepSessionId || activeSleepId;
+        let resolvedSessionId = sessionId || null;
+        if (onAdd) {
+          onAdd({ id: resolvedSessionId, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
+        }
+        if (sessionId && storage?.endSleep) {
+          logStep('sleep:end:start');
+          await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs));
+          logStep('sleep:end:done');
+          if (notes || allPhotos.length > 0) {
+            logStep('sleep:update:start');
+            await logAwait('sleep:update', () =>
+              storage.updateSleepSession?.(sessionId, {
+                notes: notes || null,
+                photoURLs: allPhotos,
+              })
+            );
+            logStep('sleep:update:done');
+          }
+          setActiveSleepSessionId(null);
+        } else if (storage?.startSleep) {
+          logStep('sleep:start:start');
+          const session = await logAwait('sleep:start', () => storage.startSleep(startMs));
+          logStep('sleep:start:done');
+          resolvedSessionId = session?.id || null;
+          logStep('sleep:end:start');
+          await logAwait('sleep:end', () => storage.endSleep(session.id, endMs));
+          logStep('sleep:end:done');
+          if (notes || allPhotos.length > 0) {
+            logStep('sleep:update:start');
+            await logAwait('sleep:update', () =>
+              storage.updateSleepSession?.(session.id, {
+                notes: notes || null,
+                photoURLs: allPhotos,
+              })
+            );
+            logStep('sleep:update:done');
+          }
         }
       }
 
@@ -591,15 +634,20 @@ export default function SleepSheet({
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
 
+      if (!isEditingEntry && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'sleep' });
+      }
+
       logStep('dismiss:start');
       dismissSheet();
+      saved = true;
       logStep('dismiss:done');
     } catch (e) {
       console.error('[SleepSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save sleep session.');
     } finally {
       debugLog('save:done', { saveId, ms: Date.now() - saveStart });
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 
@@ -787,7 +835,7 @@ export default function SleepSheet({
               newPhotos={photos}
               onAddPhoto={handleAddPhoto}
               onRemovePhoto={handleRemovePhoto}
-              onPreviewPhoto={() => {}}
+              onPreviewPhoto={(url) => setPreviewPhoto(typeof url === 'string' ? url : url?.uri || url)}
               addLabel="+ Add photos"
             />
           )}
@@ -801,16 +849,22 @@ export default function SleepSheet({
       <DateTimePickerTray
         isOpen={showStartTray}
         onClose={() => setShowStartTray(false)}
-        value={startTime || new Date().toISOString()}
+        value={startTime ?? startPickerFallback}
         onChange={handleStartTimeChange}
         title="Start time"
       />
       <DateTimePickerTray
         isOpen={showEndTray}
         onClose={() => setShowEndTray(false)}
-        value={endTime || new Date().toISOString()}
+        value={endTime ?? endPickerFallback}
         onChange={handleEndTimeChange}
         title="End time"
+      />
+
+      <PhotoModal
+        visible={!!previewPhoto}
+        photo={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
       />
     </>
   );
@@ -882,6 +936,7 @@ const styles = StyleSheet.create({
   },
   cta: {
     paddingVertical: 14,
+    ...(Platform.OS === 'android' ? { minHeight: 56 } : null),
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',

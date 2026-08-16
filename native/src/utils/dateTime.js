@@ -2,6 +2,27 @@
  * Date/time utilities — 1:1 from web TrackerCard.js / halfsheets
  */
 
+/** Parse YYYY-MM-DD (or ISO) as local calendar date at noon; avoids UTC off-by-one. */
+export function localDateToMs(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+    return Number.isNaN(d.getTime()) ? null : d.getTime();
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d.getTime();
+}
+
+/** Convert stored birth timestamp to YYYY-MM-DD in local calendar. */
+export function timestampToDateOnlyIso(ts) {
+  if (ts == null || ts === '') return '';
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 // Web formatDateTime: "Sun 3:45 pm"
 export function formatDateTime(date) {
   if (!date) return '';

@@ -2,40 +2,66 @@
   "expo": {
     "name": "Tiny Tracker",
     "slug": "native",
-    "version": "1.0.0",
+    "version": "1.0.5",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
+      "image": "./assets/lockup-lt.png",
+      "resizeMode": "contain",
       "backgroundColor": "#FAF6EB"
     },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tinytracker.mobile",
-      "buildNumber": "3",
+      "buildNumber": "43",
+      "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSUserTrackingUsageDescription": "Helps us understand how you discovered Tiny Tracker so we can reach more parents like you."
       }
     },
     "android": {
+      "splash": {
+        "image": "./assets/lockup-lt.png",
+        "resizeMode": "contain",
+        "backgroundColor": "#FAF6EB"
+      },
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.tinytracker.mobile",
+      "versionCode": 43,
       "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "expo-tracking-transparency",
       "@react-native-firebase/app",
       "@react-native-firebase/auth",
       "@react-native-firebase/messaging",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "expo-apple-authentication",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/SF-Pro-Text-Light.otf",
+            "./assets/fonts/SF-Pro-Text-Regular.otf",
+            "./assets/fonts/SF-Pro-Text-Medium.otf",
+            "./assets/fonts/SF-Pro-Text-Semibold.otf",
+            "./assets/fonts/SF-Pro-Text-Bold.otf",
+            "./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf",
+            "./assets/fonts/Fraunces-Italic-400-Soft30-opsz144.ttf"
+          ]
+        }
+      ]
     ],
     "extra": {
       "eas": {

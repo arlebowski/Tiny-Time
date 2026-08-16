@@ -7,6 +7,7 @@ import { TimePickerTray } from '../../shared/Wheelpickers';
 import { THEME_TOKENS } from '../../../../../shared/config/theme';
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
+const toLowerMeridiem = (value) => String(value || '').replace(/\bAM\b/g, 'am').replace(/\bPM\b/g, 'pm');
 
 function minutesToIso(mins) {
   const m = ((Number(mins) % 1440) + 1440) % 1440;
@@ -61,8 +62,8 @@ export default function DaySleepWindowHalfSheet({
             type="datetime"
             icon={EditIcon}
             rawValue={startValueIso}
-            placeholder={minutesToLabel(dayStart)}
-            formatDateTime={(iso) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : minutesToLabel(dayStart))}
+            placeholder={toLowerMeridiem(minutesToLabel(dayStart))}
+            formatDateTime={(iso) => (iso ? toLowerMeridiem(new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })) : toLowerMeridiem(minutesToLabel(dayStart)))}
             onOpenPicker={() => setStartPickerOpen(true)}
             onChange={(iso) => {
               const mins = isoToMinutes(iso);
@@ -86,8 +87,8 @@ export default function DaySleepWindowHalfSheet({
             type="datetime"
             icon={EditIcon}
             rawValue={endValueIso}
-            placeholder={minutesToLabel(dayEnd)}
-            formatDateTime={(iso) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : minutesToLabel(dayEnd))}
+            placeholder={toLowerMeridiem(minutesToLabel(dayEnd))}
+            formatDateTime={(iso) => (iso ? toLowerMeridiem(new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })) : toLowerMeridiem(minutesToLabel(dayEnd)))}
             onOpenPicker={() => setEndPickerOpen(true)}
             onChange={(iso) => {
               const mins = isoToMinutes(iso);
@@ -123,7 +124,7 @@ export default function DaySleepWindowHalfSheet({
           <View style={[s.sliderHandle, { left: `${(dayEnd / 1440) * 100}%`, backgroundColor: colors.cardBg, borderColor: colors.cardBorder || colors.borderSubtle }]} />
         </View>
         <View style={s.sliderLabels}>
-          {['6AM', '9AM', '12PM', '3PM', '6PM', '9PM'].map((label) => (
+          {['6am', '9am', '12pm', '3pm', '6pm', '9pm'].map((label) => (
             <Text key={label} style={[s.sliderLabel, { color: colors.textTertiary }]}>{label}</Text>
           ))}
         </View>

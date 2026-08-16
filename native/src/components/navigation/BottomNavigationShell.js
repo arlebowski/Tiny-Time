@@ -92,6 +92,7 @@ export default function BottomNavigationShell({
   navRowVerticalPadding = 12,
   navItemVerticalPadding = 8,
   bottomInsetPadding,
+  forceTooltipPreview = false,
 }) {
   const insets = useSafeAreaInsets();
   const resolvedBottomInset = bottomInsetPadding == null ? insets.bottom : bottomInsetPadding;
@@ -116,6 +117,7 @@ export default function BottomNavigationShell({
         visibleTypes={visibleTypes}
         lastFeedVariant={lastFeedVariant}
         bottomOffset={plusBottomOffset}
+        forceTooltipPreview={forceTooltipPreview}
       />
     </>
   );
@@ -148,5 +150,6 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: 12,
     fontFamily: FWB.light,
+    includeFontPadding: false,
   },
 });

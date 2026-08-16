@@ -781,6 +781,70 @@ const firestoreService = {
     });
   },
 
+  subscribeFamilyMembers(callback) {
+    if (typeof callback !== 'function') throw new Error('Missing callback');
+    if (!this.currentFamilyId) {
+      callback([]);
+      return () => {};
+    }
+
+    let requestToken = 0;
+    try {
+      return firestore()
+        .collection('families')
+        .doc(this.currentFamilyId)
+        .onSnapshot(
+          (famDoc) => {
+            const familyExists = typeof famDoc?.exists === 'function'
+              ? famDoc.exists()
+              : Boolean(famDoc?.exists);
+            if (!familyExists) {
+              callback([]);
+              return;
+            }
+
+            const famData = famDoc.data?.() || {};
+            const memberIds = Array.isArray(famData.members)
+              ? famData.members.filter((uid) => typeof uid === 'string' && uid.trim())
+              : [];
+
+            if (memberIds.length === 0) {
+              callback([]);
+              return;
+            }
+
+            const token = ++requestToken;
+            Promise.all(memberIds.map((uid) => firestore().collection('users').doc(uid).get()))
+              .then((userDocs) => {
+                if (token !== requestToken) return;
+                const members = userDocs.map((doc) => {
+                  const userExists = typeof doc?.exists === 'function'
+                    ? doc.exists()
+                    : Boolean(doc?.exists);
+                  return {
+                    uid: doc.id,
+                    ...(userExists ? (doc.data?.() || {}) : {}),
+                  };
+                });
+                callback(members);
+              })
+              .catch((err) => {
+                console.error('[firestoreService] family members subscription error:', err);
+                callback([]);
+              });
+          },
+          (err) => {
+            console.error('[firestoreService] family subscription error:', err);
+            callback([]);
+          }
+        );
+    } catch (err) {
+      console.warn('[firestoreService] Could not subscribe to family members:', err);
+      callback([]);
+      return () => {};
+    }
+  },
+
   async getSleepSessions() {
     if (this._cache.sleepSessions) {
       this._refreshCache({ force: false });
@@ -1038,12 +1102,55 @@ const firestoreService = {
 
   async getFamilyInfo() {
     if (!this.currentFamilyId) return null;
-    const famDoc = await firestore()
-      .collection('families')
-      .doc(this.currentFamilyId)
-      .get();
+    const famRef = firestore().collection('families').doc(this.currentFamilyId);
+    const famDoc = await famRef.get();
     if (!famDoc.exists) return null;
-    return { id: famDoc.id, ...famDoc.data() };
+    const data = famDoc.data() || {};
+
+    // Backfill ownerId for legacy families that were created before we
+    // started persisting it. Use members[0] as the inferred owner.
+    if (!data.ownerId) {
+      const inferredOwner = data.createdBy
+        || (Array.isArray(data.members) ? data.members[0] : null)
+        || null;
+      if (inferredOwner) {
+        try {
+          await famRef.set({ ownerId: inferredOwner }, { merge: true });
+          data.ownerId = inferredOwner;
+        } catch (error) {
+          console.warn('Failed to backfill family ownerId:', error);
+        }
+      }
+    }
+
+    return { id: famDoc.id, ...data };
+  },
+
+  async softDeleteFamily(uid, familyId) {
+    const targetId = familyId || this.currentFamilyId;
+    if (!targetId) throw new Error('Missing family id');
+    await firestore()
+      .collection('families')
+      .doc(targetId)
+      .set(
+        {
+          isDeleted: true,
+          deletedAt: firestore.FieldValue.serverTimestamp(),
+          deletedBy: uid || auth()?.currentUser?.uid || null,
+        },
+        { merge: true }
+      );
+  },
+
+  async undoDeleteFamily(familyId) {
+    if (!familyId) throw new Error('Missing family id');
+    await firestore()
+      .collection('families')
+      .doc(familyId)
+      .set(
+        { isDeleted: false, deletedAt: null, deletedBy: null },
+        { merge: true }
+      );
   },
 
   async updateFamilyData(patch = {}) {

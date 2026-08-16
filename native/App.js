@@ -1,7 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
+import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,12 +13,35 @@ import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { createStorageAdapter } from './src/services/storageAdapter';
+import {
+  initializeAppsFlyer,
+  setAppsFlyerCustomerUserId,
+  trackFirstFeedLogged,
+  trackFirstSleepLogged,
+  trackPartnerInvited,
+  trackRetained7Days,
+  trackAppOpen,
+} from './src/services/appsflyerService';
+import { PostHogProvider, useFeatureFlag } from 'posthog-react-native';
+import {
+  posthogInstance,
+  capture,
+  identifyUser,
+  captureOnce,
+  captureFirstActivity,
+  firstActivityFlagKey,
+  firstActivityAtKey,
+} from './src/services/posthogService';
+import { maybeRequestAppReview } from './src/services/reviewPromptService';
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
 import FamilyStack from './src/components/navigation/FamilyStack';
 import LoginScreen from './src/screens/LoginScreen';
 import SetupScreen from './src/screens/SetupScreen';
+import CommunityModal from './src/components/CommunityModal';
+import PartnerInviteModal from './src/components/PartnerInviteModal';
+import ConfettiOverlay from './src/components/ConfettiOverlay';
 
 // Sheets
 import DiaperSheet from './src/components/sheets/DiaperSheet';
@@ -79,10 +103,15 @@ const NAV_FADE_HEIGHT = 50;
 // positive = move fade up, negative = let fade start lower (into nav area).
 const NAV_FADE_BOTTOM_OFFSET = 0;
 const LAUNCH_SPLASH_MIN_MS = 900;
-const APP_SHARE_BASE_URL = 'https://tinytracker.app';
-const APP_INSTALL_URL_PLACEHOLDER = '[APP STORE URL]';
+const LAUNCH_SPLASH_MAX_MS = 5000;
+const APP_SHARE_BASE_URL = 'https://tinytracker.io/dl';
 const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
 const CHEVRON_ROTATE_MS = 260;
+const KID_DISPLAY_FONT_FAMILY = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
+const KID_DISPLAY_FONT_IOS_VARIATION = Platform.select({
+  ios: { fontWeight: '700', fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63' },
+  default: {},
+});
 // ── Header (web: script.js lines 3941-4201) ──
 // Web: sticky top-0 z-[1200], bg var(--tt-header-bg) = appBg
 // Inner: pt-4 pb-6 px-4, grid grid-cols-3 items-center
@@ -254,9 +283,8 @@ const headerStyles = StyleSheet.create({
   kidName: {
     flexShrink: 1,         // allow truncation when space is tight (before center logo)
     fontSize: 24,          // text-2xl
-    fontWeight: '700',
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   // Brand logo overlay — same centering logic as plus btn: left 50% + offset
   logoOverlay: {
@@ -319,9 +347,8 @@ const headerStyles = StyleSheet.create({
   kidMenuLabel: {
     flex: 1,
     fontSize: 14,
-    fontWeight: '700',
-    fontFamily: 'Fraunces',
-    fontVariationSettings: '"wght" 700, "SOFT" 23, "WONK" 1, "opsz" 63',
+    fontFamily: KID_DISPLAY_FONT_FAMILY,
+    ...KID_DISPLAY_FONT_IOS_VARIATION,
   },
   kidMenuAddItem: {
     height: 44,            // h-11
@@ -346,20 +373,33 @@ function AppShell({
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
+  forceTooltipPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   trackerEntranceSeed,
   trackerUiReady,
+  onMaybeFirstActivityCelebration,
+  onDevShowCommunityModal,
+  onDevShowPartnerModal,
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
   const topInset = useMemo(() => {
     if (insets.top > 0) return insets.top;
-    if (Platform.OS === 'ios') return Math.max(20, Constants.statusBarHeight || 0);
-    return Math.max(0, Constants.statusBarHeight || 0);
+    return Math.max(20, Constants.statusBarHeight || 0);
   }, [insets.top]);
   const appBg = colors.appBg;
-  const { user, familyId, kidId, families, setKidId, setFamilyId, signOut: authSignOut } = useAuth();
+  const {
+    user,
+    familyId,
+    kidId,
+    families,
+    setKidId,
+    setFamilyId,
+    signOut: authSignOut,
+    deleteAccount: authDeleteAccount,
+  } = useAuth();
   const {
     kidData,
     familyMembers,
@@ -383,7 +423,11 @@ function AppShell({
     return kidData?.photoURL || null;
   }, [kids, kidId, kidData?.photoURL]);
 
-  const handleSignOut = useCallback(() => authSignOut(), [authSignOut]);
+  const handleSignOut = useCallback(() => {
+    capture('sign_out');
+    return authSignOut();
+  }, [authSignOut]);
+  const handleDeleteAccount = useCallback(() => authDeleteAccount(), [authDeleteAccount]);
 
   const diaperRef = useRef(null);
   const sleepRef = useRef(null);
@@ -406,6 +450,7 @@ function AppShell({
   const [showKidMenu, setShowKidMenu] = useState(false);
   const [kidAnchor, setKidAnchor] = useState(null);
   const kidButtonRef = useRef(null);
+  const shareFlowInFlightRef = useRef(false);
   const [headerRequestedAddChild, setHeaderRequestedAddChild] = useState(false);
   const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
   const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
@@ -418,6 +463,69 @@ function AppShell({
 
   // Derive user info from real data
   const familyUser = user ? { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL } : null;
+  const reviewPromptEnabled = useFeatureFlag('app-review-prompt');
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    setAppsFlyerCustomerUserId(user.uid);
+  }, [user?.uid]);
+
+  const maybeRequestReviewAfterActivity = useCallback(async (activityType) => {
+    await maybeRequestAppReview({
+      uid: user?.uid,
+      creationTime: user?.metadata?.creationTime,
+      reviewPromptEnabled,
+      activityType,
+    });
+  }, [user?.uid, user?.metadata?.creationTime, reviewPromptEnabled]);
+
+  const handleActivityPersistSuccess = useCallback(({ type, feed_type: feedType }) => {
+    const activityType = type === 'feed' ? (feedType || 'feed') : type;
+    void maybeRequestReviewAfterActivity(activityType).catch(() => {});
+  }, [maybeRequestReviewAfterActivity]);
+
+  const trackAppsFlyerOncePerUser = useCallback(async (flagName, tracker) => {
+    if (!user?.uid || typeof tracker !== 'function') return;
+    const key = `tt_appsflyer_${flagName}:${user.uid}`;
+    const hasTracked = await AsyncStorage.getItem(key);
+    if (hasTracked === '1') return;
+    await tracker();
+    await AsyncStorage.setItem(key, '1');
+  }, [user?.uid]);
+
+  const maybeTrackRetentionMilestones = useCallback(async () => {
+    if (!user?.uid) return;
+    const creationTimeRaw = user?.metadata?.creationTime || null;
+    if (!creationTimeRaw) return;
+    const createdAtMs = Date.parse(creationTimeRaw);
+    if (!Number.isFinite(createdAtMs)) return;
+    const elapsedMs = Date.now() - createdAtMs;
+
+    // AppsFlyer D7 (existing)
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+    if (elapsedMs >= SEVEN_DAYS_MS) {
+      await trackAppsFlyerOncePerUser('hasTrackedDay7', trackRetained7Days);
+    }
+
+    // PostHog milestones D1/D3/D7/D14/D28
+    const MILESTONES = [
+      { days: 1, key: 'retained_d1', event: 'user_retained_d1' },
+      { days: 3, key: 'retained_d3', event: 'user_retained_d3' },
+      { days: 7, key: 'retained_d7', event: 'user_retained_d7' },
+      { days: 14, key: 'retained_d14', event: 'user_retained_d14' },
+      { days: 28, key: 'retained_d28', event: 'user_retained_d28' },
+    ];
+    for (const milestone of MILESTONES) {
+      if (elapsedMs >= milestone.days * 24 * 60 * 60 * 1000) {
+        await captureOnce(user.uid, milestone.key, milestone.event);
+      }
+    }
+  }, [user?.uid, user?.metadata?.creationTime, trackAppsFlyerOncePerUser]);
+
+  useEffect(() => {
+    maybeTrackRetentionMilestones().catch(() => {});
+    trackAppOpen().catch(() => {});
+  }, [maybeTrackRetentionMilestones]);
 
   useEffect(() => {
     AsyncStorage.getItem('tt_last_feed_variant').then((stored) => {
@@ -470,19 +578,52 @@ function AppShell({
     if (entry) {
       applyOptimisticEntry(entry);
     }
-  }, [applyOptimisticEntry]);
+    const isFeedEntry = entry?.type === 'feed' || entry?.type === 'bottle' || entry?.type === 'nursing' || entry?.type === 'solids';
+    if (isFeedEntry) {
+      trackAppsFlyerOncePerUser('hasLoggedFirstFeed', trackFirstFeedLogged).catch(() => {});
+      const feedType = feedTypeRef.current || entry?.type || 'bottle';
+      capture('activity_logged', {
+        type: 'feed',
+        feed_type: feedType,
+        ...(feedType === 'bottle' && entry?.ounces ? { amount_oz: entry.ounces } : {}),
+      });
+      void (async () => {
+        await onMaybeFirstActivityCelebration?.();
+        await captureFirstActivity(user?.uid, { type: 'feed', feed_type: feedType });
+      })().catch(() => {});
+    }
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid, onMaybeFirstActivityCelebration]);
 
   const handleSleepAdded = useCallback((entry) => {
     if (entry) {
       applyOptimisticEntry(entry);
+      trackAppsFlyerOncePerUser('hasLoggedFirstSleep', trackFirstSleepLogged).catch(() => {});
+      const hasEndTime = !!entry.endTime;
+      const durationMin = hasEndTime && entry.startTime
+        ? Math.max(0, Math.round((entry.endTime - entry.startTime) / 60000))
+        : null;
+      capture('activity_logged', {
+        type: 'sleep',
+        ...(durationMin !== null ? { duration_min: durationMin } : {}),
+      });
+      if (!hasEndTime) capture('active_sleep_started');
+      void (async () => {
+        await onMaybeFirstActivityCelebration?.();
+        await captureFirstActivity(user?.uid, { type: 'sleep' });
+      })().catch(() => {});
     }
-  }, [applyOptimisticEntry]);
+  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid, onMaybeFirstActivityCelebration]);
 
   const handleDiaperSaved = useCallback((entry) => {
     if (entry) {
       applyOptimisticEntry(entry);
+      capture('activity_logged', { type: 'diaper' });
+      void (async () => {
+        await onMaybeFirstActivityCelebration?.();
+        await captureFirstActivity(user?.uid, { type: 'diaper' });
+      })().catch(() => {});
     }
-  }, [applyOptimisticEntry]);
+  }, [applyOptimisticEntry, user?.uid, onMaybeFirstActivityCelebration]);
 
   const handleToggleActivitySheet = useCallback(() => {
     setShowShareMenu(false);
@@ -614,6 +755,7 @@ function AppShell({
       familyNavRef.current?.dispatch(StackActions.popToTop());
     }
     if (nextTab !== activeTab) {
+      capture('tab_viewed', { tab: nextTab });
       onTabChange(nextTab);
       if (nextTab !== 'trends') {
         setAnalyticsDetailOpen(false);
@@ -621,9 +763,14 @@ function AppShell({
     }
   }, [activeTab, isTrackerDetailOpen, analyticsDetailOpen, familyDetailOpen, onTabChange]);
 
+  const shareAppMessage = useMemo(() => {
+    const url = APP_SHARE_BASE_URL;
+    return `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
+  }, []);
+
   const handleGlobalShareApp = useCallback(async () => {
     const url = APP_SHARE_BASE_URL;
-    const text = `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
+    const text = shareAppMessage;
 
     if (Share?.share) {
       try {
@@ -639,7 +786,7 @@ function AppShell({
     }
 
     Alert.alert('Copy this link:', url);
-  }, []);
+  }, [shareAppMessage]);
 
   const handleGlobalInvitePartner = useCallback(async () => {
     const resolvedKidId = kidId || (kids?.length ? kids[0]?.id : null);
@@ -672,14 +819,18 @@ function AppShell({
     const headerLine = rawKidName
       ? `Join ${possessiveKidName} family on Tiny Tracker.`
       : 'Join your family on Tiny Tracker.';
-    const message = `${headerLine}\nInstall app: ${APP_INSTALL_URL_PLACEHOLDER}\nInvite code: ${code}`;
+    const message = `${headerLine}\nInstall app: ${APP_SHARE_BASE_URL}\nInvite code: ${code}`;
 
     if (Share?.share) {
       try {
-        await Share.share({
+        const result = await Share.share({
           title: 'Join me on Tiny Tracker',
           message,
         });
+        if (Platform.OS !== 'ios' || result?.action !== Share.dismissedAction) {
+          trackPartnerInvited().catch(() => {});
+          capture('partner_invited', { source: 'app', family_id: familyId });
+        }
         return;
       } catch {
         return;
@@ -689,16 +840,46 @@ function AppShell({
     Alert.alert('Copy this invite info:', message);
   }, [familyId, kidId, kids, kidData, firestoreService]);
 
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && shareFlowInFlightRef.current) {
+        setShowShareMenu(false);
+        setShareAnchor(null);
+        shareFlowInFlightRef.current = false;
+      }
+      if (nextState === 'active') {
+        maybeTrackRetentionMilestones().catch(() => {});
+        trackAppOpen().catch(() => {});
+        capture('app_opened', { is_cold_start: false });
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [maybeTrackRetentionMilestones]);
+
   const handleShareAppFromMenu = useCallback(async () => {
-    await handleGlobalShareApp();
-    setShowShareMenu(false);
-    setShareAnchor(null);
+    capture('app_share_tapped');
+    shareFlowInFlightRef.current = true;
+    try {
+      await handleGlobalShareApp();
+    } finally {
+      setShowShareMenu(false);
+      setShareAnchor(null);
+      shareFlowInFlightRef.current = false;
+    }
   }, [handleGlobalShareApp]);
 
   const handleInvitePartnerFromMenu = useCallback(async () => {
-    await handleGlobalInvitePartner();
-    setShowShareMenu(false);
-    setShareAnchor(null);
+    shareFlowInFlightRef.current = true;
+    try {
+      await handleGlobalInvitePartner();
+    } finally {
+      setShowShareMenu(false);
+      setShareAnchor(null);
+      shareFlowInFlightRef.current = false;
+    }
   }, [handleGlobalInvitePartner]);
 
   const handleToggleShareMenu = useCallback(() => {
@@ -707,6 +888,7 @@ function AppShell({
       setShareAnchor(null);
       return;
     }
+    capture('share_menu_opened');
     setShowKidMenu(false);
     setKidAnchor(null);
 
@@ -716,7 +898,8 @@ function AppShell({
     const screenWidth = Dimensions.get('window').width;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        const headerBottom = y + height;
+        const normalizedY = Platform.OS === 'android' ? y + topInset : y;
+        const headerBottom = normalizedY + height;
         // Right edge touches right internal padding; same y as kid picker
         setShareAnchor({
           x: screenWidth - PADDING - POPOVER_WIDTH,
@@ -731,7 +914,7 @@ function AppShell({
 
     setShareAnchor(null);
     setShowShareMenu(true);
-  }, [showShareMenu]);
+  }, [showShareMenu, topInset]);
 
   const handleToggleKidMenu = useCallback(() => {
     if (showKidMenu) {
@@ -748,7 +931,8 @@ function AppShell({
     const PADDING = 16;
     if (node && typeof node.measureInWindow === 'function') {
       node.measureInWindow((x, y, width, height) => {
-        const headerBottom = y + height;
+        const normalizedY = Platform.OS === 'android' ? y + topInset : y;
+        const headerBottom = normalizedY + height;
         setKidAnchor({
           x: PADDING,
           y: headerBottom - height,
@@ -762,7 +946,7 @@ function AppShell({
 
     setKidAnchor(null);
     setShowKidMenu(true);
-  }, [showKidMenu]);
+  }, [showKidMenu, topInset]);
 
   const handleSelectKidFromMenu = useCallback((nextKidId) => {
     if (nextKidId && nextKidId !== kidId) {
@@ -885,11 +1069,16 @@ function AppShell({
               showDevSetupToggle={showDevSetupToggle}
               forceSetupPreview={forceSetupPreview}
               forceLoginPreview={forceLoginPreview}
+              forceTooltipPreview={forceTooltipPreview}
               onToggleForceSetupPreview={onToggleForceSetupPreview}
               onToggleForceLoginPreview={onToggleForceLoginPreview}
+              onToggleForceTooltipPreview={onToggleForceTooltipPreview}
               onRequestToggleActivitySheet={handleToggleActivitySheet}
               onInvitePartner={handleGlobalInvitePartner}
               onSignOut={handleSignOut}
+              onDeleteAccount={handleDeleteAccount}
+              onDevShowCommunityModal={onDevShowCommunityModal}
+              onDevShowPartnerModal={onDevShowPartnerModal}
             />
             </View>
           </View>
@@ -1020,6 +1209,7 @@ function AppShell({
         bottomInsetPadding={NAV_BOTTOM_INSET_PADDING}
         tabShiftY={NAV_TAB_SHIFT_Y}
         plusBottomOffset={NAV_PLUS_BOTTOM_OFFSET}
+        forceTooltipPreview={forceTooltipPreview}
       />
 
       <DiaperSheet
@@ -1027,6 +1217,7 @@ function AppShell({
         entry={editEntry?.type === 'diaper' ? editEntry : null}
         onClose={handleCloseDiaper}
         onSave={handleDiaperSaved}
+        onPersistSuccess={handleActivityPersistSuccess}
         storage={storage}
       />
       <SleepSheet
@@ -1034,6 +1225,7 @@ function AppShell({
         entry={editEntry?.type === 'sleep' ? editEntry : null}
         onClose={handleCloseSleep}
         onAdd={handleSleepAdded}
+        onPersistSuccess={handleActivityPersistSuccess}
         storage={storage}
       />
       <FeedSheet
@@ -1041,6 +1233,7 @@ function AppShell({
         feedTypeRef={feedTypeRef}
         entry={editEntry?.type === 'feed' ? editEntry : null}
         onAdd={handleFeedAdded}
+        onPersistSuccess={handleActivityPersistSuccess}
         onClose={handleCloseFeed}
         activityVisibility={activityVisibility}
         preferredVolumeUnit={preferredVolumeUnit}
@@ -1069,14 +1262,97 @@ function AuthGatedApp({
   showDevSetupToggle,
   forceSetupPreview,
   forceLoginPreview,
+  forceTooltipPreview,
   onToggleForceSetupPreview,
   onToggleForceLoginPreview,
+  onToggleForceTooltipPreview,
   trackerEntranceSeed,
   trackerUiReady,
+  onAuthLoadingChange,
 }) {
   const { user, loading, needsSetup, familyId, kidId } = useAuth();
   const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState('tracker');
+  const [showCommunityModal, setShowCommunityModal] = useState(false);
+  const [showConfetti, setShowConfetti] = useState(false);
+  const [showPartnerModal, setShowPartnerModal] = useState(false);
+  const communityScreenEnabled = useFeatureFlag('community-screen');
+  const partnerInviteEnabled = useFeatureFlag('partner-invite-prompt');
+
+  useEffect(() => {
+    onAuthLoadingChange?.(loading);
+  }, [loading, onAuthLoadingChange]);
+
+  useEffect(() => {
+    setActiveTab('tracker');
+  }, [user?.uid]);
+
+  useEffect(() => {
+    if (!user?.uid || needsSetup || !familyId) return undefined;
+    if (communityScreenEnabled === false) return undefined;
+    let cancelled = false;
+    (async () => {
+      try {
+        const uid = user.uid;
+        const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+        const [firstActivityAt, legacyFirstActivity, seen] = await Promise.all([
+          AsyncStorage.getItem(firstActivityAtKey(uid)),
+          AsyncStorage.getItem(firstActivityFlagKey(uid)),
+          AsyncStorage.getItem('tt_community_seen'),
+        ]);
+        if (cancelled || seen === '1') return;
+
+        const firstAtMs = parseInt(firstActivityAt, 10);
+        let eligible = false;
+        if (Number.isFinite(firstAtMs)) {
+          eligible = Date.now() - firstAtMs >= SEVEN_DAYS_MS;
+        } else if (legacyFirstActivity === '1') {
+          // Logged first activity before timestamp was stored — eligible on next open.
+          eligible = true;
+        }
+
+        if (eligible) {
+          setShowCommunityModal(true);
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid, needsSetup, familyId, communityScreenEnabled]);
+
+  const dismissCommunityModal = useCallback(async () => {
+    await AsyncStorage.setItem('tt_community_seen', '1').catch(() => {});
+    setShowCommunityModal(false);
+  }, []);
+
+  const maybeShowFirstActivityCelebration = useCallback(async () => {
+    if (partnerInviteEnabled === false) return;
+    if (!user?.uid) return;
+    const flagKey = firstActivityFlagKey(user.uid);
+    const partnerKey = `tt_partner_prompt_seen:${user.uid}`;
+    const [seen, partnerSeen] = await Promise.all([
+      AsyncStorage.getItem(flagKey),
+      AsyncStorage.getItem(partnerKey),
+    ]);
+    if (seen === '1' || partnerSeen === '1') return;
+    setShowConfetti(true);
+  }, [partnerInviteEnabled, user?.uid]);
+
+  const handleConfettiComplete = useCallback(() => {
+    setShowConfetti(false);
+    setShowPartnerModal(true);
+  }, []);
+
+  const handleDevShowCommunityModal = useCallback(() => {
+    setShowCommunityModal(true);
+  }, []);
+
+  const handleDevShowPartnerModal = useCallback(() => {
+    setShowConfetti(true);
+  }, []);
 
   if (loading) {
     return (
@@ -1110,6 +1386,14 @@ function AuthGatedApp({
     return <SetupScreen />;
   }
 
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.appBg }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
     <DataProvider>
       <BottomSheetModalProvider>
@@ -1123,12 +1407,25 @@ function AuthGatedApp({
           showDevSetupToggle={showDevSetupToggle}
           forceSetupPreview={forceSetupPreview}
           forceLoginPreview={forceLoginPreview}
+          forceTooltipPreview={forceTooltipPreview}
           onToggleForceSetupPreview={onToggleForceSetupPreview}
           onToggleForceLoginPreview={onToggleForceLoginPreview}
+          onToggleForceTooltipPreview={onToggleForceTooltipPreview}
           trackerEntranceSeed={trackerEntranceSeed}
           trackerUiReady={trackerUiReady}
+          onMaybeFirstActivityCelebration={maybeShowFirstActivityCelebration}
+          onDevShowCommunityModal={handleDevShowCommunityModal}
+          onDevShowPartnerModal={handleDevShowPartnerModal}
         />
       </BottomSheetModalProvider>
+      <CommunityModal visible={showCommunityModal} onDismiss={dismissCommunityModal} />
+      <PartnerInviteModal
+        visible={showPartnerModal}
+        onDismiss={() => setShowPartnerModal(false)}
+      />
+      {showConfetti ? (
+        <ConfettiOverlay onComplete={handleConfettiComplete} />
+      ) : null}
     </DataProvider>
   );
 }
@@ -1185,13 +1482,18 @@ export default function App() {
     'SF-Pro-Text-Semibold': require('./assets/fonts/SF-Pro-Text-Semibold.otf'),
     'SF-Pro-Text-Bold': require('./assets/fonts/SF-Pro-Text-Bold.otf'),
     Fraunces: require('./assets/fonts/Fraunces-VariableFont_SOFT,WONK,opsz,wght.ttf'),
+    /** Static instance: VF defaults wght=900 so RN looked “black”; pinned to 400 + design axes */
+    'Fraunces-Italic': require('./assets/fonts/Fraunces-Italic-400-Soft30-opsz144.ttf'),
+    'Fraunces-Soft-Bold': require('./assets/fonts/Fraunces_72pt_Soft-Bold.ttf'),
   });
   const [themeKey, setThemeKey] = useState('theme1');
   const [isDark, setIsDark] = useState(() => Appearance.getColorScheme() === 'dark');
   const [forceSetupPreview, setForceSetupPreview] = useState(false);
   const [forceLoginPreview, setForceLoginPreview] = useState(false);
+  const [forceTooltipPreview, setForceTooltipPreview] = useState(false);
   const [appearanceHydrated, setAppearanceHydrated] = useState(false);
   const [showLaunchSplash, setShowLaunchSplash] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
   const [trackerEntranceSeed, setTrackerEntranceSeed] = useState(0);
   const launchSplashOpacity = useRef(new Animated.Value(1)).current;
   const launchLogoOpacity = useRef(new Animated.Value(0)).current;
@@ -1210,6 +1512,10 @@ export default function App() {
     if (nextValue) setForceSetupPreview(false);
   }, []);
 
+  const handleToggleForceTooltipPreview = useCallback((nextValue) => {
+    setForceTooltipPreview(nextValue);
+  }, []);
+
   useEffect(() => {
     Promise.all([
       AsyncStorage.getItem('tt_theme_key'),
@@ -1222,6 +1528,28 @@ export default function App() {
     }).finally(() => {
       setAppearanceHydrated(true);
     });
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      // requireOptionalNativeModule returns null instead of throwing when the native
+      // module isn't present (Expo Go, simulator without module, old binaries).
+      if (Platform.OS === 'ios' && requireOptionalNativeModule('ExpoTrackingTransparency')) {
+        const { requestTrackingPermissionsAsync } = require('expo-tracking-transparency');
+        await requestTrackingPermissionsAsync();
+      }
+      initializeAppsFlyer();
+      capture('app_opened', { is_cold_start: true });
+      try {
+        const existing = await AsyncStorage.getItem('tt_first_open_date');
+        if (!existing) {
+          await AsyncStorage.setItem('tt_first_open_date', new Date().toISOString().slice(0, 10));
+          capture('Application installed');
+        }
+      } catch {
+        /* ignore */
+      }
+    })();
   }, []);
 
   useEffect(() => {
@@ -1259,24 +1587,36 @@ export default function App() {
     return () => loop.stop();
   }, [launchLogoFloat]);
 
+  const startSplashFade = useCallback(() => {
+    Animated.timing(launchSplashOpacity, {
+      toValue: 0,
+      duration: 280,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished) {
+        setShowLaunchSplash(false);
+        setTrackerEntranceSeed((v) => v + 1);
+      }
+    });
+  }, [launchSplashOpacity]);
+
+  // Normal path: hold splash until both the minimum time has elapsed and auth has resolved.
+  useEffect(() => {
+    if (!appearanceHydrated || !showLaunchSplash || authLoading) return;
+    const elapsed = Date.now() - launchStartedAtRef.current;
+    const waitMs = Math.max(0, LAUNCH_SPLASH_MIN_MS - elapsed);
+    const timeoutId = setTimeout(startSplashFade, waitMs);
+    return () => clearTimeout(timeoutId);
+  }, [appearanceHydrated, showLaunchSplash, authLoading, startSplashFade]);
+
+  // Safety cap: force-dismiss the splash after a hard maximum so a slow network never leaves the user stuck.
   useEffect(() => {
     if (!appearanceHydrated || !showLaunchSplash) return;
     const elapsed = Date.now() - launchStartedAtRef.current;
-    const waitMs = Math.max(0, LAUNCH_SPLASH_MIN_MS - elapsed);
-    const timeoutId = setTimeout(() => {
-      Animated.timing(launchSplashOpacity, {
-        toValue: 0,
-        duration: 280,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) {
-          setShowLaunchSplash(false);
-          setTrackerEntranceSeed((v) => v + 1);
-        }
-      });
-    }, waitMs);
+    const waitMs = Math.max(0, LAUNCH_SPLASH_MAX_MS - elapsed);
+    const timeoutId = setTimeout(startSplashFade, waitMs);
     return () => clearTimeout(timeoutId);
-  }, [appearanceHydrated, showLaunchSplash, launchSplashOpacity]);
+  }, [appearanceHydrated, showLaunchSplash, startSplashFade]);
 
   const handleThemeChange = useCallback((nextKey) => {
     setThemeKey(nextKey);
@@ -1297,6 +1637,7 @@ export default function App() {
   }, [isDark, ready]);
 
   return (
+    <PostHogProvider client={posthogInstance} autocapture={{ captureScreens: false }}>
     <GestureHandlerRootView style={{ flex: 1, backgroundColor: isDark ? '#0A0A0A' : '#FAFAFA' }}>
       {ready ? (
         <ThemeProvider themeKey={themeKey} isDark={isDark}>
@@ -1315,10 +1656,13 @@ export default function App() {
                 showDevSetupToggle={showDevSetupToggle}
                 forceSetupPreview={forceSetupPreview}
                 forceLoginPreview={forceLoginPreview}
+                forceTooltipPreview={forceTooltipPreview}
                 onToggleForceSetupPreview={handleToggleForceSetupPreview}
                 onToggleForceLoginPreview={handleToggleForceLoginPreview}
+                onToggleForceTooltipPreview={handleToggleForceTooltipPreview}
                 trackerEntranceSeed={trackerEntranceSeed}
                 trackerUiReady={!showLaunchSplash}
+                onAuthLoadingChange={setAuthLoading}
               />
             </AuthProvider>
             {showLaunchSplash ? (
@@ -1334,6 +1678,7 @@ export default function App() {
         </ThemeProvider>
       ) : null}
     </GestureHandlerRootView>
+    </PostHogProvider>
   );
 }
 

@@ -176,6 +176,11 @@ export default function SegmentedToggle({
               style={[
                 styles.optionText,
                 { fontSize: tokens.fontSize },
+                Platform.OS === 'android' && {
+                  includeFontPadding: false,
+                  textAlignVertical: 'center',
+                  lineHeight: tokens.fontSize + 2,
+                },
                 { color: isActive ? activeTextColor : inactiveTextColor },
               ]}
             >

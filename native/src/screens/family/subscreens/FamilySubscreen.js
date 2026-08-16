@@ -24,6 +24,7 @@ export default function FamilySubscreen({
   onOpenKid,
   onOpenAddChild,
   onRemoveMember,
+  onDeleteFamily,
   onInvitePartner,
   formatAgeFromDate,
   formatMonthDay,
@@ -33,7 +34,7 @@ export default function FamilySubscreen({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 1,
     borderRadius: 16,
   };
 
@@ -104,10 +105,8 @@ export default function FamilySubscreen({
           {kids.map((k) => {
             const isCurrent = k.id === kidId;
             const ageLabel = formatAgeFromDate(k.birthDate);
-            const weightVal = Number(k?.babyWeight || k?.currentWeight || k?.weight || 0);
-            const weightLabel = Number.isFinite(weightVal) && weightVal > 0 ? `${Math.round(weightVal * 10) / 10} lbs` : null;
             const birthLabel = formatMonthDay(k.birthDate);
-            const subtitle = [ageLabel, weightLabel, birthLabel].filter(Boolean).join(' • ');
+            const subtitle = [ageLabel, birthLabel].filter(Boolean).join(' • ');
             return (
               <Card key={`family-kid-${k.id}`} onPress={() => onOpenKid(k)}>
                 <View style={s.hubKidRow}>
@@ -217,6 +216,28 @@ export default function FamilySubscreen({
           </Pressable>
         </View>
       </Card>
+
+      {isFamilyOwner && (
+        <Card style={s.cardGap}>
+          <Pressable
+            onPress={members.length === 1 ? onDeleteFamily : undefined}
+            style={({ pressed }) => [
+              s.accountBtn,
+              {
+                backgroundColor: colors.errorSoft,
+                opacity: members.length > 1 ? 0.4 : pressed ? 0.7 : 1,
+              },
+            ]}
+          >
+            <Text style={[s.accountBtnText, { color: colors.error }]}>Delete Family</Text>
+          </Pressable>
+          <Text style={[s.deleteKidWarning, { color: colors.textSecondary }]}>
+            {members.length > 1
+              ? 'Remove all other members before deleting.'
+              : 'This removes all family data from Tiny Tracker.'}
+          </Text>
+        </Card>
+      )}
 
       <View style={{ height: 40 }} />
     </>

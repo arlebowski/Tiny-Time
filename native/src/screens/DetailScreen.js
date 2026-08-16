@@ -66,6 +66,7 @@ function SummaryCard({
   color,
   value,
   unit,
+  unitStyle,
   isCompact,
   fillHeight = false,
   comparison,
@@ -160,52 +161,78 @@ function SummaryCard({
     ],
   };
 
-  const footerContent = comparisonHasDelta ? (
-    <Animated.View style={[styles.summaryComparison, isCompact ? styles.summaryComparisonCompact : null, comparisonAnimatedStyle]}>
-      <View style={styles.summaryComparisonValueRow}>
-        {!comparisonIsZero && (
-          <Text style={[styles.summaryComparisonArrow, { color: comparisonColor }]}>
-            {comparisonDelta >= 0 ? '↑' : '↓'}
-          </Text>
-        )}
-        <Text style={[styles.summaryComparisonValue, { color: comparisonColor }]}>
-          {comparisonText}
-        </Text>
-      </View>
-      {!isCompact && (
-        <Text style={[styles.summaryPaceText, { color: colors.textTertiary }]}>
-          {paceText}
+  const comparisonContent = (
+    <View style={styles.summaryComparisonValueRow}>
+      {!comparisonIsZero && (
+        <Text style={[styles.summaryComparisonArrow, { color: comparisonColor }]}>
+          {comparisonDelta >= 0 ? '↑' : '↓'}
         </Text>
       )}
-    </Animated.View>
+      <Text style={[styles.summaryComparisonValue, { color: comparisonColor }]}>
+        {comparisonText}
+      </Text>
+    </View>
+  );
+  const footerContent = comparisonHasDelta ? (
+    Platform.OS === 'android' ? (
+      <View style={[styles.summaryComparison, isCompact ? styles.summaryComparisonCompact : null]}>
+        {comparisonContent}
+        {!isCompact && (
+          <Text style={[styles.summaryPaceText, { color: colors.textTertiary }]}>
+            {paceText}
+          </Text>
+        )}
+      </View>
+    ) : (
+      <Animated.View style={[styles.summaryComparison, isCompact ? styles.summaryComparisonCompact : null, comparisonAnimatedStyle]}>
+        {comparisonContent}
+        {!isCompact && (
+          <Text style={[styles.summaryPaceText, { color: colors.textTertiary }]}>
+            {paceText}
+          </Text>
+        )}
+      </Animated.View>
+    )
   ) : subline;
+
+  const valueRowContent = (
+    <>
+      {IconComponent ? (
+        <IconComponent
+          size={iconSize}
+          color={color}
+          style={[
+            rotateIcon ? styles.summaryIconRotate : styles.summaryIconBase,
+            iconAdjustments,
+          ]}
+        />
+      ) : (
+        <View style={[styles.summaryIconPlaceholder, { width: iconSize, height: iconSize, backgroundColor: colors.segTrack }]} />
+      )}
+      <Text style={[styles.summaryValue, { color, fontSize: valueSize }]}>
+        {value}
+      </Text>
+      {unit ? (
+        <Text style={[styles.summaryUnit, { color: colors.textTertiary, fontSize: unitSize }, unitStyle]}>
+          {unit}
+        </Text>
+      ) : null}
+    </>
+  );
 
   return (
     <View style={[styles.summaryCard, fillHeight ? styles.summaryCardFillHeight : null, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder, padding }]}>
       <View style={styles.summaryCardInner}>
         {/* Icon + value + unit row */}
-        <Animated.View style={[styles.summaryValueRow, isCompact ? styles.summaryValueRowCompact : null, valueRowAnimatedStyle]}>
-          {IconComponent ? (
-            <IconComponent
-              size={iconSize}
-              color={color}
-              style={[
-                rotateIcon ? styles.summaryIconRotate : styles.summaryIconBase,
-                iconAdjustments,
-              ]}
-            />
-          ) : (
-            <View style={[styles.summaryIconPlaceholder, { width: iconSize, height: iconSize, backgroundColor: colors.segTrack }]} />
-          )}
-          <Text style={[styles.summaryValue, { color, fontSize: valueSize }]}>
-            {value}
-          </Text>
-          {unit ? (
-            <Text style={[styles.summaryUnit, { color: colors.textTertiary, fontSize: unitSize }]}>
-              {unit}
-            </Text>
-          ) : null}
-        </Animated.View>
+        {Platform.OS === 'android' ? (
+          <View style={[styles.summaryValueRow, isCompact ? styles.summaryValueRowCompact : null]}>
+            {valueRowContent}
+          </View>
+        ) : (
+          <Animated.View style={[styles.summaryValueRow, isCompact ? styles.summaryValueRowCompact : null, valueRowAnimatedStyle]}>
+            {valueRowContent}
+          </Animated.View>
+        )}
 
         {/* Comparison or subline */}
         {footerContent}
@@ -408,21 +435,22 @@ export default function DetailSheet({
   const diaperSubline = useMemo(() => {
     const wet = summary.diaperWetCount || 0;
     const poo = summary.diaperPooCount || 0;
+    const diaperTallyIconSize = Platform.OS === 'android' ? 16 : 14;
     if (wet === 0 && poo === 0) return null;
     return (
       <View style={styles.diaperTally}>
         {wet > 0 && (
           <View style={styles.diaperTallyItem}>
-            <DiaperWetIcon size={14} color={diaper.dark || diaper.primary} />
-            <Text style={[styles.diaperTallyText, { color: colors.textTertiary }]}>
+            <DiaperWetIcon size={diaperTallyIconSize} color={diaper.dark || diaper.primary} />
+            <Text style={[styles.diaperTallyText, Platform.OS === 'android' ? styles.diaperTallyTextAndroid : null, { color: colors.textTertiary }]}>
               x{wet}
             </Text>
           </View>
         )}
         {poo > 0 && (
           <View style={styles.diaperTallyItem}>
-            <DiaperPooIcon size={14} color={diaper.primary} />
-            <Text style={[styles.diaperTallyText, { color: colors.textTertiary }]}>
+            <DiaperPooIcon size={diaperTallyIconSize} color={diaper.primary} />
+            <Text style={[styles.diaperTallyText, Platform.OS === 'android' ? styles.diaperTallyTextAndroid : null, { color: colors.textTertiary }]}>
               x{poo}
             </Text>
           </View>
@@ -542,6 +570,7 @@ export default function DetailSheet({
             color={diaper.primary}
             value={diaperDisplay}
             unit={diaperUnit}
+            unitStyle={Platform.OS === 'android' ? styles.diaperUnitAndroid : null}
             isCompact={isAllCompactMode}
             fillHeight={isHorizontalScrollMode}
             comparison={diaperComparison}
@@ -745,9 +774,11 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontFamily: FWB.bold,
     lineHeight: undefined,
+    includeFontPadding: false,
   },
   summaryUnit: {
     fontFamily: FWB.normal,
+    includeFontPadding: false,
   },
   summaryIconPlaceholder: {
     borderRadius: 16,
@@ -767,11 +798,13 @@ const styles = StyleSheet.create({
   summaryComparisonArrow: {
     fontSize: 14,
     fontFamily: FWB.semibold,
+    includeFontPadding: false,
   },
   summaryComparisonValue: {
     fontSize: 12,
     fontFamily: FWB.semibold,
     fontVariant: ['tabular-nums'],
+    includeFontPadding: false,
   },
   summaryComparisonCompact: {
     flexDirection: 'column',
@@ -779,6 +812,7 @@ const styles = StyleSheet.create({
   summaryPaceText: {
     fontSize: 12,
     fontFamily: FWB.normal,
+    includeFontPadding: false,
   },
   // Diaper tally subline
   diaperTally: {
@@ -796,5 +830,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: FWB.normal,
     fontVariant: ['tabular-nums'],
+    includeFontPadding: false,
+  },
+  diaperTallyTextAndroid: {
+    fontSize: 13.5,
+  },
+  diaperUnitAndroid: {
+    fontSize: 19,
   },
 });

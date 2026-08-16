@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert, TextInput, Image, ScrollView, Dimensions } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, TextInput, Image, ScrollView, Dimensions, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,7 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import { colorMix } from '../../utils/colorBlend';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray, TTPickerTray } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, DurationPickerTray, TTPickerTray, PhotoModal } from '../shared';
 import AmountStepper from './AmountStepper';
 import TimelineSwipeRow from '../Timeline/TimelineSwipeRow';
 import {
@@ -34,6 +34,7 @@ import {
   PauseIcon,
   SearchIcon,
   ChevronRightIcon,
+  EditIcon,
 } from '../icons';
 import { COMMON_FOODS } from '../../constants/foods';
 import { resolveFoodIconAsset } from '../../constants/foodIcons';
@@ -199,6 +200,7 @@ const debugLog = (...args) => {
   if (FREEZE_DEBUG) console.log('[FreezeDebug][FeedSheet]', ...args);
 };
 const SOLIDS_HEIGHT_DEBUG = __DEV__;
+const IS_ANDROID = Platform.OS === 'android';
 const solidsHeightLog = (event, payload = {}) => {
   if (!SOLIDS_HEIGHT_DEBUG) return;
   console.log('[SolidsHeight][FeedSheet]', event, { t: Date.now(), ...payload });
@@ -210,6 +212,7 @@ export default function FeedSheet({
   entry = null,
   onSave = null,
   onAdd = null,
+  onPersistSuccess = null,
   preferredVolumeUnit = 'oz',
   onPreferredVolumeUnitChange = null,
   lastBottleAmountOz = null,
@@ -250,6 +253,7 @@ export default function FeedSheet({
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   const dateTimeTouchedRef = useRef(false);
   const lastTimeTraceRef = useRef(0);
@@ -265,6 +269,7 @@ export default function FeedSheet({
   const activeSideRef = useRef(null);
   const activeSideStartRef = useRef(null);
   const [timerTick, setTimerTick] = useState(0);
+  const [durationPickerSide, setDurationPickerSide] = useState(null);
 
   // Solids
   const [addedFoods, setAddedFoods] = useState([]);
@@ -329,7 +334,7 @@ export default function FeedSheet({
       setPhotosExpanded(normalizedExisting.length > 0);
       setSolidsLockedContentBaseHeight(0);
     } else {
-      setFeedType(getInitialType());
+      setFeedType(defaultType);
       setDateTime(new Date().toISOString());
       dateTimeTouchedRef.current = false;
       userEditedAmountRef.current = false;
@@ -348,7 +353,7 @@ export default function FeedSheet({
     }
 
     if (!entry) setSolidsStep(1);
-  }, [entry, initialBottleAmount]);
+  }, [entry, initialBottleAmount, defaultType]);
 
   // Keep bottle amount primed while closed so first render on open is never empty/0.
   useEffect(() => {
@@ -518,9 +523,30 @@ export default function FeedSheet({
     [stopActiveSide, dateTime]
   );
 
+  const handleEditDuration = useCallback(
+    (side) => {
+      if (activeSideRef.current === side) {
+        stopActiveSide();
+      }
+      setDurationPickerSide(side);
+    },
+    [stopActiveSide]
+  );
+
+  const handleDurationConfirm = useCallback((ms) => {
+    const nextMs = Math.max(0, Number(ms) || 0);
+    setDurationPickerSide((side) => {
+      if (side === 'left') setLeftElapsedMs(nextMs);
+      else if (side === 'right') setRightElapsedMs(nextMs);
+      return null;
+    });
+  }, []);
+
   const handleClose = useCallback(() => {
     stopActiveSide();
+    setDurationPickerSide(null);
     setIsSheetOpen(false);
+    setSaving(false);
     setNotesExpanded(false);
     setPhotosExpanded(false);
     didInitOpenRef.current = false;
@@ -585,6 +611,7 @@ export default function FeedSheet({
       hasNotes: !!(notes && String(notes).trim()),
     });
     setSaving(true);
+    let saved = false;
 
     try {
       const stepStart = Date.now();
@@ -874,14 +901,18 @@ export default function FeedSheet({
       }
 
       logStep('dismiss:start');
+      if (!entry && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'feed', feed_type: feedType });
+      }
       dismissSheet();
+      saved = true;
       logStep('dismiss:done');
     } catch (e) {
       console.error('[FeedSheet] Save failed:', e);
       Alert.alert('Error', 'Failed to save.');
     } finally {
       debugLog('save:done', { saveId, ms: Date.now() - saveStart });
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 
@@ -1298,7 +1329,7 @@ export default function FeedSheet({
           newPhotos={photos}
           onAddPhoto={handleAddPhoto}
           onRemovePhoto={handleRemovePhoto}
-          onPreviewPhoto={() => {}}
+          onPreviewPhoto={(url) => setPreviewPhoto(typeof url === 'string' ? url : url?.uri || url)}
           addLabel="+ Add photos"
         />
       )}
@@ -1501,6 +1532,7 @@ export default function FeedSheet({
                         isActive={activeSide === 'left'}
                         isLast={lastSide === 'left'}
                         onPress={handleToggleSide}
+                        onEditDuration={handleEditDuration}
                         accent={nursing.primary}
                         accentSoft={nursing.soft}
                         colors={colors}
@@ -1512,6 +1544,7 @@ export default function FeedSheet({
                         isActive={activeSide === 'right'}
                         isLast={lastSide === 'right'}
                         onPress={handleToggleSide}
+                        onEditDuration={handleEditDuration}
                         accent={nursing.primary}
                         accentSoft={nursing.soft}
                         colors={colors}
@@ -1544,7 +1577,7 @@ export default function FeedSheet({
                       solidsHeightLog('layout:step1-panel', { height: next });
                       setSolidsStepOneHeight((prev) => (Math.abs(prev - next) < 1 ? prev : next));
                     }}
-                    solidsTileLabel={addedFoods.length === 0 ? 'Add foods' : `${addedFoods.length} food${addedFoods.length !== 1 ? 's' : ''} added`}
+                    solidsTileLabel={addedFoods.length === 0 ? 'Add Foods' : `${addedFoods.length} Food${addedFoods.length !== 1 ? 's' : ''} Added`}
                     solidsTileFoods={solidsTileFoods}
                     isFoodSelected={isFoodSelected}
                     addFoodToList={addFoodToList}
@@ -1627,6 +1660,20 @@ export default function FeedSheet({
         onChange={handleDateTimeChange}
         title="Time"
       />
+      <DurationPickerTray
+        isOpen={durationPickerSide !== null}
+        initialMs={durationPickerSide === 'left' ? leftElapsedMs : rightElapsedMs}
+        onConfirm={handleDurationConfirm}
+        onClose={() => setDurationPickerSide(null)}
+        title={
+          durationPickerSide === 'left'
+            ? 'Left duration'
+            : durationPickerSide === 'right'
+              ? 'Right duration'
+              : 'Duration'
+        }
+        accentColor={nursing.primary}
+      />
       <TTPickerTray
         isOpen={!!detailFood}
         onClose={() => {
@@ -1644,7 +1691,7 @@ export default function FeedSheet({
                       {resolveFoodIconAsset(detailFood.icon) ? (
                         <Image source={resolveFoodIconAsset(detailFood.icon)} style={styles.detailTrayFoodIconImage} resizeMode="contain" />
                       ) : detailFood.emoji ? (
-                        <Text style={styles.detailTrayFoodEmoji}>{detailFood.emoji}</Text>
+                        <Text style={[styles.detailTrayFoodEmoji, IS_ANDROID && styles.detailTrayFoodEmojiAndroid]}>{detailFood.emoji}</Text>
                       ) : (
                         <SolidsIcon size={16} color={solids.primary} />
                       )}
@@ -1726,6 +1773,12 @@ export default function FeedSheet({
           </View>
         ) : null}
       </TTPickerTray>
+
+      <PhotoModal
+        visible={!!previewPhoto}
+        photo={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
+      />
     </>
   );
 }
@@ -1748,7 +1801,11 @@ function FoodTile({ food, selected, onPress, dashed, labelOverride, colors, soli
       onPress={onPress}
     >
       <View style={styles.foodTileIcon}>
-        {iconAsset ? <Image source={iconAsset} style={styles.foodTileImage} resizeMode="contain" /> : <Text style={styles.foodTileEmoji}>{emoji}</Text>}
+        {iconAsset ? (
+          <Image source={iconAsset} style={styles.foodTileImage} resizeMode="contain" />
+        ) : (
+          <Text style={[styles.foodTileEmoji, IS_ANDROID && styles.foodTileEmojiAndroid]}>{emoji}</Text>
+        )}
       </View>
       <Text style={[styles.foodTileLabel, { color: labelColor }]} numberOfLines={1}>
         {labelOverride || food.name}
@@ -1779,38 +1836,48 @@ function SolidsStepOne({
       }}
     >
       <TTInputRow insideBottomSheet label="Start time" rawValue={dateTime} type="datetime" formatDateTime={formatDateTime} onOpenPicker={onOpenPicker} />
-      <View style={styles.solidsTilesSection}>
-        <Text style={[styles.solidsTileLabel, { color: colors.textSecondary }]}>{solidsTileLabel}</Text>
-        <View style={styles.solidsTilesGrid}>
-          {solidsTileFoods.map((food) => {
-            const resolvedId = food.id || slugifyFoodId(food.name);
-            const selected = isFoodSelected(resolvedId);
-            return (
-              <View key={resolvedId || food.name} style={styles.solidsTileCell}>
-                <FoodTile
-                  food={{ ...food, id: resolvedId }}
-                  selected={selected}
-                  onPress={() => (selected ? removeFoodById(resolvedId) : addFoodToList({ ...food, id: resolvedId }))}
-                  colors={colors}
-                  solids={solids}
-                />
-              </View>
-            );
-          })}
+      <View style={styles.solidsSelectionGroup}>
+        <View style={styles.solidsTilesSection}>
+          <Text
+            style={[
+              styles.solidsTileLabel,
+              { color: colors.textSecondary },
+              solidsTileLabel === 'Add Foods' && styles.solidsTileLabelAddFoods,
+            ]}
+          >
+            {solidsTileLabel}
+          </Text>
+          <View style={styles.solidsTilesGrid}>
+            {solidsTileFoods.map((food) => {
+              const resolvedId = food.id || slugifyFoodId(food.name);
+              const selected = isFoodSelected(resolvedId);
+              return (
+                <View key={resolvedId || food.name} style={styles.solidsTileCell}>
+                  <FoodTile
+                    food={{ ...food, id: resolvedId }}
+                    selected={selected}
+                    onPress={() => (selected ? removeFoodById(resolvedId) : addFoodToList({ ...food, id: resolvedId }))}
+                    colors={colors}
+                    solids={solids}
+                  />
+                </View>
+              );
+            })}
+          </View>
         </View>
-      </View>
 
-      <Pressable
-        style={({ pressed }) => [
-          styles.browseButton,
-          { backgroundColor: colors.inputBg, borderColor: colors.cardBorder || colors.borderSubtle },
-          pressed && { opacity: 0.7 },
-        ]}
-        onPress={onBrowsePress}
-      >
-        <Text style={[styles.browseButtonText, { color: colors.textPrimary }]}>Browse all foods</Text>
-        <ChevronRightIcon size={20} color={colors.textTertiary} />
-      </Pressable>
+        <Pressable
+          style={({ pressed }) => [
+            styles.browseButton,
+            { backgroundColor: colors.inputBg, borderColor: colors.cardBorder || colors.borderSubtle },
+            pressed && { opacity: 0.7 },
+          ]}
+          onPress={onBrowsePress}
+        >
+          <Text style={[styles.browseButtonText, { color: colors.textPrimary }]}>Browse All Foods</Text>
+          <ChevronRightIcon size={20} color={colors.textTertiary} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -1897,7 +1964,7 @@ function SolidsStepThree({ addedFoods, removeFoodById, onOpenDetail, openSwipeFo
                   {iconAsset ? (
                     <Image source={iconAsset} style={styles.solidsReviewIconImage} resizeMode="contain" />
                   ) : food.emoji ? (
-                    <Text style={styles.solidsReviewEmoji}>{food.emoji}</Text>
+                    <Text style={[styles.solidsReviewEmoji, IS_ANDROID && styles.solidsReviewEmojiAndroid]}>{food.emoji}</Text>
                   ) : (
                     <SolidsIcon size={20} color={solids.primary} />
                   )}
@@ -1964,7 +2031,7 @@ function SolidsReactionChip({ reaction, selected, dim, onPress, colors, solids }
         pressed && { opacity: 0.8 },
       ]}
     >
-      <Text style={styles.detailReactionEmoji} allowFontScaling={false}>
+      <Text style={[styles.detailReactionEmoji, IS_ANDROID && styles.detailReactionEmojiAndroid]} allowFontScaling={false}>
         {reaction.emoji}
       </Text>
     </Pressable>
@@ -1972,6 +2039,7 @@ function SolidsReactionChip({ reaction, selected, dim, onPress, colors, solids }
 }
 
 function FeedTypeButton({ label, icon: Icon, selected, accent, onPress, colors, isDark }) {
+  const isAndroid = Platform.OS === 'android';
   const inputBg = colors.inputBg || (isDark ? '#3C3E43' : '#F5F5F7');
   const bg = selected && !isDark ? colorMix(accent, inputBg, 16) : inputBg;
   const border = selected ? accent : colors.cardBorder || colors.borderSubtle || (isDark ? '#1A1A1A' : '#EBEBEB');
@@ -1981,18 +2049,19 @@ function FeedTypeButton({ label, icon: Icon, selected, accent, onPress, colors, 
     <Pressable
       style={({ pressed }) => [
         styles.feedTypeButton,
+        isAndroid && styles.feedTypeButtonAndroid,
         { backgroundColor: bg, borderColor: border, borderWidth: 1, opacity: selected ? 1 : 0.5 },
         pressed && { opacity: selected ? 0.9 : 0.6 },
       ]}
       onPress={onPress}
     >
-      {Icon ? <Icon size={28} color={color} strokeWidth={1.5} /> : null}
-      <Text style={[styles.feedTypeLabel, { color }]}>{label}</Text>
+      {Icon ? <Icon size={isAndroid ? 24 : 28} color={color} strokeWidth={1.5} /> : null}
+      <Text style={[styles.feedTypeLabel, isAndroid && styles.feedTypeLabelAndroid, { color }]}>{label}</Text>
     </Pressable>
   );
 }
 
-function SideTimer({ side, displayMs, isActive, isLast, onPress, accent, accentSoft, colors, runningSide }) {
+function SideTimer({ side, displayMs, isActive, isLast, onPress, onEditDuration, accent, accentSoft, colors, runningSide }) {
   const parts = formatElapsedHmsTT(displayMs);
   const color = isActive ? accent : runningSide ? colors.textTertiary : colors.textSecondary;
   const bg = isActive ? colorMix(accent, colors.inputBg || '#F5F5F7', 16) : colors.inputBg || '#F5F5F7';
@@ -2015,9 +2084,17 @@ function SideTimer({ side, displayMs, isActive, isLast, onPress, accent, accentS
         </View>
       )}
 
-      <Pressable style={({ pressed }) => [styles.sideTimer, { backgroundColor: bg, borderColor: border }, pressed && { opacity: 0.7 }]} onPress={() => onPress(side)}>
+      <Pressable
+        style={({ pressed }) => [styles.sideTimer, { backgroundColor: bg, borderColor: border }, pressed && { opacity: 0.7 }]}
+        onPress={() => onPress(side)}
+        onLongPress={() => onEditDuration?.(side)}
+        delayLongPress={400}
+      >
         {isActive ? <PauseIcon size={28} color={color} /> : <PlayIcon size={28} color={color} />}
         <Text style={[styles.sideTime, { color }]}>{parts.str}</Text>
+        {!isActive && (
+          <EditIcon size={14} color={colors.textTertiary} />
+        )}
       </Pressable>
     </View>
   );
@@ -2059,10 +2136,19 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
   },
+  feedTypeButtonAndroid: {
+    height: 64,
+    paddingTop: 7,
+    paddingBottom: 9,
+  },
 
   feedTypeLabel: {
     fontSize: 13,
     fontFamily: FWB.semibold,
+  },
+  feedTypeLabelAndroid: {
+    lineHeight: 16,
+    includeFontPadding: false,
   },
 
   nursingTotal: {
@@ -2102,10 +2188,11 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 8,
     zIndex: 1,
-    ...Platform.select({
-      ios: { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 2 },
-      android: { elevation: 2 },
-    }),
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
 
   lastText: {
@@ -2152,6 +2239,12 @@ const styles = StyleSheet.create({
     fontSize: 28,
     lineHeight: 28,
   },
+  foodTileEmojiAndroid: {
+    fontSize: 24,
+    lineHeight: 26,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   foodTileImage: {
     width: 28,
     height: 28,
@@ -2169,6 +2262,10 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
 
+  solidsSelectionGroup: {
+    transform: [{ translateY: 8 }],
+  },
+
   solidsTilesSection: {
     marginBottom: 0,
   },
@@ -2176,6 +2273,9 @@ const styles = StyleSheet.create({
   solidsTileLabel: {
     fontSize: 12,
     marginBottom: 5,
+  },
+  solidsTileLabelAddFoods: {
+    transform: [{ translateY: 3 }],
   },
 
   solidsTilesGrid: {
@@ -2281,6 +2381,12 @@ const styles = StyleSheet.create({
     fontSize: 20,
     lineHeight: 20,
   },
+  solidsReviewEmojiAndroid: {
+    fontSize: 18,
+    lineHeight: 20,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   solidsReviewIconImage: {
     width: 20,
     height: 20,
@@ -2347,6 +2453,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 16,
   },
+  detailTrayFoodEmojiAndroid: {
+    fontSize: 14,
+    lineHeight: 16,
+    includeFontPadding: false,
+    textAlignVertical: 'center',
+  },
   detailTrayHeaderTitle: {
     fontSize: 17,
     fontFamily: FWB.semibold,
@@ -2409,6 +2521,11 @@ const styles = StyleSheet.create({
     lineHeight: 34,
     includeFontPadding: false,
   },
+  detailReactionEmojiAndroid: {
+    fontSize: 28,
+    lineHeight: 30,
+    textAlignVertical: 'center',
+  },
   // Add row
   addonsBlock: {
     gap: 14,
@@ -2434,6 +2551,7 @@ const styles = StyleSheet.create({
   // CTA
   cta: {
     paddingVertical: 14,
+    ...(Platform.OS === 'android' ? { minHeight: 56 } : null),
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',

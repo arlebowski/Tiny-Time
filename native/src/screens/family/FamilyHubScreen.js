@@ -3,12 +3,14 @@ import { View, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useTheme } from '../../context/ThemeContext';
 import { useFamilyScreen } from '../../context/FamilyScreenContext';
+import { useAuth } from '../../context/AuthContext';
 import FamilyHubSubscreen from './subscreens/FamilyHubSubscreen';
 
 export default function FamilyHubScreen() {
   const navigation = useNavigation();
   const { colors, radius } = useTheme();
   const ctx = useFamilyScreen();
+  const { deletedFamilies, undoDeleteFamily, dismissDeletedFamily } = useAuth();
 
   return (
     <View style={{ flex: 1 }}>
@@ -33,12 +35,19 @@ export default function FamilyHubScreen() {
           showDevSetupToggle={ctx.showDevSetupToggle}
           forceSetupPreview={ctx.forceSetupPreview}
           forceLoginPreview={ctx.forceLoginPreview}
+          forceTooltipPreview={ctx.forceTooltipPreview}
           onToggleForceSetupPreview={ctx.onToggleForceSetupPreview}
           onToggleForceLoginPreview={ctx.onToggleForceLoginPreview}
+          onToggleForceTooltipPreview={ctx.onToggleForceTooltipPreview}
+          onDevShowCommunityModal={ctx.onDevShowCommunityModal}
+          onDevShowPartnerModal={ctx.onDevShowPartnerModal}
           onOpenProfile={() => navigation.navigate('Profile')}
           onOpenAppearance={ctx.openAppearanceSheet}
           onOpenFamily={() => navigation.navigate('FamilyMembers')}
           onOpenAddFamily={ctx.openAddFamilySheet}
+          deletedFamilies={deletedFamilies}
+          onUndoDeleteFamily={undoDeleteFamily}
+          onDismissDeletedFamily={dismissDeletedFamily}
         />
       </ScrollView>
     </View>

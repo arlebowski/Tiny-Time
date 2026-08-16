@@ -5,6 +5,7 @@ import HalfSheet from '../HalfSheet';
 import TTInputRow from '../../shared/TTInputRow';
 import TTPhotoRow from '../../shared/TTPhotoRow';
 import { DatePickerTray } from '../../shared/Wheelpickers';
+import { localDateToMs } from '../../../utils/dateTime';
 
 export default function AddChildHalfSheet({
   sheetRef,
@@ -14,24 +15,18 @@ export default function AddChildHalfSheet({
   savingChild,
   newBabyName,
   newBabyBirthDate,
-  newBabyWeight,
   newChildPhotoUris,
   onClose,
   onCreate,
   onNameChange,
   onBirthDateChange,
-  onWeightChange,
   onAddPhoto,
   onRemovePhoto,
 }) {
   const insets = useSafeAreaInsets();
   const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
 
-  const birthDateValue = (() => {
-    if (!newBabyBirthDate?.trim()) return null;
-    const d = new Date(newBabyBirthDate.trim());
-    return Number.isNaN(d.getTime()) ? null : d.toISOString();
-  })();
+  const birthDateValue = newBabyBirthDate?.trim() || null;
 
   return (
     <HalfSheet
@@ -63,8 +58,10 @@ export default function AddChildHalfSheet({
           showLabel
           formatDateTime={(iso) => {
             if (!iso) return '';
-            const d = new Date(iso);
-            return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            const ms = localDateToMs(iso);
+            if (ms == null) return '';
+            const d = new Date(ms);
+            return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
           }}
           onOpenPicker={() => setBirthDatePickerOpen(true)}
         />
@@ -78,9 +75,6 @@ export default function AddChildHalfSheet({
         minYear={new Date().getFullYear() - 6}
         maxYear={new Date().getFullYear()}
       />
-      <View style={s.addChildSectionSpacer}>
-        <TTInputRow insideBottomSheet label="Current weight (lbs)" type="text" value={newBabyWeight} onChange={onWeightChange} placeholder="Add..." showIcon={false} showChevron={false} enableTapAnimation showLabel />
-      </View>
       <TTPhotoRow
         expanded
         showTitle

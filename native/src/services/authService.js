@@ -3,6 +3,9 @@
  * Uses @react-native-firebase/auth
  */
 import { uploadKidPhoto } from './storageService';
+import { Platform } from 'react-native';
+import { pingNewSignup } from '../utils/formspree';
+import { localDateToMs } from '../utils/dateTime';
 
 let auth = null;
 let firestore = null;
@@ -61,6 +64,41 @@ export async function signInWithEmail(email, password) {
   return result;
 }
 
+/**
+ * Progressive email auth: sign in, or create account if user not found / ambiguous credential.
+ */
+export async function continueWithEmail(email, password) {
+  assertFirebase();
+  try {
+    const result = await auth().signInWithEmailAndPassword(email, password);
+    await ensureUserProfile(result.user);
+    return { isNewUser: false };
+  } catch (e) {
+    const code = e?.code || '';
+    if (code === 'auth/user-not-found' || code === 'auth/invalid-credential') {
+      try {
+        const result = await auth().createUserWithEmailAndPassword(email, password);
+        await ensureUserProfile(result.user);
+        return { isNewUser: true };
+      } catch (createErr) {
+        if (createErr?.code === 'auth/email-already-in-use') {
+          const wrong = new Error('Invalid email or password');
+          wrong.code = 'auth/wrong-password';
+          throw wrong;
+        }
+        throw createErr;
+      }
+    }
+    throw e;
+  }
+}
+
+/** Send password reset email */
+export async function sendPasswordReset(email) {
+  assertFirebase();
+  await auth().sendPasswordResetEmail(String(email || '').trim());
+}
+
 /** Google sign-in using native Google SDK -> Firebase credential */
 export async function signInWithGoogle() {
   assertFirebase();
@@ -71,10 +109,16 @@ export async function signInWithGoogle() {
   }
 
   const signInResult = await GoogleSignin.signIn();
+  if (signInResult?.type === 'cancelled') {
+    const cancelError = new Error('Google sign-in was cancelled.');
+    cancelError.code = 'SIGN_IN_CANCELLED';
+    throw cancelError;
+  }
+
   let idToken = signInResult?.idToken || signInResult?.data?.idToken;
 
   // On Android, idToken is sometimes null in the signIn response; fetch via getTokens()
-  if (!idToken && typeof GoogleSignin.getTokens === 'function') {
+  if (Platform.OS === 'android' && !idToken && typeof GoogleSignin.getTokens === 'function') {
     try {
       const tokens = await GoogleSignin.getTokens();
       idToken = tokens?.idToken || null;
@@ -89,6 +133,23 @@ export async function signInWithGoogle() {
   }
 
   const credential = auth.GoogleAuthProvider.credential(idToken);
+  const result = await auth().signInWithCredential(credential);
+  await ensureUserProfile(result.user);
+  return result;
+}
+
+/** Apple sign-in using Apple identity token -> Firebase credential */
+export async function signInWithAppleIdentityToken(identityToken, rawNonce = null) {
+  assertFirebase();
+  if (!identityToken) {
+    throw new Error('Apple sign-in did not return an identity token.');
+  }
+
+  const AppleAuthProvider = auth?.AppleAuthProvider;
+  if (!AppleAuthProvider || typeof AppleAuthProvider.credential !== 'function') {
+    throw new Error('Firebase AppleAuthProvider is unavailable in this runtime');
+  }
+  const credential = AppleAuthProvider.credential(identityToken, rawNonce || undefined);
   const result = await auth().signInWithCredential(credential);
   await ensureUserProfile(result.user);
   return result;
@@ -119,6 +180,7 @@ export async function ensureUserProfile(user) {
 
   if (!snap.exists) {
     await userRef.set({ ...base, createdAt: now }, { merge: true });
+    pingNewSignup(user).catch(() => {});
   } else {
     await userRef.set(base, { merge: true });
   }
@@ -204,6 +266,7 @@ export async function loadUserFamilies(uid) {
   for (const famDoc of famSnap.docs) {
     const familyId = famDoc.id;
     const famData = famDoc.data() || {};
+    if (famData.isDeleted) continue;
     const name = famData.name || 'Family';
 
     let kidId = famData.primaryKidId || null;
@@ -219,7 +282,12 @@ export async function loadUserFamilies(uid) {
       }
     }
 
-    result.push({ familyId, kidId, name });
+    result.push({
+      familyId,
+      kidId,
+      name,
+      memberCount: Array.isArray(famData.members) ? famData.members.length : 1,
+    });
   }
 
   return result;
@@ -239,7 +307,7 @@ export async function createFamilyWithKid(
 ) {
   assertFirebase();
   const now = firestore.FieldValue.serverTimestamp();
-  const birthTimestamp = birthDate ? new Date(birthDate).getTime() : null;
+  const birthTimestamp = birthDate ? localDateToMs(birthDate) : null;
 
   const parsedBabyWeight = Number.parseFloat(String(babyWeight ?? '').trim());
   const normalizedBabyWeight = Number.isFinite(parsedBabyWeight) && parsedBabyWeight > 0
@@ -251,6 +319,8 @@ export async function createFamilyWithKid(
   // Create family
   const famRef = await firestore().collection('families').add({
     members: [uid],
+    ownerId: uid,
+    createdBy: uid,
     name: normalizedFamilyName || `${babyName}'s family`,
     createdAt: now,
     primaryKidId: null,
@@ -300,39 +370,118 @@ export async function createFamilyWithKid(
 /** Accept an invite code */
 export async function acceptInvite(code, userId) {
   assertFirebase();
-  const inviteRef = firestore().collection('invites').doc(code);
-  const snap = await inviteRef.get();
-  if (!snap.exists) throw new Error('Invalid invite');
+  const normalizedCode = String(code || '').trim().toUpperCase();
+  if (!normalizedCode) throw new Error('Invalid invite');
 
-  const invite = snap.data();
-  if (invite.used) throw new Error('Invite already used');
+  const inviteRef = firestore().collection('invites').doc(normalizedCode);
+  const preInviteSnap = await inviteRef.get();
+  const preInviteExists = typeof preInviteSnap?.exists === 'function'
+    ? preInviteSnap.exists()
+    : Boolean(preInviteSnap?.exists);
+  if (!preInviteExists) throw new Error('Invalid invite');
 
-  const familyRef = firestore().collection('families').doc(invite.familyId);
+  const preInvite = preInviteSnap.data?.() || null;
+  if (!preInvite?.familyId) throw new Error('Invalid invite');
 
-  // Add user to family
-  await familyRef.update({
-    members: firestore.FieldValue.arrayUnion(userId),
-  });
-
-  // Add user to all kids in this family
+  const familyRef = firestore().collection('families').doc(preInvite.familyId);
   const kidsSnap = await familyRef.collection('kids').get();
-  await Promise.all(
-    kidsSnap.docs.map((kidDoc) =>
-      kidDoc.ref.update({
+  const kidRefs = kidsSnap.docs.map((doc) => doc.ref);
+
+  return firestore().runTransaction(async (tx) => {
+    const inviteSnap = await tx.get(inviteRef);
+    const inviteExists = typeof inviteSnap?.exists === 'function'
+      ? inviteSnap.exists()
+      : Boolean(inviteSnap?.exists);
+    if (!inviteExists) throw new Error('Invalid invite');
+
+    const invite = inviteSnap.data?.() || null;
+    if (!invite?.familyId) throw new Error('Invalid invite');
+
+    const familySnap = await tx.get(familyRef);
+    const familyExists = typeof familySnap?.exists === 'function'
+      ? familySnap.exists()
+      : Boolean(familySnap?.exists);
+    if (!familyExists) throw new Error('Invalid invite');
+
+    const famData = familySnap.data?.() || {};
+    const members = Array.isArray(famData.members) ? famData.members : [];
+    let resolvedKidId = invite.kidId || famData.primaryKidId || kidRefs[0]?.id || null;
+
+    if (members.includes(userId)) {
+      return { familyId: invite.familyId, kidId: resolvedKidId };
+    }
+
+    if (invite.used) throw new Error('Invite already used');
+
+    tx.update(familyRef, {
+      members: firestore.FieldValue.arrayUnion(userId),
+    });
+
+    kidRefs.forEach((kidRef) => {
+      tx.update(kidRef, {
         members: firestore.FieldValue.arrayUnion(userId),
-      })
-    )
-  );
+      });
+    });
 
-  // Mark invite used
-  await inviteRef.update({
-    used: true,
-    usedBy: userId,
-    usedAt: firestore.FieldValue.serverTimestamp(),
+    tx.update(inviteRef, {
+      used: true,
+      usedBy: userId,
+      usedAt: firestore.FieldValue.serverTimestamp(),
+    });
+
+    return {
+      familyId: invite.familyId,
+      kidId: resolvedKidId,
+    };
   });
+}
 
-  return {
-    familyId: invite.familyId,
-    kidId: invite.kidId || (kidsSnap.docs[0]?.id || null),
-  };
+/** Delete signed-in user account and remove membership references. */
+export async function deleteCurrentUserAccount() {
+  assertFirebase();
+  const currentUser = auth().currentUser;
+  const uid = currentUser?.uid || null;
+  if (!uid || !currentUser) throw new Error('Not signed in');
+
+  const familiesSnap = await firestore()
+    .collection('families')
+    .where('members', 'array-contains', uid)
+    .get();
+
+  for (const famDoc of familiesSnap.docs) {
+    const familyData = famDoc.data() || {};
+    const currentMembers = Array.isArray(familyData.members) ? familyData.members : [];
+    const nextMembers = currentMembers.filter((memberUid) => memberUid && memberUid !== uid);
+    const nextOwnerUid = nextMembers[0] || null;
+
+    const familyPatch = { members: nextMembers };
+    if (familyData.ownerId === uid) familyPatch.ownerId = nextOwnerUid;
+    if (familyData.createdBy === uid) familyPatch.createdBy = nextOwnerUid;
+    await famDoc.ref.set(familyPatch, { merge: true });
+
+    const kidSnap = await famDoc.ref.collection('kids').where('members', 'array-contains', uid).get();
+    await Promise.all(kidSnap.docs.map((kidDoc) => {
+      const kidData = kidDoc.data() || {};
+      const kidMembers = Array.isArray(kidData.members) ? kidData.members : [];
+      const nextKidMembers = kidMembers.filter((memberUid) => memberUid && memberUid !== uid);
+      const nextKidOwnerUid = nextKidMembers[0] || null;
+      const kidPatch = { members: nextKidMembers };
+      if (kidData.ownerId === uid) kidPatch.ownerId = nextKidOwnerUid;
+      return kidDoc.ref.set(kidPatch, { merge: true });
+    }));
+  }
+
+  try {
+    await firestore().collection('users').doc(uid).delete();
+  } catch {}
+
+  try {
+    await currentUser.delete();
+  } catch (error) {
+    const code = String(error?.code || '');
+    if (code.includes('requires-recent-login')) {
+      throw new Error('For security, please sign out and sign back in, then try deleting your account again.');
+    }
+    throw error;
+  }
 }

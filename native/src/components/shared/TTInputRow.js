@@ -106,7 +106,7 @@ export default function TTInputRow({
 
   const isCompact = size === 'compact';
   const paddingH = isCompact ? 12 : 16;
-  const paddingV = isCompact ? 12 : 16;
+  const paddingV = isCompact ? 12 : (Platform.OS === 'android' ? 14 : 16);
   const labelSize = isCompact ? 11 : 12;
   const valueSize = isCompact ? 15 : 16;
 
@@ -143,14 +143,32 @@ export default function TTInputRow({
         >
           <View style={styles.flex1}>
             {showLabel && label && (
-              <Text style={[styles.label, { fontSize: labelSize, color: colors.textSecondary }]}>{label}</Text>
+              <Text
+                style={[
+                  styles.label,
+                  { fontSize: labelSize, color: colors.textSecondary },
+                  Platform.OS === 'android' && styles.androidTextMetrics,
+                ]}
+              >
+                {label}
+              </Text>
             )}
             {typeof renderValue === 'function' ? (
               <View style={[styles.valueRow, (suffix || showInlineSuffix) && styles.inlineRow]}>
-                <Text style={[styles.value, { fontSize: valueSize, color: valueColor }]}>
+                <Text
+                  style={[
+                    styles.value,
+                    { fontSize: valueSize, color: valueColor },
+                    Platform.OS === 'android' && styles.androidTextMetrics,
+                  ]}
+                >
                   {renderValue(displayValue, { rawValue: effectiveRawValue, placeholder })}
                 </Text>
-                {showInlineSuffix && <Text style={[styles.suffix, { color: colors.textPrimary }]}>{suffix}</Text>}
+                {showInlineSuffix && (
+                  <Text style={[styles.suffix, { color: colors.textPrimary }, Platform.OS === 'android' && styles.androidTextMetrics]}>
+                    {suffix}
+                  </Text>
+                )}
               </View>
             ) : (
               <View style={[styles.valueRow, suffix && styles.flexRow]}>
@@ -184,6 +202,7 @@ export default function TTInputRow({
                       height: resolvedInputHeight,
                     },
                     { fontSize: valueSize, color: invalid ? colors.error : colors.textPrimary },
+                    Platform.OS === 'android' && styles.androidTextMetrics,
                     suffix ? styles.flex1 : styles.fullWidth,
                   ]}
                   editable={true}
@@ -218,12 +237,17 @@ export default function TTInputRow({
                       height: resolvedInputHeight,
                     },
                     { fontSize: valueSize, color: invalid ? colors.error : colors.textPrimary },
+                    Platform.OS === 'android' && styles.androidTextMetrics,
                     suffix ? styles.flex1 : styles.fullWidth,
                   ]}
                   editable={true}
                 />
                 )}
-                {suffix && <Text style={[styles.suffix, { color: colors.textSecondary }]}>{suffix}</Text>}
+                {suffix && (
+                  <Text style={[styles.suffix, { color: colors.textSecondary }, Platform.OS === 'android' && styles.androidTextMetrics]}>
+                    {suffix}
+                  </Text>
+                )}
               </View>
             )}
           </View>
@@ -272,14 +296,32 @@ export default function TTInputRow({
       >
         <View style={styles.flex1}>
           {showLabel && label && (
-            <Text style={[styles.label, { fontSize: labelSize, color: colors.textSecondary }]}>{label}</Text>
+            <Text
+              style={[
+                styles.label,
+                { fontSize: labelSize, color: colors.textSecondary },
+                Platform.OS === 'android' && styles.androidTextMetrics,
+              ]}
+            >
+              {label}
+            </Text>
           )}
           {typeof renderValue === 'function' ? (
             <View style={[styles.valueRow, (suffix || showInlineSuffix) && styles.inlineRow]}>
-              <Text style={[styles.value, { fontSize: valueSize, color: valueColor }]}>
+              <Text
+                style={[
+                  styles.value,
+                  { fontSize: valueSize, color: valueColor },
+                  Platform.OS === 'android' && styles.androidTextMetrics,
+                ]}
+              >
                 {renderValue(displayValue, { rawValue: effectiveRawValue, placeholder })}
               </Text>
-              {showInlineSuffix && <Text style={[styles.suffix, { color: colors.textPrimary }]}>{suffix}</Text>}
+              {showInlineSuffix && (
+                <Text style={[styles.suffix, { color: colors.textPrimary }, Platform.OS === 'android' && styles.androidTextMetrics]}>
+                  {suffix}
+                </Text>
+              )}
             </View>
           ) : (
             <View style={[styles.valueRow, (suffix || showInlineSuffix) && styles.inlineRow]}>
@@ -288,16 +330,25 @@ export default function TTInputRow({
                 style={[
                   styles.value,
                   { fontSize: valueSize, color: valueColor },
+                  Platform.OS === 'android' && styles.androidTextMetrics,
                   (suffix && !showInlineSuffix) ? styles.flex1 : styles.fullWidth,
                 ]}
               >
                 {displayValue || placeholder || ''}
               </Text>
-              {showInlineSuffix && <Text style={[styles.suffix, { color: colors.textPrimary }]}>{suffix}</Text>}
+              {showInlineSuffix && (
+                <Text style={[styles.suffix, { color: colors.textPrimary }, Platform.OS === 'android' && styles.androidTextMetrics]}>
+                  {suffix}
+                </Text>
+              )}
             </View>
           )}
         </View>
-        {showTrailingSuffix && <Text style={[styles.suffix, { color: colors.textSecondary }]}>{suffix}</Text>}
+        {showTrailingSuffix && (
+          <Text style={[styles.suffix, { color: colors.textSecondary }, Platform.OS === 'android' && styles.androidTextMetrics]}>
+            {suffix}
+          </Text>
+        )}
         {showIcon && IconComponent && (
           <Pressable onPress={handleIconPress} style={styles.iconBtn}>
             <IconComponent size={16} color={colors.textSecondary} />
@@ -368,8 +419,11 @@ const styles = StyleSheet.create({
     fontFamily: FWB.normal,
   },
   iconBtn: {
-    marginLeft: 17,
-    padding: 4,
+    marginLeft: 8,
+    width: 24,
+    height: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   chevronWrap: {
     marginLeft: 8,
@@ -390,5 +444,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontFamily: FWB.semibold,
     fontFamily: FWB.normal,
+  },
+  androidTextMetrics: {
+    includeFontPadding: false,
   },
 });

@@ -3,16 +3,19 @@
  * Plus button that expands into 3 split buttons: Feed (left), Diaper (top), Sleep (right)
  * No dimmed overlay; tap outside or center to close (web: document pointerdown)
  */
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, Pressable, StyleSheet, Modal, Animated } from 'react-native';
+import ReanimatedAnimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { BottleIcon, NursingIcon, SleepIcon, DiaperIcon } from '../icons';
 import { PlusIcon } from '../icons';
 
-const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
+const TOOLTIP_KEY = 'tt_onboarding_tooltip_shown';
+
+const AnimatedPressable = ReanimatedAnimated.createAnimatedComponent(Pressable);
 
 // Web SplitButton: Feed left (-74, -112), Diaper top (0, -164), Sleep right (74, -112)
 const SPLIT_POSITIONS = {
@@ -42,7 +45,7 @@ function SplitButton({ icon: Icon, label, positionKey, onPress, accentColor, sha
     opacity.value = withTiming(0, { duration: 180 });
   }, [active, pos.x, pos.y, opacity, scale, translateX, translateY]);
 
-  const animatedStyle = useAnimatedStyle(() => ({
+  const animatedStyle = useAnimatedStyle(() => ({ // reanimated
     transform: [
       { translateX: translateX.value },
       { translateY: translateY.value },
@@ -70,11 +73,60 @@ export default function FloatingTrackerMenu({
   visibleTypes = { feeding: true, sleep: true, diaper: true },
   lastFeedVariant = 'bottle',
   bottomOffset = 36,
+  forceTooltipPreview = false,
 }) {
   const insets = useSafeAreaInsets();
   const { colors, shadows, bottle, nursing, sleep, diaper } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [isSplitClosing, setIsSplitClosing] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
+
+  const pulseScale = useRef(new Animated.Value(1)).current;
+  const pulseOpacity = useRef(new Animated.Value(0.7)).current;
+  const pulseLoop = useRef(null);
+
+  // Check AsyncStorage on mount; dev override skips the check
+  useEffect(() => {
+    if (forceTooltipPreview) {
+      setShowTooltip(true);
+      return;
+    }
+    AsyncStorage.getItem(TOOLTIP_KEY).then((val) => {
+      if (!val) setShowTooltip(true);
+    }).catch(() => {});
+  }, [forceTooltipPreview]);
+
+  // Start/stop pulse loop when tooltip visibility changes
+  useEffect(() => {
+    if (!showTooltip) {
+      pulseLoop.current?.stop();
+      pulseScale.setValue(1);
+      pulseOpacity.setValue(0.7);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.parallel([
+        Animated.sequence([
+          Animated.timing(pulseScale, { toValue: 1.7, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseScale, { toValue: 1, duration: 0, useNativeDriver: true }),
+        ]),
+        Animated.sequence([
+          Animated.timing(pulseOpacity, { toValue: 0, duration: 900, useNativeDriver: true }),
+          Animated.timing(pulseOpacity, { toValue: 0.7, duration: 0, useNativeDriver: true }),
+        ]),
+      ])
+    );
+    pulseLoop.current = loop;
+    loop.start();
+    return () => loop.stop();
+  }, [showTooltip, pulseScale, pulseOpacity]);
+
+  const dismissTooltip = useCallback(() => {
+    if (!forceTooltipPreview) {
+      AsyncStorage.setItem(TOOLTIP_KEY, '1').catch(() => {});
+    }
+    setShowTooltip(false);
+  }, [forceTooltipPreview]);
 
   const positionBottom = insets.bottom + bottomOffset;
   const isSplitLayerVisible = isOpen || isSplitClosing;
@@ -97,12 +149,13 @@ export default function FloatingTrackerMenu({
   }, []);
 
   const handleToggle = useCallback(() => {
+    if (showTooltip) dismissTooltip();
     if (isOpen) {
       closeMenu();
       return;
     }
     setIsOpen(true);
-  }, [isOpen, closeMenu]);
+  }, [isOpen, closeMenu, showTooltip, dismissTooltip]);
   const handleClose = useCallback(() => closeMenu(), [closeMenu]);
   const handleSelect = useCallback((type) => {
     onSelect?.(type);
@@ -176,8 +229,30 @@ export default function FloatingTrackerMenu({
           style={[styles.container, { bottom: positionBottom }]}
           pointerEvents="box-none"
         >
+          {/* Onboarding tooltip card */}
+          {showTooltip && (
+            <Pressable style={[styles.tooltipCard, { backgroundColor: colors.cardBg }]} onPress={dismissTooltip}>
+              <Text style={[styles.tooltipText, { color: colors.textPrimary }]}>
+                🎉 Tap + to log your first feed, sleep, or diaper
+              </Text>
+            </Pressable>
+          )}
           <View style={styles.inner}>
             <View style={styles.plusWrapper}>
+              {/* Pulse ring */}
+              {showTooltip && (
+                <Animated.View
+                  style={[
+                    styles.pulseRing,
+                    {
+                      borderColor: colors.plusBg,
+                      transform: [{ scale: pulseScale }],
+                      opacity: pulseOpacity,
+                    },
+                  ]}
+                  pointerEvents="none"
+                />
+              )}
               <Pressable
                 style={({ pressed }) => [
                   styles.plusButton,
@@ -268,5 +343,37 @@ const styles = StyleSheet.create({
   splitLabel: {
     fontSize: 14,
     fontFamily: FWB.semibold,
+    includeFontPadding: false,
+  },
+  pulseRing: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 3,
+  },
+  tooltipCard: {
+    position: 'absolute',
+    bottom: 76,
+    left: '50%',
+    width: 220,
+    marginLeft: -110,
+    borderRadius: 18,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  tooltipText: {
+    fontSize: 14,
+    fontFamily: FWB.medium,
+    lineHeight: 20,
+    textAlign: 'center',
+    includeFontPadding: false,
   },
 });

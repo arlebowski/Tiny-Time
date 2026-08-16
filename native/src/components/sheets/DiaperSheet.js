@@ -10,7 +10,7 @@ import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { formatDateTime } from '../../utils/dateTime';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from './HalfSheet';
-import { TTInputRow, TTPhotoRow, DateTimePickerTray } from '../shared';
+import { TTInputRow, TTPhotoRow, DateTimePickerTray, PhotoModal } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
 
 const FUTURE_TOLERANCE_MS = 60 * 1000;
@@ -79,6 +79,7 @@ export default function DiaperSheet({
   onClose,
   entry = null,
   onSave = null,
+  onPersistSuccess = null,
   storage = null,
 }) {
   const { colors, diaper, sheetLayout } = useTheme();
@@ -91,6 +92,7 @@ export default function DiaperSheet({
   const [showDateTimeTray, setShowDateTimeTray] = useState(false);
   const [notesExpanded, setNotesExpanded] = useState(false);
   const [photosExpanded, setPhotosExpanded] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState(null);
 
   const [isWet, setIsWet] = useState(false);
   const [isDry, setIsDry] = useState(true);
@@ -133,6 +135,7 @@ export default function DiaperSheet({
   const handleClose = useCallback(() => {
     setNotesExpanded(false);
     setPhotosExpanded(false);
+    setSaving(false);
     if (onClose) onClose();
   }, [onClose]);
 
@@ -208,6 +211,7 @@ export default function DiaperSheet({
       return;
     }
     setSaving(true);
+    let saved = false;
     try {
       let uploadedURLs = [];
       for (let i = 0; i < photos.length; i++) {
@@ -240,12 +244,17 @@ export default function DiaperSheet({
         payload.id = created?.id || null;
       }
 
+      if (isNewEntry && typeof onPersistSuccess === 'function') {
+        onPersistSuccess({ type: 'diaper' });
+      }
+
       dismissSheet();
+      saved = true;
     } catch (error) {
       console.error('[DiaperSheet] Save failed:', error);
       Alert.alert('Error', 'Failed to save diaper change. Please try again.');
     } finally {
-      setSaving(false);
+      if (!saved) setSaving(false);
     }
   };
 
@@ -328,7 +337,7 @@ export default function DiaperSheet({
               newPhotos={photos}
               onAddPhoto={handleAddPhoto}
               onRemovePhoto={handleRemovePhoto}
-              onPreviewPhoto={() => {}}
+              onPreviewPhoto={(url) => setPreviewPhoto(typeof url === 'string' ? url : url?.uri || url)}
               addLabel="+ Add photos"
             />
           )}
@@ -361,6 +370,12 @@ export default function DiaperSheet({
         value={dateTime}
         onChange={handleDateTimeChange}
         title="Time"
+      />
+
+      <PhotoModal
+        visible={!!previewPhoto}
+        photo={previewPhoto}
+        onClose={() => setPreviewPhoto(null)}
       />
     </>
   );
@@ -426,6 +441,7 @@ const styles = StyleSheet.create({
   },
   cta: {
     paddingVertical: 14,
+    ...(Platform.OS === 'android' ? { minHeight: 56 } : null),
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',

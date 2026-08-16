@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { ChevronRightIcon } from '../icons';
@@ -90,7 +90,13 @@ const TrackerCard = ({
               <View style={[styles.headerIconWrap, shouldRotateBottleIcon && styles.bottleIconRotate]}>{icon}</View>
             )
           ) : null}
-          <Text style={[styles.headerLabel, { color: accentColor }]}>{title}</Text>
+          <Text
+            style={[styles.headerLabel, { color: accentColor }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {title}
+          </Text>
         </View>
         {statusText ? (
           <View style={styles.headerRight}>
@@ -129,7 +135,7 @@ const TrackerCard = ({
             {rightElement}
           </View>
         ) : comparisonElement ? (
-          <View style={styles.comparisonWrap}>
+          <View style={[styles.comparisonWrap, styles.comparisonWrapPill]}>
             {comparisonElement}
           </View>
         ) : null}
@@ -149,7 +155,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 3,
-    elevation: 2,
+    elevation: 1,
   },
   cardPressed: {
     opacity: 0.96,
@@ -170,6 +176,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,                           // gap-[5px]
+    flexShrink: 1,
+    minWidth: 0,
   },
   headerIcon: {
     fontSize: 22,                     // w-[22px] h-[22px] — emoji stand-in
@@ -186,6 +194,9 @@ const styles = StyleSheet.create({
   headerLabel: {
     fontSize: 18,                     // text-[18px]
     fontFamily: FWB.semibold,                // font-semibold
+    flexShrink: 1,
+    minWidth: 0,
+    includeFontPadding: false,
   },
 
   // Web: inline-flex items-center gap-2
@@ -198,9 +209,17 @@ const styles = StyleSheet.create({
   statusText: {
     fontSize: 15,                     // text-[15px]
     fontFamily: FWB.normal,                // font-normal
+    ...(Platform.OS === 'android' ? {
+      lineHeight: 16,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    } : null),
   },
   chevronWrap: {
     marginRight: CHEVRON_RIGHT_NUDGE,
+    ...(Platform.OS === 'android' ? {
+      transform: [{ translateY: -0.5 }],
+    } : null),
   },
   // Big-number row base: flex
   valueRow: {
@@ -236,6 +255,11 @@ const styles = StyleSheet.create({
   comparisonWrap: {
     // Chicklet visual baseline tuning knob.
     marginBottom: CHICKLET_BASELINE_OFFSET,
+  },
+  comparisonWrapPill: {
+    ...(Platform.OS === 'android' ? {
+      transform: [{ translateY: BIG_VALUE_TRANSLATE_Y }],
+    } : null),
   },
   comparisonGuideLine: {
     position: 'absolute',

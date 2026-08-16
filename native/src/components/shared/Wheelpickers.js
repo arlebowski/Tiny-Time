@@ -21,7 +21,7 @@ import Animated, {
   withTiming,
   runOnJS,
 } from 'react-native-reanimated';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import { Gesture, GestureDetector, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { FullWindowOverlay } from 'react-native-screens';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
@@ -58,6 +58,23 @@ function hexToTransparentRgba(hex) {
 }
 
 const ITEM_HEIGHT = 40;
+
+function parseLocalDate(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12, 0, 0, 0);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(s);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function toDateOnlyIso(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
 
 // Helper to generate date options (7 days back from today)
 const generateDateOptions = () => {
@@ -201,6 +218,8 @@ export function WheelPicker({
   step = 0.25,
   minYear = null,
   maxYear = null,
+  dayMonth = null,
+  dayYear = null,
   label = '',
   unit = 'oz',
   compact = false,
@@ -230,6 +249,12 @@ export function WheelPicker({
         value: i,
       }));
     }
+    if (type === 'durationMinute') {
+      return Array.from({ length: 1000 }, (_, i) => ({
+        display: i.toString(),
+        value: i,
+      }));
+    }
     if (type === 'ampm') {
       return [
         { display: 'AM', value: 'AM' },
@@ -244,7 +269,13 @@ export function WheelPicker({
       return monthNames.map((name, i) => ({ display: name, value: i + 1 }));
     }
     if (type === 'day') {
-      return Array.from({ length: 31 }, (_, i) => ({ display: (i + 1).toString(), value: i + 1 }));
+      const m = dayMonth != null ? dayMonth : new Date().getMonth() + 1;
+      const y = dayYear != null ? dayYear : new Date().getFullYear();
+      const daysInMonth = new Date(y, m, 0).getDate();
+      return Array.from({ length: daysInMonth }, (_, i) => ({
+        display: (i + 1).toString(),
+        value: i + 1,
+      }));
     }
     if (type === 'year') {
       const currentYear = new Date().getFullYear();
@@ -262,7 +293,7 @@ export function WheelPicker({
       options.push({ display: `${displayValue} ${unit}`, value: i });
     }
     return options;
-  }, [type, min, max, step, unit, minYear, maxYear]);
+  }, [type, min, max, step, unit, minYear, maxYear, dayMonth, dayYear]);
 
   const shouldLoop = type === 'hour' || type === 'minute' || type === 'month';
   const baseOptions = useMemo(() => generateOptions(), [generateOptions]);
@@ -492,35 +523,26 @@ export function DatePickerSection({
   maxYear = null,
 }) {
   const { colors } = useTheme();
-  const initialDate = (() => {
-    if (!value) return new Date();
-    try {
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return new Date();
-      return d;
-    } catch {
-      return new Date();
-    }
-  })();
+  const initialDate = parseLocalDate(value) || new Date();
 
   const [month, setMonth] = useState(initialDate.getMonth() + 1);
   const [day, setDay] = useState(initialDate.getDate());
   const [year, setYear] = useState(initialDate.getFullYear());
 
   useEffect(() => {
-    if (!value) return;
-    try {
-      const d = new Date(value);
-      if (Number.isNaN(d.getTime())) return;
-      setMonth(d.getMonth() + 1);
-      setDay(d.getDate());
-      setYear(d.getFullYear());
-    } catch {}
+    const d = parseLocalDate(value);
+    if (!d) return;
+    setMonth(d.getMonth() + 1);
+    setDay(d.getDate());
+    setYear(d.getFullYear());
   }, [value]);
 
   const emitChange = (nextMonth, nextDay, nextYear) => {
-    const nextDate = new Date(nextYear, nextMonth - 1, nextDay, 0, 0, 0, 0);
-    if (typeof onChange === 'function') onChange(nextDate.toISOString());
+    const maxDay = new Date(nextYear, nextMonth, 0).getDate();
+    const clampedDay = Math.min(nextDay, maxDay);
+    if (clampedDay !== day) setDay(clampedDay);
+    const nextDate = new Date(nextYear, nextMonth - 1, clampedDay, 12, 0, 0, 0);
+    if (typeof onChange === 'function') onChange(toDateOnlyIso(nextDate));
   };
 
   const { width } = Dimensions.get('window');
@@ -542,7 +564,10 @@ export function DatePickerSection({
             value={month}
             onChange={(val) => {
               setMonth(val);
-              emitChange(val, day, year);
+              const maxDay = new Date(year, val, 0).getDate();
+              const clampedDay = Math.min(day, maxDay);
+              if (clampedDay !== day) setDay(clampedDay);
+              emitChange(val, clampedDay, year);
             }}
             compact
             showSelection={false}
@@ -553,6 +578,8 @@ export function DatePickerSection({
         <WheelPicker
           type="day"
           value={day}
+          dayMonth={month}
+          dayYear={year}
           onChange={(val) => {
             setDay(val);
             emitChange(month, val, year);
@@ -567,7 +594,10 @@ export function DatePickerSection({
           value={year}
           onChange={(val) => {
             setYear(val);
-            emitChange(month, day, val);
+            const maxDay = new Date(val, month, 0).getDate();
+            const clampedDay = Math.min(day, maxDay);
+            if (clampedDay !== day) setDay(clampedDay);
+            emitChange(month, clampedDay, val);
           }}
           minYear={minYear}
           maxYear={maxYear}
@@ -814,7 +844,9 @@ export function TTPickerTray({
       {Platform.OS === 'ios' ? (
         <FullWindowOverlay>{trayContent}</FullWindowOverlay>
       ) : (
-        trayContent
+        <GestureHandlerRootView style={{ flex: 1 }}>
+          {trayContent}
+        </GestureHandlerRootView>
       )}
     </Modal>
   );
@@ -831,10 +863,7 @@ export function DatePickerTray({
   maxYear = null,
 }) {
   const { colors, sleep, bottle, isDark } = useTheme();
-  const nativePickerDate = useMemo(() => {
-    const parsed = value ? new Date(value) : new Date();
-    return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
-  }, [value]);
+  const nativePickerDate = useMemo(() => parseLocalDate(value) || new Date(), [value]);
 
   const minimumDate = minYear != null ? new Date(minYear, 0, 1) : undefined;
   const maximumDate = maxYear != null ? new Date(maxYear, 11, 31) : undefined;
@@ -871,9 +900,7 @@ export function DatePickerTray({
             onChange={(event, selectedDate) => {
               if (event?.type === 'dismissed') return;
               if (!selectedDate || Number.isNaN(selectedDate.getTime())) return;
-              const d = new Date(selectedDate);
-              d.setHours(0, 0, 0, 0);
-              if (typeof onChange === 'function') onChange(d.toISOString());
+              if (typeof onChange === 'function') onChange(toDateOnlyIso(selectedDate));
             }}
             style={styles.nativePicker}
             textColor={colors.textPrimary}
@@ -886,7 +913,7 @@ export function DatePickerTray({
   }
 
   return (
-    <TTPickerTray isOpen={isOpen} onClose={onClose} header={header}>
+    <TTPickerTray isOpen={isOpen} onClose={onClose} header={header} scrollEnabled={false}>
       <View style={{ marginTop: -16 }}>
         <DatePickerSection value={value} onChange={onChange} title={title} showHeader={false} minYear={minYear} maxYear={maxYear} />
       </View>
@@ -1156,6 +1183,90 @@ export function TimePickerTray({
   );
 }
 
+function parseDurationMs(ms) {
+  const totalSec = Math.max(0, Math.floor((Number(ms) || 0) / 1000));
+  return {
+    minutes: Math.min(999, Math.floor(totalSec / 60)),
+    seconds: totalSec % 60,
+  };
+}
+
+// DurationPickerTray — manual nursing duration entry (minutes + seconds)
+export function DurationPickerTray({
+  isOpen = false,
+  onClose = null,
+  onConfirm = null,
+  initialMs = 0,
+  title = 'Duration',
+  accentColor = null,
+}) {
+  const { colors, nursing } = useTheme();
+  const accent = accentColor || nursing?.primary || colors.textPrimary;
+  const [draftMinutes, setDraftMinutes] = useState(0);
+  const [draftSeconds, setDraftSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const parsed = parseDurationMs(initialMs);
+    setDraftMinutes(parsed.minutes);
+    setDraftSeconds(parsed.seconds);
+  }, [isOpen, initialMs]);
+
+  const header = (close) => (
+    <View style={styles.trayHeaderGrid}>
+      <Pressable
+        onPress={close}
+        hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+        style={({ pressed }) => pressed && { opacity: 0.6 }}
+      >
+        <Text style={[styles.headerBtn, { color: colors.textSecondary }]}>Cancel</Text>
+      </Pressable>
+      <Text style={[styles.headerTitle, { color: colors.textPrimary }]}>{title}</Text>
+      <Pressable
+        onPress={() => {
+          const ms = (draftMinutes * 60 + draftSeconds) * 1000;
+          if (typeof onConfirm === 'function') onConfirm(ms);
+          close();
+        }}
+        hitSlop={{ top: 12, bottom: 12, left: 16, right: 16 }}
+        style={({ pressed }) => pressed && { opacity: 0.6 }}
+      >
+        <Text style={[styles.headerDone, { color: accent }]}>Done</Text>
+      </Pressable>
+    </View>
+  );
+
+  return (
+    <TTPickerTray isOpen={isOpen} onClose={onClose} header={header} height="40%" scrollEnabled={false}>
+      <View style={[wheelStyles.section, { marginTop: -16, paddingBottom: 4 }]}>
+        <View style={styles.durationPickerRow}>
+          <View style={styles.durationPickerColumn}>
+            <Text style={[wheelStyles.label, { color: colors.textSecondary }]}>min</Text>
+            <WheelPicker
+              type="durationMinute"
+              value={draftMinutes}
+              onChange={setDraftMinutes}
+              compact
+              showSelection={false}
+            />
+          </View>
+          <Text style={[wheelStyles.timeColon, { color: colors.textPrimary, marginTop: 20 }]}>:</Text>
+          <View style={styles.durationPickerColumn}>
+            <Text style={[wheelStyles.label, { color: colors.textSecondary }]}>sec</Text>
+            <WheelPicker
+              type="minute"
+              value={draftSeconds}
+              onChange={setDraftSeconds}
+              compact
+              showSelection={false}
+            />
+          </View>
+        </View>
+      </View>
+    </TTPickerTray>
+  );
+}
+
 const styles = StyleSheet.create({
   modalRoot: {
     flex: 1,
@@ -1286,5 +1397,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: 0,
     paddingBottom: 0,
+  },
+  durationPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  durationPickerColumn: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
