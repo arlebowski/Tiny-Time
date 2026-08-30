@@ -32,7 +32,7 @@ import { capture, identifyUser, resetUser, groupFamily } from '../services/posth
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
 const FAMILY_SELECTION_KEY_PREFIX = 'tt_selected_family';
-const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v2';
+const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v3';
 const DELETED_FAMILIES_KEY_PREFIX = 'tt_deleted_family';
 const DELETED_FAMILY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -51,9 +51,9 @@ function getKidSelectionKey(uid, familyId) {
   return `${KID_SELECTION_KEY_PREFIX}:${uid}:${familyId}`;
 }
 
-function getTrackerBootstrapKey(familyId, kidId) {
-  if (!familyId || !kidId) return null;
-  return `${TRACKER_BOOTSTRAP_CACHE_PREFIX}:${familyId}:${kidId}`;
+function getTrackerBootstrapKey(uid, familyId, kidId) {
+  if (!uid || !familyId || !kidId) return null;
+  return `${TRACKER_BOOTSTRAP_CACHE_PREFIX}:${uid}:${familyId}:${kidId}`;
 }
 
 function extractInviteCodeFromUrl(url) {
@@ -91,8 +91,8 @@ export function AuthProvider({ children }) {
   const nullAuthDebounceRef = useRef(null);
   const setupInProgressRef = useRef(false);
 
-  const hydrateKidSnapshot = useCallback(async (nextFamilyId, nextKidId) => {
-    const key = getTrackerBootstrapKey(nextFamilyId, nextKidId);
+  const hydrateKidSnapshot = useCallback(async (nextFamilyId, nextKidId, userId) => {
+    const key = getTrackerBootstrapKey(userId, nextFamilyId, nextKidId);
     if (!key) {
       setSelectedKidSnapshot(null);
       return;
@@ -141,7 +141,7 @@ export function AuthProvider({ children }) {
         setFamilyIdState(result.familyId);
         setKidIdState(result.kidId);
         setNeedsSetup(false);
-        await hydrateKidSnapshot(result.familyId, result.kidId);
+        await hydrateKidSnapshot(result.familyId, result.kidId, userId);
         const key = getKidSelectionKey(userId, result.familyId);
         if (key) {
           AsyncStorage.setItem(key, result.kidId).catch(() => {});
@@ -165,7 +165,7 @@ export function AuthProvider({ children }) {
   const setKidId = useCallback((nextKidId) => {
     const resolvedKidId = typeof nextKidId === 'function' ? nextKidId(kidId) : nextKidId;
     setKidIdState(resolvedKidId);
-    hydrateKidSnapshot(familyId, resolvedKidId).catch(() => {});
+    hydrateKidSnapshot(familyId, resolvedKidId, user?.uid).catch(() => {});
     const key = getKidSelectionKey(user?.uid, familyId);
     if (key && resolvedKidId) {
       AsyncStorage.setItem(key, resolvedKidId).catch(() => {});
@@ -301,7 +301,7 @@ export function AuthProvider({ children }) {
             const cachedKidId = cachedKidKey ? await AsyncStorage.getItem(cachedKidKey) : null;
             const resolvedKidId = cachedKidId || family.kidId;
             setKidIdState(resolvedKidId);
-            await hydrateKidSnapshot(family.familyId, resolvedKidId);
+            await hydrateKidSnapshot(family.familyId, resolvedKidId, firebaseUser.uid);
             if (familySelectionKey) {
               AsyncStorage.setItem(familySelectionKey, family.familyId).catch(() => {});
             }
@@ -489,7 +489,7 @@ export function AuthProvider({ children }) {
     setKidIdState(result.kidId);
     groupFamily(result.familyId, { name: familyName, memberCount: 1 });
     setFamilies((prev) => [...prev, { familyId: result.familyId, kidId: result.kidId, name: familyName }]);
-    await hydrateKidSnapshot(result.familyId, result.kidId);
+    await hydrateKidSnapshot(result.familyId, result.kidId, user?.uid);
 
     const familyKey = getFamilySelectionKey(user.uid);
     const kidKey = getKidSelectionKey(user.uid, result.familyId);
@@ -519,7 +519,7 @@ export function AuthProvider({ children }) {
       name: joinedFamilyMeta?.name,
       memberCount: joinedFamilyMeta?.memberCount,
     });
-    await hydrateKidSnapshot(result.familyId, result.kidId);
+    await hydrateKidSnapshot(result.familyId, result.kidId, user?.uid);
     const familyKey = getFamilySelectionKey(user.uid);
     const kidKey = getKidSelectionKey(user.uid, result.familyId);
     if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
@@ -550,7 +550,7 @@ export function AuthProvider({ children }) {
       const next = nextFamilies[0];
       setFamilyIdState(next.familyId);
       setKidIdState(next.kidId);
-      await hydrateKidSnapshot(next.familyId, next.kidId).catch(() => {});
+      await hydrateKidSnapshot(next.familyId, next.kidId, user?.uid).catch(() => {});
     } else {
       setFamilyIdState(null);
       setKidIdState(null);
@@ -585,7 +585,7 @@ export function AuthProvider({ children }) {
       if (restored) {
         setFamilyIdState(restored.familyId);
         setKidIdState(restored.kidId);
-        await hydrateKidSnapshot(restored.familyId, restored.kidId).catch(() => {});
+        await hydrateKidSnapshot(restored.familyId, restored.kidId, user?.uid).catch(() => {});
         setNeedsSetup(false);
       }
     } catch (error) {
@@ -621,7 +621,7 @@ export function AuthProvider({ children }) {
     setFamilyIdState(nextFamilyId);
     setKidIdState(match.kidId);
     groupFamily(nextFamilyId, { name: match?.name, memberCount: match?.memberCount });
-    await hydrateKidSnapshot(nextFamilyId, match.kidId);
+    await hydrateKidSnapshot(nextFamilyId, match.kidId, user?.uid);
 
     const familyKey = getFamilySelectionKey(user?.uid);
     const kidKey = getKidSelectionKey(user?.uid, nextFamilyId);

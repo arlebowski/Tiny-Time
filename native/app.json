@@ -2,7 +2,7 @@
   "expo": {
     "name": "Tiny Tracker",
     "slug": "native",
-    "version": "1.0.5",
+    "version": "1.0.6",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tinytracker.mobile",
-      "buildNumber": "43",
+      "buildNumber": "53",
       "usesAppleSignIn": true,
       "googleServicesFile": "./GoogleService-Info.plist",
       "infoPlist": {
@@ -35,7 +35,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.tinytracker.mobile",
-      "versionCode": 43,
+      "versionCode": 53,
       "googleServicesFile": "./google-services.json"
     },
     "web": {

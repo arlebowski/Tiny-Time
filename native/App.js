@@ -403,7 +403,6 @@ function AppShell({
   const {
     kidData,
     familyMembers,
-    refresh,
     applyOptimisticEntry,
     kids,
     kidSettings,
@@ -411,7 +410,22 @@ function AppShell({
     firestoreService,
     activeSleep,
     updateKidSettings,
+    syncState,
   } = useData();
+  const [showSyncNotice, setShowSyncNotice] = useState(false);
+  useEffect(() => {
+    const shouldShow = (
+      syncState?.status === 'offline'
+      || syncState?.status === 'error'
+      || Boolean(syncState?.hasPendingWrites)
+    );
+    if (!shouldShow) {
+      setShowSyncNotice(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setShowSyncNotice(true), 10_000);
+    return () => clearTimeout(timer);
+  }, [syncState?.status, syncState?.hasPendingWrites]);
   const preferredVolumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
 
   // Keep avatar decoded in GPU memory so hidden-tab headers don't flash on first reveal
@@ -716,7 +730,6 @@ function AppShell({
       } else {
         return false;
       }
-      await refresh();
       timelineRefreshRef.current?.();
       return true;
     } catch (error) {
@@ -724,7 +737,7 @@ function AppShell({
       Alert.alert('Error', 'Failed to delete entry. Please try again.');
       return false;
     }
-  }, [firestoreService, refresh]);
+  }, [firestoreService]);
 
   const handleCloseFeed = useCallback(() => {
     setEditEntry(null);
@@ -1013,6 +1026,18 @@ function AppShell({
           {avatarPreloadUri ? (
             <View style={preloadStyles.hidden} pointerEvents="none">
               <Image source={{ uri: avatarPreloadUri }} style={preloadStyles.img} />
+            </View>
+          ) : null}
+          {showSyncNotice ? (
+            <View
+              accessibilityRole="alert"
+              style={[appStyles.syncNotice, { backgroundColor: colors.cardBg, borderColor: colors.cardBorder }]}
+            >
+              <Text style={[appStyles.syncNoticeText, { color: colors.textSecondary }]}>
+                {syncState?.hasPendingWrites
+                  ? 'Waiting to sync'
+                  : 'Offline — showing saved data'}
+              </Text>
             </View>
           ) : null}
           {/* Stack all tabs so headers (and avatar) stay mounted and preloaded — prevents flash on first tab switch */}
@@ -1693,6 +1718,23 @@ const appStyles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  syncNotice: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    bottom: 104,
+    zIndex: 100,
+    elevation: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+  },
+  syncNoticeText: {
+    fontSize: 13,
+    fontFamily: 'SF-Pro-Text-Medium',
   },
   tabStack: {
     flex: 1,

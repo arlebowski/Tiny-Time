@@ -271,6 +271,8 @@ export default function DetailSheet({
   const {
     getTimelineItems,
     getDaySummary,
+    subscribeDayActivities,
+    getDayLoadState,
     kidSettings,
     dataLoading,
     refresh,
@@ -293,6 +295,8 @@ export default function DetailSheet({
   useEffect(() => {
     loadData(selectedDate);
   }, [selectedDate, loadData]);
+
+  useEffect(() => subscribeDayActivities?.(selectedDate), [selectedDate, subscribeDayActivities]);
 
   // Wire refresh ref so input sheets can trigger reload
   useEffect(() => {
@@ -335,7 +339,7 @@ export default function DetailSheet({
     setRefreshing(true);
     const refreshStartedAt = Date.now();
     try {
-      await refresh?.();
+      await refresh?.(selectedDate);
     } finally {
       const elapsedMs = Date.now() - refreshStartedAt;
       const remainingMs = PTR_MIN_VISIBLE_MS - elapsedMs;
@@ -344,7 +348,16 @@ export default function DetailSheet({
       }
       setRefreshing(false);
     }
-  }, [refresh, refreshing]);
+  }, [refresh, refreshing, selectedDate]);
+
+  const selectedDayLoadState = getDayLoadState?.(selectedDate) || { status: 'idle' };
+  const suppressEmptyState = (
+    dataLoading
+    || selectedDayLoadState.status === 'loading'
+    || selectedDayLoadState.status === 'syncing'
+    || ((selectedDayLoadState.status === 'offline' || selectedDayLoadState.status === 'error')
+      && !selectedDayLoadState.lastSuccessfulSyncAt)
+  );
 
   // Computed display values
   const feedDisplay = formatVolume(summary.feedOz, preferredVolumeUnit);
@@ -670,7 +683,7 @@ export default function DetailSheet({
         refreshProgressOffset={Platform.OS === 'ios' ? PTR_IOS_OFFSET : 0}
         allowItemExpand
         hideFilter
-        suppressEmptyState={dataLoading}
+        suppressEmptyState={suppressEmptyState}
         ListHeaderComponent={listHeader}
       />
     </View>

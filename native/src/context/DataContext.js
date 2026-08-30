@@ -13,16 +13,24 @@ import {
   solidsDocToCard,
   diaperDocToCard,
 } from '../../../shared/firebase/transforms';
+const {
+  DAY_MS,
+  createEmptyActivityBundle,
+  getDayBounds,
+  isDateInRecentWindow,
+  toLocalDateKey,
+} = require('../services/activityDataUtils.cjs');
 
 const DataContext = createContext(null);
-const KID_HEADER_CACHE_PREFIX = 'tt_kid_header_v1';
-const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v2';
+const KID_HEADER_CACHE_PREFIX = 'tt_kid_header_v2';
+const TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v3';
+const LEGACY_KID_HEADER_CACHE_PREFIX = 'tt_kid_header_v1';
+const LEGACY_TRACKER_BOOTSTRAP_CACHE_PREFIX = 'tt_tracker_bootstrap_v2';
+const FOREGROUND_REFRESH_AGE_MS = 5 * 60 * 1000;
 const FREEZE_DEBUG = false;
 const debugLog = (...args) => {
   if (FREEZE_DEBUG) console.log('[FreezeDebug][DataContext]', ...args);
 };
-
-const DAY_MS = 24 * 60 * 60 * 1000;
 
 const formatTime12Hour = (timestamp) => {
   if (!timestamp) return '';
@@ -51,33 +59,14 @@ const overlapMs = (rangeStartMs, rangeEndMs, winStartMs, winEndMs) => {
   return Math.max(0, b - a);
 };
 
-function kidHeaderCacheKey(familyId, kidId) {
-  if (!familyId || !kidId) return null;
-  return `${KID_HEADER_CACHE_PREFIX}:${familyId}:${kidId}`;
+function kidHeaderCacheKey(userId, familyId, kidId) {
+  if (!userId || !familyId || !kidId) return null;
+  return `${KID_HEADER_CACHE_PREFIX}:${userId}:${familyId}:${kidId}`;
 }
 
-function trackerBootstrapCacheKey(familyId, kidId) {
-  if (!familyId || !kidId) return null;
-  return `${TRACKER_BOOTSTRAP_CACHE_PREFIX}:${familyId}:${kidId}`;
-}
-
-function toLocalDateKey(dateLike = Date.now()) {
-  const d = dateLike instanceof Date ? dateLike : new Date(dateLike);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function getDayBounds(date) {
-  const dayStart = new Date(date);
-  dayStart.setHours(0, 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(23, 59, 59, 999);
-  return {
-    startMs: dayStart.getTime(),
-    endMs: dayEnd.getTime(),
-  };
+function trackerBootstrapCacheKey(userId, familyId, kidId) {
+  if (!userId || !familyId || !kidId) return null;
+  return `${TRACKER_BOOTSTRAP_CACHE_PREFIX}:${userId}:${familyId}:${kidId}`;
 }
 
 function summarizeForDay({
@@ -103,7 +92,7 @@ function summarizeForDay({
   let lastDiaperTime = null;
 
   feedings.forEach((f) => {
-    if (f.timestamp >= startMs && f.timestamp <= endMs) {
+    if (f.timestamp >= startMs && f.timestamp < endMs) {
       feedOz += Number(f.ounces) || 0;
       if (!lastBottleTime || f.timestamp > lastBottleTime) lastBottleTime = f.timestamp;
     }
@@ -111,7 +100,7 @@ function summarizeForDay({
 
   nursingSessions.forEach((s) => {
     const ts = s.timestamp || s.startTime || 0;
-    if (ts >= startMs && ts <= endMs) {
+    if (ts >= startMs && ts < endMs) {
       const left = (Number(s.leftDurationSec) || 0) * 1000;
       const right = (Number(s.rightDurationSec) || 0) * 1000;
       nursingMs += left + right;
@@ -120,7 +109,7 @@ function summarizeForDay({
   });
 
   solidsSessions.forEach((s) => {
-    if (s.timestamp >= startMs && s.timestamp <= endMs) {
+    if (s.timestamp >= startMs && s.timestamp < endMs) {
       solidsCount += Array.isArray(s.foods) ? s.foods.length : 1;
       if (!lastSolidsTime || s.timestamp > lastSolidsTime) lastSolidsTime = s.timestamp;
     }
@@ -130,15 +119,15 @@ function summarizeForDay({
     const endCandidate = s.endTime || (s.isActive ? Date.now() : null);
     const norm = normalizeSleepInterval(s.startTime, endCandidate);
     if (!norm) return;
-    const overlap = overlapMs(norm.startMs, norm.endMs, startMs, endMs + 1);
+    const overlap = overlapMs(norm.startMs, norm.endMs, startMs, endMs);
     if (overlap > 0) sleepMs += overlap;
-    if (s.endTime && s.endTime >= startMs && s.endTime <= endMs) {
+    if (s.endTime && s.endTime >= startMs && s.endTime < endMs) {
       if (!lastSleepTime || s.endTime > lastSleepTime) lastSleepTime = s.endTime;
     }
   });
 
   diaperChanges.forEach((c) => {
-    if (c.timestamp >= startMs && c.timestamp <= endMs) {
+    if (c.timestamp >= startMs && c.timestamp < endMs) {
       diaperCount++;
       if (c.isWet) diaperWetCount++;
       if (c.isPoo) diaperPooCount++;
@@ -182,7 +171,8 @@ function buildTrackerBootstrapPayload({
 }
 
 export function DataProvider({ children }) {
-  const { familyId, kidId } = useAuth();
+  const { user, familyId, kidId } = useAuth();
+  const userId = user?.uid || null;
 
   const [feedings, setFeedings] = useState([]);
   const [nursingSessions, setNursingSessions] = useState([]);
@@ -197,16 +187,21 @@ export function DataProvider({ children }) {
   const [dataLoading, setDataLoading] = useState(true);
   const [trackerBootstrapReady, setTrackerBootstrapReady] = useState(false);
   const [trackerSnapshot, setTrackerSnapshot] = useState(null);
+  const [syncState, setSyncState] = useState({
+    status: 'idle',
+    lastSuccessfulSyncAt: 0,
+    hasPendingWrites: false,
+    errorCode: null,
+  });
+  const [historicalDays, setHistoricalDays] = useState({});
+  const recentSyncStateRef = useRef({ status: 'idle', lastSuccessfulSyncAt: 0, hasPendingWrites: false, errorCode: null });
 
   const unsubActiveSleepRef = useRef(null);
-  const unsubFeedingsRef = useRef(null);
-  const unsubNursingRef = useRef(null);
-  const unsubSolidsRef = useRef(null);
-  const unsubSleepRef = useRef(null);
-  const unsubDiapersRef = useRef(null);
+  const unsubRecentActivitiesRef = useRef(null);
   const unsubFamilyMembersRef = useRef(null);
   const bootstrapWriteTimerRef = useRef(null);
   const didHydrateBootstrapRef = useRef(false);
+  const legacyCleanupRef = useRef({ scope: null, header: false, bootstrap: false });
   const usingMockData = !firestoreService?.isAvailable;
 
   useEffect(() => {
@@ -237,17 +232,30 @@ export function DataProvider({ children }) {
     setDataLoading(false);
   }, [usingMockData]);
 
-  // Initialize service and load data when family/kid changes
+  // Hydrate saved data first, then attach one bounded set of recent listeners.
   useEffect(() => {
     didHydrateBootstrapRef.current = false;
     setTrackerBootstrapReady(false);
     setTrackerSnapshot(null);
+    setHistoricalDays({});
+    setFeedings([]);
+    setNursingSessions([]);
+    setSolidsSessions([]);
+    setSleepSessions([]);
+    setDiaperChanges([]);
+    setActiveSleep(null);
+    setKidData(null);
+    setKids([]);
+    setKidSettings({});
+    setFamilyMembers([]);
+    recentSyncStateRef.current = { status: 'idle', lastSuccessfulSyncAt: 0, hasPendingWrites: false, errorCode: null };
+    setSyncState(recentSyncStateRef.current);
     if (usingMockData) {
       setDataLoading(false);
       setTrackerBootstrapReady(true);
       return;
     }
-    if (!familyId || !kidId) {
+    if (!userId || !familyId || !kidId) {
       setKids([]);
       setDataLoading(false);
       setTrackerBootstrapReady(true);
@@ -255,361 +263,137 @@ export function DataProvider({ children }) {
     }
 
     let cancelled = false;
+    const cacheKey = kidHeaderCacheKey(userId, familyId, kidId);
+    const bootstrapKey = trackerBootstrapCacheKey(userId, familyId, kidId);
+    const scope = `${userId}:${familyId}:${kidId}`;
+    const legacyHeaderKey = `${LEGACY_KID_HEADER_CACHE_PREFIX}:${familyId}:${kidId}`;
+    const legacyBootstrapKey = `${LEGACY_TRACKER_BOOTSTRAP_CACHE_PREFIX}:${familyId}:${kidId}`;
+    legacyCleanupRef.current = { scope, header: false, bootstrap: false };
 
-    const cacheKey = kidHeaderCacheKey(familyId, kidId);
-    const bootstrapKey = trackerBootstrapCacheKey(familyId, kidId);
+    const removeLegacyCache = async (kind, key) => {
+      const state = legacyCleanupRef.current;
+      if (state.scope !== scope || state[kind]) return;
+      await AsyncStorage.removeItem(key);
+      if (legacyCleanupRef.current.scope === scope) legacyCleanupRef.current[kind] = true;
+    };
+
+    const applyBundle = (bundle) => {
+      if (cancelled || !bundle) return;
+      setFeedings(bundle.feedings || []);
+      setNursingSessions(bundle.nursingSessions || []);
+      setSolidsSessions(bundle.solidsSessions || []);
+      setSleepSessions(bundle.sleepSessions || []);
+      setDiaperChanges(bundle.diaperChanges || []);
+    };
 
     const init = async () => {
-      const initStart = Date.now();
       setDataLoading(true);
-      debugLog('init:start', { familyId, kidId });
-      firestoreService.initialize(familyId, kidId);
-      const bootstrapHydrated = {
-        feedings: false,
-        nursingSessions: false,
-        solidsSessions: false,
-        sleepSessions: false,
-        diaperChanges: false,
-        activeSleep: false,
-        trackerSnapshot: false,
-      };
+      firestoreService.initialize(userId, familyId, kidId);
 
       try {
-        if (bootstrapKey) {
-          const bootstrapReadStart = Date.now();
-          const cachedBootstrap = await AsyncStorage.getItem(bootstrapKey);
-          debugLog('bootstrap:read', {
-            ms: Date.now() - bootstrapReadStart,
-            bytes: cachedBootstrap ? cachedBootstrap.length : 0,
-            hasData: !!cachedBootstrap,
-          });
-          if (!cancelled && cachedBootstrap) {
-            try {
-              const parseStart = Date.now();
-              const parsed = JSON.parse(cachedBootstrap);
-              debugLog('bootstrap:parse', { ms: Date.now() - parseStart });
-              if (Array.isArray(parsed?.feedings)) {
-                setFeedings(parsed.feedings);
-                bootstrapHydrated.feedings = true;
-              }
-              if (Array.isArray(parsed?.nursingSessions)) {
-                setNursingSessions(parsed.nursingSessions);
-                bootstrapHydrated.nursingSessions = true;
-              }
-              if (Array.isArray(parsed?.solidsSessions)) {
-                setSolidsSessions(parsed.solidsSessions);
-                bootstrapHydrated.solidsSessions = true;
-              }
-              if (Array.isArray(parsed?.sleepSessions)) {
-                setSleepSessions(parsed.sleepSessions);
-                bootstrapHydrated.sleepSessions = true;
-              }
-              if (Array.isArray(parsed?.diaperChanges)) {
-                setDiaperChanges(parsed.diaperChanges);
-                bootstrapHydrated.diaperChanges = true;
-              }
-              if (parsed?.kidSettings && typeof parsed.kidSettings === 'object') setKidSettings(parsed.kidSettings);
-              if (parsed?.kidData) setKidData(parsed.kidData);
-              if (Array.isArray(parsed?.kids)) setKids(parsed.kids);
-              if (Array.isArray(parsed?.familyMembers)) setFamilyMembers(parsed.familyMembers);
-              if (parsed?.activeSleep) {
-                setActiveSleep(parsed.activeSleep);
-                bootstrapHydrated.activeSleep = true;
-              } else if (Array.isArray(parsed?.sleepSessions)) {
-                const cachedActive = parsed.sleepSessions
-                  .filter((s) => s?.isActive && s?.startTime)
-                  .sort((a, b) => (b.startTime || 0) - (a.startTime || 0))[0];
-                if (cachedActive) {
-                  setActiveSleep(cachedActive);
-                  bootstrapHydrated.activeSleep = true;
-                }
-              }
-              if (parsed?.trackerSnapshot) {
-                setTrackerSnapshot(parsed.trackerSnapshot);
-                bootstrapHydrated.trackerSnapshot = true;
-              } else {
-                setTrackerSnapshot({
-                  dateKey: toLocalDateKey(),
-                  summary: summarizeForDay({
-                    feedings: parsed?.feedings || [],
-                    nursingSessions: parsed?.nursingSessions || [],
-                    solidsSessions: parsed?.solidsSessions || [],
-                    sleepSessions: parsed?.sleepSessions || [],
-                    diaperChanges: parsed?.diaperChanges || [],
-                  }),
-                  activeSleep: parsed?.activeSleep || null,
-                  savedAt: parsed?.savedAt || Date.now(),
-                });
-                bootstrapHydrated.trackerSnapshot = true;
-              }
-            } catch {}
-          }
-        }
-
-        await firestoreService._loadCache();
-        debugLog('cache:load:done');
-        if (!cancelled) {
-          debugLog('cache:apply:start');
-          const cachedFeeds = Array.isArray(firestoreService?._cache?.feedings)
-            ? [...firestoreService._cache.feedings].reverse()
-            : null;
-          const cachedNursing = Array.isArray(firestoreService?._cache?.nursingSessions)
-            ? [...firestoreService._cache.nursingSessions].reverse()
-            : null;
-          const cachedSolids = Array.isArray(firestoreService?._cache?.solidsSessions)
-            ? [...firestoreService._cache.solidsSessions].reverse()
-            : null;
-          const cachedSleep = Array.isArray(firestoreService?._cache?.sleepSessions)
-            ? [...firestoreService._cache.sleepSessions].reverse()
-            : null;
-          const cachedDiapers = Array.isArray(firestoreService?._cache?.diaperChanges)
-            ? [...firestoreService._cache.diaperChanges].reverse()
-            : null;
-          debugLog('cache:apply:sizes', {
-            feedings: cachedFeeds?.length || 0,
-            nursing: cachedNursing?.length || 0,
-            solids: cachedSolids?.length || 0,
-            sleep: cachedSleep?.length || 0,
-            diapers: cachedDiapers?.length || 0,
-          });
-          if (Array.isArray(cachedFeeds) && (cachedFeeds.length > 0 || !bootstrapHydrated.feedings)) {
-            setFeedings(cachedFeeds);
-          }
-          if (Array.isArray(cachedNursing) && (cachedNursing.length > 0 || !bootstrapHydrated.nursingSessions)) {
-            setNursingSessions(cachedNursing);
-          }
-          if (Array.isArray(cachedSolids) && (cachedSolids.length > 0 || !bootstrapHydrated.solidsSessions)) {
-            setSolidsSessions(cachedSolids);
-          }
-          if (Array.isArray(cachedSleep) && (cachedSleep.length > 0 || !bootstrapHydrated.sleepSessions)) {
-            setSleepSessions(cachedSleep);
-            const cachedActive = cachedSleep.find((s) => s?.isActive && s?.startTime) || null;
-            if (cachedActive || !bootstrapHydrated.activeSleep) setActiveSleep(cachedActive);
-          }
-          if (Array.isArray(cachedDiapers) && (cachedDiapers.length > 0 || !bootstrapHydrated.diaperChanges)) {
-            setDiaperChanges(cachedDiapers);
-          }
-          if (
-            !bootstrapHydrated.trackerSnapshot
-            && (
-              (Array.isArray(cachedFeeds) && cachedFeeds.length > 0)
-              || (Array.isArray(cachedNursing) && cachedNursing.length > 0)
-              || (Array.isArray(cachedSolids) && cachedSolids.length > 0)
-              || (Array.isArray(cachedSleep) && cachedSleep.length > 0)
-              || (Array.isArray(cachedDiapers) && cachedDiapers.length > 0)
-            )
-          ) {
-            setTrackerSnapshot({
-              dateKey: toLocalDateKey(),
-              summary: summarizeForDay({
-                feedings: cachedFeeds || [],
-                nursingSessions: cachedNursing || [],
-                solidsSessions: cachedSolids || [],
-                sleepSessions: cachedSleep || [],
-                diaperChanges: cachedDiapers || [],
-              }),
-              activeSleep: (cachedSleep || []).find((s) => s?.isActive && s?.startTime) || null,
-              savedAt: Date.now(),
-            });
-          }
-          debugLog('cache:apply:done');
-        }
-
-        if (cacheKey) {
-          const headerReadStart = Date.now();
-          const cachedHeader = await AsyncStorage.getItem(cacheKey);
-          debugLog('header:read', {
-            ms: Date.now() - headerReadStart,
-            bytes: cachedHeader ? cachedHeader.length : 0,
-            hasData: !!cachedHeader,
-          });
-          if (!cancelled && cachedHeader) {
-            try {
-              const parsed = JSON.parse(cachedHeader);
-              if (parsed?.kidData) setKidData(parsed.kidData);
-              if (Array.isArray(parsed?.kids)) setKids(parsed.kids);
-            } catch {}
-          }
-        }
-
-        if (!cancelled) setTrackerBootstrapReady(true);
-        didHydrateBootstrapRef.current = true;
-
-        debugLog('refresh:force:start');
-        await firestoreService._refreshCache({ force: true });
-        debugLog('cache:refresh:done');
-
+        const [cachedBootstrapRaw, cachedHeaderRaw, cachedBundle] = await Promise.all([
+          AsyncStorage.getItem(bootstrapKey),
+          AsyncStorage.getItem(cacheKey),
+          firestoreService.loadRecentCache(),
+        ]);
         if (cancelled) return;
 
-        const [feeds, nursing, solids, sleep, diapers, kd, familyKids, ks, members] = await Promise.all([
-          firestoreService.getFeedings(),
-          firestoreService.getNursingSessions(),
-          firestoreService.getSolidsSessions(),
-          firestoreService.getSleepSessions(),
-          firestoreService.getDiaperChanges(),
+        if (cachedBootstrapRaw) {
+          try {
+            const parsed = JSON.parse(cachedBootstrapRaw);
+            if (parsed?.kidSettings && typeof parsed.kidSettings === 'object') setKidSettings(parsed.kidSettings);
+            if (parsed?.kidData) setKidData(parsed.kidData);
+            if (Array.isArray(parsed?.kids)) setKids(parsed.kids);
+            if (Array.isArray(parsed?.familyMembers)) setFamilyMembers(parsed.familyMembers);
+            if (parsed?.activeSleep) setActiveSleep(parsed.activeSleep);
+            if (parsed?.trackerSnapshot) setTrackerSnapshot(parsed.trackerSnapshot);
+          } catch {}
+        }
+        if (cachedHeaderRaw) {
+          try {
+            const parsed = JSON.parse(cachedHeaderRaw);
+            if (parsed?.kidData) setKidData(parsed.kidData);
+            if (Array.isArray(parsed?.kids)) setKids(parsed.kids);
+          } catch {}
+        }
+        await Promise.all([
+          cachedBootstrapRaw ? removeLegacyCache('bootstrap', legacyBootstrapKey) : null,
+          cachedHeaderRaw ? removeLegacyCache('header', legacyHeaderKey) : null,
+        ]);
+        applyBundle(cachedBundle);
+        if (firestoreService.hasHydratedRecentCache || cachedBootstrapRaw) setDataLoading(false);
+        setTrackerBootstrapReady(true);
+        didHydrateBootstrapRef.current = true;
+
+        unsubRecentActivitiesRef.current?.();
+        unsubRecentActivitiesRef.current = firestoreService.subscribeRecentActivities(
+          (bundle) => applyBundle(bundle),
+          (nextStatus) => {
+            if (cancelled) return;
+            recentSyncStateRef.current = {
+              ...recentSyncStateRef.current,
+              ...nextStatus,
+              errorCode: nextStatus.errorCode || null,
+            };
+            setSyncState(recentSyncStateRef.current);
+            if (nextStatus.status === 'synced') setDataLoading(false);
+          }
+        );
+
+        unsubActiveSleepRef.current?.();
+        unsubActiveSleepRef.current = firestoreService.subscribeActiveSleep((session) => {
+          if (!cancelled) setActiveSleep(session);
+        });
+        unsubFamilyMembersRef.current?.();
+        unsubFamilyMembersRef.current = firestoreService.subscribeFamilyMembers((items) => {
+          if (!cancelled && Array.isArray(items)) setFamilyMembers(items);
+        });
+
+        const [kd, familyKids, ks] = await Promise.all([
           firestoreService.getKidData(),
           firestoreService.getKids(),
           firestoreService.getKidSettings(),
-          firestoreService.getFamilyMembers(),
         ]);
-
         if (cancelled) return;
-
-        setFeedings(feeds);
-        setNursingSessions(nursing);
-        setSolidsSessions(solids);
-        setSleepSessions(sleep);
-        setDiaperChanges(diapers);
+        const nextKids = Array.isArray(familyKids) && familyKids.length
+          ? familyKids
+          : (kd ? [{ id: kd.id, name: kd.name, photoURL: kd.photoURL || null }] : []);
         setKidData(kd);
-        const nextKids =
-          Array.isArray(familyKids) && familyKids.length
-            ? familyKids
-            : (kd ? [{ id: kd.id, name: kd.name, photoURL: kd.photoURL || null }] : []);
         setKids(nextKids);
         setKidSettings(ks);
-        setFamilyMembers(members);
-        const freshTrackerSnapshot = {
-          dateKey: toLocalDateKey(),
-          summary: summarizeForDay({
-            feedings: feeds,
-            nursingSessions: nursing,
-            solidsSessions: solids,
-            sleepSessions: sleep,
-            diaperChanges: diapers,
-          }),
-          activeSleep: sleep.find((s) => s?.isActive && s?.startTime) || null,
-          savedAt: Date.now(),
-        };
-        setTrackerSnapshot(freshTrackerSnapshot);
-
-        if (cacheKey) {
-          AsyncStorage.setItem(
-            cacheKey,
-            JSON.stringify({
-              kidData: kd || null,
-              kids: nextKids,
-            })
-          ).catch(() => {});
+        await AsyncStorage.setItem(cacheKey, JSON.stringify({ kidData: kd || null, kids: nextKids }));
+        await removeLegacyCache('header', legacyHeaderKey);
+      } catch (error) {
+        console.warn('Data init failed:', error);
+        if (!cancelled) {
+          setTrackerBootstrapReady(true);
+          setSyncState((prev) => ({ ...prev, status: 'error', errorCode: error?.code || 'init-failed' }));
         }
-
-        if (bootstrapKey) {
-          const serializeStart = Date.now();
-          const serialized = JSON.stringify(
-            buildTrackerBootstrapPayload({
-              activeSleep: sleep.find((s) => s?.isActive && s?.startTime) || null,
-              kidData: kd,
-              kids: nextKids,
-              kidSettings: ks,
-              familyMembers: members,
-              trackerSnapshot: freshTrackerSnapshot,
-            })
-          );
-          AsyncStorage.setItem(
-            bootstrapKey,
-            serialized
-          ).catch(() => {});
-          debugLog('bootstrap:initialWrite', {
-            ms: Date.now() - serializeStart,
-            bytes: serialized.length,
-          });
-        }
-      } catch (e) {
-        console.warn('Data init failed:', e);
-        if (!cancelled) setTrackerBootstrapReady(true);
       }
-
-      // Subscribe to active sleep
-      if (unsubActiveSleepRef.current) {
-        unsubActiveSleepRef.current();
-      }
-      unsubActiveSleepRef.current = firestoreService.subscribeActiveSleep((session) => {
-        if (!cancelled) setActiveSleep(session);
-      });
-
-      // Subscribe to live collection updates so UI reflects writes immediately.
-      if (unsubFeedingsRef.current) unsubFeedingsRef.current();
-      if (unsubNursingRef.current) unsubNursingRef.current();
-      if (unsubSolidsRef.current) unsubSolidsRef.current();
-      if (unsubSleepRef.current) unsubSleepRef.current();
-      if (unsubDiapersRef.current) unsubDiapersRef.current();
-      if (unsubFamilyMembersRef.current) unsubFamilyMembersRef.current();
-
-      unsubFeedingsRef.current = firestoreService.subscribeFeedings((items) => {
-        if (cancelled || !Array.isArray(items)) return;
-        setFeedings(items);
-      });
-      unsubNursingRef.current = firestoreService.subscribeNursingSessions((items) => {
-        if (cancelled || !Array.isArray(items)) return;
-        setNursingSessions(items);
-      });
-      unsubSolidsRef.current = firestoreService.subscribeSolidsSessions((items) => {
-        if (cancelled || !Array.isArray(items)) return;
-        setSolidsSessions(items);
-      });
-      unsubSleepRef.current = firestoreService.subscribeSleepSessions((items) => {
-        if (cancelled || !Array.isArray(items)) return;
-        setSleepSessions(items);
-        const active = items.find((s) => s?.isActive && s?.startTime) || null;
-        setActiveSleep(active);
-      });
-      unsubDiapersRef.current = firestoreService.subscribeDiaperChanges((items) => {
-        if (cancelled || !Array.isArray(items)) return;
-        setDiaperChanges(items);
-      });
-      unsubFamilyMembersRef.current = firestoreService.subscribeFamilyMembers((items) => {
-        if (cancelled || !Array.isArray(items)) return;
-        setFamilyMembers(items);
-      });
-
-      if (!cancelled) setDataLoading(false);
-      debugLog('init:done', { ms: Date.now() - initStart });
     };
 
     init();
-
     return () => {
       cancelled = true;
-      if (unsubActiveSleepRef.current) {
-        unsubActiveSleepRef.current();
-        unsubActiveSleepRef.current = null;
-      }
-      if (unsubFeedingsRef.current) {
-        unsubFeedingsRef.current();
-        unsubFeedingsRef.current = null;
-      }
-      if (unsubNursingRef.current) {
-        unsubNursingRef.current();
-        unsubNursingRef.current = null;
-      }
-      if (unsubSolidsRef.current) {
-        unsubSolidsRef.current();
-        unsubSolidsRef.current = null;
-      }
-      if (unsubSleepRef.current) {
-        unsubSleepRef.current();
-        unsubSleepRef.current = null;
-      }
-      if (unsubDiapersRef.current) {
-        unsubDiapersRef.current();
-        unsubDiapersRef.current = null;
-      }
-      if (unsubFamilyMembersRef.current) {
-        unsubFamilyMembersRef.current();
-        unsubFamilyMembersRef.current = null;
-      }
-      if (bootstrapWriteTimerRef.current) {
-        clearTimeout(bootstrapWriteTimerRef.current);
-        bootstrapWriteTimerRef.current = null;
-      }
+      unsubActiveSleepRef.current?.();
+      unsubActiveSleepRef.current = null;
+      unsubRecentActivitiesRef.current?.();
+      unsubRecentActivitiesRef.current = null;
+      unsubFamilyMembersRef.current?.();
+      unsubFamilyMembersRef.current = null;
+      if (bootstrapWriteTimerRef.current) clearTimeout(bootstrapWriteTimerRef.current);
+      bootstrapWriteTimerRef.current = null;
     };
-  }, [familyId, kidId, usingMockData]);
+  }, [userId, familyId, kidId, usingMockData]);
 
   useEffect(() => {
     if (usingMockData) return;
     if (!familyId || !kidId) return;
     if (!didHydrateBootstrapRef.current) return;
-    const bootstrapKey = trackerBootstrapCacheKey(familyId, kidId);
+    const bootstrapKey = trackerBootstrapCacheKey(userId, familyId, kidId);
     if (!bootstrapKey) return;
+    const scope = `${userId}:${familyId}:${kidId}`;
+    const legacyBootstrapKey = `${LEGACY_TRACKER_BOOTSTRAP_CACHE_PREFIX}:${familyId}:${kidId}`;
     const nextTrackerSnapshot = {
       dateKey: toLocalDateKey(),
       summary: summarizeForDay({
@@ -638,7 +422,14 @@ export function DataProvider({ children }) {
     bootstrapWriteTimerRef.current = setTimeout(() => {
       const serializeStart = Date.now();
       const serialized = JSON.stringify(payload);
-      AsyncStorage.setItem(bootstrapKey, serialized).catch(() => {});
+      AsyncStorage.setItem(bootstrapKey, serialized)
+        .then(async () => {
+          const state = legacyCleanupRef.current;
+          if (state.scope !== scope || state.bootstrap) return;
+          await AsyncStorage.removeItem(legacyBootstrapKey);
+          if (legacyCleanupRef.current.scope === scope) legacyCleanupRef.current.bootstrap = true;
+        })
+        .catch(() => {});
       debugLog('bootstrap:debouncedWrite', {
         ms: Date.now() - serializeStart,
         bytes: serialized.length,
@@ -654,6 +445,7 @@ export function DataProvider({ children }) {
   }, [
     familyId,
     kidId,
+    userId,
     usingMockData,
     feedings,
     nursingSessions,
@@ -667,36 +459,82 @@ export function DataProvider({ children }) {
     familyMembers,
   ]);
 
-  /** Refresh all data from Firestore */
-  const refresh = useCallback(async () => {
+  /** Refresh only the bounded window needed by the visible screen. */
+  const refresh = useCallback(async (dateLike = null) => {
     if (usingMockData) return;
-    if (!familyId || !kidId) return;
+    if (!userId || !familyId || !kidId) return;
+    if (dateLike && !isDateInRecentWindow(dateLike)) {
+      const dateKey = toLocalDateKey(dateLike);
+      setHistoricalDays((prev) => ({
+        ...prev,
+        [dateKey]: { ...(prev[dateKey] || {}), status: 'syncing', errorCode: null },
+      }));
+      try {
+        const bundle = await firestoreService.refreshDayActivities(dateLike, { source: 'server' });
+        setHistoricalDays((prev) => ({
+          ...prev,
+          [dateKey]: { data: bundle, status: 'synced', lastSuccessfulSyncAt: Date.now() },
+        }));
+      } catch (error) {
+        const status = String(error?.code || '').endsWith('unavailable') ? 'offline' : 'error';
+        console.warn('Historical data refresh failed:', error);
+        setHistoricalDays((prev) => ({
+          ...prev,
+          [dateKey]: { ...(prev[dateKey] || {}), status, errorCode: error?.code || 'refresh-failed' },
+        }));
+      }
+      return;
+    }
+
+    setSyncState((prev) => ({ ...prev, status: 'syncing', errorCode: null }));
     try {
-      await firestoreService._refreshCache({ force: true });
-      const [feeds, nursing, solids, sleep, diapers, kd, familyKids] = await Promise.all([
-        firestoreService.getFeedings(),
-        firestoreService.getNursingSessions(),
-        firestoreService.getSolidsSessions(),
-        firestoreService.getSleepSessions(),
-        firestoreService.getDiaperChanges(),
+      const bundle = await firestoreService.refreshRecentActivities({ force: true, source: 'server' });
+      setFeedings(bundle.feedings);
+      setNursingSessions(bundle.nursingSessions);
+      setSolidsSessions(bundle.solidsSessions);
+      setSleepSessions(bundle.sleepSessions);
+      setDiaperChanges(bundle.diaperChanges);
+      recentSyncStateRef.current = {
+        ...recentSyncStateRef.current,
+        status: 'synced',
+        lastSuccessfulSyncAt: Date.now(),
+        errorCode: null,
+      };
+      setSyncState(recentSyncStateRef.current);
+    } catch (e) {
+      console.warn('Data refresh failed:', e);
+      recentSyncStateRef.current = {
+        ...recentSyncStateRef.current,
+        status: String(e?.code || '').endsWith('unavailable') ? 'offline' : 'error',
+        errorCode: e?.code || 'refresh-failed',
+      };
+      setSyncState(recentSyncStateRef.current);
+    }
+  }, [userId, familyId, kidId, usingMockData]);
+
+  /** Re-read the child/family profile docs after a metadata edit. */
+  const refreshKidProfile = useCallback(async () => {
+    if (usingMockData) return;
+    if (!userId || !familyId || !kidId) return;
+    try {
+      const [kd, familyKids] = await Promise.all([
         firestoreService.getKidData(),
         firestoreService.getKids(),
       ]);
-      setFeedings(feeds);
-      setNursingSessions(nursing);
-      setSolidsSessions(solids);
-      setSleepSessions(sleep);
-      setDiaperChanges(diapers);
+      if (!kd || kd.isDeleted) return;
+      const nextKids = Array.isArray(familyKids) && familyKids.length
+        ? familyKids
+        : [{ id: kd.id, name: kd.name, photoURL: kd.photoURL || null }];
       setKidData(kd);
-      setKids(
-        Array.isArray(familyKids) && familyKids.length
-          ? familyKids
-          : (kd ? [{ id: kd.id, name: kd.name, photoURL: kd.photoURL || null }] : [])
-      );
-    } catch (e) {
-      console.warn('Data refresh failed:', e);
+      setKids(nextKids);
+      const cacheKey = kidHeaderCacheKey(userId, familyId, kidId);
+      if (cacheKey) {
+        await AsyncStorage.setItem(cacheKey, JSON.stringify({ kidData: kd, kids: nextKids }));
+      }
+    } catch (error) {
+      console.warn('Kid profile refresh failed:', error);
     }
-  }, [familyId, kidId, usingMockData]);
+  }, [userId, familyId, kidId, usingMockData]);
 
   // Refresh data when app returns to foreground so stale sleep timers
   // and other logs are caught up after the listeners were paused in background.
@@ -705,7 +543,8 @@ export function DataProvider({ children }) {
     const appStateRef = { current: AppState.currentState };
     const sub = AppState.addEventListener('change', (nextState) => {
       if (appStateRef.current !== 'active' && nextState === 'active') {
-        refresh();
+        const lastSyncAt = Number(recentSyncStateRef.current.lastSuccessfulSyncAt || 0);
+        if (Date.now() - lastSyncAt >= FOREGROUND_REFRESH_AGE_MS) refresh();
       }
       appStateRef.current = nextState;
     });
@@ -726,6 +565,31 @@ export function DataProvider({ children }) {
     const tempId = `optimistic-${now}-${Math.random().toString(36).slice(2, 7)}`;
     const resolvedId = entry.id || tempId;
     const type = entry.type || entry.feedType || null;
+    const applyToBundle = (cacheKey, doc, setRecent) => {
+      const timestamp = cacheKey === 'sleepSessions' ? doc.startTime : doc.timestamp;
+      if (isDateInRecentWindow(timestamp)) {
+        setRecent((prev) => [doc, ...(Array.isArray(prev) ? prev.filter((item) => item?.id !== resolvedId) : [])]);
+        return;
+      }
+      const dateKey = toLocalDateKey(timestamp);
+      setHistoricalDays((prev) => {
+        const current = prev[dateKey] || {};
+        const data = current.data || createEmptyActivityBundle();
+        return {
+          ...prev,
+          [dateKey]: {
+            ...current,
+            data: {
+              ...data,
+              [cacheKey]: [
+                doc,
+                ...(data[cacheKey] || []).filter((item) => item?.id !== resolvedId),
+              ],
+            },
+          },
+        };
+      });
+    };
 
     if (type === 'bottle' || type === 'feed') {
       const timestamp = Number(entry.timestamp) || now;
@@ -736,7 +600,7 @@ export function DataProvider({ children }) {
         notes: entry.notes || null,
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
-      setFeedings((prev) => [doc, ...(Array.isArray(prev) ? prev.filter((p) => p?.id !== resolvedId) : [])]);
+      applyToBundle('feedings', doc, setFeedings);
       return;
     }
 
@@ -752,7 +616,7 @@ export function DataProvider({ children }) {
         notes: entry.notes || null,
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
-      setNursingSessions((prev) => [doc, ...(Array.isArray(prev) ? prev.filter((p) => p?.id !== resolvedId) : [])]);
+      applyToBundle('nursingSessions', doc, setNursingSessions);
       return;
     }
 
@@ -765,7 +629,7 @@ export function DataProvider({ children }) {
         notes: entry.notes || null,
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
-      setSolidsSessions((prev) => [doc, ...(Array.isArray(prev) ? prev.filter((p) => p?.id !== resolvedId) : [])]);
+      applyToBundle('solidsSessions', doc, setSolidsSessions);
       return;
     }
 
@@ -780,7 +644,7 @@ export function DataProvider({ children }) {
         notes: entry.notes || null,
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
-      setSleepSessions((prev) => [doc, ...(Array.isArray(prev) ? prev.filter((p) => p?.id !== resolvedId) : [])]);
+      applyToBundle('sleepSessions', doc, setSleepSessions);
       if (!endTime) setActiveSleep(doc);
       return;
     }
@@ -795,25 +659,107 @@ export function DataProvider({ children }) {
         notes: entry.notes || null,
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
-      setDiaperChanges((prev) => [doc, ...(Array.isArray(prev) ? prev.filter((p) => p?.id !== resolvedId) : [])]);
+      applyToBundle('diaperChanges', doc, setDiaperChanges);
     }
   }, []);
 
+  const recentActivityBundle = useMemo(() => ({
+    feedings,
+    nursingSessions,
+    solidsSessions,
+    sleepSessions,
+    diaperChanges,
+  }), [feedings, nursingSessions, solidsSessions, sleepSessions, diaperChanges]);
+
+  const getActivityBundleForDate = useCallback((date) => {
+    if (isDateInRecentWindow(date)) return recentActivityBundle;
+    return historicalDays[toLocalDateKey(date)]?.data || createEmptyActivityBundle();
+  }, [recentActivityBundle, historicalDays]);
+
+  const subscribeDayActivities = useCallback((date) => {
+    if (usingMockData || !userId || !familyId || !kidId || isDateInRecentWindow(date)) {
+      return () => {};
+    }
+    const dateKey = toLocalDateKey(date);
+    let cancelled = false;
+    let unsubscribe = null;
+    setHistoricalDays((prev) => ({
+      ...prev,
+      [dateKey]: { ...(prev[dateKey] || {}), status: 'loading', errorCode: null },
+    }));
+
+    const start = async () => {
+      const cached = await firestoreService.loadDayActivities(date);
+      if (cancelled) return;
+      if (cached) {
+        setHistoricalDays((prev) => ({
+          ...prev,
+          [dateKey]: {
+            data: cached.data,
+            status: 'syncing',
+            lastSuccessfulSyncAt: cached.lastSuccessfulSyncAt || 0,
+            errorCode: null,
+          },
+        }));
+      }
+      unsubscribe = firestoreService.subscribeDayActivities(
+        date,
+        (bundle) => {
+          if (cancelled) return;
+          setHistoricalDays((prev) => ({
+            ...prev,
+            [dateKey]: { ...(prev[dateKey] || {}), data: bundle },
+          }));
+        },
+        (nextStatus) => {
+          if (cancelled) return;
+          setHistoricalDays((prev) => ({
+            ...prev,
+            [dateKey]: { ...(prev[dateKey] || {}), ...nextStatus },
+          }));
+        }
+      );
+    };
+    start().catch((error) => {
+      if (cancelled) return;
+      const status = String(error?.code || '').endsWith('unavailable') ? 'offline' : 'error';
+      setHistoricalDays((prev) => ({
+        ...prev,
+        [dateKey]: { ...(prev[dateKey] || {}), status, errorCode: error?.code || 'day-load-failed' },
+      }));
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [usingMockData, userId, familyId, kidId]);
+
+  const getDayLoadState = useCallback((date) => {
+    if (isDateInRecentWindow(date)) return syncState;
+    return historicalDays[toLocalDateKey(date)] || {
+      status: 'loading',
+      lastSuccessfulSyncAt: 0,
+      hasPendingWrites: false,
+    };
+  }, [syncState, historicalDays]);
+
   /** Get timeline items for a specific date (replaces getMockTimelineItems) */
   const getTimelineItems = useCallback((date, filter = null) => {
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
-    const startMs = dayStart.getTime();
-    const endMs = dayEnd.getTime();
+    const { startMs, endMs } = getDayBounds(date);
+    const dayBundle = getActivityBundleForDate(date);
+    const dayFeedings = dayBundle.feedings || [];
+    const dayNursing = dayBundle.nursingSessions || [];
+    const daySolids = dayBundle.solidsSessions || [];
+    const daySleep = dayBundle.sleepSessions || [];
+    const dayDiapers = dayBundle.diaperChanges || [];
 
     const items = [];
 
     // Bottle feedings
     if (!filter || filter === 'feed' || filter === 'bottle') {
-      feedings.forEach((doc) => {
-        if (doc.timestamp >= startMs && doc.timestamp <= endMs) {
+      dayFeedings.forEach((doc) => {
+        if (doc.timestamp >= startMs && doc.timestamp < endMs) {
           const volumeUnit = kidSettings?.preferredVolumeUnit === 'ml' ? 'ml' : 'oz';
           items.push(feedingDocToCard(doc, volumeUnit));
         }
@@ -822,9 +768,9 @@ export function DataProvider({ children }) {
 
     // Nursing sessions
     if (!filter || filter === 'feed' || filter === 'nursing') {
-      nursingSessions.forEach((doc) => {
+      dayNursing.forEach((doc) => {
         const ts = doc.timestamp || doc.startTime || 0;
-        if (ts >= startMs && ts <= endMs) {
+        if (ts >= startMs && ts < endMs) {
           items.push(nursingDocToCard(doc));
         }
       });
@@ -832,8 +778,8 @@ export function DataProvider({ children }) {
 
     // Solids sessions
     if (!filter || filter === 'feed' || filter === 'solids') {
-      solidsSessions.forEach((doc) => {
-        if (doc.timestamp >= startMs && doc.timestamp <= endMs) {
+      daySolids.forEach((doc) => {
+        if (doc.timestamp >= startMs && doc.timestamp < endMs) {
           items.push(solidsDocToCard(doc));
         }
       });
@@ -844,11 +790,11 @@ export function DataProvider({ children }) {
       const endCandidate = isActive ? Date.now() : doc?.endTime;
       const norm = normalizeSleepInterval(doc?.startTime, endCandidate);
       if (!norm) return null;
-      if (overlapMs(norm.startMs, norm.endMs, startMs, endMs + 1) <= 0) return null;
+      if (overlapMs(norm.startMs, norm.endMs, startMs, endMs) <= 0) return null;
 
       const crossesFromYesterday = norm.startMs < startMs && norm.endMs > startMs;
-      const crossesToTomorrow = norm.startMs < (endMs + 1) && norm.endMs > (endMs + 1);
-      const overlap = overlapMs(norm.startMs, norm.endMs, startMs, endMs + 1);
+      const crossesToTomorrow = norm.startMs < endMs && norm.endMs > endMs;
+      const overlap = overlapMs(norm.startMs, norm.endMs, startMs, endMs);
       const durationHours = Math.round((overlap / 3600000) * 10) / 10;
 
       const startDisplay = crossesFromYesterday
@@ -883,7 +829,7 @@ export function DataProvider({ children }) {
 
     // Sleep sessions (include if overlap with day)
     if (!filter || filter === 'sleep') {
-      sleepSessions.forEach((doc) => {
+      daySleep.forEach((doc) => {
         const card = sleepDocToDayCard(doc);
         if (card) items.push(card);
       });
@@ -891,8 +837,8 @@ export function DataProvider({ children }) {
 
     // Diaper changes
     if (!filter || filter === 'diaper') {
-      diaperChanges.forEach((doc) => {
-        if (doc.timestamp >= startMs && doc.timestamp <= endMs) {
+      dayDiapers.forEach((doc) => {
+        if (doc.timestamp >= startMs && doc.timestamp < endMs) {
           items.push(diaperDocToCard(doc));
         }
       });
@@ -901,89 +847,12 @@ export function DataProvider({ children }) {
     // Sort by time
     items.sort((a, b) => (a.timestamp || a.startTime || 0) - (b.timestamp || b.startTime || 0));
     return items;
-  }, [feedings, nursingSessions, solidsSessions, sleepSessions, diaperChanges, kidSettings?.preferredVolumeUnit]);
+  }, [getActivityBundleForDate, kidSettings?.preferredVolumeUnit]);
 
   /** Get summary totals for a date (replaces getMockDaySummary) */
   const getDaySummary = useCallback((date) => {
-    const dayStart = new Date(date);
-    dayStart.setHours(0, 0, 0, 0);
-    const dayEnd = new Date(date);
-    dayEnd.setHours(23, 59, 59, 999);
-    const startMs = dayStart.getTime();
-    const endMs = dayEnd.getTime();
-
-    let feedOz = 0;
-    let nursingMs = 0;
-    let solidsCount = 0;
-    let sleepMs = 0;
-    let diaperCount = 0;
-    let diaperWetCount = 0;
-    let diaperPooCount = 0;
-    let lastBottleTime = null;
-    let lastNursingTime = null;
-    let lastSolidsTime = null;
-    let lastSleepTime = null;
-    let lastDiaperTime = null;
-
-    feedings.forEach((f) => {
-      if (f.timestamp >= startMs && f.timestamp <= endMs) {
-        feedOz += Number(f.ounces) || 0;
-        if (!lastBottleTime || f.timestamp > lastBottleTime) lastBottleTime = f.timestamp;
-      }
-    });
-
-    nursingSessions.forEach((s) => {
-      const ts = s.timestamp || s.startTime || 0;
-      if (ts >= startMs && ts <= endMs) {
-        const left = (Number(s.leftDurationSec) || 0) * 1000;
-        const right = (Number(s.rightDurationSec) || 0) * 1000;
-        nursingMs += left + right;
-        if (!lastNursingTime || ts > lastNursingTime) lastNursingTime = ts;
-      }
-    });
-
-    solidsSessions.forEach((s) => {
-      if (s.timestamp >= startMs && s.timestamp <= endMs) {
-        solidsCount += Array.isArray(s.foods) ? s.foods.length : 1;
-        if (!lastSolidsTime || s.timestamp > lastSolidsTime) lastSolidsTime = s.timestamp;
-      }
-    });
-
-    sleepSessions.forEach((s) => {
-      const endCandidate = s.endTime || (s.isActive ? Date.now() : null);
-      const norm = normalizeSleepInterval(s.startTime, endCandidate);
-      if (!norm) return;
-      const overlap = overlapMs(norm.startMs, norm.endMs, startMs, endMs + 1);
-      if (overlap > 0) sleepMs += overlap;
-      if (s.endTime && s.endTime >= startMs && s.endTime <= endMs) {
-        if (!lastSleepTime || s.endTime > lastSleepTime) lastSleepTime = s.endTime;
-      }
-    });
-
-    diaperChanges.forEach((c) => {
-      if (c.timestamp >= startMs && c.timestamp <= endMs) {
-        diaperCount++;
-        if (c.isWet) diaperWetCount++;
-        if (c.isPoo) diaperPooCount++;
-        if (!lastDiaperTime || c.timestamp > lastDiaperTime) lastDiaperTime = c.timestamp;
-      }
-    });
-
-    return {
-      feedOz: Math.round(feedOz * 10) / 10,
-      nursingMs,
-      solidsCount,
-      sleepMs,
-      diaperCount,
-      diaperWetCount,
-      diaperPooCount,
-      lastBottleTime,
-      lastNursingTime,
-      lastSolidsTime,
-      lastSleepTime,
-      lastDiaperTime,
-    };
-  }, [feedings, nursingSessions, solidsSessions, sleepSessions, diaperChanges]);
+    return summarizeForDay(getActivityBundleForDate(date), date);
+  }, [getActivityBundleForDate]);
 
   const lastBottleAmountOz = useMemo(() => {
     if (!Array.isArray(feedings) || feedings.length === 0) return null;
@@ -1012,12 +881,16 @@ export function DataProvider({ children }) {
     dataLoading,
     trackerBootstrapReady,
     trackerSnapshot,
+    syncState,
     lastBottleAmountOz,
     refresh,
+    refreshKidProfile,
     applyOptimisticEntry,
     updateKidSettings,
     getTimelineItems,
     getDaySummary,
+    subscribeDayActivities,
+    getDayLoadState,
     firestoreService,
   }), [
     feedings,
@@ -1033,12 +906,16 @@ export function DataProvider({ children }) {
     dataLoading,
     trackerBootstrapReady,
     trackerSnapshot,
+    syncState,
     lastBottleAmountOz,
     refresh,
+    refreshKidProfile,
     applyOptimisticEntry,
     updateKidSettings,
     getTimelineItems,
     getDaySummary,
+    subscribeDayActivities,
+    getDayLoadState,
   ]);
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

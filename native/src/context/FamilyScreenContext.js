@@ -246,7 +246,7 @@ export function FamilyScreenProvider({
     kidData: ctxKidData,
     familyMembers: ctxMembers,
     kidSettings: ctxSettings,
-    refresh,
+    refreshKidProfile,
     firestoreService,
     updateKidSettings,
   } = useData();
@@ -467,7 +467,7 @@ export function FamilyScreenProvider({
     try {
       if (targetKidId) {
         await firestoreService?.updateKidDataById?.(targetKidId, { name: raw });
-        await refresh?.();
+        await refreshKidProfile?.();
       }
     } catch (error) {
       console.error('Failed to update kid name:', error);
@@ -479,7 +479,7 @@ export function FamilyScreenProvider({
       setEditingName(false);
       setSavingKidName(false);
     }
-  }, [selectedKidForSubpage?.id, tempBabyName, selectedKidData?.name, kidId, firestoreService, refresh]);
+  }, [selectedKidForSubpage?.id, tempBabyName, selectedKidData?.name, kidId, firestoreService, refreshKidProfile]);
 
   const handleDaySleepWindowChange = useCallback(async (startMin, endMin) => {
     const startVal = Math.max(0, Math.min(1439, Number(startMin)));
@@ -628,7 +628,6 @@ export function FamilyScreenProvider({
         email: nextEmail,
         photoURL: nextPhotoUrl,
       });
-      await refresh?.();
       setProfilePhotoUrl(nextPhotoUrl);
       setProfileNameDraft(nextName || '');
       setProfileEmailDraft(nextEmail || '');
@@ -642,7 +641,7 @@ export function FamilyScreenProvider({
       if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
       setSavingProfile(false);
     }
-  }, [currentUser?.uid, familyId, profileNameDraft, profileEmailDraft, profilePhotoUrl, refresh]);
+  }, [currentUser?.uid, familyId, profileNameDraft, profileEmailDraft, profilePhotoUrl]);
 
   const isFamilyOwner = useMemo(() => {
     const ownerUid = familyInfo?.ownerId
@@ -677,7 +676,6 @@ export function FamilyScreenProvider({
       setFamilyInfo((prev) => ({ ...(prev || {}), name: nextName }));
       setFamilyNameDraft(nextName);
       updateFamilyInList?.(familyId, { name: nextName });
-      await refresh?.();
     } catch (error) {
       console.error('Failed to save family name:', error);
       Alert.alert('Error', 'Unable to save family name.');
@@ -687,7 +685,7 @@ export function FamilyScreenProvider({
       if (elapsed < minMs) await new Promise((r) => setTimeout(r, minMs - elapsed));
       setSavingFamilyName(false);
     }
-  }, [isFamilyOwner, familyNameDraft, firestoreService, refresh, updateFamilyInList, familyId]);
+  }, [isFamilyOwner, familyNameDraft, firestoreService, updateFamilyInList, familyId]);
 
   const hasProfileChanges = useMemo(() => {
     const currentName = String(currentUser.displayName || '').trim();
@@ -776,12 +774,12 @@ export function FamilyScreenProvider({
         }
       }
 
-      await refresh?.();
+      await refreshKidProfile?.();
     } catch (error) {
       console.error('Failed to delete kid:', error);
       Alert.alert('Error', 'Unable to delete this child right now.');
     }
-  }, [kidPendingDelete, firestoreService, currentUser?.uid, kids, kidId, onKidChange, refresh]);
+  }, [kidPendingDelete, firestoreService, currentUser?.uid, kids, kidId, onKidChange, refreshKidProfile]);
 
   const handleRequestDeleteFamily = useCallback(() => {
     const kidName = Array.isArray(kids) && kids[0]?.name ? kids[0].name : 'your child';
@@ -888,7 +886,7 @@ export function FamilyScreenProvider({
       closeAddChildSheet();
       resetAddChildForm();
       if (typeof onKidChange === 'function') onKidChange(newKidId);
-      await refresh?.();
+      await refreshKidProfile?.();
     } catch (error) {
       console.error('Error creating child:', error);
       Alert.alert('Error', 'Failed to create child. Please try again.');
@@ -898,7 +896,7 @@ export function FamilyScreenProvider({
   }, [
     newBabyName, newBabyBirthDate, newChildPhotoUris,
     familyId, user?.uid, activeThemeKey, defaultThemeKey,
-    firestoreService, closeAddChildSheet, resetAddChildForm, onKidChange, refresh,
+    firestoreService, closeAddChildSheet, resetAddChildForm, onKidChange, refreshKidProfile,
   ]);
 
   const handleCreateFamilyFromSheet = useCallback(async () => {
@@ -972,9 +970,9 @@ export function FamilyScreenProvider({
       setJoiningFamily(false);
     }
     if (joinedFamily) {
-      refresh?.().catch(() => {});
+      refreshKidProfile?.().catch(() => {});
     }
-  }, [familyInviteCode, acceptInvite, closeAddFamilySheet, resetAddFamilyForm, refresh]);
+  }, [familyInviteCode, acceptInvite, closeAddFamilySheet, resetAddFamilyForm, refreshKidProfile]);
 
   const addFamilyBusy = savingFamily || joiningFamily || authLoading;
 
