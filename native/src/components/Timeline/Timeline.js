@@ -26,6 +26,10 @@ import { THEME_TOKENS } from '../../../../shared/config/theme';
 import TimelineItem from './TimelineItem';
 import TimelineSwipeRow from './TimelineSwipeRow';
 import SegmentedToggle from '../shared/SegmentedToggle';
+import NativeAdSlot from '../ads/NativeAdSlot';
+
+const AD_SLOT_INDEX = 3;
+const AD_SENTINEL = { id: '__native_ad__', type: '__ad__' };
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -176,12 +180,16 @@ export default function Timeline({
     const filtered =
       filter === 'all' ? items : items.filter((item) => item.type === filter);
     const visible = filtered.filter((item) => !hiddenItemIds.has(item?.id));
-    return [...visible].sort((a, b) => {
+    const sorted = [...visible].sort((a, b) => {
       const aMinutes = (a.hour ?? 0) * 60 + (a.minute ?? 0);
       const bMinutes = (b.hour ?? 0) * 60 + (b.minute ?? 0);
       const direction = sortOrder === 'asc' ? 1 : -1;
       return (aMinutes - bMinutes) * direction;
     });
+    if (sorted.length > AD_SLOT_INDEX) {
+      sorted.splice(AD_SLOT_INDEX, 0, AD_SENTINEL);
+    }
+    return sorted;
   }, [items, filter, sortOrder, hiddenItemIds]);
 
   useEffect(() => {
@@ -301,6 +309,9 @@ export default function Timeline({
 
   const renderItem = useCallback(
     ({ item }) => {
+      if (item?.type === '__ad__') {
+        return <NativeAdSlot placement="timeline" />;
+      }
       const hasDetails = getHasDetails(item);
       const isExpanded = expandedId === item.id;
       const isLogged = item?.variant === 'logged';

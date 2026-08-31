@@ -12,6 +12,8 @@ import Popover from 'react-native-popover-view';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
+import { AdsProvider } from './src/context/AdsContext';
+import { gatherAdsConsent, initializeAds } from './src/services/adsService';
 import { createStorageAdapter } from './src/services/storageAdapter';
 import {
   initializeAppsFlyer,
@@ -1057,6 +1059,7 @@ function AppShell({
                 timelineRefreshRef={timelineRefreshRef}
                 onDetailOpenChange={handleTrackerDetailOpenChange}
                 entranceSeed={trackerEntranceSeed}
+                isTabActive={activeTab === 'tracker'}
               />
             ) : (
               <View style={{ flex: 1, backgroundColor: appBg }} />
@@ -1421,6 +1424,7 @@ function AuthGatedApp({
 
   return (
     <DataProvider>
+      <AdsProvider>
       <BottomSheetModalProvider>
         <AppShell
           activeTab={activeTab}
@@ -1443,6 +1447,7 @@ function AuthGatedApp({
           onDevShowPartnerModal={handleDevShowPartnerModal}
         />
       </BottomSheetModalProvider>
+      </AdsProvider>
       <CommunityModal visible={showCommunityModal} onDismiss={dismissCommunityModal} />
       <PartnerInviteModal
         visible={showPartnerModal}
@@ -1574,6 +1579,13 @@ export default function App() {
       } catch {
         /* ignore */
       }
+
+      // Independent of ATT/AppsFlyer — never delay cold start. Fail closed.
+      gatherAdsConsent()
+        .then(({ canRequestAds }) => {
+          if (canRequestAds) return initializeAds();
+        })
+        .catch(() => {});
     })();
   }, []);
 

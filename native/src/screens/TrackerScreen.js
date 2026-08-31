@@ -23,6 +23,7 @@ import SolidsCard from '../components/cards/SolidsCard';
 import SleepCard from '../components/cards/SleepCard';
 import DiaperCard from '../components/cards/DiaperCard';
 import ActiveSleepCard from '../components/shared/ActiveSleepCard';
+import NativeAdSlot from '../components/ads/NativeAdSlot';
 import {
   normalizeActivityVisibility,
   normalizeActivityOrder,
@@ -415,6 +416,8 @@ export default function TrackerScreen({
             </Animated.View>
           );
         })}
+        {/* Null when gated off — must not leave an empty wrapper (gap: 12 would add phantom space). */}
+        <NativeAdSlot placement="home" />
       </ScrollView>
     </View>
   );

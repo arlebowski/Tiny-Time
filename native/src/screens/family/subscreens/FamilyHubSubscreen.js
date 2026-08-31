@@ -1,7 +1,11 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, Pressable, Image, Platform } from 'react-native';
 import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
 import { PlusIcon, PaletteIcon, FamilyIcon } from '../../../components/icons';
+import { useAds } from '../../../context/AdsContext';
+import { MONETIZATION_SUPPORTED } from '../../../services/monetization';
+import { getRemoveAdsPackage } from '../../../services/purchasesService';
+import { showPrivacyOptions } from '../../../services/adsService';
 
 export default function FamilyHubSubscreen({
   s,
@@ -25,6 +29,7 @@ export default function FamilyHubSubscreen({
   onDevShowPartnerModal,
   onOpenProfile,
   onOpenAppearance,
+  onOpenRemoveAds,
   onOpenFamily,
   onOpenAddFamily,
   radius,
@@ -32,6 +37,24 @@ export default function FamilyHubSubscreen({
   onUndoDeleteFamily,
   onDismissDeletedFamily,
 }) {
+  const { entitlement, privacyOptionsRequired } = useAds();
+  const [priceString, setPriceString] = useState('$9.99');
+  const showRemoveAdsRow =
+    MONETIZATION_SUPPORTED && entitlement !== 'entitled';
+
+  useEffect(() => {
+    if (!showRemoveAdsRow) return undefined;
+    let cancelled = false;
+    getRemoveAdsPackage().then((pkg) => {
+      const next = pkg?.product?.priceString;
+      if (!cancelled && typeof next === 'string' && next.trim()) {
+        setPriceString(next.trim());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showRemoveAdsRow]);
   const cardRadius = radius?.xl ?? 12;
   const androidHubTitleTight = Platform.OS === 'android' ? { includeFontPadding: false } : null;
   const androidHubSubtitleTight = Platform.OS === 'android' ? { includeFontPadding: false } : null;
@@ -159,6 +182,96 @@ export default function FamilyHubSubscreen({
           </View>
         </View>
       </Card>
+
+      {showRemoveAdsRow ? (
+        <Card
+          style={[
+            s.cardGap,
+            {
+              borderRadius: cardRadius,
+              borderWidth: 1,
+              borderColor: 'rgba(245,102,125,0.4)',
+            },
+          ]}
+          onPress={onOpenRemoveAds}
+        >
+          <View style={s.appearanceEntryRow}>
+            <View style={s.appearanceEntryLeft}>
+              <View
+                style={[
+                  s.appearanceEntryIcon,
+                  {
+                    backgroundColor: 'rgba(245,102,125,0.18)',
+                    borderRadius: 12,
+                    position: 'relative',
+                    overflow: 'hidden',
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 11, fontWeight: '800', color: '#f5667d', letterSpacing: 0.4 }}>
+                  AD
+                </Text>
+                <View
+                  style={{
+                    position: 'absolute',
+                    width: 28,
+                    height: 2,
+                    backgroundColor: '#f5667d',
+                    transform: [{ rotate: '-45deg' }],
+                    borderRadius: 2,
+                  }}
+                />
+              </View>
+              <View>
+                <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>
+                  Remove Ads
+                </Text>
+                <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>
+                  One-time · no subscription
+                </Text>
+              </View>
+            </View>
+            <View style={s.appearanceEntryRight}>
+              <View
+                style={{
+                  backgroundColor: '#fff',
+                  borderRadius: 10,
+                  paddingHorizontal: 14,
+                  paddingVertical: 9,
+                }}
+              >
+                <Text style={{ fontSize: 14, fontWeight: '700', color: '#000' }}>{priceString}</Text>
+              </View>
+            </View>
+          </View>
+        </Card>
+      ) : null}
+
+      {privacyOptionsRequired ? (
+        <Card
+          style={[s.cardGap, { borderRadius: cardRadius }]}
+          onPress={() => showPrivacyOptions()}
+        >
+          <View style={s.appearanceEntryRow}>
+            <View style={s.appearanceEntryLeft}>
+              <View style={s.appearanceEntryIcon}>
+                <Text style={{ fontSize: 16, color: colors.textPrimary }}>ⓘ</Text>
+              </View>
+              <View>
+                <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>
+                  Privacy options
+                </Text>
+                <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>
+                  Manage ad consent
+                </Text>
+              </View>
+            </View>
+            <View style={s.appearanceEntryRight}>
+              <ChevronRightIcon size={20} color={colors.textTertiary} />
+            </View>
+          </View>
+        </Card>
+      ) : null}
 
       {deletedFamilies.filter((e) => Date.now() - (e.deletedAt || 0) < 30 * 24 * 60 * 60 * 1000).slice(0, 3).map((entry) => (
         <View

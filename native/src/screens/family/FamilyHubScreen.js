@@ -5,12 +5,14 @@ import { useTheme } from '../../context/ThemeContext';
 import { useFamilyScreen } from '../../context/FamilyScreenContext';
 import { useAuth } from '../../context/AuthContext';
 import FamilyHubSubscreen from './subscreens/FamilyHubSubscreen';
+import { useAds } from '../../context/AdsContext';
 
 export default function FamilyHubScreen() {
   const navigation = useNavigation();
   const { colors, radius } = useTheme();
   const ctx = useFamilyScreen();
   const { deletedFamilies, undoDeleteFamily, dismissDeletedFamily } = useAuth();
+  const { openRemoveAds } = useAds();
 
   return (
     <View style={{ flex: 1 }}>
@@ -43,6 +45,7 @@ export default function FamilyHubScreen() {
           onDevShowPartnerModal={ctx.onDevShowPartnerModal}
           onOpenProfile={() => navigation.navigate('Profile')}
           onOpenAppearance={ctx.openAppearanceSheet}
+          onOpenRemoveAds={openRemoveAds}
           onOpenFamily={() => navigation.navigate('FamilyMembers')}
           onOpenAddFamily={ctx.openAddFamilySheet}
           deletedFamilies={deletedFamilies}

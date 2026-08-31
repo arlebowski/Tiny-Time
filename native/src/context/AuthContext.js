@@ -28,6 +28,7 @@ import {
   trackOnboardingCompleted,
 } from '../services/appsflyerService';
 import { capture, identifyUser, resetUser, groupFamily } from '../services/posthogService';
+import { identifyPurchaser, resetPurchaser } from '../services/purchasesService';
 
 const AuthContext = createContext(null);
 const KID_SELECTION_KEY_PREFIX = 'tt_selected_kid';
@@ -242,6 +243,7 @@ export function AuthProvider({ children }) {
               name: firebaseUser.displayName,
               family_id: joinedFamilyId ?? null,
             });
+            identifyPurchaser(firebaseUser.uid).catch(() => {});
             authMethodRef.current = null;
             const familySelectionKey = getFamilySelectionKey(firebaseUser.uid);
             if (familySelectionKey && joinedFamilyId) {
@@ -276,6 +278,7 @@ export function AuthProvider({ children }) {
             name: firebaseUser.displayName,
             family_id: family?.familyId ?? null,
           });
+          identifyPurchaser(firebaseUser.uid).catch(() => {});
           authMethodRef.current = null;
 
           const deletedFamiliesKey = getDeletedFamiliesKey(firebaseUser.uid);
@@ -339,6 +342,7 @@ export function AuthProvider({ children }) {
             setSelectedKidSnapshot(null);
             setNeedsSetup(false);
             resetUser();
+            resetPurchaser().catch(() => {});
             setLoading(false);
           }, 2000);
           return;
@@ -351,6 +355,7 @@ export function AuthProvider({ children }) {
         setSelectedKidSnapshot(null);
         setNeedsSetup(false);
         resetUser();
+        resetPurchaser().catch(() => {});
       }
       setLoading(false);
     });

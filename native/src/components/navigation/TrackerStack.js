@@ -10,7 +10,7 @@ const Stack = createNativeStackNavigator();
 
 // Context so screen components can access AppShell callbacks without route params
 const TrackerStackContext = createContext(null);
-const useTrackerStack = () => useContext(TrackerStackContext);
+export const useTrackerStack = () => useContext(TrackerStackContext);
 
 // Stable screen components (defined outside to avoid remounting)
 
@@ -65,6 +65,7 @@ export default function TrackerStack({
   timelineRefreshRef,
   onDetailOpenChange,
   entranceSeed = 0,
+  isTabActive = true,
 }) {
   const contextValue = React.useMemo(() => ({
     topInset,
@@ -77,6 +78,7 @@ export default function TrackerStack({
     onDeleteCard,
     timelineRefreshRef,
     entranceToken: entranceSeed,
+    isTabActive,
   }), [
     topInset,
     header,
@@ -88,6 +90,7 @@ export default function TrackerStack({
     onDeleteCard,
     timelineRefreshRef,
     entranceSeed,
+    isTabActive,
   ]);
 
   const handleStateChange = useCallback((state) => {
