@@ -37,8 +37,9 @@ export default function FamilyHubSubscreen({
   onUndoDeleteFamily,
   onDismissDeletedFamily,
 }) {
-  const { entitlement, privacyOptionsRequired } = useAds();
-  const [priceString, setPriceString] = useState('$9.99');
+  const { entitlement, privacyOptionsRequired, refreshConsent } = useAds();
+  // Empty until StoreKit/RC resolves — avoid a fake $9.99 that masks load failures.
+  const [priceString, setPriceString] = useState('');
   const showRemoveAdsRow =
     MONETIZATION_SUPPORTED && entitlement !== 'entitled';
 
@@ -250,7 +251,10 @@ export default function FamilyHubSubscreen({
       {privacyOptionsRequired ? (
         <Card
           style={[s.cardGap, { borderRadius: cardRadius }]}
-          onPress={() => showPrivacyOptions()}
+          onPress={async () => {
+            await showPrivacyOptions();
+            await refreshConsent();
+          }}
         >
           <View style={s.appearanceEntryRow}>
             <View style={s.appearanceEntryLeft}>

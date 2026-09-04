@@ -17,15 +17,19 @@ const getStringEnv = (name) => {
 let initPromise = null;
 let lastIdentifiedUid = null;
 
-function getPurchases() {
+function getPurchasesModule() {
   if (!MONETIZATION_SUPPORTED) return null;
   try {
     // Lazy require — top-level import would throw on Android.
-    return require('react-native-purchases').default;
+    return require('react-native-purchases');
   } catch (error) {
     console.warn('[Purchases] native module unavailable:', error);
     return null;
   }
+}
+
+function getPurchases() {
+  return getPurchasesModule()?.default ?? null;
 }
 
 function entitlementFromCustomerInfo(customerInfo) {
@@ -48,6 +52,10 @@ export function initializePurchases() {
 
   initPromise = Promise.resolve()
     .then(() => {
+      const LOG_LEVEL = getPurchasesModule()?.LOG_LEVEL;
+      if (LOG_LEVEL) {
+        Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.WARN : LOG_LEVEL.ERROR);
+      }
       Purchases.configure({ apiKey });
     })
     .catch((error) => {
@@ -116,6 +124,10 @@ export function subscribeToEntitlement(callback) {
   if (!Purchases) return () => {};
 
   const listener = (customerInfo) => {
+    if (!lastIdentifiedUid) {
+      callback('unknown');
+      return;
+    }
     callback(entitlementFromCustomerInfo(customerInfo));
   };
 
@@ -141,17 +153,16 @@ export async function getRemoveAdsPackage() {
     const current = offerings?.current || offerings?.all?.default;
     if (!current) return null;
 
-    // Package identifier: $rc_lifetime → product io.tinytracker.removeads
+    // Prefer explicit Remove Ads package — never fall back to packages[0].
     const packages = current.availablePackages || [];
-    const matched =
+    return (
       packages.find((pkg) => pkg?.identifier === '$rc_lifetime') ||
       current.lifetime ||
       packages.find(
         (pkg) => pkg?.product?.identifier === 'io.tinytracker.removeads'
       ) ||
-      packages[0] ||
-      null;
-    return matched;
+      null
+    );
   } catch (error) {
     console.warn('[Purchases] getRemoveAdsPackage failed:', error);
     return null;

@@ -400,24 +400,33 @@ export default function TrackerScreen({
         </Animated.View>
       ) : null}
 
-        {/* ── Tracker cards ── */}
+        {/* ── Tracker cards (native ad sits after the first card) ── */}
         {orderedVisibleCards.map((card, index) => {
           const sequenceIndex = showNextUp ? index + 1 : index;
+          const adSequenceIndex = showNextUp ? 2 : 1;
           return (
-            <Animated.View
-              key={`${card.key}-${entranceToken}`}
-              entering={getEntranceAnimation(
-                CARD_BASE_DELAY_MS + sequenceIndex * CARD_STAGGER_MS
-              )}
-              renderToHardwareTextureAndroid={IS_ANDROID}
-              collapsable={IS_ANDROID ? false : undefined}
-            >
-              {card.element}
-            </Animated.View>
+            <React.Fragment key={`${card.key}-${entranceToken}`}>
+              <Animated.View
+                entering={getEntranceAnimation(
+                  CARD_BASE_DELAY_MS + sequenceIndex * CARD_STAGGER_MS
+                )}
+                renderToHardwareTextureAndroid={IS_ANDROID}
+                collapsable={IS_ANDROID ? false : undefined}
+              >
+                {card.element}
+              </Animated.View>
+              {/* Null when gated off — no wrapper (gap: 12 would add phantom space). */}
+              {index === 0 ? (
+                <NativeAdSlot
+                  placement="home"
+                  entrance={getEntranceAnimation(
+                    CARD_BASE_DELAY_MS + adSequenceIndex * CARD_STAGGER_MS
+                  )}
+                />
+              ) : null}
+            </React.Fragment>
           );
         })}
-        {/* Null when gated off — must not leave an empty wrapper (gap: 12 would add phantom space). */}
-        <NativeAdSlot placement="home" />
       </ScrollView>
     </View>
   );

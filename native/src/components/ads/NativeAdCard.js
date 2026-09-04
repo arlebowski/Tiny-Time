@@ -1,13 +1,20 @@
 /**
  * NativeAdCard — presentational native ad shell.
- * Theme-token derived. NativeAsset children must be direct (no wrapper Views).
+ *
+ * Layout rule: NativeAdView is a native view and mismeasures padding
+ * (doubles top/left, clips the right edge), so all card chrome lives on an
+ * outer RN View and NativeAdView is a plain full-width container.
+ *
+ * The "Remove ads" control is deliberately OUTSIDE NativeAdView: taps inside
+ * it get swallowed by the ad view and would register as ad clicks.
  */
 import React from 'react';
-import { View, Text, Image, Pressable, StyleSheet } from 'react-native';
+import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
+const ICON_SIZE = 44;
 
 function getAdsModule() {
   try {
@@ -22,31 +29,33 @@ export default function NativeAdCard({
   variant = 'home',
   onRemoveAdsPress,
 }) {
-  const { colors, radius } = useTheme();
+  const { colors, radius, shadows } = useTheme();
   const ads = getAdsModule();
   if (!ads || !nativeAd) return null;
 
   const { NativeAdView, NativeAsset, NativeAssetType } = ads;
   const isTimeline = variant === 'timeline';
-  const cardRadius = isTimeline ? (radius?.xl ?? 16) : (radius?.['2xl'] ?? 18);
-  const iconSize = isTimeline ? 40 : 46;
 
   return (
-    <NativeAdView
-      nativeAd={nativeAd}
+    <View
       style={[
-        styles.root,
+        styles.card,
+        isTimeline ? styles.cardTimeline : styles.cardHome,
         {
-          backgroundColor: colors.subtleSurface || colors.cardBg,
-          borderColor: colors.borderSubtle,
-          borderRadius: cardRadius,
+          backgroundColor: colors.cardBg,
+          // Timeline rows use xl (16); home tracker cards use 2xl (18).
+          borderRadius: isTimeline
+            ? radius?.xl ?? 16
+            : radius?.['2xl'] ?? 18,
+          ...(shadows?.card || null),
         },
       ]}
     >
-      <View style={styles.topRow}>
+      {/* Outside NativeAdView so the control isn't swallowed as an ad click. */}
+      <View style={[styles.topRow, isTimeline && styles.topRowTimeline]}>
         <Text
           style={[
-            styles.badge,
+            isTimeline ? styles.inlineAdBadge : styles.badge,
             {
               color: colors.textTertiary,
               backgroundColor: colors.segTrack || colors.track,
@@ -57,103 +66,126 @@ export default function NativeAdCard({
         </Text>
         <Pressable
           onPress={onRemoveAdsPress}
-          hitSlop={8}
-          style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+          hitSlop={12}
+          style={({ pressed }) => [pressed && { opacity: 0.6 }]}
         >
-          <Text style={[styles.removeLink, { color: colors.textTertiary }]}>
+          <Text
+            style={[
+              isTimeline ? styles.removeLinkTimeline : styles.removeLink,
+              { color: colors.textSecondary },
+            ]}
+          >
             Remove ads {'\u2715'}
           </Text>
         </Pressable>
       </View>
 
-      <View style={styles.body}>
-        {nativeAd.icon ? (
-          <NativeAsset assetType={NativeAssetType.ICON}>
-            <Image
-              source={{ uri: nativeAd.icon.url }}
-              style={[styles.icon, { width: iconSize, height: iconSize, borderRadius: 10 }]}
-            />
-          </NativeAsset>
-        ) : (
-          <View
-            style={[
-              styles.iconPlaceholder,
-              {
-                width: iconSize,
-                height: iconSize,
-                backgroundColor: colors.segTrack || colors.track,
-              },
-            ]}
-          />
-        )}
-
-        <View style={styles.copy}>
-          {nativeAd.headline ? (
-            <NativeAsset assetType={NativeAssetType.HEADLINE}>
-              <Text
-                style={[styles.headline, { color: colors.textPrimary }]}
-                numberOfLines={2}
-              >
-                {nativeAd.headline}
-              </Text>
+      <NativeAdView nativeAd={nativeAd} style={styles.adView}>
+        <View style={styles.body}>
+          {nativeAd.icon ? (
+            <NativeAsset assetType={NativeAssetType.ICON}>
+              <Image source={{ uri: nativeAd.icon.url }} style={styles.iconBox} />
             </NativeAsset>
-          ) : null}
-          {nativeAd.advertiser ? (
-            <NativeAsset assetType={NativeAssetType.ADVERTISER}>
+          ) : (
+            <View
+              style={[
+                styles.iconBox,
+                { backgroundColor: colors.segTrack || colors.track },
+              ]}
+            />
+          )}
+
+          <View style={styles.copy}>
+            {nativeAd.headline ? (
+              <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                <Text
+                  style={[
+                    isTimeline ? styles.headlineTimeline : styles.headline,
+                    { color: colors.textPrimary },
+                  ]}
+                  numberOfLines={isTimeline ? 1 : 2}
+                >
+                  {nativeAd.headline}
+                </Text>
+              </NativeAsset>
+            ) : null}
+
+            {!isTimeline && nativeAd.advertiser ? (
+              <NativeAsset assetType={NativeAssetType.ADVERTISER}>
+                <Text
+                  style={[styles.advertiser, { color: colors.textTertiary }]}
+                  numberOfLines={1}
+                >
+                  {nativeAd.advertiser}
+                </Text>
+              </NativeAsset>
+            ) : null}
+          </View>
+
+          {nativeAd.callToAction ? (
+            <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
               <Text
-                style={[styles.advertiser, { color: colors.textTertiary }]}
+                style={[
+                  styles.cta,
+                  {
+                    backgroundColor: colors.segTrack || colors.track,
+                    borderColor: colors.borderSubtle || 'rgba(0,0,0,0.10)',
+                    color: colors.textPrimary,
+                  },
+                ]}
                 numberOfLines={1}
               >
-                {nativeAd.advertiser}
+                {nativeAd.callToAction}
               </Text>
             </NativeAsset>
           ) : null}
         </View>
-
-        {nativeAd.callToAction ? (
-          <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-            <Text
-              style={[
-                styles.cta,
-                {
-                  backgroundColor: colors.segTrack || colors.track,
-                  color: colors.textPrimary,
-                },
-              ]}
-              numberOfLines={1}
-            >
-              {nativeAd.callToAction}
-            </Text>
-          </NativeAsset>
-        ) : null}
-      </View>
-    </NativeAdView>
+      </NativeAdView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    borderWidth: 1,
+  // Match TrackerCard chrome: p-5 + radius 2xl + shadows.card.
+  // Do not set overflow:hidden — it clips the iOS card shadow.
+  card: {},
+  cardHome: {
+    padding: 20,
+  },
+  // Match TimelineItem padding (16). NativeAdView measures ~5pt taller than
+  // its content, so shave the bottom to keep the card optically even.
+  cardTimeline: {
     paddingHorizontal: 16,
-    paddingVertical: 14,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  adView: {
+    width: '100%',
   },
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  topRowTimeline: {
     marginBottom: 10,
   },
   badge: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.4,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
+    fontSize: 10,
+    letterSpacing: 0.6,
+    borderRadius: 5,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
     overflow: 'hidden',
     fontFamily: FWB.bold,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
   removeLink: {
+    fontSize: 13,
+    fontFamily: FWB.normal,
+  },
+  removeLinkTimeline: {
     fontSize: 12,
     fontFamily: FWB.normal,
   },
@@ -162,35 +194,49 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
   },
-  icon: {
-    width: 46,
-    height: 46,
-  },
-  iconPlaceholder: {
+  iconBox: {
+    width: ICON_SIZE,
+    height: ICON_SIZE,
     borderRadius: 10,
   },
   copy: {
     flex: 1,
     minWidth: 0,
+    justifyContent: 'center',
   },
   headline: {
+    fontSize: 15,
+    lineHeight: 19,
+    fontFamily: FWB.semibold,
+  },
+  headlineTimeline: {
     fontSize: 14,
-    fontWeight: '600',
     lineHeight: 18,
     fontFamily: FWB.semibold,
   },
+  inlineAdBadge: {
+    fontSize: 10,
+    letterSpacing: 0.4,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    overflow: 'hidden',
+    fontFamily: FWB.bold,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
+  },
   advertiser: {
-    fontSize: 12,
-    marginTop: 2,
+    fontSize: 13,
+    marginTop: 3,
     fontFamily: FWB.normal,
   },
   cta: {
-    fontSize: 12,
-    fontWeight: '600',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    fontSize: 13,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
     overflow: 'hidden',
     fontFamily: FWB.semibold,
+    ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
 });

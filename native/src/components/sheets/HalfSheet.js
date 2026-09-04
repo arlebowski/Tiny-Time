@@ -14,6 +14,7 @@ import {
   BottomSheetScrollView,
   BottomSheetView,
   BottomSheetFooter,
+  BottomSheetBackdrop,
 } from '@gorhom/bottom-sheet';
 import Animated, {
   useSharedValue,
@@ -81,6 +82,24 @@ function HeaderHandle({
   );
 }
 
+function PlainHandle({ style, topRadius, backgroundColor, grabberColor }) {
+  return (
+    <View
+      style={[
+        styles.plainHandle,
+        style,
+        {
+          backgroundColor,
+          borderTopLeftRadius: topRadius,
+          borderTopRightRadius: topRadius,
+        },
+      ]}
+    >
+      <View style={[styles.plainGrabber, { backgroundColor: grabberColor }]} />
+    </View>
+  );
+}
+
 export default function HalfSheet({
   sheetRef,
   snapPoints = ['85%', '90%'],
@@ -105,6 +124,10 @@ export default function HalfSheet({
   useFullWindowOverlay = true,
   footerBottomOffset = 30,
   footerTopOffset = 20,
+  /** 'branded' = colored title bar (default). 'plain' = grabber only. */
+  headerMode = 'branded',
+  /** Dim the content behind the sheet so it reads as a layer. */
+  showBackdrop = false,
 }) {
   const insets = useSafeAreaInsets();
   const { colors, radius, sheetLayout } = useTheme();
@@ -113,6 +136,7 @@ export default function HalfSheet({
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const headerBg = accentColor || colors.primaryBrand;
   const topRadius = radius?.['3xl'] ?? 20;
+  const isPlainHeader = headerMode === 'plain';
 
   // Footer starts hidden, fades in when sheet opens so it appears
   // to enter as part of the sheet rather than as a separate overlay.
@@ -147,26 +171,35 @@ export default function HalfSheet({
   }, [footerKeyboardProgress]);
 
   const handleComponent = useCallback(
-    (props) => (
-      <HeaderHandle
-        {...props}
-        onClosePress={() => {
-          if (sheetRef?.current?.dismiss) {
-            sheetRef.current.dismiss();
-            return;
-          }
-          onClose?.();
-        }}
-        onHeaderBackPress={onHeaderBackPress}
-        title={title}
-        headerRight={headerRight}
-        headerBg={headerBg}
-        topRadius={topRadius}
-        headerTitleColor={headerTitleColor}
-        headerIconColor={headerIconColor}
-      />
-    ),
+    (props) =>
+      isPlainHeader ? (
+        <PlainHandle
+          {...props}
+          topRadius={topRadius}
+          backgroundColor={colors.halfsheetBg || colors.cardBg}
+          grabberColor={colors.borderSubtle || 'rgba(255,255,255,0.22)'}
+        />
+      ) : (
+        <HeaderHandle
+          {...props}
+          onClosePress={() => {
+            if (sheetRef?.current?.dismiss) {
+              sheetRef.current.dismiss();
+              return;
+            }
+            onClose?.();
+          }}
+          onHeaderBackPress={onHeaderBackPress}
+          title={title}
+          headerRight={headerRight}
+          headerBg={headerBg}
+          topRadius={topRadius}
+          headerTitleColor={headerTitleColor}
+          headerIconColor={headerIconColor}
+        />
+      ),
     [
+      isPlainHeader,
       sheetRef,
       onClose,
       onHeaderBackPress,
@@ -176,7 +209,24 @@ export default function HalfSheet({
       topRadius,
       headerTitleColor,
       headerIconColor,
+      colors.halfsheetBg,
+      colors.cardBg,
+      colors.borderSubtle,
     ]
+  );
+
+  const backdropComponent = useCallback(
+    (props) =>
+      showBackdrop ? (
+        <BottomSheetBackdrop
+          {...props}
+          appearsOnIndex={0}
+          disappearsOnIndex={-1}
+          opacity={0.4}
+          pressBehavior="close"
+        />
+      ) : null,
+    [showBackdrop]
   );
 
   const footerComponent = useCallback(
@@ -249,6 +299,7 @@ export default function HalfSheet({
       }}
       handleComponent={handleComponent}
       footerComponent={footerComponent}
+      backdropComponent={backdropComponent}
       style={styles.modal}
       containerComponent={
         Platform.OS === 'ios' && useFullWindowOverlay ? FullWindowOverlay : undefined
@@ -293,6 +344,19 @@ const styles = StyleSheet.create({
 
   handleWithHeader: {
     overflow: 'hidden',
+  },
+
+  plainHandle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 10,
+    paddingBottom: 8,
+  },
+
+  plainGrabber: {
+    width: 36,
+    height: 5,
+    borderRadius: 3,
   },
 
   headerRow: {

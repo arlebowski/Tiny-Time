@@ -28,8 +28,19 @@ import TimelineSwipeRow from './TimelineSwipeRow';
 import SegmentedToggle from '../shared/SegmentedToggle';
 import NativeAdSlot from '../ads/NativeAdSlot';
 
-const AD_SLOT_INDEX = 3;
-const AD_SENTINEL = { id: '__native_ad__', type: '__ad__' };
+// Ads after the 1st entry, then every 5 entries: 1, 6, 11, 16…
+const AD_FIRST_AFTER_ENTRY = 1;
+const AD_EVERY_N_ENTRIES = 5;
+const makeAdSentinel = (slot) => ({
+  id: `__native_ad__${slot}`,
+  type: '__ad__',
+  adSlot: slot,
+});
+
+function shouldInsertAdAfterEntry(entryNumber) {
+  if (entryNumber < AD_FIRST_AFTER_ENTRY) return false;
+  return (entryNumber - AD_FIRST_AFTER_ENTRY) % AD_EVERY_N_ENTRIES === 0;
+}
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -186,10 +197,17 @@ export default function Timeline({
       const direction = sortOrder === 'asc' ? 1 : -1;
       return (aMinutes - bMinutes) * direction;
     });
-    if (sorted.length > AD_SLOT_INDEX) {
-      sorted.splice(AD_SLOT_INDEX, 0, AD_SENTINEL);
-    }
-    return sorted;
+    const withAds = [];
+    let adSlot = 0;
+    sorted.forEach((item, index) => {
+      withAds.push(item);
+      const entryNumber = index + 1;
+      if (shouldInsertAdAfterEntry(entryNumber)) {
+        withAds.push(makeAdSentinel(adSlot));
+        adSlot += 1;
+      }
+    });
+    return withAds;
   }, [items, filter, sortOrder, hiddenItemIds]);
 
   useEffect(() => {
@@ -310,7 +328,12 @@ export default function Timeline({
   const renderItem = useCallback(
     ({ item }) => {
       if (item?.type === '__ad__') {
-        return <NativeAdSlot placement="timeline" />;
+        // Match TimelineSwipeRow's marginBottom so gaps stay even.
+        return (
+          <View style={styles.adSlot}>
+            <NativeAdSlot placement="timeline" />
+          </View>
+        );
       }
       const hasDetails = getHasDetails(item);
       const isExpanded = expandedId === item.id;
@@ -537,6 +560,9 @@ const styles = StyleSheet.create({
   },
   listContentEmpty: {
     flexGrow: 1,
+  },
+  adSlot: {
+    marginBottom: 8,
   },
   header: {
     flexDirection: 'row',

@@ -47,9 +47,15 @@ export async function gatherAdsConsent() {
 
   const { AdsConsent, AdsConsentDebugGeography } = ads;
   try {
+    // EEA debug only when explicitly requested — forcing EEA with no UMP
+    // form configured makes gatherConsent fail and blocks all ads in Simulator.
+    const debugEea =
+      __DEV__ && process.env.EXPO_PUBLIC_ADS_DEBUG_EEA === '1';
     const options = __DEV__
       ? {
-          debugGeography: AdsConsentDebugGeography.EEA,
+          ...(debugEea
+            ? { debugGeography: AdsConsentDebugGeography.EEA }
+            : null),
           testDeviceIdentifiers: ['EMULATOR'],
         }
       : undefined;
@@ -62,6 +68,10 @@ export async function gatherAdsConsent() {
     };
   } catch (error) {
     console.warn('[Ads] gatherConsent failed:', error);
+    // Dev: allow test ads when UMP forms are missing/misconfigured.
+    if (__DEV__) {
+      return { canRequestAds: true, privacyOptionsRequired: false };
+    }
     return { canRequestAds: false, privacyOptionsRequired: false };
   }
 }

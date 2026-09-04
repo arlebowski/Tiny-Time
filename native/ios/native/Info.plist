@@ -68,6 +68,8 @@
     <string>Helps us understand how you discovered Tiny Tracker so we can reach more parents like you.</string>
     <key>GADApplicationIdentifier</key>
     <string>ca-app-pub-3734956448133132~8807798968</string>
+    <key>GADDelayAppMeasurementInit</key>
+    <true/>
     <key>SKAdNetworkItems</key>
     <array>
       <dict>

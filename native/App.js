@@ -12,9 +12,13 @@ import Popover from 'react-native-popover-view';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
-import { AdsProvider } from './src/context/AdsContext';
+import { AdsProvider, useAds } from './src/context/AdsContext';
 import { gatherAdsConsent, initializeAds } from './src/services/adsService';
 import { createStorageAdapter } from './src/services/storageAdapter';
+import {
+  ensureFirstOpenAt,
+  recordSuccessfulLogAndEvaluate,
+} from './src/services/removeAdsPromptService';
 import {
   initializeAppsFlyer,
   setAppsFlyerCustomerUserId,
@@ -35,6 +39,8 @@ import {
   firstActivityAtKey,
 } from './src/services/posthogService';
 import { maybeRequestAppReview } from './src/services/reviewPromptService';
+
+const AUTO_PAYWALL_PRESENT_DELAY_MS = 480;
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -71,6 +77,13 @@ import {
   KidSelectorOnIcon,
   KidSelectorOffIcon,
 } from './src/components/icons';
+
+// StoreKit products only resolve when launched from Xcode with a StoreKit
+// Configuration, so RevenueCat logs an offerings error on every dev launch.
+// The paywall already handles empty offerings; keep the redbox out of the way.
+if (__DEV__) {
+  LogBox.ignoreLogs([/\[RevenueCat\]/]);
+}
 
 // Bottom nav tuning:
 // NAV_MIN_HEIGHT makes the entire bottom nav bar taller or shorter.
@@ -384,6 +397,7 @@ function AppShell({
   onMaybeFirstActivityCelebration,
   onDevShowCommunityModal,
   onDevShowPartnerModal,
+  blockingOverlayActive = false,
 }) {
   const { colors } = useTheme();
   const insets = useSafeAreaInsets();
@@ -392,6 +406,10 @@ function AppShell({
     return Math.max(20, Constants.statusBarHeight || 0);
   }, [insets.top]);
   const appBg = colors.appBg;
+  const { entitlement, openRemoveAds } = useAds();
+  const removeAdsAutoPromptEnabled = useFeatureFlag('remove_ads_auto_prompt_enabled');
+  const pendingAutoPromptRef = useRef(null);
+  const autoPromptTimerRef = useRef(null);
   const {
     user,
     familyId,
@@ -486,6 +504,13 @@ function AppShell({
     setAppsFlyerCustomerUserId(user.uid);
   }, [user?.uid]);
 
+  useEffect(() => () => {
+    if (autoPromptTimerRef.current) {
+      clearTimeout(autoPromptTimerRef.current);
+      autoPromptTimerRef.current = null;
+    }
+  }, []);
+
   const maybeRequestReviewAfterActivity = useCallback(async (activityType) => {
     await maybeRequestAppReview({
       uid: user?.uid,
@@ -495,10 +520,73 @@ function AppShell({
     });
   }, [user?.uid, user?.metadata?.creationTime, reviewPromptEnabled]);
 
+  const tryPresentPendingAutoPrompt = useCallback(() => {
+    if (autoPromptTimerRef.current) {
+      clearTimeout(autoPromptTimerRef.current);
+      autoPromptTimerRef.current = null;
+    }
+    const pending = pendingAutoPromptRef.current;
+    if (!pending) return;
+
+    autoPromptTimerRef.current = setTimeout(() => {
+      autoPromptTimerRef.current = null;
+      if (!pendingAutoPromptRef.current) return;
+      if (blockingOverlayActive || isActivitySheetOpen) {
+        // Keep pending — another close / overlay clear can retry.
+        return;
+      }
+      if (entitlement === 'entitled' || entitlement === 'unknown') {
+        pendingAutoPromptRef.current = null;
+        return;
+      }
+      const next = pendingAutoPromptRef.current;
+      pendingAutoPromptRef.current = null;
+      openRemoveAds({
+        source: 'auto',
+        trigger: next.trigger,
+        logCount: next.logCount,
+        appAgeHours: next.appAgeHours,
+        accountAgeHours: next.accountAgeHours,
+      });
+    }, AUTO_PAYWALL_PRESENT_DELAY_MS);
+  }, [blockingOverlayActive, isActivitySheetOpen, entitlement, openRemoveAds]);
+
+  useEffect(() => {
+    if (!pendingAutoPromptRef.current) return;
+    if (blockingOverlayActive || isActivitySheetOpen) return;
+    tryPresentPendingAutoPrompt();
+  }, [blockingOverlayActive, isActivitySheetOpen, tryPresentPendingAutoPrompt]);
+
   const handleActivityPersistSuccess = useCallback(({ type, feed_type: feedType }) => {
     const activityType = type === 'feed' ? (feedType || 'feed') : type;
-    void maybeRequestReviewAfterActivity(activityType).catch(() => {});
-  }, [maybeRequestReviewAfterActivity]);
+    void (async () => {
+      try {
+        const prompt = await recordSuccessfulLogAndEvaluate({
+          uid: user?.uid,
+          entitlement,
+          flagEnabled: removeAdsAutoPromptEnabled,
+          accountCreationTime: user?.metadata?.creationTime,
+        });
+        if (prompt) {
+          pendingAutoPromptRef.current = prompt;
+          // Prefer paywall over review when both would fire on the same log.
+          // Sheet may already be dismissing — schedule present; onClose also retries.
+          tryPresentPendingAutoPrompt();
+          return;
+        }
+      } catch {
+        /* never block logging UX */
+      }
+      await maybeRequestReviewAfterActivity(activityType).catch(() => {});
+    })();
+  }, [
+    user?.uid,
+    user?.metadata?.creationTime,
+    entitlement,
+    removeAdsAutoPromptEnabled,
+    maybeRequestReviewAfterActivity,
+    tryPresentPendingAutoPrompt,
+  ]);
 
   const trackAppsFlyerOncePerUser = useCallback(async (flagName, tracker) => {
     if (!user?.uid || typeof tracker !== 'function') return;
@@ -741,17 +829,14 @@ function AppShell({
     }
   }, [firestoreService]);
 
-  const handleCloseFeed = useCallback(() => {
+  const handleCloseTrackerSheet = useCallback(() => {
     setEditEntry(null);
-  }, []);
+    tryPresentPendingAutoPrompt();
+  }, [tryPresentPendingAutoPrompt]);
 
-  const handleCloseSleep = useCallback(() => {
-    setEditEntry(null);
-  }, []);
-
-  const handleCloseDiaper = useCallback(() => {
-    setEditEntry(null);
-  }, []);
+  const handleCloseFeed = handleCloseTrackerSheet;
+  const handleCloseSleep = handleCloseTrackerSheet;
+  const handleCloseDiaper = handleCloseTrackerSheet;
 
   const handleTabChange = useCallback((nextTab) => {
     setShowShareMenu(false);
@@ -1424,8 +1509,8 @@ function AuthGatedApp({
 
   return (
     <DataProvider>
-      <AdsProvider>
       <BottomSheetModalProvider>
+      <AdsProvider>
         <AppShell
           activeTab={activeTab}
           onTabChange={setActiveTab}
@@ -1445,9 +1530,12 @@ function AuthGatedApp({
           onMaybeFirstActivityCelebration={maybeShowFirstActivityCelebration}
           onDevShowCommunityModal={handleDevShowCommunityModal}
           onDevShowPartnerModal={handleDevShowPartnerModal}
+          blockingOverlayActive={
+            showCommunityModal || showPartnerModal || showConfetti
+          }
         />
-      </BottomSheetModalProvider>
       </AdsProvider>
+      </BottomSheetModalProvider>
       <CommunityModal visible={showCommunityModal} onDismiss={dismissCommunityModal} />
       <PartnerInviteModal
         visible={showPartnerModal}
@@ -1573,8 +1661,12 @@ export default function App() {
       try {
         const existing = await AsyncStorage.getItem('tt_first_open_date');
         if (!existing) {
-          await AsyncStorage.setItem('tt_first_open_date', new Date().toISOString().slice(0, 10));
+          const nowIso = new Date().toISOString();
+          await AsyncStorage.setItem('tt_first_open_date', nowIso.slice(0, 10));
+          await AsyncStorage.setItem('tt_first_open_at', nowIso);
           capture('Application installed');
+        } else {
+          await ensureFirstOpenAt();
         }
       } catch {
         /* ignore */

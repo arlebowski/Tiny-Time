@@ -1,0 +1,36 @@
+{
+  "identifier" : "A1B2C3D4",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "E5F6A7B8",
+      "localizations" : [
+        {
+          "description" : "Remove ads forever with a one-time purchase.",
+          "displayName" : "Remove Ads",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "io.tinytracker.removeads",
+      "referenceName" : "Remove Ads",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_failTransactionsEnabled" : false,
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}
