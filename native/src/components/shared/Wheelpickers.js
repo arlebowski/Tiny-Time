@@ -8,7 +8,6 @@ import {
   View,
   Text,
   Pressable,
-  Modal,
   StyleSheet,
   Platform,
   Dimensions,
@@ -29,6 +28,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Modal from './PresentationTrackedModal';
 
 // Premium spring: responsive, slight overshoot for tactile feel
 const SNAP_SPRING = { damping: 22, stiffness: 280, mass: 0.8 };

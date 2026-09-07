@@ -4,7 +4,7 @@
  * No dimmed overlay; tap outside or center to close (web: document pointerdown)
  */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, Pressable, StyleSheet, Modal, Animated } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Animated } from 'react-native';
 import ReanimatedAnimated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { BottleIcon, NursingIcon, SleepIcon, DiaperIcon } from '../icons';
 import { PlusIcon } from '../icons';
+import Modal from '../shared/PresentationTrackedModal';
 
 const TOOLTIP_KEY = 'tt_onboarding_tooltip_shown';
 

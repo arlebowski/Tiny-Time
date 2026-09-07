@@ -15,12 +15,28 @@ try {
   auth = require('@react-native-firebase/auth').default;
 } catch {}
 
-const isAvailable = typeof messaging === 'object' && typeof firestore === 'function' && typeof auth === 'function';
+const {
+  runSerializedPresentationWhenIdle,
+} = require('./presentationActivityService.cjs');
+
+const isAvailable =
+  (typeof messaging === 'function' || typeof messaging === 'object') &&
+  typeof firestore === 'function' &&
+  typeof auth === 'function';
 
 /** Request notification permission (iOS) */
-async function requestPermission() {
+async function requestPermission({ canPresent } = {}) {
   if (!isAvailable) return false;
-  const authStatus = await messaging().requestPermission();
+  // ATT owns the first startup prompt. Notification permission and UMP both
+  // wait for it, then share the same native-presentation queue.
+  const { requestTrackingPermissionOnce } = require('./trackingTransparencyService');
+  await requestTrackingPermissionOnce();
+  const authStatus = await runSerializedPresentationWhenIdle(
+    'notification-permission',
+    () => messaging().requestPermission(),
+    { canStart: canPresent }
+  );
+  if (typeof authStatus !== 'number') return false;
   return authStatus === messaging.AuthorizationStatus.AUTHORIZED ||
     authStatus === messaging.AuthorizationStatus.PROVISIONAL;
 }
@@ -71,10 +87,15 @@ async function registerTokenForCurrentUser() {
   if (!isAvailable) return;
   const user = auth().currentUser;
   if (!user?.uid) return;
-  const hasPermission = await requestPermission();
+  const hasPermission = await requestPermission({
+    canPresent: () => auth().currentUser?.uid === user.uid,
+  });
   if (!hasPermission) return;
+  if (auth().currentUser?.uid !== user.uid) return;
   const token = await getToken();
-  if (token) await saveTokenToFirestore(user.uid, token);
+  if (token && auth().currentUser?.uid === user.uid) {
+    await saveTokenToFirestore(user.uid, token);
+  }
 }
 
 /** Unregister token on sign out */

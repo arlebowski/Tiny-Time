@@ -7,10 +7,8 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  Modal,
   Platform,
   Share,
-  Alert,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '../context/ThemeContext';
@@ -22,6 +20,8 @@ import { capture } from '../services/posthogService';
 import firestoreService from '../services/firestoreService';
 import { trackPartnerInvited } from '../services/appsflyerService';
 import { THEME_TOKENS } from '../../../shared/config/theme';
+import Modal from './shared/PresentationTrackedModal';
+import Alert from '../services/trackedAlert';
 
 const FRAUNCES = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;

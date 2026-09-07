@@ -64,6 +64,7 @@ export default function RemoveAdsSheet({
   onEntitlementChange,
   getPresentation,
   uid,
+  onOpenChange,
 }) {
   const { colors, radius, isDark } = useTheme();
   const insets = useSafeAreaInsets();
@@ -106,6 +107,7 @@ export default function RemoveAdsSheet({
   }, [uid]);
 
   const handleOpen = useCallback(() => {
+    onOpenChange?.(true);
     clearPendingWait();
     setErrorMessage(null);
     setBusy(false);
@@ -124,14 +126,15 @@ export default function RemoveAdsSheet({
       void markAutoPromptPresented(uid, sessionRef.current.trigger);
     }
     loadPrice();
-  }, [loadPrice, clearPendingWait, getPresentation, uid]);
+  }, [loadPrice, clearPendingWait, getPresentation, uid, onOpenChange]);
 
   const handleClose = useCallback(() => {
+    onOpenChange?.(false);
     const session = sessionRef.current;
     if (session.source !== 'auto' || !session.trigger || session.purchased) return;
     capture('remove_ads_auto_prompt_dismissed', analyticsProps(session));
     void markAutoPromptDismissed(uid, session.trigger);
-  }, [uid]);
+  }, [uid, onOpenChange]);
 
   useEffect(() => {
     loadPrice();

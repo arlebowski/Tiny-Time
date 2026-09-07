@@ -8,7 +8,6 @@ import {
   TextInput,
   Pressable,
   StyleSheet,
-  Modal,
   KeyboardAvoidingView,
   Platform,
   Image,
@@ -18,6 +17,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
+import Modal from './shared/PresentationTrackedModal';
 import { useAuth } from '../context/AuthContext';
 import { BabyAvatar } from '../utils/avatarUtils';
 import { pingCommunityInterest } from '../utils/formspree';

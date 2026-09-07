@@ -8,11 +8,9 @@ import {
   Text,
   RefreshControl,
   Pressable,
-  Modal,
   Image,
   StyleSheet,
   Share,
-  Alert,
 } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -27,10 +25,14 @@ import TimelineItem from './TimelineItem';
 import TimelineSwipeRow from './TimelineSwipeRow';
 import SegmentedToggle from '../shared/SegmentedToggle';
 import NativeAdSlot from '../ads/NativeAdSlot';
+import Modal from '../shared/PresentationTrackedModal';
 
-// Ads after the 1st entry, then every 5 entries: 1, 6, 11, 16…
+// Ad lands in the 2nd row (after the 1st entry), then every 7: 1, 8, 15.
+// Capped: every slot is its own ad request and its own native view, and
+// virtualization re-requests them mid-scroll, so density costs scroll smoothness.
 const AD_FIRST_AFTER_ENTRY = 1;
-const AD_EVERY_N_ENTRIES = 5;
+const AD_EVERY_N_ENTRIES = 7;
+const AD_MAX_PER_DAY_VIEW = 3;
 const makeAdSentinel = (slot) => ({
   id: `__native_ad__${slot}`,
   type: '__ad__',
@@ -202,7 +204,10 @@ export default function Timeline({
     sorted.forEach((item, index) => {
       withAds.push(item);
       const entryNumber = index + 1;
-      if (shouldInsertAdAfterEntry(entryNumber)) {
+      if (
+        adSlot < AD_MAX_PER_DAY_VIEW &&
+        shouldInsertAdAfterEntry(entryNumber)
+      ) {
         withAds.push(makeAdSentinel(adSlot));
         adSlot += 1;
       }
@@ -431,7 +436,6 @@ export default function Timeline({
     [filter, colors]
   );
   const shouldShowEmptyState = filteredItems.length === 0 && !suppressEmptyState;
-
   return (
     <View style={[styles.container, { backgroundColor: colors.appBg }]}>
       <Animated.FlatList
@@ -460,6 +464,16 @@ export default function Timeline({
         }
         alwaysBounceVertical
         showsVerticalScrollIndicator={false}
+        // Rows are expensive (inline SVGs, images, ~10 animated styles, a pan
+        // handler each), so mount them in small batches instead of 10 at once.
+        // windowSize is left at the default: shrinking it would unmount ad
+        // slots sooner and force fresh ad requests mid-scroll.
+        initialNumToRender={8}
+        maxToRenderPerBatch={4}
+        updateCellsBatchingPeriod={60}
+        // UIScrollView holds touches ~150ms to look for a scroll, which delays
+        // the first tap on the native ad (its clicks are UIKit-side, not RN).
+        delaysContentTouches={false}
         onScrollBeginDrag={() => setOpenSwipeId(null)}
       />
 
@@ -563,6 +577,7 @@ const styles = StyleSheet.create({
   },
   adSlot: {
     marginBottom: 8,
+    overflow: 'hidden',
   },
   header: {
     flexDirection: 'row',

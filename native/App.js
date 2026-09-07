@@ -1,24 +1,32 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Share, Alert, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator, AppState } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform, Share, Image, Appearance, Animated, Easing, LogBox, Dimensions, ActivityIndicator, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
-import { requireOptionalNativeModule } from 'expo-modules-core';
 import * as Font from 'expo-font';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider, SafeAreaView, initialWindowMetrics, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BottomSheetModalProvider } from '@gorhom/bottom-sheet';
 import { LinearGradient } from 'expo-linear-gradient';
-import Popover from 'react-native-popover-view';
+import Popover, { PopoverMode } from 'react-native-popover-view';
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
 import { AuthProvider, useAuth } from './src/context/AuthContext';
 import { DataProvider, useData } from './src/context/DataContext';
 import { AdsProvider, useAds } from './src/context/AdsContext';
-import { gatherAdsConsent, initializeAds } from './src/services/adsService';
+import {
+  isLogInterstitialLoaded,
+  preloadLogInterstitial,
+  showLogInterstitial,
+  stopLogInterstitial,
+} from './src/services/adsService';
 import { createStorageAdapter } from './src/services/storageAdapter';
 import {
   ensureFirstOpenAt,
   recordSuccessfulLogAndEvaluate,
 } from './src/services/removeAdsPromptService';
+import {
+  markLogInterstitialShown,
+  recordLogAndEvaluateInterstitial,
+} from './src/services/logInterstitialService';
 import {
   initializeAppsFlyer,
   setAppsFlyerCustomerUserId,
@@ -39,8 +47,25 @@ import {
   firstActivityAtKey,
 } from './src/services/posthogService';
 import { maybeRequestAppReview } from './src/services/reviewPromptService';
+import { requestTrackingPermissionOnce } from './src/services/trackingTransparencyService';
+import Alert from './src/services/trackedAlert';
+
+const {
+  PRESENTATION_DECISION,
+  shouldDiscardPendingPresentations,
+  getPresentationDecision,
+  consumeAutoPrompt,
+} = require('./src/services/adsGatePolicy.cjs');
+const {
+  isPresentationActive,
+  runSerializedPresentation,
+  subscribeToPresentationActivity,
+} = require('./src/services/presentationActivityService.cjs');
 
 const AUTO_PAYWALL_PRESENT_DELAY_MS = 480;
+const INTERSTITIAL_PRESENT_DELAY_MS = 700;
+const INTERSTITIAL_READY_TIMEOUT_MS = __DEV__ ? 8_000 : 4_000;
+const NAVIGATION_SETTLE_MS = 400;
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -406,10 +431,25 @@ function AppShell({
     return Math.max(20, Constants.statusBarHeight || 0);
   }, [insets.top]);
   const appBg = colors.appBg;
-  const { entitlement, openRemoveAds } = useAds();
+  const { adsEnabled, entitlement, openRemoveAds, removeAdsOpen } = useAds();
   const removeAdsAutoPromptEnabled = useFeatureFlag('remove_ads_auto_prompt_enabled');
+  const logInterstitialFlag = useFeatureFlag('log_interstitial_ad_enabled');
+  const logInterstitialFlagAllows = __DEV__
+    ? logInterstitialFlag !== false
+    : logInterstitialFlag === true;
   const pendingAutoPromptRef = useRef(null);
-  const autoPromptTimerRef = useRef(null);
+  const pendingInterstitialRef = useRef(false);
+  const trackerLogSheetOpenRef = useRef(false);
+  const presentationTimerRef = useRef(null);
+  const presentationInFlightRef = useRef(null);
+  const presentationGenerationRef = useRef(0);
+  const drainPendingPresentationRef = useRef(null);
+  const appStateRef = useRef(AppState.currentState);
+  const presentationBlockersRef = useRef(null);
+  const userUidRef = useRef(null);
+  const adsEnabledRef = useRef(false);
+  const entitlementRef = useRef('unknown');
+  const navigationTimerRef = useRef(null);
   const {
     user,
     familyId,
@@ -489,6 +529,8 @@ function AppShell({
   const [activityVisibility, setActivityVisibility] = useState(() => normalizeActivityVisibility(null));
   const [activityOrder, setActivityOrder] = useState(() => DEFAULT_ACTIVITY_ORDER.slice());
   const [isActivitySheetOpen, setIsActivitySheetOpen] = useState(false);
+  const [navigationTransitioning, setNavigationTransitioning] = useState(false);
+  const [presentationActivityVersion, setPresentationActivityVersion] = useState(0);
   // Create storage adapter for sheets
   const storage = useMemo(
     () => (familyId && kidId ? createStorageAdapter(familyId, kidId) : null),
@@ -499,17 +541,96 @@ function AppShell({
   const familyUser = user ? { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL } : null;
   const reviewPromptEnabled = useFeatureFlag('app-review-prompt');
 
+  userUidRef.current = user?.uid ?? null;
+  adsEnabledRef.current = adsEnabled;
+  entitlementRef.current = entitlement;
+  presentationBlockersRef.current = {
+    blockingOverlayActive,
+    isActivitySheetOpen,
+    removeAdsOpen,
+    showShareMenu,
+    showKidMenu,
+    navigationTransitioning,
+  };
+
   useEffect(() => {
     if (!user?.uid) return;
     setAppsFlyerCustomerUserId(user.uid);
   }, [user?.uid]);
 
-  useEffect(() => () => {
-    if (autoPromptTimerRef.current) {
-      clearTimeout(autoPromptTimerRef.current);
-      autoPromptTimerRef.current = null;
+  const isPresentationBlocked = useCallback(() => {
+    const blockers = presentationBlockersRef.current || {};
+    return Boolean(
+      trackerLogSheetOpenRef.current ||
+      shareFlowInFlightRef.current ||
+      blockers.blockingOverlayActive ||
+      blockers.isActivitySheetOpen ||
+      blockers.removeAdsOpen ||
+      blockers.showShareMenu ||
+      blockers.showKidMenu ||
+      blockers.navigationTransitioning ||
+      isPresentationActive()
+    );
+  }, []);
+
+  const clearPresentationTimer = useCallback(() => {
+    if (presentationTimerRef.current) {
+      clearTimeout(presentationTimerRef.current);
+      presentationTimerRef.current = null;
     }
   }, []);
+
+  const discardPendingPresentations = useCallback(() => {
+    clearPresentationTimer();
+    presentationGenerationRef.current += 1;
+    presentationInFlightRef.current = null;
+    pendingAutoPromptRef.current = null;
+    pendingInterstitialRef.current = false;
+  }, [clearPresentationTimer]);
+
+  const schedulePendingPresentation = useCallback((delayMs = 0) => {
+    clearPresentationTimer();
+    const generation = presentationGenerationRef.current;
+    presentationTimerRef.current = setTimeout(() => {
+      presentationTimerRef.current = null;
+      if (generation !== presentationGenerationRef.current) return;
+      void drainPendingPresentationRef.current?.();
+    }, delayMs);
+  }, [clearPresentationTimer]);
+
+  const markNavigationTransition = useCallback(() => {
+    if (navigationTimerRef.current) clearTimeout(navigationTimerRef.current);
+    setNavigationTransitioning(true);
+    navigationTimerRef.current = setTimeout(() => {
+      navigationTimerRef.current = null;
+      setNavigationTransitioning(false);
+    }, NAVIGATION_SETTLE_MS);
+  }, []);
+
+  useEffect(() => () => {
+    discardPendingPresentations();
+    if (navigationTimerRef.current) {
+      clearTimeout(navigationTimerRef.current);
+      navigationTimerRef.current = null;
+    }
+  }, [discardPendingPresentations]);
+
+  useEffect(
+    () => subscribeToPresentationActivity(() => {
+      setPresentationActivityVersion((version) => version + 1);
+    }),
+    []
+  );
+
+  useEffect(() => {
+    if (!adsEnabled || !logInterstitialFlagAllows) {
+      stopLogInterstitial();
+      pendingInterstitialRef.current = false;
+      return undefined;
+    }
+    preloadLogInterstitial();
+    return undefined;
+  }, [adsEnabled, logInterstitialFlagAllows]);
 
   const maybeRequestReviewAfterActivity = useCallback(async (activityType) => {
     await maybeRequestAppReview({
@@ -520,42 +641,143 @@ function AppShell({
     });
   }, [user?.uid, user?.metadata?.creationTime, reviewPromptEnabled]);
 
-  const tryPresentPendingAutoPrompt = useCallback(() => {
-    if (autoPromptTimerRef.current) {
-      clearTimeout(autoPromptTimerRef.current);
-      autoPromptTimerRef.current = null;
-    }
-    const pending = pendingAutoPromptRef.current;
-    if (!pending) return;
+  const drainPendingPresentation = useCallback(async () => {
+    const decision = getPresentationDecision({
+      appState: appStateRef.current,
+      blocked: isPresentationBlocked(),
+      inFlight: presentationInFlightRef.current,
+      pendingAutoPrompt: Boolean(pendingAutoPromptRef.current),
+      pendingInterstitial: pendingInterstitialRef.current,
+      entitlement: entitlementRef.current,
+      adsEnabled: adsEnabledRef.current,
+    });
 
-    autoPromptTimerRef.current = setTimeout(() => {
-      autoPromptTimerRef.current = null;
-      if (!pendingAutoPromptRef.current) return;
-      if (blockingOverlayActive || isActivitySheetOpen) {
-        // Keep pending — another close / overlay clear can retry.
-        return;
-      }
-      if (entitlement === 'entitled' || entitlement === 'unknown') {
-        pendingAutoPromptRef.current = null;
-        return;
-      }
-      const next = pendingAutoPromptRef.current;
+    if (
+      decision === PRESENTATION_DECISION.NONE ||
+      decision === PRESENTATION_DECISION.WAIT
+    ) {
+      return;
+    }
+    if (decision === PRESENTATION_DECISION.DROP_AUTO_PROMPT) {
       pendingAutoPromptRef.current = null;
-      openRemoveAds({
+      schedulePendingPresentation();
+      return;
+    }
+    if (decision === PRESENTATION_DECISION.DROP_INTERSTITIAL) {
+      pendingInterstitialRef.current = false;
+      return;
+    }
+    if (decision === PRESENTATION_DECISION.AUTO_PROMPT) {
+      const consumed = consumeAutoPrompt(pendingAutoPromptRef.current);
+      const pending = consumed.selectedAutoPrompt;
+      pendingAutoPromptRef.current = consumed.pendingAutoPrompt;
+      pendingInterstitialRef.current = consumed.pendingInterstitial;
+      presentationInFlightRef.current = PRESENTATION_DECISION.AUTO_PROMPT;
+      const opened = openRemoveAds({
         source: 'auto',
-        trigger: next.trigger,
-        logCount: next.logCount,
-        appAgeHours: next.appAgeHours,
-        accountAgeHours: next.accountAgeHours,
+        trigger: pending.trigger,
+        logCount: pending.logCount,
+        appAgeHours: pending.appAgeHours,
+        accountAgeHours: pending.accountAgeHours,
       });
-    }, AUTO_PAYWALL_PRESENT_DELAY_MS);
-  }, [blockingOverlayActive, isActivitySheetOpen, entitlement, openRemoveAds]);
+      if (opened === false) presentationInFlightRef.current = null;
+      return;
+    }
+
+    presentationInFlightRef.current = PRESENTATION_DECISION.INTERSTITIAL;
+    const generation = presentationGenerationRef.current;
+    preloadLogInterstitial();
+    const deadline = Date.now() + INTERSTITIAL_READY_TIMEOUT_MS;
+    while (
+      generation === presentationGenerationRef.current &&
+      appStateRef.current === 'active' &&
+      !isLogInterstitialLoaded() &&
+      Date.now() < deadline
+    ) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    if (generation !== presentationGenerationRef.current) return;
+    if (!isLogInterstitialLoaded()) {
+      pendingInterstitialRef.current = false;
+      presentationInFlightRef.current = null;
+      return;
+    }
+
+    // The user may have opened a sheet or navigated while the ad was loading.
+    // Re-run the full policy immediately before handing control to AdMob.
+    const finalDecision = getPresentationDecision({
+      appState: appStateRef.current,
+      blocked: isPresentationBlocked(),
+      inFlight: null,
+      pendingAutoPrompt: Boolean(pendingAutoPromptRef.current),
+      pendingInterstitial: pendingInterstitialRef.current,
+      entitlement: entitlementRef.current,
+      adsEnabled: adsEnabledRef.current,
+    });
+    presentationInFlightRef.current = null;
+    if (finalDecision !== PRESENTATION_DECISION.INTERSTITIAL) {
+      if (finalDecision === PRESENTATION_DECISION.DROP_INTERSTITIAL) {
+        pendingInterstitialRef.current = false;
+      } else if (finalDecision === PRESENTATION_DECISION.AUTO_PROMPT) {
+        schedulePendingPresentation();
+      }
+      return;
+    }
+
+    pendingInterstitialRef.current = false;
+    const presentationUid = userUidRef.current;
+    presentationInFlightRef.current = PRESENTATION_DECISION.INTERSTITIAL;
+    const shown = await showLogInterstitial();
+    presentationInFlightRef.current = null;
+    if (
+      shown &&
+      generation === presentationGenerationRef.current &&
+      presentationUid === userUidRef.current
+    ) {
+      await markLogInterstitialShown(presentationUid).catch(() => {});
+    }
+  }, [isPresentationBlocked, openRemoveAds, schedulePendingPresentation]);
+
+  drainPendingPresentationRef.current = drainPendingPresentation;
 
   useEffect(() => {
-    if (!pendingAutoPromptRef.current) return;
-    if (blockingOverlayActive || isActivitySheetOpen) return;
-    tryPresentPendingAutoPrompt();
-  }, [blockingOverlayActive, isActivitySheetOpen, tryPresentPendingAutoPrompt]);
+    if (entitlement === 'entitled') {
+      discardPendingPresentations();
+      return;
+    }
+    if (!pendingAutoPromptRef.current && !pendingInterstitialRef.current) return;
+    if (isPresentationBlocked() || appStateRef.current !== 'active') return;
+    schedulePendingPresentation(
+      pendingAutoPromptRef.current
+        ? AUTO_PAYWALL_PRESENT_DELAY_MS
+        : INTERSTITIAL_PRESENT_DELAY_MS
+    );
+  }, [
+    entitlement,
+    blockingOverlayActive,
+    isActivitySheetOpen,
+    removeAdsOpen,
+    showShareMenu,
+    showKidMenu,
+    navigationTransitioning,
+    presentationActivityVersion,
+    isPresentationBlocked,
+    schedulePendingPresentation,
+    discardPendingPresentations,
+  ]);
+
+  useEffect(() => {
+    if (
+      removeAdsOpen &&
+      presentationInFlightRef.current === PRESENTATION_DECISION.AUTO_PROMPT
+    ) {
+      presentationInFlightRef.current = null;
+    }
+  }, [removeAdsOpen]);
+
+  useEffect(() => {
+    discardPendingPresentations();
+  }, [user?.uid, discardPendingPresentations]);
 
   const handleActivityPersistSuccess = useCallback(({ type, feed_type: feedType }) => {
     const activityType = type === 'feed' ? (feedType || 'feed') : type;
@@ -567,11 +789,21 @@ function AppShell({
           flagEnabled: removeAdsAutoPromptEnabled,
           accountCreationTime: user?.metadata?.creationTime,
         });
+        const interstitial = await recordLogAndEvaluateInterstitial({
+          uid: user?.uid,
+          entitlement,
+          flagEnabled: logInterstitialFlagAllows,
+          adsEnabled,
+        });
         if (prompt) {
           pendingAutoPromptRef.current = prompt;
-          // Prefer paywall over review when both would fire on the same log.
-          // Sheet may already be dismissing — schedule present; onClose also retries.
-          tryPresentPendingAutoPrompt();
+          pendingInterstitialRef.current = false;
+          schedulePendingPresentation(AUTO_PAYWALL_PRESENT_DELAY_MS);
+          return;
+        }
+        if (interstitial) {
+          pendingInterstitialRef.current = true;
+          schedulePendingPresentation(INTERSTITIAL_PRESENT_DELAY_MS);
           return;
         }
       } catch {
@@ -583,9 +815,11 @@ function AppShell({
     user?.uid,
     user?.metadata?.creationTime,
     entitlement,
+    adsEnabled,
     removeAdsAutoPromptEnabled,
+    logInterstitialFlagAllows,
     maybeRequestReviewAfterActivity,
-    tryPresentPendingAutoPrompt,
+    schedulePendingPresentation,
   ]);
 
   const trackAppsFlyerOncePerUser = useCallback(async (flagName, tracker) => {
@@ -663,13 +897,16 @@ function AppShell({
     setKidAnchor(null);
     if (type === 'diaper') {
       if (!visibilitySafe.diaper) return;
+      trackerLogSheetOpenRef.current = true;
       diaperRef.current?.present?.();
     } else if (type === 'sleep') {
       if (!visibilitySafe.sleep) return;
+      trackerLogSheetOpenRef.current = true;
       sleepRef.current?.present?.();
     } else if (['bottle', 'nursing', 'solids'].includes(type)) {
       if (!isFeedEnabled || visibilitySafe[type] === false) return;
       feedTypeRef.current = type;
+      trackerLogSheetOpenRef.current = true;
       feedRef.current?.present?.();
     }
   }, [activityVisibility]);
@@ -793,6 +1030,7 @@ function AppShell({
       entry.isDry = !card.isWet && !card.isPoo;
     }
     setEditEntry(entry);
+    trackerLogSheetOpenRef.current = true;
     if (card.type === 'feed') {
       feedRef.current?.present?.();
     } else if (card.type === 'sleep') {
@@ -831,14 +1069,22 @@ function AppShell({
 
   const handleCloseTrackerSheet = useCallback(() => {
     setEditEntry(null);
-    tryPresentPendingAutoPrompt();
-  }, [tryPresentPendingAutoPrompt]);
+    trackerLogSheetOpenRef.current = false;
+    if (pendingAutoPromptRef.current || pendingInterstitialRef.current) {
+      schedulePendingPresentation(
+        pendingAutoPromptRef.current
+          ? AUTO_PAYWALL_PRESENT_DELAY_MS
+          : INTERSTITIAL_PRESENT_DELAY_MS
+      );
+    }
+  }, [schedulePendingPresentation]);
 
   const handleCloseFeed = handleCloseTrackerSheet;
   const handleCloseSleep = handleCloseTrackerSheet;
   const handleCloseDiaper = handleCloseTrackerSheet;
 
   const handleTabChange = useCallback((nextTab) => {
+    markNavigationTransition();
     setShowShareMenu(false);
     setShareAnchor(null);
     setShowKidMenu(false);
@@ -861,14 +1107,21 @@ function AppShell({
         setAnalyticsDetailOpen(false);
       }
     }
-  }, [activeTab, isTrackerDetailOpen, analyticsDetailOpen, familyDetailOpen, onTabChange]);
+  }, [
+    activeTab,
+    isTrackerDetailOpen,
+    analyticsDetailOpen,
+    familyDetailOpen,
+    onTabChange,
+    markNavigationTransition,
+  ]);
 
   const shareAppMessage = useMemo(() => {
     const url = APP_SHARE_BASE_URL;
     return `Check out Tiny Tracker - track your baby's feedings and get insights! ${url}`;
   }, []);
 
-  const handleGlobalShareApp = useCallback(async () => {
+  const handleGlobalShareApp = useCallback(() => runSerializedPresentation('share-app', async () => {
     const url = APP_SHARE_BASE_URL;
     const text = shareAppMessage;
 
@@ -886,9 +1139,9 @@ function AppShell({
     }
 
     Alert.alert('Copy this link:', url);
-  }, [shareAppMessage]);
+  }), [shareAppMessage]);
 
-  const handleGlobalInvitePartner = useCallback(async () => {
+  const handleGlobalInvitePartner = useCallback(() => runSerializedPresentation('share-invite', async () => {
     const resolvedKidId = kidId || (kids?.length ? kids[0]?.id : null);
 
     if (!familyId || !resolvedKidId) {
@@ -938,10 +1191,14 @@ function AppShell({
     }
 
     Alert.alert('Copy this invite info:', message);
-  }, [familyId, kidId, kids, kidData, firestoreService]);
+  }), [familyId, kidId, kids, kidData, firestoreService]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (nextState) => {
+      appStateRef.current = nextState;
+      if (shouldDiscardPendingPresentations(nextState)) {
+        discardPendingPresentations();
+      }
       if (nextState === 'active' && shareFlowInFlightRef.current) {
         setShowShareMenu(false);
         setShareAnchor(null);
@@ -957,7 +1214,7 @@ function AppShell({
     return () => {
       subscription.remove();
     };
-  }, [maybeTrackRetentionMilestones]);
+  }, [maybeTrackRetentionMilestones, discardPendingPresentations]);
 
   const handleShareAppFromMenu = useCallback(async () => {
     capture('app_share_tapped');
@@ -1064,6 +1321,7 @@ function AppShell({
   }, [handleTabChange]);
 
   const handleTrackerDetailOpenChange = useCallback((isOpen) => {
+    markNavigationTransition();
     setIsTrackerDetailOpen(isOpen);
     if (isOpen) {
       setShowShareMenu(false);
@@ -1071,7 +1329,17 @@ function AppShell({
       setShowKidMenu(false);
       setKidAnchor(null);
     }
-  }, []);
+  }, [markNavigationTransition]);
+
+  const handleAnalyticsDetailOpenChange = useCallback((isOpen) => {
+    markNavigationTransition();
+    setAnalyticsDetailOpen(isOpen);
+  }, [markNavigationTransition]);
+
+  const handleFamilyDetailOpenChange = useCallback((isOpen) => {
+    markNavigationTransition();
+    setFamilyDetailOpen(isOpen);
+  }, [markNavigationTransition]);
 
   const handleFamilyPress = useCallback(() => handleTabChange('family'), [handleTabChange]);
   const handleCloseShareMenu = useCallback(() => {
@@ -1155,7 +1423,7 @@ function AppShell({
               navigationRef={analyticsNavRef}
               topInset={topInset}
               header={trackerHeader}
-              onDetailOpenChange={setAnalyticsDetailOpen}
+              onDetailOpenChange={handleAnalyticsDetailOpenChange}
               activityVisibility={activityVisibility}
               isTabActive={activeTab === 'trends'}
             />
@@ -1165,7 +1433,7 @@ function AppShell({
               navigationRef={familyNavRef}
               topInset={topInset}
               header={trackerHeader}
-              onDetailOpenChange={setFamilyDetailOpen}
+              onDetailOpenChange={handleFamilyDetailOpenChange}
               user={familyUser}
               kidId={kidId}
               familyId={familyId}
@@ -1208,6 +1476,7 @@ function AppShell({
         </View>
       </SafeAreaView>
       <Popover
+        mode={PopoverMode.JS_MODAL}
         isVisible={showKidMenu}
         from={kidAnchor || kidButtonRef}
         onRequestClose={() => {
@@ -1266,6 +1535,7 @@ function AppShell({
         </Pressable>
       </Popover>
       <Popover
+        mode={PopoverMode.JS_MODAL}
         isVisible={showShareMenu}
         from={shareAnchor || shareButtonRef}
         onRequestClose={() => {
@@ -1650,12 +1920,7 @@ export default function App() {
 
   useEffect(() => {
     (async () => {
-      // requireOptionalNativeModule returns null instead of throwing when the native
-      // module isn't present (Expo Go, simulator without module, old binaries).
-      if (Platform.OS === 'ios' && requireOptionalNativeModule('ExpoTrackingTransparency')) {
-        const { requestTrackingPermissionsAsync } = require('expo-tracking-transparency');
-        await requestTrackingPermissionsAsync();
-      }
+      await requestTrackingPermissionOnce();
       initializeAppsFlyer();
       capture('app_opened', { is_cold_start: true });
       try {
@@ -1671,13 +1936,6 @@ export default function App() {
       } catch {
         /* ignore */
       }
-
-      // Independent of ATT/AppsFlyer — never delay cold start. Fail closed.
-      gatherAdsConsent()
-        .then(({ canRequestAds }) => {
-          if (canRequestAds) return initializeAds();
-        })
-        .catch(() => {});
     })();
   }, []);
 

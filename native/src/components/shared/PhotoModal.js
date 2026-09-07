@@ -7,7 +7,6 @@ import {
   View,
   Text,
   Pressable,
-  Modal,
   Image,
   StyleSheet,
   Share,
@@ -15,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
+import Modal from './PresentationTrackedModal';
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 

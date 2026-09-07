@@ -20,6 +20,12 @@ Day Detail / Timeline native:
 ca-app-pub-3734956448133132/4293261893
 ```
 
+Post-log interstitial:
+
+```
+ca-app-pub-3734956448133132/7482389794
+```
+
 ## Android
 
 Not configured yet. Monetization is iOS-only.

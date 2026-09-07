@@ -1,12 +1,17 @@
 /**
  * NativeAdCard — presentational native ad shell.
  *
- * Layout rule: NativeAdView is a native view and mismeasures padding
- * (doubles top/left, clips the right edge), so all card chrome lives on an
- * outer RN View and NativeAdView is a plain full-width container.
+ * NativeAdView must tightly wrap every advertiser asset (icon, headline,
+ * advertiser, CTA). Card chrome and "Remove ads" stay outside so those taps
+ * are not billed as ad clicks, and so empty padding is not clickable
+ * white space (AdMob native advanced policy).
  *
- * The "Remove ads" control is deliberately OUTSIDE NativeAdView: taps inside
- * it get swallowed by the ad view and would register as ad clicks.
+ * Do not animate/transform this tree: AdMob's validator compares asset
+ * frames to NativeAdView bounds in window space.
+ *
+ * Clicks are the SDK's: GADNativeAdView handles taps over its registered
+ * assets. Nothing inside it may be interactive, and the card padding around
+ * it stays non-clickable (AdMob forbids clickable white space).
  */
 import React from 'react';
 import { View, Text, Image, Pressable, StyleSheet, Platform } from 'react-native';
@@ -15,6 +20,34 @@ import { THEME_TOKENS } from '../../../../shared/config/theme';
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 const ICON_SIZE = 44;
+const CTA_MAX_WIDTH = 96;
+// AdMob converts each asset frame into NativeAdView coordinates and requires
+// strict containment. An asset flush with the ad view edge fails that check as
+// soon as the card lands on a fractional offset, so keep every asset inset.
+const ASSET_INSET = 2;
+const TIMELINE_ROW_HEIGHT = ICON_SIZE;
+// Reserves a two-line headline (2 x 19) plus the advertiser line, so a short
+// test headline and a full-length one render at the same height.
+const HOME_ROW_HEIGHT = 56;
+
+/** Body heights by placement, so the loading skeleton reserves the same space. */
+export const AD_BODY_HEIGHT = {
+  home: HOME_ROW_HEIGHT + ASSET_INSET * 2,
+  timeline: TIMELINE_ROW_HEIGHT + ASSET_INSET * 2,
+};
+
+/**
+ * Ad cards share the content card surface; the badge marks them as sponsored.
+ * `bone` (badge pill, icon placeholder, skeleton shimmer) must contrast with
+ * that surface in both themes — `segTrack` equals `cardBg` in dark mode, which
+ * is what made the badge and shimmer invisible there.
+ */
+export function getAdSurface(colors) {
+  return {
+    surface: colors.cardBg,
+    bone: colors.subtleSurface || colors.segTrack,
+  };
+}
 
 function getAdsModule() {
   try {
@@ -35,6 +68,12 @@ export default function NativeAdCard({
 
   const { NativeAdView, NativeAsset, NativeAssetType } = ads;
   const isTimeline = variant === 'timeline';
+  // Fabric GADNativeAdView stretches to fill an unbounded parent (timeline
+  // FlatList + layout animation). Pin the body to a whole-pixel height so
+  // the card cannot grow on each layout pass.
+  const rowHeight = isTimeline ? TIMELINE_ROW_HEIGHT : HOME_ROW_HEIGHT;
+  const bodyHeight = rowHeight + ASSET_INSET * 2;
+  const { surface, bone } = getAdSurface(colors);
 
   return (
     <View
@@ -42,8 +81,7 @@ export default function NativeAdCard({
         styles.card,
         isTimeline ? styles.cardTimeline : styles.cardHome,
         {
-          backgroundColor: colors.cardBg,
-          // Timeline rows use xl (16); home tracker cards use 2xl (18).
+          backgroundColor: surface,
           borderRadius: isTimeline
             ? radius?.xl ?? 16
             : radius?.['2xl'] ?? 18,
@@ -51,14 +89,13 @@ export default function NativeAdCard({
         },
       ]}
     >
-      {/* Outside NativeAdView so the control isn't swallowed as an ad click. */}
       <View style={[styles.topRow, isTimeline && styles.topRowTimeline]}>
         <Text
           style={[
             isTimeline ? styles.inlineAdBadge : styles.badge,
             {
-              color: colors.textTertiary,
-              backgroundColor: colors.segTrack || colors.track,
+              color: colors.textSecondary,
+              backgroundColor: bone,
             },
           ]}
         >
@@ -66,8 +103,11 @@ export default function NativeAdCard({
         </Text>
         <Pressable
           onPress={onRemoveAdsPress}
-          hitSlop={12}
-          style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+          hitSlop={16}
+          style={({ pressed }) => [
+            styles.removeHit,
+            pressed && { opacity: 0.6 },
+          ]}
         >
           <Text
             style={[
@@ -80,96 +120,138 @@ export default function NativeAdCard({
         </Pressable>
       </View>
 
-      <NativeAdView nativeAd={nativeAd} style={styles.adView}>
-        <View style={styles.body}>
-          {nativeAd.icon ? (
-            <NativeAsset assetType={NativeAssetType.ICON}>
-              <Image source={{ uri: nativeAd.icon.url }} style={styles.iconBox} />
-            </NativeAsset>
-          ) : (
-            <View
-              style={[
-                styles.iconBox,
-                { backgroundColor: colors.segTrack || colors.track },
-              ]}
-            />
-          )}
-
-          <View style={styles.copy}>
-            {nativeAd.headline ? (
-              <NativeAsset assetType={NativeAssetType.HEADLINE}>
-                <Text
-                  style={[
-                    isTimeline ? styles.headlineTimeline : styles.headline,
-                    { color: colors.textPrimary },
-                  ]}
-                  numberOfLines={isTimeline ? 1 : 2}
-                >
-                  {nativeAd.headline}
-                </Text>
+      <View
+        style={[
+          styles.adViewShell,
+          { height: bodyHeight },
+        ]}
+        collapsable={false}
+      >
+        <NativeAdView
+          nativeAd={nativeAd}
+          collapsable={false}
+          style={[styles.adView, { height: bodyHeight }]}
+        >
+          {/*
+            Every registered asset stays inset from the ad view edges.
+            pointerEvents="none" is required: the SDK only clears
+            userInteractionEnabled on registered asset views, so an
+            interactive RN container here would absorb the tap and
+            GADNativeAdView would never receive the click.
+          */}
+          <View
+            style={[styles.body, { height: bodyHeight }]}
+            collapsable={false}
+            pointerEvents="none"
+          >
+            {nativeAd.icon ? (
+              <NativeAsset assetType={NativeAssetType.ICON}>
+                <View style={styles.iconBox} collapsable={false}>
+                  <Image
+                    source={{ uri: nativeAd.icon.url }}
+                    style={styles.iconImage}
+                  />
+                </View>
               </NativeAsset>
-            ) : null}
+            ) : (
+              <View
+                style={[styles.iconBox, { backgroundColor: bone }]}
+              />
+            )}
 
-            {!isTimeline && nativeAd.advertiser ? (
-              <NativeAsset assetType={NativeAssetType.ADVERTISER}>
-                <Text
-                  style={[styles.advertiser, { color: colors.textTertiary }]}
-                  numberOfLines={1}
+            <View style={styles.copy} collapsable={false}>
+              {nativeAd.headline ? (
+                <NativeAsset assetType={NativeAssetType.HEADLINE}>
+                  <View
+                    style={
+                      isTimeline ? styles.headlineBoxTimeline : styles.headlineBox
+                    }
+                    collapsable={false}
+                  >
+                    <Text
+                      style={[
+                        isTimeline ? styles.headlineTimeline : styles.headline,
+                        { color: colors.textPrimary },
+                      ]}
+                      numberOfLines={isTimeline ? 1 : 2}
+                    >
+                      {nativeAd.headline}
+                    </Text>
+                  </View>
+                </NativeAsset>
+              ) : null}
+
+              {!isTimeline && nativeAd.advertiser ? (
+                <NativeAsset assetType={NativeAssetType.ADVERTISER}>
+                  <View style={styles.advertiserBox} collapsable={false}>
+                    <Text
+                      style={[styles.advertiser, { color: colors.textTertiary }]}
+                      numberOfLines={1}
+                    >
+                      {nativeAd.advertiser}
+                    </Text>
+                  </View>
+                </NativeAsset>
+              ) : null}
+            </View>
+
+            {nativeAd.callToAction ? (
+              <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
+                <View
+                  style={[styles.cta, { backgroundColor: colors.textPrimary }]}
+                  collapsable={false}
                 >
-                  {nativeAd.advertiser}
-                </Text>
+                  <Text
+                    style={[styles.ctaLabel, { color: colors.appBg }]}
+                    numberOfLines={1}
+                  >
+                    {nativeAd.callToAction}
+                  </Text>
+                </View>
               </NativeAsset>
             ) : null}
           </View>
-
-          {nativeAd.callToAction ? (
-            <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-              <Text
-                style={[
-                  styles.cta,
-                  {
-                    backgroundColor: colors.segTrack || colors.track,
-                    borderColor: colors.borderSubtle || 'rgba(0,0,0,0.10)',
-                    color: colors.textPrimary,
-                  },
-                ]}
-                numberOfLines={1}
-              >
-                {nativeAd.callToAction}
-              </Text>
-            </NativeAsset>
-          ) : null}
-        </View>
-      </NativeAdView>
+        </NativeAdView>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  // Match TrackerCard chrome: p-5 + radius 2xl + shadows.card.
-  // Do not set overflow:hidden — it clips the iOS card shadow.
   card: {},
   cardHome: {
     padding: 20,
   },
-  // Match TimelineItem padding (16). NativeAdView measures ~5pt taller than
-  // its content, so shave the bottom to keep the card optically even.
   cardTimeline: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingVertical: 12,
+  },
+  // Height-capped so Fabric's GADNativeAdView cannot stretch to fill an
+  // unbounded parent (timeline FlatList) and grow on each layout pass.
+  adViewShell: {
+    width: '100%',
+    overflow: 'hidden',
   },
   adView: {
     width: '100%',
+    overflow: 'hidden',
   },
+  // zIndex keeps this above NativeAdView for hit-testing. The SDK's ad view is
+  // a later sibling and is interactive across its whole frame, so without this
+  // it can shadow the Remove ads tap.
   topRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 10,
+    zIndex: 1,
+  },
+  removeHit: {
+    paddingVertical: 4,
+    paddingLeft: 8,
   },
   topRowTimeline: {
-    marginBottom: 10,
+    marginBottom: 6,
   },
   badge: {
     fontSize: 10,
@@ -192,17 +274,35 @@ const styles = StyleSheet.create({
   body: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    padding: ASSET_INSET,
+    overflow: 'hidden',
   },
   iconBox: {
     width: ICON_SIZE,
     height: ICON_SIZE,
     borderRadius: 10,
+    overflow: 'hidden',
+  },
+  iconImage: {
+    width: ICON_SIZE,
+    height: ICON_SIZE,
   },
   copy: {
     flex: 1,
     minWidth: 0,
     justifyContent: 'center',
+    marginHorizontal: 12,
+    overflow: 'hidden',
+  },
+  headlineBox: {
+    height: 38,
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  headlineBoxTimeline: {
+    height: 18,
+    justifyContent: 'center',
+    overflow: 'hidden',
   },
   headline: {
     fontSize: 15,
@@ -224,18 +324,28 @@ const styles = StyleSheet.create({
     fontFamily: FWB.bold,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },
+  advertiserBox: {
+    marginTop: 2,
+    height: 16,
+    overflow: 'hidden',
+  },
   advertiser: {
     fontSize: 13,
-    marginTop: 3,
+    lineHeight: 16,
     fontFamily: FWB.normal,
   },
   cta: {
-    fontSize: 13,
+    flexShrink: 0,
+    maxWidth: CTA_MAX_WIDTH,
     borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 14,
-    paddingVertical: 9,
+    paddingVertical: 8,
     overflow: 'hidden',
+    justifyContent: 'center',
+  },
+  ctaLabel: {
+    fontSize: 13,
+    lineHeight: 16,
     fontFamily: FWB.semibold,
     ...(Platform.OS === 'android' ? { includeFontPadding: false } : null),
   },

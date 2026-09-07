@@ -5,7 +5,7 @@ import { PlusIcon, PaletteIcon, FamilyIcon } from '../../../components/icons';
 import { useAds } from '../../../context/AdsContext';
 import { MONETIZATION_SUPPORTED } from '../../../services/monetization';
 import { getRemoveAdsPackage } from '../../../services/purchasesService';
-import { showPrivacyOptions } from '../../../services/adsService';
+import { showPrivacyOptions, showLogInterstitialWhenReady } from '../../../services/adsService';
 
 export default function FamilyHubSubscreen({
   s,
@@ -130,6 +130,25 @@ export default function FamilyHubSubscreen({
                 ]}
               >
                 <Text style={[s.devSetupToggleText, { color: colors.textTertiary }]}>PI</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  void showLogInterstitialWhenReady().then((shown) => {
+                    if (!shown) {
+                      console.warn('[Ads] DEV interstitial did not show (not loaded)');
+                    }
+                  });
+                }}
+                style={({ pressed }) => [
+                  s.devSetupToggle,
+                  {
+                    borderColor: colors.cardBorder || colors.borderSubtle,
+                    backgroundColor: colors.cardBg,
+                  },
+                  pressed && s.devSetupTogglePressed,
+                ]}
+              >
+                <Text style={[s.devSetupToggleText, { color: colors.textTertiary }]}>AD</Text>
               </Pressable>
             </View>
           ) : null}

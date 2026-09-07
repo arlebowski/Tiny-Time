@@ -70,6 +70,8 @@
     <string>ca-app-pub-3734956448133132~8807798968</string>
     <key>GADDelayAppMeasurementInit</key>
     <true/>
+    <key>GADNativeAdValidatorEnabled</key>
+    <false/>
     <key>SKAdNetworkItems</key>
     <array>
       <dict>

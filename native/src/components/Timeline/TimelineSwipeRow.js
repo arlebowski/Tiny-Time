@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Dimensions } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 import Animated, {
@@ -138,7 +138,10 @@ export default function TimelineSwipeRow({
     lockState.value = 0;
   }, [card?.id, lockState, openSwipeId, progress, translateX]);
 
-  const panGesture = Gesture.Pan()
+  // Memoized: Timeline rebuilds renderItem whenever a row expands or a swipe
+  // opens, and a fresh Gesture object makes GestureDetector re-attach the
+  // native handler on every mounted row, which shows up as scroll jitter.
+  const panGesture = useMemo(() => Gesture.Pan()
     .enabled(isSwipeEnabled)
     .activeOffsetX([-6, 6])
     .failOffsetY([-15, 15])
@@ -212,7 +215,20 @@ export default function TimelineSwipeRow({
       progress.value = withSpring(target / Math.max(1, width), SPRING);
 
       if (onSwipeEnd) runOnJS(onSwipeEnd)(card?.id);
-    });
+    }),
+  [
+    card,
+    isSwipeEnabled,
+    lockState,
+    onDelete,
+    onSwipeEnd,
+    onSwipeStart,
+    progress,
+    setOpenSwipeId,
+    startOffset,
+    translateX,
+    width,
+  ]);
 
   const containerStyle = useAnimatedStyle(() => ({
     transform: [

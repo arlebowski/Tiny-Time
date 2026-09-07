@@ -3,7 +3,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requireOptionalNativeModule } from 'expo-modules-core';
 import { capture } from './posthogService';
 
+const {
+  beginPresentation,
+  endPresentation,
+  runSerializedPresentationWhenIdle,
+} = require('./presentationActivityService.cjs');
+
 const THREE_DAYS_MS = 3 * 24 * 60 * 60 * 1000;
+const REVIEW_PRESENTATION_GUARD_MS = 30_000;
 
 function getReviewPromptKey(uid) {
   return `tt_review_prompt_requested:${uid}`;
@@ -38,7 +45,15 @@ export async function maybeRequestAppReview({
     const hasAction = await StoreReview.hasAction();
     if (!hasAction) return;
 
-    await StoreReview.requestReview();
+    await runSerializedPresentationWhenIdle('app-review', async () => {
+      await StoreReview.requestReview();
+
+      // StoreKit does not report when its review controller closes. Start the
+      // fallback guard before releasing the serialized presentation so there
+      // is never a window in which an ad can cover the review prompt.
+      const reviewGuard = beginPresentation('app-review-guard');
+      setTimeout(() => endPresentation(reviewGuard), REVIEW_PRESENTATION_GUARD_MS);
+    });
 
     const createdAtMs = Date.parse(creationTime);
     const accountAgeDays = Number.isFinite(createdAtMs)

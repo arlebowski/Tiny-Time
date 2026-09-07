@@ -3,13 +3,14 @@
  * Wet/Dry/Poop toggles, time, notes, photos, Add/Save CTA
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { formatDateTime } from '../../utils/dateTime';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import HalfSheet from './HalfSheet';
+import Alert from '../../services/trackedAlert';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray, PhotoModal } from '../shared';
 import { DiaperWetIcon, DiaperDryIcon, DiaperPooIcon } from '../icons';
 

@@ -9,7 +9,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Alert, TextInput, Image, ScrollView, Dimensions, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, TextInput, Image, ScrollView, Dimensions, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { useTheme } from '../../context/ThemeContext';
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import { colorMix } from '../../utils/colorBlend';
 import HalfSheet from './HalfSheet';
+import Alert from '../../services/trackedAlert';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray, DurationPickerTray, TTPickerTray, PhotoModal } from '../shared';
 import AmountStepper from './AmountStepper';
 import TimelineSwipeRow from '../Timeline/TimelineSwipeRow';

@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext } from 'react';
-import { View, Text, Pressable, Modal } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { FamilyScreenProvider, useFamilyScreen } from '../../context/FamilyScreenContext';
@@ -13,6 +13,7 @@ import FeedingUnitHalfSheet from '../../components/sheets/family/FeedingUnitHalf
 import DaySleepWindowHalfSheet from '../../components/sheets/family/DaySleepWindowHalfSheet';
 import AddChildHalfSheet from '../../components/sheets/family/AddChildHalfSheet';
 import AddFamilyHalfSheet from '../../components/sheets/family/AddFamilyHalfSheet';
+import Modal from '../shared/PresentationTrackedModal';
 
 const Stack = createNativeStackNavigator();
 

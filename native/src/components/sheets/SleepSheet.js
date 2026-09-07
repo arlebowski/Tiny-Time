@@ -3,7 +3,7 @@
  * Start/End time, duration display, Start/End sleep timer, notes, photos
  */
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { View, Text, Pressable, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
@@ -11,6 +11,7 @@ import { useData } from '../../context/DataContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import HalfSheet from './HalfSheet';
+import Alert from '../../services/trackedAlert';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray, PhotoModal } from '../shared';
 
 const FUTURE_TOLERANCE_MS = 60 * 1000;

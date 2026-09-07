@@ -18,7 +18,6 @@ import React, {
 import {
   View,
   Text,
-  Alert,
   StyleSheet,
   Platform,
   Pressable,
@@ -32,6 +31,11 @@ import { updateCurrentUserProfile } from '../services/authService';
 import { uploadKidPhoto, uploadUserPhoto } from '../services/storageService';
 import { capture } from '../services/posthogService';
 import { localDateToMs } from '../utils/dateTime';
+import Alert from '../services/trackedAlert';
+
+const {
+  runSerializedPresentation,
+} = require('../services/presentationActivityService.cjs');
 
 // ── Utility helpers (from web FamilyTab) ──
 
@@ -552,12 +556,12 @@ export function FamilyScreenProvider({
 
   const handlePhotoClick = useCallback(async () => {
     const targetKidId = selectedKidForSubpage?.id;
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const result = await runSerializedPresentation('photo-picker', () => ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
-    });
+    }));
     if (!result.canceled && result.assets?.[0]?.uri) {
       const localUri = result.assets[0].uri;
       setBabyPhotoUrl(localUri);
@@ -584,12 +588,12 @@ export function FamilyScreenProvider({
   }, [selectedKidForSubpage?.id, familyId, kidId, firestoreService]);
 
   const handleProfilePhotoClick = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const result = await runSerializedPresentation('photo-picker', () => ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
-    });
+    }));
     if (!result.canceled && result.assets?.[0]?.uri) {
       setProfilePhotoUrl(result.assets[0].uri);
     }
@@ -807,13 +811,13 @@ export function FamilyScreenProvider({
   }, [kids, familyInfo, firestoreService, currentUser?.uid, deleteFamily, familyId]);
 
   const handleAddChildPhoto = useCallback(async () => {
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const result = await runSerializedPresentation('photo-picker', () => ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
       ...(Platform.OS === 'ios' ? { presentationStyle: 'fullScreen' } : {}),
-    });
+    }));
     if (!result.canceled && result.assets?.[0]?.uri) {
       setNewChildPhotoUris((prev) => [...prev, result.assets[0].uri]);
     }
@@ -825,18 +829,21 @@ export function FamilyScreenProvider({
   }, []);
 
   const handleAddFamilyPhoto = useCallback(async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    const permission = await runSerializedPresentation(
+      'photo-permission',
+      () => ImagePicker.requestMediaLibraryPermissionsAsync()
+    );
     if (!permission.granted) {
       Alert.alert('Photo access required', 'Please allow photo access in Settings to add a photo.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const result = await runSerializedPresentation('photo-picker', () => ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.8,
       ...(Platform.OS === 'ios' ? { presentationStyle: 'fullScreen' } : {}),
-    });
+    }));
     if (!result.canceled && result.assets?.[0]?.uri) {
       setNewFamilyPhotoUris((prev) => [...prev, result.assets[0].uri]);
     }

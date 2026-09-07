@@ -20,12 +20,11 @@ import { useTrackerStack } from '../navigation/TrackerStack';
 import { MONETIZATION_SUPPORTED } from '../../services/monetization';
 import {
   getAdUnitId,
-  initializeAds,
   trackAdImpression,
   trackAdLoadFailure,
   trackAdRevenue,
 } from '../../services/adsService';
-import NativeAdCard from './NativeAdCard';
+import NativeAdCard, { AD_BODY_HEIGHT, getAdSurface } from './NativeAdCard';
 
 const IS_ANDROID = Platform.OS === 'android';
 
@@ -60,14 +59,14 @@ function NativeAdSkeleton({ variant = 'home' }) {
     opacity: pulse.value,
   }));
 
-  const bone = colors.segTrack || colors.track || 'rgba(0,0,0,0.06)';
+  const { surface, bone } = getAdSurface(colors);
 
   return (
     <View
       style={[
         isTimeline ? styles.skeletonTimeline : styles.skeletonHome,
         {
-          backgroundColor: colors.cardBg,
+          backgroundColor: surface,
           borderRadius: isTimeline
             ? radius?.xl ?? 16
             : radius?.['2xl'] ?? 18,
@@ -96,7 +95,12 @@ function NativeAdSkeleton({ variant = 'home' }) {
           ]}
         />
       </View>
-      <View style={styles.skeletonBody}>
+      <View
+        style={[
+          styles.skeletonBody,
+          { height: AD_BODY_HEIGHT[isTimeline ? 'timeline' : 'home'] },
+        ]}
+      >
         <Animated.View
           style={[styles.skeletonIcon, { backgroundColor: bone }, boneStyle]}
         />
@@ -166,8 +170,6 @@ export default function NativeAdSlot({ placement = 'home', entrance = null }) {
     setLoadFailed(false);
 
     (async () => {
-      await initializeAds();
-      if (cancelled || requestId !== requestIdRef.current) return;
       try {
         const ad = await ads.NativeAd.createForAdRequest(unitId);
         if (cancelled || requestId !== requestIdRef.current) {
@@ -230,15 +232,19 @@ export default function NativeAdSlot({ placement = 'home', entrance = null }) {
 
   if (!shouldReserve || loadFailed) return null;
 
-  const content = nativeAd ? (
-    <NativeAdCard
-      nativeAd={nativeAd}
-      variant={placement}
-      onRemoveAdsPress={openRemoveAds}
-    />
-  ) : (
-    <NativeAdSkeleton variant={placement} />
-  );
+  // Do not run Reanimated entering on the live native ad — translate/opacity
+  // on an ancestor makes AdMob report assets outside NativeAdView.
+  if (nativeAd) {
+    return (
+      <NativeAdCard
+        nativeAd={nativeAd}
+        variant={placement}
+        onRemoveAdsPress={openRemoveAds}
+      />
+    );
+  }
+
+  const content = <NativeAdSkeleton variant={placement} />;
 
   if (!entrance) return content;
 
@@ -259,17 +265,18 @@ const styles = StyleSheet.create({
   },
   skeletonTimeline: {
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingVertical: 12,
   },
+  // Mirrors NativeAdCard's topRow spacing (which includes the tap padding on
+  // its Remove ads control) so the skeleton and the filled card match.
   skeletonTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 14,
+    marginBottom: 18,
   },
   skeletonTopRowTimeline: {
-    marginBottom: 10,
+    marginBottom: 14,
   },
   skeletonBadge: {
     width: 72,

@@ -6,7 +6,7 @@
  * - No double bottom insets
  */
 
-import React, { useRef, useCallback, useEffect, useState } from 'react';
+import React, { useRef, useCallback, useEffect, useImperativeHandle, useState } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform, Keyboard } from 'react-native';
 import { FullWindowOverlay } from 'react-native-screens';
 import {
@@ -26,6 +26,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { ChevronDownIcon, ChevronLeftIcon } from '../icons';
+
+const {
+  beginPresentation,
+  endPresentation,
+} = require('../../services/presentationActivityService.cjs');
 
 function HeaderHandle({
   style,
@@ -133,10 +138,41 @@ export default function HalfSheet({
   const { colors, radius, sheetLayout } = useTheme();
   const topGap = contentPaddingTop ?? sheetLayout?.sectionGap ?? 16;
   const prevIndexRef = useRef(-1);
+  const internalSheetRef = useRef(null);
+  const presentationTokenRef = useRef(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const headerBg = accentColor || colors.primaryBrand;
   const topRadius = radius?.['3xl'] ?? 20;
   const isPlainHeader = headerMode === 'plain';
+
+  const markPresentationOpen = useCallback(() => {
+    if (!presentationTokenRef.current) {
+      presentationTokenRef.current = beginPresentation('half-sheet');
+    }
+  }, []);
+
+  const markPresentationClosed = useCallback(() => {
+    if (!presentationTokenRef.current) return;
+    endPresentation(presentationTokenRef.current);
+    presentationTokenRef.current = null;
+  }, []);
+
+  useEffect(() => markPresentationClosed, [markPresentationClosed]);
+
+  useImperativeHandle(sheetRef, () => ({
+    present: (...args) => {
+      const present = internalSheetRef.current?.present;
+      if (typeof present !== 'function') return undefined;
+      markPresentationOpen();
+      try {
+        return present.apply(internalSheetRef.current, args);
+      } catch (error) {
+        markPresentationClosed();
+        throw error;
+      }
+    },
+    dismiss: (...args) => internalSheetRef.current?.dismiss?.(...args),
+  }), [markPresentationClosed, markPresentationOpen, sheetRef]);
 
   // Footer starts hidden, fades in when sheet opens so it appears
   // to enter as part of the sheet rather than as a separate overlay.
@@ -254,7 +290,7 @@ export default function HalfSheet({
 
   return (
     <BottomSheetModal
-      ref={sheetRef}
+      ref={internalSheetRef}
       index={initialSnapIndex}
       snapPoints={snapPoints}
       enableDynamicSizing={enableDynamicSizing}
@@ -268,6 +304,7 @@ export default function HalfSheet({
       android_keyboardInputMode="adjustResize"
       enableOverDrag
       onDismiss={() => {
+        markPresentationClosed();
         prevIndexRef.current = -1;
         footerOpacity.value = 0;
         footerKeyboardProgress.value = 1;
@@ -276,6 +313,7 @@ export default function HalfSheet({
       }}
       onAnimate={(fromIndex, toIndex) => {
         if (fromIndex === -1 && toIndex >= 0) {
+          markPresentationOpen();
           footerOpacity.value = withDelay(150, withTiming(1, { duration: 200 }));
           // Fire onOpen as early as possible so sheets can reset transient
           // state (notes/photos expanded) before the first visible frame.
@@ -290,7 +328,10 @@ export default function HalfSheet({
         // ensure onOpen still runs when transitioning from closed to open.
         const prev = prevIndexRef.current;
         prevIndexRef.current = index;
-        if (prev < 0 && index >= 0 && onOpen) onOpen();
+        if (prev < 0 && index >= 0) {
+          markPresentationOpen();
+          onOpen?.();
+        }
       }}
       backgroundStyle={{
         backgroundColor: colors.halfsheetBg || colors.cardBg,

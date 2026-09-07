@@ -3,7 +3,7 @@
  * slow down, and fade in place. Calls onComplete after the animation window.
  */
 import React, { useEffect, useMemo } from 'react';
-import { Modal, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { StyleSheet, useWindowDimensions, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -12,6 +12,7 @@ import Animated, {
   Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../context/ThemeContext';
+import Modal from './shared/PresentationTrackedModal';
 
 const ACCENT_COLORS = ['#277DC4', '#4BAB51', '#C99C4F', '#8259CF'];
 
