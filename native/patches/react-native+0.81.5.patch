@@ -1,0 +1,17 @@
+diff --git a/node_modules/react-native/React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm b/node_modules/react-native/React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm
+index a99f103..29f25f3 100644
+--- a/node_modules/react-native/React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm
++++ b/node_modules/react-native/React/Fabric/Mounting/ComponentViews/View/RCTViewComponentView.mm
+@@ -612,6 +612,12 @@ - (void)prepareForRecycle
+     self.layer.opacity = (float)props.opacity;
+   }
+ 
++  // `updateProps:` diffs against `_props` and skips `pointerEvents` when it is
++  // unchanged, so it assumes UIKit already agrees with `_props`. Third-party
++  // SDKs can set `userInteractionEnabled` directly, breaking that assumption
++  // and carrying a dead view into the recycle pool. Restore the invariant here.
++  self.userInteractionEnabled = props.pointerEvents != PointerEventsMode::None;
++
+   _propKeysManagedByAnimated_DO_NOT_USE_THIS_IS_BROKEN = nil;
+   _eventEmitter.reset();
+   _isJSResponder = NO;
