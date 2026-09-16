@@ -1,0 +1,55 @@
+---
+description: Rules for bug bashing and investigation work in this repo
+alwaysApply: true
+---
+
+# Investigation means read-only
+
+When Adam asks for a bug bash, testing, or investigation, the deliverable is a
+written list of findings. Not fixes. Enumerate what you find and let him decide.
+
+## Never, without explicit approval
+
+- Do not edit source files.
+- Do not stage, commit, checkout, restore, or revert anything.
+- Do not restore, re-add, or "fix" anything that a past commit deliberately
+  removed. **If it is on `main`, it works.** Code that looks wrong is usually a
+  deliberate fix whose reason is not written down.
+- Do not undo animations, layout transitions, or working behavior.
+- Do not remove functionality to make a symptom go away.
+
+## Simplest solution first, and never undo `main`
+
+- **Try the simple solution first.** Before anything structural, ask what the
+  smallest, most obvious explanation and smallest possible action would be. Do
+  not reach past it for something clever or sweeping.
+- **Never undo anything already committed to `main`.** Not a commit, not a
+  deletion, not a config value, not a behavior. It is on `main` because it works.
+- If undoing committed work looks like the answer, that is a signal you have the
+  wrong answer. **Flag it to Adam and stop.** Say what you think should change
+  and why, and wait. Only proceed if he explicitly asks for that change.
+
+## Do not restart the thing you are testing
+
+The iOS simulator build carries **no embedded JS bundle**. It fetches code from
+the dev server at launch, then runs from memory. A running app survives the dev
+server dying. **Terminating the app throws that away and may be unrecoverable.**
+
+So: do not `simctl terminate`, relaunch, reload, reinstall, rebuild, or restart
+Metro. If the app stops responding, that is a finding to report — screenshot it,
+read the logs, and write it down. Report the frozen state; do not clear it.
+
+## Recorded incident — 2026-09-06
+
+During a bug bash the app stopped responding to all taps. I terminated and
+relaunched it. That discarded the in-memory bundle, and the app could no longer
+start because `app.json` names `assets/icon.png`, which Adam had **deliberately
+deleted** in `99718c4d` (2026-04-19) to stop the onboarding screen flashing on
+login. The missing file had been harmless for four months; closing the app is
+what turned it into a wall. I then restored that file, undoing his fix.
+
+Two failures, in order of importance:
+1. Restarting the thing under test, instead of reporting that it had frozen.
+2. Reaching for a fix at all, and specifically one that reverted his own work.
+
+The correct move was: screenshot the freeze, capture the logs, write it up, stop.
