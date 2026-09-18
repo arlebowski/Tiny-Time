@@ -9,8 +9,7 @@ export const ENTITLEMENT_ID = 'no_ads';
 
 const LOCAL_USER_UID = 'local-user';
 
-const getStringEnv = (name) => {
-  const value = process.env[name];
+const getStringEnv = (value) => {
   return typeof value === 'string' ? value.trim() : '';
 };
 
@@ -44,7 +43,9 @@ export function initializePurchases() {
   const Purchases = getPurchases();
   if (!Purchases) return Promise.resolve();
 
-  const apiKey = getStringEnv('EXPO_PUBLIC_REVENUECAT_IOS_KEY');
+  const apiKey = getStringEnv(
+    process.env.EXPO_PUBLIC_REVENUECAT_IOS_KEY
+  );
   if (!apiKey) {
     console.warn('[Purchases] Missing EXPO_PUBLIC_REVENUECAT_IOS_KEY; initialization skipped.');
     return Promise.resolve();

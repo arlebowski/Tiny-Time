@@ -6,13 +6,16 @@ import Constants from 'expo-constants';
 const POSTHOG_API_KEY_FALLBACK = 'phc_qpb8iLUtHKhMmdpirmMAQJUuccNb9drLCvzkrcce63mV';
 const POSTHOG_HOST_FALLBACK = 'https://us.i.posthog.com';
 
-const getStringEnv = (name) => {
-  const value = process.env[name];
+const getStringEnv = (value) => {
   return typeof value === 'string' ? value.trim() : '';
 };
 
-const apiKey = getStringEnv('EXPO_PUBLIC_POSTHOG_API_KEY') || POSTHOG_API_KEY_FALLBACK;
-const host = getStringEnv('EXPO_PUBLIC_POSTHOG_HOST') || POSTHOG_HOST_FALLBACK;
+const apiKey =
+  getStringEnv(process.env.EXPO_PUBLIC_POSTHOG_API_KEY) ||
+  POSTHOG_API_KEY_FALLBACK;
+const host =
+  getStringEnv(process.env.EXPO_PUBLIC_POSTHOG_HOST) ||
+  POSTHOG_HOST_FALLBACK;
 
 // Initialized at module load — PostHog is pure JS (no native module), no ATT dependency.
 export const posthogInstance = new PostHog(apiKey, {

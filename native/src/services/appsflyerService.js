@@ -9,8 +9,7 @@ const APPSFLYER_IOS_APP_ID_FALLBACK = '6759471392';
 // between initSdk completing and the first logEvent / setCustomerUserId call.
 let initPromise = null;
 
-const getStringEnv = (name) => {
-  const value = process.env[name];
+const getStringEnv = (value) => {
   return typeof value === 'string' ? value.trim() : '';
 };
 
@@ -41,8 +40,12 @@ export function initializeAppsFlyer() {
     return Promise.resolve();
   }
 
-  const devKey = getStringEnv('EXPO_PUBLIC_APPSFLYER_DEV_KEY') || APPSFLYER_DEV_KEY_FALLBACK;
-  const appId = getStringEnv('EXPO_PUBLIC_APPSFLYER_APP_ID') || APPSFLYER_IOS_APP_ID_FALLBACK;
+  const devKey =
+    getStringEnv(process.env.EXPO_PUBLIC_APPSFLYER_DEV_KEY) ||
+    APPSFLYER_DEV_KEY_FALLBACK;
+  const appId =
+    getStringEnv(process.env.EXPO_PUBLIC_APPSFLYER_APP_ID) ||
+    APPSFLYER_IOS_APP_ID_FALLBACK;
 
   if (!devKey) {
     console.error('[AppsFlyer] Missing dev key; initialization skipped.');
