@@ -35,8 +35,8 @@ function CheckIcon({ size = 14, color = '#34C759' }) {
 
 const BENEFITS = [
   'No banners or full-screen ads',
-  'One payment. Ads removed forever.',
-  'Tied to your account — on every device you sign in',
+  'One payment — no subscription',
+  'Available on every device you use',
 ];
 
 const PENDING_CONFIRM_MS = 10000;
@@ -46,6 +46,9 @@ function analyticsProps(presentation) {
   return {
     source: presentation.source || 'manual',
     ...(presentation.trigger ? { trigger: presentation.trigger } : {}),
+    ...(presentation.promptNumber != null
+      ? { prompt_number: presentation.promptNumber }
+      : {}),
     ...(presentation.logCount != null
       ? { lifetime_log_count: presentation.logCount }
       : {}),
@@ -77,6 +80,7 @@ export default function RemoveAdsSheet({
   const sessionRef = useRef({
     source: 'manual',
     trigger: null,
+    promptNumber: null,
     logCount: null,
     appAgeHours: null,
     accountAgeHours: null,
@@ -101,9 +105,7 @@ export default function RemoveAdsSheet({
     const session = sessionRef.current;
     session.purchased = true;
     capture('remove_ads_purchased', analyticsProps(session));
-    if (session.source === 'auto') {
-      void markAutoPromptPurchased(uid);
-    }
+    void markAutoPromptPurchased(uid);
   }, [uid]);
 
   const handleOpen = useCallback(() => {
@@ -115,6 +117,7 @@ export default function RemoveAdsSheet({
     sessionRef.current = {
       source: presentation.source || 'manual',
       trigger: presentation.trigger || null,
+      promptNumber: presentation.promptNumber ?? null,
       logCount: presentation.logCount ?? null,
       appAgeHours: presentation.appAgeHours ?? null,
       accountAgeHours: presentation.accountAgeHours ?? null,
@@ -204,9 +207,7 @@ export default function RemoveAdsSheet({
     setBusy(false);
     if (result.status === 'restored') {
       sessionRef.current.purchased = true;
-      if (sessionRef.current.source === 'auto') {
-        void markAutoPromptPurchased(uid);
-      }
+      void markAutoPromptPurchased(uid);
       capture('remove_ads_restored', analyticsProps(sessionRef.current));
       onEntitlementChange?.('entitled');
       sheetRef?.current?.dismiss?.();
@@ -246,12 +247,14 @@ export default function RemoveAdsSheet({
           <View style={styles.glyphStrike} />
         </View>
 
-        <Text style={[styles.title, { color: colors.textPrimary, fontFamily: FRAUNCES }]}>
-          Remove ads forever
+        <Text
+          style={[styles.title, { color: colors.textPrimary, fontFamily: FRAUNCES }]}
+        >
+          Keep Tiny Tracker{`\n`}ad-free
         </Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          One payment. Keep every screen clean — no banners, no interstitials,
-          ever.
+          We’re a small team building with care. Going ad-free helps us keep
+          making it better.
         </Text>
 
         <View style={styles.benefits}>
@@ -281,7 +284,9 @@ export default function RemoveAdsSheet({
             <ActivityIndicator color={ctaText} />
           ) : (
             <Text style={[styles.ctaText, { color: ctaText }]}>
-              {priceString ? `Remove Ads · ${priceString}` : 'Remove Ads'}
+              {priceString
+                ? `Remove ads forever · ${priceString}`
+                : 'Remove ads forever'}
             </Text>
           )}
         </Pressable>

@@ -1,13 +1,13 @@
 /**
  * Cadence / cap rules for the post-log interstitial (pure).
  *
- * - Eligible on log 5, 10, 15, ...
+ * - Eligible on log 4, 8, 12, ...
  * - Max 3 shows per local calendar day
  * - Minimum 4-hour cooldown between shows
  * - If the ad is not loaded at the eligible log, skip; do not show on the next log
  */
 
-const LOG_INTERVAL = 5;
+const LOG_INTERVAL = 4;
 const MAX_PER_DAY = 3;
 const COOLDOWN_MS = 4 * 60 * 60 * 1000;
 
@@ -47,9 +47,8 @@ function isCadenceLog(logCount) {
   return logCount > 0 && logCount % LOG_INTERVAL === 0;
 }
 
-function isEligibleToShow(state, nowMs, options = {}) {
+function isWithinFrequencyLimits(state, nowMs, options = {}) {
   const next = withCurrentDay(state, nowMs);
-  if (!isCadenceLog(next.logCount)) return false;
   if (!options.ignoreDayCap && next.showsOnDay >= MAX_PER_DAY) return false;
   if (
     !options.ignoreCooldown &&
@@ -59,6 +58,11 @@ function isEligibleToShow(state, nowMs, options = {}) {
     return false;
   }
   return true;
+}
+
+function isEligibleToShow(state, nowMs, options = {}) {
+  if (!isCadenceLog(state.logCount)) return false;
+  return isWithinFrequencyLimits(state, nowMs, options);
 }
 
 function applyShown(state, nowMs) {
@@ -80,6 +84,7 @@ module.exports = {
   normalizeState,
   withCurrentDay,
   isCadenceLog,
+  isWithinFrequencyLimits,
   isEligibleToShow,
   applyShown,
 };

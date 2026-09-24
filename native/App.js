@@ -17,15 +17,22 @@ import {
   preloadLogInterstitial,
   showLogInterstitial,
   stopLogInterstitial,
+  isTrendsDetailExitInterstitialLoaded,
+  preloadTrendsDetailExitInterstitial,
+  showTrendsDetailExitInterstitial,
+  stopTrendsDetailExitInterstitial,
 } from './src/services/adsService';
 import { createStorageAdapter } from './src/services/storageAdapter';
 import {
   ensureFirstOpenAt,
+  hasSeenRemoveAdsInterstitial,
+  recordRemoveAdsInterstitialShown,
   recordSuccessfulLogAndEvaluate,
 } from './src/services/removeAdsPromptService';
 import {
   markLogInterstitialShown,
   recordLogAndEvaluateInterstitial,
+  evaluateTrendsDetailExitInterstitial,
 } from './src/services/logInterstitialService';
 import {
   initializeAppsFlyer,
@@ -66,6 +73,10 @@ const AUTO_PAYWALL_PRESENT_DELAY_MS = 480;
 const INTERSTITIAL_PRESENT_DELAY_MS = 700;
 const INTERSTITIAL_READY_TIMEOUT_MS = __DEV__ ? 8_000 : 4_000;
 const NAVIGATION_SETTLE_MS = 400;
+const INTERSTITIAL_PLACEMENT = {
+  LOG_ACTIVITY: 'log_activity',
+  TRENDS_DETAIL_EXIT: 'trends_detail_exit',
+};
 
 // Screens
 import AnalyticsStack from './src/components/navigation/AnalyticsStack';
@@ -419,6 +430,8 @@ function AppShell({
   onToggleForceTooltipPreview,
   trackerEntranceSeed,
   trackerUiReady,
+  initialOnboardingActivity,
+  onInitialOnboardingActivityOpened,
   onMaybeFirstActivityCelebration,
   onDevShowCommunityModal,
   onDevShowPartnerModal,
@@ -437,8 +450,14 @@ function AppShell({
   const logInterstitialFlagAllows = __DEV__
     ? logInterstitialFlag !== false
     : logInterstitialFlag === true;
+  const trendsDetailExitInterstitialFlag = useFeatureFlag(
+    'trends_detail_exit_interstitial_enabled'
+  );
+  const trendsDetailExitInterstitialFlagAllows = __DEV__
+    ? trendsDetailExitInterstitialFlag !== false
+    : trendsDetailExitInterstitialFlag === true;
   const pendingAutoPromptRef = useRef(null);
-  const pendingInterstitialRef = useRef(false);
+  const pendingInterstitialRef = useRef(null);
   const trackerLogSheetOpenRef = useRef(false);
   const presentationTimerRef = useRef(null);
   const presentationInFlightRef = useRef(null);
@@ -450,6 +469,8 @@ function AppShell({
   const adsEnabledRef = useRef(false);
   const entitlementRef = useRef('unknown');
   const navigationTimerRef = useRef(null);
+  const onboardingActivityRef = useRef(null);
+  const onboardingOpenTimerRef = useRef(null);
   const {
     user,
     familyId,
@@ -473,6 +494,7 @@ function AppShell({
     syncState,
   } = useData();
   const [showSyncNotice, setShowSyncNotice] = useState(false);
+  const [hasSeenInterstitialForRemoveAds, setHasSeenInterstitialForRemoveAds] = useState(false);
   useEffect(() => {
     const shouldShow = (
       syncState?.status === 'offline'
@@ -558,6 +580,20 @@ function AppShell({
     setAppsFlyerCustomerUserId(user.uid);
   }, [user?.uid]);
 
+  useEffect(() => {
+    let cancelled = false;
+    setHasSeenInterstitialForRemoveAds(false);
+    if (!user?.uid) return undefined;
+    hasSeenRemoveAdsInterstitial(user.uid)
+      .then((seen) => {
+        if (!cancelled) setHasSeenInterstitialForRemoveAds(seen);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.uid]);
+
   const isPresentationBlocked = useCallback(() => {
     const blockers = presentationBlockersRef.current || {};
     return Boolean(
@@ -585,7 +621,7 @@ function AppShell({
     presentationGenerationRef.current += 1;
     presentationInFlightRef.current = null;
     pendingAutoPromptRef.current = null;
-    pendingInterstitialRef.current = false;
+    pendingInterstitialRef.current = null;
   }, [clearPresentationTimer]);
 
   const schedulePendingPresentation = useCallback((delayMs = 0) => {
@@ -609,6 +645,10 @@ function AppShell({
 
   useEffect(() => () => {
     discardPendingPresentations();
+    if (onboardingOpenTimerRef.current) {
+      clearTimeout(onboardingOpenTimerRef.current);
+      onboardingOpenTimerRef.current = null;
+    }
     if (navigationTimerRef.current) {
       clearTimeout(navigationTimerRef.current);
       navigationTimerRef.current = null;
@@ -625,12 +665,28 @@ function AppShell({
   useEffect(() => {
     if (!adsEnabled || !logInterstitialFlagAllows) {
       stopLogInterstitial();
-      pendingInterstitialRef.current = false;
+      if (pendingInterstitialRef.current === INTERSTITIAL_PLACEMENT.LOG_ACTIVITY) {
+        pendingInterstitialRef.current = null;
+      }
       return undefined;
     }
     preloadLogInterstitial();
     return undefined;
   }, [adsEnabled, logInterstitialFlagAllows]);
+
+  useEffect(() => {
+    if (!adsEnabled || !trendsDetailExitInterstitialFlagAllows) {
+      stopTrendsDetailExitInterstitial();
+      if (
+        pendingInterstitialRef.current === INTERSTITIAL_PLACEMENT.TRENDS_DETAIL_EXIT
+      ) {
+        pendingInterstitialRef.current = null;
+      }
+      return undefined;
+    }
+    preloadTrendsDetailExitInterstitial();
+    return undefined;
+  }, [adsEnabled, trendsDetailExitInterstitialFlagAllows]);
 
   const maybeRequestReviewAfterActivity = useCallback(async (activityType) => {
     await maybeRequestAppReview({
@@ -664,7 +720,7 @@ function AppShell({
       return;
     }
     if (decision === PRESENTATION_DECISION.DROP_INTERSTITIAL) {
-      pendingInterstitialRef.current = false;
+      pendingInterstitialRef.current = null;
       return;
     }
     if (decision === PRESENTATION_DECISION.AUTO_PROMPT) {
@@ -676,6 +732,7 @@ function AppShell({
       const opened = openRemoveAds({
         source: 'auto',
         trigger: pending.trigger,
+        promptNumber: pending.promptNumber,
         logCount: pending.logCount,
         appAgeHours: pending.appAgeHours,
         accountAgeHours: pending.accountAgeHours,
@@ -684,21 +741,34 @@ function AppShell({
       return;
     }
 
+    const pendingInterstitialPlacement = pendingInterstitialRef.current;
+    const isTrendsDetailExit =
+      pendingInterstitialPlacement === INTERSTITIAL_PLACEMENT.TRENDS_DETAIL_EXIT;
+    const preloadInterstitial = isTrendsDetailExit
+      ? preloadTrendsDetailExitInterstitial
+      : preloadLogInterstitial;
+    const isInterstitialLoaded = isTrendsDetailExit
+      ? isTrendsDetailExitInterstitialLoaded
+      : isLogInterstitialLoaded;
+    const showInterstitial = isTrendsDetailExit
+      ? showTrendsDetailExitInterstitial
+      : showLogInterstitial;
+
     presentationInFlightRef.current = PRESENTATION_DECISION.INTERSTITIAL;
     const generation = presentationGenerationRef.current;
-    preloadLogInterstitial();
+    preloadInterstitial();
     const deadline = Date.now() + INTERSTITIAL_READY_TIMEOUT_MS;
     while (
       generation === presentationGenerationRef.current &&
       appStateRef.current === 'active' &&
-      !isLogInterstitialLoaded() &&
+      !isInterstitialLoaded() &&
       Date.now() < deadline
     ) {
       await new Promise((resolve) => setTimeout(resolve, 200));
     }
     if (generation !== presentationGenerationRef.current) return;
-    if (!isLogInterstitialLoaded()) {
-      pendingInterstitialRef.current = false;
+    if (!isInterstitialLoaded()) {
+      pendingInterstitialRef.current = null;
       presentationInFlightRef.current = null;
       return;
     }
@@ -717,24 +787,28 @@ function AppShell({
     presentationInFlightRef.current = null;
     if (finalDecision !== PRESENTATION_DECISION.INTERSTITIAL) {
       if (finalDecision === PRESENTATION_DECISION.DROP_INTERSTITIAL) {
-        pendingInterstitialRef.current = false;
+        pendingInterstitialRef.current = null;
       } else if (finalDecision === PRESENTATION_DECISION.AUTO_PROMPT) {
         schedulePendingPresentation();
       }
       return;
     }
 
-    pendingInterstitialRef.current = false;
+    pendingInterstitialRef.current = null;
     const presentationUid = userUidRef.current;
     presentationInFlightRef.current = PRESENTATION_DECISION.INTERSTITIAL;
-    const shown = await showLogInterstitial();
+    const shown = await showInterstitial();
     presentationInFlightRef.current = null;
     if (
       shown &&
       generation === presentationGenerationRef.current &&
       presentationUid === userUidRef.current
     ) {
-      await markLogInterstitialShown(presentationUid).catch(() => {});
+      await Promise.all([
+        markLogInterstitialShown(presentationUid),
+        recordRemoveAdsInterstitialShown(presentationUid),
+      ]).catch(() => {});
+      setHasSeenInterstitialForRemoveAds(true);
     }
   }, [isPresentationBlocked, openRemoveAds, schedulePendingPresentation]);
 
@@ -781,6 +855,13 @@ function AppShell({
 
   const handleActivityPersistSuccess = useCallback(({ type, feed_type: feedType }) => {
     const activityType = type === 'feed' ? (feedType || 'feed') : type;
+    if (onboardingActivityRef.current) {
+      capture('onboarding_activity_logged', {
+        selected_type: onboardingActivityRef.current,
+        type: activityType,
+      });
+      onboardingActivityRef.current = null;
+    }
     void (async () => {
       try {
         const prompt = await recordSuccessfulLogAndEvaluate({
@@ -797,12 +878,12 @@ function AppShell({
         });
         if (prompt) {
           pendingAutoPromptRef.current = prompt;
-          pendingInterstitialRef.current = false;
+          pendingInterstitialRef.current = null;
           schedulePendingPresentation(AUTO_PAYWALL_PRESENT_DELAY_MS);
           return;
         }
         if (interstitial) {
-          pendingInterstitialRef.current = true;
+          pendingInterstitialRef.current = INTERSTITIAL_PLACEMENT.LOG_ACTIVITY;
           schedulePendingPresentation(INTERSTITIAL_PRESENT_DELAY_MS);
           return;
         }
@@ -896,20 +977,58 @@ function AppShell({
     setShowKidMenu(false);
     setKidAnchor(null);
     if (type === 'diaper') {
-      if (!visibilitySafe.diaper) return;
+      if (!visibilitySafe.diaper) return false;
       trackerLogSheetOpenRef.current = true;
       diaperRef.current?.present?.();
     } else if (type === 'sleep') {
-      if (!visibilitySafe.sleep) return;
+      if (!visibilitySafe.sleep) return false;
       trackerLogSheetOpenRef.current = true;
       sleepRef.current?.present?.();
     } else if (['bottle', 'nursing', 'solids'].includes(type)) {
-      if (!isFeedEnabled || visibilitySafe[type] === false) return;
+      if (!isFeedEnabled || visibilitySafe[type] === false) return false;
       feedTypeRef.current = type;
       trackerLogSheetOpenRef.current = true;
       feedRef.current?.present?.();
+    } else {
+      return false;
     }
+    return true;
   }, [activityVisibility]);
+
+  useEffect(() => {
+    if (!initialOnboardingActivity || !trackerUiReady || !storage) return undefined;
+    if (onboardingOpenTimerRef.current) return undefined;
+
+    const targetType = initialOnboardingActivity === 'feed'
+      ? lastFeedVariant
+      : initialOnboardingActivity;
+
+    onboardingOpenTimerRef.current = setTimeout(() => {
+      onboardingOpenTimerRef.current = null;
+      const opened = handleTrackerSelect(targetType);
+      if (!opened) return;
+      onboardingActivityRef.current = initialOnboardingActivity;
+      capture('onboarding_activity_sheet_opened', {
+        selected_type: initialOnboardingActivity,
+        type: targetType,
+      });
+      onInitialOnboardingActivityOpened?.();
+    }, 450);
+
+    return () => {
+      if (onboardingOpenTimerRef.current) {
+        clearTimeout(onboardingOpenTimerRef.current);
+        onboardingOpenTimerRef.current = null;
+      }
+    };
+  }, [
+    initialOnboardingActivity,
+    trackerUiReady,
+    storage,
+    lastFeedVariant,
+    handleTrackerSelect,
+    onInitialOnboardingActivityOpened,
+  ]);
 
   const handleFeedAdded = useCallback((entry) => {
     if (entry?.type === 'bottle' || entry?.type === 'nursing') {
@@ -1070,6 +1189,12 @@ function AppShell({
   const handleCloseTrackerSheet = useCallback(() => {
     setEditEntry(null);
     trackerLogSheetOpenRef.current = false;
+    if (onboardingActivityRef.current) {
+      capture('onboarding_activity_abandoned', {
+        selected_type: onboardingActivityRef.current,
+      });
+      onboardingActivityRef.current = null;
+    }
     if (pendingAutoPromptRef.current || pendingInterstitialRef.current) {
       schedulePendingPresentation(
         pendingAutoPromptRef.current
@@ -1205,6 +1330,7 @@ function AppShell({
         shareFlowInFlightRef.current = false;
       }
       if (nextState === 'active') {
+        posthogInstance.reloadFeatureFlags();
         maybeTrackRetentionMilestones().catch(() => {});
         trackAppOpen().catch(() => {});
         capture('app_opened', { is_cold_start: false });
@@ -1331,6 +1457,37 @@ function AppShell({
     }
   }, [markNavigationTransition]);
 
+  const maybeQueueTrendsDetailExitInterstitial = useCallback(async () => {
+    try {
+      const eligible = await evaluateTrendsDetailExitInterstitial({
+        uid: user?.uid,
+        entitlement,
+        flagEnabled: trendsDetailExitInterstitialFlagAllows,
+        adsEnabled,
+      });
+      if (
+        !eligible ||
+        pendingAutoPromptRef.current ||
+        pendingInterstitialRef.current
+      ) {
+        return;
+      }
+      pendingInterstitialRef.current = INTERSTITIAL_PLACEMENT.TRENDS_DETAIL_EXIT;
+      capture('interstitial_opportunity_queued', {
+        placement: INTERSTITIAL_PLACEMENT.TRENDS_DETAIL_EXIT,
+      });
+      schedulePendingPresentation(INTERSTITIAL_PRESENT_DELAY_MS);
+    } catch {
+      /* never block navigation */
+    }
+  }, [
+    user?.uid,
+    entitlement,
+    adsEnabled,
+    trendsDetailExitInterstitialFlagAllows,
+    schedulePendingPresentation,
+  ]);
+
   const handleAnalyticsDetailOpenChange = useCallback((isOpen) => {
     markNavigationTransition();
     setAnalyticsDetailOpen(isOpen);
@@ -1350,6 +1507,10 @@ function AppShell({
     setShowKidMenu(false);
     setKidAnchor(null);
   }, []);
+
+  const handleOpenHeaderRemoveAds = useCallback(() => {
+    openRemoveAds({ source: 'home_header' });
+  }, [openRemoveAds]);
 
   const trackerHeader = useMemo(() => (
     <AppHeader
@@ -1405,6 +1566,10 @@ function AppShell({
                 header={trackerHeader}
                 onOpenSheet={handleTrackerSelect}
                 onRequestToggleActivitySheet={handleToggleActivitySheet}
+                showAdFreeCta={
+                  entitlement === 'notEntitled' && hasSeenInterstitialForRemoveAds
+                }
+                onOpenRemoveAds={handleOpenHeaderRemoveAds}
                 activityVisibility={activityVisibility}
                 activityOrder={activityOrder}
                 onEditCard={handleEditCard}
@@ -1424,6 +1589,7 @@ function AppShell({
               topInset={topInset}
               header={trackerHeader}
               onDetailOpenChange={handleAnalyticsDetailOpenChange}
+              onDetailExit={maybeQueueTrendsDetailExitInterstitial}
               activityVisibility={activityVisibility}
               isTabActive={activeTab === 'trends'}
             />
@@ -1659,6 +1825,7 @@ function AuthGatedApp({
   const [showCommunityModal, setShowCommunityModal] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
+  const [pendingOnboardingActivity, setPendingOnboardingActivity] = useState(null);
   const communityScreenEnabled = useFeatureFlag('community-screen');
   const partnerInviteEnabled = useFeatureFlag('partner-invite-prompt');
 
@@ -1668,7 +1835,17 @@ function AuthGatedApp({
 
   useEffect(() => {
     setActiveTab('tracker');
+    setPendingOnboardingActivity(null);
   }, [user?.uid]);
+
+  const handleRequestFirstActivity = useCallback((activityType) => {
+    setPendingOnboardingActivity(activityType || null);
+    setActiveTab('tracker');
+  }, []);
+
+  const handleInitialOnboardingActivityOpened = useCallback(() => {
+    setPendingOnboardingActivity(null);
+  }, []);
 
   useEffect(() => {
     if (!user?.uid || needsSetup || !familyId) return undefined;
@@ -1761,12 +1938,13 @@ function AuthGatedApp({
     return (
       <SetupScreen
         onDevExitPreview={() => onToggleForceSetupPreview(false)}
+        onRequestFirstActivity={handleRequestFirstActivity}
       />
     );
   }
 
   if (needsSetup || !familyId || !kidId) {
-    return <SetupScreen />;
+    return <SetupScreen onRequestFirstActivity={handleRequestFirstActivity} />;
   }
 
   if (loading) {
@@ -1797,6 +1975,8 @@ function AuthGatedApp({
           onToggleForceTooltipPreview={onToggleForceTooltipPreview}
           trackerEntranceSeed={trackerEntranceSeed}
           trackerUiReady={trackerUiReady}
+          initialOnboardingActivity={pendingOnboardingActivity}
+          onInitialOnboardingActivityOpened={handleInitialOnboardingActivityOpened}
           onMaybeFirstActivityCelebration={maybeShowFirstActivityCelebration}
           onDevShowCommunityModal={handleDevShowCommunityModal}
           onDevShowPartnerModal={handleDevShowPartnerModal}
@@ -1919,6 +2099,9 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    // Refresh persisted flag values on every launch. This matters when a flag
+    // was created or changed after the SDK cached an earlier response.
+    posthogInstance.reloadFeatureFlags();
     (async () => {
       await requestTrackingPermissionOnce();
       initializeAppsFlyer();

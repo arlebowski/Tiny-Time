@@ -233,8 +233,11 @@ export default function FloatingTrackerMenu({
           {/* Onboarding tooltip card */}
           {showTooltip && (
             <Pressable style={[styles.tooltipCard, { backgroundColor: colors.cardBg }]} onPress={dismissTooltip}>
+              <View style={[styles.tooltipPlus, { backgroundColor: colors.plusBg }]}>
+                <PlusIcon size={14} color={colors.plusFg} />
+              </View>
               <Text style={[styles.tooltipText, { color: colors.textPrimary }]}>
-                🎉 Tap + to log your first feed, sleep, or diaper
+                {'Tap anytime to log\nfeeds, sleep, or diapers'}
               </Text>
             </Pressable>
           )}
@@ -359,22 +362,33 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 76,
     left: '50%',
-    width: 220,
-    marginLeft: -110,
+    width: 218,
+    marginLeft: -109,
     borderRadius: 18,
-    paddingVertical: 14,
-    paddingHorizontal: 18,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.10,
     shadowRadius: 16,
     elevation: 6,
   },
+  tooltipPlus: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   tooltipText: {
+    width: 160,
     fontSize: 14,
     fontFamily: FWB.medium,
     lineHeight: 20,
-    textAlign: 'center',
+    textAlign: 'left',
     includeFontPadding: false,
   },
 });

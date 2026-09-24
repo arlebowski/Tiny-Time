@@ -34,6 +34,7 @@ const AdsContext = createContext(null);
 const DEFAULT_PRESENTATION = {
   source: 'manual',
   trigger: null,
+  promptNumber: null,
   logCount: null,
   appAgeHours: null,
   accountAgeHours: null,
@@ -80,8 +81,12 @@ export function AdsProvider({ children }) {
   const openRemoveAds = useCallback((opts = {}) => {
     if (!MONETIZATION_SUPPORTED) return false;
     presentationRef.current = {
-      source: opts.source === 'auto' ? 'auto' : 'manual',
+      source:
+        typeof opts.source === 'string' && opts.source.trim()
+          ? opts.source.trim()
+          : 'manual',
       trigger: opts.trigger || null,
+      promptNumber: opts.promptNumber ?? null,
       logCount: opts.logCount ?? null,
       appAgeHours: opts.appAgeHours ?? null,
       accountAgeHours: opts.accountAgeHours ?? null,

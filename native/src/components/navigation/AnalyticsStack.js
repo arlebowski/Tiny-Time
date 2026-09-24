@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useMemo } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 import { View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -29,11 +29,26 @@ function AnalyticsRoute({ navigation }) {
 function DetailRoute({ route, navigation }) {
   const ctx = useAnalyticsStack();
   const { colors } = useTheme();
+  const exitNotifiedRef = useRef(false);
+  const notifyDetailExit = useCallback(() => {
+    if (exitNotifiedRef.current) return;
+    exitNotifiedRef.current = true;
+    ctx.onDetailExit?.();
+  }, [ctx.onDetailExit]);
+
+  useEffect(
+    () => navigation.addListener('beforeRemove', notifyDetailExit),
+    [navigation, notifyDetailExit]
+  );
+
   return (
     <View style={{ flex: 1, paddingTop: ctx.topInset, backgroundColor: colors.appBg }}>
       <AnalyticsDetailScreen
         type={route.params?.type || 'bottle'}
-        onBack={() => navigation.goBack()}
+        onBack={() => {
+          notifyDetailExit();
+          navigation.goBack();
+        }}
       />
     </View>
   );
@@ -44,6 +59,7 @@ export default function AnalyticsStack({
   topInset,
   header,
   onDetailOpenChange,
+  onDetailExit,
   activityVisibility,
   isTabActive = false,
 }) {
@@ -57,7 +73,8 @@ export default function AnalyticsStack({
     header,
     activityVisibility,
     isTabActive,
-  }), [topInset, header, activityVisibility, isTabActive]);
+    onDetailExit,
+  }), [topInset, header, activityVisibility, isTabActive, onDetailExit]);
 
   return (
     <AnalyticsStackContext.Provider value={contextValue}>

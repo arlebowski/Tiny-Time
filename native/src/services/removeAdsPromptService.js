@@ -2,47 +2,39 @@
  * Automatic Remove Ads paywall prompts (iOS).
  *
  * Rules:
- * - 1st auto prompt after the 6th successful new tracker log (once logging UI closes)
- * - 2nd auto prompt after the 20th log, ≥48h after the first auto prompt was shown,
- *   and only if the first was dismissed without purchasing
- * - After 2nd dismissal: never auto-prompt again
+ * - First prompt: after an actual interstitial, following the next successful log
+ * - Reminders: at least 72 hours after dismissal, after another actual
+ *   interstitial and then another successful log
+ * - Maximum three automatic prompts; purchases stop the sequence permanently
  * - Manual entry points (ad card / Settings) are unaffected
  */
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MONETIZATION_SUPPORTED } from './monetization';
 
-const FIRST_PROMPT_LOG = 6;
-const SECOND_PROMPT_LOG = 20;
-const MIN_GAP_AFTER_FIRST_MS = 48 * 60 * 60 * 1000;
+const {
+  EMPTY_STATE,
+  normalizeState,
+  recoverAbandonedPrompt,
+  recordInterstitial,
+  nextEligiblePromptNumber,
+  applyPresented,
+  applyDismissed,
+} = require('./removeAdsPromptPolicy.cjs');
 
 const FIRST_OPEN_AT_KEY = 'tt_first_open_at';
 const FIRST_OPEN_DATE_KEY = 'tt_first_open_date';
+const stateLocks = new Map();
 
 function stateKey(uid) {
   return `tt_remove_ads_auto:${uid}`;
 }
 
-const EMPTY_STATE = {
-  logCount: 0,
-  firstPromptAt: null,
-  firstDismissed: false,
-  secondPromptAt: null,
-  secondDismissed: false,
-};
-
 async function readState(uid) {
   try {
     const raw = await AsyncStorage.getItem(stateKey(uid));
     if (!raw) return { ...EMPTY_STATE };
-    const parsed = JSON.parse(raw);
-    return {
-      logCount: Number(parsed?.logCount) || 0,
-      firstPromptAt: Number(parsed?.firstPromptAt) || null,
-      firstDismissed: Boolean(parsed?.firstDismissed),
-      secondPromptAt: Number(parsed?.secondPromptAt) || null,
-      secondDismissed: Boolean(parsed?.secondDismissed),
-    };
+    return normalizeState(JSON.parse(raw));
   } catch {
     return { ...EMPTY_STATE };
   }
@@ -50,6 +42,22 @@ async function readState(uid) {
 
 async function writeState(uid, state) {
   await AsyncStorage.setItem(stateKey(uid), JSON.stringify(state));
+}
+
+async function withStateLock(uid, task) {
+  const previous = stateLocks.get(uid) || Promise.resolve();
+  const current = previous.catch(() => {}).then(task);
+  stateLocks.set(uid, current);
+  try {
+    return await current;
+  } finally {
+    if (stateLocks.get(uid) === current) stateLocks.delete(uid);
+  }
+}
+
+function promptNumberFromTrigger(trigger) {
+  const match = /^post_interstitial_(\d)$/.exec(String(trigger || ''));
+  return match ? Number(match[1]) : null;
 }
 
 /** Ensure a precise first-open timestamp exists (ms since epoch). */
@@ -79,123 +87,102 @@ export async function ensureFirstOpenAt() {
   }
 }
 
-function hoursSince(ms) {
+function hoursSince(ms, nowMs) {
   if (!Number.isFinite(ms)) return null;
-  return Math.max(0, (Date.now() - ms) / (60 * 60 * 1000));
+  return Math.max(0, (nowMs - ms) / (60 * 60 * 1000));
 }
 
-/**
- * Increment lifetime successful-log count and decide whether an auto prompt
- * should be presented after the user returns to normal UI.
- *
- * @returns {Promise<null | {
- *   trigger: 'log_6' | 'log_20',
- *   logCount: number,
- *   appAgeHours: number | null,
- *   accountAgeHours: number | null,
- * }>}
- */
+/** Record a successfully displayed interstitial for the prompt sequence. */
+export async function recordRemoveAdsInterstitialShown(uid, nowMs = Date.now()) {
+  if (!uid || uid === 'local-user') return;
+  await withStateLock(uid, async () => {
+    const state = await readState(uid);
+    if (state.purchased || state.promptCount >= 3) return;
+    await writeState(uid, recordInterstitial(state, nowMs));
+  });
+}
+
+export async function hasSeenRemoveAdsInterstitial(uid) {
+  if (!uid || uid === 'local-user') return false;
+  return withStateLock(uid, async () => {
+    const state = await readState(uid);
+    return Boolean(state.lastInterstitialAt);
+  });
+}
+
+/** Record a successful activity and return the next eligible automatic prompt. */
 export async function recordSuccessfulLogAndEvaluate({
   uid,
   entitlement,
   flagEnabled,
   accountCreationTime,
+  nowMs = Date.now(),
 }) {
   if (!MONETIZATION_SUPPORTED || Platform.OS !== 'ios') return null;
   if (flagEnabled !== true && !(__DEV__ && flagEnabled !== false)) return null;
   if (!uid || uid === 'local-user') return null;
   if (entitlement === 'entitled' || entitlement === 'unknown') return null;
 
-  const state = await readState(uid);
-  if (state.secondDismissed) return null;
-
-  // Recover abandoned auto-prompt sessions (force-quit while sheet open).
-  const ONE_HOUR_MS = 60 * 60 * 1000;
-  if (
-    state.firstPromptAt &&
-    !state.firstDismissed &&
-    Date.now() - state.firstPromptAt > ONE_HOUR_MS
-  ) {
-    state.firstDismissed = true;
-  }
-  if (
-    state.secondPromptAt &&
-    !state.secondDismissed &&
-    Date.now() - state.secondPromptAt > ONE_HOUR_MS
-  ) {
-    state.secondDismissed = true;
-  }
-
-  state.logCount += 1;
-  await writeState(uid, state);
+  const { state, promptNumber } = await withStateLock(uid, async () => {
+    const nextState = recoverAbandonedPrompt(await readState(uid), nowMs);
+    nextState.logCount += 1;
+    await writeState(uid, nextState);
+    return {
+      state: nextState,
+      promptNumber: nextEligiblePromptNumber(nextState, nowMs, {
+        // Simulator verification still requires another real ad and activity.
+        ignorePromptGap: __DEV__,
+      }),
+    };
+  });
+  if (!promptNumber) return null;
 
   const firstOpenAt = await ensureFirstOpenAt();
   const accountCreatedMs = accountCreationTime
     ? Date.parse(accountCreationTime)
     : NaN;
-  const appAgeHours = hoursSince(firstOpenAt);
+  const appAgeHours = hoursSince(firstOpenAt, nowMs);
   const accountAgeHours = Number.isFinite(accountCreatedMs)
-    ? hoursSince(accountCreatedMs)
+    ? hoursSince(accountCreatedMs, nowMs)
     : null;
 
-  const base = {
+  return {
+    trigger: `post_interstitial_${promptNumber}`,
+    promptNumber,
     logCount: state.logCount,
     appAgeHours:
       appAgeHours !== null ? Math.round(appAgeHours * 10) / 10 : null,
     accountAgeHours:
       accountAgeHours !== null ? Math.round(accountAgeHours * 10) / 10 : null,
   };
-
-  // First auto prompt
-  if (!state.firstPromptAt && state.logCount >= FIRST_PROMPT_LOG) {
-    return { trigger: 'log_6', ...base };
-  }
-
-  // Second auto prompt
-  if (
-    state.firstPromptAt &&
-    state.firstDismissed &&
-    !state.secondPromptAt &&
-    !state.secondDismissed &&
-    state.logCount >= SECOND_PROMPT_LOG &&
-    Date.now() - state.firstPromptAt >= MIN_GAP_AFTER_FIRST_MS
-  ) {
-    return { trigger: 'log_20', ...base };
-  }
-
-  return null;
 }
 
-export async function markAutoPromptPresented(uid, trigger) {
+export async function markAutoPromptPresented(uid, trigger, nowMs = Date.now()) {
   if (!uid) return;
-  const state = await readState(uid);
-  const now = Date.now();
-  if (trigger === 'log_6' && !state.firstPromptAt) {
-    state.firstPromptAt = now;
-  } else if (trigger === 'log_20' && !state.secondPromptAt) {
-    state.secondPromptAt = now;
-  }
-  await writeState(uid, state);
+  const promptNumber = promptNumberFromTrigger(trigger);
+  if (!promptNumber) return;
+  await withStateLock(uid, async () => {
+    const state = await readState(uid);
+    await writeState(uid, applyPresented(state, promptNumber, nowMs));
+  });
 }
 
-/** Dismiss without purchase — advances / exhausts the auto-prompt ladder. */
-export async function markAutoPromptDismissed(uid, trigger) {
+export async function markAutoPromptDismissed(uid, trigger, nowMs = Date.now()) {
   if (!uid) return;
-  const state = await readState(uid);
-  if (trigger === 'log_6') {
-    state.firstDismissed = true;
-    if (!state.firstPromptAt) state.firstPromptAt = Date.now();
-  } else if (trigger === 'log_20') {
-    state.secondDismissed = true;
-    if (!state.secondPromptAt) state.secondPromptAt = Date.now();
-  }
-  await writeState(uid, state);
+  const promptNumber = promptNumberFromTrigger(trigger);
+  if (!promptNumber) return;
+  await withStateLock(uid, async () => {
+    const state = await readState(uid);
+    await writeState(uid, applyDismissed(state, promptNumber, nowMs));
+  });
 }
 
-/** Purchase from an auto prompt — stop all future auto prompts. */
+/** Purchase from an auto prompt permanently stops future automatic prompts. */
 export async function markAutoPromptPurchased(uid) {
   if (!uid) return;
-  const state = await readState(uid);
-  state.secondDismissed = true;
-  await writeState(uid, state);
+  await withStateLock(uid, async () => {
+    const state = await readState(uid);
+    state.purchased = true;
+    await writeState(uid, state);
+  });
 }

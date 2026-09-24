@@ -31,6 +31,7 @@ const IS_ANDROID = Platform.OS === 'android';
 const FLAG_BY_PLACEMENT = {
   home: 'home_native_ad_enabled',
   timeline: 'timeline_native_ad_enabled',
+  trends: 'trends_native_ad_enabled',
 };
 
 function getAdsModule() {
@@ -120,15 +121,22 @@ function NativeAdSkeleton({ variant = 'home' }) {
   );
 }
 
-export default function NativeAdSlot({ placement = 'home', entrance = null }) {
+export default function NativeAdSlot({
+  placement = 'home',
+  entrance = null,
+  tabActive: tabActiveOverride,
+}) {
   const { adsEnabled, adsPending, openRemoveAds } = useAds();
   const isFocused = useIsFocused();
   const trackerStack = useTrackerStack();
-  const isTabActive = trackerStack?.isTabActive ?? true;
+  const isTabActive = tabActiveOverride ?? trackerStack?.isTabActive ?? true;
   const flag = useFeatureFlag(FLAG_BY_PLACEMENT[placement]);
   // Prod: fail closed until PostHog returns true. Dev: allow while the flag
-  // is still loading (undefined) so layout/fill can be verified.
-  const flagAllows = __DEV__ ? flag !== false : flag === true;
+  // is still loading (undefined) so layout/fill can be verified. The new
+  // Trends placement stays enabled in dev before its production flag exists.
+  const flagAllows = __DEV__
+    ? placement === 'trends' || flag !== false
+    : flag === true;
 
   // Reserve the slot while gates resolve, or once ads are allowed.
   const shouldReserve =

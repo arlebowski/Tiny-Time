@@ -101,10 +101,12 @@ export default function TrackerScreen({
   onOpenSheet,
   onCardTap,
   onRequestToggleActivitySheet,
+  showAdFreeCta = false,
+  onOpenRemoveAds,
   activityVisibility,
   activityOrder,
 }) {
-  const { colors } = useTheme();
+  const { colors, bottle } = useTheme();
   const {
     getDaySummary,
     feedings,
@@ -342,6 +344,7 @@ export default function TrackerScreen({
       <ScrollView
         style={[styles.scroll, { backgroundColor: colors.appBg }]}
         contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={false}
         alwaysBounceVertical
         refreshControl={(
           <RefreshControl
@@ -371,18 +374,47 @@ export default function TrackerScreen({
           </Text>
         </View>
 
-        {/* Web TrackerTab.js:1977-1988 — gearButton: w-10 h-10 rounded-xl border */}
-        {/* bg var(--tt-seg-track), border var(--tt-card-border) which is transparent */}
-        <Pressable
-          style={({ pressed }) => [
-            styles.gearButton,
-            { backgroundColor: colors.segTrack || colors.track, borderColor: colors.cardBorder },
-            pressed && styles.gearButtonPressed,
-          ]}
-          onPress={() => onRequestToggleActivitySheet?.()}
-        >
-          <SettingsIcon size={26} color={colors.textPrimary} />
-        </Pressable>
+        <View style={styles.greetingActions}>
+          {showAdFreeCta ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Go ad-free"
+              onPress={() => onOpenRemoveAds?.()}
+              style={({ pressed }) => [
+                styles.adFreeButton,
+                {
+                  backgroundColor:
+                    colors.brandIcon || bottle?.primary,
+                },
+                pressed && styles.adFreeButtonPressed,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.adFreeButtonText,
+                  { color: colors.segmentedOnText },
+                ]}
+              >
+                Go ad-free
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {/* Web TrackerTab.js:1977-1988 — gearButton: w-10 h-10 rounded-xl border */}
+          {/* bg var(--tt-seg-track), border var(--tt-card-border) which is transparent */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Activity settings"
+            style={({ pressed }) => [
+              styles.gearButton,
+              { backgroundColor: colors.segTrack || colors.track, borderColor: colors.cardBorder },
+              pressed && styles.gearButtonPressed,
+            ]}
+            onPress={() => onRequestToggleActivitySheet?.()}
+          >
+            <SettingsIcon size={26} color={colors.textPrimary} />
+          </Pressable>
+        </View>
       </Animated.View>
 
       {/* What's Next Card - mirror web behavior: only while sleep is active */}
@@ -443,7 +475,8 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 16, // px-4
-    paddingBottom: 20,     // pb-5
+    // Let the final card scroll fully above the fixed 50px nav gradient.
+    paddingBottom: 72,
     paddingTop: 4,
     gap: 12,
   },
@@ -472,6 +505,27 @@ const styles = StyleSheet.create({
       lineHeight: 26,
       includeFontPadding: false,
     } : null),
+  },
+  greetingActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  adFreeButton: {
+    height: 40,
+    paddingHorizontal: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+  },
+  adFreeButtonPressed: {
+    opacity: 0.88,
+    transform: [{ scale: 0.97 }],
+  },
+  adFreeButtonText: {
+    fontSize: 14,
+    lineHeight: 18,
+    fontFamily: FWB.bold,
   },
   // Web TrackerTab.js:1977-1988 — w-10 h-10 rounded-xl border, active:scale-95
   gearButton: {

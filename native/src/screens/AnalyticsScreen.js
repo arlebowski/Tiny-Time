@@ -20,6 +20,7 @@ import {
   normalizeActivityVisibility,
   hasAtLeastOneActivityEnabled,
 } from '../constants/activityVisibility';
+import NativeAdSlot from '../components/ads/NativeAdSlot';
 
 
 const parseDateKeyToDate = (key) => {
@@ -60,6 +61,11 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
   const visibility = useMemo(
     () => normalizeActivityVisibility(activityVisibility),
     [activityVisibility]
+  );
+  const adAfterActivity = useMemo(
+    () => ['bottle', 'nursing', 'solids', 'sleep', 'diaper']
+      .find((activity) => visibility[activity]) ?? null,
+    [visibility]
   );
 
   const {
@@ -313,6 +319,9 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
             </HighlightCard>
           </View>
           )}
+          {adAfterActivity === 'bottle' && (
+            <NativeAdSlot placement="trends" tabActive={isTabActive} />
+          )}
 
           {visibility.nursing && (
           <View onLayout={(e) => setCardLayout('nursing', e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
@@ -337,6 +346,9 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
               />
             </HighlightCard>
           </View>
+          )}
+          {adAfterActivity === 'nursing' && (
+            <NativeAdSlot placement="trends" tabActive={isTabActive} />
           )}
 
           {visibility.solids && (
@@ -363,6 +375,9 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
             </HighlightCard>
           </View>
           )}
+          {adAfterActivity === 'solids' && (
+            <NativeAdSlot placement="trends" tabActive={isTabActive} />
+          )}
 
           {visibility.sleep && (
           <View onLayout={(e) => setCardLayout('sleep', e.nativeEvent.layout.y, e.nativeEvent.layout.height)}>
@@ -385,6 +400,9 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
               />
             </HighlightCard>
           </View>
+          )}
+          {adAfterActivity === 'sleep' && (
+            <NativeAdSlot placement="trends" tabActive={isTabActive} />
           )}
 
           {visibility.diaper && (
@@ -409,6 +427,9 @@ export default function AnalyticsScreen({ onCardTap, activityVisibility, isTabAc
               />
             </HighlightCard>
           </View>
+          )}
+          {adAfterActivity === 'diaper' && (
+            <NativeAdSlot placement="trends" tabActive={isTabActive} />
           )}
         </>
       )}

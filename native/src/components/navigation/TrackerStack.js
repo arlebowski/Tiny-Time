@@ -27,6 +27,8 @@ function TrackerRoute({ navigation }) {
           navigation.navigate('Detail', { initialFilter: filterType || 'all' });
         }}
         onRequestToggleActivitySheet={ctx.onRequestToggleActivitySheet}
+        showAdFreeCta={ctx.showAdFreeCta}
+        onOpenRemoveAds={ctx.onOpenRemoveAds}
         activityVisibility={ctx.activityVisibility}
         activityOrder={ctx.activityOrder}
       />
@@ -58,6 +60,8 @@ export default function TrackerStack({
   header,
   onOpenSheet,
   onRequestToggleActivitySheet,
+  showAdFreeCta = false,
+  onOpenRemoveAds,
   activityVisibility,
   activityOrder,
   onEditCard,
@@ -72,6 +76,8 @@ export default function TrackerStack({
     header,
     onOpenSheet,
     onRequestToggleActivitySheet,
+    showAdFreeCta,
+    onOpenRemoveAds,
     activityVisibility,
     activityOrder,
     onEditCard,
@@ -84,6 +90,8 @@ export default function TrackerStack({
     header,
     onOpenSheet,
     onRequestToggleActivitySheet,
+    showAdFreeCta,
+    onOpenRemoveAds,
     activityVisibility,
     activityOrder,
     onEditCard,

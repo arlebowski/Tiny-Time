@@ -22,7 +22,14 @@ import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import { DatePickerTray } from '../components/shared/Wheelpickers';
 import { BabyAvatar } from '../utils/avatarUtils';
-import { CalendarIcon, ChevronLeftIcon } from '../components/icons';
+import {
+  BottleIcon,
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  DiaperIcon,
+  SleepIcon,
+} from '../components/icons';
 import { capture } from '../services/posthogService';
 import { useFeatureFlag } from 'posthog-react-native';
 import firestoreService from '../services/firestoreService';
@@ -62,9 +69,12 @@ let _persistedStep = 1;
 let _persistedBabyName = '';
 let _persistedBirthDate = '';
 
-export default function SetupScreen({ onDevExitPreview = null }) {
+export default function SetupScreen({
+  onDevExitPreview = null,
+  onRequestFirstActivity = null,
+}) {
   const insets = useSafeAreaInsets();
-  const { colors, radius, isDark } = useTheme();
+  const { colors, radius, isDark, bottle, diaper, sleep } = useTheme();
   const {
     user,
     createFamily,
@@ -119,9 +129,6 @@ export default function SetupScreen({ onDevExitPreview = null }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [birthDatePickerOpen, setBirthDatePickerOpen] = useState(false);
-  const [revealCountdown, setRevealCountdown] = useState(2);
-  const revealTimersRef = useRef([]);
-
   // Field first-interaction flags — each fires once per session
   const babyNameInteractedRef = useRef(false);
   const birthDateInteractedRef = useRef(false);
@@ -156,46 +163,17 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     return null;
   }, [photoUri, isInvitePath, selectedKidSnapshot?.photoURL]);
 
-  const revealBirthLine = useMemo(() => {
-    if (!isInvitePath) return formatBirthIso(birthDate);
-    const ts = selectedKidSnapshot?.birthDate;
-    if (typeof ts === 'number' && Number.isFinite(ts)) {
-      const d = new Date(ts);
-      if (!Number.isNaN(d.getTime())) {
-        return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
-      }
-    }
-    return null;
-  }, [isInvitePath, birthDate, selectedKidSnapshot?.birthDate]);
-
-  const exitSetup = useCallback(() => {
+  const exitSetup = useCallback((activityType = null) => {
     _persistedStep = 1;
     _persistedBabyName = '';
     _persistedBirthDate = '';
+    if (activityType) onRequestFirstActivity?.(activityType);
     if (onDevExitPreview) {
       onDevExitPreview();
     } else {
       markSetupComplete();
     }
-  }, [onDevExitPreview, markSetupComplete]);
-
-  useEffect(() => {
-    if (step !== 5) return undefined;
-    setRevealCountdown(4);
-    revealTimersRef.current.forEach(clearTimeout);
-    const t1 = setTimeout(() => setRevealCountdown(3), 1000);
-    const t2 = setTimeout(() => setRevealCountdown(2), 2000);
-    const t3 = setTimeout(() => setRevealCountdown(1), 3000);
-    const t4 = setTimeout(() => {
-      capture('setup_step_completed', { step: '5', method: 'auto' });
-      exitSetup();
-    }, 4000);
-    revealTimersRef.current = [t1, t2, t3, t4];
-    return () => {
-      revealTimersRef.current.forEach(clearTimeout);
-      revealTimersRef.current = [];
-    };
-  }, [step, exitSetup]);
+  }, [onDevExitPreview, onRequestFirstActivity, markSetupComplete]);
 
   const onboardingCompletedOnceRef = useRef(false);
   useEffect(() => {
@@ -209,10 +187,24 @@ export default function SetupScreen({ onDevExitPreview = null }) {
     });
   }, [step, isInvitePath, photoUri, showPhotoStep]);
 
-  const finishReveal = () => {
-    revealTimersRef.current.forEach(clearTimeout);
-    revealTimersRef.current = [];
-    capture('setup_step_completed', { step: '5', method: 'tapped' });
+  const selectFirstActivity = (activityType) => {
+    capture('onboarding_activity_selected', {
+      type: activityType,
+      path: isInvitePath ? 'invite' : 'create',
+    });
+    capture('setup_step_completed', {
+      step: '5',
+      method: 'activity_selected',
+      activity_type: activityType,
+    });
+    exitSetup(activityType);
+  };
+
+  const skipFirstActivity = () => {
+    capture('onboarding_activity_skipped', {
+      path: isInvitePath ? 'invite' : 'create',
+    });
+    capture('setup_step_completed', { step: '5', method: 'skipped' });
     exitSetup();
   };
 
@@ -326,54 +318,104 @@ export default function SetupScreen({ onDevExitPreview = null }) {
       { left: '88%', top: '72%', color: '#8259CF', size: 9 },
       { left: '8%', top: '40%', color: '#4BAB51', size: 7 },
     ];
+    const activityChoices = [
+      {
+        type: 'feed',
+        title: 'Feed',
+        subtitle: 'Bottle, nursing, or solids',
+        Icon: BottleIcon,
+        color: bottle.primary,
+      },
+      {
+        type: 'diaper',
+        title: 'Diaper',
+        subtitle: 'Dry, wet, or poop',
+        Icon: DiaperIcon,
+        color: diaper.primary,
+      },
+      {
+        type: 'sleep',
+        title: 'Sleep',
+        subtitle: 'Log a completed or active sleep',
+        Icon: SleepIcon,
+        color: sleep.primary,
+      },
+    ];
     return (
       <View style={[styles.flex, { backgroundColor: colors.appBg }]}>
-        <View style={[styles.revealInner, { paddingTop: insets.top + 24 }]}>
-          <View style={StyleSheet.absoluteFill} pointerEvents="none">
-            {confetti.map((d, idx) => (
-              <View
-                key={idx}
-                style={{
-                  position: 'absolute',
-                  left: d.left,
-                  top: d.top,
-                  width: d.size,
-                  height: d.size,
-                  borderRadius: d.size / 2,
-                  backgroundColor: d.color,
-                  opacity: 0.85,
-                }}
-              />
-            ))}
-          </View>
-          <View style={styles.revealContent}>
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {confetti.map((d, idx) => (
+            <View
+              key={idx}
+              style={{
+                position: 'absolute',
+                left: d.left,
+                top: d.top,
+                width: d.size,
+                height: d.size,
+                borderRadius: d.size / 2,
+                backgroundColor: d.color,
+                opacity: 0.85,
+              }}
+            />
+          ))}
+        </View>
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={[
+            styles.activationContent,
+            { paddingTop: insets.top + 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.activationIntro}>
             <Text style={[styles.revealEyebrow, { color: colors.textSecondary }]}>YOU&apos;RE ALL SET</Text>
             <BabyAvatar
               name={displayName}
-              size={150}
+              size={92}
               photoUri={revealPhotoUri}
               style={styles.revealAvatarShadow}
             />
-            <Text style={[styles.revealTitle, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
-              Welcome,{'\n'}
-              <Text style={{ fontStyle: 'italic', color: colors.brandIcon }}>{displayName}</Text>
+            <Text style={[styles.activationTitle, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
+              Let&apos;s log your{'\n'}first activity
             </Text>
             <Text style={[styles.revealSub, { color: colors.textSecondary }]}>
-              {revealBirthLine ? `Born ${revealBirthLine}.\n` : ''}
-              Let&apos;s log their first activity.
+              Choose the most recent feed, diaper, or sleep. You can adjust the details next.
             </Text>
           </View>
-        </View>
-        <View style={[styles.revealFooter, { paddingBottom: Math.max(insets.bottom, 24) }]}>
-          <Pressable
-            style={[styles.brandCta, { backgroundColor: colors.brandIcon, borderRadius: radius?.xl ?? 16 }]}
-            onPress={finishReveal}
-          >
-            <Text style={styles.brandCtaText}>Start tracking →</Text>
+          <View style={styles.activityChoices}>
+            {activityChoices.map(({ type, title, subtitle, Icon, color }) => (
+              <Pressable
+                key={type}
+                accessibilityRole="button"
+                accessibilityLabel={`Log first ${title.toLowerCase()}`}
+                onPress={() => selectFirstActivity(type)}
+                style={({ pressed }) => [
+                  styles.activityChoice,
+                  {
+                    backgroundColor: colors.cardBg,
+                    borderColor: colors.cardBorder,
+                    borderRadius: radius?.xl ?? 16,
+                    opacity: pressed ? 0.82 : 1,
+                  },
+                ]}
+              >
+                <View style={[styles.activityChoiceIcon, { backgroundColor: colors.subtleSurface || colors.inputBg }]}>
+                  <Icon size={26} color={color} />
+                </View>
+                <View style={styles.activityChoiceCopy}>
+                  <Text style={[styles.activityChoiceTitle, { color: colors.textPrimary }]}>{title}</Text>
+                  <Text style={[styles.activityChoiceSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
+                </View>
+                <ChevronRightIcon size={20} color={colors.textTertiary} />
+              </Pressable>
+            ))}
+          </View>
+        </ScrollView>
+        <View style={[styles.activationFooter, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          <Pressable accessibilityRole="button" onPress={skipFirstActivity} hitSlop={8}>
+            <Text style={[styles.linkMuted, { color: colors.textSecondary }]}>Skip for now</Text>
           </Pressable>
-          <Text style={[styles.countdownText, { color: colors.textSecondary }]}>
-            Continuing in {revealCountdown}…
-          </Text>
         </View>
       </View>
     );
@@ -882,17 +924,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  revealInner: {
-    flex: 1,
-    position: 'relative',
-    alignItems: 'center',
+  activationContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 22,
   },
-  revealContent: {
+  activationIntro: {
     alignItems: 'center',
-    gap: 22,
+    gap: 14,
     zIndex: 1,
   },
   revealEyebrow: {
@@ -909,10 +949,10 @@ const styles = StyleSheet.create({
     shadowRadius: 50,
     elevation: 20,
   },
-  revealTitle: {
-    fontSize: 48,
-    letterSpacing: -1.4,
-    lineHeight: 52,
+  activationTitle: {
+    fontSize: 38,
+    letterSpacing: -1,
+    lineHeight: 42,
     textAlign: 'center',
     fontWeight: '700',
   },
@@ -922,13 +962,41 @@ const styles = StyleSheet.create({
     maxWidth: 280,
     lineHeight: 22,
   },
-  revealFooter: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
+  activityChoices: {
+    gap: 10,
+    marginTop: 24,
   },
-  countdownText: {
+  activityChoice: {
+    minHeight: 72,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  activityChoiceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activityChoiceCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  activityChoiceTitle: {
+    fontSize: 17,
+    fontFamily: FWB.semibold,
+  },
+  activityChoiceSubtitle: {
     fontSize: 13,
-    textAlign: 'center',
-    marginTop: 10,
+    lineHeight: 18,
+    marginTop: 2,
+  },
+  activationFooter: {
+    paddingHorizontal: 24,
+    paddingTop: 10,
   },
 });
