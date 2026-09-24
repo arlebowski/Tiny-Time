@@ -25,7 +25,6 @@ import {
 import { createStorageAdapter } from './src/services/storageAdapter';
 import {
   ensureFirstOpenAt,
-  hasSeenRemoveAdsInterstitial,
   recordRemoveAdsInterstitialShown,
   recordSuccessfulLogAndEvaluate,
 } from './src/services/removeAdsPromptService';
@@ -494,7 +493,6 @@ function AppShell({
     syncState,
   } = useData();
   const [showSyncNotice, setShowSyncNotice] = useState(false);
-  const [hasSeenInterstitialForRemoveAds, setHasSeenInterstitialForRemoveAds] = useState(false);
   useEffect(() => {
     const shouldShow = (
       syncState?.status === 'offline'
@@ -578,20 +576,6 @@ function AppShell({
   useEffect(() => {
     if (!user?.uid) return;
     setAppsFlyerCustomerUserId(user.uid);
-  }, [user?.uid]);
-
-  useEffect(() => {
-    let cancelled = false;
-    setHasSeenInterstitialForRemoveAds(false);
-    if (!user?.uid) return undefined;
-    hasSeenRemoveAdsInterstitial(user.uid)
-      .then((seen) => {
-        if (!cancelled) setHasSeenInterstitialForRemoveAds(seen);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
   }, [user?.uid]);
 
   const isPresentationBlocked = useCallback(() => {
@@ -808,7 +792,6 @@ function AppShell({
         markLogInterstitialShown(presentationUid),
         recordRemoveAdsInterstitialShown(presentationUid),
       ]).catch(() => {});
-      setHasSeenInterstitialForRemoveAds(true);
     }
   }, [isPresentationBlocked, openRemoveAds, schedulePendingPresentation]);
 
@@ -1488,6 +1471,19 @@ function AppShell({
     schedulePendingPresentation,
   ]);
 
+  const previousActiveTabRef = useRef(activeTab);
+  useEffect(() => {
+    const previousActiveTab = previousActiveTabRef.current;
+    previousActiveTabRef.current = activeTab;
+    if (
+      previousActiveTab === 'trends' &&
+      activeTab !== 'trends' &&
+      analyticsDetailOpen
+    ) {
+      void maybeQueueTrendsDetailExitInterstitial();
+    }
+  }, [activeTab, analyticsDetailOpen, maybeQueueTrendsDetailExitInterstitial]);
+
   const handleAnalyticsDetailOpenChange = useCallback((isOpen) => {
     markNavigationTransition();
     setAnalyticsDetailOpen(isOpen);
@@ -1566,9 +1562,7 @@ function AppShell({
                 header={trackerHeader}
                 onOpenSheet={handleTrackerSelect}
                 onRequestToggleActivitySheet={handleToggleActivitySheet}
-                showAdFreeCta={
-                  entitlement === 'notEntitled' && hasSeenInterstitialForRemoveAds
-                }
+                showAdFreeCta={entitlement === 'notEntitled'}
                 onOpenRemoveAds={handleOpenHeaderRemoveAds}
                 activityVisibility={activityVisibility}
                 activityOrder={activityOrder}
