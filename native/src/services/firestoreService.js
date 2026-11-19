@@ -486,7 +486,11 @@ const firestoreService = {
 
   // ─── DIAPER CHANGES ───
 
-  async addDiaperChange({ timestamp, isWet = false, isDry = false, isPoo = false, notes = null, photoURLs = null }) {
+  newDiaperChangeId() {
+    return this._kidRef().collection(COLLECTIONS.diaperChanges).doc().id;
+  },
+
+  async addDiaperChange({ timestamp, isWet = false, isDry = false, isPoo = false, notes = null, photoURLs = null }, id = this.newDiaperChangeId()) {
     const scopeToken = this._scopeToken;
     const start = Date.now();
     debugLog('addDiaperChange:start', {
@@ -506,8 +510,9 @@ const firestoreService = {
     if (Array.isArray(photoURLs) && photoURLs.length > 0) data.photoURLs = photoURLs;
     if (uid) data.createdByUid = uid;
 
-    const ref = await withTimeout(
-      this._kidRef().collection(COLLECTIONS.diaperChanges).add(data),
+    const ref = this._kidRef().collection(COLLECTIONS.diaperChanges).doc(id);
+    await withTimeout(
+      ref.set(data),
       FIRESTORE_QUERY_TIMEOUT_MS,
       'addDiaperChange:add'
     );
@@ -596,7 +601,7 @@ const firestoreService = {
     return item;
   },
 
-  async endSleep(sessionId, endTime = null) {
+  async endSleep(sessionId, endTime = null, details = {}) {
     const scopeToken = this._scopeToken;
     const kidRef = this._kidRef();
     const start = Date.now();
@@ -609,8 +614,9 @@ const firestoreService = {
     // Classify sleep type based on start time
     let sleepType = 'night';
     const cachedSession = this._findCachedActivity('sleepSessions', sessionId);
-    if (cachedSession?.startTime) {
-      sleepType = await this._classifySleepType(cachedSession.startTime, kidRef);
+    const startTime = details.startTime ?? cachedSession?.startTime;
+    if (startTime) {
+      sleepType = await this._classifySleepType(startTime, kidRef);
     } else {
       try {
         const sessDoc = await withTimeout(
@@ -622,30 +628,23 @@ const firestoreService = {
       } catch {}
     }
 
-    const isDaySleep = sleepType === 'day';
+    const updates = {
+      endTime: endMs,
+      isActive: false,
+      endedByUid: uid,
+      isDaySleep: sleepType === 'day',
+      sleepType,
+    };
+    if (details.startTime != null) updates.startTime = details.startTime;
+    if (details.notes !== undefined) updates.notes = details.notes;
+    if (details.photoURLs !== undefined) updates.photoURLs = details.photoURLs;
     await withTimeout(
-      kidRef.collection(COLLECTIONS.sleepSessions)
-        .doc(sessionId)
-        .update({
-          endTime: endMs,
-          isActive: false,
-          endedByUid: uid,
-          isDaySleep,
-          sleepType: isDaySleep ? 'day' : 'night',
-        }),
+      kidRef.collection(COLLECTIONS.sleepSessions).doc(sessionId).update(updates),
       FIRESTORE_QUERY_TIMEOUT_MS,
       'endSleep:update'
     );
-
     if (scopeToken === this._scopeToken) {
-      await this._storeCachedActivity('sleepSessions', {
-        id: sessionId,
-        endTime: endMs,
-        isActive: false,
-        endedByUid: uid,
-        isDaySleep,
-        sleepType: isDaySleep ? 'day' : 'night',
-      });
+      await this._storeCachedActivity('sleepSessions', { id: sessionId, ...updates });
     }
     debugLog('endSleep:done', { sessionId, ms: Date.now() - start });
   },
@@ -665,6 +664,11 @@ const firestoreService = {
       sleepType: sleepType || (await this._classifySleepType(safeStartTime, kidRef)),
       createdAt: firestore.FieldValue.serverTimestamp(),
     };
+    if (safeEndTime != null) {
+      data.isDaySleep = data.sleepType === 'day';
+      data.startedByUid = uid;
+      data.endedByUid = uid;
+    }
     if (notes) data.notes = notes;
     if (Array.isArray(photoURLs) && photoURLs.length > 0) data.photoURLs = photoURLs;
     if (uid) data.createdByUid = uid;

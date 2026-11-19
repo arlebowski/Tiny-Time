@@ -20,7 +20,7 @@ function calculateDuration(startTime, endTime) {
   if (!startTime || !endTime) return null;
   const start = new Date(startTime).getTime();
   const end = new Date(endTime).getTime();
-  if (end < start) return null;
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
   return end - start;
 }
 
@@ -97,6 +97,7 @@ export default function SleepSheet({
   const insets = useSafeAreaInsets();
   const { activeSleep, sleepSessions } = useData();
   const isInputVariant = !entry;
+  const activeStart = activeSleep?.startTime;
   const activeSleepId = activeSleep?.id || null;
 
   const [startTime, setStartTime] = useState(() => {
@@ -133,10 +134,7 @@ export default function SleepSheet({
     [showEndTray]
   );
 
-  const durationResultMs = (() => {
-    if (!startTime || !endTime) return 0;
-    return calculateDuration(startTime, endTime);
-  })();
+  const durationResultMs = calculateDuration(startTime, endTime);
   const isValid = durationResultMs !== null;
   const stableDurationMs = isValid ? Number(durationResultMs || 0) : lastValidDurationMs;
   const displayMs = (() => {
@@ -162,54 +160,22 @@ export default function SleepSheet({
       setSleepState('idle');
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
-    } else {
-      const activeStartIso = isInputVariant && activeSleep?.startTime ? new Date(activeSleep.startTime).toISOString() : null;
-      setStartTime(activeStartIso);
-      setEndTime(null);
-      if (isInputVariant && !activeSleepId) {
-        setSleepState('idle');
-        setSleepElapsedMs(0);
-        setEndTimeManuallyEdited(false);
-        endTimeManuallyEditedRef.current = false;
-      }
-      setNotes('');
-      setExistingPhotoURLs([]);
-      setPhotos([]);
-      setNotesExpanded(false);
-      setPhotosExpanded(false);
     }
-  }, [entry, isInputVariant, activeSleep, activeSleepId]);
+  }, [entry]);
 
+  // Apply changes from caregivers when the shared timer changes. A fresh
+  // snapshot of the same timer must preserve the open form.
   useEffect(() => {
     if (!isInputVariant) return;
-    if (activeSleep && activeSleep.id) {
-      if (!activeSleepSessionId || activeSleepSessionId !== activeSleep.id) {
-        setActiveSleepSessionId(activeSleep.id);
-      }
-      if (activeSleep.startTime) {
-        const serverStartIso = new Date(activeSleep.startTime).toISOString();
-        setStartTime(serverStartIso);
-        const normalizedStart = normalizeSleepStartMs(activeSleep.startTime);
-        if (normalizedStart) setSleepElapsedMs(Date.now() - normalizedStart);
-      }
-      if (!endTimeManuallyEditedRef.current) {
-        setEndTime(null);
-        setEndTimeManuallyEdited(false);
-      }
-      if (sleepState !== 'running' && !endTimeManuallyEditedRef.current) {
-        setSleepState('running');
-      }
-      return;
-    }
-
-    if (sleepState === 'running') setSleepState('idle');
-    setStartTime(null);
+    setActiveSleepSessionId(activeSleepId);
+    setStartTime(activeStart ? new Date(activeStart).toISOString() : null);
     setEndTime(null);
-    setSleepElapsedMs(0);
     setEndTimeManuallyEdited(false);
     endTimeManuallyEditedRef.current = false;
-    if (activeSleepSessionId) setActiveSleepSessionId(null);
-  }, [isInputVariant, activeSleep, sleepState, activeSleepSessionId]);
+    const normalizedStart = normalizeSleepStartMs(activeStart);
+    setSleepElapsedMs(normalizedStart ? Math.max(0, Date.now() - normalizedStart) : 0);
+    setSleepState(activeSleepId ? 'running' : 'idle');
+  }, [isInputVariant, activeSleepId, activeStart]);
 
   useEffect(() => {
     if (sleepIntervalRef.current) clearInterval(sleepIntervalRef.current);
@@ -301,8 +267,6 @@ export default function SleepSheet({
           try {
             await storage.updateSleepSession(sessionId, {
               startTime: startMs,
-              endTime: null,
-              isActive: true,
             });
           } catch (e) {
             console.error('[SleepSheet] Failed to update active sleep start time:', e);
@@ -391,15 +355,13 @@ export default function SleepSheet({
       }
 
       if (!sessionId) {
-        const session = await logAwait('storage:startSleep', () => storage?.startSleep?.(startMs));
-        sessionId = session?.id;
-        if (sessionId) setActiveSleepSessionId(sessionId);
+        const session = await logAwait('storage:startSleep', () => storage.startSleep(startMs));
+        if (!session?.id) throw new Error('Missing new sleep session id');
+        setActiveSleepSessionId(session.id);
       } else if (storage?.updateSleepSession) {
         await logAwait('storage:updateSleepSession', () =>
           storage.updateSleepSession(sessionId, {
             startTime: startMs,
-            endTime: null,
-            isActive: true,
           })
         );
       }
@@ -453,25 +415,13 @@ export default function SleepSheet({
       }
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
       const startMs = startTime ? new Date(startTime).getTime() : null;
-      if (onAdd && startMs && endMs) {
-        onAdd({ id: sessionId || null, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos });
-      }
-      let persisted = false;
-      if (sessionId && storage && storage.endSleep) {
-        await logAwait('storage:endSleep', () => storage.endSleep(sessionId, endMs));
-        if (notes || allPhotos.length > 0) {
-          if (storage.updateSleepSession) {
-            await logAwait('storage:updateSleepSession', () =>
-              storage.updateSleepSession(sessionId, {
-                notes: notes || null,
-                photoURLs: allPhotos,
-              })
-            );
-          }
-        }
-        setActiveSleepSessionId(null);
-        persisted = true;
-      }
+      if (!sessionId) throw new Error('Missing running sleep session');
+      const details = {};
+      if (notes) details.notes = notes;
+      if (allPhotos.length) details.photoURLs = allPhotos;
+      await logAwait('storage:endSleep', () => storage.endSleep(sessionId, endMs, details));
+      onAdd?.({ id: sessionId, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos });
+      setActiveSleepSessionId(null);
 
       setSleepState('idle');
       setStartTime(new Date().toISOString());
@@ -482,7 +432,7 @@ export default function SleepSheet({
       setEndTimeManuallyEdited(false);
       endTimeManuallyEditedRef.current = false;
 
-      if (persisted && typeof onPersistSuccess === 'function') {
+      if (typeof onPersistSuccess === 'function') {
         onPersistSuccess({ type: 'sleep' });
       }
 
@@ -568,62 +518,28 @@ export default function SleepSheet({
       }
       const allPhotos = [...existingPhotoURLs, ...uploadedURLs];
 
+      const payload = {
+        startTime: startMs,
+        endTime: endMs,
+        isActive: false,
+        notes: notes || null,
+        photoURLs: allPhotos,
+      };
       if (isEditingEntry) {
-        const payload = {
-          startTime: startMs,
-          endTime: endMs,
-          isActive: false,
-          notes: notes || null,
-          photoURLs: allPhotos || [],
-        };
-        if (typeof onSave === 'function') {
-          onSave({ id: entry.id, type: 'sleep', ...payload });
-        }
-        if (storage?.updateSleepSession) {
-          logStep('sleep:update:start');
-          await logAwait('sleep:update', () => storage.updateSleepSession(entry.id, payload));
-          logStep('sleep:update:done');
-        }
+        await logAwait('sleep:update', () => storage.updateSleepSession(entry.id, payload));
+        onSave?.({ id: entry.id, type: 'sleep', ...payload });
       } else {
-        const sessionId = activeSleepSessionId || activeSleepId;
-        let resolvedSessionId = sessionId || null;
-        if (onAdd) {
-          onAdd({ id: resolvedSessionId, type: 'sleep', startTime: startMs, endTime: endMs, notes: notes || null, photoURLs: allPhotos || [] });
-        }
-        if (sessionId && storage?.endSleep) {
-          logStep('sleep:end:start');
-          await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs));
-          logStep('sleep:end:done');
-          if (notes || allPhotos.length > 0) {
-            logStep('sleep:update:start');
-            await logAwait('sleep:update', () =>
-              storage.updateSleepSession?.(sessionId, {
-                notes: notes || null,
-                photoURLs: allPhotos,
-              })
-            );
-            logStep('sleep:update:done');
-          }
+        let sessionId = activeSleepSessionId || activeSleepId;
+        if (sessionId) {
+          await logAwait('sleep:end', () => storage.endSleep(sessionId, endMs, {
+            startTime: startMs, notes: payload.notes, photoURLs: allPhotos,
+          }));
           setActiveSleepSessionId(null);
-        } else if (storage?.startSleep) {
-          logStep('sleep:start:start');
-          const session = await logAwait('sleep:start', () => storage.startSleep(startMs));
-          logStep('sleep:start:done');
-          resolvedSessionId = session?.id || null;
-          logStep('sleep:end:start');
-          await logAwait('sleep:end', () => storage.endSleep(session.id, endMs));
-          logStep('sleep:end:done');
-          if (notes || allPhotos.length > 0) {
-            logStep('sleep:update:start');
-            await logAwait('sleep:update', () =>
-              storage.updateSleepSession?.(session.id, {
-                notes: notes || null,
-                photoURLs: allPhotos,
-              })
-            );
-            logStep('sleep:update:done');
-          }
+        } else {
+          const session = await logAwait('sleep:add', () => storage.addSleepSession(payload));
+          sessionId = session.id;
         }
+        onAdd?.({ id: sessionId, type: 'sleep', ...payload });
       }
 
       setSleepState('idle');

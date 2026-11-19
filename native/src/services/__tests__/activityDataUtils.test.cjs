@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {
+  nursingDurationsAt,
   ACTIVITY_SPECS,
   DAY_CACHE_LIMIT,
   SLEEP_LOOKBACK_MS,
@@ -133,4 +134,10 @@ test('activity cache scopes separate user, family, and child data', () => {
   assert.notEqual(original, buildCacheScopeKey('user-a', 'family-b', 'child-a'));
   assert.notEqual(original, buildCacheScopeKey('user-a', 'family-a', 'child-b'));
   assert.throws(() => buildCacheScopeKey(null, 'family-a', 'child-a'));
+});
+
+test('saving a nursing timer includes only the active side since its last start', () => {
+  assert.deepEqual(nursingDurationsAt(2000, 3000, 'left', 1000, 6000), { leftMs: 7000, rightMs: 3000 });
+  assert.deepEqual(nursingDurationsAt(2000, 3000, 'right', 1000, 6000), { leftMs: 2000, rightMs: 8000 });
+  assert.deepEqual(nursingDurationsAt(2000, 3000, null, null, 6000), { leftMs: 2000, rightMs: 3000 });
 });

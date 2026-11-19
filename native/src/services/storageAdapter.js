@@ -36,7 +36,7 @@ export function createStorageAdapter(familyId, kidId) {
       deleteDiaperChange: noop,
       startSleep: async (startTime) => ({ id: `local-sleep-${Date.now()}`, startTime: startTime || Date.now(), isActive: true }),
       endSleep: noop,
-      addSleepSession: noop,
+      addSleepSession: async (data) => ({ id: `local-sleep-${Date.now()}`, ...data }),
       updateSleepSession: noop,
       deleteSleepSession: noop,
       subscribeActiveSleep: () => () => {},
@@ -103,7 +103,8 @@ export function createStorageAdapter(familyId, kidId) {
     deleteCustomFood: (foodId) => firestoreService.deleteCustomFood(foodId),
 
     // ── Diaper ──
-    addDiaperChange: (data) => firestoreService.addDiaperChange(data),
+    newDiaperChangeId: () => firestoreService.newDiaperChangeId(),
+    addDiaperChange: (data, id) => firestoreService.addDiaperChange(data, id),
 
     updateDiaperChange: (id, data) => firestoreService.updateDiaperChange(id, data),
 
@@ -112,7 +113,7 @@ export function createStorageAdapter(familyId, kidId) {
     // ── Sleep ──
     startSleep: (startTime) => firestoreService.startSleep(startTime),
 
-    endSleep: (sessionId, endTime) => firestoreService.endSleep(sessionId, endTime),
+    endSleep: (sessionId, endTime, details) => firestoreService.endSleep(sessionId, endTime, details),
 
     addSleepSession: (data) => firestoreService.addSleepSession(data),
 

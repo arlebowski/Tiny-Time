@@ -41,6 +41,8 @@ import {
 import { COMMON_FOODS } from '../../constants/foods';
 import { resolveFoodIconAsset } from '../../constants/foodIcons';
 
+const { nursingDurationsAt } = require('../../services/activityDataUtils.cjs');
+
 const slugifyFoodId = (value) =>
   String(value || '')
     .toLowerCase()
@@ -538,12 +540,11 @@ export default function FeedSheet({
 
   const handleDurationConfirm = useCallback((ms) => {
     const nextMs = Math.max(0, Number(ms) || 0);
-    setDurationPickerSide((side) => {
-      if (side === 'left') setLeftElapsedMs(nextMs);
-      else if (side === 'right') setRightElapsedMs(nextMs);
-      return null;
-    });
-  }, []);
+    if (durationPickerSide === 'left') setLeftElapsedMs(nextMs);
+    if (durationPickerSide === 'right') setRightElapsedMs(nextMs);
+    if (!dateTime && nextMs > 0) setDateTime(new Date(Date.now() - nextMs).toISOString());
+    setDurationPickerSide(null);
+  }, [durationPickerSide, dateTime]);
 
   const handleClose = useCallback(() => {
     stopActiveSide();
@@ -605,6 +606,9 @@ export default function FeedSheet({
       return;
     }
     const saveStart = Date.now();
+    const durations = nursingDurationsAt(
+      leftElapsedMs, rightElapsedMs, activeSideRef.current, activeSideStartRef.current, saveStart
+    );
     const saveId = `${feedType}-${saveStart}`;
     debugLog('save:start', {
       saveId,
@@ -730,8 +734,8 @@ export default function FeedSheet({
           }
         } catch (_) {}
       } else if (feedType === 'nursing') {
-        const leftSec = Math.round(leftElapsedMs / 1000);
-        const rightSec = Math.round(rightElapsedMs / 1000);
+        const leftSec = Math.round(durations.leftMs / 1000);
+        const rightSec = Math.round(durations.rightMs / 1000);
         let createdEntry = null;
         if (leftSec + rightSec <= 0) {
           Alert.alert('Track duration', 'Please track at least one side before saving.');
@@ -1134,10 +1138,9 @@ export default function FeedSheet({
   }, [solidsAllFoods, solidsSearch]);
 
   // ---- Display nursing totals ----
-  const now = Date.now();
-  const startRef = activeSideStartRef.current;
-  const leftDisplayMs = activeSide === 'left' && startRef ? leftElapsedMs + (now - startRef) : leftElapsedMs;
-  const rightDisplayMs = activeSide === 'right' && startRef ? rightElapsedMs + (now - startRef) : rightElapsedMs;
+  const { leftMs: leftDisplayMs, rightMs: rightDisplayMs } = nursingDurationsAt(
+    leftElapsedMs, rightElapsedMs, activeSide, activeSideStartRef.current, Date.now()
+  );
   const nursingTotalMs = leftDisplayMs + rightDisplayMs;
   const nursingParts = formatElapsedHmsTT(nursingTotalMs);
 

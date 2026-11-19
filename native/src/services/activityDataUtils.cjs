@@ -12,6 +12,14 @@ const ACTIVITY_SPECS = Object.freeze([
   { key: 'diaperChanges', collectionKey: 'diaperChanges', timestampField: 'timestamp' },
 ]);
 
+function nursingDurationsAt(leftMs, rightMs, activeSide, startedAt, now) {
+  const runningMs = startedAt == null ? 0 : Math.max(0, now - startedAt);
+  return {
+    leftMs: leftMs + (activeSide === 'left' ? runningMs : 0),
+    rightMs: rightMs + (activeSide === 'right' ? runningMs : 0),
+  };
+}
+
 function createEmptyActivityBundle() {
   return {
     feedings: [],
@@ -153,6 +161,7 @@ function pruneDayCacheIndex(entries, nowMs = Date.now()) {
 }
 
 module.exports = {
+  nursingDurationsAt,
   DAY_MS,
   RECENT_COMPLETE_DAYS,
   SLEEP_LOOKBACK_MS,

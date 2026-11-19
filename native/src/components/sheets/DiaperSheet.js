@@ -2,7 +2,7 @@
  * DiaperSheet — 1:1 from web/components/halfsheets/DiaperSheet.js
  * Wet/Dry/Poop toggles, time, notes, photos, Add/Save CTA
  */
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useTheme } from '../../context/ThemeContext';
@@ -95,6 +95,7 @@ export default function DiaperSheet({
   const [photosExpanded, setPhotosExpanded] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState(null);
 
+  const draftId = useRef(null);
   const [isWet, setIsWet] = useState(false);
   const [isDry, setIsDry] = useState(true);
   const [isPoo, setIsPoo] = useState(false);
@@ -130,6 +131,7 @@ export default function DiaperSheet({
   }, [hydrateFromEntry]);
 
   const handleSheetOpen = useCallback(() => {
+    draftId.current = null;
     hydrateFromEntry();
   }, [hydrateFromEntry]);
 
@@ -233,15 +235,16 @@ export default function DiaperSheet({
       };
 
       const isNewEntry = !(entry && entry.id);
-      if (typeof onSave === 'function' && isNewEntry) {
-        onSave({ type: 'diaper', ...payload });
-      }
-
       if (entry && entry.id) {
         await storage.updateDiaperChange(entry.id, payload);
       } else {
-        const created = await storage.addDiaperChange(payload);
+        draftId.current ??= storage.newDiaperChangeId?.();
+        const created = await storage.addDiaperChange(payload, draftId.current);
         payload.id = created?.id || null;
+      }
+
+      if (typeof onSave === 'function' && isNewEntry) {
+        onSave({ type: 'diaper', ...payload });
       }
 
       if (isNewEntry && typeof onPersistSuccess === 'function') {
