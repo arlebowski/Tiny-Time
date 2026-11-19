@@ -47,9 +47,8 @@ export const aggregateSleepByDay = (sleepSessions, sleepSettings) => {
 
     let cursor = start;
     while (cursor < end) {
-      const dayStartDate = new Date(cursor);
-      dayStartDate.setHours(0, 0, 0, 0);
-      const nextMidnight = dayStartDate.getTime() + 86400000;
+      // Local days can be 23 or 25 hours when the clocks change.
+      const nextMidnight = new Date(cursor).setHours(24, 0, 0, 0);
       const segEnd = Math.min(end, nextMidnight);
       const key = dateKeyLocal(cursor);
       const hrs = (segEnd - cursor) / 3600000;
