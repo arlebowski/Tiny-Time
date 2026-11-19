@@ -8,7 +8,6 @@ import {
   Text,
   RefreshControl,
   Pressable,
-  Image,
   StyleSheet,
   Share,
 } from 'react-native';
@@ -26,6 +25,7 @@ import TimelineSwipeRow from './TimelineSwipeRow';
 import SegmentedToggle from '../shared/SegmentedToggle';
 import NativeAdSlot from '../ads/NativeAdSlot';
 import Modal from '../shared/PresentationTrackedModal';
+import CachedRemoteImage from '../shared/CachedRemoteImage';
 
 // Ad lands in the 2nd row (after the 1st entry), then every 7: 1, 8, 15.
 // Capped: every slot is its own ad request and its own native view, and
@@ -536,8 +536,8 @@ export default function Timeline({
               style={styles.photoModalImageWrap}
               onPress={(e) => e.stopPropagation()}
             >
-              <Image
-                source={{ uri: fullSizePhoto }}
+              <CachedRemoteImage
+                uri={fullSizePhoto}
                 style={styles.photoModalImage}
                 resizeMode="contain"
               />

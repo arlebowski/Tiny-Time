@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, Image } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import CachedRemoteImage from '../../../components/shared/CachedRemoteImage';
 import TTInputRow from '../../../components/shared/TTInputRow';
 import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
 import { ChevronLeftIcon, EditIcon, PlusIcon, TrashIcon } from '../../../components/icons';
@@ -113,7 +114,7 @@ export default function FamilySubscreen({
                   <View style={s.hubKidLeft}>
                     <View style={[s.hubKidAvatarRing, { borderColor: activeTheme?.bottle?.primary || colors.primaryBrand }]}>
                       {k.photoURL ? (
-                        <Image source={{ uri: k.photoURL }} style={s.hubKidAvatarImage} />
+                        <CachedRemoteImage uri={k.photoURL} style={s.hubKidAvatarImage} />
                       ) : (
                         <View style={[s.hubKidAvatarFallback, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
                           <Text style={s.hubKidAvatarEmoji}>👶</Text>
@@ -170,7 +171,7 @@ export default function FamilySubscreen({
               <View style={s.memberCardRow}>
                 <View style={s.memberAvatarWrap}>
                   {member.photoURL ? (
-                    <Image source={{ uri: member.photoURL }} style={s.memberAvatar} />
+                    <CachedRemoteImage uri={member.photoURL} style={s.memberAvatar} />
                   ) : (
                     <View style={[s.memberAvatarFallback, { backgroundColor: colors.subtleSurface }]}>
                       <Text style={[s.memberInitial, { color: colors.textPrimary }]}>{(member.displayName || member.email || '?').charAt(0).toUpperCase()}</Text>

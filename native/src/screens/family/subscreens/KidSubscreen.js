@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, Pressable, Image, ActivityIndicator } from 'react-native';
+import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import CachedRemoteImage from '../../../components/shared/CachedRemoteImage';
 import TTInputRow from '../../../components/shared/TTInputRow';
 import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
 import {
@@ -67,7 +68,7 @@ export default function KidSubscreen({
             <Pressable onPress={onPhotoClick} style={s.photoWrap}>
               <View style={[s.photoCircle, { backgroundColor: colors.inputBg }]}> 
                 {babyPhotoUrl ? (
-                  <Image source={{ uri: babyPhotoUrl }} style={s.photoImage} />
+                  <CachedRemoteImage uri={babyPhotoUrl} style={s.photoImage} />
                 ) : (
                   <View style={[s.photoPlaceholder, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
                     <BabyIcon size={48} color={activeTheme?.bottle?.primary || colors.textTertiary} />

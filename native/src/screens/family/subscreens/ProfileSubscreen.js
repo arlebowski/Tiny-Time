@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, Pressable, Image } from 'react-native';
+import { View, Text, Pressable } from 'react-native';
+import CachedRemoteImage from '../../../components/shared/CachedRemoteImage';
 import TTInputRow from '../../../components/shared/TTInputRow';
 import { ChevronLeftIcon, CameraIcon, EditIcon } from '../../../components/icons';
 
@@ -43,7 +44,7 @@ export default function ProfileSubscreen({
           <Pressable onPress={onProfilePhoto} style={s.photoWrap}>
             <View style={[s.photoCircle, { backgroundColor: colors.inputBg }]}>
               {profilePhotoUrl ? (
-                <Image source={{ uri: profilePhotoUrl }} style={s.photoImage} />
+                <CachedRemoteImage uri={profilePhotoUrl} style={s.photoImage} />
               ) : (
                 <View style={[s.photoPlaceholder, { backgroundColor: activeTheme?.bottle?.soft || colors.subtleSurface }]}>
                   <Text style={[s.profileInitial, { color: activeTheme?.bottle?.primary || colors.textPrimary }]}>

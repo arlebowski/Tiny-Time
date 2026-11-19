@@ -661,10 +661,9 @@ export default function SleepSheet({
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: false,
-      base64: true,
     });
-    if (!result.canceled && result.assets?.[0]?.base64) {
-      setPhotos((prev) => [...prev, `data:image/jpeg;base64,${result.assets[0].base64}`]);
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setPhotos((prev) => [...prev, result.assets[0].uri]);
     }
   };
 

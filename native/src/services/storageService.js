@@ -2,6 +2,8 @@
  * storageService — Supabase Storage uploads for React Native.
  * Mirrors web/supabaseUpload.js behavior (photos bucket + public URL).
  */
+import { compressPhoto } from './photoCompression';
+import { rememberLocalPhoto } from './photoCache';
 const SUPABASE_URL = 'https://zzxnkjssveypcxbguzif.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_z_Sz0xirzaY1y5E6x7wssw_qJdXb2yB';
 const SUPABASE_BUCKET = 'photos';
@@ -58,7 +60,14 @@ export async function uploadPhoto(sourceUriOrDataUrl, storagePath) {
   const start = Date.now();
   const finalPath = ensureJpgPath(storagePath);
   debugLog('uploadPhoto:start', { finalPath });
-  const blob = await sourceToBlob(sourceUriOrDataUrl);
+  let uploadSource = sourceUriOrDataUrl;
+  try {
+    uploadSource = await compressPhoto(sourceUriOrDataUrl);
+  } catch (error) {
+    debugLog('uploadPhoto:compress-failed', { error: String(error?.message || error) });
+    uploadSource = sourceUriOrDataUrl;
+  }
+  const blob = await sourceToBlob(uploadSource);
   if (!blob) throw new Error('uploadPhoto: failed to create blob');
 
   const uploadRes = await withTimeout(
@@ -82,7 +91,9 @@ export async function uploadPhoto(sourceUriOrDataUrl, storagePath) {
   }
 
   debugLog('uploadPhoto:done', { finalPath, ms: Date.now() - start, bytes: blob.size || 0 });
-  return getPublicUrl(finalPath);
+  const publicUrl = getPublicUrl(finalPath);
+  rememberLocalPhoto(publicUrl, uploadSource).catch(() => {});
+  return publicUrl;
 }
 
 /**

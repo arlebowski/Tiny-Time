@@ -7,7 +7,6 @@ import {
   View,
   Text,
   Pressable,
-  Image,
   StyleSheet,
   Share,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import Modal from './PresentationTrackedModal';
+import CachedRemoteImage from './CachedRemoteImage';
 
 const FWB = THEME_TOKENS.TYPOGRAPHY.fontFamilyByWeight;
 
@@ -61,8 +61,8 @@ export default function PhotoModal({ visible, photo, onClose }) {
           style={styles.imageWrap}
           onPress={(e) => e.stopPropagation()}
         >
-          <Image
-            source={{ uri }}
+          <CachedRemoteImage
+            uri={uri}
             style={styles.image}
             resizeMode="contain"
           />

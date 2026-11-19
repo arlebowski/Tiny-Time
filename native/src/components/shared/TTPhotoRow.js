@@ -1,10 +1,11 @@
 // TTPhotoRow — 1:1 from web/components/shared/TTPhotoRow.js
 
 import React from 'react';
-import { View, Text, Pressable, Image, StyleSheet, Platform } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Platform } from 'react-native';
 import { useTheme } from '../../context/ThemeContext';
 import { THEME_TOKENS } from '../../../../shared/config/theme';
 import { XIcon, PlusIcon } from '../icons';
+import CachedRemoteImage from './CachedRemoteImage';
 
 export default function TTPhotoRow({
   expanded = false,
@@ -60,7 +61,7 @@ export default function TTPhotoRow({
               style={styles.photoImageWrap}
               onPress={() => { if (typeof onPreviewPhoto === 'function') onPreviewPhoto(photoUrl); }}
             >
-              <Image source={{ uri: photoUrl }} style={styles.photoImage} resizeMode="cover" />
+              <CachedRemoteImage uri={photoUrl} style={styles.photoImage} resizeMode="cover" />
             </Pressable>
             <Pressable
               style={styles.removeBtn}
@@ -84,7 +85,7 @@ export default function TTPhotoRow({
               style={styles.photoImageWrap}
               onPress={() => { if (typeof onPreviewPhoto === 'function') onPreviewPhoto(photo); }}
             >
-              <Image source={{ uri: photo }} style={styles.photoImage} resizeMode="cover" />
+              <CachedRemoteImage uri={photo} style={styles.photoImage} resizeMode="cover" />
             </Pressable>
             <Pressable
               style={styles.removeBtn}

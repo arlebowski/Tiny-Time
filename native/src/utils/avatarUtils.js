@@ -2,7 +2,8 @@
  * Deterministic avatar colors + initial from baby name.
  */
 import React from 'react';
-import { View, Text, Image, Platform, StyleSheet } from 'react-native';
+import { View, Text, Platform, StyleSheet } from 'react-native';
+import CachedRemoteImage from '../components/shared/CachedRemoteImage';
 
 const PALETTE = [
   { bg: '#F3D5C0', fg: '#7A4A2B' },
@@ -35,8 +36,8 @@ export function BabyAvatar({ name, size = 52, photoUri = null, style }) {
 
   if (photoUri) {
     return (
-      <Image
-        source={{ uri: photoUri }}
+      <CachedRemoteImage
+        uri={photoUri}
         style={[
           {
             width: size,

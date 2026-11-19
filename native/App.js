@@ -23,6 +23,7 @@ import {
   stopTrendsDetailExitInterstitial,
 } from './src/services/adsService';
 import { createStorageAdapter } from './src/services/storageAdapter';
+import CachedRemoteImage from './src/components/shared/CachedRemoteImage';
 import {
   ensureFirstOpenAt,
   recordRemoveAdsInterstitialShown,
@@ -198,7 +199,6 @@ function AppHeader({
   const kidNameFontSize = kidName.length > 0
     ? Math.min(24, Math.max(16, Math.floor(kidNameMaxWidth / (kidName.length * FRAUNCES_CHAR_WIDTH_RATIO))))
     : 24;
-  const avatarSource = useMemo(() => kidPhotoURL ? { uri: kidPhotoURL } : null, [kidPhotoURL]);
   const kidChevronProgress = useRef(new Animated.Value(showKidMenu ? 1 : 0)).current;
 
   useEffect(() => {
@@ -225,8 +225,8 @@ function AppHeader({
           style={headerStyles.kidPicker}
         >
           <View style={[headerStyles.avatar, { backgroundColor: colors.inputBg }]}>
-            {avatarSource ? (
-              <Image source={avatarSource} style={headerStyles.avatarInner} />
+            {kidPhotoURL ? (
+              <CachedRemoteImage uri={kidPhotoURL} style={headerStyles.avatarInner} />
             ) : (
               <View style={[headerStyles.avatarInner, { backgroundColor: bottle.soft }]} />
             )}
@@ -1537,7 +1537,7 @@ function AppShell({
           {/* Preload avatar so it stays decoded — prevents flash when hidden tabs first appear */}
           {avatarPreloadUri ? (
             <View style={preloadStyles.hidden} pointerEvents="none">
-              <Image source={{ uri: avatarPreloadUri }} style={preloadStyles.img} />
+              <CachedRemoteImage uri={avatarPreloadUri} style={preloadStyles.img} />
             </View>
           ) : null}
           {showSyncNotice ? (

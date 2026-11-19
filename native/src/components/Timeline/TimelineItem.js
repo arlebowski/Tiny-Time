@@ -28,6 +28,7 @@ import {
   ChevronDownIcon,
 } from '../icons';
 import { COMMON_FOODS } from '../../constants/foods';
+import CachedRemoteImage from '../shared/CachedRemoteImage';
 
 const FOOD_MAP = Object.fromEntries(COMMON_FOODS.map((f) => [f.id, f]));
 const TIMELINE_EASE = Easing.bezier(0.16, 0, 0, 1);
@@ -646,8 +647,9 @@ export default function TimelineItem({
                           key={`${card?.id}-photo-${idx}`}
                           onPress={() => onPhotoClick?.(url)}
                         >
-                          <Image
-                            source={{ uri: url }}
+                          <CachedRemoteImage
+                            uri={url}
+                            loadWhen={isExpanded}
                             style={[styles.photoThumb, { borderRadius: radius?.thumb ?? 12 }]}
                           />
                         </Pressable>

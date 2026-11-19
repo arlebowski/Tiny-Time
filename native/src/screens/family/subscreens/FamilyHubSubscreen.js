@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, Pressable, Image, Platform } from 'react-native';
+import { View, Text, Pressable, Platform } from 'react-native';
+import CachedRemoteImage from '../../../components/shared/CachedRemoteImage';
 import ChevronRightIcon from '../../../components/icons/ChevronRightIcon';
 import { PlusIcon, PaletteIcon, FamilyIcon } from '../../../components/icons';
 import { useAds } from '../../../context/AdsContext';
@@ -159,7 +160,7 @@ export default function FamilyHubSubscreen({
         <View style={s.appearanceEntryRow}>
           <View style={s.appearanceEntryLeft}>
             {currentUser.photoURL ? (
-              <Image source={{ uri: currentUser.photoURL }} style={s.appearanceAccountAvatar} />
+              <CachedRemoteImage uri={currentUser.photoURL} style={s.appearanceAccountAvatar} />
             ) : (
               <View style={[s.appearanceAccountAvatarFallback, { backgroundColor: colors.subtleSurface }]}>
                 <Text style={[s.appearanceAccountAvatarInitial, { color: colors.textPrimary }]}>
