@@ -1,6 +1,6 @@
 /**
  * AdsContext — entitlement + consent gate for monetization (iOS-only).
- * RevenueCat is the sole source of truth for Remove Ads.
+ * RevenueCat's existing no_ads entitlement is the sole source of truth for Plus.
  * Unknown entitlement fails closed (no ads).
  */
 import React, {
@@ -52,7 +52,7 @@ const INERT_VALUE = {
   refreshConsent: async () => {},
 };
 
-export function AdsProvider({ children }) {
+export function AdsProvider({ children, enableAds = true }) {
   const { user } = useAuth();
   const removeAdsSheetRef = useRef(null);
   const presentationRef = useRef({ ...DEFAULT_PRESENTATION });
@@ -152,7 +152,11 @@ export function AdsProvider({ children }) {
   }, []);
 
   const runConsentRequest = useCallback(async ({ isRetry = false } = {}) => {
-    if (!MONETIZATION_SUPPORTED || entitlementRef.current !== 'notEntitled') {
+    if (
+      !MONETIZATION_SUPPORTED ||
+      !enableAds ||
+      entitlementRef.current !== 'notEntitled'
+    ) {
       return;
     }
     if (appStateRef.current !== 'active') {
@@ -208,7 +212,7 @@ export function AdsProvider({ children }) {
         consentRequestRef.current = null;
       }
     }
-  }, [applyConsentResult]);
+  }, [applyConsentResult, enableAds]);
 
   const refreshConsent = useCallback(async () => {
     await runConsentRequest();
@@ -266,14 +270,14 @@ export function AdsProvider({ children }) {
   }, [currentUid, handleEntitlementChange]);
 
   useEffect(() => {
-    if (!MONETIZATION_SUPPORTED || !currentUid) return;
+    if (!MONETIZATION_SUPPORTED || !enableAds || !currentUid) return;
     if (entitlementUidRef.current !== currentUid) return;
     if (entitlement === 'entitled') return;
     if (entitlement !== 'notEntitled') return;
     if (consentStartedUidRef.current === currentUid) return;
     consentStartedUidRef.current = currentUid;
     void runConsentRequest();
-  }, [currentUid, entitlement, runConsentRequest]);
+  }, [currentUid, enableAds, entitlement, runConsentRequest]);
 
   useEffect(() => {
     if (!MONETIZATION_SUPPORTED) return undefined;
@@ -286,6 +290,7 @@ export function AdsProvider({ children }) {
         void refreshEntitlement();
         return;
       }
+      if (!enableAds) return;
       if (
         entitlementRef.current === 'notEntitled' &&
         consentRetryNeededRef.current &&
@@ -304,10 +309,10 @@ export function AdsProvider({ children }) {
       }
     });
     return () => subscription.remove();
-  }, [currentUid, refreshEntitlement, runConsentRequest]);
+  }, [currentUid, enableAds, refreshEntitlement, runConsentRequest]);
 
   const { adsEnabled, adsPending } = getAdsGate({
-    monetizationSupported: MONETIZATION_SUPPORTED,
+    monetizationSupported: MONETIZATION_SUPPORTED && enableAds,
     entitlement,
     consentReady,
     canRequestAds,
@@ -357,7 +362,6 @@ export function AdsProvider({ children }) {
         entitlement={entitlement}
         onEntitlementChange={handleEntitlementChange}
         getPresentation={getPresentation}
-        uid={user?.uid}
         onOpenChange={setRemoveAdsOpen}
       />
     </AdsContext.Provider>

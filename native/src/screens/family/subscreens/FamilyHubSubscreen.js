@@ -41,11 +41,11 @@ export default function FamilyHubSubscreen({
   const { entitlement, privacyOptionsRequired, refreshConsent } = useAds();
   // Empty until StoreKit/RC resolves — avoid a fake $9.99 that masks load failures.
   const [priceString, setPriceString] = useState('');
-  const showRemoveAdsRow =
+  const showPlusRow =
     MONETIZATION_SUPPORTED && entitlement !== 'entitled';
 
   useEffect(() => {
-    if (!showRemoveAdsRow) return undefined;
+    if (!showPlusRow) return undefined;
     let cancelled = false;
     getRemoveAdsPackage().then((pkg) => {
       const next = pkg?.product?.priceString;
@@ -56,7 +56,7 @@ export default function FamilyHubSubscreen({
     return () => {
       cancelled = true;
     };
-  }, [showRemoveAdsRow]);
+  }, [showPlusRow]);
   const cardRadius = radius?.xl ?? 12;
   const androidHubTitleTight = Platform.OS === 'android' ? { includeFontPadding: false } : null;
   const androidHubSubtitleTight = Platform.OS === 'android' ? { includeFontPadding: false } : null;
@@ -204,7 +204,7 @@ export default function FamilyHubSubscreen({
         </View>
       </Card>
 
-      {showRemoveAdsRow ? (
+      {showPlusRow ? (
         <Card
           style={[
             s.cardGap,
@@ -229,26 +229,16 @@ export default function FamilyHubSubscreen({
                   },
                 ]}
               >
-                <Text style={{ fontSize: 11, fontWeight: '800', color: '#f5667d', letterSpacing: 0.4 }}>
-                  AD
+                <Text style={{ fontSize: 9, fontWeight: '800', color: '#f5667d', letterSpacing: 0.5 }}>
+                  PLUS
                 </Text>
-                <View
-                  style={{
-                    position: 'absolute',
-                    width: 28,
-                    height: 2,
-                    backgroundColor: '#f5667d',
-                    transform: [{ rotate: '-45deg' }],
-                    borderRadius: 2,
-                  }}
-                />
               </View>
               <View>
                 <Text style={[s.appearanceEntryTitle, androidHubTitleTight, { color: colors.textPrimary }]}>
-                  Remove Ads
+                  Tiny Tracker Plus
                 </Text>
                 <Text style={[s.appearanceEntrySubtitle, androidHubSubtitleTight, { color: colors.textSecondary }]}>
-                  One-time · no subscription
+                  Unlock everything · no subscription
                 </Text>
               </View>
             </View>

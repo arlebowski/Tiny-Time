@@ -933,7 +933,7 @@ export function FamilyScreenProvider({
 
     setSavingFamily(true);
     try {
-      await createFamily(newFamilyBabyName.trim(), {
+      const result = await createFamily(newFamilyBabyName.trim(), {
         familyName: newFamilyName.trim(),
         birthDate: newFamilyBirthDate.trim(),
         photoUri: newFamilyPhotoUris[0] || null,
@@ -941,6 +941,10 @@ export function FamilyScreenProvider({
       });
       closeAddFamilySheet();
       resetAddFamilyForm();
+      if (result?.photoUploadFailed) {
+        capture('family_photo_upload_failed');
+        Alert.alert('Photo not added', 'Your family was created. You can add the photo later from your child’s profile.');
+      }
     } catch (error) {
       console.error('Error creating family:', error);
       Alert.alert('Error', error?.message || 'Failed to create family. Please try again.');

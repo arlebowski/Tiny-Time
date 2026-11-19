@@ -1,6 +1,6 @@
 /**
- * RemoveAdsSheet — one-time Remove Ads purchase half-sheet (iOS-only).
- * Opened from Settings, ad cards, or automatic post-log prompts.
+ * RemoveAdsSheet — one-time Tiny Tracker Plus purchase half-sheet (iOS-only).
+ * The legacy name is kept to avoid disturbing the existing purchase pipeline.
  * Does not import useAds (avoids circular dependency with AdsContext).
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -15,11 +15,6 @@ import {
   purchaseRemoveAds,
   restorePurchases,
 } from '../../services/purchasesService';
-import {
-  markAutoPromptDismissed,
-  markAutoPromptPresented,
-  markAutoPromptPurchased,
-} from '../../services/removeAdsPromptService';
 import { capture } from '../../services/posthogService';
 
 const FRAUNCES = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
@@ -34,9 +29,10 @@ function CheckIcon({ size = 14, color = '#34C759' }) {
 }
 
 const BENEFITS = [
+  'Complete history and 30/90-day Trends',
+  'More children, families, and caregivers',
+  'CSV export and Month/Year reviews',
   'No banners or full-screen ads',
-  'One payment — no subscription',
-  'Available on every device you use',
 ];
 
 const PENDING_CONFIRM_MS = 10000;
@@ -66,7 +62,6 @@ export default function RemoveAdsSheet({
   entitlement,
   onEntitlementChange,
   getPresentation,
-  uid,
   onOpenChange,
 }) {
   const { colors, radius, isDark } = useTheme();
@@ -105,8 +100,8 @@ export default function RemoveAdsSheet({
     const session = sessionRef.current;
     session.purchased = true;
     capture('remove_ads_purchased', analyticsProps(session));
-    void markAutoPromptPurchased(uid);
-  }, [uid]);
+    capture('plus_purchased', analyticsProps(session));
+  }, []);
 
   const handleOpen = useCallback(() => {
     onOpenChange?.(true);
@@ -124,20 +119,17 @@ export default function RemoveAdsSheet({
       purchased: false,
     };
     capture('remove_ads_viewed', analyticsProps(sessionRef.current));
-    if (sessionRef.current.source === 'auto' && sessionRef.current.trigger) {
-      capture('remove_ads_auto_prompt_viewed', analyticsProps(sessionRef.current));
-      void markAutoPromptPresented(uid, sessionRef.current.trigger);
-    }
+    capture('plus_paywall_viewed', analyticsProps(sessionRef.current));
     loadPrice();
-  }, [loadPrice, clearPendingWait, getPresentation, uid, onOpenChange]);
+  }, [loadPrice, clearPendingWait, getPresentation, onOpenChange]);
 
   const handleClose = useCallback(() => {
     onOpenChange?.(false);
     const session = sessionRef.current;
-    if (session.source !== 'auto' || !session.trigger || session.purchased) return;
-    capture('remove_ads_auto_prompt_dismissed', analyticsProps(session));
-    void markAutoPromptDismissed(uid, session.trigger);
-  }, [uid, onOpenChange]);
+    if (!session.purchased) {
+      capture('plus_paywall_dismissed', analyticsProps(session));
+    }
+  }, [onOpenChange]);
 
   useEffect(() => {
     loadPrice();
@@ -161,6 +153,7 @@ export default function RemoveAdsSheet({
     if (busy) return;
     setBusy(true);
     setErrorMessage(null);
+    capture('plus_purchase_started', analyticsProps(sessionRef.current));
     const result = await purchaseRemoveAds();
     if (result.status === 'cancelled') {
       setBusy(false);
@@ -203,12 +196,13 @@ export default function RemoveAdsSheet({
     if (busy) return;
     setBusy(true);
     setErrorMessage(null);
+    capture('plus_restore_started', analyticsProps(sessionRef.current));
     const result = await restorePurchases();
     setBusy(false);
     if (result.status === 'restored') {
       sessionRef.current.purchased = true;
-      void markAutoPromptPurchased(uid);
       capture('remove_ads_restored', analyticsProps(sessionRef.current));
+      capture('plus_restored', analyticsProps(sessionRef.current));
       onEntitlementChange?.('entitled');
       sheetRef?.current?.dismiss?.();
       return;
@@ -218,7 +212,7 @@ export default function RemoveAdsSheet({
       return;
     }
     setErrorMessage('Restore failed. Please try again.');
-  }, [busy, onEntitlementChange, sheetRef, uid]);
+  }, [busy, onEntitlementChange, sheetRef]);
 
   const cardRadius = radius?.['2xl'] ?? 18;
   const ctaBg = colors.primaryActionBg || '#1A1A1A';
@@ -243,18 +237,17 @@ export default function RemoveAdsSheet({
             { backgroundColor: glyphTint, borderRadius: cardRadius },
           ]}
         >
-          <Text style={styles.glyphText}>AD</Text>
-          <View style={styles.glyphStrike} />
+          <Text style={styles.glyphText}>PLUS</Text>
         </View>
 
         <Text
           style={[styles.title, { color: colors.textPrimary, fontFamily: FRAUNCES }]}
         >
-          Keep Tiny Tracker{`\n`}ad-free
+          Unlock Tiny Tracker Plus
         </Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          We’re a small team building with care. Going ad-free helps us keep
-          making it better.
+          See your complete history, unlock advanced Trends, add more children
+          and caregivers, export your data, and remove ads.{'\n'}One payment. No subscription.
         </Text>
 
         <View style={styles.benefits}>
@@ -285,8 +278,8 @@ export default function RemoveAdsSheet({
           ) : (
             <Text style={[styles.ctaText, { color: ctaText }]}>
               {priceString
-                ? `Remove ads forever · ${priceString}`
-                : 'Remove ads forever'}
+                ? `Unlock Plus · ${priceString}`
+                : 'Unlock Plus'}
             </Text>
           )}
         </Pressable>
@@ -334,19 +327,11 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   glyphText: {
-    fontSize: 22,
+    fontSize: 16,
     fontWeight: '800',
     color: '#f5667d',
-    letterSpacing: 0.5,
+    letterSpacing: 1.2,
     fontFamily: FWB.bold,
-  },
-  glyphStrike: {
-    position: 'absolute',
-    width: 58,
-    height: 3,
-    backgroundColor: '#f5667d',
-    borderRadius: 2,
-    transform: [{ rotate: '-45deg' }],
   },
   title: {
     fontSize: 30,

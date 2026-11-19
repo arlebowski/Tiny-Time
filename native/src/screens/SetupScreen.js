@@ -18,6 +18,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
+import { useAds } from '../context/AdsContext';
 import { THEME_TOKENS } from '../../../shared/config/theme';
 import { useAuth } from '../context/AuthContext';
 import { DatePickerTray } from '../components/shared/Wheelpickers';
@@ -31,6 +32,8 @@ import {
   SleepIcon,
 } from '../components/icons';
 import { capture } from '../services/posthogService';
+import { MONETIZATION_SUPPORTED } from '../services/monetization';
+import { getRemoveAdsPackage } from '../services/purchasesService';
 import { useFeatureFlag } from 'posthog-react-native';
 import firestoreService from '../services/firestoreService';
 const FRAUNCES = Platform.OS === 'android' ? 'Fraunces-Soft-Bold' : 'Fraunces';
@@ -75,6 +78,7 @@ export default function SetupScreen({
 }) {
   const insets = useSafeAreaInsets();
   const { colors, radius, isDark, bottle, diaper, sleep } = useTheme();
+  const { entitlement, openRemoveAds } = useAds();
   const {
     user,
     createFamily,
@@ -115,6 +119,8 @@ export default function SetupScreen({
   }, []);
   const birthDate = birthDateRaw;
   const [photoUri, setPhotoUri] = useState(null);
+  const [plusPriceString, setPlusPriceString] = useState('');
+  const [onboardingTier, setOnboardingTier] = useState('plus');
 
   useEffect(() => {
     _persistedStep = 1;
@@ -124,6 +130,7 @@ export default function SetupScreen({
     setBabyNameRaw('');
     setBirthDateRaw(todayIso());
     setIsInvitePath(false);
+    setOnboardingTier('plus');
   }, [user?.uid]);
   const [inviteCode, setInviteCode] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -187,6 +194,26 @@ export default function SetupScreen({
     });
   }, [step, isInvitePath, photoUri, showPhotoStep]);
 
+  useEffect(() => {
+    if (step !== 6 || entitlement === 'entitled') return undefined;
+    let cancelled = false;
+    getRemoveAdsPackage().then((pkg) => {
+      const next = pkg?.product?.priceString;
+      if (!cancelled && typeof next === 'string' && next.trim()) {
+        setPlusPriceString(next.trim());
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, entitlement]);
+
+  useEffect(() => {
+    if (step === 6 && entitlement === 'entitled') {
+      setOnboardingTier('plus');
+    }
+  }, [step, entitlement]);
+
   const selectFirstActivity = (activityType) => {
     capture('onboarding_activity_selected', {
       type: activityType,
@@ -245,7 +272,7 @@ export default function SetupScreen({
       await acceptInvite(code);
       capture('setup_invite_submitted', { success: true });
       setIsInvitePath(true);
-      setStep(5);
+      setStep(MONETIZATION_SUPPORTED ? 6 : 5);
     } catch (e) {
       capture('setup_invite_submitted', { success: false });
       setError(e?.message || 'Invalid invite code');
@@ -308,6 +335,193 @@ export default function SetupScreen({
       )}
     </View>
   );
+
+  if (step === 6) {
+    const hasPlus = entitlement === 'entitled';
+    const entitlementPending = entitlement === 'unknown';
+    const showingPlus = onboardingTier === 'plus';
+    const handleContinue = () => {
+      capture('setup_step_completed', {
+        step: '6',
+        method: hasPlus ? 'plus_active' : 'continued_free',
+      });
+      setStep(5);
+    };
+    const handleUnlockPlus = () => {
+      capture('plus_feature_attempted', {
+        source: 'onboarding',
+        feature: 'plus',
+        entitlement_state: entitlement,
+      });
+      openRemoveAds({ source: 'onboarding' });
+    };
+
+    return (
+      <View style={[styles.flex, { backgroundColor: colors.appBg }]}>
+        <ScrollView
+          style={styles.flex}
+          contentContainerStyle={[
+            styles.plusContent,
+            { paddingTop: insets.top + 32, paddingBottom: 24 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.plusHero}>
+            <View
+              style={[
+                styles.plusHeroHalo,
+                {
+                  backgroundColor: isDark
+                    ? 'rgba(255,153,170,0.14)'
+                    : 'rgba(255,77,121,0.12)',
+                  borderColor: isDark
+                    ? 'rgba(255,153,170,0.24)'
+                    : 'rgba(255,77,121,0.2)',
+                },
+              ]}
+            >
+              <Image
+                source={
+                  isDark
+                    ? require('../../assets/brandlogo-dark-68.png')
+                    : require('../../assets/brandlogo-lt-68.png')
+                }
+                style={styles.plusHeroLogo}
+                resizeMode="contain"
+              />
+            </View>
+            <View style={[styles.plusSpark, styles.plusSparkLeft, { backgroundColor: bottle.primary }]} />
+            <View style={[styles.plusSpark, styles.plusSparkRight, { backgroundColor: sleep.primary }]} />
+            <View style={[styles.plusSparkSmall, styles.plusSparkTop, { backgroundColor: diaper.primary }]} />
+          </View>
+          <Text style={[styles.revealEyebrow, { color: colors.textSecondary }]}>
+            TINY TRACKER PLUS
+          </Text>
+          <Text style={[styles.plusTitle, { fontFamily: FRAUNCES, color: colors.textPrimary }]}>
+            {hasPlus
+              ? 'Plus is ready.'
+              : 'Tiny Tracker, without limits.'}
+          </Text>
+
+          <View style={styles.tierSelector}>
+            {[
+              { id: 'free', label: 'Free' },
+              { id: 'plus', label: 'Plus' },
+            ].map((tier) => {
+              const selected = onboardingTier === tier.id;
+              return (
+                <Pressable
+                  key={tier.id}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected }}
+                  onPress={() => setOnboardingTier(tier.id)}
+                  style={styles.tierOption}
+                >
+                  <Text
+                    style={[
+                      styles.tierOptionText,
+                      { color: selected ? colors.textPrimary : colors.textSecondary },
+                    ]}
+                  >
+                    {tier.label}
+                  </Text>
+                  <View
+                    style={[
+                      styles.tierUnderline,
+                      {
+                        backgroundColor: selected
+                          ? colors.textPrimary
+                          : 'transparent',
+                      },
+                    ]}
+                  />
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View
+            style={[
+              styles.plusBenefitsCard,
+              {
+                backgroundColor: colors.cardBg,
+                borderColor: colors.cardBorder,
+                borderRadius: radius?.['2xl'] ?? 18,
+              },
+            ]}
+          >
+            {showingPlus && (
+              <Text style={[styles.plusBenefitsIntro, { color: colors.textPrimary }]}>
+                Everything you get for free, plus:
+              </Text>
+            )}
+            {(showingPlus
+              ? [
+                  'Complete history and 30/90-day Trends',
+                  'More children, families, and caregivers',
+                  'CSV export and Month/Year reviews',
+                  'No banners or full-screen ads',
+                ]
+              : [
+                  'Track every child shared with you',
+                  'Seven days of history and 3/7-day Trends',
+                  'Create one child and one family',
+                  'Two caregivers per family',
+                ]
+            ).map((benefit) => (
+              <View key={benefit} style={styles.plusBenefitRow}>
+                <Text style={[styles.plusCheck, { color: colors.brandIcon }]}>✓</Text>
+                <Text style={[styles.plusBenefitText, { color: colors.textPrimary }]}>
+                  {benefit}
+                </Text>
+              </View>
+            ))}
+            <Text style={[styles.plusPrice, { color: colors.textSecondary }]}>
+              {showingPlus
+                ? plusPriceString
+                  ? `${plusPriceString} once. No subscription.`
+                  : 'One payment. No subscription.'
+                : 'Ads support the free version.'}
+            </Text>
+          </View>
+        </ScrollView>
+
+        <View style={[styles.plusFooter, { paddingBottom: Math.max(insets.bottom, 20) }]}>
+          {showingPlus && !hasPlus && entitlementPending ? (
+            <ActivityIndicator color={colors.brandIcon} style={{ height: 54 }} />
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                showingPlus && !hasPlus
+                  ? 'Unlock Tiny Tracker Plus'
+                  : 'Continue'
+              }
+              onPress={showingPlus && !hasPlus ? handleUnlockPlus : handleContinue}
+              style={({ pressed }) => [
+                styles.brandCta,
+                {
+                  backgroundColor: colors.brandIcon,
+                  borderRadius: radius?.xl ?? 16,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Text style={styles.brandCtaText}>
+                {showingPlus
+                  ? hasPlus
+                    ? 'Continue with Plus'
+                    : plusPriceString
+                      ? `Unlock Plus · ${plusPriceString}`
+                      : 'Unlock Plus'
+                  : 'Continue with Free'}
+              </Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    );
+  }
 
   if (step === 5) {
     const confetti = [
@@ -674,7 +888,7 @@ export default function SetupScreen({
                     if (!showPhotoStep) {
                       setIsInvitePath(false);
                       if (onDevExitPreview) {
-                        setStep(5);
+                        setStep(MONETIZATION_SUPPORTED ? 6 : 5);
                         return;
                       }
                       setIsSubmitting(true);
@@ -684,7 +898,7 @@ export default function SetupScreen({
                           photoUri: null,
                           preferredVolumeUnit: 'oz',
                         });
-                        setStep(5);
+                        setStep(MONETIZATION_SUPPORTED ? 6 : 5);
                       } catch (e) {
                         setError(e?.message || 'Something went wrong');
                       } finally {
@@ -697,17 +911,21 @@ export default function SetupScreen({
                     capture('setup_step_completed', { step: '3', had_photo: !!photoUri });
                     setIsInvitePath(false);
                     if (onDevExitPreview) {
-                      setStep(5);
+                      setStep(MONETIZATION_SUPPORTED ? 6 : 5);
                       return;
                     }
                     setIsSubmitting(true);
                     try {
-                      await createFamily(babyName.trim(), {
+                      const result = await createFamily(babyName.trim(), {
                         birthDate,
                         photoUri: photoUri || null,
                         preferredVolumeUnit: 'oz',
                       });
-                      setStep(5);
+                      setStep(MONETIZATION_SUPPORTED ? 6 : 5);
+                      if (result?.photoUploadFailed) {
+                        capture('onboarding_photo_upload_failed');
+                        Alert.alert('Photo not added', 'Your baby was added. You can add the photo later from their profile.');
+                      }
                     } catch (e) {
                       setError(e?.message || 'Something went wrong');
                     } finally {
@@ -998,5 +1216,123 @@ const styles = StyleSheet.create({
   activationFooter: {
     paddingHorizontal: 24,
     paddingTop: 10,
+  },
+  plusContent: {
+    paddingHorizontal: 24,
+    flexGrow: 1,
+    alignItems: 'center',
+  },
+  plusHero: {
+    width: 120,
+    height: 104,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  plusHeroHalo: {
+    width: 88,
+    height: 88,
+    borderRadius: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center',
+    justifyContent: 'center',
+    transform: [{ rotate: '-4deg' }],
+  },
+  plusHeroLogo: {
+    width: 54,
+    height: 54,
+    transform: [{ rotate: '4deg' }],
+  },
+  plusSpark: {
+    position: 'absolute',
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  plusSparkSmall: {
+    position: 'absolute',
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  plusSparkLeft: {
+    left: 2,
+    top: 58,
+  },
+  plusSparkRight: {
+    right: 2,
+    top: 24,
+  },
+  plusSparkTop: {
+    right: 26,
+    top: 0,
+  },
+  plusTitle: {
+    fontSize: 36,
+    lineHeight: 40,
+    letterSpacing: -0.8,
+    textAlign: 'center',
+    marginTop: 12,
+  },
+  tierSelector: {
+    width: '100%',
+    height: 46,
+    flexDirection: 'row',
+    marginTop: 18,
+    paddingHorizontal: 4,
+  },
+  tierOption: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  tierOptionText: {
+    fontSize: 16,
+    fontFamily: FWB.semibold,
+    paddingBottom: 10,
+  },
+  tierUnderline: {
+    width: '72%',
+    height: 2,
+    borderRadius: 1,
+  },
+  plusBenefitsCard: {
+    width: '100%',
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    marginTop: 24,
+    gap: 14,
+  },
+  plusBenefitsIntro: {
+    fontSize: 15,
+    lineHeight: 21,
+    fontFamily: FWB.bold,
+  },
+  plusBenefitRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+  },
+  plusCheck: {
+    width: 18,
+    fontSize: 16,
+    lineHeight: 21,
+    fontFamily: FWB.bold,
+  },
+  plusBenefitText: {
+    flex: 1,
+    fontSize: 15,
+    lineHeight: 21,
+    fontFamily: FWB.normal,
+  },
+  plusPrice: {
+    fontSize: 14,
+    fontFamily: FWB.semibold,
+    marginTop: 2,
+  },
+  plusFooter: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    gap: 16,
   },
 });

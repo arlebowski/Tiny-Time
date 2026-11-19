@@ -24,11 +24,7 @@ import {
 } from './src/services/adsService';
 import { createStorageAdapter } from './src/services/storageAdapter';
 import CachedRemoteImage from './src/components/shared/CachedRemoteImage';
-import {
-  ensureFirstOpenAt,
-  recordRemoveAdsInterstitialShown,
-  recordSuccessfulLogAndEvaluate,
-} from './src/services/removeAdsPromptService';
+import { ensureFirstOpenAt } from './src/services/removeAdsPromptService';
 import {
   markLogInterstitialShown,
   recordLogAndEvaluateInterstitial,
@@ -61,7 +57,6 @@ const {
   PRESENTATION_DECISION,
   shouldDiscardPendingPresentations,
   getPresentationDecision,
-  consumeAutoPrompt,
 } = require('./src/services/adsGatePolicy.cjs');
 const {
   isPresentationActive,
@@ -69,7 +64,6 @@ const {
   subscribeToPresentationActivity,
 } = require('./src/services/presentationActivityService.cjs');
 
-const AUTO_PAYWALL_PRESENT_DELAY_MS = 480;
 const INTERSTITIAL_PRESENT_DELAY_MS = 700;
 const INTERSTITIAL_READY_TIMEOUT_MS = __DEV__ ? 8_000 : 4_000;
 const NAVIGATION_SETTLE_MS = 400;
@@ -444,7 +438,6 @@ function AppShell({
   }, [insets.top]);
   const appBg = colors.appBg;
   const { adsEnabled, entitlement, openRemoveAds, removeAdsOpen } = useAds();
-  const removeAdsAutoPromptEnabled = useFeatureFlag('remove_ads_auto_prompt_enabled');
   const logInterstitialFlag = useFeatureFlag('log_interstitial_ad_enabled');
   const logInterstitialFlagAllows = __DEV__
     ? logInterstitialFlag !== false
@@ -455,7 +448,6 @@ function AppShell({
   const trendsDetailExitInterstitialFlagAllows = __DEV__
     ? trendsDetailExitInterstitialFlag !== false
     : trendsDetailExitInterstitialFlag === true;
-  const pendingAutoPromptRef = useRef(null);
   const pendingInterstitialRef = useRef(null);
   const trackerLogSheetOpenRef = useRef(false);
   const presentationTimerRef = useRef(null);
@@ -484,6 +476,7 @@ function AppShell({
     kidData,
     familyMembers,
     applyOptimisticEntry,
+    rollbackOptimisticFeed,
     kids,
     kidSettings,
     lastBottleAmountOz,
@@ -604,7 +597,6 @@ function AppShell({
     clearPresentationTimer();
     presentationGenerationRef.current += 1;
     presentationInFlightRef.current = null;
-    pendingAutoPromptRef.current = null;
     pendingInterstitialRef.current = null;
   }, [clearPresentationTimer]);
 
@@ -686,7 +678,7 @@ function AppShell({
       appState: appStateRef.current,
       blocked: isPresentationBlocked(),
       inFlight: presentationInFlightRef.current,
-      pendingAutoPrompt: Boolean(pendingAutoPromptRef.current),
+      pendingAutoPrompt: false,
       pendingInterstitial: pendingInterstitialRef.current,
       entitlement: entitlementRef.current,
       adsEnabled: adsEnabledRef.current,
@@ -698,30 +690,8 @@ function AppShell({
     ) {
       return;
     }
-    if (decision === PRESENTATION_DECISION.DROP_AUTO_PROMPT) {
-      pendingAutoPromptRef.current = null;
-      schedulePendingPresentation();
-      return;
-    }
     if (decision === PRESENTATION_DECISION.DROP_INTERSTITIAL) {
       pendingInterstitialRef.current = null;
-      return;
-    }
-    if (decision === PRESENTATION_DECISION.AUTO_PROMPT) {
-      const consumed = consumeAutoPrompt(pendingAutoPromptRef.current);
-      const pending = consumed.selectedAutoPrompt;
-      pendingAutoPromptRef.current = consumed.pendingAutoPrompt;
-      pendingInterstitialRef.current = consumed.pendingInterstitial;
-      presentationInFlightRef.current = PRESENTATION_DECISION.AUTO_PROMPT;
-      const opened = openRemoveAds({
-        source: 'auto',
-        trigger: pending.trigger,
-        promptNumber: pending.promptNumber,
-        logCount: pending.logCount,
-        appAgeHours: pending.appAgeHours,
-        accountAgeHours: pending.accountAgeHours,
-      });
-      if (opened === false) presentationInFlightRef.current = null;
       return;
     }
 
@@ -763,7 +733,7 @@ function AppShell({
       appState: appStateRef.current,
       blocked: isPresentationBlocked(),
       inFlight: null,
-      pendingAutoPrompt: Boolean(pendingAutoPromptRef.current),
+      pendingAutoPrompt: false,
       pendingInterstitial: pendingInterstitialRef.current,
       entitlement: entitlementRef.current,
       adsEnabled: adsEnabledRef.current,
@@ -772,8 +742,6 @@ function AppShell({
     if (finalDecision !== PRESENTATION_DECISION.INTERSTITIAL) {
       if (finalDecision === PRESENTATION_DECISION.DROP_INTERSTITIAL) {
         pendingInterstitialRef.current = null;
-      } else if (finalDecision === PRESENTATION_DECISION.AUTO_PROMPT) {
-        schedulePendingPresentation();
       }
       return;
     }
@@ -788,12 +756,9 @@ function AppShell({
       generation === presentationGenerationRef.current &&
       presentationUid === userUidRef.current
     ) {
-      await Promise.all([
-        markLogInterstitialShown(presentationUid),
-        recordRemoveAdsInterstitialShown(presentationUid),
-      ]).catch(() => {});
+      await markLogInterstitialShown(presentationUid).catch(() => {});
     }
-  }, [isPresentationBlocked, openRemoveAds, schedulePendingPresentation]);
+  }, [isPresentationBlocked]);
 
   drainPendingPresentationRef.current = drainPendingPresentation;
 
@@ -802,13 +767,9 @@ function AppShell({
       discardPendingPresentations();
       return;
     }
-    if (!pendingAutoPromptRef.current && !pendingInterstitialRef.current) return;
+    if (!pendingInterstitialRef.current) return;
     if (isPresentationBlocked() || appStateRef.current !== 'active') return;
-    schedulePendingPresentation(
-      pendingAutoPromptRef.current
-        ? AUTO_PAYWALL_PRESENT_DELAY_MS
-        : INTERSTITIAL_PRESENT_DELAY_MS
-    );
+    schedulePendingPresentation(INTERSTITIAL_PRESENT_DELAY_MS);
   }, [
     entitlement,
     blockingOverlayActive,
@@ -822,15 +783,6 @@ function AppShell({
     schedulePendingPresentation,
     discardPendingPresentations,
   ]);
-
-  useEffect(() => {
-    if (
-      removeAdsOpen &&
-      presentationInFlightRef.current === PRESENTATION_DECISION.AUTO_PROMPT
-    ) {
-      presentationInFlightRef.current = null;
-    }
-  }, [removeAdsOpen]);
 
   useEffect(() => {
     discardPendingPresentations();
@@ -847,24 +799,12 @@ function AppShell({
     }
     void (async () => {
       try {
-        const prompt = await recordSuccessfulLogAndEvaluate({
-          uid: user?.uid,
-          entitlement,
-          flagEnabled: removeAdsAutoPromptEnabled,
-          accountCreationTime: user?.metadata?.creationTime,
-        });
         const interstitial = await recordLogAndEvaluateInterstitial({
           uid: user?.uid,
           entitlement,
           flagEnabled: logInterstitialFlagAllows,
           adsEnabled,
         });
-        if (prompt) {
-          pendingAutoPromptRef.current = prompt;
-          pendingInterstitialRef.current = null;
-          schedulePendingPresentation(AUTO_PAYWALL_PRESENT_DELAY_MS);
-          return;
-        }
         if (interstitial) {
           pendingInterstitialRef.current = INTERSTITIAL_PLACEMENT.LOG_ACTIVITY;
           schedulePendingPresentation(INTERSTITIAL_PRESENT_DELAY_MS);
@@ -877,10 +817,8 @@ function AppShell({
     })();
   }, [
     user?.uid,
-    user?.metadata?.creationTime,
     entitlement,
     adsEnabled,
-    removeAdsAutoPromptEnabled,
     logInterstitialFlagAllows,
     maybeRequestReviewAfterActivity,
     schedulePendingPresentation,
@@ -1018,24 +956,23 @@ function AppShell({
       setLastFeedVariant(entry.type);
       AsyncStorage.setItem('tt_last_feed_variant', entry.type).catch(() => {});
     }
-    if (entry) {
-      applyOptimisticEntry(entry);
-    }
-    const isFeedEntry = entry?.type === 'feed' || entry?.type === 'bottle' || entry?.type === 'nursing' || entry?.type === 'solids';
-    if (isFeedEntry) {
-      trackAppsFlyerOncePerUser('hasLoggedFirstFeed', trackFirstFeedLogged).catch(() => {});
-      const feedType = feedTypeRef.current || entry?.type || 'bottle';
-      capture('activity_logged', {
-        type: 'feed',
-        feed_type: feedType,
-        ...(feedType === 'bottle' && entry?.ounces ? { amount_oz: entry.ounces } : {}),
-      });
-      void (async () => {
-        await onMaybeFirstActivityCelebration?.();
-        await captureFirstActivity(user?.uid, { type: 'feed', feed_type: feedType });
-      })().catch(() => {});
-    }
-  }, [applyOptimisticEntry, trackAppsFlyerOncePerUser, user?.uid, onMaybeFirstActivityCelebration]);
+    return entry ? applyOptimisticEntry(entry) : null;
+  }, [applyOptimisticEntry]);
+
+  const handleFeedPersistSuccess = useCallback((event) => {
+    const feedType = event?.feed_type || 'bottle';
+    capture('activity_logged', {
+      type: 'feed',
+      feed_type: feedType,
+      ...(feedType === 'bottle' && event?.amount_oz ? { amount_oz: event.amount_oz } : {}),
+    });
+    trackAppsFlyerOncePerUser('hasLoggedFirstFeed', trackFirstFeedLogged).catch(() => {});
+    void (async () => {
+      await onMaybeFirstActivityCelebration?.();
+      await captureFirstActivity(user?.uid, { type: 'feed', feed_type: feedType });
+    })().catch(() => {});
+    handleActivityPersistSuccess(event);
+  }, [handleActivityPersistSuccess, trackAppsFlyerOncePerUser, user?.uid, onMaybeFirstActivityCelebration]);
 
   const handleSleepAdded = useCallback((entry) => {
     if (entry) {
@@ -1178,12 +1115,8 @@ function AppShell({
       });
       onboardingActivityRef.current = null;
     }
-    if (pendingAutoPromptRef.current || pendingInterstitialRef.current) {
-      schedulePendingPresentation(
-        pendingAutoPromptRef.current
-          ? AUTO_PAYWALL_PRESENT_DELAY_MS
-          : INTERSTITIAL_PRESENT_DELAY_MS
-      );
+    if (pendingInterstitialRef.current) {
+      schedulePendingPresentation(INTERSTITIAL_PRESENT_DELAY_MS);
     }
   }, [schedulePendingPresentation]);
 
@@ -1450,7 +1383,6 @@ function AppShell({
       });
       if (
         !eligible ||
-        pendingAutoPromptRef.current ||
         pendingInterstitialRef.current
       ) {
         return;
@@ -1776,7 +1708,8 @@ function AppShell({
         feedTypeRef={feedTypeRef}
         entry={editEntry?.type === 'feed' ? editEntry : null}
         onAdd={handleFeedAdded}
-        onPersistSuccess={handleActivityPersistSuccess}
+        onPersistSuccess={handleFeedPersistSuccess}
+        onPersistFailure={rollbackOptimisticFeed}
         onClose={handleCloseFeed}
         activityVisibility={activityVisibility}
         preferredVolumeUnit={preferredVolumeUnit}
@@ -1793,6 +1726,16 @@ function AppShell({
         onChange={handleUpdateActivityVisibility}
       />
     </>
+  );
+}
+
+function MonetizedSetupScreen(props) {
+  return (
+    <BottomSheetModalProvider>
+      <AdsProvider enableAds={false}>
+        <SetupScreen {...props} />
+      </AdsProvider>
+    </BottomSheetModalProvider>
   );
 }
 
@@ -1930,7 +1873,7 @@ function AuthGatedApp({
 
   if (showDevSetupToggle && forceSetupPreview) {
     return (
-      <SetupScreen
+      <MonetizedSetupScreen
         onDevExitPreview={() => onToggleForceSetupPreview(false)}
         onRequestFirstActivity={handleRequestFirstActivity}
       />
@@ -1938,7 +1881,7 @@ function AuthGatedApp({
   }
 
   if (needsSetup || !familyId || !kidId) {
-    return <SetupScreen onRequestFirstActivity={handleRequestFirstActivity} />;
+    return <MonetizedSetupScreen onRequestFirstActivity={handleRequestFirstActivity} />;
   }
 
   if (loading) {

@@ -378,7 +378,7 @@ export default function TrackerScreen({
           {showAdFreeCta ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Go ad-free"
+              accessibilityLabel="Get Tiny Tracker Plus"
               onPress={() => onOpenRemoveAds?.()}
               style={({ pressed }) => [
                 styles.adFreeButton,
@@ -395,7 +395,7 @@ export default function TrackerScreen({
                   { color: colors.segmentedOnText },
                 ]}
               >
-                Go ad-free
+                Get Plus
               </Text>
             </Pressable>
           ) : null}

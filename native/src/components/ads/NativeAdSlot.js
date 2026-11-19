@@ -247,7 +247,7 @@ export default function NativeAdSlot({
       <NativeAdCard
         nativeAd={nativeAd}
         variant={placement}
-        onRemoveAdsPress={openRemoveAds}
+        onRemoveAdsPress={() => openRemoveAds({ source: 'native_ad' })}
       />
     );
   }

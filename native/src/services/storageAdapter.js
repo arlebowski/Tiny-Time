@@ -54,6 +54,7 @@ export function createStorageAdapter(familyId, kidId) {
   }
 
   return {
+    isCurrentScope: () => firestoreService.currentFamilyId === familyId && firestoreService.currentKidId === kidId,
     // ── Feedings ──
     addFeeding: (ounces, timestamp) =>
       firestoreService.addFeeding({ ounces, timestamp }),

@@ -500,6 +500,7 @@ export function AuthProvider({ children }) {
     const kidKey = getKidSelectionKey(user.uid, result.familyId);
     if (familyKey) AsyncStorage.setItem(familyKey, result.familyId).catch(() => {});
     if (kidKey) AsyncStorage.setItem(kidKey, result.kidId).catch(() => {});
+    return result;
   }, [user, hydrateKidSnapshot, needsSetup, families.length]);
 
   /** Accept an invite code and join that family */

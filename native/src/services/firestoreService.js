@@ -1449,10 +1449,7 @@ const firestoreService = {
 
   async saveMessage(message) {
     const ref = this._kidRef().collection('conversations').doc('default');
-    const doc = await ref.get();
-    const messages = doc.exists ? doc.data()?.messages || [] : [];
-    messages.push(message);
-    await ref.set({ messages }, { merge: true });
+    await ref.set({ messages: firestore.FieldValue.arrayUnion(message) }, { merge: true });
   },
 
   async clearConversation() {

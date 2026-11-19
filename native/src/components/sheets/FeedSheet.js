@@ -19,6 +19,7 @@ import { formatDateTime, formatElapsedHmsTT } from '../../utils/dateTime';
 import { colorMix } from '../../utils/colorBlend';
 import HalfSheet from './HalfSheet';
 import Alert from '../../services/trackedAlert';
+import { capture } from '../../services/posthogService';
 import { TTInputRow, TTPhotoRow, DateTimePickerTray, DurationPickerTray, TTPickerTray, PhotoModal } from '../shared';
 import AmountStepper from './AmountStepper';
 import TimelineSwipeRow from '../Timeline/TimelineSwipeRow';
@@ -214,6 +215,7 @@ export default function FeedSheet({
   onSave = null,
   onAdd = null,
   onPersistSuccess = null,
+  onPersistFailure = null,
   preferredVolumeUnit = 'oz',
   onPreferredVolumeUnitChange = null,
   lastBottleAmountOz = null,
@@ -613,6 +615,17 @@ export default function FeedSheet({
     });
     setSaving(true);
     let saved = false;
+    let optimisticId = null;
+    let savePhase = 'start';
+    let photoUploadFailures = 0;
+    const pendingTimer = setTimeout(() => {
+      capture('activity_save_pending', {
+        type: 'feed',
+        feed_type: feedType,
+        phase: savePhase,
+        elapsed_ms: Date.now() - saveStart,
+      });
+    }, 15000);
 
     try {
       const stepStart = Date.now();
@@ -620,6 +633,7 @@ export default function FeedSheet({
         debugLog(`step:${name}`, { saveId, ms: Date.now() - stepStart, ...(extra || {}) });
       const logAwait = async (name, fn) => {
         const started = Date.now();
+        savePhase = name;
         logStep(`${name}:start`);
         const result = await fn();
         logStep(`${name}:done`, { tookMs: Date.now() - started });
@@ -633,8 +647,19 @@ export default function FeedSheet({
           const p = photos[i];
           try {
             const url = await logAwait(`upload:item:${i}`, () => storage.uploadFeedingPhoto(p));
-            uploadedURLs.push(url);
-          } catch (e) {}
+            if (url) uploadedURLs.push(url);
+            else {
+              photoUploadFailures += 1;
+              capture('activity_photo_upload_failed', { type: 'feed', feed_type: feedType, error_code: 'no-url' });
+            }
+          } catch (e) {
+            photoUploadFailures += 1;
+            capture('activity_photo_upload_failed', {
+              type: 'feed',
+              feed_type: feedType,
+              error_code: e?.code || 'upload-failed',
+            });
+          }
         }
         logStep('upload:done');
       }
@@ -650,7 +675,7 @@ export default function FeedSheet({
           return;
         }
         if (onAdd && !entry) {
-          onAdd({ type: 'bottle', ounces: oz, timestamp, notes: notes || null, photoURLs: allPhotos });
+          optimisticId = onAdd({ type: 'bottle', ounces: oz, timestamp, notes: notes || null, photoURLs: allPhotos });
         }
         if (storage) {
           logStep('bottle:write:start');
@@ -691,7 +716,7 @@ export default function FeedSheet({
               hour: 'numeric',
               minute: '2-digit',
             });
-            await logAwait('bottle:saveMessage', () =>
+            void logAwait('bottle:saveMessage', () =>
               storage.saveMessage({
                 role: 'assistant',
                 content: `@tinytracker: Feeding • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
@@ -701,8 +726,7 @@ export default function FeedSheet({
                 logTimestamp: timestamp,
                 photoURLs: hasPhotos ? allPhotos : [],
               })
-            );
-            logStep('bottle:message:done');
+            ).catch((error) => console.warn('[FeedSheet] Bottle message failed:', error));
           }
         } catch (_) {}
       } else if (feedType === 'nursing') {
@@ -715,7 +739,7 @@ export default function FeedSheet({
           return;
         }
         if (onAdd && !entry) {
-          onAdd({
+          optimisticId = onAdd({
             type: 'nursing',
             startTime: timestamp,
             leftDurationSec: leftSec,
@@ -781,7 +805,7 @@ export default function FeedSheet({
               hour: 'numeric',
               minute: '2-digit',
             });
-            await logAwait('nursing:saveMessage', () =>
+            void logAwait('nursing:saveMessage', () =>
               storage.saveMessage({
                 role: 'assistant',
                 content: `@tinytracker: Nursing • ${timeLabel}${hasNote ? `\n${String(notes).trim()}` : ''}`,
@@ -791,8 +815,7 @@ export default function FeedSheet({
                 logTimestamp: timestamp,
                 photoURLs: hasPhotos ? allPhotos : [],
               })
-            );
-            logStep('nursing:message:done');
+            ).catch((error) => console.warn('[FeedSheet] Nursing message failed:', error));
           }
         } catch (_) {}
       } else if (feedType === 'solids') {
@@ -814,7 +837,7 @@ export default function FeedSheet({
           notes: f.notes || null,
         }));
         if (onAdd && !entry) {
-          onAdd({ type: 'solids', timestamp, foods, notes: notes || null, photoURLs: allPhotos });
+          optimisticId = onAdd({ type: 'solids', timestamp, foods, notes: notes || null, photoURLs: allPhotos });
         }
         if (storage) {
           logStep('solids:write:start');
@@ -829,52 +852,55 @@ export default function FeedSheet({
           }
           logStep('solids:write:done');
         }
-        try {
-          logStep('solids:recentFoods:start');
-          const currentRecentRaw = await logAwait('solids:getRecentFoods', () =>
-            storage?.getRecentFoods?.({ forceServer: true })
-          );
-          const currentRecent = Array.isArray(currentRecentRaw)
-            ? currentRecentRaw
-                .map((item) => (typeof item === 'string' ? { name: item } : item))
-                .filter((item) => item && item.name)
-            : [];
-          let updatedRecent = [...currentRecent];
-          addedFoods.forEach((food) => {
-            const name = String(food?.name || '').trim();
-            if (!name) return;
-            const nextItem = {
-              name,
-              icon: food?.icon || null,
-              emoji: food?.emoji || null,
-              category: food?.category || 'Custom',
-            };
-            updatedRecent = [
-              nextItem,
-              ...updatedRecent.filter(
-                (existing) => String(existing?.name || '').toLowerCase() !== name.toLowerCase()
-              ),
-            ];
-          });
-          updatedRecent = updatedRecent.slice(0, 20);
-          if (typeof storage?.updateKidData === 'function') {
-            await logAwait('solids:updateKidData', () =>
-              storage.updateKidData({ recentSolidFoods: updatedRecent })
+        void (async () => {
+          try {
+            logStep('solids:recentFoods:start');
+            const currentRecentRaw = await logAwait('solids:getRecentFoods', () =>
+              storage?.getRecentFoods?.({ forceServer: true })
             );
-          } else {
-            const reversed = updatedRecent.slice().reverse();
-            for (let i = 0; i < reversed.length; i += 1) {
-              const item = reversed[i];
-              await logAwait(`solids:updateRecentFoods:${i}`, () =>
-                storage?.updateRecentFoods?.(item?.name)
+            const currentRecent = Array.isArray(currentRecentRaw)
+              ? currentRecentRaw
+                  .map((item) => (typeof item === 'string' ? { name: item } : item))
+                  .filter((item) => item && item.name)
+              : [];
+            if (storage?.isCurrentScope?.() === false) return;
+            let updatedRecent = [...currentRecent];
+            addedFoods.forEach((food) => {
+              const name = String(food?.name || '').trim();
+              if (!name) return;
+              const nextItem = {
+                name,
+                icon: food?.icon || null,
+                emoji: food?.emoji || null,
+                category: food?.category || 'Custom',
+              };
+              updatedRecent = [
+                nextItem,
+                ...updatedRecent.filter(
+                  (existing) => String(existing?.name || '').toLowerCase() !== name.toLowerCase()
+                ),
+              ];
+            });
+            updatedRecent = updatedRecent.slice(0, 20);
+            if (typeof storage?.updateKidData === 'function') {
+              await logAwait('solids:updateKidData', () =>
+                storage.updateKidData({ recentSolidFoods: updatedRecent })
               );
+            } else {
+              const reversed = updatedRecent.slice().reverse();
+              for (let i = 0; i < reversed.length; i += 1) {
+                const item = reversed[i];
+                await logAwait(`solids:updateRecentFoods:${i}`, () =>
+                  storage?.updateRecentFoods?.(item?.name)
+                );
+              }
             }
+            setRecentFoods(updatedRecent);
+            logStep('solids:recentFoods:done');
+          } catch (e) {
+            console.error('[FeedSheet] Failed to update recent foods:', e);
           }
-          setRecentFoods(updatedRecent);
-          logStep('solids:recentFoods:done');
-        } catch (e) {
-          console.error('[FeedSheet] Failed to update recent foods:', e);
-        }
+        })();
         try {
           const hasNote = !!(notes && String(notes).trim().length > 0);
           const hasPhotos = Array.isArray(allPhotos) && allPhotos.length > 0;
@@ -885,7 +911,7 @@ export default function FeedSheet({
               minute: '2-digit',
             });
             const foodNames = addedFoods.map((f) => f.name).join(', ');
-            await logAwait('solids:saveMessage', () =>
+            void logAwait('solids:saveMessage', () =>
               storage.saveMessage({
                 role: 'assistant',
                 content: `@tinytracker: Solids • ${timeLabel}\n${foodNames}${hasNote ? `\n${String(notes).trim()}` : ''}`,
@@ -895,23 +921,56 @@ export default function FeedSheet({
                 logTimestamp: timestamp,
                 photoURLs: hasPhotos ? allPhotos : [],
               })
-            );
-            logStep('solids:message:done');
+            ).catch((error) => console.warn('[FeedSheet] Solids message failed:', error));
           }
         } catch (_) {}
       }
 
+      if (storage) {
+        capture('activity_save_confirmed', {
+          type: 'feed',
+          feed_type: feedType,
+          elapsed_ms: Date.now() - saveStart,
+          photo_upload_failures: photoUploadFailures,
+        });
+      }
       logStep('dismiss:start');
       if (!entry && typeof onPersistSuccess === 'function') {
-        onPersistSuccess({ type: 'feed', feed_type: feedType });
+        try {
+          onPersistSuccess({
+            type: 'feed',
+            feed_type: feedType,
+            ...(feedType === 'bottle' ? { amount_oz: Number(ounces) || 0 } : {}),
+          });
+        } catch (error) {
+          console.warn('[FeedSheet] Post-save callback failed:', error);
+        }
       }
       dismissSheet();
       saved = true;
       logStep('dismiss:done');
+      if (photoUploadFailures > 0) {
+        Alert.alert('Photo not saved', 'The feeding was logged, but a photo could not be uploaded. You can add it later.');
+      }
     } catch (e) {
       console.error('[FeedSheet] Save failed:', e);
+      if (optimisticId && typeof onPersistFailure === 'function') {
+        try {
+          onPersistFailure(optimisticId);
+        } catch (error) {
+          console.warn('[FeedSheet] Could not remove optimistic entry:', error);
+        }
+      }
+      capture('activity_save_failed', {
+        type: 'feed',
+        feed_type: feedType,
+        phase: savePhase,
+        error_code: e?.code || 'save-failed',
+        elapsed_ms: Date.now() - saveStart,
+      });
       Alert.alert('Error', 'Failed to save.');
     } finally {
+      clearTimeout(pendingTimer);
       debugLog('save:done', { saveId, ms: Date.now() - saveStart });
       if (!saved) setSaving(false);
     }
@@ -1035,7 +1094,15 @@ export default function FeedSheet({
         : { id: item.id || slugifyFoodId(name), name, icon: item.icon || null, emoji: item.emoji || null };
     });
 
-    return resolved.slice(0, 6);
+    const seen = new Set();
+    const uniqueRecent = resolved.filter((food) => {
+      const name = String(food.name).toLowerCase();
+      if (seen.has(name)) return false;
+      seen.add(name);
+      return true;
+    });
+    const fillers = fallback.filter((food) => !seen.has(String(food.name).toLowerCase()));
+    return [...uniqueRecent, ...fillers].slice(0, 6);
   }, [recentFoods, solidsFoodByName]);
 
   const solidsTileFoods = useMemo(() => {

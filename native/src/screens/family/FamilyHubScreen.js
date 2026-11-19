@@ -45,7 +45,7 @@ export default function FamilyHubScreen() {
           onDevShowPartnerModal={ctx.onDevShowPartnerModal}
           onOpenProfile={() => navigation.navigate('Profile')}
           onOpenAppearance={ctx.openAppearanceSheet}
-          onOpenRemoveAds={openRemoveAds}
+          onOpenRemoveAds={() => openRemoveAds({ source: 'family_hub' })}
           onOpenFamily={() => navigation.navigate('FamilyMembers')}
           onOpenAddFamily={ctx.openAddFamilySheet}
           deletedFamilies={deletedFamilies}

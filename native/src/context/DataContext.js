@@ -601,7 +601,7 @@ export function DataProvider({ children }) {
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
       applyToBundle('feedings', doc, setFeedings);
-      return;
+      return resolvedId;
     }
 
     if (type === 'nursing') {
@@ -617,7 +617,7 @@ export function DataProvider({ children }) {
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
       applyToBundle('nursingSessions', doc, setNursingSessions);
-      return;
+      return resolvedId;
     }
 
     if (type === 'solids') {
@@ -630,7 +630,7 @@ export function DataProvider({ children }) {
         photoURLs: Array.isArray(entry.photoURLs) ? entry.photoURLs : null,
       };
       applyToBundle('solidsSessions', doc, setSolidsSessions);
-      return;
+      return resolvedId;
     }
 
     if (type === 'sleep') {
@@ -661,6 +661,31 @@ export function DataProvider({ children }) {
       };
       applyToBundle('diaperChanges', doc, setDiaperChanges);
     }
+  }, []);
+
+  const rollbackOptimisticFeed = useCallback((id) => {
+    if (typeof id !== 'string' || !id.startsWith('optimistic-')) return;
+    const remove = (items) => (Array.isArray(items) ? items.filter((item) => item?.id !== id) : items);
+    setFeedings(remove);
+    setNursingSessions(remove);
+    setSolidsSessions(remove);
+    setHistoricalDays((prev) => {
+      const next = { ...prev };
+      Object.keys(next).forEach((dateKey) => {
+        const day = next[dateKey];
+        if (!day?.data) return;
+        next[dateKey] = {
+          ...day,
+          data: {
+            ...day.data,
+            feedings: remove(day.data.feedings),
+            nursingSessions: remove(day.data.nursingSessions),
+            solidsSessions: remove(day.data.solidsSessions),
+          },
+        };
+      });
+      return next;
+    });
   }, []);
 
   const recentActivityBundle = useMemo(() => ({
@@ -886,6 +911,7 @@ export function DataProvider({ children }) {
     refresh,
     refreshKidProfile,
     applyOptimisticEntry,
+    rollbackOptimisticFeed,
     updateKidSettings,
     getTimelineItems,
     getDaySummary,
@@ -911,6 +937,7 @@ export function DataProvider({ children }) {
     refresh,
     refreshKidProfile,
     applyOptimisticEntry,
+    rollbackOptimisticFeed,
     updateKidSettings,
     getTimelineItems,
     getDaySummary,

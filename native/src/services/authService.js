@@ -358,13 +358,20 @@ export async function createFamilyWithKid(
       createdAt: now,
     });
 
-  // Upload profile photo (if provided) and attach URL.
+  // The family already exists at this point. A failed optional upload must not
+  // make setup look retryable and create a second family on the next attempt.
+  let photoUploadFailed = false;
   if (photoUri) {
-    const uploadedPhotoUrl = await uploadKidPhoto(photoUri, famRef.id, kidRef.id);
-    await kidRef.update({ photoURL: uploadedPhotoUrl || null });
+    try {
+      const uploadedPhotoUrl = await uploadKidPhoto(photoUri, famRef.id, kidRef.id);
+      if (uploadedPhotoUrl) await kidRef.update({ photoURL: uploadedPhotoUrl });
+    } catch (error) {
+      photoUploadFailed = true;
+      console.warn('[authService] Optional baby photo upload failed:', error);
+    }
   }
 
-  return { familyId: famRef.id, kidId: kidRef.id };
+  return { familyId: famRef.id, kidId: kidRef.id, photoUploadFailed };
 }
 
 /** Accept an invite code */
